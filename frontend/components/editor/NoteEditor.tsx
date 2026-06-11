@@ -14,6 +14,7 @@ import { liveExtensions } from "@/lib/editor/livePreview";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
+import { renderMermaidIn } from "@/lib/mermaid";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -407,6 +408,13 @@ export function NoteEditor({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setMode, isActivePane]);
+
+  // Diagramas Mermaid en el preview (HU-18)
+  useEffect(() => {
+    if ((mode === "split" || mode === "read") && previewRef.current) {
+      void renderMermaidIn(previewRef.current);
+    }
+  }, [previewHtml, mode]);
 
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {

@@ -1,5 +1,8 @@
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import rehypeStringify from "rehype-stringify";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
@@ -76,11 +79,55 @@ function remarkMicelio() {
   };
 }
 
+/** Callouts estilo Obsidian: `> [!TIPO]` (HU-03 CA5/CA6). */
+const CALLOUT_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/;
+
+const CALLOUT_LABELS: Record<string, string> = {
+  note: "Nota",
+  tip: "Consejo",
+  important: "Importante",
+  warning: "Advertencia",
+  caution: "Precaución",
+};
+
+function remarkCallouts() {
+  return (tree: Parent) => {
+    visit(tree, "blockquote", (node: MdNode) => {
+      const first = node.children?.[0];
+      if (first?.type !== "paragraph") return;
+      const firstText = first.children?.[0];
+      if (firstText?.type !== "text" || !firstText.value) return;
+      const match = CALLOUT_RE.exec(firstText.value);
+      if (!match) return;
+
+      const tipo = match[1].toLowerCase();
+      firstText.value = firstText.value.replace(CALLOUT_RE, "").replace(/^\n/, "");
+      if (!firstText.value && first.children!.length === 1) {
+        node.children!.shift();
+      }
+
+      node.data = {
+        hProperties: { className: `mic-callout mic-callout-${tipo}` },
+      };
+      node.children!.unshift({
+        type: "paragraph",
+        data: { hProperties: { className: "mic-callout-title" } },
+        children: [{ type: "text", value: CALLOUT_LABELS[tipo] }],
+      });
+    });
+  };
+}
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
+  .use(remarkMath)
   .use(remarkMicelio)
+  .use(remarkCallouts)
   .use(remarkRehype)
+  // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos
+  .use(rehypeHighlight, { plainText: ["mermaid", "excalidraw"] })
+  .use(rehypeKatex)
   .use(rehypeStringify);
 
 /** Markdown → HTML. 100% en cliente, sin llamadas al servidor (HU-01 CA10). */

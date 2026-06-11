@@ -5,6 +5,7 @@ import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import { getCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
+import { renderMermaidIn } from "@/lib/mermaid";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
 import styles from "./panes.module.css";
 
@@ -39,6 +40,11 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
       unsubscribe();
     };
   }, [sourceNotaId, pane.id]);
+
+  // Diagramas Mermaid (HU-18)
+  useEffect(() => {
+    if (containerRef.current) void renderMermaidIn(containerRef.current);
+  }, [html]);
 
   // Scroll sincronizado opcional con el editor de origen (HU-27 CA4)
   useEffect(() => {

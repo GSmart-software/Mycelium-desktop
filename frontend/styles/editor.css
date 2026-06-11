@@ -172,3 +172,122 @@
 .mic-preview img {
   max-width: 100%;
 }
+
+/* El tema de highlight.js define su propio fondo; manda --mic-bg-code */
+.mic-preview pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+/* ── Callouts (HU-03 CA5/CA6) ────────────────────────────────────── */
+
+.mic-preview .mic-callout {
+  border-left: 3px solid var(--mic-callout-note-border);
+  background: color-mix(in srgb, var(--mic-callout-note-border) 8%, transparent);
+  color: var(--mic-text-primary);
+  padding: var(--mic-radius-md) var(--mic-radius-lg);
+  margin: 0 0 0.85rem 0;
+  border-radius: 0 var(--mic-radius-md) var(--mic-radius-md) 0;
+}
+
+.mic-preview .mic-callout > :last-child {
+  margin-bottom: 0;
+}
+
+.mic-preview .mic-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-family: var(--mic-font-sans);
+  margin-bottom: 0.35rem;
+}
+
+.mic-preview .mic-callout-title::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask: var(--mic-callout-icon) center / contain no-repeat;
+  mask: var(--mic-callout-icon) center / contain no-repeat;
+}
+
+.mic-preview .mic-callout-note {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
+  border-color: var(--mic-callout-note-border);
+  background: color-mix(in srgb, var(--mic-callout-note-border) 8%, transparent);
+}
+.mic-preview .mic-callout-note .mic-callout-title { color: var(--mic-callout-note-border); }
+
+.mic-preview .mic-callout-tip {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
+  border-color: var(--mic-callout-tip-border);
+  background: color-mix(in srgb, var(--mic-callout-tip-border) 8%, transparent);
+}
+.mic-preview .mic-callout-tip .mic-callout-title { color: var(--mic-callout-tip-border); }
+
+.mic-preview .mic-callout-important {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
+  border-color: var(--mic-callout-important-border);
+  background: color-mix(in srgb, var(--mic-callout-important-border) 8%, transparent);
+}
+.mic-preview .mic-callout-important .mic-callout-title { color: var(--mic-callout-important-border); }
+
+.mic-preview .mic-callout-warning {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/></svg>");
+  border-color: var(--mic-callout-warning-border);
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 8%, transparent);
+}
+.mic-preview .mic-callout-warning .mic-callout-title { color: var(--mic-callout-warning-border); }
+
+.mic-preview .mic-callout-caution {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 8v4'/><path d='M12 16h.01'/></svg>");
+  border-color: var(--mic-callout-caution-border);
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+}
+.mic-preview .mic-callout-caution .mic-callout-title { color: var(--mic-callout-caution-border); }
+
+/* ── Mermaid (HU-18) ─────────────────────────────────────────────── */
+
+.mic-preview .mic-mermaid {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.mic-preview .mic-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mic-preview .mic-mermaid-error {
+  color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+  font-family: var(--mic-font-mono);
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+  border-radius: var(--mic-radius-sm);
+  padding: 0.4rem 0.6rem;
+}
+
+/* ── Notas al pie (HU-03 CA7) ────────────────────────────────────── */
+
+.mic-preview .footnotes {
+  margin-top: 2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Checkboxes (HU-03 CA9) ──────────────────────────────────────── */
+
+.mic-preview li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.25rem;
+}
+
+.mic-preview input[type='checkbox'] {
+  accent-color: var(--mic-accent);
+  margin-right: 0.35rem;
+}
