@@ -9,6 +9,7 @@ import { RightPanel } from "@/components/workspace/RightPanel";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./workspace.module.css";
 
 export default function WorkspacePage() {
@@ -52,6 +53,9 @@ function WorkspaceGuard() {
 function WorkspaceShell() {
   const searchParams = useSearchParams();
   const activeNoteId = searchParams.get("note");
+  const activeNote = useVaultStore((s) =>
+    activeNoteId ? s.notas.find((n) => n.id === activeNoteId) ?? null : null,
+  );
 
   const { activeSection, leftWidth, rightOpen, rightWidth, toggleLeft, toggleRight } =
     usePanelLayoutStore();
@@ -81,10 +85,10 @@ function WorkspaceShell() {
         } as React.CSSProperties
       }
     >
-      <AppTopbar activeNoteTitle={activeNoteId ? `Nota ${activeNoteId}` : null} />
+      <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} />
       <Rail />
       <LeftPanel />
-      <EditorArea activeNoteId={activeNoteId} />
+      <EditorArea activeNoteTitle={activeNote?.titulo ?? null} />
       <RightPanel />
       <SettingsDrawer />
     </div>
@@ -92,12 +96,12 @@ function WorkspaceShell() {
 }
 
 /** Placeholder del área central: los panes con tabs llegan en la Fase 5. */
-function EditorArea({ activeNoteId }: { activeNoteId: string | null }) {
+function EditorArea({ activeNoteTitle }: { activeNoteTitle: string | null }) {
   return (
     <section className={styles.editorArea}>
-      {activeNoteId ? (
+      {activeNoteTitle ? (
         <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>Nota {activeNoteId}</p>
+          <p className={styles.emptyTitle}>{activeNoteTitle}</p>
           <p className={styles.emptyHint}>El editor llega en la Fase 4 (HU-01).</p>
         </div>
       ) : (

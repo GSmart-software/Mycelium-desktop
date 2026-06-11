@@ -1,5 +1,7 @@
 "use client";
 
+import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
+import { TrashPanel } from "@/components/explorer/TrashPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import styles from "./Panels.module.css";
@@ -41,8 +43,7 @@ export function LeftPanel() {
 function SectionContent({ section }: { section: RailSection }) {
   switch (section) {
     case "explorer":
-      // El árbol real de carpetas y notas llega en la Fase 3 (HU-22/23/24).
-      return <p className={styles.placeholder}>El explorador de notas se construye en la Fase 3.</p>;
+      return <ExplorerPanel />;
     case "search":
       return <p className={styles.placeholder}>La búsqueda en el vault llega con HU-21.</p>;
     case "graph":
@@ -51,6 +52,6 @@ function SectionContent({ section }: { section: RailSection }) {
       // Placeholder permanente en esta versión (docs/FUTURE_IMPLEMENTATIONS.md).
       return <p className={styles.placeholder}>La vista de tags está planificada para una versión futura.</p>;
     case "trash":
-      return <p className={styles.placeholder}>La vista de papelera llega con HU-23 (Fase 3).</p>;
+      return <TrashPanel />;
   }
 }

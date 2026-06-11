@@ -1,0 +1,62 @@
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.titulo {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.meta {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.itemActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.restore,
+.deleteForever {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.restore {
+  color: var(--mic-accent);
+  border: 1px solid color-mix(in srgb, var(--mic-accent) 50%, transparent);
+}
+
+.restore:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.deleteForever {
+  color: var(--mic-callout-caution-border);
+  border: 1px solid color-mix(in srgb, var(--mic-callout-caution-border) 40%, transparent);
+}
+
+.deleteForever:hover {
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+}
+
+.empty {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
