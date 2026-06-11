@@ -17,6 +17,7 @@ type MdNode = {
   data?: { hProperties?: Record<string, string> };
 };
 
+const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 const WIKILINK = /\[\[([^[\]]+)\]\]/g;
 const TAG = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
@@ -34,6 +35,26 @@ function remarkMicelio() {
       let cursor = 0;
 
       const matches: { start: number; end: number; node: MdNode }[] = [];
+
+      // Diagramas Excalidraw embebidos (HU-16 CA2): placeholder que el
+      // cliente reemplaza por el SVG renderizado.
+      for (const match of value.matchAll(EXCALIDRAW)) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          node: {
+            type: "link",
+            url: "#excalidraw",
+            data: {
+              hProperties: {
+                className: "mic-excalidraw",
+                dataDiag: match[1],
+              },
+            },
+            children: [{ type: "text", value: `Diagrama ${match[1]}` }],
+          },
+        });
+      }
 
       for (const match of value.matchAll(WIKILINK)) {
         matches.push({

@@ -68,6 +68,64 @@ public static class NoteContentEndpoints
         });
     }
 
+    /// <summary>
+    /// Diagramas Excalidraw de una nota (HU-16 CA4):
+    /// clave R2 = vaults/{vaultId}/diagramas/{notaId}/{diagId}.excalidraw
+    /// </summary>
+    public static void MapDiagramEndpoints(this WebApplication app)
+    {
+        var group = app.MapGroup("").RequireAuthorization();
+
+        group.MapGet("/notas/{notaId}/diagramas/{diagId}", async (
+            string notaId,
+            string diagId,
+            ClaimsPrincipal user,
+            VaultRepository repo,
+            IBlobStorage blobs,
+            CancellationToken ct) =>
+        {
+            if (await AuthorizeAsync(repo, user, notaId, requireEditor: false, ct) is { } error) return error;
+            if (await repo.GetNotaAsync(notaId, ct) is not { } nota) return Results.NotFound();
+
+            var key = DiagramKey(nota.GetString("vault_id"), notaId, diagId);
+            await using var stream = await blobs.GetAsync(key, ct);
+            if (stream is null)
+            {
+                return Results.NotFound(new { error = "El diagrama no existe." });
+            }
+
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var json = await reader.ReadToEndAsync(ct);
+            return Results.Text(json, "application/json");
+        });
+
+        group.MapPut("/notas/{notaId}/diagramas/{diagId}", async (
+            string notaId,
+            string diagId,
+            HttpContext http,
+            ClaimsPrincipal user,
+            VaultRepository repo,
+            IBlobStorage blobs,
+            CancellationToken ct) =>
+        {
+            if (await AuthorizeAsync(repo, user, notaId, requireEditor: true, ct) is { } error) return error;
+            if (await repo.GetNotaAsync(notaId, ct) is not { } nota) return Results.NotFound();
+
+            using var reader = new StreamReader(http.Request.Body, Encoding.UTF8);
+            var json = await reader.ReadToEndAsync(ct);
+            var key = DiagramKey(nota.GetString("vault_id"), notaId, diagId);
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            await blobs.PutAsync(key, stream, "application/json", ct);
+            return Results.Ok(new { notaId, diagId });
+        });
+    }
+
+    private static string DiagramKey(string vaultId, string notaId, string diagId) =>
+        $"vaults/{vaultId}/diagramas/{notaId}/{SanitizeId(diagId)}.excalidraw";
+
+    private static string SanitizeId(string id) =>
+        new([.. id.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_')]);
+
     private static async Task<IResult?> AuthorizeAsync(
         VaultRepository repo, ClaimsPrincipal user, string notaId, bool requireEditor, CancellationToken ct)
     {

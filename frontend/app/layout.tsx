@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Source_Serif_4 } from "next/font/google";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/atom-one-dark.css";
+import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
 import "../styles/editor.css";
 import "./globals.css";

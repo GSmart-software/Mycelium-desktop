@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import { getCachedNote } from "@/lib/idb";
+import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
@@ -41,10 +42,13 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     };
   }, [sourceNotaId, pane.id]);
 
-  // Diagramas Mermaid (HU-18)
+  // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) — solo lectura
   useEffect(() => {
-    if (containerRef.current) void renderMermaidIn(containerRef.current);
-  }, [html]);
+    if (containerRef.current) {
+      void renderMermaidIn(containerRef.current);
+      if (sourceNotaId) void renderExcalidrawIn(containerRef.current, sourceNotaId);
+    }
+  }, [html, sourceNotaId]);
 
   // Scroll sincronizado opcional con el editor de origen (HU-27 CA4)
   useEffect(() => {

@@ -12,9 +12,12 @@ import { wrapSelection } from "@/lib/editor/commands";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { liveExtensions } from "@/lib/editor/livePreview";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
+import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
+import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -74,6 +77,9 @@ export function NoteEditor({
   );
   const [previewHtml, setPreviewHtml] = useState("");
   const [conflict, setConflict] = useState<string | null>(null);
+  const [editingDiag, setEditingDiag] = useState<string | null>(null);
+  const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [previewTick, setPreviewTick] = useState(0);
 
   const modeRef = useRef(mode);
   const contentRef = useRef("");
@@ -409,12 +415,27 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setMode, isActivePane]);
 
-  // Diagramas Mermaid en el preview (HU-18)
+  // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) en el preview
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
+      void renderExcalidrawIn(previewRef.current, notaId);
     }
-  }, [previewHtml, mode]);
+  }, [previewHtml, mode, previewTick, notaId]);
+
+  /** Inserta un diagrama nuevo en el cursor (HU-16 CA1a). */
+  const insertDiagram = useCallback(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const diagId = crypto.randomUUID();
+    void saveDiagram(notaId, diagId, { elements: [] }).then(() => {
+      const { from } = view.state.selection.main;
+      view.dispatch({
+        changes: { from, insert: `![[${diagId}.excalidraw]]` },
+      });
+      setEditingDiag(diagId);
+    });
+  }, [notaId]);
 
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {
@@ -443,9 +464,15 @@ export function NoteEditor({
     };
   }, [mode]);
 
-  // Navegación de wikilinks y tags desde el preview renderizado
+  // Navegación de wikilinks/tags y apertura de diagramas desde el preview
   const onPreviewClick = useCallback(
     (event: React.MouseEvent) => {
+      const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
+      if (diagram) {
+        // Clic en el diagrama renderizado → editor Excalidraw (HU-16 CA3)
+        setEditingDiag(diagram.getAttribute("data-diag"));
+        return;
+      }
       const anchor = (event.target as HTMLElement).closest("a");
       if (!anchor) return;
       const href = anchor.getAttribute("href") ?? "";
@@ -457,6 +484,32 @@ export function NoteEditor({
       }
     },
     [openByTitle],
+  );
+
+  // Menú contextual del diagrama: exportar PNG/SVG (HU-17 CA1)
+  const onPreviewContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
+      if (!diagram) return;
+      event.preventDefault();
+      const diagId = diagram.getAttribute("data-diag");
+      if (!diagId) return;
+      setDiagMenu({
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          {
+            label: "Exportar como PNG",
+            onClick: () => void exportDiagram(notaId, diagId, "png"),
+          },
+          {
+            label: "Exportar como SVG",
+            onClick: () => void exportDiagram(notaId, diagId, "svg"),
+          },
+        ],
+      });
+    },
+    [notaId],
   );
 
   function resolveConflict(apply: boolean) {
@@ -478,6 +531,7 @@ export function NoteEditor({
         mode={mode}
         onModeChange={setMode}
         syncState={syncState}
+        onInsertDiagram={insertDiagram}
       />
 
       {isActivePane && <SearchBar getView={() => viewRef.current} />}
@@ -495,17 +549,61 @@ export function NoteEditor({
       )}
 
       <div className={`${styles.content} ${styles[`layout_${mode}`]}`}>
-        <div ref={hostRef} className={`mic-editor-host ${styles.editorPane}`} />
+        <div
+          ref={hostRef}
+          className={`mic-editor-host ${styles.editorPane}`}
+          onDragOver={(e) => {
+            if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
+              e.preventDefault();
+            }
+          }}
+          onDrop={(e) => {
+            // Drag & drop de archivos .excalidraw sobre el editor (HU-16 CA1b)
+            const file = Array.from(e.dataTransfer.files).find((f) =>
+              f.name.endsWith(".excalidraw"),
+            );
+            if (!file) return;
+            e.preventDefault();
+            void file.text().then(async (text) => {
+              const view = viewRef.current;
+              if (!view) return;
+              const diagId = crypto.randomUUID();
+              try {
+                await saveDiagram(notaId, diagId, JSON.parse(text));
+              } catch {
+                return;
+              }
+              const { from } = view.state.selection.main;
+              view.dispatch({
+                changes: { from, insert: `![[${diagId}.excalidraw]]` },
+              });
+            });
+          }}
+        />
         {(mode === "split" || mode === "read") && (
           <div
             ref={previewRef}
             className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
             onClick={onPreviewClick}
+            onContextMenu={onPreviewContextMenu}
           >
             <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
         )}
       </div>
+
+      {diagMenu && <ContextMenu {...diagMenu} onClose={() => setDiagMenu(null)} />}
+
+      {editingDiag && (
+        <ExcalidrawModal
+          notaId={notaId}
+          diagId={editingDiag}
+          onClose={() => {
+            setEditingDiag(null);
+            setPreviewTick((t) => t + 1); // re-render del SVG embebido
+          }}
+        />
+      )}
     </div>
   );
 }

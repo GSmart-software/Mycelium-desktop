@@ -17,6 +17,7 @@ import {
   Minus,
   PenLine,
   Quote,
+  Shapes,
   Strikethrough,
   type LucideIcon,
 } from "lucide-react";
@@ -58,11 +59,13 @@ export function EditorToolbar({
   mode,
   onModeChange,
   syncState,
+  onInsertDiagram,
 }: {
   getView: () => EditorView | null;
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
   syncState: SyncState;
+  onInsertDiagram?: () => void;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -157,6 +160,16 @@ export function EditorToolbar({
             )}
           </span>
           <ToolButton icon={Minus} label="Divisor horizontal" onClick={() => run(insertHorizontalRule)} />
+          {onInsertDiagram && (
+            <>
+              <span className={styles.divider} />
+              <ToolButton
+                icon={Shapes}
+                label="Insertar diagrama Excalidraw"
+                onClick={onInsertDiagram}
+              />
+            </>
+          )}
         </div>
       )}
 

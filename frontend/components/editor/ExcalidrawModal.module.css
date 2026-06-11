@@ -1,0 +1,51 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  display: grid;
+  place-items: center;
+}
+
+.modal {
+  width: min(1100px, 94vw);
+  height: min(720px, 90vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--mic-bg-canvas);
+  border-radius: var(--mic-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+}
+
+.title {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.save {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+  font-weight: 600;
+}
+
+.save:hover {
+  filter: brightness(1.1);
+}
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+}
