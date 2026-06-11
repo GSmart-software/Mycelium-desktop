@@ -39,6 +39,7 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<AuthRepository>();
+builder.Services.AddSingleton<Micelio.Api.Features.Vaults.VaultRepository>();
 
 // Proveedor de almacenamiento conmutable (HU-39): `local` corre todo contra
 // SQLite + disco; `cloudflare` (default) usa D1/R2. Riesgo cero para producción.
@@ -63,6 +64,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
+Micelio.Api.Features.Vaults.VaultEndpoints.MapVaultEndpoints(app);
 
 app.MapGet("/health", () => Results.Ok(new
 {
