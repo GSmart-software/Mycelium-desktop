@@ -1,0 +1,98 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  z-index: 40;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(360px, 90vw);
+  background: var(--mic-bg-surface);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+  box-shadow: -8px 0 24px color-mix(in srgb, var(--mic-raw-base-deep) 25%, transparent);
+  animation: slide-in var(--mic-panel-transition);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.close:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sectionTitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mic-text-muted);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.rowLabel {
+  color: var(--mic-text-muted);
+}
+
+.placeholder {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.logout {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-callout-caution-border) 50%, transparent);
+  color: var(--mic-callout-caution-border);
+  font-size: 0.875rem;
+}
+
+.logout:hover {
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+}

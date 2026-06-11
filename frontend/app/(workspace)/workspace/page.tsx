@@ -1,17 +1,28 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { AppTopbar } from "@/components/workspace/AppTopbar";
+import { LeftPanel } from "@/components/workspace/LeftPanel";
+import { Rail } from "@/components/workspace/Rail";
+import { RightPanel } from "@/components/workspace/RightPanel";
+import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
+import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import styles from "./workspace.module.css";
 
-/**
- * Placeholder del workspace: guard de sesión + datos básicos.
- * El shell completo (AppTopbar, rail, paneles) se construye en la Fase 2
- * (HU-38, HU-28, HU-29, HU-20).
- */
 export default function WorkspacePage() {
+  return (
+    <Suspense>
+      <WorkspaceGuard />
+    </Suspense>
+  );
+}
+
+/** Guard de sesión: restaura desde la cookie de refresh o redirige a /login. */
+function WorkspaceGuard() {
   const router = useRouter();
-  const { user, vaults, initialized, restore, logout } = useAuthStore();
+  const { user, initialized, restore } = useAuthStore();
 
   useEffect(() => {
     if (!initialized) {
@@ -25,33 +36,78 @@ export default function WorkspacePage() {
 
   if (!user) {
     return (
-      <main style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
-        <p style={{ color: "var(--mic-text-muted)" }}>Cargando…</p>
+      <main className={styles.loading}>
+        <p>Cargando…</p>
       </main>
     );
   }
 
+  return <WorkspaceShell />;
+}
+
+/**
+ * Shell del workspace: grid de 4 columnas × 2 filas (docs/DESIGN_SYSTEM.md).
+ * HU-38 (topbar) + HU-28 (rail) + HU-29 (paneles) + HU-20 (URL ?note=).
+ */
+function WorkspaceShell() {
+  const searchParams = useSearchParams();
+  const activeNoteId = searchParams.get("note");
+
+  const { activeSection, leftWidth, rightOpen, rightWidth, toggleLeft, toggleRight } =
+    usePanelLayoutStore();
+
+  // Atajos de paneles (HU-29 CA2/CA3): Ctrl+\ y Ctrl+Shift+\
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!event.ctrlKey || event.code !== "Backslash") return;
+      event.preventDefault();
+      if (event.shiftKey) {
+        toggleRight();
+      } else {
+        toggleLeft();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [toggleLeft, toggleRight]);
+
   return (
-    <main style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
-      <div style={{ textAlign: "center", display: "grid", gap: "0.75rem" }}>
-        <h1 style={{ color: "var(--mic-accent)" }}>Hola, {user.nombre}</h1>
-        <p style={{ color: "var(--mic-text-muted)" }}>
-          {vaults.length > 0
-            ? `Vault: ${vaults[0].nombre} (${vaults[0].rol})`
-            : "Sin vaults"}
-        </p>
-        <button
-          onClick={() => void logout().then(() => router.replace("/login"))}
-          style={{
-            padding: "0.5rem 1rem",
-            borderRadius: "var(--mic-radius-md)",
-            background: "var(--mic-accent)",
-            color: "var(--mic-bg-surface)",
-          }}
-        >
-          Cerrar sesión
-        </button>
-      </div>
-    </main>
+    <div
+      className={styles.workspace}
+      style={
+        {
+          "--mic-panel-left-width": activeSection !== null ? `${leftWidth}px` : "0px",
+          "--mic-panel-right-width": rightOpen ? `${rightWidth}px` : "0px",
+        } as React.CSSProperties
+      }
+    >
+      <AppTopbar activeNoteTitle={activeNoteId ? `Nota ${activeNoteId}` : null} />
+      <Rail />
+      <LeftPanel />
+      <EditorArea activeNoteId={activeNoteId} />
+      <RightPanel />
+      <SettingsDrawer />
+    </div>
+  );
+}
+
+/** Placeholder del área central: los panes con tabs llegan en la Fase 5. */
+function EditorArea({ activeNoteId }: { activeNoteId: string | null }) {
+  return (
+    <section className={styles.editorArea}>
+      {activeNoteId ? (
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>Nota {activeNoteId}</p>
+          <p className={styles.emptyHint}>El editor llega en la Fase 4 (HU-01).</p>
+        </div>
+      ) : (
+        <div className={styles.emptyState}>
+          <p className={styles.emptyTitle}>Abrí una nota desde el explorador</p>
+          <p className={styles.emptyHint}>
+            Tu red de conocimiento crece desde el panel izquierdo.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

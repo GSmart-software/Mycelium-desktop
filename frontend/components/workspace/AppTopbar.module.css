@@ -1,0 +1,116 @@
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: var(--mic-topbar-height);
+  padding: 0 0.75rem;
+  background: var(--mic-bg-sidebar);
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--mic-glow);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.logo:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.logoCompact {
+  display: none;
+}
+
+.searchBar {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  text-align: left;
+}
+
+.searchIcon {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.searchPlaceholder {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shareButton {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--mic-radius-md);
+  font-size: 0.8125rem;
+  color: var(--mic-glow);
+  border: 1px solid color-mix(in srgb, var(--mic-glow) 40%, transparent);
+}
+
+.shareButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.shareButton:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.avatar:hover {
+  filter: brightness(1.15);
+}
+
+@media (max-width: 767px) {
+  .logoFull {
+    display: none;
+  }
+
+  .logoCompact {
+    display: inline;
+  }
+
+  .searchBar {
+    flex: 0 0 auto;
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .searchPlaceholder,
+  .shareLabel {
+    display: none;
+  }
+}

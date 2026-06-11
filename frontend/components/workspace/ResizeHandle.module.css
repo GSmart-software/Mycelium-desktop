@@ -1,0 +1,22 @@
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--mic-panel-handle-width);
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+
+.handle:hover,
+.handle:active {
+  background: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+.left {
+  right: calc(var(--mic-panel-handle-width) * -0.5);
+}
+
+.right {
+  left: calc(var(--mic-panel-handle-width) * -0.5);
+}
