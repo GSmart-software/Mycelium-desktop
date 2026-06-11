@@ -31,6 +31,22 @@
   background: color-mix(in srgb, var(--mic-glow) 30%, transparent) !important;
 }
 
+/* Resaltado de búsqueda en la nota (HU-31 CA3/CA4) */
+.mic-editor-host .cm-searchMatch {
+  background: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+  border-radius: 2px;
+}
+
+.mic-editor-host .cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--mic-glow) 65%, transparent);
+  outline: 1px solid var(--mic-accent);
+}
+
+/* El panel nativo de búsqueda de CodeMirror queda oculto: la UI es propia */
+.mic-editor-host .cm-panels {
+  display: none;
+}
+
 /* Headings del live preview (HU-01 CA5) */
 .mic-live-h1 { font-size: 1.75rem;  font-weight: 700; }
 .mic-live-h2 { font-size: 1.375rem; font-weight: 600; }

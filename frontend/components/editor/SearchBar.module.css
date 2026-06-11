@@ -1,0 +1,70 @@
+.bar {
+  position: absolute;
+  top: calc(var(--mic-toolbar-height) + 6px);
+  right: 12px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 18%, transparent);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.input {
+  font: inherit;
+  font-size: 0.8125rem;
+  width: 200px;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  border-radius: var(--mic-radius-sm);
+  padding: 0.3rem 0.5rem;
+}
+
+.count {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  min-width: 56px;
+  text-align: center;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.iconButton:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.active {
+  border: 1px solid var(--mic-accent);
+  color: var(--mic-text-primary);
+}
+
+.textButton {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--mic-accent) 50%, transparent);
+  color: var(--mic-accent);
+  white-space: nowrap;
+}
+
+.textButton:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}

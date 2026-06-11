@@ -2,6 +2,7 @@
 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { search } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
@@ -13,7 +14,9 @@ import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
+import { SearchBar } from "./SearchBar";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
@@ -134,6 +137,13 @@ export function NoteEditor({ notaId }: { notaId: string }) {
             return true;
           },
         },
+        {
+          key: "Mod-f",
+          run: () => {
+            useUiStore.getState().setSearchInNoteOpen(true);
+            return true;
+          },
+        },
       ]);
 
       viewRef.current = new EditorView({
@@ -144,6 +154,9 @@ export function NoteEditor({ notaId }: { notaId: string }) {
             history(),
             keymap.of([...defaultKeymap, ...historyKeymap]),
             formatKeymap,
+            // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
+            // se reemplaza por un nodo vacío para activar el resaltado.
+            search({ createPanel: () => ({ dom: document.createElement("div") }) }),
             markdown(),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
@@ -367,6 +380,8 @@ export function NoteEditor({ notaId }: { notaId: string }) {
         onModeChange={setMode}
         syncState={syncState}
       />
+
+      <SearchBar getView={() => viewRef.current} />
 
       {conflict !== null && (
         <div className={styles.conflictBar}>
