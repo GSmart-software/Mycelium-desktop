@@ -1,0 +1,306 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--mic-bg-surface);
+}
+
+.paneActive {
+  /* señal sutil del pane con foco */
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+.paneBody {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.paneBody > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Splits (HU-26) ─────────────────────────────────────────────── */
+
+.splitRow,
+.splitColumn {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.splitRow {
+  flex-direction: row;
+}
+
+.splitColumn {
+  flex-direction: column;
+}
+
+.splitCell {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dividerV,
+.dividerH {
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  touch-action: none;
+}
+
+.dividerV {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.dividerH {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.dividerV:hover,
+.dividerH:hover,
+.dividerV:active,
+.dividerH:active {
+  background: color-mix(in srgb, var(--mic-glow) 40%, transparent);
+}
+
+/* ── Tab bar (HU-25) ────────────────────────────────────────────── */
+
+.tabBar {
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  flex-shrink: 0;
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.6rem;
+  max-width: 180px;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+  user-select: none;
+  border-right: 1px solid color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: color-mix(in srgb, var(--mic-glow) 10%, transparent);
+}
+
+/* Pestaña activa (patrón del design system) */
+.tabActive {
+  background: var(--mic-bg-canvas);
+  border-bottom: 2px solid var(--mic-accent);
+  color: var(--mic-text-primary);
+}
+
+.tabTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* Dot de sync de la pestaña (HU-04 CA3): 6px, esquina superior derecha */
+.tabDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+.dot_local {
+  background: var(--mic-text-muted);
+}
+
+.dot_syncing {
+  background: var(--mic-glow);
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+.dot_synced {
+  background: var(--mic-sync-ok);
+}
+
+.dot_offline,
+.dot_error {
+  background: var(--mic-sync-warn);
+}
+
+.tabClose {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.tabClose:hover {
+  background: color-mix(in srgb, var(--mic-glow) 25%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.tabBarSpace {
+  flex: 1;
+  min-width: 24px;
+}
+
+.linkedBadge {
+  align-self: center;
+  font-size: 0.6875rem;
+  padding: 0.1rem 0.45rem;
+  margin-right: 0.25rem;
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+  color: var(--mic-accent);
+  white-space: nowrap;
+}
+
+.tabMenuWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 0.25rem;
+}
+
+.tabMenuButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.tabMenuButton:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.tabMenu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 35;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent);
+}
+
+.tabMenuItem {
+  text-align: left;
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-primary);
+}
+
+.tabMenuItem:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.tabMenuEmpty {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  padding: 0.4rem 0.6rem;
+}
+
+/* ── Zonas de drop para splits (HU-26 CA1/CA2) ──────────────────── */
+
+.dropZone {
+  position: absolute;
+  z-index: 20;
+}
+
+.dropZone_top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+}
+
+.dropZone_bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+}
+
+.dropZone_left {
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 20px;
+}
+
+.dropZone_right {
+  top: 20px;
+  bottom: 20px;
+  right: 0;
+  width: 20px;
+}
+
+/* Overlay semitransparente indicando la dirección del split */
+.dropZoneHover {
+  background: color-mix(in srgb, var(--mic-glow) 30%, transparent);
+  outline: 2px dashed var(--mic-glow);
+  outline-offset: -2px;
+}
+
+/* ── Estado vacío del pane (HU-25 CA5) ──────────────────────────── */
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  height: 100%;
+  text-align: center;
+  color: var(--mic-text-muted);
+  background: var(--mic-bg-surface);
+}
+
+.emptyTitle {
+  font-size: 0.9375rem;
+  color: var(--mic-text-primary);
+}
+
+.emptyHint {
+  font-size: 0.8125rem;
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.6);
+  }
+}

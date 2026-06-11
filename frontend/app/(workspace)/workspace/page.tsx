@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
-import { NoteEditor } from "@/components/editor/NoteEditor";
+import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
@@ -10,6 +10,7 @@ import { RightPanel } from "@/components/workspace/RightPanel";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./workspace.module.css";
 
@@ -52,6 +53,7 @@ function WorkspaceGuard() {
  * HU-38 (topbar) + HU-28 (rail) + HU-29 (paneles) + HU-20 (URL ?note=).
  */
 function WorkspaceShell() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const activeNoteId = searchParams.get("note");
   const activeNote = useVaultStore((s) =>
@@ -61,20 +63,41 @@ function WorkspaceShell() {
   const { activeSection, leftWidth, rightOpen, rightWidth, toggleLeft, toggleRight } =
     usePanelLayoutStore();
 
-  // Atajos de paneles (HU-29 CA2/CA3): Ctrl+\ y Ctrl+Shift+\
+  // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
+  useEffect(() => {
+    if (activeNoteId) useTabsStore.getState().openNote(activeNoteId);
+  }, [activeNoteId]);
+
+  // Atajos de paneles (HU-29) y de pestañas (HU-25 CA4/CA7)
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (!event.ctrlKey || event.code !== "Backslash") return;
-      event.preventDefault();
-      if (event.shiftKey) {
-        toggleRight();
-      } else {
-        toggleLeft();
+      if (event.ctrlKey && event.code === "Backslash") {
+        event.preventDefault();
+        if (event.shiftKey) toggleRight();
+        else toggleLeft();
+        return;
+      }
+      if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        useTabsStore.getState().closeActiveTab();
+        syncUrlWithTabs();
+        return;
+      }
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        useTabsStore.getState().reopenLastClosed();
+        syncUrlWithTabs();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toggleLeft, toggleRight]);
+
+  function syncUrlWithTabs() {
+    const nid = useTabsStore.getState().activeNotaId();
+    router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+  }
 
   return (
     <div
@@ -89,27 +112,19 @@ function WorkspaceShell() {
       <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} />
       <Rail />
       <LeftPanel />
-      <EditorArea activeNoteId={activeNoteId} />
+      <EditorArea />
       <RightPanel />
       <SettingsDrawer />
     </div>
   );
 }
 
-/** Área central: editor de la nota activa (multi-pane con tabs en Fase 5). */
-function EditorArea({ activeNoteId }: { activeNoteId: string | null }) {
+/** Área central: árbol de panes con pestañas (HU-25/26/27). */
+function EditorArea() {
+  const root = useTabsStore((s) => s.root);
   return (
     <section className={styles.editorArea}>
-      {activeNoteId ? (
-        <NoteEditor key={activeNoteId} notaId={activeNoteId} />
-      ) : (
-        <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>Abrí una nota desde el explorador</p>
-          <p className={styles.emptyHint}>
-            Tu red de conocimiento crece desde el panel izquierdo.
-          </p>
-        </div>
-      )}
+      <PaneTree node={root} />
     </section>
   );
 }

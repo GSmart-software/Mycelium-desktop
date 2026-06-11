@@ -9,10 +9,14 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
+import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { liveExtensions } from "@/lib/editor/livePreview";
+import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
 import { useAuthStore } from "@/stores/authStore";
+import { useSyncStore } from "@/stores/syncStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
@@ -24,24 +28,49 @@ const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
 const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 
+/** Cursor y scroll por pestaña mientras está abierta (HU-25 CA10). */
+const instanceCache = new Map<
+  string,
+  { doc: string; anchor: number; head: number; scrollTop: number }
+>();
+
 /**
  * Editor de una nota (HU-01/02/04/19): CodeMirror 6 con live preview por
  * línea, modos live/split/read/raw, autoguardado en IndexedDB y sync
- * throttled con el backend.
+ * throttled con el backend. Multi-instancia: la misma nota en dos panes
+ * se mantiene espejada vía docBroker (HU-25/26 CA6).
  */
-export function NoteEditor({ notaId }: { notaId: string }) {
+export function NoteEditor({
+  notaId,
+  instanceId = notaId,
+  paneId = "main",
+  isActivePane = true,
+}: {
+  notaId: string;
+  instanceId?: string;
+  paneId?: string;
+  isActivePane?: boolean;
+}) {
   const router = useRouter();
   const hostRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const liveCompartment = useRef(new Compartment());
+  const brokerApplyRef = useRef(false);
 
   const [mode, setModeState] = useState<EditorMode>(() => {
     if (typeof window === "undefined") return "live";
     const saved = window.localStorage.getItem(`micelio-mode-${notaId}`);
     return MODES.includes(saved as EditorMode) ? (saved as EditorMode) : "live";
   });
-  const [syncState, setSyncState] = useState<SyncState>("local");
+  const [syncState, setSyncStateLocal] = useState<SyncState>("local");
+  const setSyncState = useCallback(
+    (state: SyncState) => {
+      setSyncStateLocal(state);
+      useSyncStore.getState().setSyncState(notaId, state);
+    },
+    [notaId],
+  );
   const [previewHtml, setPreviewHtml] = useState("");
   const [conflict, setConflict] = useState<string | null>(null);
 
@@ -59,7 +88,10 @@ export function NoteEditor({ notaId }: { notaId: string }) {
       const target = useVaultStore
         .getState()
         .notas.find((n) => n.titulo.toLowerCase() === title.toLowerCase());
-      if (target) router.push(`/workspace?note=${target.id}`);
+      if (target) {
+        useTabsStore.getState().openNote(target.id);
+        router.push(`/workspace?note=${target.id}`);
+      }
     },
     [router],
   );
@@ -164,15 +196,41 @@ export function NoteEditor({ notaId }: { notaId: string }) {
               modeRef.current === "live" ? liveExtensions(openByTitle) : [],
             ),
             EditorView.updateListener.of((update) => {
-              if (update.docChanged) onDocChanged(update.state.doc.toString());
+              if (!update.docChanged) return;
+              const doc = update.state.doc.toString();
+              if (brokerApplyRef.current) {
+                // Cambio venido de otra instancia de la misma nota
+                contentRef.current = doc;
+                if (modeRef.current === "split" || modeRef.current === "read") {
+                  setPreviewHtml(renderMarkdown(doc));
+                }
+                return;
+              }
+              onDocChanged(doc);
+              publishDoc(notaId, instanceId, doc);
             }),
           ],
         }),
       });
 
+      registerView(paneId, viewRef.current);
+
+      // Restaurar cursor y scroll de la pestaña (HU-25 CA10)
+      const cached = instanceCache.get(instanceId);
+      if (cached && cached.doc === content) {
+        const docLength = viewRef.current.state.doc.length;
+        viewRef.current.dispatch({
+          selection: {
+            anchor: Math.min(cached.anchor, docLength),
+            head: Math.min(cached.head, docLength),
+          },
+        });
+        viewRef.current.scrollDOM.scrollTop = cached.scrollTop;
+      }
+
       setPreviewHtml(renderMarkdown(content));
     },
-    [onDocChanged, openByTitle],
+    [onDocChanged, openByTitle, notaId, instanceId, paneId],
   );
 
   const applyContent = useCallback((content: string) => {
@@ -192,11 +250,16 @@ export function NoteEditor({ notaId }: { notaId: string }) {
       const cached = await getCachedNote(notaId);
       if (cancelled) return;
 
+      // El doc de la pestaña (si quedó cacheado) es la versión más fresca
+      const instance = instanceCache.get(instanceId);
+
       if (cached) {
         dirtyRef.current = cached.dirty;
         remoteUpdatedAtRef.current = cached.remoteUpdatedAt;
-        createView(cached.content);
+        createView(instance?.doc ?? cached.content);
         setSyncState(cached.dirty ? "local" : "synced");
+      } else if (instance) {
+        createView(instance.doc);
       }
 
       try {
@@ -206,7 +269,12 @@ export function NoteEditor({ notaId }: { notaId: string }) {
         );
         if (cancelled) return;
 
-        if (!cached) {
+        if (!cached && viewRef.current) {
+          // Solo había estado de pestaña; el remoto define la base de sync
+          remoteUpdatedAtRef.current = remote.actualizadoEn;
+          saveLocal();
+          setSyncState(dirtyRef.current ? "local" : "synced");
+        } else if (!cached) {
           remoteUpdatedAtRef.current = remote.actualizadoEn;
           createView(remote.contenido);
           saveLocal();
@@ -242,11 +310,33 @@ export function NoteEditor({ notaId }: { notaId: string }) {
         saveLocal();
         void syncNow();
       }
-      viewRef.current?.destroy();
+      const view = viewRef.current;
+      if (view) {
+        // Cursor/scroll de la pestaña para restaurar al volver (HU-25 CA10)
+        const { anchor, head } = view.state.selection.main;
+        instanceCache.set(instanceId, {
+          doc: contentRef.current,
+          anchor,
+          head,
+          scrollTop: view.scrollDOM.scrollTop,
+        });
+        unregisterView(paneId, view);
+        view.destroy();
+      }
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notaId]);
+
+  // Espejo en tiempo real con otras instancias de la misma nota
+  useEffect(() => {
+    return subscribeDoc(notaId, instanceId, (content) => {
+      if (content === contentRef.current) return;
+      brokerApplyRef.current = true;
+      applyContent(content);
+      brokerApplyRef.current = false;
+    });
+  }, [notaId, instanceId, applyContent]);
 
   // ── Sync periódico + reconexión + beforeunload ──────────────────
 
@@ -305,6 +395,7 @@ export function NoteEditor({ notaId }: { notaId: string }) {
   }, [mode]);
 
   useEffect(() => {
+    if (!isActivePane) return;
     function onKeyDown(event: KeyboardEvent) {
       if (!event.ctrlKey || event.shiftKey || event.altKey) return;
       const index = ["1", "2", "3", "4"].indexOf(event.key);
@@ -315,7 +406,7 @@ export function NoteEditor({ notaId }: { notaId: string }) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [setMode]);
+  }, [setMode, isActivePane]);
 
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {
@@ -381,7 +472,7 @@ export function NoteEditor({ notaId }: { notaId: string }) {
         syncState={syncState}
       />
 
-      <SearchBar getView={() => viewRef.current} />
+      {isActivePane && <SearchBar getView={() => viewRef.current} />}
 
       {conflict !== null && (
         <div className={styles.conflictBar}>

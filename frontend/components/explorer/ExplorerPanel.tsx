@@ -20,6 +20,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import {
   useVaultStore,
   type TreeCarpeta,
@@ -90,7 +91,11 @@ export function ExplorerPanel() {
   );
 
   const openNota = useCallback(
-    (id: string) => router.push(`/workspace?note=${id}`),
+    (id: string) => {
+      // Abrir en el pane activo aunque la URL ya apunte a esta nota
+      useTabsStore.getState().openNote(id);
+      router.push(`/workspace?note=${id}`);
+    },
     [router],
   );
 
@@ -161,7 +166,10 @@ export function ExplorerPanel() {
       {
         label: "Eliminar",
         danger: true,
-        onClick: () => void store.deleteNota(nota.id),
+        onClick: () => {
+          useTabsStore.getState().closeNotaEverywhere(nota.id);
+          void store.deleteNota(nota.id);
+        },
       },
     ];
   }
