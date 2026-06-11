@@ -1,0 +1,11 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+
+# Estado local desechable (HU-39 / HU-04)
+micelio.local.db*
+.local-storage/
+
+# Varios
+.DS_Store

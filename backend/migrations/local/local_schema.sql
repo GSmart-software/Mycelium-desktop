@@ -1,0 +1,4 @@
+-- Esquema local SQLite (HU-39).
+-- Se completa en el ciclo de HU-39 con todas las tablas como CREATE TABLE IF NOT EXISTS:
+-- usuarios, vaults, membresias, carpetas, notas, papelera, notas_fts (FTS5).
+-- Lo ejecuta LocalDbInitializer en el arranque cuando Storage:Provider=local. Idempotente.

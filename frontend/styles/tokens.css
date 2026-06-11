@@ -1,0 +1,109 @@
+/*
+ * Tokens de Micelio — arquitectura de 2 capas (docs/DESIGN_SYSTEM.md).
+ * El código de componentes usa SOLO tokens semánticos (--mic-bg-*, --mic-text-*, etc.).
+ * Los temas redefinen los tokens raw; el modo oscuro es un modifier ortogonal
+ * (data-dark="true") que solo sobreescribe canvas/mist/ink.
+ */
+
+/* ── Capa semántica ───────────────────────────────────────────── */
+:root {
+  --mic-bg-canvas:     var(--mic-raw-canvas);
+  --mic-bg-surface:    var(--mic-raw-mist);
+  --mic-bg-sidebar:    var(--mic-raw-base);
+  --mic-bg-code:       var(--mic-raw-base-deep);
+  --mic-text-primary:  var(--mic-raw-ink);
+  --mic-text-muted:    var(--mic-raw-ink-muted);
+  --mic-accent:        var(--mic-raw-accent);   /* botones, links activos */
+  --mic-glow:          var(--mic-raw-glow);     /* nodos, tags, cursor */
+}
+
+/* ── Tema por defecto: Bioluminiscencia (verde-cian) ──────────── */
+[data-theme='bioluminiscencia'] {
+  --mic-raw-base:       #085041;
+  --mic-raw-base-deep:  #04342C;
+  --mic-raw-accent:     #0F6E56;
+  --mic-raw-glow:       #5DCAA5;
+  --mic-raw-mist:       #E1F5EE;
+  --mic-raw-canvas:     #F1EFE8;
+  --mic-raw-ink:        #2C2C2A;
+  --mic-raw-ink-muted:  #5F5E5A;
+
+  --mic-amber-icon:     #C9821E;
+}
+
+/* ── Tema secundario: Cantarela (ámbar) ───────────────────────── */
+[data-theme='cantarela'] {
+  --mic-raw-base:       #633806;
+  --mic-raw-base-deep:  #412402;
+  --mic-raw-accent:     #854F0B;
+  --mic-raw-glow:       #EF9F27;
+  --mic-raw-mist:       #FAEEDA;
+  --mic-raw-canvas:     #FAF6EE;
+  --mic-raw-ink:        #2C2C2A;
+  --mic-raw-ink-muted:  #5F5E5A;
+
+  --mic-amber-icon:     #C9821E;
+}
+
+/* ── Dark mode (modifier ortogonal al tema) ───────────────────── */
+[data-theme='bioluminiscencia'][data-dark='true'] {
+  --mic-raw-canvas:     #04342C;
+  --mic-raw-mist:       #085041;
+  --mic-raw-ink:        #E1F5EE;
+  --mic-raw-ink-muted:  rgba(225, 245, 238, 0.55);
+}
+
+[data-theme='cantarela'][data-dark='true'] {
+  --mic-raw-canvas:     #412402;
+  --mic-raw-mist:       #633806;
+  --mic-raw-ink:        #FAEEDA;
+  --mic-raw-ink-muted:  rgba(250, 238, 218, 0.55);
+}
+
+/* ── Callouts (HU-03) ─────────────────────────────────────────── */
+:root {
+  --mic-callout-note-border:      var(--mic-raw-glow);
+  --mic-callout-tip-border:       var(--mic-raw-glow);
+  --mic-callout-important-border: var(--mic-raw-accent);
+  --mic-callout-warning-border:   var(--mic-amber-icon);
+  --mic-callout-caution-border:   #D95040;
+  --mic-callout-bg:               var(--mic-raw-mist);
+}
+
+/* ── Tipografía ───────────────────────────────────────────────── */
+:root {
+  --mic-font-sans:  var(--font-geist-sans), system-ui, sans-serif;        /* interfaz, labels, UI */
+  --mic-font-serif: var(--font-source-serif), Georgia, serif;             /* modo lectura del preview */
+  --mic-font-mono:  var(--font-jetbrains-mono), 'Fira Code', monospace;   /* editor, código, hints */
+
+  /* Contextuales (HU-14) — sobreescritos por preferencesStore */
+  --mic-editor-font-family:  var(--mic-font-mono);
+  --mic-editor-font-size:    16px;
+  --mic-preview-font-family: var(--mic-font-serif);
+  --mic-preview-font-size:   16px;
+}
+
+/* ── Métricas ─────────────────────────────────────────────────── */
+:root {
+  /* Radio de esquinas */
+  --mic-radius-sm: 4px;
+  --mic-radius-md: 8px;
+  --mic-radius-lg: 16px;
+
+  /* Shell del workspace */
+  --mic-topbar-height:  52px;
+  --mic-toolbar-height: 40px;   /* barra de herramientas del editor */
+  --mic-rail-width:     56px;
+  --mic-icon-size:      20px;   /* íconos Lucide dentro del rail */
+
+  /* Paneles laterales (los valores de runtime se inyectan como inline style) */
+  --mic-panel-left-width:   240px;  /* fallback; sobreescrito por panelLayoutStore */
+  --mic-panel-right-width:  280px;  /* fallback */
+  --mic-panel-handle-width: 4px;    /* columna del resize handle en el grid */
+  --mic-panel-min-width:    160px;
+  --mic-panel-max-width:    480px;
+  --mic-panel-transition:   160ms ease;
+
+  /* Animaciones */
+  --mic-note-swap: 160ms ease;      /* transición de swap de contenido de nota (HU-20) */
+}
