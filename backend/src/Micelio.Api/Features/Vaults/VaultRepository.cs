@@ -184,6 +184,27 @@ public sealed class VaultRepository(ID1Client d1)
         return result.Results.Select(r => r.GetString("titulo")).ToList();
     }
 
+    /// <summary>
+    /// Actualiza metadatos tras guardar contenido (HU-04) y refresca el
+    /// índice FTS5 (HU-21 CA10). Devuelve el nuevo actualizado_en.
+    /// </summary>
+    public async Task<string> TouchNotaContenidoAsync(
+        string notaId, string titulo, string contenido, long tamanoBytes, CancellationToken ct = default)
+    {
+        var now = Now();
+        await d1.BatchAsync(
+        [
+            new D1Statement(
+                "UPDATE notas SET tamano_bytes = ?, actualizado_en = ? WHERE id = ?",
+                [tamanoBytes, now, notaId]),
+            new D1Statement("DELETE FROM notas_fts WHERE nota_id = ?", [notaId]),
+            new D1Statement(
+                "INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)",
+                [notaId, titulo, contenido]),
+        ], ct);
+        return now;
+    }
+
     // ── Papelera (HU-23 CA6–10) ───────────────────────────────────
 
     public Task SendToPapeleraAsync(string notaId, string rutaOriginal, string? carpetaOriginalId, CancellationToken ct = default) =>

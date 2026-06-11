@@ -47,12 +47,14 @@ var storageProvider = builder.Configuration["Storage:Provider"] ?? "cloudflare";
 if (storageProvider == "local")
 {
     builder.Services.AddSingleton<ID1Client, LocalSqliteD1Client>();
+    builder.Services.AddSingleton<IBlobStorage, LocalDiskBlobStorage>();
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
     builder.Services.AddHostedService<LocalDbInitializer>();
 }
 else
 {
     builder.Services.AddSingleton<ID1Client, Micelio.Api.Adapters.Cloudflare.D1Client>();
+    builder.Services.AddSingleton<IBlobStorage, Micelio.Api.Adapters.Cloudflare.R2BlobStorage>();
     // IEmailSender de producción (Resend) se registra al integrar Cloudflare.
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 }
@@ -65,6 +67,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 Micelio.Api.Features.Vaults.VaultEndpoints.MapVaultEndpoints(app);
+Micelio.Api.Features.Vaults.NoteContentEndpoints.MapNoteContentEndpoints(app);
 
 app.MapGet("/health", () => Results.Ok(new
 {

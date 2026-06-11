@@ -149,7 +149,7 @@ public static class VaultEndpoints
 
         // Duplicar con sufijo numérico incremental (HU-23 CA5)
         group.MapPost("/notas/{id}/duplicar", async (
-            string id, ClaimsPrincipal user, VaultRepository repo, CancellationToken ct) =>
+            string id, ClaimsPrincipal user, VaultRepository repo, Micelio.Api.Ports.IBlobStorage blobs, CancellationToken ct) =>
         {
             if (await ForbiddenForNota(repo, user, id, ct) is { } error) return error;
             if (await repo.GetNotaAsync(id, ct) is not { } nota)
@@ -161,7 +161,16 @@ public static class VaultEndpoints
             var carpetaId = nota.GetStringOrNull("carpeta_id");
             var titulo = await EnsureUniqueTituloAsync(repo, vaultId, carpetaId, nota.GetString("titulo"), ct);
             var nuevoId = await repo.CreateNotaAsync(vaultId, carpetaId, titulo, ct);
-            // La copia del contenido .md se hace vía IBlobStorage al integrar HU-04.
+
+            // Copia del contenido .md (si existe) hacia la clave de la nueva nota
+            await using (var origen = await blobs.GetAsync(nota.GetString("r2_key"), ct))
+            {
+                if (origen is not null && await repo.GetNotaAsync(nuevoId, ct) is { } nueva)
+                {
+                    await blobs.PutAsync(nueva.GetString("r2_key"), origen, "text/markdown", ct);
+                }
+            }
+
             return Results.Created($"/notas/{nuevoId}", new { id = nuevoId, titulo });
         });
 
