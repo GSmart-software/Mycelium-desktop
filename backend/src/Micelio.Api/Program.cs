@@ -1,5 +1,9 @@
+using System.Text;
 using Micelio.Api.Adapters.Local;
+using Micelio.Api.Features.Auth;
 using Micelio.Api.Ports;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,22 +18,51 @@ builder.Services.AddCors(options =>
         .AllowCredentials());
 });
 
+// JWT de corta duración (HU-32 CA4)
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "micelio",
+            ValidateAudience = false,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]
+                    ?? throw new InvalidOperationException("Falta configurar Jwt:Secret."))),
+            ClockSkew = TimeSpan.FromSeconds(30),
+        };
+    });
+builder.Services.AddAuthorization();
+
+builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton<AuthRepository>();
+
 // Proveedor de almacenamiento conmutable (HU-39): `local` corre todo contra
 // SQLite + disco; `cloudflare` (default) usa D1/R2. Riesgo cero para producción.
 var storageProvider = builder.Configuration["Storage:Provider"] ?? "cloudflare";
 if (storageProvider == "local")
 {
     builder.Services.AddSingleton<ID1Client, LocalSqliteD1Client>();
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
     builder.Services.AddHostedService<LocalDbInitializer>();
 }
 else
 {
     builder.Services.AddSingleton<ID1Client, Micelio.Api.Adapters.Cloudflare.D1Client>();
+    // IEmailSender de producción (Resend) se registra al integrar Cloudflare.
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 }
 
 var app = builder.Build();
 
 app.UseCors(FrontendCors);
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapAuthEndpoints();
 
 app.MapGet("/health", () => Results.Ok(new
 {

@@ -19,3 +19,36 @@
   margin-top: 0.5rem;
   color: var(--mic-text-muted);
 }
+
+.actions {
+  margin-top: 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.cta,
+.ctaSecondary {
+  padding: 0.55rem 1.25rem;
+  border-radius: var(--mic-radius-md);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.cta {
+  background: var(--mic-accent);
+  color: var(--mic-bg-surface);
+}
+
+.cta:hover {
+  filter: brightness(1.1);
+}
+
+.ctaSecondary {
+  border: 1px solid var(--mic-accent);
+  color: var(--mic-accent);
+}
+
+.ctaSecondary:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
