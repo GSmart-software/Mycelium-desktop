@@ -1,0 +1,154 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: var(--mic-toolbar-height);
+  padding: 0 0.5rem;
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+  flex-shrink: 0;
+}
+
+.formatGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  overflow-x: auto;
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.3rem;
+  background: color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+}
+
+.toolButton,
+.modeButton {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.toolButton:hover,
+.modeButton:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.modeGroup {
+  display: flex;
+  gap: 0.15rem;
+}
+
+/* Modo activo (HU-02 CA8) */
+.modeActive {
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-accent);
+  color: var(--mic-text-primary);
+}
+
+.relative {
+  position: relative;
+}
+
+.linkPopover {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 220px;
+  padding: 0.6rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent);
+}
+
+.linkInput {
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  border-radius: var(--mic-radius-sm);
+  padding: 0.3rem 0.5rem;
+}
+
+.linkActions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.linkConfirm,
+.linkCancel {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.linkConfirm {
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+}
+
+.linkCancel {
+  color: var(--mic-text-muted);
+}
+
+/* Dot de estado de sync (HU-04 CA3) */
+.syncDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin: 0 0.5rem;
+  flex-shrink: 0;
+}
+
+.sync_local {
+  background: var(--mic-text-muted);
+}
+
+.sync_syncing {
+  background: var(--mic-glow);
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+.sync_synced {
+  background: var(--mic-sync-ok);
+}
+
+.sync_offline,
+.sync_error {
+  background: var(--mic-sync-warn);
+}
+
+@keyframes mic-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.6);
+  }
+}
+
+/* En pantallas chicas solo live y read (HU-02 CA12) */
+@media (max-width: 767px) {
+  .modeButton[data-mode='split'],
+  .modeButton[data-mode='raw'] {
+    display: none;
+  }
+}

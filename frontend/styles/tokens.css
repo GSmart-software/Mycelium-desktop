@@ -60,6 +60,12 @@
   --mic-raw-ink-muted:  rgba(250, 238, 218, 0.55);
 }
 
+/* ── Estados de sync (HU-04) ──────────────────────────────────── */
+:root {
+  --mic-sync-ok:   #3CA06B;  /* sincronizado */
+  --mic-sync-warn: #E08D3C;  /* offline / error, cambios pendientes */
+}
+
 /* ── Callouts (HU-03) ─────────────────────────────────────────── */
 :root {
   --mic-callout-note-border:      var(--mic-raw-glow);

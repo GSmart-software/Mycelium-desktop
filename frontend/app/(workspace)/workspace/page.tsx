@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { NoteEditor } from "@/components/editor/NoteEditor";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
@@ -88,22 +89,19 @@ function WorkspaceShell() {
       <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} />
       <Rail />
       <LeftPanel />
-      <EditorArea activeNoteTitle={activeNote?.titulo ?? null} />
+      <EditorArea activeNoteId={activeNoteId} />
       <RightPanel />
       <SettingsDrawer />
     </div>
   );
 }
 
-/** Placeholder del área central: los panes con tabs llegan en la Fase 5. */
-function EditorArea({ activeNoteTitle }: { activeNoteTitle: string | null }) {
+/** Área central: editor de la nota activa (multi-pane con tabs en Fase 5). */
+function EditorArea({ activeNoteId }: { activeNoteId: string | null }) {
   return (
     <section className={styles.editorArea}>
-      {activeNoteTitle ? (
-        <div className={styles.emptyState}>
-          <p className={styles.emptyTitle}>{activeNoteTitle}</p>
-          <p className={styles.emptyHint}>El editor llega en la Fase 4 (HU-01).</p>
-        </div>
+      {activeNoteId ? (
+        <NoteEditor key={activeNoteId} notaId={activeNoteId} />
       ) : (
         <div className={styles.emptyState}>
           <p className={styles.emptyTitle}>Abrí una nota desde el explorador</p>

@@ -1,0 +1,158 @@
+/* ── Editor CodeMirror (HU-01) ───────────────────────────────────── */
+
+.mic-editor-host .cm-editor {
+  height: 100%;
+  background: var(--mic-bg-surface);
+}
+
+.mic-editor-host .cm-editor.cm-focused {
+  outline: none;
+}
+
+.mic-editor-host .cm-scroller {
+  font-family: var(--mic-editor-font-family);
+  font-size: var(--mic-editor-font-size);
+  line-height: 1.65;
+  padding: 1rem 1.25rem;
+}
+
+.mic-editor-host .cm-content {
+  caret-color: var(--mic-glow);
+  color: var(--mic-text-primary);
+  max-width: 80ch;
+}
+
+.mic-editor-host .cm-cursor {
+  border-left-color: var(--mic-glow);
+}
+
+.mic-editor-host .cm-selectionBackground,
+.mic-editor-host .cm-editor ::selection {
+  background: color-mix(in srgb, var(--mic-glow) 30%, transparent) !important;
+}
+
+/* Headings del live preview (HU-01 CA5) */
+.mic-live-h1 { font-size: 1.75rem;  font-weight: 700; }
+.mic-live-h2 { font-size: 1.375rem; font-weight: 600; }
+.mic-live-h3 { font-size: 1.125rem; font-weight: 600; }
+.mic-live-h4, .mic-live-h5, .mic-live-h6 { font-size: 1rem; font-weight: 600; }
+
+/* Enlaces internos en el editor (HU-01 CA8) */
+.mic-wikilink-cm {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.mic-wikilink-cm:hover {
+  color: var(--mic-glow);
+}
+
+/* Tags como píldoras (HU-01 CA9) */
+.mic-tag-cm,
+.mic-tag-pill {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-glow);
+  border-radius: var(--mic-radius-sm);
+  padding: 0.05em 0.4em;
+  font-size: 0.9em;
+  text-decoration: none;
+}
+
+/* ── Preview renderizado (.mic-preview, docs/DESIGN_SYSTEM.md) ───── */
+
+.mic-preview {
+  font-family: var(--mic-preview-font-family);
+  font-size: var(--mic-preview-font-size);
+  line-height: 1.7;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-canvas);
+  padding: var(--mic-radius-lg);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.mic-layout-read .mic-preview > div {
+  max-width: 72ch;
+  margin: 0 auto;
+}
+
+.mic-preview h1 { font-size: 1.75rem;  font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.mic-preview h2 { font-size: 1.375rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; }
+.mic-preview h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem;    margin-bottom: 0.3rem; }
+.mic-preview h4,
+.mic-preview h5,
+.mic-preview h6 { font-size: 1rem;     font-weight: 600; margin-top: 0.75rem; }
+
+.mic-preview h1:first-child { margin-top: 0; }
+
+.mic-preview p   { margin-bottom: 0.85rem; }
+.mic-preview ul,
+.mic-preview ol  { padding-left: 1.5rem; margin-bottom: 0.85rem; }
+.mic-preview li  { margin-bottom: 0.25rem; }
+
+.mic-preview a       { color: var(--mic-accent); text-decoration: underline; }
+.mic-preview a:hover { color: var(--mic-glow); }
+
+.mic-preview code {
+  font-family: var(--mic-font-mono);
+  font-size: 0.9em;
+  background: var(--mic-bg-code);
+  color: var(--mic-raw-mist);
+  padding: 0.1em 0.35em;
+  border-radius: var(--mic-radius-sm);
+}
+
+.mic-preview pre {
+  font-family: var(--mic-font-mono);
+  font-size: 0.875rem;
+  background: var(--mic-bg-code);
+  color: var(--mic-raw-mist);
+  padding: var(--mic-radius-md) var(--mic-radius-lg);
+  border-radius: var(--mic-radius-md);
+  overflow-x: auto;
+  margin-bottom: 0.85rem;
+}
+
+.mic-preview pre code {
+  background: none;
+  padding: 0;
+}
+
+.mic-preview blockquote {
+  border-left: 3px solid var(--mic-accent);
+  padding: var(--mic-radius-sm) var(--mic-radius-md);
+  margin: 0 0 0.85rem 0;
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-accent) 6%, transparent);
+  border-radius: 0 var(--mic-radius-sm) var(--mic-radius-sm) 0;
+}
+
+.mic-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.85rem;
+  font-size: 0.875rem;
+}
+
+.mic-preview th,
+.mic-preview td {
+  padding: var(--mic-radius-sm) var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  text-align: left;
+}
+
+.mic-preview th {
+  background: var(--mic-bg-surface);
+  font-weight: 600;
+}
+
+.mic-preview hr {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  margin: 1.5rem 0;
+}
+
+.mic-preview img {
+  max-width: 100%;
+}
