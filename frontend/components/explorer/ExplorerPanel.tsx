@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { exportNoteMd } from "@/lib/export";
+import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useImportStore } from "@/stores/importStore";
@@ -180,6 +180,14 @@ export function ExplorerPanel() {
       {
         label: "Exportar como .md",
         onClick: () => void exportNoteMd(nota.id, nota.titulo),
+      },
+      {
+        label: "Exportar como PDF (A4)",
+        onClick: () => void exportNotePdfActive(nota.id, nota.titulo, "A4"),
+      },
+      {
+        label: "Exportar como PDF (Letter)",
+        onClick: () => void exportNotePdfActive(nota.id, nota.titulo, "Letter"),
       },
       {
         label: "Eliminar",

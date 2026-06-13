@@ -1,7 +1,12 @@
 import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { getCachedNote } from "@/lib/idb";
+import { renderMarkdown } from "@/lib/markdown";
+import { renderMermaidIn } from "@/lib/mermaid";
+import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { PRINT_CSS } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5279";
@@ -101,6 +106,29 @@ export async function exportVaultZip(
   downloadBlob(blob, `vault-${safeName(vaultNombre)}-${fecha}.zip`);
 }
 
+/**
+ * Renderiza la nota a HTML fuera de pantalla, incluyendo los SVG de Mermaid y
+ * Excalidraw (HU-10 CA4), para enviarlo al backend tal cual se imprime.
+ */
+async function renderNoteHtml(notaId: string): Promise<string> {
+  const content = await fetchNoteContent(notaId);
+  const container = document.createElement("div");
+  container.className = "mic-preview";
+  container.style.position = "fixed";
+  container.style.left = "-99999px";
+  container.style.top = "0";
+  container.style.width = "800px";
+  container.innerHTML = renderMarkdown(content);
+  document.body.appendChild(container);
+  try {
+    await renderMermaidIn(container);
+    await renderExcalidrawIn(container, notaId);
+    return container.innerHTML;
+  } finally {
+    container.remove();
+  }
+}
+
 /** Exporta la nota como PDF con el tema aplicado, vía backend (HU-10). */
 export async function exportNotePdf(
   notaId: string,
@@ -109,6 +137,7 @@ export async function exportNotePdf(
   tema: string,
   modoOscuro: boolean,
 ): Promise<void> {
+  const html = await renderNoteHtml(notaId);
   const res = await fetch(`${API_URL}/notas/${notaId}/exportar-pdf`, {
     method: "POST",
     credentials: "include",
@@ -118,11 +147,25 @@ export async function exportNotePdf(
         ? { Authorization: `Bearer ${useAuthStore.getState().accessToken}` }
         : {}),
     },
-    body: JSON.stringify({ pageSize, tema, modoOscuro }),
+    body: JSON.stringify({ pageSize, tema, modoOscuro, html, css: PRINT_CSS }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => null);
     throw new Error((err as { error?: string })?.error ?? "No se pudo exportar el PDF.");
   }
   downloadBlob(await res.blob(), `${safeName(titulo)}.pdf`);
+}
+
+/** Atajo de exportación a PDF con el tema activo de preferencias (HU-10). */
+export async function exportNotePdfActive(
+  notaId: string,
+  titulo: string,
+  pageSize: "A4" | "Letter",
+): Promise<void> {
+  const { tema, modoOscuro } = usePreferencesStore.getState();
+  try {
+    await exportNotePdf(notaId, titulo, pageSize, tema, modoOscuro);
+  } catch (error) {
+    if (typeof window !== "undefined") window.alert((error as Error).message);
+  }
 }

@@ -3,7 +3,7 @@
 import { MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { exportNoteMd } from "@/lib/export";
+import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useSyncStore } from "@/stores/syncStore";
 import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -166,6 +166,26 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   }}
                 >
                   Exportar como .md
+                </button>
+                <button
+                  type="button"
+                  className={styles.tabMenuItem}
+                  onClick={() => {
+                    void exportNotePdfActive(activeNota.id, activeNota.titulo, "A4");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Exportar como PDF (A4)
+                </button>
+                <button
+                  type="button"
+                  className={styles.tabMenuItem}
+                  onClick={() => {
+                    void exportNotePdfActive(activeNota.id, activeNota.titulo, "Letter");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Exportar como PDF (Letter)
                 </button>
                 <div className={styles.tabMenuSep} />
               </>
