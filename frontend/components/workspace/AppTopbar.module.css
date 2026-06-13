@@ -9,11 +9,19 @@
 }
 
 .logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 700;
   font-size: 1rem;
   color: var(--mic-glow);
   padding: 0.25rem 0.5rem;
   border-radius: var(--mic-radius-sm);
+}
+
+.logoMark {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-glow) 55%, transparent));
 }
 
 .logo:hover {

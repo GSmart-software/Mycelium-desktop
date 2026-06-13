@@ -42,6 +42,18 @@ export function AppTopbar({
         onClick={() => router.push("/workspace")}
         title="Micelio"
       >
+        <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden className={styles.logoMark}>
+          <path
+            d="M9 10L23 8M9 10L16 23M23 8L16 23"
+            stroke="var(--mic-glow)"
+            strokeWidth="1.5"
+            opacity="0.55"
+            fill="none"
+          />
+          <circle cx="9" cy="10" r="4" fill="var(--mic-glow)" />
+          <circle cx="23" cy="8" r="3" fill="var(--mic-accent)" />
+          <circle cx="16" cy="23" r="4" fill="var(--mic-glow)" />
+        </svg>
         <span className={styles.logoFull}>Micelio</span>
         <span className={styles.logoCompact} aria-hidden>M</span>
       </button>

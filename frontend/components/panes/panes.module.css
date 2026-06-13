@@ -198,10 +198,8 @@
 }
 
 .tabMenu {
-  position: absolute;
-  top: 28px;
-  right: 0;
-  z-index: 35;
+  position: fixed;
+  z-index: 60;
   min-width: 220px;
   display: flex;
   flex-direction: column;

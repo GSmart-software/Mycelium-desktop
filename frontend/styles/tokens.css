@@ -67,11 +67,18 @@
   --mic-bg-hover:       rgba(37, 240, 200, 0.10);
 }
 
+/* Cantarela oscuro = misma estética abisal pero en cálidos/ámbar. */
 [data-theme='cantarela'][data-dark='true'] {
-  --mic-raw-canvas:     #412402;
-  --mic-raw-mist:       #633806;
-  --mic-raw-ink:        #FAEEDA;
-  --mic-raw-ink-muted:  rgba(250, 238, 218, 0.55);
+  --mic-raw-base:       #110a02;   /* rail / sidebar */
+  --mic-raw-base-deep:  #241608;   /* bloques de código y lienzo del grafo */
+  --mic-raw-accent:     #f5a623;   /* botones y enlaces (texto oscuro encima) */
+  --mic-raw-glow:       #ffb43d;   /* nodos, tags, cursor, resaltados */
+  --mic-raw-canvas:     #160d03;   /* editor / fondo principal */
+  --mic-raw-mist:       #1f1407;   /* paneles laterales, tabs */
+  --mic-raw-ink:        #f4e6cb;
+  --mic-raw-ink-muted:  #a78d63;
+  --mic-border:         #3a2912;
+  --mic-bg-hover:       rgba(245, 166, 35, 0.10);
 }
 
 /* ── Estados de sync (HU-04) ──────────────────────────────────── */

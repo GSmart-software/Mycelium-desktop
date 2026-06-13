@@ -60,6 +60,8 @@ type TabsState = {
   reorderTab: (paneId: string, fromIndex: number, toIndex: number) => void;
   moveTabToPane: (srcPaneId: string, tabId: string, dstPaneId: string) => void;
   splitWithTab: (srcPaneId: string, tabId: string, dstPaneId: string, edge: SplitEdge) => void;
+  /** Divide el pane abriendo la nota activa en un pane nuevo (menú "Dividir"). */
+  splitActivePane: (paneId: string, edge: SplitEdge) => void;
   setSizes: (splitId: string, sizes: number[]) => void;
   setActivePane: (paneId: string) => void;
   linkPane: (paneId: string, sourcePaneId: string | null) => void;
@@ -251,19 +253,22 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const src = findLeaf(get().root, srcPaneId);
     const tab = src?.tabs.find((t) => t.id === tabId);
     if (!tab) return;
-    // Un pane con una sola pestaña no puede splitearse a sí mismo
-    if (srcPaneId === dstPaneId && src!.tabs.length === 1) return;
 
-    const newLeaf = makeLeaf([tab], tab.id);
+    // Si es la única pestaña y se divide sobre su propio pane, se DUPLICA la
+    // nota en el nuevo pane (si se moviera, el origen quedaría vacío y el split
+    // se aplanaría). Así "dividir" con una sola pestaña funciona como Obsidian.
+    const duplicate = srcPaneId === dstPaneId && src!.tabs.length === 1;
+    const newTab: Tab = duplicate ? { id: newId(), notaId: tab.notaId } : tab;
+    const newLeaf = makeLeaf([newTab], newTab.id);
     const direction: SplitPane["direction"] =
       edge === "left" || edge === "right" ? "row" : "column";
     const before = edge === "left" || edge === "top";
 
     function insert(node: PaneNode): PaneNode {
       if (node.type === "leaf") {
-        // Primero quitar el tab del pane origen
+        // Quitar el tab del pane origen (salvo cuando se duplica)
         let leaf = node;
-        if (leaf.id === srcPaneId) {
+        if (!duplicate && leaf.id === srcPaneId) {
           const tabs = leaf.tabs.filter((t) => t.id !== tabId);
           leaf = {
             ...leaf,
@@ -287,6 +292,11 @@ export const useTabsStore = create<TabsState>((set, get) => ({
 
     const root = cleanLinks(pruneEmpty(insert(get().root)));
     set({ root, activePaneId: newLeaf.id, dragging: null });
+  },
+
+  splitActivePane(paneId, edge) {
+    const leaf = findLeaf(get().root, paneId);
+    if (leaf?.activeTabId) get().splitWithTab(paneId, leaf.activeTabId, paneId, edge);
   },
 
   setSizes(splitId, sizes) {

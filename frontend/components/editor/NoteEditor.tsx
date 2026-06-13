@@ -572,6 +572,10 @@ export function NoteEditor({
     conflictUpdatedAtRef.current = null;
   }
 
+  const notaTitulo = useVaultStore(
+    (s) => s.notas.find((n) => n.id === notaId)?.titulo ?? "nota",
+  );
+
   return (
     <div className={styles.editor}>
       <EditorToolbar
@@ -580,6 +584,8 @@ export function NoteEditor({
         onModeChange={setMode}
         syncState={syncState}
         onInsertDiagram={insertDiagram}
+        notaId={notaId}
+        titulo={notaTitulo}
       />
 
       {isActivePane && <SearchBar getView={() => viewRef.current} />}

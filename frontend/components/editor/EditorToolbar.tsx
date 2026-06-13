@@ -29,6 +29,7 @@ import {
   toggleLinePrefix,
   wrapSelection,
 } from "@/lib/editor/commands";
+import { ExportMenu } from "./ExportMenu";
 import styles from "./EditorToolbar.module.css";
 
 export type EditorMode = "live" | "split" | "read" | "raw";
@@ -60,12 +61,16 @@ export function EditorToolbar({
   onModeChange,
   syncState,
   onInsertDiagram,
+  notaId,
+  titulo,
 }: {
   getView: () => EditorView | null;
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
   syncState: SyncState;
   onInsertDiagram?: () => void;
+  notaId: string;
+  titulo: string;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -180,6 +185,8 @@ export function EditorToolbar({
         title={SYNC_LABEL[syncState]}
         aria-label={SYNC_LABEL[syncState]}
       />
+
+      <ExportMenu notaId={notaId} titulo={titulo} />
 
       <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
         {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (

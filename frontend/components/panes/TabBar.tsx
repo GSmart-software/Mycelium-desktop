@@ -23,7 +23,17 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const carpetas = useVaultStore((s) => s.carpetas);
   const syncByNota = useSyncStore((s) => s.byNota);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+
+  // El menú se posiciona con position:fixed para escapar del overflow del
+  // tab bar (si no, quedaba recortado detrás del editor).
+  const toggleMenu = () => {
+    const rect = menuBtnRef.current?.getBoundingClientRect();
+    if (rect) setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    setMenuOpen((v) => !v);
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -156,15 +166,19 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
       <div className={styles.tabMenuWrap} ref={menuRef}>
         <button
+          ref={menuBtnRef}
           type="button"
           className={styles.tabMenuButton}
           aria-label="Opciones del pane"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={toggleMenu}
         >
           <MoreHorizontal size={15} aria-hidden />
         </button>
         {menuOpen && (
-          <div className={styles.tabMenu}>
+          <div
+            className={styles.tabMenu}
+            style={{ position: "fixed", top: menuPos.top, right: menuPos.right }}
+          >
             {activeNota && (
               <>
                 <button
@@ -196,6 +210,33 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   }}
                 >
                   Exportar como PDF (Letter)
+                </button>
+                <div className={styles.tabMenuSep} />
+              </>
+            )}
+            {pane.activeTabId && (
+              <>
+                <button
+                  type="button"
+                  className={styles.tabMenuItem}
+                  onClick={() => {
+                    store.splitActivePane(pane.id, "right");
+                    pushUrl();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Dividir a la derecha
+                </button>
+                <button
+                  type="button"
+                  className={styles.tabMenuItem}
+                  onClick={() => {
+                    store.splitActivePane(pane.id, "bottom");
+                    pushUrl();
+                    setMenuOpen(false);
+                  }}
+                >
+                  Dividir hacia abajo
                 </button>
                 <div className={styles.tabMenuSep} />
               </>
