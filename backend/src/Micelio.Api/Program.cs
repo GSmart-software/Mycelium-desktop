@@ -51,12 +51,14 @@ if (storageProvider == "local")
     builder.Services.AddSingleton<ID1Client, LocalSqliteD1Client>();
     builder.Services.AddSingleton<IBlobStorage, LocalDiskBlobStorage>();
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
+    builder.Services.AddSingleton<ICollabRelay, LocalCollabRelay>();
     builder.Services.AddHostedService<LocalDbInitializer>();
 }
 else
 {
     builder.Services.AddSingleton<ID1Client, Micelio.Api.Adapters.Cloudflare.D1Client>();
     builder.Services.AddSingleton<IBlobStorage, Micelio.Api.Adapters.Cloudflare.R2BlobStorage>();
+    builder.Services.AddSingleton<ICollabRelay, Micelio.Api.Adapters.Cloudflare.DurableObjectCollabRelay>();
     // IEmailSender de producción (Resend) se registra al integrar Cloudflare.
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 }
@@ -75,6 +77,7 @@ Micelio.Api.Features.Vaults.NoteContentEndpoints.MapDiagramEndpoints(app);
 Micelio.Api.Features.Vaults.SearchEndpoints.MapSearchEndpoints(app);
 Micelio.Api.Features.Vaults.PdfEndpoints.MapPdfEndpoints(app);
 Micelio.Api.Features.Vaults.SharingEndpoints.MapSharingEndpoints(app);
+Micelio.Api.Features.Vaults.CollabEndpoints.MapCollabEndpoints(app);
 
 app.MapGet("/health", () => Results.Ok(new
 {

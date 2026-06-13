@@ -127,6 +127,27 @@ public sealed class SharingRepository(ID1Client d1)
         return (int)folderOwners.Results[0].GetInt64("n") + (int)vaultOwners.Results[0].GetInt64("n");
     }
 
+    /// <summary>
+    /// true si la nota está dentro de una carpeta compartida (la carpeta o algún
+    /// ancestro tiene membresías de carpeta). Habilita la colaboración (HU-05 CA5).
+    /// </summary>
+    public async Task<bool> IsNotaInSharedFolderAsync(string notaId, CancellationToken ct = default)
+    {
+        var res = await d1.QueryAsync("SELECT carpeta_id FROM notas WHERE id = ?", [notaId], ct);
+        if (res.Results.Count == 0) return false;
+        var carpetaId = res.Results[0].GetStringOrNull("carpeta_id");
+        if (carpetaId is null) return false;
+
+        foreach (var id in await AncestorsAsync(carpetaId, ct))
+        {
+            var m = await d1.QueryAsync(
+                "SELECT 1 FROM membresias WHERE recurso_tipo = 'carpeta' AND recurso_id = ? LIMIT 1",
+                [id], ct);
+            if (m.Results.Count > 0) return true;
+        }
+        return false;
+    }
+
     /// <summary>Carpetas compartidas con el usuario (sección "Compartido", HU-35 CA4).</summary>
     public async Task<IReadOnlyList<JsonElement>> GetSharedCarpetasAsync(string userId, CancellationToken ct = default)
     {

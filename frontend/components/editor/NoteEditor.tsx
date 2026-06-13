@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
+import { startCollab, type CollabHandle } from "@/lib/collab/collab";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
@@ -73,6 +74,8 @@ export function NoteEditor({
   const previewRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const liveCompartment = useRef(new Compartment());
+  const collabCompartment = useRef(new Compartment());
+  const collabRef = useRef<CollabHandle | null>(null);
   const brokerApplyRef = useRef(false);
 
   const [mode, setModeState] = useState<EditorMode>(() => {
@@ -215,6 +218,9 @@ export function NoteEditor({
             liveCompartment.current.of(
               modeRef.current === "live" ? liveExtensions(openByTitle) : [],
             ),
+            // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
+            // compartidas con relay disponible (cloudflare).
+            collabCompartment.current.of([]),
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
@@ -234,6 +240,15 @@ export function NoteEditor({
       });
 
       registerView(paneId, viewRef.current);
+
+      // Intentar colaboración en tiempo real (inerte en local; HU-05/06/37)
+      if (!collabRef.current) {
+        void startCollab(notaId, viewRef.current, collabCompartment.current, content).then(
+          (handle) => {
+            collabRef.current = handle;
+          },
+        );
+      }
 
       // Restaurar cursor y scroll de la pestaña (HU-25 CA10)
       const cached = instanceCache.get(instanceId);
@@ -334,6 +349,8 @@ export function NoteEditor({
         saveLocal();
         void syncNow();
       }
+      collabRef.current?.destroy();
+      collabRef.current = null;
       const view = viewRef.current;
       if (view) {
         // Cursor/scroll de la pestaña para restaurar al volver (HU-25 CA10)
