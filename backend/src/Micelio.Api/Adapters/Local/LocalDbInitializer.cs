@@ -33,10 +33,30 @@ public sealed class LocalDbInitializer(
         await d1.QueryAsync(schemaSql, ct: cancellationToken);
         logger.LogInformation("Modo local: esquema aplicado desde {SchemaPath}", schemaPath);
 
+        await MigrateAsync(cancellationToken);
         await SeedAsync(cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Migraciones idempotentes para bases ya existentes (SQLite no soporta
+    /// ADD COLUMN IF NOT EXISTS). Si la columna ya existe, el ALTER falla y se
+    /// ignora.
+    /// </summary>
+    private async Task MigrateAsync(CancellationToken ct)
+    {
+        try
+        {
+            await d1.QueryAsync(
+                "ALTER TABLE notas ADD COLUMN tipo TEXT NOT NULL DEFAULT 'markdown'", ct: ct);
+            logger.LogInformation("Modo local: columna notas.tipo agregada (migración).");
+        }
+        catch
+        {
+            // La columna ya existe: nada que hacer.
+        }
+    }
 
     private async Task SeedAsync(CancellationToken ct)
     {

@@ -16,6 +16,7 @@ import {
   FileText,
   Folder,
   FolderPlus,
+  Shapes,
   Upload,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -134,6 +135,10 @@ export function ExplorerPanel() {
       {
         label: "Nueva nota",
         onClick: () => void store.createNota(carpeta.id).then(openNota),
+      },
+      {
+        label: "Nuevo dibujo Excalidraw",
+        onClick: () => void store.createNota(carpeta.id, "excalidraw").then(openNota),
       },
       {
         label: "Nueva carpeta",
@@ -346,6 +351,14 @@ export function ExplorerPanel() {
         <button
           type="button"
           className={styles.actionButton}
+          title="Nuevo dibujo Excalidraw"
+          onClick={() => void store.createNota(store.activeFolderId, "excalidraw").then(openNota)}
+        >
+          <Shapes size={16} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.actionButton}
           title="Nueva carpeta"
           onClick={() => {
             const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
@@ -493,6 +506,7 @@ function NoteRow({
   onDoubleClick: () => void;
 } & RowRenameProps) {
   const drag = useDraggable({ id: `nota:${nota.id}` });
+  const Icon = nota.tipo === "excalidraw" ? Shapes : FileText;
 
   const className = [
     styles.row,
@@ -513,7 +527,7 @@ function NoteRow({
       {...drag.listeners}
       {...drag.attributes}
     >
-      <FileText size={15} className={styles.noteIcon} aria-hidden />
+      <Icon size={15} className={styles.noteIcon} aria-hidden />
       {rename.renaming ? (
         <RenameInput {...rename} />
       ) : (

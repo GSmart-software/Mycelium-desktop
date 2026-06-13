@@ -1,0 +1,10 @@
+.host {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+/* Excalidraw necesita un contenedor con tamaño explícito */
+.host :global(.excalidraw) {
+  height: 100%;
+}

@@ -105,11 +105,13 @@ public static class VaultEndpoints
         {
             if (await Forbidden(repo, user, vaultId, requireEditor: true, ct) is { } error) return error;
 
-            var titulo = string.IsNullOrWhiteSpace(request.Titulo) ? "Sin título" : request.Titulo.Trim();
+            var tipo = request.Tipo == "excalidraw" ? "excalidraw" : "markdown";
+            var defecto = tipo == "excalidraw" ? "Dibujo sin título" : "Sin título";
+            var titulo = string.IsNullOrWhiteSpace(request.Titulo) ? defecto : request.Titulo.Trim();
             var carpetaId = NullIfEmpty(request.CarpetaId);
             titulo = await EnsureUniqueTituloAsync(repo, vaultId, carpetaId, titulo, ct);
-            var id = await repo.CreateNotaAsync(vaultId, carpetaId, titulo, ct);
-            return Results.Created($"/notas/{id}", new { id, titulo });
+            var id = await repo.CreateNotaAsync(vaultId, carpetaId, titulo, tipo, ct);
+            return Results.Created($"/notas/{id}", new { id, titulo, tipo });
         });
 
         group.MapPatch("/notas/{id}", async (
@@ -159,15 +161,16 @@ public static class VaultEndpoints
 
             var vaultId = nota.GetString("vault_id");
             var carpetaId = nota.GetStringOrNull("carpeta_id");
+            var tipo = nota.GetStringOrNull("tipo") ?? "markdown";
             var titulo = await EnsureUniqueTituloAsync(repo, vaultId, carpetaId, nota.GetString("titulo"), ct);
-            var nuevoId = await repo.CreateNotaAsync(vaultId, carpetaId, titulo, ct);
+            var nuevoId = await repo.CreateNotaAsync(vaultId, carpetaId, titulo, tipo, ct);
 
-            // Copia del contenido .md (si existe) hacia la clave de la nueva nota
+            // Copia del contenido (md o excalidraw) hacia la clave de la nueva nota
             await using (var origen = await blobs.GetAsync(nota.GetString("r2_key"), ct))
             {
                 if (origen is not null && await repo.GetNotaAsync(nuevoId, ct) is { } nueva)
                 {
-                    await blobs.PutAsync(nueva.GetString("r2_key"), origen, "text/markdown", ct);
+                    await blobs.PutAsync(nueva.GetString("r2_key"), origen, "text/plain", ct);
                 }
             }
 
@@ -337,6 +340,6 @@ public static class VaultEndpoints
     public sealed record CreateCarpetaRequest(string? Nombre, string? PadreId);
     public sealed record RenameRequest(string? Nombre);
     public sealed record MoveRequest(string? DestinoId);
-    public sealed record CreateNotaRequest(string? Titulo, string? CarpetaId);
+    public sealed record CreateNotaRequest(string? Titulo, string? CarpetaId, string? Tipo);
     public sealed record RenameNotaRequest(string? Titulo);
 }

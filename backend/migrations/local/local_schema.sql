@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS notas (
   vault_id       TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
   carpeta_id     TEXT REFERENCES carpetas(id) ON DELETE SET NULL,
   titulo         TEXT NOT NULL,
+  tipo           TEXT NOT NULL DEFAULT 'markdown',  -- 'markdown' | 'excalidraw' (HU-16)
   r2_key         TEXT NOT NULL,
   tamano_bytes   INTEGER NOT NULL DEFAULT 0,
   creado_en      TEXT NOT NULL,

@@ -45,7 +45,7 @@ public sealed class VaultRepository(ID1Client d1)
             [vaultId], ct);
         var notas = await d1.QueryAsync(
             """
-            SELECT id, carpeta_id, titulo, actualizado_en FROM notas
+            SELECT id, carpeta_id, titulo, tipo, actualizado_en FROM notas
             WHERE vault_id = ? AND id NOT IN (SELECT nota_id FROM papelera)
             ORDER BY titulo COLLATE NOCASE
             """,
@@ -140,18 +140,21 @@ public sealed class VaultRepository(ID1Client d1)
 
     // ── Notas (HU-23) ─────────────────────────────────────────────
 
-    public async Task<string> CreateNotaAsync(string vaultId, string? carpetaId, string titulo, CancellationToken ct = default)
+    public async Task<string> CreateNotaAsync(
+        string vaultId, string? carpetaId, string titulo, string tipo = "markdown", CancellationToken ct = default)
     {
         var id = Guid.NewGuid().ToString();
         var now = Now();
-        // r2_key ID-based e invariante ante renombres (HU-23 CA3)
-        var r2Key = $"vaults/{vaultId}/notas/{id}.md";
+        // r2_key ID-based e invariante ante renombres (HU-23 CA3). La extensión
+        // refleja el tipo: .md para notas, .excalidraw para dibujos (HU-16).
+        var ext = tipo == "excalidraw" ? "excalidraw" : "md";
+        var r2Key = $"vaults/{vaultId}/notas/{id}.{ext}";
         await d1.QueryAsync(
             """
-            INSERT INTO notas (id, vault_id, carpeta_id, titulo, r2_key, creado_en, actualizado_en)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, r2_key, creado_en, actualizado_en)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            [id, vaultId, carpetaId, titulo, r2Key, now, now], ct);
+            [id, vaultId, carpetaId, titulo, tipo, r2Key, now, now], ct);
         return id;
     }
 

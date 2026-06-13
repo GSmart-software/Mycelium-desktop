@@ -4,10 +4,12 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 
 export type TreeCarpeta = { id: string; padreId: string | null; nombre: string };
+export type NotaTipo = "markdown" | "excalidraw";
 export type TreeNota = {
   id: string;
   carpetaId: string | null;
   titulo: string;
+  tipo: NotaTipo;
   actualizadoEn: string;
 };
 export type PapeleraItem = {
@@ -22,6 +24,7 @@ type RawNota = {
   id: string;
   carpeta_id: string | null;
   titulo: string;
+  tipo?: string;
   actualizado_en: string;
 };
 type RawPapeleraItem = {
@@ -52,7 +55,7 @@ type VaultState = {
   renameCarpeta: (id: string, nombre: string) => Promise<void>;
   deleteCarpeta: (id: string) => Promise<void>;
   moveCarpeta: (id: string, destinoId: string | null) => Promise<void>;
-  createNota: (carpetaId: string | null) => Promise<string>;
+  createNota: (carpetaId: string | null, tipo?: NotaTipo) => Promise<string>;
   renameNota: (id: string, titulo: string) => Promise<void>;
   deleteNota: (id: string) => Promise<void>;
   duplicateNota: (id: string) => Promise<void>;
@@ -95,6 +98,7 @@ export const useVaultStore = create<VaultState>()(
             id: n.id,
             carpetaId: n.carpeta_id,
             titulo: n.titulo,
+            tipo: n.tipo === "excalidraw" ? "excalidraw" : "markdown",
             actualizadoEn: n.actualizado_en,
           })),
         });
@@ -150,13 +154,17 @@ export const useVaultStore = create<VaultState>()(
         await get().loadTree(get().vaultId!);
       },
 
-      async createNota(carpetaId) {
+      async createNota(carpetaId, tipo = "markdown") {
         const { vaultId } = get();
         if (!vaultId) throw new Error("Sin vault activo");
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),
-          body: { titulo: "Sin título", carpetaId },
+          body: {
+            titulo: tipo === "excalidraw" ? "Dibujo sin título" : "Sin título",
+            carpetaId,
+            tipo,
+          },
         });
         if (carpetaId) set((s) => ({ expanded: { ...s.expanded, [carpetaId]: true } }));
         await get().loadTree(vaultId);

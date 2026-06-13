@@ -179,7 +179,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             className={styles.tabMenu}
             style={{ position: "fixed", top: menuPos.top, right: menuPos.right }}
           >
-            {activeNota && (
+            {activeNota && activeNota.tipo !== "excalidraw" && (
               <>
                 <button
                   type="button"

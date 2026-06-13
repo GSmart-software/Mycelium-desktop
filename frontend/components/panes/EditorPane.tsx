@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { GRAPH_TAB_ID, useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
+import { useVaultStore } from "@/stores/vaultStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
 import { TabBar } from "./TabBar";
 import styles from "./panes.module.css";
@@ -19,6 +21,9 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
 
   const isActive = activePaneId === pane.id;
   const activeTab = pane.tabs.find((t) => t.id === pane.activeTabId) ?? null;
+  const activeTipo = useVaultStore((s) =>
+    activeTab ? s.notas.find((n) => n.id === activeTab.notaId)?.tipo ?? "markdown" : null,
+  );
 
   return (
     <section
@@ -33,6 +38,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <LinkedPreviewPane pane={pane} />
         ) : activeTab && activeTab.notaId === GRAPH_TAB_ID ? (
           <GraphView key={activeTab.id} />
+        ) : activeTab && activeTipo === "excalidraw" ? (
+          <ExcalidrawFileEditor key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab ? (
           <NoteEditor
             key={activeTab.id}
