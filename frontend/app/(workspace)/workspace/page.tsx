@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
+import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
@@ -69,6 +70,13 @@ function WorkspaceShell() {
   const activeNote = useVaultStore((s) =>
     activeNoteId ? s.notas.find((n) => n.id === activeNoteId) ?? null : null,
   );
+  const carpetas = useVaultStore((s) => s.carpetas);
+  const shareFolder = activeNote?.carpetaId
+    ? {
+        id: activeNote.carpetaId,
+        nombre: carpetas.find((c) => c.id === activeNote.carpetaId)?.nombre ?? "carpeta",
+      }
+    : null;
 
   const { activeSection, leftWidth, rightOpen, rightWidth, toggleLeft, toggleRight } =
     usePanelLayoutStore();
@@ -119,13 +127,14 @@ function WorkspaceShell() {
         } as React.CSSProperties
       }
     >
-      <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} />
+      <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} shareFolder={shareFolder} />
       <Rail />
       <LeftPanel />
       <EditorArea />
       <RightPanel />
       <SettingsDrawer />
       <ImportDialogs />
+      <ShareModal />
     </div>
   );
 }

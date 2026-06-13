@@ -40,6 +40,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddSingleton<AuthRepository>();
 builder.Services.AddSingleton<Micelio.Api.Features.Vaults.VaultRepository>();
+builder.Services.AddSingleton<Micelio.Api.Features.Vaults.SharingRepository>();
 builder.Services.AddSingleton<Micelio.Api.Features.Vaults.PdfService>();
 
 // Proveedor de almacenamiento conmutable (HU-39): `local` corre todo contra
@@ -73,6 +74,7 @@ Micelio.Api.Features.Vaults.NoteContentEndpoints.MapNoteContentEndpoints(app);
 Micelio.Api.Features.Vaults.NoteContentEndpoints.MapDiagramEndpoints(app);
 Micelio.Api.Features.Vaults.SearchEndpoints.MapSearchEndpoints(app);
 Micelio.Api.Features.Vaults.PdfEndpoints.MapPdfEndpoints(app);
+Micelio.Api.Features.Vaults.SharingEndpoints.MapSharingEndpoints(app);
 
 app.MapGet("/health", () => Results.Ok(new
 {

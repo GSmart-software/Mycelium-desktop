@@ -10,11 +10,18 @@ import styles from "./AppTopbar.module.css";
  * AppTopbar del workspace (HU-38): logo, búsqueda en la nota activa,
  * botón Compartir y avatar. Siempre visible.
  */
-export function AppTopbar({ activeNoteTitle }: { activeNoteTitle: string | null }) {
+export function AppTopbar({
+  activeNoteTitle,
+  shareFolder,
+}: {
+  activeNoteTitle: string | null;
+  shareFolder: { id: string; nombre: string } | null;
+}) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const setSearchInNoteOpen = useUiStore((s) => s.setSearchInNoteOpen);
+  const setShareTarget = useUiStore((s) => s.setShareTarget);
 
   const initials = (user?.nombre ?? "?")
     .split(/\s+/)
@@ -24,8 +31,8 @@ export function AppTopbar({ activeNoteTitle }: { activeNoteTitle: string | null 
     .toUpperCase();
 
   // El botón Compartir se habilita cuando la nota activa está en una carpeta
-  // compartible (HU-35). Hasta entonces queda deshabilitado.
-  const canShare = false;
+  // compartible (HU-35 CA1b).
+  const canShare = shareFolder !== null;
 
   return (
     <header className={styles.topbar}>
@@ -56,6 +63,7 @@ export function AppTopbar({ activeNoteTitle }: { activeNoteTitle: string | null 
           type="button"
           className={styles.shareButton}
           disabled={!canShare}
+          onClick={() => shareFolder && setShareTarget(shareFolder)}
           title={
             canShare
               ? "Compartir la carpeta de esta nota"

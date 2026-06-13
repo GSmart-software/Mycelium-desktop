@@ -19,10 +19,11 @@ public static class NoteContentEndpoints
             string id,
             ClaimsPrincipal user,
             VaultRepository repo,
+            SharingRepository sharing,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
-            if (await AuthorizeAsync(repo, user, id, requireEditor: false, ct) is { } error) return error;
+            if (await AuthorizeAsync(repo, sharing, user, id, requireEditor: false, ct) is { } error) return error;
             if (await repo.GetNotaAsync(id, ct) is not { } nota) return Results.NotFound();
 
             var contenido = "";
@@ -48,10 +49,11 @@ public static class NoteContentEndpoints
             ContentRequest request,
             ClaimsPrincipal user,
             VaultRepository repo,
+            SharingRepository sharing,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
-            if (await AuthorizeAsync(repo, user, id, requireEditor: true, ct) is { } error) return error;
+            if (await AuthorizeAsync(repo, sharing, user, id, requireEditor: true, ct) is { } error) return error;
             if (await repo.GetNotaAsync(id, ct) is not { } nota) return Results.NotFound();
 
             var contenido = request.Contenido ?? "";
@@ -81,10 +83,11 @@ public static class NoteContentEndpoints
             string diagId,
             ClaimsPrincipal user,
             VaultRepository repo,
+            SharingRepository sharing,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
-            if (await AuthorizeAsync(repo, user, notaId, requireEditor: false, ct) is { } error) return error;
+            if (await AuthorizeAsync(repo, sharing, user, notaId, requireEditor: false, ct) is { } error) return error;
             if (await repo.GetNotaAsync(notaId, ct) is not { } nota) return Results.NotFound();
 
             var key = DiagramKey(nota.GetString("vault_id"), notaId, diagId);
@@ -105,10 +108,11 @@ public static class NoteContentEndpoints
             HttpContext http,
             ClaimsPrincipal user,
             VaultRepository repo,
+            SharingRepository sharing,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
-            if (await AuthorizeAsync(repo, user, notaId, requireEditor: true, ct) is { } error) return error;
+            if (await AuthorizeAsync(repo, sharing, user, notaId, requireEditor: true, ct) is { } error) return error;
             if (await repo.GetNotaAsync(notaId, ct) is not { } nota) return Results.NotFound();
 
             using var reader = new StreamReader(http.Request.Body, Encoding.UTF8);
@@ -126,8 +130,13 @@ public static class NoteContentEndpoints
     private static string SanitizeId(string id) =>
         new([.. id.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_')]);
 
+    /// <summary>
+    /// Autoriza por rol efectivo sobre la nota: rol de vault o membresía de una
+    /// carpeta ancestro compartida (HU-35 CA6). `requireEditor` exige editor+.
+    /// </summary>
     private static async Task<IResult?> AuthorizeAsync(
-        VaultRepository repo, ClaimsPrincipal user, string notaId, bool requireEditor, CancellationToken ct)
+        VaultRepository repo, SharingRepository sharing, ClaimsPrincipal user,
+        string notaId, bool requireEditor, CancellationToken ct)
     {
         var vaultId = await repo.GetVaultIdOfNotaAsync(notaId, ct);
         if (vaultId is null) return Results.NotFound(new { error = "La nota no existe." });
@@ -135,8 +144,8 @@ public static class NoteContentEndpoints
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
         if (userId is null) return Results.Json(new { error = "No autenticado." }, statusCode: 401);
 
-        var rol = await repo.GetVaultRoleAsync(userId, vaultId, ct);
-        if (rol is null) return Results.Json(new { error = "Sin acceso a este vault." }, statusCode: 403);
+        var rol = await sharing.GetEffectiveNotaRoleAsync(userId, notaId, ct);
+        if (rol is null) return Results.Json(new { error = "Sin acceso a esta nota." }, statusCode: 403);
         if (requireEditor && rol == "lector")
         {
             return Results.Json(new { error = "Tu rol no permite editar." }, statusCode: 403);

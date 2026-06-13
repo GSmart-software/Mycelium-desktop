@@ -44,6 +44,27 @@
   background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
 }
 
+.sharedSection {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--mic-border);
+}
+
+.sharedTitle {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mic-text-muted);
+  padding: 0.2rem 0.4rem;
+}
+
+.sharedIcon {
+  margin-left: auto;
+  color: var(--mic-glow);
+  flex-shrink: 0;
+}
+
 .row {
   display: flex;
   align-items: center;

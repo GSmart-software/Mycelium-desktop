@@ -25,6 +25,8 @@ import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { useUiStore } from "@/stores/uiStore";
+import { SharedSection } from "./SharedSection";
 import {
   useVaultStore,
   type TreeCarpeta,
@@ -146,6 +148,16 @@ export function ExplorerPanel() {
           importTargetRef.current = carpeta.id;
           mdInputRef.current?.click();
         },
+      },
+      {
+        label: "Compartir",
+        onClick: () =>
+          useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
+      },
+      {
+        label: "Gestionar acceso",
+        onClick: () =>
+          useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
       },
       {
         label: "Renombrar",
@@ -364,6 +376,7 @@ export function ExplorerPanel() {
               Vault vacío. Creá tu primera nota con el botón de arriba.
             </p>
           )}
+          <SharedSection />
         </RootDropZone>
       </DndContext>
 
