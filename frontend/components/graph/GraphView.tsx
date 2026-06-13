@@ -6,15 +6,15 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { MiniGraph, type GraphEdge, type GraphNode } from "./MiniGraph";
-import styles from "./GlobalGraphPanel.module.css";
+import styles from "./GraphView.module.css";
 
 /**
- * Grafo global del vault en el panel izquierdo (rail). Reutiliza MiniGraph con
- * todos los nodos del vault; clic en un nodo abre la nota.
+ * Vista del grafo global como ventana del área de panes (estilo Obsidian):
+ * ocupa toda la pestaña, fondo oscuro, todos los nodos del vault. Clic en un
+ * nodo abre la nota en una pestaña.
  */
-export function GlobalGraphPanel() {
+export function GraphView() {
   const router = useRouter();
-  // El vault de la sesión está disponible aunque no se haya abierto el explorer.
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const [graph, setGraph] = useState<{ nodos: GraphNode[]; aristas: GraphEdge[] } | null>(null);
 
@@ -24,12 +24,8 @@ export function GlobalGraphPanel() {
     void api<{ nodos: GraphNode[]; aristas: GraphEdge[] }>(`/vaults/${vaultId}/grafo`, {
       token: useAuthStore.getState().accessToken,
     })
-      .then((res) => {
-        if (!cancelled) setGraph(res);
-      })
-      .catch(() => {
-        if (!cancelled) setGraph(null);
-      });
+      .then((res) => !cancelled && setGraph(res))
+      .catch(() => !cancelled && setGraph(null));
     return () => {
       cancelled = true;
     };
@@ -40,17 +36,18 @@ export function GlobalGraphPanel() {
     router.push(`/workspace?note=${notaId}`);
   };
 
-  if (!graph || graph.nodos.length === 0) {
-    return (
-      <p className={styles.empty}>
-        Aún no hay notas conectadas. Enlazá notas con <code>[[nombre]]</code>.
-      </p>
-    );
-  }
-
   return (
-    <div className={styles.box}>
-      <MiniGraph nodes={graph.nodos} edges={graph.aristas} centerId={null} onOpen={open} />
+    <div className={styles.view}>
+      {graph && graph.nodos.length > 0 ? (
+        <MiniGraph nodes={graph.nodos} edges={graph.aristas} centerId={null} onOpen={open} />
+      ) : (
+        <div className={styles.empty}>
+          <p>Aún no hay notas en el grafo.</p>
+          <p className={styles.hint}>
+            Enlazá notas con <code>[[nombre]]</code> para tejer tu red.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

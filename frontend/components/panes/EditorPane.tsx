@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { NoteEditor } from "@/components/editor/NoteEditor";
-import { useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
+import { GraphView } from "@/components/graph/GraphView";
+import { GRAPH_TAB_ID, useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
 import { TabBar } from "./TabBar";
 import styles from "./panes.module.css";
@@ -30,6 +31,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
       <div className={styles.paneBody}>
         {pane.linkedTo !== null ? (
           <LinkedPreviewPane pane={pane} />
+        ) : activeTab && activeTab.notaId === GRAPH_TAB_ID ? (
+          <GraphView key={activeTab.id} />
         ) : activeTab ? (
           <NoteEditor
             key={activeTab.id}

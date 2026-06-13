@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useSyncStore } from "@/stores/syncStore";
-import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
+import {
+  allLeaves,
+  GRAPH_TAB_ID,
+  useTabsStore,
+  type LeafPane,
+  type Tab,
+} from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./panes.module.css";
 
@@ -34,11 +40,13 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   }
 
   function titleOf(tab: Tab) {
+    if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
     return notas.find((n) => n.id === tab.notaId)?.titulo ?? "…";
   }
 
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
   function tooltipOf(tab: Tab) {
+    if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
     const nota = notas.find((n) => n.id === tab.notaId);
     if (!nota) return "";
     const parts: string[] = [];
@@ -104,10 +112,12 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             }}
           >
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
-            <span
-              className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
-              aria-hidden
-            />
+            {tab.notaId !== GRAPH_TAB_ID && (
+              <span
+                className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
+                aria-hidden
+              />
+            )}
             <button
               type="button"
               className={styles.tabClose}

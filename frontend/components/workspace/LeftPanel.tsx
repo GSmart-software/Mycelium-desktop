@@ -3,7 +3,6 @@
 import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
-import { GlobalGraphPanel } from "@/components/graph/GlobalGraphPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import styles from "./Panels.module.css";
@@ -11,7 +10,6 @@ import styles from "./Panels.module.css";
 const SECTION_TITLES: Record<RailSection, string> = {
   explorer: "Explorador",
   search: "Búsqueda",
-  graph: "Grafo global",
   tags: "Tags",
   trash: "Papelera",
 };
@@ -48,8 +46,6 @@ function SectionContent({ section }: { section: RailSection }) {
       return <ExplorerPanel />;
     case "search":
       return <SearchPanel />;
-    case "graph":
-      return <GlobalGraphPanel />;
     case "tags":
       // Placeholder permanente en esta versión (docs/FUTURE_IMPLEMENTATIONS.md).
       return <p className={styles.placeholder}>La vista de tags está planificada para una versión futura.</p>;

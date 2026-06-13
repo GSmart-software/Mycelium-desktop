@@ -1,5 +1,11 @@
 import { create } from "zustand";
 
+/**
+ * Id sentinela para la pestaña del grafo global: se abre como una ventana más
+ * en el área de panes (estilo Obsidian), no en el panel de archivos.
+ */
+export const GRAPH_TAB_ID = "graph:global";
+
 /** Pestaña: instancia de una nota abierta en un pane (HU-25). */
 export type Tab = { id: string; notaId: string };
 
