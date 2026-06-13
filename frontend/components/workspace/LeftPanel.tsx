@@ -1,7 +1,9 @@
 "use client";
 
 import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
+import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
+import { GlobalGraphPanel } from "@/components/graph/GlobalGraphPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import styles from "./Panels.module.css";
@@ -45,9 +47,9 @@ function SectionContent({ section }: { section: RailSection }) {
     case "explorer":
       return <ExplorerPanel />;
     case "search":
-      return <p className={styles.placeholder}>La búsqueda en el vault llega con HU-21.</p>;
+      return <SearchPanel />;
     case "graph":
-      return <p className={styles.placeholder}>El grafo global del vault llega en la Fase 7.</p>;
+      return <GlobalGraphPanel />;
     case "tags":
       // Placeholder permanente en esta versión (docs/FUTURE_IMPLEMENTATIONS.md).
       return <p className={styles.placeholder}>La vista de tags está planificada para una versión futura.</p>;

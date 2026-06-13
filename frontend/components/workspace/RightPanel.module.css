@@ -1,0 +1,127 @@
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.tab {
+  flex: 1;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--mic-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--mic-text-primary);
+}
+
+.tabActive {
+  color: var(--mic-text-primary);
+  border-bottom-color: var(--mic-glow);
+}
+
+.tabBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.graphBox {
+  flex: 1;
+  min-height: 220px;
+  border-radius: 8px;
+  background: var(--mic-bg-base);
+  overflow: hidden;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  overflow-y: auto;
+  min-height: 0;
+  list-style: none;
+}
+
+.empty {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  padding: 0.4rem 0;
+}
+
+.link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--mic-glow);
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+}
+
+.link:hover {
+  background: var(--mic-bg-hover);
+}
+
+.linkBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+}
+
+.linkBlock:hover {
+  background: var(--mic-bg-hover);
+}
+
+.linkBlock .link {
+  padding: 0;
+}
+
+.linkBlock .link:hover {
+  background: none;
+}
+
+.fragment {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--mic-border);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.meta dt {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  opacity: 0.85;
+}
+
+.meta dd {
+  word-break: break-word;
+}

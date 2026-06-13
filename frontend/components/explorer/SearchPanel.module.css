@@ -1,0 +1,116 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.fieldIcon {
+  position: absolute;
+  left: 0.5rem;
+  color: var(--mic-text-muted);
+  pointer-events: none;
+}
+
+.input {
+  width: 100%;
+  padding: 0.4rem 1.75rem 0.4rem 1.75rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+  border-radius: 6px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--mic-glow) 60%, transparent);
+}
+
+.clear {
+  position: absolute;
+  right: 0.4rem;
+  display: flex;
+  padding: 0.15rem;
+  color: var(--mic-text-muted);
+  border-radius: 4px;
+}
+
+.clear:hover {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-hover);
+}
+
+.hint {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.hint code {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.6875rem;
+}
+
+.status {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  line-height: 1.5;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  min-height: 0;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem;
+  text-align: left;
+  border-radius: 6px;
+}
+
+.result:hover {
+  background: var(--mic-bg-hover);
+}
+
+.resultTitle {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.resultPath {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.resultFragment {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.resultFragment :global(mark.mic-search-hit) {
+  background: color-mix(in srgb, var(--mic-glow) 30%, transparent);
+  color: var(--mic-text-primary);
+  border-radius: 2px;
+  padding: 0 1px;
+}

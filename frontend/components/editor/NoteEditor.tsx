@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
+import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
@@ -37,6 +38,18 @@ const instanceCache = new Map<
   string,
   { doc: string; anchor: number; head: number; scrollTop: number }
 >();
+
+/** Selecciona y centra la primera coincidencia de `term` en la vista (HU-21 CA8). */
+function gotoMatch(view: EditorView, term: string) {
+  if (!term) return;
+  const idx = view.state.doc.toString().toLowerCase().indexOf(term.toLowerCase());
+  if (idx < 0) return;
+  view.dispatch({
+    selection: { anchor: idx, head: idx + term.length },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
 
 /**
  * Editor de una nota (HU-01/02/04/19): CodeMirror 6 con live preview por
@@ -236,6 +249,10 @@ export function NoteEditor({
       }
 
       setPreviewHtml(renderMarkdown(content));
+
+      // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
+      const pendingTerm = takePendingMatch(notaId);
+      if (pendingTerm) gotoMatch(viewRef.current, pendingTerm);
     },
     [onDocChanged, openByTitle, notaId, instanceId, paneId],
   );
@@ -333,6 +350,20 @@ export function NoteEditor({
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notaId]);
+
+  // Salto a coincidencia cuando la nota ya estaba abierta (HU-21 CA8)
+  useEffect(() => {
+    function onGoto(event: Event) {
+      const detail = (event as CustomEvent<{ notaId: string; term: string }>).detail;
+      if (detail?.notaId !== notaId) return;
+      const view = viewRef.current;
+      if (!view) return;
+      takePendingMatch(notaId);
+      gotoMatch(view, detail.term);
+    }
+    window.addEventListener("micelio:goto-match", onGoto);
+    return () => window.removeEventListener("micelio:goto-match", onGoto);
   }, [notaId]);
 
   // Espejo en tiempo real con otras instancias de la misma nota

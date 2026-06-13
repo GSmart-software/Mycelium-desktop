@@ -58,6 +58,35 @@ public static partial class SearchEndpoints
             return Results.Ok(new { resultados = result.Results });
         });
 
+        // ── Grafo global del vault (HU-30 / rail) ─────────────────
+        group.MapGet("/vaults/{vaultId}/grafo", async (
+            string vaultId,
+            ClaimsPrincipal user,
+            VaultRepository repo,
+            IBlobStorage blobs,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(user);
+            if (userId is null || await repo.GetVaultRoleAsync(userId, vaultId, ct) is null)
+            {
+                return Results.Json(new { error = "Sin acceso a este vault." }, statusCode: 403);
+            }
+
+            var (_, notas) = await repo.GetTreeAsync(vaultId, ct);
+            var (aristasVault, titulosPorId, _) = await BuildVaultGraphAsync(notas, vaultId, blobs, ct);
+
+            var conexionesTotales = ContarConexiones(aristasVault);
+            var nodos = titulosPorId.Select(kv => new
+            {
+                id = kv.Key,
+                titulo = kv.Value,
+                conexiones = conexionesTotales.GetValueOrDefault(kv.Key),
+            });
+            var aristas = aristasVault.Select(a => new { source = a.From, target = a.To });
+
+            return Results.Ok(new { nodos, aristas });
+        });
+
         // ── Conexiones de la nota (HU-30) ─────────────────────────
         group.MapGet("/notas/{id}/conexiones", async (
             string id,
@@ -79,44 +108,11 @@ public static partial class SearchEndpoints
             // Escaneo del vault para construir el grafo de enlaces. En modo
             // cloudflare esto se materializará en una tabla de links en D1.
             var (_, notas) = await repo.GetTreeAsync(vaultId, ct);
-            var porTitulo = notas.ToDictionary(
-                n => n.GetString("titulo"),
-                n => n.GetString("id"),
-                StringComparer.OrdinalIgnoreCase);
-            var titulosPorId = notas.ToDictionary(
-                n => n.GetString("id"),
-                n => n.GetString("titulo"));
-
-            var contenidos = new Dictionary<string, string>();
-            foreach (var n in notas)
-            {
-                var key = $"vaults/{vaultId}/notas/{n.GetString("id")}.md";
-                await using var stream = await blobs.GetAsync(key, ct);
-                if (stream is null) continue;
-                using var reader = new StreamReader(stream, Encoding.UTF8);
-                contenidos[n.GetString("id")] = await reader.ReadToEndAsync(ct);
-            }
+            var (aristasVault, titulosPorId, contenidos) =
+                await BuildVaultGraphAsync(notas, vaultId, blobs, ct);
 
             // Adyacencia completa del vault (para tamaños de nodo, CA3)
-            var aristasVault = new HashSet<(string From, string To)>();
-            foreach (var (notaId, contenido) in contenidos)
-            {
-                foreach (Match m in WikilinkRegex().Matches(contenido))
-                {
-                    if (porTitulo.TryGetValue(m.Groups[1].Value.Trim(), out var destinoId)
-                        && destinoId != notaId)
-                    {
-                        aristasVault.Add((notaId, destinoId));
-                    }
-                }
-            }
-
-            var conexionesTotales = new Dictionary<string, int>();
-            foreach (var (from, to) in aristasVault)
-            {
-                conexionesTotales[from] = conexionesTotales.GetValueOrDefault(from) + 1;
-                conexionesTotales[to] = conexionesTotales.GetValueOrDefault(to) + 1;
-            }
+            var conexionesTotales = ContarConexiones(aristasVault);
 
             var salientes = aristasVault
                 .Where(a => a.From == id)
@@ -171,6 +167,67 @@ public static partial class SearchEndpoints
 
     private static string? GetUserId(ClaimsPrincipal user) =>
         user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
+
+    /// <summary>
+    /// Escanea los blobs del vault y arma el grafo de wikilinks: aristas
+    /// dirigidas (origen → destino), títulos por id y contenidos por id.
+    /// En modo cloudflare esto se materializará en una tabla de links en D1.
+    /// </summary>
+    private static async Task<(
+        HashSet<(string From, string To)> Aristas,
+        Dictionary<string, string> Titulos,
+        Dictionary<string, string> Contenidos)> BuildVaultGraphAsync(
+        IReadOnlyList<System.Text.Json.JsonElement> notas,
+        string vaultId,
+        IBlobStorage blobs,
+        CancellationToken ct)
+    {
+        var porTitulo = notas.ToDictionary(
+            n => n.GetString("titulo"),
+            n => n.GetString("id"),
+            StringComparer.OrdinalIgnoreCase);
+        var titulosPorId = notas.ToDictionary(
+            n => n.GetString("id"),
+            n => n.GetString("titulo"));
+
+        var contenidos = new Dictionary<string, string>();
+        foreach (var n in notas)
+        {
+            var key = $"vaults/{vaultId}/notas/{n.GetString("id")}.md";
+            await using var stream = await blobs.GetAsync(key, ct);
+            if (stream is null) continue;
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            contenidos[n.GetString("id")] = await reader.ReadToEndAsync(ct);
+        }
+
+        var aristas = new HashSet<(string From, string To)>();
+        foreach (var (notaId, contenido) in contenidos)
+        {
+            foreach (Match m in WikilinkRegex().Matches(contenido))
+            {
+                if (porTitulo.TryGetValue(m.Groups[1].Value.Trim(), out var destinoId)
+                    && destinoId != notaId)
+                {
+                    aristas.Add((notaId, destinoId));
+                }
+            }
+        }
+
+        return (aristas, titulosPorId, contenidos);
+    }
+
+    /// <summary>Grado total (entrante + saliente) de cada nodo (HU-30 CA3).</summary>
+    private static Dictionary<string, int> ContarConexiones(
+        HashSet<(string From, string To)> aristas)
+    {
+        var conteo = new Dictionary<string, int>();
+        foreach (var (from, to) in aristas)
+        {
+            conteo[from] = conteo.GetValueOrDefault(from) + 1;
+            conteo[to] = conteo.GetValueOrDefault(to) + 1;
+        }
+        return conteo;
+    }
 
     /// <summary>Fragmento de contexto alrededor del [[enlace]] (HU-30 CA7).</summary>
     private static string FragmentAround(string contenido, string titulo)

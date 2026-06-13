@@ -1,0 +1,18 @@
+.box {
+  flex: 1;
+  min-height: 0;
+  border-radius: 8px;
+  background: var(--mic-bg-base);
+  overflow: hidden;
+}
+
+.empty {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  line-height: 1.5;
+}
+
+.empty code {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+}
