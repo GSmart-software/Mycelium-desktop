@@ -1,23 +1,37 @@
 "use client";
 
-import { X } from "lucide-react";
+import { LogOut, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { AccountSection } from "@/components/settings/AccountSection";
+import { AppearanceSection } from "@/components/settings/AppearanceSection";
+import { CustomCssSection } from "@/components/settings/CustomCssSection";
+import { TypographySection } from "@/components/settings/TypographySection";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SettingsDrawer.module.css";
 
+type SettingsTab = "cuenta" | "apariencia" | "tipografia" | "css";
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: "cuenta", label: "Cuenta" },
+  { id: "apariencia", label: "Apariencia" },
+  { id: "tipografia", label: "Tipografía" },
+  { id: "css", label: "CSS" },
+];
+
 /**
- * Settings drawer deslizable desde el lateral derecho (HU-28 CA4).
- * Las secciones Apariencia / Tipografía / CSS personalizado llegan en la
- * Fase 8 (HU-12/13/14/15/34).
+ * Settings drawer (HU-28 CA4) con secciones Cuenta (HU-34), Apariencia (HU-12),
+ * Tipografía (HU-14) y CSS personalizado (HU-13/15).
  */
 export function SettingsDrawer() {
   const router = useRouter();
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
+  const [tab, setTab] = useState<SettingsTab>("cuenta");
+
+  const close = () => setSettingsOpen(false);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -32,7 +46,7 @@ export function SettingsDrawer() {
 
   return (
     <>
-      <div className={styles.overlay} onClick={() => setSettingsOpen(false)} />
+      <div className={styles.overlay} onClick={close} />
       <aside className={styles.drawer} aria-label="Configuración">
         <header className={styles.header}>
           <h2 className={styles.title}>Configuración</h2>
@@ -40,43 +54,46 @@ export function SettingsDrawer() {
             type="button"
             className={styles.close}
             aria-label="Cerrar configuración"
-            onClick={() => setSettingsOpen(false)}
+            onClick={close}
           >
             <X size={18} aria-hidden />
           </button>
         </header>
 
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Cuenta</h3>
-          <p className={styles.row}>
-            <span className={styles.rowLabel}>Nombre</span>
-            <span>{user?.nombre}</span>
-          </p>
-          <p className={styles.row}>
-            <span className={styles.rowLabel}>Email</span>
-            <span>{user?.email}</span>
-          </p>
-          <button
-            type="button"
-            className={styles.logout}
-            onClick={() =>
-              void logout().then(() => {
-                setSettingsOpen(false);
-                router.replace("/login");
-              })
-            }
-          >
-            Cerrar sesión
-          </button>
-        </section>
+        <nav className={styles.tabs} role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`${styles.tab} ${tab === t.id ? styles.tabActive : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Apariencia</h3>
-          <p className={styles.placeholder}>
-            Temas, modo oscuro, tipografía y CSS personalizado llegan en la
-            Fase 8.
-          </p>
-        </section>
+        <div className={styles.body}>
+          {tab === "cuenta" && <AccountSection onClose={close} />}
+          {tab === "apariencia" && <AppearanceSection />}
+          {tab === "tipografia" && <TypographySection />}
+          {tab === "css" && <CustomCssSection />}
+        </div>
+
+        <button
+          type="button"
+          className={styles.logout}
+          onClick={() =>
+            void logout().then(() => {
+              close();
+              router.replace("/login");
+            })
+          }
+        >
+          <LogOut size={15} aria-hidden /> Cerrar sesión
+        </button>
       </aside>
     </>
   );

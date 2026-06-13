@@ -67,6 +67,19 @@ public sealed class AuthRepository(ID1Client d1)
             "UPDATE usuarios SET password_hash = ?, actualizado_en = ? WHERE id = ?",
             [passwordHash, DateTime.UtcNow.ToString("O"), userId], ct);
 
+    /// <summary>Actualiza nombre visible y avatar (HU-34 CA1).</summary>
+    public Task UpdateProfileAsync(string userId, string nombre, string? avatarUrl, CancellationToken ct = default) =>
+        d1.QueryAsync(
+            "UPDATE usuarios SET nombre = ?, avatar_url = ?, actualizado_en = ? WHERE id = ?",
+            [nombre, avatarUrl, DateTime.UtcNow.ToString("O"), userId], ct);
+
+    /// <summary>Persiste tema, modo oscuro y preferencias (tipografía/CSS) — HU-12/14/34.</summary>
+    public Task UpdatePreferencesAsync(
+        string userId, string tema, bool modoOscuro, string? preferenciasJson, CancellationToken ct = default) =>
+        d1.QueryAsync(
+            "UPDATE usuarios SET tema = ?, modo_oscuro = ?, preferencias_json = ?, actualizado_en = ? WHERE id = ?",
+            [tema, modoOscuro, preferenciasJson, DateTime.UtcNow.ToString("O"), userId], ct);
+
     // ── Refresh tokens ────────────────────────────────────────────
 
     public Task InsertRefreshTokenAsync(string userId, string tokenHash, DateTime expiraEn, CancellationToken ct = default) =>

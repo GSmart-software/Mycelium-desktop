@@ -1,0 +1,189 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--mic-glow) 60%, transparent);
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--mic-glow);
+}
+
+.rangeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rangeValue {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 3ch;
+  text-align: right;
+}
+
+.primaryBtn {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.primaryBtn:hover {
+  background: color-mix(in srgb, var(--mic-accent) 85%, black);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: transparent;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+.secondaryBtn:hover {
+  background: var(--mic-bg-hover);
+}
+
+.btnRow {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.feedback {
+  font-size: 0.75rem;
+  color: var(--mic-sync-ok);
+}
+
+.error {
+  font-size: 0.75rem;
+  color: var(--mic-callout-caution-border);
+}
+
+/* ── Swatches de tema (HU-12 CA10) ──────────────────────────────── */
+.swatchGroup {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.swatch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 2px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  cursor: pointer;
+}
+
+.swatchActive {
+  border-color: var(--mic-glow);
+}
+
+.swatchPreview {
+  height: 38px;
+  border-radius: var(--mic-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.swatchDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.swatchName {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+/* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--mic-border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.toggle:hover {
+  background: var(--mic-bg-hover);
+}
+
+/* ── Avatar (HU-34 CA1) ─────────────────────────────────────────── */
+.avatarRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+/* ── CSS personalizado (HU-15) ──────────────────────────────────── */
+.cssPreviewNote {
+  font-size: 0.75rem;
+  color: var(--mic-sync-warn);
+}

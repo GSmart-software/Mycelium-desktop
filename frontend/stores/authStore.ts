@@ -8,6 +8,7 @@ export type User = {
   avatarUrl: string | null;
   tema: string;
   modoOscuro: boolean;
+  preferencias?: Record<string, unknown>;
 };
 
 export type Vault = {
@@ -34,6 +35,8 @@ type AuthState = {
   logout: () => Promise<void>;
   /** Restaura la sesión desde la cookie de refresh. Devuelve true si hay sesión. */
   restore: () => Promise<boolean>;
+  /** Actualiza el usuario local tras editar perfil/preferencias (HU-34). */
+  setUser: (user: User) => void;
 };
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -95,5 +98,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ initialized: true });
       return false;
     }
+  },
+
+  setUser(user) {
+    set({ user });
   },
 }));

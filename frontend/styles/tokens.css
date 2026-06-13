@@ -15,6 +15,11 @@
   --mic-text-muted:    var(--mic-raw-ink-muted);
   --mic-accent:        var(--mic-raw-accent);   /* botones, links activos */
   --mic-glow:          var(--mic-raw-glow);     /* nodos, tags, cursor */
+
+  /* Derivados (inputs, bordes y hover) — válidos en los 4 combos tema×dark */
+  --mic-bg-base:   var(--mic-raw-canvas);       /* fondo recedido: inputs, canvas */
+  --mic-bg-hover:  color-mix(in srgb, var(--mic-glow) 14%, transparent);
+  --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
 }
 
 /* ── Tema por defecto: Bioluminiscencia (verde-cian) ──────────── */

@@ -260,7 +260,7 @@ public static partial class AuthEndpoints
         };
     }
 
-    private static object UserDto(System.Text.Json.JsonElement user) => new
+    internal static object UserDto(System.Text.Json.JsonElement user) => new
     {
         id = user.GetString("id"),
         email = user.GetString("email"),
@@ -268,7 +268,25 @@ public static partial class AuthEndpoints
         avatarUrl = user.GetStringOrNull("avatar_url"),
         tema = user.GetString("tema"),
         modoOscuro = user.GetBool("modo_oscuro"),
+        preferencias = ParsePreferencias(user.GetStringOrNull("preferencias_json")),
     };
+
+    /// <summary>preferencias_json → objeto JSON (o {} si está vacío/corrupto).</summary>
+    private static System.Text.Json.JsonElement ParsePreferencias(string? json)
+    {
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                return System.Text.Json.JsonDocument.Parse(json).RootElement.Clone();
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // preferencias corruptas → objeto vacío
+            }
+        }
+        return System.Text.Json.JsonDocument.Parse("{}").RootElement.Clone();
+    }
 
     public sealed record RegisterRequest(string? Email, string? Password, string? Nombre);
     public sealed record LoginRequest(string? Email, string? Password);

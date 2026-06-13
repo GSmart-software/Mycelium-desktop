@@ -66,6 +66,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapAuthEndpoints();
+Micelio.Api.Features.Auth.PreferencesEndpoints.MapPreferencesEndpoints(app);
 Micelio.Api.Features.Vaults.VaultEndpoints.MapVaultEndpoints(app);
 Micelio.Api.Features.Vaults.NoteContentEndpoints.MapNoteContentEndpoints(app);
 Micelio.Api.Features.Vaults.NoteContentEndpoints.MapDiagramEndpoints(app);

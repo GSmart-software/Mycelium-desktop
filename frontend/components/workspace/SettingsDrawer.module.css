@@ -10,15 +10,46 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(360px, 90vw);
+  width: min(440px, 95vw);
   background: var(--mic-bg-surface);
   z-index: 50;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
   padding: 1rem;
   box-shadow: -8px 0 24px color-mix(in srgb, var(--mic-raw-base-deep) 25%, transparent);
   animation: slide-in var(--mic-panel-transition);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.tab {
+  flex: 1;
+  padding: 0.45rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--mic-text-primary);
+}
+
+.tabActive {
+  color: var(--mic-text-primary);
+  border-bottom-color: var(--mic-glow);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 @keyframes slide-in {
@@ -85,7 +116,10 @@
 }
 
 .logout {
-  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   padding: 0.5rem;
   border-radius: var(--mic-radius-md);
   border: 1px solid color-mix(in srgb, var(--mic-callout-caution-border) 50%, transparent);

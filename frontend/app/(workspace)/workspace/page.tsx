@@ -10,6 +10,7 @@ import { RightPanel } from "@/components/workspace/RightPanel";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./workspace.module.css";
@@ -36,6 +37,14 @@ function WorkspaceGuard() {
       router.replace("/login");
     }
   }, [initialized, user, restore, router]);
+
+  // Aplicar tema, modo oscuro, tipografía y CSS propio al autenticarse (HU-12/14/13)
+  useEffect(() => {
+    if (user) {
+      usePreferencesStore.getState().hydrateFromUser();
+      void usePreferencesStore.getState().loadCss();
+    }
+  }, [user]);
 
   if (!user) {
     return (
