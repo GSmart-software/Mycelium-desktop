@@ -4,6 +4,14 @@
   gap: 0.5rem;
   height: 100%;
   min-height: 0;
+  border-radius: var(--mic-radius-sm);
+}
+
+/* Drop de archivos .md del SO sobre el explorer (HU-07 CA1b) */
+.osDragOver {
+  outline: 2px dashed color-mix(in srgb, var(--mic-glow) 60%, transparent);
+  outline-offset: -4px;
+  background: color-mix(in srgb, var(--mic-glow) 20%, transparent);
 }
 
 .actions {

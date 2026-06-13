@@ -230,6 +230,12 @@
   padding: 0.4rem 0.6rem;
 }
 
+.tabMenuSep {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--mic-border);
+}
+
 /* ── Zonas de drop para splits (HU-26 CA1/CA2) ──────────────────── */
 
 .dropZone {

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
@@ -124,6 +125,7 @@ function WorkspaceShell() {
       <EditorArea />
       <RightPanel />
       <SettingsDrawer />
+      <ImportDialogs />
     </div>
   );
 }

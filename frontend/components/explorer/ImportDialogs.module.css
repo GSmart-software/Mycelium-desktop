@@ -1,0 +1,108 @@
+.progressBar {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 240px;
+  padding: 0.6rem 0.85rem;
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent);
+  font-size: 0.75rem;
+  color: var(--mic-text-primary);
+}
+
+.track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--mic-bg-base);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: var(--mic-glow);
+  transition: width 120ms ease;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+}
+
+.modal {
+  width: min(420px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  background: var(--mic-bg-surface);
+  border-radius: var(--mic-radius-lg);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+}
+
+.modalTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.modalText {
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  line-height: 1.5;
+}
+
+.omitidos {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  list-style: disc;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.modalActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btn,
+.btnPrimary {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.btn {
+  color: var(--mic-text-primary);
+  border: 1px solid var(--mic-border);
+}
+
+.btn:hover {
+  background: var(--mic-bg-hover);
+}
+
+.btnPrimary {
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+}
+
+.btnPrimary:hover {
+  background: color-mix(in srgb, var(--mic-accent) 85%, black);
+}

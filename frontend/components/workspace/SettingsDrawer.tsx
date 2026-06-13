@@ -7,17 +7,19 @@ import { AccountSection } from "@/components/settings/AccountSection";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { TypographySection } from "@/components/settings/TypographySection";
+import { VaultSection } from "@/components/settings/VaultSection";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SettingsDrawer.module.css";
 
-type SettingsTab = "cuenta" | "apariencia" | "tipografia" | "css";
+type SettingsTab = "cuenta" | "apariencia" | "tipografia" | "css" | "vault";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "cuenta", label: "Cuenta" },
   { id: "apariencia", label: "Apariencia" },
   { id: "tipografia", label: "Tipografía" },
   { id: "css", label: "CSS" },
+  { id: "vault", label: "Vault" },
 ];
 
 /**
@@ -80,6 +82,7 @@ export function SettingsDrawer() {
           {tab === "apariencia" && <AppearanceSection />}
           {tab === "tipografia" && <TypographySection />}
           {tab === "css" && <CustomCssSection />}
+          {tab === "vault" && <VaultSection />}
         </div>
 
         <button

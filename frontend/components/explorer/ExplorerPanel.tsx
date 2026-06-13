@@ -16,10 +16,14 @@ import {
   FileText,
   Folder,
   FolderPlus,
+  Upload,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { exportNoteMd } from "@/lib/export";
+import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
+import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import {
   useVaultStore,
@@ -45,6 +49,9 @@ export function ExplorerPanel() {
   const store = useVaultStore();
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
+  const [osDragOver, setOsDragOver] = useState(false);
+  const mdInputRef = useRef<HTMLInputElement>(null);
+  const importTargetRef = useRef<string | null>(null);
 
   const vaultId = vaults[0]?.id;
 
@@ -134,6 +141,13 @@ export function ExplorerPanel() {
         },
       },
       {
+        label: "Importar archivos .md",
+        onClick: () => {
+          importTargetRef.current = carpeta.id;
+          mdInputRef.current?.click();
+        },
+      },
+      {
         label: "Renombrar",
         onClick: () =>
           setRenaming({ type: "carpeta", id: carpeta.id, valor: carpeta.nombre }),
@@ -163,6 +177,10 @@ export function ExplorerPanel() {
         onClick: () => setRenaming({ type: "nota", id: nota.id, valor: nota.titulo }),
       },
       { label: "Duplicar", onClick: () => void store.duplicateNota(nota.id) },
+      {
+        label: "Exportar como .md",
+        onClick: () => void exportNoteMd(nota.id, nota.titulo),
+      },
       {
         label: "Eliminar",
         danger: true,
@@ -255,8 +273,47 @@ export function ExplorerPanel() {
     return <p className={styles.empty}>Sin vault activo.</p>;
   }
 
+  const onOsDrop = (event: React.DragEvent) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    setOsDragOver(false);
+    void collectFromDataTransfer(event.dataTransfer).then((files) => {
+      const onlyMd = files.filter((f) => /\.md$/i.test(f.path) || !/\.[^/]+$/.test(f.path));
+      if (onlyMd.length > 0) {
+        useImportStore.getState().run(onlyMd, store.activeFolderId, "Importación");
+      }
+    });
+  };
+
   return (
-    <div className={styles.explorer}>
+    <div
+      className={`${styles.explorer} ${osDragOver ? styles.osDragOver : ""}`}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          setOsDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setOsDragOver(false);
+      }}
+      onDrop={onOsDrop}
+    >
+      <input
+        ref={mdInputRef}
+        type="file"
+        accept=".md,text/markdown"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            void useImportStore
+              .getState()
+              .run(collectFromFileList(e.target.files), importTargetRef.current, "Importación");
+          }
+          e.target.value = "";
+        }}
+      />
       <div className={styles.actions}>
         <button
           type="button"
@@ -276,6 +333,17 @@ export function ExplorerPanel() {
           }}
         >
           <FolderPlus size={16} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.actionButton}
+          title="Importar archivos .md"
+          onClick={() => {
+            importTargetRef.current = store.activeFolderId;
+            mdInputRef.current?.click();
+          }}
+        >
+          <Upload size={16} aria-hidden />
         </button>
       </div>
 

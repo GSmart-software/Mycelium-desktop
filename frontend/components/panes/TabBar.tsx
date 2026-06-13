@@ -3,6 +3,7 @@
 import { MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { exportNoteMd } from "@/lib/export";
 import { useSyncStore } from "@/stores/syncStore";
 import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -54,6 +55,12 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const otherPanes = allLeaves(useTabsStore.getState().root).filter(
     (leaf) => leaf.id !== pane.id && leaf.linkedTo === null,
   );
+
+  // Nota activa del pane, para las acciones de exportación del menú "..." (HU-08)
+  const activeNotaId = pane.tabs.find((t) => t.id === pane.activeTabId)?.notaId;
+  const activeNota = activeNotaId
+    ? notas.find((n) => n.id === activeNotaId) ?? null
+    : null;
 
   return (
     <div className={styles.tabBar} role="tablist">
@@ -148,6 +155,21 @@ export function TabBar({ pane }: { pane: LeafPane }) {
         </button>
         {menuOpen && (
           <div className={styles.tabMenu}>
+            {activeNota && (
+              <>
+                <button
+                  type="button"
+                  className={styles.tabMenuItem}
+                  onClick={() => {
+                    void exportNoteMd(activeNota.id, activeNota.titulo);
+                    setMenuOpen(false);
+                  }}
+                >
+                  Exportar como .md
+                </button>
+                <div className={styles.tabMenuSep} />
+              </>
+            )}
             {pane.linkedTo === null ? (
               otherPanes.length > 0 ? (
                 otherPanes.map((other, i) => (
