@@ -35,7 +35,8 @@
   flex: 1;
   min-height: 220px;
   border-radius: 8px;
-  background: var(--mic-bg-base);
+  /* Lienzo oscuro estilo Obsidian, en cualquier tema */
+  background: var(--mic-raw-base-deep);
   overflow: hidden;
 }
 

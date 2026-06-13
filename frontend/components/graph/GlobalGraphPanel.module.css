@@ -1,8 +1,9 @@
 .box {
   flex: 1;
-  min-height: 0;
+  min-height: 320px;
   border-radius: 8px;
-  background: var(--mic-bg-base);
+  /* Lienzo oscuro estilo Obsidian, en cualquier tema */
+  background: var(--mic-raw-base-deep);
   overflow: hidden;
 }
 

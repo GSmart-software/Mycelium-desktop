@@ -37,12 +37,16 @@ export function MiniGraph({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // El grafo se dibuja sobre un lienzo oscuro (estilo Obsidian) en cualquier
+    // tema; los nodos usan el glow del tema y las etiquetas un gris claro.
     const styles = getComputedStyle(canvas);
-    const colGlow = styles.getPropertyValue("--mic-glow").trim() || "#3DFFC4";
-    const colEdge = styles.getPropertyValue("--mic-border").trim() || "#888";
-    const colText = styles.getPropertyValue("--mic-text-muted").trim() || "#aaa";
-    const colText2 = styles.getPropertyValue("--mic-text-primary").trim() || "#fff";
-    const colNode = styles.getPropertyValue("--mic-accent").trim() || colGlow;
+    const colGlow = styles.getPropertyValue("--mic-glow").trim() || "#5DCAA5";
+    const colNode = colGlow;
+    const colCenter = "#eafff8";
+    const colEdge = "rgba(160, 224, 208, 0.22)";
+    const colEdgeLit = colGlow;
+    const colText = "rgba(206, 232, 224, 0.82)";
+    const colText2 = "rgba(245, 255, 252, 0.96)";
 
     const N = nodes.length;
     const sim: SimNode[] = nodes.map((n, i) => {
@@ -224,9 +228,9 @@ export function MiniGraph({
       // Aristas con curva bezier suave (CA4)
       for (const e of simEdges) {
         const lit = hover && (e.s === hover || e.t === hover);
-        ctx.strokeStyle = lit ? colGlow : colEdge;
-        ctx.globalAlpha = lit ? 0.75 : 0.35;
-        ctx.lineWidth = (lit ? 1.6 : 1) / scale;
+        ctx.strokeStyle = lit ? colEdgeLit : colEdge;
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = (lit ? 1.8 : 1.1) / scale;
         const mx = (e.s.x + e.t.x) / 2;
         const my = (e.s.y + e.t.y) / 2;
         // Desplazamiento perpendicular para curvar la línea
@@ -248,8 +252,8 @@ export function MiniGraph({
         const isCenter = n.id === centerId;
         const lit = n === hover || isCenter;
         ctx.shadowColor = colGlow;
-        ctx.shadowBlur = lit ? 18 : 8;
-        ctx.fillStyle = isCenter ? colGlow : colNode;
+        ctx.shadowBlur = lit ? 22 : 12;
+        ctx.fillStyle = isCenter ? colCenter : colNode;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fill();

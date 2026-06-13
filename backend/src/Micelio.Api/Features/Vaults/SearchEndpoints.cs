@@ -182,13 +182,17 @@ public static partial class SearchEndpoints
         IBlobStorage blobs,
         CancellationToken ct)
     {
-        var porTitulo = notas.ToDictionary(
-            n => n.GetString("titulo"),
-            n => n.GetString("id"),
-            StringComparer.OrdinalIgnoreCase);
-        var titulosPorId = notas.ToDictionary(
-            n => n.GetString("id"),
-            n => n.GetString("titulo"));
+        // Títulos duplicados son posibles (p. ej. varias "Sin título"): se
+        // resuelve el wikilink a la primera nota con ese título.
+        var porTitulo = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var titulosPorId = new Dictionary<string, string>();
+        foreach (var n in notas)
+        {
+            var nid = n.GetString("id");
+            var titulo = n.GetString("titulo");
+            porTitulo.TryAdd(titulo, nid);
+            titulosPorId[nid] = titulo;
+        }
 
         var contenidos = new Dictionary<string, string>();
         foreach (var n in notas)

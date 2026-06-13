@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
-import { useVaultStore } from "@/stores/vaultStore";
 import { MiniGraph, type GraphEdge, type GraphNode } from "./MiniGraph";
 import styles from "./GlobalGraphPanel.module.css";
 
@@ -15,7 +14,8 @@ import styles from "./GlobalGraphPanel.module.css";
  */
 export function GlobalGraphPanel() {
   const router = useRouter();
-  const vaultId = useVaultStore((s) => s.vaultId);
+  // El vault de la sesión está disponible aunque no se haya abierto el explorer.
+  const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const [graph, setGraph] = useState<{ nodos: GraphNode[]; aristas: GraphEdge[] } | null>(null);
 
   useEffect(() => {
