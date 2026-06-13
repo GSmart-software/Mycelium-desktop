@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   avatar_url       TEXT,
   email_verificado INTEGER NOT NULL DEFAULT 0,
   tema             TEXT NOT NULL DEFAULT 'bioluminiscencia',
-  modo_oscuro      INTEGER NOT NULL DEFAULT 0,
+  modo_oscuro      INTEGER NOT NULL DEFAULT 1,
   preferencias_json TEXT,                -- tipografía y demás preferencias (HU-14)
   creado_en        TEXT NOT NULL,
   actualizado_en   TEXT NOT NULL

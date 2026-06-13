@@ -60,6 +60,7 @@ export default function RootLayout({
     <html
       lang="es"
       data-theme="bioluminiscencia"
+      data-dark="true"
       className={`${geistSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${fontVariables}`}
     >
       <body>{children}</body>

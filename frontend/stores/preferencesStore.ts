@@ -98,7 +98,7 @@ function persistPrefs(get: () => PreferencesState) {
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   tema: "bioluminiscencia",
-  modoOscuro: false,
+  modoOscuro: true, // por defecto la estética oscura bioluminiscente (legacy)
   prefs: DEFAULT_PREFS,
   customCss: "",
   savedCss: "",
