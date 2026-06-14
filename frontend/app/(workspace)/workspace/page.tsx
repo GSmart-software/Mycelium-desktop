@@ -12,6 +12,7 @@ import { RightPanel } from "@/components/workspace/RightPanel";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useCssStore } from "@/stores/cssStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -45,7 +46,7 @@ function WorkspaceGuard() {
   useEffect(() => {
     if (user) {
       usePreferencesStore.getState().hydrateFromUser();
-      void usePreferencesStore.getState().loadCss();
+      void useCssStore.getState().load();
     }
   }, [user]);
 

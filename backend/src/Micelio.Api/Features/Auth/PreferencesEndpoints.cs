@@ -100,43 +100,121 @@ public static class PreferencesEndpoints
             return Results.Ok(new { message = "Sesiones cerradas en todos los dispositivos." });
         });
 
-        // ── CSS personalizado (HU-13 / HU-15) ─────────────────────
-        group.MapGet("/css", async (
+        // ── Snippets de CSS personalizado (HU-13/15, estilo Obsidian) ──
+        // Listado con contenido; el cliente aplica solo los activos.
+        group.MapGet("/css/snippets", async (
             ClaimsPrincipal principal,
+            ID1Client d1,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            await using var stream = await blobs.GetAsync(CssKey(userId), ct);
-            if (stream is null) return Results.Ok(new { css = "" });
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            return Results.Ok(new { css = await reader.ReadToEndAsync(ct) });
+            var rows = await d1.QueryAsync(
+                "SELECT id, nombre, activo, r2_key FROM css_snippets WHERE usuario_id = ? ORDER BY creado_en",
+                [userId], ct);
+
+            var snippets = new List<object>();
+            foreach (var r in rows.Results)
+            {
+                var contenido = "";
+                await using (var stream = await blobs.GetAsync(r.GetString("r2_key"), ct))
+                {
+                    if (stream is not null)
+                    {
+                        using var reader = new StreamReader(stream, Encoding.UTF8);
+                        contenido = await reader.ReadToEndAsync(ct);
+                    }
+                }
+                snippets.Add(new
+                {
+                    id = r.GetString("id"),
+                    nombre = r.GetString("nombre"),
+                    activo = r.GetBool("activo"),
+                    contenido,
+                });
+            }
+            return Results.Ok(new { snippets });
         });
 
-        group.MapPut("/css", async (
-            CssRequest request,
+        // Importar un snippet nuevo
+        group.MapPost("/css/snippets", async (
+            CssSnippetRequest request,
             ClaimsPrincipal principal,
+            ID1Client d1,
             IBlobStorage blobs,
             CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
-            var css = request.Css ?? "";
-            if (Encoding.UTF8.GetByteCount(css) > MaxCssBytes)
+            var contenido = request.Contenido ?? "";
+            if (Encoding.UTF8.GetByteCount(contenido) > MaxCssBytes)
             {
                 return Results.BadRequest(new { error = "El CSS supera el límite de 512 KB." });
             }
 
-            using var ms = new MemoryStream(Encoding.UTF8.GetBytes(css));
-            await blobs.PutAsync(CssKey(userId), ms, "text/css", ct);
-            return Results.Ok(new { message = "CSS guardado." });
+            var nombre = string.IsNullOrWhiteSpace(request.Nombre) ? "snippet.css" : request.Nombre.Trim();
+            var id = Guid.NewGuid().ToString();
+            var key = $"usuarios/{userId}/css/{id}.css";
+            using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(contenido)))
+            {
+                await blobs.PutAsync(key, ms, "text/css", ct);
+            }
+            await d1.QueryAsync(
+                "INSERT INTO css_snippets (id, usuario_id, nombre, activo, r2_key, creado_en) VALUES (?, ?, ?, 1, ?, ?)",
+                [id, userId, nombre, key, DateTime.UtcNow.ToString("O")], ct);
+
+            return Results.Ok(new { id, nombre, activo = true, contenido });
+        });
+
+        // Activar/desactivar o renombrar un snippet
+        group.MapPatch("/css/snippets/{id}", async (
+            string id,
+            CssSnippetPatch request,
+            ClaimsPrincipal principal,
+            ID1Client d1,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            var owned = await d1.QueryAsync(
+                "SELECT id FROM css_snippets WHERE id = ? AND usuario_id = ?", [id, userId], ct);
+            if (owned.Results.Count == 0) return Results.NotFound();
+
+            if (request.Activo is { } activo)
+            {
+                await d1.QueryAsync("UPDATE css_snippets SET activo = ? WHERE id = ?", [activo, id], ct);
+            }
+            if (!string.IsNullOrWhiteSpace(request.Nombre))
+            {
+                await d1.QueryAsync("UPDATE css_snippets SET nombre = ? WHERE id = ?", [request.Nombre.Trim(), id], ct);
+            }
+            return Results.Ok(new { ok = true });
+        });
+
+        // Eliminar un snippet
+        group.MapDelete("/css/snippets/{id}", async (
+            string id,
+            ClaimsPrincipal principal,
+            ID1Client d1,
+            IBlobStorage blobs,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(principal);
+            if (userId is null) return Results.Unauthorized();
+
+            var rows = await d1.QueryAsync(
+                "SELECT r2_key FROM css_snippets WHERE id = ? AND usuario_id = ?", [id, userId], ct);
+            if (rows.Results.Count == 0) return Results.NotFound();
+
+            await blobs.DeleteAsync(rows.Results[0].GetString("r2_key"), ct);
+            await d1.QueryAsync("DELETE FROM css_snippets WHERE id = ?", [id], ct);
+            return Results.Ok(new { ok = true });
         });
     }
-
-    private static string CssKey(string userId) => $"usuarios/{userId}/temas/custom.css";
 
     private static string? GetUserId(ClaimsPrincipal user) =>
         user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
@@ -144,5 +222,6 @@ public static class PreferencesEndpoints
     public sealed record PreferenciasRequest(string? Tema, bool ModoOscuro, JsonElement Preferencias);
     public sealed record PerfilRequest(string? Nombre, string? AvatarUrl);
     public sealed record CambiarPasswordRequest(string? Actual, string? Nueva);
-    public sealed record CssRequest(string? Css);
+    public sealed record CssSnippetRequest(string? Nombre, string? Contenido);
+    public sealed record CssSnippetPatch(bool? Activo, string? Nombre);
 }

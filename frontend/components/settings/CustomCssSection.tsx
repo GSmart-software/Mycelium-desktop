@@ -1,132 +1,56 @@
 "use client";
 
+import { Download, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
-import { usePreferencesStore } from "@/stores/preferencesStore";
-import { CssEditor } from "./CssEditor";
+import { useCssStore } from "@/stores/cssStore";
 import styles from "./Settings.module.css";
 
 const WARN_BYTES = 50 * 1024; // HU-15 CA5
 
-/** Sección CSS personalizado: editor + toggle + import/export (HU-13/15). */
+/**
+ * Gestor de snippets de CSS personalizado (estilo Obsidian, HU-13/15): lista de
+ * archivos asociados a la cuenta, cada uno con switch para activar/desactivar,
+ * exportar y eliminar; botón general para importar un .css. Los cambios se
+ * aplican en vivo, sin recargar.
+ */
 export function CustomCssSection() {
-  const customCss = usePreferencesStore((s) => s.customCss);
-  const savedCss = usePreferencesStore((s) => s.savedCss);
-  const cssActivo = usePreferencesStore((s) => s.prefs.cssActivo);
-  const setCustomCss = usePreferencesStore((s) => s.setCustomCss);
-  const setPref = usePreferencesStore((s) => s.setPref);
-  const saveCss = usePreferencesStore((s) => s.saveCss);
+  const snippets = useCssStore((s) => s.snippets);
+  const importSnippet = useCssStore((s) => s.importSnippet);
+  const toggle = useCssStore((s) => s.toggle);
+  const remove = useCssStore((s) => s.remove);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [saved, setSaved] = useState(false);
-  // Importación en preview (temporal, sin guardar) — HU-15 CA3/CA4
-  const [importing, setImporting] = useState<{ prev: string; warn: boolean } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
-  const dirty = customCss !== savedCss;
-
-  const handleSave = async () => {
-    await saveCss();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+  const onPickFile = async (file: File) => {
+    setAviso(null);
+    if (file.size > WARN_BYTES) {
+      setAviso(`"${file.name}" supera 50 KB, pero se importó igual.`);
+    }
+    const contenido = await file.text();
+    await importSnippet(file.name, contenido);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([customCss], { type: "text/css" });
+  const exportar = (nombre: string, contenido: string) => {
+    const blob = new Blob([contenido], { type: "text/css" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "micelio-tema.css";
+    a.download = nombre.endsWith(".css") ? nombre : `${nombre}.css`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const handleFile = async (file: File) => {
-    const text = await file.text();
-    setImporting({ prev: customCss, warn: file.size > WARN_BYTES });
-    setCustomCss(text); // preview en vivo
-  };
-
-  // Carga la plantilla de estilos en el editor (preview, sin guardar).
-  const handleTemplate = async () => {
-    const text = await fetch("/plantilla-estilos.css").then((r) => r.text());
-    setImporting({ prev: customCss, warn: false });
-    setCustomCss(text);
   };
 
   return (
     <div>
       <div className={styles.toggleRow}>
-        <span className={styles.label}>CSS personalizado</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          aria-pressed={cssActivo}
-          onClick={() => setPref("cssActivo", !cssActivo)}
-        >
-          {cssActivo ? "Activado" : "Desactivado"}
-        </button>
-      </div>
-
-      <div className={styles.field}>
-        <CssEditor value={customCss} onChange={setCustomCss} />
-      </div>
-
-      {importing && (
-        <div className={styles.field}>
-          {importing.warn && (
-            <p className={styles.cssPreviewNote}>
-              El archivo supera 50 KB. Podés continuar igual.
-            </p>
-          )}
-          <p className={styles.cssPreviewNote}>
-            Previsualizando el CSS importado (sin guardar).
-          </p>
-          <div className={styles.btnRow}>
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              onClick={() => setImporting(null)}
-            >
-              Aplicar import
-            </button>
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={() => {
-                setCustomCss(importing.prev);
-                setImporting(null);
-              }}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className={styles.btnRow}>
-        <button
-          type="button"
-          className={styles.primaryBtn}
-          disabled={!dirty}
-          onClick={handleSave}
-        >
-          Guardar CSS
-        </button>
-        <button type="button" className={styles.secondaryBtn} onClick={handleDownload}>
-          Descargar CSS
-        </button>
+        <span className={styles.label}>Snippets de CSS</span>
         <button
           type="button"
           className={styles.secondaryBtn}
           onClick={() => fileRef.current?.click()}
         >
           Importar .css
-        </button>
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          onClick={() => void handleTemplate()}
-        >
-          Usar plantilla
         </button>
         <input
           ref={fileRef}
@@ -135,12 +59,58 @@ export function CustomCssSection() {
           hidden
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void handleFile(file);
+            if (file) void onPickFile(file);
             e.target.value = "";
           }}
         />
       </div>
-      {saved && <p className={styles.feedback}>CSS guardado.</p>}
+
+      <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        Tus snippets quedan asociados a la cuenta y se aplican en cualquier
+        dispositivo. Activá los que quieras; el estilo se actualiza al instante.
+      </p>
+
+      <ul className={styles.snippetList}>
+        {snippets.length === 0 && (
+          <li className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+            Todavía no importaste ningún CSS. Usá «Importar .css» (podés empezar
+            por la plantilla descargable en /plantilla-estilos.css).
+          </li>
+        )}
+        {snippets.map((s) => (
+          <li key={s.id} className={styles.snippetRow}>
+            <label className={styles.switch} title={s.activo ? "Activado" : "Desactivado"}>
+              <input
+                type="checkbox"
+                checked={s.activo}
+                onChange={(e) => void toggle(s.id, e.target.checked)}
+              />
+              <span className={styles.switchTrack} aria-hidden />
+            </label>
+            <span className={styles.snippetName} title={s.nombre}>{s.nombre}</span>
+            <button
+              type="button"
+              className={styles.snippetIcon}
+              title="Exportar"
+              aria-label={`Exportar ${s.nombre}`}
+              onClick={() => exportar(s.nombre, s.contenido)}
+            >
+              <Download size={15} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={`${styles.snippetIcon} ${styles.snippetDanger}`}
+              title="Eliminar"
+              aria-label={`Eliminar ${s.nombre}`}
+              onClick={() => void remove(s.id)}
+            >
+              <Trash2 size={15} aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      {aviso && <p className={styles.cssPreviewNote}>{aviso}</p>}
     </div>
   );
 }

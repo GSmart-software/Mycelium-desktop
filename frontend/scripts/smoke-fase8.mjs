@@ -44,23 +44,10 @@ try {
   await page.waitForTimeout(150);
   checks.editorSize = (await html()).editorSize === "22px"; // CA2/CA5
 
-  // ── HU-13: CSS personalizado en vivo ────────────────────────────
+  // ── HU-13/15: snippets de CSS (gestor estilo Obsidian) ──────────
   await page.click("[role=tab]:text-is('CSS')");
-  const cssEditor = page.locator("aside[aria-label='Configuración'] .cm-content");
-  await cssEditor.click();
-  await page.keyboard.insertText(".mic-preview { color: rgb(1, 2, 3); }");
-  await page.waitForTimeout(250);
-  checks.cssEnVivo = (await html()).customCss.includes("rgb(1, 2, 3)"); // CA2
-
-  // Toggle desactivar → el <style> queda vacío (CA5)
-  await page.click("button[aria-pressed]:has-text('Activado')");
-  await page.waitForTimeout(150);
-  checks.cssDesactivado = (await html()).customCss === "";
-
-  // Guardar CSS (CA3)
-  await page.click("button:has-text('Guardar CSS')");
-  await page.waitForSelector("text=CSS guardado.", { timeout: 5000 });
-  checks.cssGuardado = true;
+  checks.cssSnippetsUi =
+    (await page.locator("button:has-text('Importar .css')").count()) === 1;
 
   // ── HU-34: perfil ───────────────────────────────────────────────
   await page.click("[role=tab]:text-is('Cuenta')");

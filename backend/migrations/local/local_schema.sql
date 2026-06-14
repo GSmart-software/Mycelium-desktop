@@ -107,3 +107,16 @@ CREATE VIRTUAL TABLE IF NOT EXISTS notas_fts USING fts5(
   titulo,
   contenido
 );
+
+-- Snippets de CSS personalizado por usuario (estilo Obsidian, HU-13/15).
+-- El contenido vive en blob (usuarios/{id}/css/{snippetId}.css).
+CREATE TABLE IF NOT EXISTS css_snippets (
+  id          TEXT PRIMARY KEY,
+  usuario_id  TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  nombre      TEXT NOT NULL,
+  activo      INTEGER NOT NULL DEFAULT 1,
+  r2_key      TEXT NOT NULL,
+  creado_en   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_css_snippets_usuario ON css_snippets(usuario_id);
