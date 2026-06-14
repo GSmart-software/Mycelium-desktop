@@ -45,6 +45,13 @@ export function CustomCssSection() {
     setCustomCss(text); // preview en vivo
   };
 
+  // Carga la plantilla de estilos en el editor (preview, sin guardar).
+  const handleTemplate = async () => {
+    const text = await fetch("/plantilla-estilos.css").then((r) => r.text());
+    setImporting({ prev: customCss, warn: false });
+    setCustomCss(text);
+  };
+
   return (
     <div>
       <div className={styles.toggleRow}>
@@ -113,6 +120,13 @@ export function CustomCssSection() {
           onClick={() => fileRef.current?.click()}
         >
           Importar .css
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={() => void handleTemplate()}
+        >
+          Usar plantilla
         </button>
         <input
           ref={fileRef}

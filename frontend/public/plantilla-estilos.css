@@ -1,0 +1,170 @@
+/* ============================================================================
+   Plantilla de estilos personalizados — Micelio
+   ----------------------------------------------------------------------------
+   Pegá este contenido en Configuración › CSS personalizado y modificá lo que
+   quieras. Todo está comentado y desactivado: descomentá (quitá los /* */ )
+   las reglas que quieras usar.
+
+   Cómo funciona:
+   - Los TOKENS (variables --mic-*) controlan los colores del tema. Cambiarlos
+     reestiliza toda la app de forma coherente.
+   - Los selectores .mic-preview ... estilizan el markdown renderizado
+     (modos Lectura y Dividido).
+   - Los selectores .mic-editor-host / .mic-live-* estilizan el editor en vivo.
+   - Podés limitar cambios a un tema/modo con
+     [data-theme='bioluminiscencia'] / [data-theme='cantarela'] y
+     [data-dark='true'] (oscuro) en el selector.
+   ========================================================================== */
+
+
+/* ============================================================================
+   1) TOKENS DEL TEMA  (la forma más simple de recolorear todo)
+   ----------------------------------------------------------------------------
+   Capa raw → la redefine cada tema. Capa semántica → la usa la interfaz.
+   ========================================================================== */
+/*
+   --mic-bg-canvas    fondo del editor / principal
+   --mic-bg-surface   paneles laterales, tabs
+   --mic-bg-sidebar   rail y topbar
+   --mic-bg-code      bloques de código y lienzo del grafo
+   --mic-bg-base      inputs, fondos recedidos
+   --mic-bg-hover     fondo al pasar el mouse
+   --mic-border       bordes
+   --mic-text-primary texto principal
+   --mic-text-muted   texto secundario
+   --mic-accent       botones, enlaces, acentos
+   --mic-glow         cursor, tags, resaltados, nodos del grafo
+*/
+/*
+:root {
+  --mic-bg-canvas:    #0e0e12;
+  --mic-bg-surface:   #16161d;
+  --mic-bg-sidebar:   #0a0a0e;
+  --mic-bg-code:      #1b1b24;
+  --mic-bg-base:      #0e0e12;
+  --mic-bg-hover:     rgba(255, 255, 255, 0.08);
+  --mic-border:       rgba(255, 255, 255, 0.14);
+  --mic-text-primary: #e6e6ea;
+  --mic-text-muted:   #9a9aa6;
+  --mic-accent:       #7c9cff;
+  --mic-glow:         #9ad8ff;
+}
+*/
+/* Solo un tema / modo concreto:
+[data-theme='cantarela'][data-dark='true'] {
+  --mic-glow: #ffd27a;
+}
+*/
+
+/* Tipografía (también configurable desde Configuración › Tipografía) */
+/*
+:root {
+  --mic-editor-font-family:  "JetBrains Mono", monospace;
+  --mic-editor-font-size:    16px;
+  --mic-preview-font-family: "Source Serif 4", Georgia, serif;
+  --mic-preview-font-size:   17px;
+}
+*/
+
+
+/* ============================================================================
+   2) MARKDOWN RENDERIZADO  (modos Lectura y Dividido)  —  .mic-preview
+   ========================================================================== */
+
+/* Contenedor general */
+/* .mic-preview { line-height: 1.75; max-width: 80ch; margin: 0 auto; } */
+
+/* Títulos */
+/* .mic-preview h1 { font-size: 2rem; font-weight: 800; } */
+/* .mic-preview h2 { font-size: 1.6rem; border-bottom: 1px solid var(--mic-border); } */
+/* .mic-preview h3 { font-size: 1.3rem; } */
+/* .mic-preview h4 { } */
+/* .mic-preview h5 { } */
+/* .mic-preview h6 { color: var(--mic-text-muted); } */
+
+/* Párrafos y texto */
+/* .mic-preview p { margin: 0.7em 0; } */
+/* .mic-preview strong { color: var(--mic-text-primary); } */
+/* .mic-preview em { font-style: italic; } */
+/* .mic-preview del { opacity: 0.6; } */
+/* .mic-preview mark { background: color-mix(in srgb, var(--mic-glow) 30%, transparent); } */
+
+/* Enlaces */
+/* .mic-preview a { color: var(--mic-accent); text-decoration: underline; } */
+/* .mic-preview a:hover { color: var(--mic-glow); } */
+
+/* Enlaces internos [[wikilink]] y #tags */
+/* .mic-preview a.mic-wikilink { color: var(--mic-accent); border-bottom: 1px dashed; } */
+/* .mic-preview .mic-tag-pill { background: color-mix(in srgb, var(--mic-glow) 15%, transparent); color: var(--mic-glow); border-radius: 999px; } */
+
+/* Código inline y bloques */
+/* .mic-preview code { font-family: var(--mic-font-mono); font-size: 0.9em; } */
+/* .mic-preview :not(pre) > code { background: var(--mic-bg-code); padding: 0.1em 0.35em; border-radius: 4px; } */
+/* .mic-preview pre { background: var(--mic-bg-code); border-radius: 8px; padding: 1em; overflow-x: auto; } */
+/* .mic-preview pre code.hljs { background: transparent; } */
+
+/* Citas */
+/* .mic-preview blockquote { border-left: 3px solid var(--mic-glow); padding-left: 1em; color: var(--mic-text-muted); } */
+
+/* Listas */
+/* .mic-preview ul { list-style: disc; padding-left: 1.4em; } */
+/* .mic-preview ol { list-style: decimal; padding-left: 1.4em; } */
+/* .mic-preview li { margin: 0.25em 0; } */
+/* .mic-preview li::marker { color: var(--mic-accent); } */
+
+/* Tareas (checkboxes) */
+/* .mic-preview input[type="checkbox"] { accent-color: var(--mic-accent); } */
+/* .mic-preview li.task-list-item { list-style: none; } */
+
+/* Tablas */
+/* .mic-preview table { border-collapse: collapse; width: 100%; } */
+/* .mic-preview th, .mic-preview td { border: 1px solid var(--mic-border); padding: 0.5em 0.75em; } */
+/* .mic-preview thead th { background: var(--mic-bg-surface); } */
+/* .mic-preview tbody tr:nth-child(even) { background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent); } */
+
+/* Regla horizontal, imágenes y notas al pie */
+/* .mic-preview hr { border: none; border-top: 1px solid var(--mic-border); margin: 1.5em 0; } */
+/* .mic-preview img { max-width: 100%; border-radius: 8px; } */
+/* .mic-preview .footnotes { font-size: 0.85em; color: var(--mic-text-muted); } */
+
+/* Matemáticas (KaTeX) */
+/* .mic-preview .katex { font-size: 1.05em; } */
+
+/* Diagramas Mermaid y Excalidraw */
+/* .mic-preview .mic-mermaid svg { background: transparent; } */
+/* .mic-preview .mic-excalidraw-block { border: 1px dashed var(--mic-border); border-radius: 8px; } */
+
+/* Callouts (> [!tipo] Título).
+   Tipos: note, tip, important, warning, caution, info, success, error,
+   danger, question. */
+/* .mic-preview .mic-callout { border-radius: 8px; } */
+/* .mic-preview .mic-callout-title { font-weight: 700; } */
+/* .mic-preview .mic-callout-note    { border-color: #3DFFC4; } */
+/* .mic-preview .mic-callout-error   { border-color: #E5484D; } */
+/* .mic-preview .mic-callout-success { border-color: #3CA06B; } */
+/* .mic-preview details.mic-callout > summary { cursor: pointer; } */
+
+
+/* ============================================================================
+   3) EDITOR EN VIVO  —  .mic-editor-host / .mic-live-*
+   ========================================================================== */
+
+/* Área de edición */
+/* .mic-editor-host .cm-editor { background: var(--mic-bg-canvas); } */
+/* .mic-editor-host .cm-content { caret-color: var(--mic-glow); } */
+/* .mic-editor-host .cm-cursor { border-left-color: var(--mic-glow); } */
+
+/* Títulos en vivo (h1..h6) */
+/* .mic-live-h1 { font-size: 1.9rem; font-weight: 800; } */
+/* .mic-live-h2 { font-size: 1.5rem; } */
+/* .mic-live-h3 { font-size: 1.2rem; } */
+
+/* Citas, listas y enlaces internos en vivo */
+/* .mic-live-quote { border-left: 3px solid var(--mic-glow); padding-left: 0.75rem; } */
+/* .mic-list-mark { color: var(--mic-accent); } */
+/* .mic-wikilink-cm { color: var(--mic-accent); } */
+/* .mic-tag-cm { color: var(--mic-glow); } */
+
+/* Callouts en vivo */
+/* .mic-live-callout { border-left: 3px solid var(--mic-glow); } */
+/* .mic-live-callout-head { font-weight: 700; } */

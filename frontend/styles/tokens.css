@@ -22,30 +22,32 @@
   --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
 }
 
-/* ── Tema por defecto: Bioluminiscencia (verde-cian) ──────────── */
+/* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
+   Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {
-  --mic-raw-base:       #085041;
-  --mic-raw-base-deep:  #04342C;
-  --mic-raw-accent:     #0F6E56;
-  --mic-raw-glow:       #5DCAA5;
-  --mic-raw-mist:       #E1F5EE;
-  --mic-raw-canvas:     #F1EFE8;
-  --mic-raw-ink:        #2C2C2A;
-  --mic-raw-ink-muted:  #5F5E5A;
+  --mic-raw-base:       #0C4A57;   /* rail / topbar / sidebar */
+  --mic-raw-base-deep:  #08323D;   /* bloques de código */
+  --mic-raw-accent:     #0E7C8C;   /* botones y enlaces (teal legible) */
+  --mic-raw-glow:       #16B8C9;   /* highlights, cursor, tags (cian) */
+  --mic-raw-mist:       #E3EEF1;   /* paneles laterales */
+  --mic-raw-canvas:     #F1F6F7;   /* editor / fondo principal */
+  --mic-raw-ink:        #1F2D30;
+  --mic-raw-ink-muted:  #59696C;
 
   --mic-amber-icon:     #C9821E;
 }
 
-/* ── Tema secundario: Cantarela (ámbar) ───────────────────────── */
+/* ── Tema secundario: Cantarela — modo claro (amarillo + marrón) ──
+   Chrome oscuro marrón + contenido claro cálido + acentos ámbar. */
 [data-theme='cantarela'] {
-  --mic-raw-base:       #633806;
-  --mic-raw-base-deep:  #412402;
-  --mic-raw-accent:     #854F0B;
-  --mic-raw-glow:       #EF9F27;
-  --mic-raw-mist:       #FAEEDA;
-  --mic-raw-canvas:     #FAF6EE;
-  --mic-raw-ink:        #2C2C2A;
-  --mic-raw-ink-muted:  #5F5E5A;
+  --mic-raw-base:       #5A3408;   /* rail / topbar / sidebar */
+  --mic-raw-base-deep:  #3E2405;   /* bloques de código */
+  --mic-raw-accent:     #9A6212;   /* botones y enlaces (ámbar-marrón) */
+  --mic-raw-glow:       #D99A1F;   /* highlights, cursor, tags (dorado) */
+  --mic-raw-mist:       #FAF0DC;   /* paneles laterales */
+  --mic-raw-canvas:     #FBF7EE;   /* editor / fondo principal */
+  --mic-raw-ink:        #2C2620;
+  --mic-raw-ink-muted:  #6B5E4C;
 
   --mic-amber-icon:     #C9821E;
 }
