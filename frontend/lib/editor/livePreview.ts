@@ -42,7 +42,37 @@ const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` con símbolo de plegado opcional (-/+). */
 const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!(\w+)\]([-+]?)/;
 
+/** Etiquetas por tipo, usadas como título cuando el callout no tiene uno. */
+const CALLOUT_LABELS: Record<string, string> = {
+  note: "Nota",
+  tip: "Consejo",
+  important: "Importante",
+  warning: "Advertencia",
+  caution: "Precaución",
+  info: "Información",
+  success: "Éxito",
+  error: "Error",
+  danger: "Peligro",
+  question: "Pregunta",
+};
+
 const hide = Decoration.replace({});
+
+/** Etiqueta del tipo que reemplaza al marcador cuando no hay título. */
+class LabelWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+  eq(other: LabelWidget) {
+    return other.label === this.label;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-callout-label";
+    span.textContent = this.label;
+    return span;
+  }
+}
 
 /** Chevron clickeable para plegar/desplegar el callout (alterna -/+ en el doc). */
 class FoldWidget extends WidgetType {
@@ -204,7 +234,6 @@ function buildDecorations(view: EditorView): DecorationSet {
         const symbol = calloutStart[3];
         calloutCollapsed = symbol === "-";
         const foldable = symbol === "-" || symbol === "+";
-        // El marcador [!tipo] queda VISIBLE (no se oculta).
         decos.push({
           from: line.from,
           to: line.from,
@@ -222,6 +251,24 @@ function buildDecorations(view: EditorView): DecorationSet {
             }),
           });
         }
+        // Fuera de la línea activa, ocultar el marcador (> [!tipo] -/+) y dejar
+        // solo el título; si no hay título, mostrar la etiqueta del tipo.
+        if (!isActive) {
+          const afterMarker = text.slice(calloutStart[0].length);
+          const titulo = afterMarker.replace(/^[ \t]+/, "");
+          const titleStartCol = calloutStart[0].length + (afterMarker.length - titulo.length);
+          if (titulo.length > 0) {
+            decos.push({ from: line.from, to: line.from + titleStartCol, deco: hide });
+          } else {
+            decos.push({
+              from: line.from,
+              to: line.to,
+              deco: Decoration.replace({
+                widget: new LabelWidget(CALLOUT_LABELS[calloutType] ?? calloutType),
+              }),
+            });
+          }
+        }
       } else if (calloutType && quoteMark) {
         // Cuerpo del callout: oculto si está plegado (-)
         const cls =
@@ -232,6 +279,10 @@ function buildDecorations(view: EditorView): DecorationSet {
           to: line.from,
           deco: Decoration.line({ class: cls }),
         });
+        // Ocultar el marcador de cita `>` del cuerpo fuera de la línea activa
+        if (!isActive && !calloutCollapsed) {
+          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
+        }
       } else if (quoteMark) {
         calloutType = null;
         decos.push({
