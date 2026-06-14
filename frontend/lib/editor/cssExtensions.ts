@@ -5,8 +5,10 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete";
 import { css, cssLanguage } from "@codemirror/lang-css";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { type Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import { tags as t } from "@lezer/highlight";
 import {
   Decoration,
   type DecorationSet,
@@ -156,6 +158,27 @@ const colorSwatches = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
+// ── Resaltado de sintaxis CSS (colores por token) ───────────────────
+// Los colores salen de tokens --mic-syntax-* (definidos por tema/modo en
+// tokens.css), así la legibilidad funciona en claro y oscuro.
+const cssHighlight = HighlightStyle.define([
+  { tag: [t.comment, t.blockComment, t.lineComment], color: "var(--mic-syntax-comment)", fontStyle: "italic" },
+  { tag: t.propertyName, color: "var(--mic-syntax-property)" },
+  { tag: t.variableName, color: "var(--mic-syntax-variable)" },
+  { tag: t.className, color: "var(--mic-syntax-class)" },
+  { tag: t.constant(t.className), color: "var(--mic-syntax-pseudo)" },
+  { tag: [t.labelName, t.attributeName], color: "var(--mic-syntax-id)" },
+  { tag: t.tagName, color: "var(--mic-syntax-tag)" },
+  { tag: t.string, color: "var(--mic-syntax-string)" },
+  { tag: [t.number, t.unit], color: "var(--mic-syntax-number)" },
+  { tag: t.atom, color: "var(--mic-syntax-value)" },
+  { tag: t.color, color: "var(--mic-syntax-color)" },
+  {
+    tag: [t.definitionKeyword, t.keyword, t.modifier, t.operatorKeyword],
+    color: "var(--mic-syntax-keyword)",
+  },
+]);
+
 /** Extensiones del editor de CSS: resaltado, autocompletado (CSS + --mic-*),
  * lint y previsualización de colores. */
 export function cssEditorExtensions(): Extension {
@@ -163,6 +186,7 @@ export function cssEditorExtensions(): Extension {
     lineNumbers(),
     lintGutter(),
     css(),
+    syntaxHighlighting(cssHighlight),
     cssLanguage.data.of({ autocomplete: micVarCompletions }),
     autocompletion(),
     linter(cssLinter),

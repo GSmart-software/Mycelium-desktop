@@ -89,6 +89,39 @@
   --mic-sync-warn: #E08D3C;  /* offline / error, cambios pendientes */
 }
 
+/* ── Resaltado de sintaxis del editor CSS (HU-13) ─────────────────
+   Valores por defecto pensados para fondo oscuro. */
+:root {
+  --mic-syntax-comment:  #5f9e6a;  /* comentarios (verde) */
+  --mic-syntax-property: #56d1c2;  /* propiedades (color, background) */
+  --mic-syntax-variable: #9cd2ff;  /* variables --x */
+  --mic-syntax-class:    #ffd166;  /* .clases */
+  --mic-syntax-id:       #ff8fb3;  /* #ids, keyframes */
+  --mic-syntax-pseudo:   #c79bff;  /* :pseudo-clases */
+  --mic-syntax-tag:      #74e0a0;  /* tags / componentes */
+  --mic-syntax-string:   #e6a96b;  /* strings */
+  --mic-syntax-number:   #d59cff;  /* números y unidades */
+  --mic-syntax-value:    #e7cf8f;  /* valores (flex, bold…) */
+  --mic-syntax-color:    #bfe3ff;  /* literales de color */
+  --mic-syntax-keyword:  #6fb8ff;  /* @media, !important, keywords */
+}
+
+/* Variantes para fondo claro (modo claro = sin data-dark) */
+:root:not([data-dark='true']) {
+  --mic-syntax-comment:  #3f7a4f;
+  --mic-syntax-property: #0e7c8c;
+  --mic-syntax-variable: #1d6fa5;
+  --mic-syntax-class:    #9a6212;
+  --mic-syntax-id:       #b5326b;
+  --mic-syntax-pseudo:   #7a3fb0;
+  --mic-syntax-tag:      #1f8f5f;
+  --mic-syntax-string:   #a85a1e;
+  --mic-syntax-number:   #7a32a8;
+  --mic-syntax-value:    #6b5a1e;
+  --mic-syntax-color:    #2a6f8c;
+  --mic-syntax-keyword:  #1565b0;
+}
+
 /* ── Callouts (HU-03) ─────────────────────────────────────────── */
 :root {
   --mic-callout-note-border:      var(--mic-raw-glow);
