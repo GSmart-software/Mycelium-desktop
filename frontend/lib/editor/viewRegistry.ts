@@ -15,3 +15,7 @@ export function unregisterView(paneId: string, view: EditorView) {
 export function getView(paneId: string): EditorView | null {
   return views.get(paneId) ?? null;
 }
+
+export function getAllViews(): EditorView[] {
+  return [...views.values()];
+}

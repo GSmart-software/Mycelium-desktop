@@ -115,6 +115,15 @@
   font-size: 0.8125rem;
 }
 
+.cssHost :global(.cm-cursor) {
+  border-left-color: var(--mic-glow);
+}
+
+.cssHost :global(.cm-selectionBackground),
+.cssHost :global(.cm-editor ::selection) {
+  background: color-mix(in srgb, var(--mic-glow) 30%, transparent) !important;
+}
+
 .sample {
   flex: 1;
   min-height: 0;

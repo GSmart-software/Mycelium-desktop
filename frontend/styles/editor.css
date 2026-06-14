@@ -136,6 +136,14 @@
   font-weight: 700;
 }
 
+/* Tabla renderizada dentro del editor en vivo */
+.mic-live-table {
+  margin: 0.4rem 0;
+}
+.mic-live-table table {
+  margin: 0;
+}
+
 /* Callouts en vivo: bloque coloreado por tipo (HU-03) */
 .mic-live-callout {
   border-left: 3px solid var(--mic-callout-note-border);

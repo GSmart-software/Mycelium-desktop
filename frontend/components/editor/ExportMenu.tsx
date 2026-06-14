@@ -3,6 +3,8 @@
 import { MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { useUiStore } from "@/stores/uiStore";
 import styles from "./ExportMenu.module.css";
 
 /**
@@ -15,6 +17,8 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const liveTables = useUiStore((s) => s.liveTables);
+  const setLiveTables = useUiStore((s) => s.setLiveTables);
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +79,18 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
           >
             Exportar como PDF (Letter)
           </button>
+          <div className={styles.sep} />
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={liveTables}
+              onChange={(e) => {
+                setLiveTables(e.target.checked);
+                refreshAllLiveViews();
+              }}
+            />
+            Renderizar tablas (vista en vivo)
+          </label>
         </div>
       )}
     </div>

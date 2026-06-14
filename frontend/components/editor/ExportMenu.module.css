@@ -41,3 +41,23 @@
 .item:hover {
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
+
+.sep {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--mic-border);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.check input {
+  accent-color: var(--mic-accent);
+}

@@ -3,7 +3,13 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from "@codemirror/language";
-import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import {
+  type EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+  type Extension,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -13,17 +19,24 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { renderMarkdown } from "@/lib/markdown";
+import { getAllViews } from "@/lib/editor/viewRegistry";
+import { useUiStore } from "@/stores/uiStore";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "700" },
   { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strikethrough, textDecoration: "line-through" },
+  {
+    tag: tags.strikethrough,
+    textDecoration: "line-through",
+    color: "var(--mic-text-muted)",
+  },
   {
     tag: tags.monospace,
     fontFamily: "var(--mic-font-mono)",
     background: "var(--mic-bg-code)",
-    color: "var(--mic-raw-mist)",
+    color: "var(--mic-text-primary)",
     borderRadius: "var(--mic-radius-sm)",
     padding: "0.05em 0.2em",
   },
@@ -32,9 +45,94 @@ const micelioHighlight = HighlightStyle.define([
   { tag: tags.link, color: "var(--mic-accent)" },
 ]);
 
-/** Extensiones del modo `live`: highlight + decoraciones por línea. */
+/** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */
+export const refreshLiveEffect = StateEffect.define<null>();
+
+/** Redispara el live preview en todos los editores abiertos. */
+export function refreshAllLiveViews() {
+  for (const view of getAllViews()) {
+    view.dispatch({ effects: refreshLiveEffect.of(null) });
+  }
+}
+
+/** Widget de bloque que renderiza una tabla markdown como HTML (HU-01). */
+class TableWidget extends WidgetType {
+  constructor(readonly md: string) {
+    super();
+  }
+  eq(other: TableWidget) {
+    return other.md === this.md;
+  }
+  toDOM() {
+    const wrap = document.createElement("div");
+    wrap.className = "mic-preview mic-live-table";
+    wrap.innerHTML = renderMarkdown(this.md);
+    return wrap;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
+type TableState = { decorations: DecorationSet; ranges: [number, number][] };
+
+/**
+ * Calcula las tablas a renderizar como bloque. Las decoraciones de bloque DEBEN
+ * venir de un StateField (un ViewPlugin rompe el layout de CodeMirror).
+ */
+function computeTables(state: EditorState): TableState {
+  const builder = new RangeSetBuilder<Decoration>();
+  const ranges: [number, number][] = [];
+  if (!useUiStore.getState().liveTables) return { decorations: builder.finish(), ranges };
+
+  const doc = state.doc;
+  const active = new Set<number>();
+  for (const r of state.selection.ranges) {
+    const a = doc.lineAt(r.from).number;
+    const b = doc.lineAt(r.to).number;
+    for (let l = a; l <= b; l++) active.add(l);
+  }
+
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name !== "Table") return undefined;
+      const startLine = doc.lineAt(node.from);
+      const endLine = doc.lineAt(node.to);
+      for (let l = startLine.number; l <= endLine.number; l++) {
+        if (active.has(l)) return false; // cursor dentro → editar en crudo
+      }
+      const md = doc.sliceString(startLine.from, endLine.to);
+      builder.add(
+        startLine.from,
+        endLine.to,
+        Decoration.replace({ widget: new TableWidget(md), block: true }),
+      );
+      ranges.push([startLine.from, endLine.to]);
+      return false;
+    },
+  });
+  return { decorations: builder.finish(), ranges };
+}
+
+/** Tablas renderizadas (decoraciones de bloque) — vía StateField. */
+const tableField = StateField.define<TableState>({
+  create: (state) => computeTables(state),
+  update(value, tr) {
+    if (
+      tr.docChanged ||
+      tr.selection ||
+      tr.effects.some((e) => e.is(refreshLiveEffect))
+    ) {
+      return computeTables(tr.state);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
+});
+
+/** Extensiones del modo `live`: highlight + tablas (block) + decoraciones inline. */
 export function liveExtensions(onWikilinkClick: (title: string) => void): Extension {
-  return [syntaxHighlighting(micelioHighlight), livePreview(onWikilinkClick)];
+  return [syntaxHighlighting(micelioHighlight), tableField, livePreview(onWikilinkClick)];
 }
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
@@ -124,7 +222,10 @@ export function livePreview(onWikilinkClick: (title: string) => void) {
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged || update.selectionSet || update.viewportChanged) {
+        const refreshed = update.transactions.some((tr) =>
+          tr.effects.some((e) => e.is(refreshLiveEffect)),
+        );
+        if (update.docChanged || update.selectionSet || update.viewportChanged || refreshed) {
           this.decorations = buildDecorations(update.view);
         }
       }
@@ -166,11 +267,19 @@ function buildDecorations(view: EditorView): DecorationSet {
     for (let line = fromLine; line <= toLine; line++) activeLines.add(line);
   }
 
+  // Rangos de tablas renderizadas (las calcula tableField); se omiten aquí.
+  const renderedTables = view.state.field(tableField, false)?.ranges ?? [];
+
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
       to,
       enter(node) {
+        // Omitir cualquier nodo dentro de una tabla renderizada como bloque
+        if (renderedTables.some(([f, t]) => node.from >= f && node.from < t)) {
+          return false;
+        }
+
         const headingMatch = /^ATXHeading([1-6])$/.exec(node.name);
         if (headingMatch) {
           const line = doc.lineAt(node.from);
@@ -193,9 +302,19 @@ function buildDecorations(view: EditorView): DecorationSet {
             }
             break;
           }
+          case "CodeMark": {
+            // Fences de bloque (```) permanecen visibles; los backticks inline
+            // se ocultan fuera de la línea activa.
+            const parent = node.node.parent?.name;
+            if (parent === "FencedCode" || parent === "CodeBlock") break;
+            const line = doc.lineAt(node.from);
+            if (!activeLines.has(line.number)) {
+              decos.push({ from: node.from, to: node.to, deco: hide });
+            }
+            break;
+          }
           case "EmphasisMark":
           case "StrikethroughMark":
-          case "CodeMark":
           case "LinkMark":
           case "URL": {
             const line = doc.lineAt(node.from);
@@ -223,6 +342,14 @@ function buildDecorations(view: EditorView): DecorationSet {
     let calloutCollapsed = false; // si el callout actual está plegado (-)
     while (pos <= to) {
       const line = doc.lineAt(pos);
+
+      // Saltar líneas que quedaron dentro de una tabla renderizada
+      if (renderedTables.some(([f, t]) => line.from >= f && line.from <= t)) {
+        if (line.to >= to) break;
+        pos = line.to + 1;
+        continue;
+      }
+
       const isActive = activeLines.has(line.number);
       const text = line.text;
 
