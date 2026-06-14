@@ -28,6 +28,15 @@ export function SharedSection() {
   const router = useRouter();
   const [items, setItems] = useState<Compartido[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("mic-sec-compartido") === "1",
+  );
+  const toggleCollapsed = () =>
+    setCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem("mic-sec-compartido", next ? "1" : "0");
+      return next;
+    });
 
   const load = useCallback(async () => {
     try {
@@ -46,8 +55,6 @@ export function SharedSection() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
-
-  if (items.length === 0) return null;
 
   const open = (notaId: string) => {
     useTabsStore.getState().openNote(notaId);
@@ -104,8 +111,18 @@ export function SharedSection() {
 
   return (
     <div className={styles.sharedSection}>
-      <h3 className={styles.sharedTitle}>Compartido</h3>
-      {items.map((comp) => {
+      <button type="button" className={styles.sectionHeader} onClick={toggleCollapsed}>
+        {collapsed ? (
+          <ChevronRight size={13} aria-hidden />
+        ) : (
+          <ChevronDown size={13} aria-hidden />
+        )}
+        <span>Compartido</span>
+      </button>
+      {collapsed ? null : items.length === 0 ? (
+        <p className={styles.empty}>Nada compartido todavía.</p>
+      ) : (
+        items.map((comp) => {
         const isOpen = expanded[comp.id] ?? true;
         return (
           <div key={comp.id}>
@@ -122,7 +139,8 @@ export function SharedSection() {
             {isOpen && renderTree(comp, comp.id, 1)}
           </div>
         );
-      })}
+        })
+      )}
     </div>
   );
 }

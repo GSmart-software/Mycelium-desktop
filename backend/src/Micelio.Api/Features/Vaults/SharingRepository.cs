@@ -148,6 +148,20 @@ public sealed class SharingRepository(ID1Client d1)
         return false;
     }
 
+    /// <summary>Ids de carpetas del vault que están compartidas (tienen membresías),
+    /// para marcarlas en el explorador general (HU-35 CA5).</summary>
+    public async Task<IReadOnlyList<string>> GetSharedCarpetaIdsAsync(string vaultId, CancellationToken ct = default)
+    {
+        var res = await d1.QueryAsync(
+            """
+            SELECT DISTINCT m.recurso_id AS id
+            FROM membresias m JOIN carpetas c ON c.id = m.recurso_id
+            WHERE m.recurso_tipo = 'carpeta' AND c.vault_id = ?
+            """,
+            [vaultId], ct);
+        return res.Results.Select(r => r.GetString("id")).ToList();
+    }
+
     /// <summary>Carpetas compartidas con el usuario (sección "Compartido", HU-35 CA4).</summary>
     public async Task<IReadOnlyList<JsonElement>> GetSharedCarpetasAsync(string userId, CancellationToken ct = default)
     {

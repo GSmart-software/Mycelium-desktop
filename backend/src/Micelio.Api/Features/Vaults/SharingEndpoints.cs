@@ -158,6 +158,22 @@ public static class SharingEndpoints
             return Results.Ok(new { ok = true });
         });
 
+        // ── Ids de carpetas compartidas del vault (marcador, HU-35 CA5) ──
+        group.MapGet("/vaults/{vaultId}/carpetas-compartidas", async (
+            string vaultId,
+            ClaimsPrincipal user,
+            VaultRepository vaults,
+            SharingRepository sharing,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(user);
+            if (userId is null || await vaults.GetVaultRoleAsync(userId, vaultId, ct) is null)
+            {
+                return Results.Json(new { error = "Sin acceso." }, statusCode: 403);
+            }
+            return Results.Ok(new { ids = await sharing.GetSharedCarpetaIdsAsync(vaultId, ct) });
+        });
+
         // ── Carpetas compartidas conmigo (HU-35 CA4/CA5) ──────────
         group.MapGet("/compartido", async (
             ClaimsPrincipal user,

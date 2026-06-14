@@ -13,6 +13,7 @@ import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./workspace.module.css";
@@ -89,6 +90,12 @@ function WorkspaceShell() {
   // Atajos de paneles (HU-29) y de pestañas (HU-25 CA4/CA7)
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // Ctrl/Cmd+F abre la búsqueda en la nota, no el buscador del navegador.
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        useUiStore.getState().setSearchInNoteOpen(true);
+        return;
+      }
       if (event.ctrlKey && event.code === "Backslash") {
         event.preventDefault();
         if (event.shiftKey) toggleRight();
@@ -127,7 +134,7 @@ function WorkspaceShell() {
         } as React.CSSProperties
       }
     >
-      <AppTopbar activeNoteTitle={activeNote?.titulo ?? null} shareFolder={shareFolder} />
+      <AppTopbar shareFolder={shareFolder} />
       <Rail />
       <LeftPanel />
       <EditorArea />

@@ -11,16 +11,13 @@ import styles from "./AppTopbar.module.css";
  * botón Compartir y avatar. Siempre visible.
  */
 export function AppTopbar({
-  activeNoteTitle,
   shareFolder,
 }: {
-  activeNoteTitle: string | null;
   shareFolder: { id: string; nombre: string } | null;
 }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const setSearchInNoteOpen = useUiStore((s) => s.setSearchInNoteOpen);
   const setShareTarget = useUiStore((s) => s.setShareTarget);
 
   const initials = (user?.nombre ?? "?")
@@ -58,17 +55,14 @@ export function AppTopbar({
         <span className={styles.logoCompact} aria-hidden>M</span>
       </button>
 
-      <button
-        type="button"
-        className={styles.searchBar}
-        onClick={() => setSearchInNoteOpen(true)}
-        title="Buscar en la nota activa (Ctrl+F)"
-      >
+      <div className={styles.searchBar}>
         <Search size={14} aria-hidden className={styles.searchIcon} />
-        <span className={styles.searchPlaceholder}>
-          {activeNoteTitle ?? "Micelio"}
-        </span>
-      </button>
+        <input
+          className={styles.searchInput}
+          placeholder="Buscar en Micelio…"
+          aria-label="Buscar"
+        />
+      </div>
 
       <div className={styles.actions}>
         <button

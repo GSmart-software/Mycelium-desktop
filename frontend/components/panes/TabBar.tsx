@@ -122,7 +122,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             }}
           >
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
-            {tab.notaId !== GRAPH_TAB_ID && (
+            {tab.notaId !== GRAPH_TAB_ID && sync !== "synced" && (
               <span
                 className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
                 aria-hidden

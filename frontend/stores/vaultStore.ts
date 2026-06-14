@@ -43,6 +43,8 @@ type VaultState = {
   carpetas: TreeCarpeta[];
   notas: TreeNota[];
   papelera: PapeleraItem[];
+  /** Ids de carpetas compartidas (con membresías) para marcarlas en el árbol (HU-35 CA5). */
+  sharedCarpetaIds: string[];
   /** Estado expandido/colapsado por carpeta — persiste en localStorage (HU-22 CA5). */
   expanded: Record<string, boolean>;
   /** Carpeta activa: destino de "Nueva nota"/importaciones (HU-23 CA1). */
@@ -78,6 +80,7 @@ export const useVaultStore = create<VaultState>()(
       carpetas: [],
       notas: [],
       papelera: [],
+      sharedCarpetaIds: [],
       expanded: {},
       activeFolderId: null,
       lastMove: null,
@@ -102,6 +105,16 @@ export const useVaultStore = create<VaultState>()(
             actualizadoEn: n.actualizado_en,
           })),
         });
+        // Marcador de carpetas compartidas para el árbol general (HU-35 CA5)
+        try {
+          const shared = await api<{ ids: string[] }>(
+            `/vaults/${vaultId}/carpetas-compartidas`,
+            { token: token() },
+          );
+          set({ sharedCarpetaIds: shared.ids });
+        } catch {
+          set({ sharedCarpetaIds: [] });
+        }
       },
 
       async loadPapelera() {

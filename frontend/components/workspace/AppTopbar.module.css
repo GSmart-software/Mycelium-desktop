@@ -59,6 +59,20 @@
   white-space: nowrap;
 }
 
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.searchInput::placeholder {
+  color: var(--mic-text-muted);
+}
+
 .actions {
   display: flex;
   align-items: center;

@@ -50,6 +50,25 @@
   border-top: 1px solid var(--mic-border);
 }
 
+/* Cabecera colapsable de sección (estilo VSCode) */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mic-text-muted);
+  text-align: left;
+}
+
+.sectionHeader:hover {
+  color: var(--mic-text-primary);
+}
+
 .sharedTitle {
   font-size: 0.6875rem;
   font-weight: 600;

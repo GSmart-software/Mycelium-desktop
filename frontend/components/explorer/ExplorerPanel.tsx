@@ -18,6 +18,7 @@ import {
   FolderPlus,
   Shapes,
   Upload,
+  Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -53,6 +54,15 @@ export function ExplorerPanel() {
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
   const [osDragOver, setOsDragOver] = useState(false);
+  const [archivosCollapsed, setArchivosCollapsed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("mic-sec-archivos") === "1",
+  );
+  const toggleArchivos = () =>
+    setArchivosCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem("mic-sec-archivos", next ? "1" : "0");
+      return next;
+    });
   const mdInputRef = useRef<HTMLInputElement>(null);
   const importTargetRef = useRef<string | null>(null);
 
@@ -95,6 +105,24 @@ export function ExplorerPanel() {
     }
     return map;
   }, [store.notas]);
+
+  // Carpeta compartida si ella o algún ancestro tiene membresías (HU-35 CA5)
+  const sharedSet = useMemo(() => new Set(store.sharedCarpetaIds), [store.sharedCarpetaIds]);
+  const carpetasById = useMemo(
+    () => new Map(store.carpetas.map((c) => [c.id, c])),
+    [store.carpetas],
+  );
+  const isCarpetaShared = useCallback(
+    (id: string | null): boolean => {
+      let current = id;
+      while (current) {
+        if (sharedSet.has(current)) return true;
+        current = carpetasById.get(current)?.padreId ?? null;
+      }
+      return false;
+    },
+    [sharedSet, carpetasById],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -238,6 +266,7 @@ export function ExplorerPanel() {
           depth={depth}
           expanded={isExpanded}
           active={isActive}
+          shared={isCarpetaShared(carpeta.id)}
           renaming={renaming?.type === "carpeta" && renaming.id === carpeta.id}
           renameValue={renaming?.valor ?? ""}
           onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
@@ -277,6 +306,7 @@ export function ExplorerPanel() {
         nota={nota}
         depth={depth}
         active={activeNoteId === nota.id}
+        shared={isCarpetaShared(nota.carpetaId)}
         renaming={renaming?.type === "nota" && renaming.id === nota.id}
         renameValue={renaming?.valor ?? ""}
         onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
@@ -382,12 +412,21 @@ export function ExplorerPanel() {
 
       <DndContext sensors={sensors} onDragEnd={onDragEnd}>
         <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
-          {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 0))}
-          {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 0))}
-          {store.carpetas.length === 0 && store.notas.length === 0 && (
-            <p className={styles.empty}>
-              Vault vacío. Creá tu primera nota con el botón de arriba.
-            </p>
+          <SectionHeader
+            title="Archivos"
+            collapsed={archivosCollapsed}
+            onToggle={toggleArchivos}
+          />
+          {!archivosCollapsed && (
+            <>
+              {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 0))}
+              {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 0))}
+              {store.carpetas.length === 0 && store.notas.length === 0 && (
+                <p className={styles.empty}>
+                  Vault vacío. Creá tu primera nota con el botón de arriba.
+                </p>
+              )}
+            </>
           )}
           <SharedSection />
         </RootDropZone>
@@ -395,6 +434,28 @@ export function ExplorerPanel() {
 
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
     </div>
+  );
+}
+
+/** Cabecera colapsable de una sección del explorador (estilo paneles de VSCode). */
+export function SectionHeader({
+  title,
+  collapsed,
+  onToggle,
+}: {
+  title: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button type="button" className={styles.sectionHeader} onClick={onToggle}>
+      {collapsed ? (
+        <ChevronRight size={13} aria-hidden />
+      ) : (
+        <ChevronDown size={13} aria-hidden />
+      )}
+      <span>{title}</span>
+    </button>
   );
 }
 
@@ -435,6 +496,7 @@ function FolderRow({
   depth,
   expanded,
   active,
+  shared,
   onToggle,
   onContextMenu,
   onDoubleClick,
@@ -444,6 +506,7 @@ function FolderRow({
   depth: number;
   expanded: boolean;
   active: boolean;
+  shared: boolean;
   onToggle: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
@@ -485,6 +548,9 @@ function FolderRow({
       ) : (
         <span className={styles.name}>{carpeta.nombre}</span>
       )}
+      {shared && !rename.renaming && (
+        <Users size={12} className={styles.sharedIcon} aria-label="Compartida" />
+      )}
     </div>
   );
 }
@@ -493,6 +559,7 @@ function NoteRow({
   nota,
   depth,
   active,
+  shared,
   onOpen,
   onContextMenu,
   onDoubleClick,
@@ -501,6 +568,7 @@ function NoteRow({
   nota: TreeNota;
   depth: number;
   active: boolean;
+  shared: boolean;
   onOpen: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
@@ -532,6 +600,9 @@ function NoteRow({
         <RenameInput {...rename} />
       ) : (
         <span className={styles.name}>{nota.titulo}</span>
+      )}
+      {shared && !rename.renaming && (
+        <Users size={12} className={styles.sharedIcon} aria-label="Compartido" />
       )}
     </div>
   );

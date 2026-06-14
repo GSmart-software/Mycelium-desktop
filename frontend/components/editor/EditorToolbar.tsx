@@ -17,11 +17,13 @@ import {
   Minus,
   PenLine,
   Quote,
+  Search,
   Shapes,
   Strikethrough,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useUiStore } from "@/stores/uiStore";
 import {
   insertHorizontalRule,
   insertLink,
@@ -184,6 +186,12 @@ export function EditorToolbar({
         className={`${styles.syncDot} ${styles[`sync_${syncState}`]}`}
         title={SYNC_LABEL[syncState]}
         aria-label={SYNC_LABEL[syncState]}
+      />
+
+      <ToolButton
+        icon={Search}
+        label="Buscar en el archivo (Ctrl+F)"
+        onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
       />
 
       <ExportMenu notaId={notaId} titulo={titulo} />
