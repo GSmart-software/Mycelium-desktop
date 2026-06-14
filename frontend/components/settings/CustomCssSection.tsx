@@ -33,7 +33,7 @@ export function CustomCssSection() {
     await importSnippet(file.name, contenido);
   };
 
-  const exportar = (nombre: string, contenido: string) => {
+  const descargar = (nombre: string, contenido: string) => {
     const blob = new Blob([contenido], { type: "text/css" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -43,16 +43,42 @@ export function CustomCssSection() {
     URL.revokeObjectURL(url);
   };
 
+  // Crea un snippet nuevo y lo abre directamente en el editor (sin importar).
+  const nuevoSnippet = async () => {
+    setAviso(null);
+    const existentes = new Set(snippets.map((s) => s.nombre));
+    let nombre = "nuevo.css";
+    let i = 2;
+    while (existentes.has(nombre)) nombre = `nuevo-${i++}.css`;
+    const snippet = await importSnippet(nombre, "/* Nuevo snippet de Micelio */\n");
+    setEditando(snippet);
+  };
+
+  const descargarPlantilla = async () => {
+    const css = await fetch("/plantilla-estilos.css").then((r) => r.text());
+    descargar("plantilla-estilos.css", css);
+  };
+
   return (
     <div>
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Snippets de CSS</span>
+      <span className={styles.label}>Snippets de CSS</span>
+      <div className={styles.btnRow} style={{ marginTop: "0.4rem" }}>
+        <button type="button" className={styles.primaryBtn} onClick={() => void nuevoSnippet()}>
+          Nuevo snippet
+        </button>
         <button
           type="button"
           className={styles.secondaryBtn}
           onClick={() => fileRef.current?.click()}
         >
           Importar .css
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          onClick={() => void descargarPlantilla()}
+        >
+          Descargar plantilla
         </button>
         <input
           ref={fileRef}
@@ -104,7 +130,7 @@ export function CustomCssSection() {
               className={styles.snippetIcon}
               title="Exportar"
               aria-label={`Exportar ${s.nombre}`}
-              onClick={() => exportar(s.nombre, s.contenido)}
+              onClick={() => descargar(s.nombre, s.contenido)}
             >
               <Download size={15} aria-hidden />
             </button>

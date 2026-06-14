@@ -13,7 +13,7 @@ export type CssSnippet = {
 type CssState = {
   snippets: CssSnippet[];
   load: () => Promise<void>;
-  importSnippet: (nombre: string, contenido: string) => Promise<void>;
+  importSnippet: (nombre: string, contenido: string) => Promise<CssSnippet>;
   toggle: (id: string, activo: boolean) => Promise<void>;
   updateContent: (id: string, contenido: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
@@ -64,6 +64,7 @@ export const useCssStore = create<CssState>((set, get) => ({
     const snippets = [...get().snippets, snippet];
     set({ snippets });
     applySnippets(snippets);
+    return snippet;
   },
 
   async toggle(id, activo) {
