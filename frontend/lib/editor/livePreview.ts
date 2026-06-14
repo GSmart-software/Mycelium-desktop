@@ -9,6 +9,7 @@ import {
   EditorView,
   ViewPlugin,
   ViewUpdate,
+  WidgetType,
   type DecorationSet,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
@@ -38,8 +39,44 @@ export function liveExtensions(onWikilinkClick: (title: string) => void): Extens
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
+/** Cabecera de callout: `> [!tipo]` con símbolo de plegado opcional (-/+). */
+const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!(\w+)\]([-+]?)/;
 
 const hide = Decoration.replace({});
+
+/** Chevron clickeable para plegar/desplegar el callout (alterna -/+ en el doc). */
+class FoldWidget extends WidgetType {
+  constructor(
+    readonly headFrom: number,
+    readonly collapsed: boolean,
+  ) {
+    super();
+  }
+  eq(other: FoldWidget) {
+    return other.headFrom === this.headFrom && other.collapsed === this.collapsed;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-callout-fold";
+    span.dataset.head = String(this.headFrom);
+    span.textContent = this.collapsed ? "▸" : "▾";
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
+/** Alterna el símbolo de plegado (-/+) de la cabecera de un callout. */
+function toggleCalloutFold(view: EditorView, headFrom: number) {
+  const line = view.state.doc.lineAt(headFrom);
+  const match = /^(\s*>\s*\[!\w+\])([-+])/.exec(line.text);
+  if (!match) return;
+  const pos = line.from + match[1].length;
+  view.dispatch({
+    changes: { from: pos, to: pos + 1, insert: match[2] === "-" ? "+" : "-" },
+  });
+}
 
 /**
  * Live preview por línea (HU-01): los marcadores markdown (#, **, ~~, `,
@@ -65,7 +102,13 @@ export function livePreview(onWikilinkClick: (title: string) => void) {
     {
       decorations: (instance) => instance.decorations,
       eventHandlers: {
-        mousedown(event) {
+        mousedown(event, view) {
+          const fold = (event.target as HTMLElement).closest(".mic-callout-fold");
+          if (fold) {
+            event.preventDefault();
+            toggleCalloutFold(view, Number(fold.getAttribute("data-head")));
+            return true;
+          }
           const link = (event.target as HTMLElement).closest(".mic-wikilink-cm");
           if (link) {
             event.preventDefault();
@@ -146,17 +189,22 @@ function buildDecorations(view: EditorView): DecorationSet {
 
     // [[wikilinks]], #tags, citas y callouts se detectan por línea.
     let pos = from;
-    let calloutType: string | null = null; // estado del callout en curso
+    let calloutType: string | null = null; // tipo del callout en curso
+    let calloutCollapsed = false; // si el callout actual está plegado (-)
     while (pos <= to) {
       const line = doc.lineAt(pos);
       const isActive = activeLines.has(line.number);
       const text = line.text;
 
       // Callouts (> [!tipo] …) y citas (>) — estilo en vivo (HU-03)
-      const calloutStart = /^(\s*>\s*)\[!(\w+)\]/.exec(text);
+      const calloutStart = CALLOUT_HEAD_RE.exec(text);
       const quoteMark = /^\s*>\s?/.exec(text);
       if (calloutStart) {
         calloutType = calloutStart[2].toLowerCase();
+        const symbol = calloutStart[3];
+        calloutCollapsed = symbol === "-";
+        const foldable = symbol === "-" || symbol === "+";
+        // El marcador [!tipo] queda VISIBLE (no se oculta).
         decos.push({
           from: line.from,
           to: line.from,
@@ -164,20 +212,26 @@ function buildDecorations(view: EditorView): DecorationSet {
             class: `mic-live-callout mic-live-callout-${calloutType} mic-live-callout-head`,
           }),
         });
-        if (!isActive) {
-          let end = line.from + calloutStart[0].length;
-          if (text[calloutStart[0].length] === " ") end++;
-          decos.push({ from: line.from, to: end, deco: hide });
+        if (foldable) {
+          decos.push({
+            from: line.from,
+            to: line.from,
+            deco: Decoration.widget({
+              widget: new FoldWidget(line.from, calloutCollapsed),
+              side: -1,
+            }),
+          });
         }
       } else if (calloutType && quoteMark) {
+        // Cuerpo del callout: oculto si está plegado (-)
+        const cls =
+          `mic-live-callout mic-live-callout-${calloutType}` +
+          (calloutCollapsed ? " mic-callout-hidden" : "");
         decos.push({
           from: line.from,
           to: line.from,
-          deco: Decoration.line({ class: `mic-live-callout mic-live-callout-${calloutType}` }),
+          deco: Decoration.line({ class: cls }),
         });
-        if (!isActive) {
-          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
-        }
       } else if (quoteMark) {
         calloutType = null;
         decos.push({

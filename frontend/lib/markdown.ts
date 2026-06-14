@@ -14,7 +14,7 @@ type MdNode = {
   value?: string;
   url?: string;
   children?: MdNode[];
-  data?: { hProperties?: Record<string, string> };
+  data?: { hName?: string; hProperties?: Record<string, string | boolean> };
 };
 
 const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
@@ -100,9 +100,12 @@ function remarkMicelio() {
   };
 }
 
-/** Callouts estilo Obsidian: `> [!TIPO]` (HU-03 CA5/CA6). Acepta mayúsc/minúsc. */
+/**
+ * Callouts estilo Obsidian: `> [!TIPO]` con plegado opcional `-`/`+` y título
+ * en la primera línea (HU-03 CA5/CA6). Acepta mayúsculas/minúsculas.
+ */
 const CALLOUT_RE =
-  /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|SUCCESS|ERROR|DANGER|QUESTION)\]\s*/i;
+  /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|SUCCESS|ERROR|DANGER|QUESTION)\]([-+]?)[ \t]*/i;
 
 const CALLOUT_LABELS: Record<string, string> = {
   note: "Nota",
@@ -128,18 +131,32 @@ function remarkCallouts() {
       if (!match) return;
 
       const tipo = match[1].toLowerCase();
-      firstText.value = firstText.value.replace(CALLOUT_RE, "").replace(/^\n/, "");
+      const symbol = match[2];
+      const foldable = symbol === "-" || symbol === "+";
+      const open = symbol === "+";
+
+      // Quitar "[!tipo][-+] " y separar el título (1ª línea) del cuerpo
+      const rest = firstText.value.replace(CALLOUT_RE, "");
+      const nl = rest.indexOf("\n");
+      const titulo = (nl >= 0 ? rest.slice(0, nl) : rest).trim();
+      firstText.value = nl >= 0 ? rest.slice(nl + 1) : "";
       if (!firstText.value && first.children!.length === 1) {
         node.children!.shift();
       }
 
+      const className = `mic-callout mic-callout-${tipo}`;
+      // Plegable → <details>/<summary>; `+` abierto, `-` cerrado (HU-03)
       node.data = {
-        hProperties: { className: `mic-callout mic-callout-${tipo}` },
+        hName: foldable ? "details" : undefined,
+        hProperties: foldable && open ? { className, open: true } : { className },
       };
       node.children!.unshift({
         type: "paragraph",
-        data: { hProperties: { className: "mic-callout-title" } },
-        children: [{ type: "text", value: CALLOUT_LABELS[tipo] }],
+        data: {
+          hName: foldable ? "summary" : undefined,
+          hProperties: { className: "mic-callout-title" },
+        },
+        children: [{ type: "text", value: titulo || CALLOUT_LABELS[tipo] }],
       });
     });
   };
