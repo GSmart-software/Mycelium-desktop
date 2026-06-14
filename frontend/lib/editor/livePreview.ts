@@ -131,15 +131,66 @@ function buildDecorations(view: EditorView): DecorationSet {
             }
             break;
           }
+          case "ListMark": {
+            // Marcador de lista (- * + o 1.) coloreado, no se oculta (HU-01)
+            decos.push({
+              from: node.from,
+              to: node.to,
+              deco: Decoration.mark({ class: "mic-list-mark" }),
+            });
+            break;
+          }
         }
       },
     });
 
-    // [[wikilinks]] y #tags no existen en el árbol lezer: se detectan por línea
+    // [[wikilinks]], #tags, citas y callouts se detectan por línea.
     let pos = from;
+    let calloutType: string | null = null; // estado del callout en curso
     while (pos <= to) {
       const line = doc.lineAt(pos);
       const isActive = activeLines.has(line.number);
+      const text = line.text;
+
+      // Callouts (> [!tipo] …) y citas (>) — estilo en vivo (HU-03)
+      const calloutStart = /^(\s*>\s*)\[!(\w+)\]/.exec(text);
+      const quoteMark = /^\s*>\s?/.exec(text);
+      if (calloutStart) {
+        calloutType = calloutStart[2].toLowerCase();
+        decos.push({
+          from: line.from,
+          to: line.from,
+          deco: Decoration.line({
+            class: `mic-live-callout mic-live-callout-${calloutType} mic-live-callout-head`,
+          }),
+        });
+        if (!isActive) {
+          let end = line.from + calloutStart[0].length;
+          if (text[calloutStart[0].length] === " ") end++;
+          decos.push({ from: line.from, to: end, deco: hide });
+        }
+      } else if (calloutType && quoteMark) {
+        decos.push({
+          from: line.from,
+          to: line.from,
+          deco: Decoration.line({ class: `mic-live-callout mic-live-callout-${calloutType}` }),
+        });
+        if (!isActive) {
+          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
+        }
+      } else if (quoteMark) {
+        calloutType = null;
+        decos.push({
+          from: line.from,
+          to: line.from,
+          deco: Decoration.line({ class: "mic-live-quote" }),
+        });
+        if (!isActive) {
+          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
+        }
+      } else if (text.trim() !== "") {
+        calloutType = null;
+      }
 
       for (const match of line.text.matchAll(WIKILINK_RE)) {
         const start = line.from + match.index;

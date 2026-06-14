@@ -94,6 +94,11 @@
   --mic-callout-important-border: var(--mic-raw-accent);
   --mic-callout-warning-border:   var(--mic-amber-icon);
   --mic-callout-caution-border:   #D95040;
+  --mic-callout-info-border:      #3D8BFF;
+  --mic-callout-success-border:   #3CA06B;
+  --mic-callout-error-border:     #E5484D;
+  --mic-callout-danger-border:    #E5484D;
+  --mic-callout-question-border:  #B07CE8;
   --mic-callout-bg:               var(--mic-raw-mist);
 }
 

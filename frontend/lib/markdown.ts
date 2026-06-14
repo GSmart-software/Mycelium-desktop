@@ -100,8 +100,9 @@ function remarkMicelio() {
   };
 }
 
-/** Callouts estilo Obsidian: `> [!TIPO]` (HU-03 CA5/CA6). */
-const CALLOUT_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/;
+/** Callouts estilo Obsidian: `> [!TIPO]` (HU-03 CA5/CA6). Acepta mayúsc/minúsc. */
+const CALLOUT_RE =
+  /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|SUCCESS|ERROR|DANGER|QUESTION)\]\s*/i;
 
 const CALLOUT_LABELS: Record<string, string> = {
   note: "Nota",
@@ -109,6 +110,11 @@ const CALLOUT_LABELS: Record<string, string> = {
   important: "Importante",
   warning: "Advertencia",
   caution: "Precaución",
+  info: "Información",
+  success: "Éxito",
+  error: "Error",
+  danger: "Peligro",
+  question: "Pregunta",
 };
 
 function remarkCallouts() {

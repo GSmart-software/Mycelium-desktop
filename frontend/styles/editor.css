@@ -2,7 +2,8 @@
 
 .mic-editor-host .cm-editor {
   height: 100%;
-  background: var(--mic-bg-surface);
+  /* Fondo de edición = el más oscuro (canvas), más oscuro que los paneles */
+  background: var(--mic-bg-canvas);
 }
 
 .mic-editor-host .cm-editor.cm-focused {
@@ -52,6 +53,44 @@
 .mic-live-h2 { font-size: 1.375rem; font-weight: 600; }
 .mic-live-h3 { font-size: 1.125rem; font-weight: 600; }
 .mic-live-h4, .mic-live-h5, .mic-live-h6 { font-size: 1rem; font-weight: 600; }
+
+/* Citas en vivo (HU-03) */
+.mic-live-quote {
+  border-left: 3px solid color-mix(in srgb, var(--mic-glow) 55%, transparent);
+  padding-left: 0.75rem;
+  background: color-mix(in srgb, var(--mic-glow) 5%, transparent);
+}
+
+/* Marcador de lista en vivo (-, *, +, 1.) */
+.mic-list-mark {
+  color: var(--mic-accent);
+  font-weight: 700;
+}
+
+/* Callouts en vivo: bloque coloreado por tipo (HU-03) */
+.mic-live-callout {
+  border-left: 3px solid var(--mic-callout-note-border);
+  background: color-mix(in srgb, var(--mic-callout-note-border) 9%, transparent);
+  padding-left: 0.75rem;
+}
+.mic-live-callout-head { font-weight: 600; }
+.mic-live-callout-note { --mic-cc: var(--mic-callout-note-border); }
+.mic-live-callout-info { --mic-cc: var(--mic-callout-info-border); }
+.mic-live-callout-tip { --mic-cc: var(--mic-callout-tip-border); }
+.mic-live-callout-success { --mic-cc: var(--mic-callout-success-border); }
+.mic-live-callout-important { --mic-cc: var(--mic-callout-important-border); }
+.mic-live-callout-warning { --mic-cc: var(--mic-callout-warning-border); }
+.mic-live-callout-caution { --mic-cc: var(--mic-callout-warning-border); }
+.mic-live-callout-error { --mic-cc: var(--mic-callout-error-border); }
+.mic-live-callout-danger { --mic-cc: var(--mic-callout-danger-border); }
+.mic-live-callout-question { --mic-cc: var(--mic-callout-question-border); }
+.mic-live-callout[class*="mic-live-callout-"] {
+  border-left-color: var(--mic-cc, var(--mic-callout-note-border));
+  background: color-mix(in srgb, var(--mic-cc, var(--mic-callout-note-border)) 10%, transparent);
+}
+.mic-live-callout-head[class*="mic-live-callout-"] {
+  color: var(--mic-cc, var(--mic-callout-note-border));
+}
 
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
@@ -247,6 +286,36 @@
   background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
 }
 .mic-preview .mic-callout-caution .mic-callout-title { color: var(--mic-callout-caution-border); }
+
+.mic-preview .mic-callout-info {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
+  border-color: var(--mic-callout-info-border);
+  background: color-mix(in srgb, var(--mic-callout-info-border) 8%, transparent);
+}
+.mic-preview .mic-callout-info .mic-callout-title { color: var(--mic-callout-info-border); }
+
+.mic-preview .mic-callout-success {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
+  border-color: var(--mic-callout-success-border);
+  background: color-mix(in srgb, var(--mic-callout-success-border) 8%, transparent);
+}
+.mic-preview .mic-callout-success .mic-callout-title { color: var(--mic-callout-success-border); }
+
+.mic-preview .mic-callout-error,
+.mic-preview .mic-callout-danger {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m15 9-6 6'/><path d='m9 9 6 6'/></svg>");
+  border-color: var(--mic-callout-error-border);
+  background: color-mix(in srgb, var(--mic-callout-error-border) 8%, transparent);
+}
+.mic-preview .mic-callout-error .mic-callout-title,
+.mic-preview .mic-callout-danger .mic-callout-title { color: var(--mic-callout-error-border); }
+
+.mic-preview .mic-callout-question {
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
+  border-color: var(--mic-callout-question-border);
+  background: color-mix(in srgb, var(--mic-callout-question-border) 8%, transparent);
+}
+.mic-preview .mic-callout-question .mic-callout-title { color: var(--mic-callout-question-border); }
 
 /* ── Mermaid (HU-18) ─────────────────────────────────────────────── */
 
