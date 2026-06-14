@@ -169,19 +169,20 @@ public static class PreferencesEndpoints
             return Results.Ok(new { id, nombre, activo = true, contenido });
         });
 
-        // Activar/desactivar o renombrar un snippet
+        // Activar/desactivar, renombrar o editar el contenido de un snippet
         group.MapPatch("/css/snippets/{id}", async (
             string id,
             CssSnippetPatch request,
             ClaimsPrincipal principal,
             ID1Client d1,
+            IBlobStorage blobs,
             CancellationToken ct) =>
         {
             var userId = GetUserId(principal);
             if (userId is null) return Results.Unauthorized();
 
             var owned = await d1.QueryAsync(
-                "SELECT id FROM css_snippets WHERE id = ? AND usuario_id = ?", [id, userId], ct);
+                "SELECT r2_key FROM css_snippets WHERE id = ? AND usuario_id = ?", [id, userId], ct);
             if (owned.Results.Count == 0) return Results.NotFound();
 
             if (request.Activo is { } activo)
@@ -191,6 +192,15 @@ public static class PreferencesEndpoints
             if (!string.IsNullOrWhiteSpace(request.Nombre))
             {
                 await d1.QueryAsync("UPDATE css_snippets SET nombre = ? WHERE id = ?", [request.Nombre.Trim(), id], ct);
+            }
+            if (request.Contenido is { } contenido)
+            {
+                if (Encoding.UTF8.GetByteCount(contenido) > MaxCssBytes)
+                {
+                    return Results.BadRequest(new { error = "El CSS supera el límite de 512 KB." });
+                }
+                using var ms = new MemoryStream(Encoding.UTF8.GetBytes(contenido));
+                await blobs.PutAsync(owned.Results[0].GetString("r2_key"), ms, "text/css", ct);
             }
             return Results.Ok(new { ok = true });
         });
@@ -223,5 +233,5 @@ public static class PreferencesEndpoints
     public sealed record PerfilRequest(string? Nombre, string? AvatarUrl);
     public sealed record CambiarPasswordRequest(string? Actual, string? Nueva);
     public sealed record CssSnippetRequest(string? Nombre, string? Contenido);
-    public sealed record CssSnippetPatch(bool? Activo, string? Nombre);
+    public sealed record CssSnippetPatch(bool? Activo, string? Nombre, string? Contenido);
 }

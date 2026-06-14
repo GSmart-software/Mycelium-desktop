@@ -1,0 +1,138 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 55%, transparent);
+  padding: 1.5rem;
+}
+
+.modal {
+  width: 96vw;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.saved {
+  font-size: 0.75rem;
+  color: var(--mic-sync-ok);
+}
+
+.primaryBtn {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.1);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.close:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--mic-border);
+}
+
+.col:last-child {
+  border-right: none;
+}
+
+.colTitle {
+  flex-shrink: 0;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mic-text-muted);
+  background: var(--mic-bg-base);
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.cssHost {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--mic-bg-canvas);
+}
+
+.cssHost :global(.cm-editor) {
+  height: 100%;
+}
+
+.cssHost :global(.cm-scroller) {
+  font-family: var(--mic-font-mono);
+  font-size: 0.8125rem;
+}
+
+.sample {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 0.75rem 0.9rem;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-family: var(--mic-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.75rem 1rem;
+  background: var(--mic-bg-canvas);
+}

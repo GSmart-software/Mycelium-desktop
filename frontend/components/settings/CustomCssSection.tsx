@@ -1,8 +1,9 @@
 "use client";
 
-import { Download, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
-import { useCssStore } from "@/stores/cssStore";
+import { useCssStore, type CssSnippet } from "@/stores/cssStore";
+import { CssEditorModal } from "./CssEditorModal";
 import styles from "./Settings.module.css";
 
 const WARN_BYTES = 50 * 1024; // HU-15 CA5
@@ -21,6 +22,7 @@ export function CustomCssSection() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [editando, setEditando] = useState<CssSnippet | null>(null);
 
   const onPickFile = async (file: File) => {
     setAviso(null);
@@ -91,6 +93,15 @@ export function CustomCssSection() {
             <button
               type="button"
               className={styles.snippetIcon}
+              title="Editar"
+              aria-label={`Editar ${s.nombre}`}
+              onClick={() => setEditando(s)}
+            >
+              <Pencil size={15} aria-hidden />
+            </button>
+            <button
+              type="button"
+              className={styles.snippetIcon}
               title="Exportar"
               aria-label={`Exportar ${s.nombre}`}
               onClick={() => exportar(s.nombre, s.contenido)}
@@ -111,6 +122,10 @@ export function CustomCssSection() {
       </ul>
 
       {aviso && <p className={styles.cssPreviewNote}>{aviso}</p>}
+
+      {editando && (
+        <CssEditorModal snippet={editando} onClose={() => setEditando(null)} />
+      )}
     </div>
   );
 }
