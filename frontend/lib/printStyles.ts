@@ -15,12 +15,14 @@ export const PRINT_CSS = `
   --mic-raw-ink: #2C2C2A; --mic-raw-ink-muted: #5F5E5A; --mic-amber-icon: #C9821E;
 }
 [data-theme='bioluminiscencia'][data-dark='true'] {
-  --mic-raw-canvas: #04342C; --mic-raw-mist: #085041; --mic-raw-ink: #E1F5EE;
-  --mic-raw-ink-muted: rgba(225,245,238,0.55);
+  --mic-raw-base: #04090e; --mic-raw-base-deep: #0b1d27; --mic-raw-accent: #19e6ff;
+  --mic-raw-glow: #3dffc4; --mic-raw-canvas: #071219; --mic-raw-mist: #0a1a24;
+  --mic-raw-ink: #c6e7e1; --mic-raw-ink-muted: #6e9a99;
 }
 [data-theme='cantarela'][data-dark='true'] {
-  --mic-raw-canvas: #412402; --mic-raw-mist: #633806; --mic-raw-ink: #FAEEDA;
-  --mic-raw-ink-muted: rgba(250,238,218,0.55);
+  --mic-raw-base: #130d02; --mic-raw-base-deep: #2c200a; --mic-raw-accent: #c77f2e;
+  --mic-raw-glow: #ffc247; --mic-raw-canvas: #1b1305; --mic-raw-mist: #241a08;
+  --mic-raw-ink: #f6e8c8; --mic-raw-ink-muted: #ac9468;
 }
 :root {
   --mic-bg-canvas: var(--mic-raw-canvas); --mic-bg-surface: var(--mic-raw-mist);

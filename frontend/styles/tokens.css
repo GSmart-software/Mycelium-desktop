@@ -54,31 +54,31 @@
 /* Bioluminiscencia oscuro = paleta abisal del prototipo legacy:
    azul-negro profundo + glows verde-cian + bordes teal. */
 [data-theme='bioluminiscencia'][data-dark='true'] {
-  --mic-raw-base:       #050c12;   /* rail / sidebar (lo más profundo) */
+  --mic-raw-base:       #04090e;   /* rail / sidebar (lo más profundo) */
   --mic-raw-base-deep:  #0b1d27;   /* bloques de código y lienzo del grafo */
-  --mic-raw-accent:     #25f0c8;   /* botones y enlaces (texto oscuro encima) */
-  --mic-raw-glow:       #3dffc4;   /* nodos, tags, cursor, resaltados */
+  --mic-raw-accent:     #19e6ff;   /* botones y enlaces — cian (texto oscuro encima) */
+  --mic-raw-glow:       #3dffc4;   /* nodos, tags, cursor, resaltados — verde agua */
   --mic-raw-canvas:     #071219;   /* editor / fondo principal */
   --mic-raw-mist:       #0a1a24;   /* paneles laterales, tabs */
   --mic-raw-ink:        #c6e7e1;
   --mic-raw-ink-muted:  #6e9a99;
   /* Bordes y hover con el teal bioluminiscente del legacy */
   --mic-border:         #16343f;
-  --mic-bg-hover:       rgba(37, 240, 200, 0.10);
+  --mic-bg-hover:       rgba(25, 230, 255, 0.10);
 }
 
-/* Cantarela oscuro = misma estética abisal pero en cálidos/ámbar. */
+/* Cantarela oscuro = misma estética abisal pero en ámbar dorado + marrón. */
 [data-theme='cantarela'][data-dark='true'] {
-  --mic-raw-base:       #110a02;   /* rail / sidebar */
-  --mic-raw-base-deep:  #241608;   /* bloques de código y lienzo del grafo */
-  --mic-raw-accent:     #f5a623;   /* botones y enlaces (texto oscuro encima) */
-  --mic-raw-glow:       #ffb43d;   /* nodos, tags, cursor, resaltados */
-  --mic-raw-canvas:     #160d03;   /* editor / fondo principal */
-  --mic-raw-mist:       #1f1407;   /* paneles laterales, tabs */
-  --mic-raw-ink:        #f4e6cb;
-  --mic-raw-ink-muted:  #a78d63;
-  --mic-border:         #3a2912;
-  --mic-bg-hover:       rgba(245, 166, 35, 0.10);
+  --mic-raw-base:       #130d02;   /* rail / sidebar */
+  --mic-raw-base-deep:  #2c200a;   /* bloques de código y lienzo del grafo */
+  --mic-raw-accent:     #c77f2e;   /* botones y enlaces — marrón dorado */
+  --mic-raw-glow:       #ffc247;   /* nodos, tags, cursor, resaltados — dorado */
+  --mic-raw-canvas:     #1b1305;   /* editor / fondo principal */
+  --mic-raw-mist:       #241a08;   /* paneles laterales, tabs */
+  --mic-raw-ink:        #f6e8c8;
+  --mic-raw-ink-muted:  #ac9468;
+  --mic-border:         #40300f;
+  --mic-bg-hover:       rgba(255, 194, 71, 0.10);
 }
 
 /* ── Estados de sync (HU-04) ──────────────────────────────────── */
