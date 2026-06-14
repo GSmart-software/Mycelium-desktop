@@ -6,8 +6,16 @@ import {
 } from "@codemirror/autocomplete";
 import { css, cssLanguage } from "@codemirror/lang-css";
 import { type Diagnostic, linter, lintGutter } from "@codemirror/lint";
-import type { Extension } from "@codemirror/state";
-import { EditorView, lineNumbers } from "@codemirror/view";
+import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  lineNumbers,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+} from "@codemirror/view";
 
 /** Tokens --mic-* del tema, ofrecidos como autocompletado (HU-13). */
 const MIC_TOKENS = [
@@ -98,7 +106,58 @@ function cssLinter(view: EditorView): Diagnostic[] {
   return diagnostics;
 }
 
-/** Extensiones del editor de CSS: resaltado, autocompletado (CSS + --mic-*) y lint. */
+// ── Previsualización de colores en el editor (HU-13) ────────────────
+/** Colores literales CSS: hex, rgb()/rgba(), hsl()/hsla(). */
+const COLOR_RE =
+  /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})\b|\b(?:rgba?|hsla?)\([^)]*\)/g;
+
+/** Pequeño cuadro con el color, antes del valor. */
+class SwatchWidget extends WidgetType {
+  constructor(readonly color: string) {
+    super();
+  }
+  eq(other: SwatchWidget) {
+    return other.color === this.color;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-color-swatch";
+    span.style.backgroundColor = this.color;
+    return span;
+  }
+}
+
+function buildSwatches(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.sliceDoc(from, to);
+    for (const m of text.matchAll(COLOR_RE)) {
+      const start = from + (m.index ?? 0);
+      builder.add(
+        start,
+        start,
+        Decoration.widget({ widget: new SwatchWidget(m[0]), side: -1 }),
+      );
+    }
+  }
+  return builder.finish();
+}
+
+const colorSwatches = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildSwatches(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged) this.decorations = buildSwatches(u.view);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+/** Extensiones del editor de CSS: resaltado, autocompletado (CSS + --mic-*),
+ * lint y previsualización de colores. */
 export function cssEditorExtensions(): Extension {
   return [
     lineNumbers(),
@@ -107,6 +166,7 @@ export function cssEditorExtensions(): Extension {
     cssLanguage.data.of({ autocomplete: micVarCompletions }),
     autocompletion(),
     linter(cssLinter),
+    colorSwatches,
     EditorView.lineWrapping,
   ];
 }

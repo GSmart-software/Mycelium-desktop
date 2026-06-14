@@ -48,6 +48,75 @@
   display: none;
 }
 
+/* ── Tooltips de CodeMirror (autocompletado / lint) temáticos ─────── */
+.cm-tooltip {
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  color: var(--mic-text-primary);
+  border-radius: var(--mic-radius-sm);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  font-family: var(--mic-font-mono);
+  max-height: 16em;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  color: var(--mic-text-primary);
+  padding: 0.15em 0.5em;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+}
+
+.cm-completionDetail {
+  color: var(--mic-text-muted);
+  font-style: italic;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionDetail {
+  color: color-mix(in srgb, var(--mic-raw-canvas) 80%, var(--mic-text-muted));
+}
+
+.cm-completionMatchedText {
+  color: var(--mic-glow);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] .cm-completionMatchedText {
+  color: var(--mic-raw-canvas);
+}
+
+.cm-completionIcon {
+  color: var(--mic-text-muted);
+  opacity: 0.8;
+}
+
+.cm-tooltip.cm-tooltip-lint,
+.cm-diagnostic {
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-primary);
+}
+
+.cm-diagnostic-error {
+  border-left-color: var(--mic-callout-error-border);
+}
+
+/* Cuadro de previsualización de color en el editor CSS (HU-13) */
+.mic-color-swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.3em;
+  vertical-align: -0.1em;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 45%, transparent);
+}
+
 /* Headings del live preview (HU-01 CA5) */
 .mic-live-h1 { font-size: 1.75rem;  font-weight: 700; }
 .mic-live-h2 { font-size: 1.375rem; font-weight: 600; }

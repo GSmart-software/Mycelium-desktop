@@ -43,14 +43,20 @@ export function CustomCssSection() {
     URL.revokeObjectURL(url);
   };
 
-  // Crea un snippet nuevo y lo abre directamente en el editor (sin importar).
+  // Crea un snippet nuevo (a partir de la plantilla) y lo abre en el editor.
   const nuevoSnippet = async () => {
     setAviso(null);
     const existentes = new Set(snippets.map((s) => s.nombre));
     let nombre = "nuevo.css";
     let i = 2;
     while (existentes.has(nombre)) nombre = `nuevo-${i++}.css`;
-    const snippet = await importSnippet(nombre, "/* Nuevo snippet de Micelio */\n");
+    let contenido = "/* Nuevo snippet de Micelio */\n";
+    try {
+      contenido = await fetch("/plantilla-estilos.css").then((r) => r.text());
+    } catch {
+      // sin plantilla disponible → snippet con comentario base
+    }
+    const snippet = await importSnippet(nombre, contenido);
     setEditando(snippet);
   };
 
