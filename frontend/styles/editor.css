@@ -144,6 +144,21 @@
   margin: 0;
 }
 
+/* Bloque de código cercado en la edición en vivo (estilo fragmento) */
+.cm-line.mic-live-code {
+  background: var(--mic-bg-code);
+}
+.cm-line.mic-live-code-first {
+  border-top-left-radius: var(--mic-radius-md);
+  border-top-right-radius: var(--mic-radius-md);
+  padding-top: 0.2em;
+}
+.cm-line.mic-live-code-last {
+  border-bottom-left-radius: var(--mic-radius-md);
+  border-bottom-right-radius: var(--mic-radius-md);
+  padding-bottom: 0.2em;
+}
+
 /* Callouts en vivo: bloque coloreado por tipo (HU-03) */
 .mic-live-callout {
   border-left: 3px solid var(--mic-callout-note-border);

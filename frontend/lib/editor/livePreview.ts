@@ -43,6 +43,20 @@ const micelioHighlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "700" },
   { tag: tags.quote, color: "var(--mic-text-muted)", fontStyle: "italic" },
   { tag: tags.link, color: "var(--mic-accent)" },
+  // Tokens de código embebido en bloques cercados (HU-03), con la misma
+  // paleta de sintaxis del editor de CSS (--mic-syntax-*).
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment],
+    color: "var(--mic-syntax-comment)",
+    fontStyle: "italic",
+  },
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.definitionKeyword], color: "var(--mic-syntax-keyword)" },
+  { tag: [tags.string, tags.special(tags.string)], color: "var(--mic-syntax-string)" },
+  { tag: [tags.number, tags.bool, tags.atom], color: "var(--mic-syntax-number)" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "var(--mic-syntax-keyword)" },
+  { tag: [tags.variableName, tags.propertyName], color: "var(--mic-syntax-variable)" },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--mic-syntax-tag)" },
+  { tag: [tags.operator, tags.punctuation, tags.separator], color: "var(--mic-text-muted)" },
 ]);
 
 /** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */
@@ -288,6 +302,22 @@ function buildDecorations(view: EditorView): DecorationSet {
             to: line.from,
             deco: Decoration.line({ class: `mic-live-h${headingMatch[1]}` }),
           });
+          return;
+        }
+
+        // Bloque de código cercado: fondo/estilo de bloque por línea (HU-03).
+        if (node.name === "FencedCode" || node.name === "CodeBlock") {
+          const first = doc.lineAt(node.from).number;
+          const last = doc.lineAt(node.to).number;
+          for (let n = first; n <= last; n++) {
+            const ln = doc.line(n);
+            const edge = n === first ? " mic-live-code-first" : n === last ? " mic-live-code-last" : "";
+            decos.push({
+              from: ln.from,
+              to: ln.from,
+              deco: Decoration.line({ class: `mic-live-code${edge}` }),
+            });
+          }
           return;
         }
 

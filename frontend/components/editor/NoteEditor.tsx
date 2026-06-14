@@ -2,6 +2,7 @@
 
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
 import { Compartment, EditorState } from "@codemirror/state";
@@ -213,7 +214,7 @@ export function NoteEditor({
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.
             search({ createPanel: () => ({ dom: document.createElement("div") }) }),
-            markdown({ extensions: GFM }),
+            markdown({ extensions: GFM, codeLanguages: languages }),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
