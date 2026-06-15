@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
 import { startCollab, type CollabHandle } from "@/lib/collab/collab";
+import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
@@ -470,6 +471,7 @@ export function NoteEditor({
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current, notaId);
+      addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
   }, [previewHtml, mode, previewTick, notaId]);
 

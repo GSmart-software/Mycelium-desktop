@@ -294,17 +294,24 @@
 .mic-preview code {
   font-family: var(--mic-font-mono);
   font-size: 0.9em;
+}
+
+/* Código inline (no dentro de un bloque): píldora legible */
+.mic-preview :not(pre) > code {
   background: var(--mic-bg-code);
-  color: var(--mic-raw-mist);
+  color: var(--mic-text-primary);
   padding: 0.1em 0.35em;
   border-radius: var(--mic-radius-sm);
 }
 
+/* Bloque de código: posición relativa para el botón de copiar. NO se fija
+   `color` aquí para no pisar los colores de highlight.js (atom-one-dark);
+   el texto base lo da `.hljs` o se hereda de .mic-preview. */
 .mic-preview pre {
+  position: relative;
   font-family: var(--mic-font-mono);
   font-size: 0.875rem;
   background: var(--mic-bg-code);
-  color: var(--mic-raw-mist);
   padding: var(--mic-radius-md) var(--mic-radius-lg);
   border-radius: var(--mic-radius-md);
   overflow-x: auto;
@@ -314,6 +321,36 @@
 .mic-preview pre code {
   background: none;
   padding: 0;
+}
+
+/* Botón de copiar del bloque de código (esquina superior derecha) */
+.mic-preview pre .mic-copy-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.7rem;
+  font-family: var(--mic-font-sans);
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-bg-surface) 85%, transparent);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  cursor: pointer;
+}
+
+.mic-preview pre:hover .mic-copy-btn,
+.mic-preview pre .mic-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.mic-preview pre .mic-copy-btn:hover {
+  color: var(--mic-text-primary);
+  border-color: color-mix(in srgb, var(--mic-glow) 50%, transparent);
 }
 
 .mic-preview blockquote {
