@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

@@ -1,0 +1,21 @@
+# Referencia de recursos Cloudflare para Mycelium.
+#
+# NOTA: el backend .NET NO corre como Worker; accede a D1 por la REST API y a R2
+# por la API S3 (ver backend/src/Micelio.Api/Adapters/Cloudflare/). Este archivo
+# sirve para:
+#   - documentar los ids de los recursos,
+#   - ejecutar migraciones:  wrangler d1 execute micelio-prod --remote --file=migrations/d1/schema.sql
+#   - la futura fase de colaboración en tiempo real (Durable Object relay).
+#
+# Rellenar database_id tras crear la D1 (ver DEPLOYMENT.md, Parte 1).
+
+name = "micelio"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "micelio-prod"
+database_id = "REEMPLAZAR_database_id"
+
+[[r2_buckets]]
+binding = "BLOBS"
+bucket_name = "micelio-blobs"

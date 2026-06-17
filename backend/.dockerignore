@@ -1,0 +1,7 @@
+# Artefactos de build y estado local desechable: fuera de la imagen.
+**/bin/
+**/obj/
+**/*.user
+micelio.local.db*
+.local-storage/
+*.ps1

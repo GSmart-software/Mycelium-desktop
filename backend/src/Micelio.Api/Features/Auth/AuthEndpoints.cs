@@ -125,7 +125,7 @@ public static partial class AuthEndpoints
             var stored = await repo.FindActiveRefreshTokenAsync(TokenService.HashToken(cookie), ct);
             if (stored is not { } tokenRow)
             {
-                http.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = "/auth" });
+                http.Response.Cookies.Delete(RefreshCookieName, BuildCookieOptions(http, expires: null));
                 return Results.Json(new { error = "La sesión expiró." }, statusCode: 401);
             }
 
@@ -157,7 +157,7 @@ public static partial class AuthEndpoints
                 }
             }
 
-            http.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = "/auth" });
+            http.Response.Cookies.Delete(RefreshCookieName, BuildCookieOptions(http, expires: null));
             return Results.Ok(new { message = "Sesión cerrada." });
         });
 
@@ -243,14 +243,7 @@ public static partial class AuthEndpoints
         var expiraEn = DateTime.UtcNow.AddDays(tokens.RefreshTokenDays);
         await repo.InsertRefreshTokenAsync(userId, refreshHash, expiraEn, ct);
 
-        http.Response.Cookies.Append(RefreshCookieName, refreshToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = http.Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
-            Path = "/auth",
-            Expires = expiraEn,
-        });
+        http.Response.Cookies.Append(RefreshCookieName, refreshToken, BuildCookieOptions(http, expiraEn));
 
         return new
         {
@@ -258,6 +251,53 @@ public static partial class AuthEndpoints
             expiresInMinutes = tokens.AccessTokenMinutes,
             user = UserDto(user),
         };
+    }
+
+    /// <summary>
+    /// Opciones de la cookie de refresh, configurables para el despliegue:
+    /// <c>Auth:CookieSameSite</c> (Lax|None|Strict), <c>Auth:CookieSecure</c> y
+    /// <c>Auth:CookieDomain</c>. En cross-site (Pages ↔ Render) hace falta
+    /// SameSite=None + Secure; con dominio propio basta Lax + Domain. Append y
+    /// Delete comparten estas opciones para que el borrado haga match.
+    /// </summary>
+    private static CookieOptions BuildCookieOptions(HttpContext http, DateTimeOffset? expires)
+    {
+        var config = http.RequestServices.GetRequiredService<IConfiguration>();
+
+        var sameSite = config["Auth:CookieSameSite"]?.Trim().ToLowerInvariant() switch
+        {
+            "none" => SameSiteMode.None,
+            "strict" => SameSiteMode.Strict,
+            _ => SameSiteMode.Lax,
+        };
+
+        // SameSite=None exige Secure; si no, respetar Auth:CookieSecure o el esquema.
+        var secure = config.GetValue<bool?>("Auth:CookieSecure") ?? http.Request.IsHttps;
+        if (sameSite == SameSiteMode.None)
+        {
+            secure = true;
+        }
+
+        var options = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = secure,
+            SameSite = sameSite,
+            Path = "/auth",
+        };
+
+        if (expires.HasValue)
+        {
+            options.Expires = expires;
+        }
+
+        var domain = config["Auth:CookieDomain"];
+        if (!string.IsNullOrWhiteSpace(domain))
+        {
+            options.Domain = domain;
+        }
+
+        return options;
     }
 
     internal static object UserDto(System.Text.Json.JsonElement user) => new

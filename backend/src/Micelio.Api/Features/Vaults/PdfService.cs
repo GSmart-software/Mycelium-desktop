@@ -58,12 +58,26 @@ public sealed class PdfService : IAsyncDisposable
         {
             if (_browser is null)
             {
-                await new BrowserFetcher().DownloadAsync();
-                _browser = await Puppeteer.LaunchAsync(new LaunchOptions
+                var launch = new LaunchOptions
                 {
                     Headless = true,
                     Args = ["--no-sandbox", "--disable-setuid-sandbox"],
-                });
+                };
+
+                // En el contenedor de despliegue se instala Chromium del sistema y
+                // se expone PUPPETEER_EXECUTABLE_PATH para evitar la descarga en
+                // runtime. En local (sin esa variable) se descarga como siempre.
+                var execPath = Environment.GetEnvironmentVariable("PUPPETEER_EXECUTABLE_PATH");
+                if (!string.IsNullOrEmpty(execPath))
+                {
+                    launch.ExecutablePath = execPath;
+                }
+                else
+                {
+                    await new BrowserFetcher().DownloadAsync();
+                }
+
+                _browser = await Puppeteer.LaunchAsync(launch);
             }
         }
         finally

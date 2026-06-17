@@ -3,9 +3,18 @@ using Micelio.Api.Adapters.Local;
 using Micelio.Api.Features.Auth;
 using Micelio.Api.Ports;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Render (y otros PaaS) inyectan el puerto a escuchar vía la variable PORT.
+// En local no existe, así que Kestrel usa su configuración habitual.
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
 
 const string FrontendCors = "frontend";
 
@@ -56,14 +65,32 @@ if (storageProvider == "local")
 }
 else
 {
+    builder.Services.AddHttpClient();
     builder.Services.AddSingleton<ID1Client, Micelio.Api.Adapters.Cloudflare.D1Client>();
     builder.Services.AddSingleton<IBlobStorage, Micelio.Api.Adapters.Cloudflare.R2BlobStorage>();
     builder.Services.AddSingleton<ICollabRelay, Micelio.Api.Adapters.Cloudflare.DurableObjectCollabRelay>();
-    // IEmailSender de producción (Resend) se registra al integrar Cloudflare.
+    // Email deshabilitado por ahora: el admin verifica cuentas a mano en D1.
+    // (Resend / verificación automática quedan como mejora futura.)
     builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 }
 
 var app = builder.Build();
+
+// Detrás del proxy TLS de Render/Cloudflare, honrar X-Forwarded-Proto para que
+// Request.IsHttps sea correcto y las cookies Secure/SameSite=None funcionen.
+// En Development no se aplica para no alterar el comportamiento local.
+if (!app.Environment.IsDevelopment())
+{
+    var forwarded = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    };
+    // El proxy del PaaS no está en una red conocida: limpiar las listas por
+    // defecto para que el header sea honrado.
+    forwarded.KnownNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+}
 
 app.UseCors(FrontendCors);
 app.UseAuthentication();
