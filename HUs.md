@@ -243,7 +243,7 @@ documentos formateados.
 
 #### Criterios de aceptación
 1. Mismo trigger que HU-08 pero con "Exportar como PDF".
-2. El PDF respeta el tema visual activo (CSS de Micelio aplicado vía PuppeteerSharp en el servidor).
+2. El PDF respeta el tema visual activo (CSS de Mycelium aplicado vía PuppeteerSharp en el servidor).
 3. El usuario elige el tamaño de página: A4 o Letter.
 4. Mermaid y Excalidraw se incrustan como SVG vectorial.
 5. Sin saltos de página en medio de bloques de código ni tablas.
@@ -427,7 +427,7 @@ sin recordar en qué nota está.
 3. Resultados en < 1 segundo para vaults de hasta 1.000 notas.
 4. Cada resultado muestra: título de la nota + ruta de carpeta + fragmento(s) con coincidencias resaltadas (`color-mix(in srgb, var(--mic-glow) 30%, transparent)`).
 5. Filtros soportados: texto del contenido, nombre del archivo, tags (`#tag` inline o `tag:nombre`).
-6. Multi-término: "agua micelio" → AND implícito (contiene ambas palabras).
+6. Multi-término: "agua Mycelium" → AND implícito (contiene ambas palabras).
 7. Frase exacta: `"red de conocimiento"` entre comillas.
 8. Clic en resultado → abre la nota y posiciona el cursor en la primera coincidencia.
 9. Vaciar el campo o Esc → restaura el explorer en el panel izquierdo.
@@ -653,7 +653,7 @@ y corregir repeticiones.
 ## Épica: Usuarios y cuentas
 
 ### HU-32 · Registro e inicio de sesión (5 SP, alta)
-Como usuario, quiero registrarme y acceder a Micelio de forma segura desde cualquier dispositivo.
+Como usuario, quiero registrarme y acceder a Mycelium de forma segura desde cualquier dispositivo.
 
 **Contexto:** Rutas `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`.
 
@@ -771,9 +771,9 @@ el botón de compartir y mi perfil, para orientarme y actuar desde cualquier est
 
 #### Criterios de aceptación
 1. El AppTopbar es visible en todo momento en el workspace (no se colapsa ni oculta).
-2. **Izquierda:** logo "Micelio" (texto con tipografía de marca o ícono). Clic → recarga el workspace.
+2. **Izquierda:** logo "Mycelium" (texto con tipografía de marca o ícono). Clic → recarga el workspace.
 3. **Centro:** barra de búsqueda con comportamiento dinámico:
-   - Sin nota activa: placeholder "Micelio" o vacío.
+   - Sin nota activa: placeholder "Mycelium" o vacío.
    - Con nota activa: muestra el nombre de la nota activa como placeholder de contexto.
    - Clic en la barra → activa la búsqueda en nota (mismo comportamiento que Ctrl+F, HU-31).
 4. **Derecha:** botón "Compartir" + avatar del usuario.

@@ -1,5 +1,5 @@
 /*
- * Tokens de Micelio — arquitectura de 2 capas (docs/DESIGN_SYSTEM.md).
+ * Tokens de Mycelium — arquitectura de 2 capas (docs/DESIGN_SYSTEM.md).
  * El código de componentes usa SOLO tokens semánticos (--mic-bg-*, --mic-text-*, etc.).
  * Los temas redefinen los tokens raw; el modo oscuro es un modifier ortogonal
  * (data-dark="true") que solo sobreescribe canvas/mist/ink.

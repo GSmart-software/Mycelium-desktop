@@ -50,7 +50,7 @@ export function CustomCssSection() {
     let nombre = "nuevo.css";
     let i = 2;
     while (existentes.has(nombre)) nombre = `nuevo-${i++}.css`;
-    let contenido = "/* Nuevo snippet de Micelio */\n";
+    let contenido = "/* Nuevo snippet de Mycelium */\n";
     try {
       contenido = await fetch("/plantilla-estilos.css").then((r) => r.text());
     } catch {

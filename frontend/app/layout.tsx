@@ -47,8 +47,11 @@ const fontVariables = [
 ].join(" ");
 
 export const metadata: Metadata = {
-  title: "Micelio",
+  title: "Mycelium",
   description: "Tu red de conocimiento, viva y conectada",
+  icons: {
+    icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='9' cy='10' r='4' fill='%2325f0c8'/%3E%3Ccircle cx='23' cy='8' r='3' fill='%2319e6ff'/%3E%3Ccircle cx='16' cy='23' r='4' fill='%232f8fff'/%3E%3Cpath d='M9 10L23 8M9 10L16 23M23 8L16 23' stroke='%2325f0c8' stroke-width='1.5' opacity='.6'/%3E%3C/svg%3E",
+  },
 };
 
 export default function RootLayout({

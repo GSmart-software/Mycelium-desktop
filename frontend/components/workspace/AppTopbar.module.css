@@ -17,6 +17,10 @@
   color: var(--mic-glow);
   padding: 0.25rem 0.5rem;
   border-radius: var(--mic-radius-sm);
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .logoMark {

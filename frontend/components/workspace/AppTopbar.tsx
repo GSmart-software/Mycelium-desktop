@@ -37,9 +37,9 @@ export function AppTopbar({
         type="button"
         className={styles.logo}
         onClick={() => router.push("/workspace")}
-        title="Micelio"
+        title="Mycelium"
       >
-        <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden className={styles.logoMark}>
+        <svg viewBox="0 0 32 32" width="27" height="27" aria-hidden className={styles.logoMark}>
           <path
             d="M9 10L23 8M9 10L16 23M23 8L16 23"
             stroke="var(--mic-glow)"
@@ -49,9 +49,9 @@ export function AppTopbar({
           />
           <circle cx="9" cy="10" r="4" fill="var(--mic-glow)" />
           <circle cx="23" cy="8" r="3" fill="var(--mic-accent)" />
-          <circle cx="16" cy="23" r="4" fill="var(--mic-glow)" />
+          <circle cx="16" cy="23" r="4" fill="var(--mic-callout-info-border)" />
         </svg>
-        <span className={styles.logoFull}>Micelio</span>
+        <span className={styles.logoFull}>Mycelium</span>
         <span className={styles.logoCompact} aria-hidden>M</span>
       </button>
 
@@ -59,7 +59,7 @@ export function AppTopbar({
         <Search size={14} aria-hidden className={styles.searchIcon} />
         <input
           className={styles.searchInput}
-          placeholder="Buscar en Micelio…"
+          placeholder="Buscar en Mycelium…"
           aria-label="Buscar"
         />
       </div>

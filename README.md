@@ -1,4 +1,4 @@
-# Micelio
+# Mycelium
 
 Tu red de conocimiento, viva y conectada. Editor de notas Markdown con enlaces
 `[[wiki]]`, grafo de conocimiento y colaboración — inspirado en Obsidian.
@@ -31,3 +31,6 @@ npm run dev
 
 La base local (`micelio.local.db`) y los blobs (`./.local-storage/blobs/`) son
 desechables: borrarlos reinicia el estado limpio.
+
+- Email: dev@micelio.local
+- Password: micelio123

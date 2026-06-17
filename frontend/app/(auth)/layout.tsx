@@ -7,7 +7,7 @@ export default function AuthLayout({
     <main className={styles.page}>
       <div className={styles.card}>
         <header className={styles.brand}>
-          <h1 className={styles.logo}>Micelio</h1>
+          <h1 className={styles.logo}>Mycelium</h1>
           <p className={styles.tagline}>Tu red de conocimiento, viva y conectada</p>
         </header>
         {children}
