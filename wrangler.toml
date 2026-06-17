@@ -14,7 +14,7 @@ name = "micelio"
 [[d1_databases]]
 binding = "DB"
 database_name = "micelio-prod"
-database_id = "REEMPLAZAR_database_id"
+database_id = "5fc44645-f568-4bc7-93d6-9a2121d546dc"
 
 [[r2_buckets]]
 binding = "BLOBS"

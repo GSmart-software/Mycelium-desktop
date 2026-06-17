@@ -9,3 +9,6 @@ micelio.local.db*
 
 # Varios
 .DS_Store
+
+
+.env
