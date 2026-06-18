@@ -33,22 +33,19 @@ public sealed class D1Client : ID1Client
 
     public async Task<IReadOnlyList<D1Result>> BatchAsync(IReadOnlyList<D1Statement> statements, CancellationToken ct = default)
     {
-        // D1 REST no expone transacciones explícitas como el binding de Workers.
-        // Se concatenan las sentencias en una única petición (D1 las ejecuta en
-        // orden) y se aplanan los parámetros: los `?` se enlazan posicionalmente
-        // sobre toda la cadena. Caveat: el rollback atómico no está garantizado
-        // como en BatchAsync del adaptador local.
-        var sql = string.Join(";\n", statements.Select(s => s.Sql.TrimEnd().TrimEnd(';')));
-        var pars = new List<object?>();
+        // D1 REST NO soporta parámetros con múltiples sentencias en una sola
+        // petición (error 7400 "params with multiple statements is not
+        // supported"), ni transacciones explícitas como el binding de Workers.
+        // Se ejecuta cada sentencia en su propia petición, en orden. Caveat: sin
+        // atomicidad/rollback entre sentencias (aceptado para estos usos).
+        var results = new List<D1Result>(statements.Count);
         foreach (var statement in statements)
         {
-            if (statement.Parameters is { } p)
-            {
-                pars.AddRange(p);
-            }
+            var single = await SendAsync(statement.Sql, statement.Parameters ?? [], ct);
+            results.Add(single.Count > 0 ? single[0] : new D1Result([], Success: true, new D1Meta(0, 0)));
         }
 
-        return await SendAsync(sql, pars, ct);
+        return results;
     }
 
     private async Task<List<D1Result>> SendAsync(string sql, IReadOnlyList<object?> parameters, CancellationToken ct)

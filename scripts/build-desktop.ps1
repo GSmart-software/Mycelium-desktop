@@ -36,6 +36,14 @@ New-Item -ItemType Directory -Force -Path $wwwroot | Out-Null
 Copy-Item -Recurse -Force (Join-Path $frontend "out/*") $wwwroot
 
 Write-Host "==> [3/5] Publish del backend (self-contained single-file)" -ForegroundColor Cyan
+# Preservar credenciales locales si ya existen: no perderlas al reconstruir.
+$localCfg = Join-Path $outDir "appsettings.Local.json"
+$savedCfg = $null
+if (Test-Path $localCfg) {
+    $savedCfg = Join-Path $env:TEMP "micelio.appsettings.Local.json.bak"
+    Copy-Item -Force $localCfg $savedCfg
+    Write-Host "    (appsettings.Local.json existente respaldado y se restaurara)" -ForegroundColor DarkGray
+}
 if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
 dotnet publish $apiProj -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -49,6 +57,12 @@ if (Test-Path $prod) { Remove-Item -Force $prod }
 
 Write-Host "==> [5/5] Dejando la plantilla de credenciales" -ForegroundColor Cyan
 Copy-Item -Force (Join-Path $apiProj "appsettings.Local.example.json") (Join-Path $outDir "appsettings.Local.example.json")
+# Restaurar las credenciales reales si existian antes del rebuild.
+if ($savedCfg) {
+    Copy-Item -Force $savedCfg $localCfg
+    Remove-Item -Force $savedCfg
+    Write-Host "    (appsettings.Local.json restaurado)" -ForegroundColor DarkGray
+}
 
 Write-Host ""
 Write-Host "OK. Artefacto en: $outDir" -ForegroundColor Green
