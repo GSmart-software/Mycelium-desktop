@@ -170,6 +170,21 @@ const CALLOUT_LABELS: Record<string, string> = {
 
 const hide = Decoration.replace({});
 
+/** Regla horizontal (--- *** ___): se dibuja como separador fuera de la línea activa. */
+class HrWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    const hr = document.createElement("span");
+    hr.className = "mic-live-hr";
+    return hr;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
 /** Etiqueta del tipo que reemplaza al marcador cuando no hay título. */
 class LabelWidget extends WidgetType {
   constructor(readonly label: string) {
@@ -303,6 +318,20 @@ function buildDecorations(view: EditorView): DecorationSet {
             deco: Decoration.line({ class: `mic-live-h${headingMatch[1]}` }),
           });
           return;
+        }
+
+        // Regla horizontal (--- *** ___): se muestra como separador cuando el
+        // cursor no está en la línea; al entrar, se ve el texto crudo para editar.
+        if (node.name === "HorizontalRule") {
+          const line = doc.lineAt(node.from);
+          if (!activeLines.has(line.number)) {
+            decos.push({
+              from: line.from,
+              to: line.to,
+              deco: Decoration.replace({ widget: new HrWidget() }),
+            });
+          }
+          return false;
         }
 
         // Bloque de código cercado: fondo/estilo de bloque por línea (HU-03).

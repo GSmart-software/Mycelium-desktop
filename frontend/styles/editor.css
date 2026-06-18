@@ -159,6 +159,15 @@
   padding-bottom: 0.2em;
 }
 
+/* Regla horizontal (--- *** ___) en la edición en vivo: separador de página */
+.mic-live-hr {
+  display: inline-block;
+  width: 100%;
+  height: 0.6em;
+  vertical-align: middle;
+  border-bottom: 2px solid var(--mic-border);
+}
+
 /* Callouts en vivo: bloque coloreado por tipo (HU-03) */
 .mic-live-callout {
   border-left: 3px solid var(--mic-callout-note-border);
