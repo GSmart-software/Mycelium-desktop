@@ -8,6 +8,11 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Capa de overrides/secretos local (gitignored). Un único lugar para las keys
+// de Cloudflare y, en el modo desktop, para Urls/Hosting:ServeFrontend. Se carga
+// después de los appsettings por defecto y antes de las variables de entorno.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Render (y otros PaaS) inyectan el puerto a escuchar vía la variable PORT.
 // En local no existe, así que Kestrel usa su configuración habitual.
 var port = Environment.GetEnvironmentVariable("PORT");
@@ -92,6 +97,16 @@ if (!app.Environment.IsDevelopment())
     app.UseForwardedHeaders(forwarded);
 }
 
+// Modo desktop (un solo proceso sirve la UI estática + la API en el mismo origen).
+// Gateado por Hosting:ServeFrontend; en dev/deploy queda apagado. Los estáticos van
+// antes de CORS/auth (no requieren autenticación).
+var serveFrontend = app.Configuration.GetValue<bool>("Hosting:ServeFrontend");
+if (serveFrontend)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
+
 app.UseCors(FrontendCors);
 app.UseAuthentication();
 app.UseAuthorization();
@@ -124,6 +139,48 @@ if (app.Environment.IsDevelopment())
             "SELECT email, nombre, email_verificado FROM usuarios WHERE email = ?",
             [LocalDbInitializer.SeedEmail], ct);
         return Results.Ok(new { tables = tables.Results, seedUser = seed.Results });
+    });
+}
+
+if (serveFrontend)
+{
+    // Fallback de la SPA exportada por Next (output:'export'): replica
+    // `try_files $uri $uri.html` → sirve wwwroot/{ruta}.html si existe, si no
+    // index.html. Solo captura GET no resueltos por estáticos ni por la API
+    // (que están mapeados explícitamente), así que /login, /workspace, etc.
+    // cargan su página y el cliente toma el routing.
+    app.MapFallback(async context =>
+    {
+        var webRoot = app.Environment.WebRootPath
+            ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+        var requested = context.Request.Path.Value?.Trim('/') ?? "";
+        var candidate = string.IsNullOrEmpty(requested) ? "index.html" : $"{requested}.html";
+
+        var filePath = Path.Combine(webRoot, candidate.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(filePath))
+        {
+            filePath = Path.Combine(webRoot, "index.html");
+        }
+
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(filePath);
+    });
+
+    // Abrir el navegador en la URL de la app (sensación de "app de escritorio").
+    var url = app.Configuration["Urls"]?.Split(';')[0] ?? "http://localhost:5279";
+    app.Lifetime.ApplicationStarted.Register(() =>
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url)
+            {
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // Si no hay navegador/entorno gráfico, no es crítico.
+        }
     });
 }
 

@@ -12,3 +12,8 @@ micelio.local.db*
 
 
 .env
+
+# Secretos y artefactos del modo desktop (un exe sirve front+API, datos en Cloudflare)
+appsettings.Local.json
+backend/src/Micelio.Api/wwwroot/
+dist/
