@@ -20,16 +20,26 @@ export function MiniGraph({
   edges,
   centerId,
   onOpen,
+  initialPositions,
+  onPositions,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   centerId: string | null;
   onOpen: (id: string) => void;
+  /** Posiciones cacheadas por id: arrancar asentado en vez de re-simular desde cero. */
+  initialPositions?: Record<string, { x: number; y: number }>;
+  /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
+  onPositions?: (positions: Record<string, { x: number; y: number }>) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
+  const initialPosRef = useRef(initialPositions);
+  initialPosRef.current = initialPositions;
+  const onPositionsRef = useRef(onPositions);
+  onPositionsRef.current = onPositions;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,11 +59,23 @@ export function MiniGraph({
     const colText2 = "rgba(245, 255, 252, 0.96)";
 
     const N = nodes.length;
+    const saved = initialPosRef.current;
+    let savedCount = 0;
     const sim: SimNode[] = nodes.map((n, i) => {
+      const cached = saved?.[n.id];
+      if (cached && n.id !== centerId) {
+        savedCount++;
+        return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0 };
+      }
       const a = (i / Math.max(N, 1)) * Math.PI * 2;
       const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
       return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0 };
     });
+    // Si casi todos los nodos vienen del cache, arrancar con poca energía para
+    // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
+    // integrarlos suavemente; si todo es nuevo, simulación completa.
+    const cachedRatio = N > 0 ? savedCount / N : 0;
+    const initialAlpha = cachedRatio >= 0.999 ? 0.08 : cachedRatio > 0 ? 0.4 : 1;
     const byId = new Map(sim.map((n) => [n.id, n]));
     const simEdges: SimEdge[] = [];
     for (const e of edges) {
@@ -69,7 +91,7 @@ export function MiniGraph({
     let dragNode: SimNode | null = null;
     let panning = false;
     let downAt: { x: number; y: number } | null = null;
-    let alpha = 1;
+    let alpha = initialAlpha;
     let dpr = window.devicePixelRatio || 1;
     let running = true;
 
@@ -281,6 +303,12 @@ export function MiniGraph({
 
     return () => {
       running = false;
+      // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
+      // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
+      onPositionsRef.current?.(positions);
+
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);

@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
+import { useGraphStore } from "@/stores/graphStore";
+
+/** Marca el grafo como desactualizado tras un cambio que altera nodos/enlaces. */
+const markGraphStale = () => useGraphStore.getState().markStale();
 
 export type TreeCarpeta = { id: string; padreId: string | null; nombre: string };
 export type NotaTipo = "markdown" | "excalidraw";
@@ -181,22 +185,26 @@ export const useVaultStore = create<VaultState>()(
         });
         if (carpetaId) set((s) => ({ expanded: { ...s.expanded, [carpetaId]: true } }));
         await get().loadTree(vaultId);
+        markGraphStale();
         return result.id;
       },
 
       async renameNota(id, titulo) {
         await api(`/notas/${id}`, { method: "PATCH", token: token(), body: { titulo } });
         await get().loadTree(get().vaultId!);
+        markGraphStale();
       },
 
       async deleteNota(id) {
         await api(`/notas/${id}`, { method: "DELETE", token: token() });
         await get().loadTree(get().vaultId!);
+        markGraphStale();
       },
 
       async duplicateNota(id) {
         await api(`/notas/${id}/duplicar`, { method: "POST", token: token() });
         await get().loadTree(get().vaultId!);
+        markGraphStale();
       },
 
       async moveNota(id, destinoId) {
@@ -213,6 +221,7 @@ export const useVaultStore = create<VaultState>()(
       async restoreNota(id) {
         await api(`/notas/${id}/recuperar`, { method: "POST", token: token() });
         await Promise.all([get().loadPapelera(), get().loadTree(get().vaultId!)]);
+        markGraphStale();
       },
 
       async deleteNotaForever(id) {

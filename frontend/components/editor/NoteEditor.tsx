@@ -24,6 +24,7 @@ import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
+import { useGraphStore } from "@/stores/graphStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -151,6 +152,8 @@ export function NoteEditor({
       remoteUpdatedAtRef.current = result.actualizadoEn;
       saveLocal();
       setSyncState("synced");
+      // El contenido (y por ende los [[enlaces]]) cambió → refrescar el grafo.
+      useGraphStore.getState().markStale();
     } catch {
       setSyncState(navigator.onLine ? "error" : "offline");
     } finally {
