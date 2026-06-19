@@ -168,6 +168,44 @@
   border-bottom: 2px solid var(--mic-border);
 }
 
+/* Checkbox de tarea en la edición en vivo (visual, no interactivo) */
+.mic-live-check {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.18em;
+  margin-right: 0.15em;
+  border: 1.5px solid var(--mic-text-muted);
+  border-radius: 4px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.mic-live-check-on {
+  position: relative;
+  background: var(--mic-accent);
+  border-color: var(--mic-accent);
+}
+.mic-live-check-on::after {
+  content: "";
+  position: absolute;
+  left: 0.33em;
+  top: 0.1em;
+  width: 0.28em;
+  height: 0.55em;
+  border: solid var(--mic-raw-canvas);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Checkbox de tarea togglable en lectura/dividido */
+.mic-preview input.mic-task-check {
+  cursor: pointer;
+  accent-color: var(--mic-accent);
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.1em;
+}
+
 /* Callouts en vivo: bloque coloreado por tipo (HU-03) */
 .mic-live-callout {
   border-left: 3px solid var(--mic-callout-note-border);

@@ -185,6 +185,21 @@ class HrWidget extends WidgetType {
   }
 }
 
+/** Checkbox visual (no interactivo) de lista de tareas en la edición en vivo. */
+class CheckboxWidget extends WidgetType {
+  constructor(readonly checked: boolean) {
+    super();
+  }
+  eq(other: CheckboxWidget) {
+    return other.checked === this.checked;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-live-check" + (this.checked ? " mic-live-check-on" : "");
+    return span;
+  }
+}
+
 /** Etiqueta del tipo que reemplaza al marcador cuando no hay título. */
 class LabelWidget extends WidgetType {
   constructor(readonly label: string) {
@@ -389,6 +404,20 @@ function buildDecorations(view: EditorView): DecorationSet {
               to: node.to,
               deco: Decoration.mark({ class: "mic-list-mark" }),
             });
+            break;
+          }
+          case "TaskMarker": {
+            // `[ ]`/`[x]` → checkbox visual fuera de la línea activa; al entrar
+            // el cursor se ve el texto crudo para editarlo.
+            const line = doc.lineAt(node.from);
+            if (!activeLines.has(line.number)) {
+              const checked = /\[[xX]\]/.test(doc.sliceString(node.from, node.to));
+              decos.push({
+                from: node.from,
+                to: node.to,
+                deco: Decoration.replace({ widget: new CheckboxWidget(checked) }),
+              });
+            }
             break;
           }
         }

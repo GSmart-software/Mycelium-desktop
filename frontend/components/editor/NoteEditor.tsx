@@ -44,6 +44,32 @@ const instanceCache = new Map<
   { doc: string; anchor: number; head: number; scrollTop: number }
 >();
 
+/** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
+const TASK_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/gm;
+
+/**
+ * Alterna el N-ésimo checkbox de tarea del documento (orden de aparición, que
+ * coincide con el orden renderizado). Despacha el cambio al editor, lo que
+ * re-renderiza el preview y dispara el autoguardado.
+ */
+function toggleTaskInDoc(view: EditorView | null, index: number) {
+  if (!view) return;
+  const text = view.state.doc.toString();
+  TASK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = TASK_RE.exec(text)) !== null) {
+    if (i === index) {
+      const pos = match.index + match[1].length + 1; // char dentro de los corchetes
+      view.dispatch({
+        changes: { from: pos, to: pos + 1, insert: match[2] === " " ? "x" : " " },
+      });
+      return;
+    }
+    i++;
+  }
+}
+
 /** Selecciona y centra la primera coincidencia de `term` en la vista (HU-21 CA8). */
 function gotoMatch(view: EditorView, term: string) {
   if (!term) return;
@@ -522,6 +548,16 @@ export function NoteEditor({
   // Navegación de wikilinks/tags y apertura de diagramas desde el preview
   const onPreviewClick = useCallback(
     (event: React.MouseEvent) => {
+      // Toggle de checkbox de lista de tareas (lectura/dividido): alterna el
+      // marcador [ ]/[x] en el doc; el preview se re-renderiza y se autoguarda.
+      const check = (event.target as HTMLElement).closest<HTMLInputElement>(
+        'input[type="checkbox"][data-task]',
+      );
+      if (check) {
+        event.preventDefault();
+        toggleTaskInDoc(viewRef.current, Number(check.getAttribute("data-task")));
+        return;
+      }
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
       if (diagram) {
         // Clic en el diagrama renderizado → editor Excalidraw (HU-16 CA3)

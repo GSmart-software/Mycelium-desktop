@@ -162,6 +162,24 @@ function remarkCallouts() {
   };
 }
 
+/**
+ * Hace togglables los checkboxes de listas de tareas en lectura/dividido: quita
+ * el `disabled` que pone remark-gfm y numera cada uno en orden de documento
+ * (data-task) para que el editor sepa qué marcador `[ ]`/`[x]` alternar.
+ */
+function rehypeTaskCheckbox() {
+  return (tree: Parent) => {
+    let i = 0;
+    visit(tree, "element", (node: MdNode & { tagName?: string; properties?: Record<string, unknown> }) => {
+      if (node.tagName !== "input" || node.properties?.type !== "checkbox") return;
+      const props = node.properties;
+      delete props.disabled;
+      props.className = ["mic-task-check"];
+      props.dataTask = String(i++);
+    });
+  };
+}
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
@@ -169,6 +187,7 @@ const processor = unified()
   .use(remarkMicelio)
   .use(remarkCallouts)
   .use(remarkRehype)
+  .use(rehypeTaskCheckbox)
   // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos
   .use(rehypeHighlight, { plainText: ["mermaid", "excalidraw"] })
   .use(rehypeKatex)
