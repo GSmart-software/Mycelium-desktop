@@ -77,6 +77,11 @@ type VaultState = {
 
 const token = () => useAuthStore.getState().accessToken;
 
+// Guard de generación para loadTree: si varias recargas se solapan (red lenta),
+// solo la última iniciada puede escribir el estado. Evita que una recarga vieja
+// (que leyó antes de un move) resuelva última y revierta el árbol.
+let treeSeq = 0;
+
 export const useVaultStore = create<VaultState>()(
   persist(
     (set, get) => ({
@@ -90,10 +95,13 @@ export const useVaultStore = create<VaultState>()(
       lastMove: null,
 
       async loadTree(vaultId) {
+        const seq = ++treeSeq;
         const data = await api<{ carpetas: RawCarpeta[]; notas: RawNota[] }>(
           `/vaults/${vaultId}/tree`,
           { token: token() },
         );
+        // Si ya se inició una recarga más nueva, descartar este resultado viejo.
+        if (seq !== treeSeq) return;
         set({
           vaultId,
           carpetas: data.carpetas.map((c) => ({
@@ -115,9 +123,10 @@ export const useVaultStore = create<VaultState>()(
             `/vaults/${vaultId}/carpetas-compartidas`,
             { token: token() },
           );
+          if (seq !== treeSeq) return;
           set({ sharedCarpetaIds: shared.ids });
         } catch {
-          set({ sharedCarpetaIds: [] });
+          if (seq === treeSeq) set({ sharedCarpetaIds: [] });
         }
       },
 
@@ -162,12 +171,25 @@ export const useVaultStore = create<VaultState>()(
 
       async moveCarpeta(id, destinoId) {
         const prev = get().carpetas.find((c) => c.id === id)?.padreId ?? null;
-        await api(`/carpetas/${id}/mover`, {
-          method: "POST",
-          token: token(),
-          body: { destinoId },
-        });
-        set({ lastMove: { type: "carpeta", id, prevParentId: prev } });
+        // Optimista: mover la carpeta en el árbol al instante (no esperar la red).
+        set((s) => ({
+          carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: destinoId } : c)),
+          lastMove: { type: "carpeta", id, prevParentId: prev },
+          expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
+        }));
+        try {
+          await api(`/carpetas/${id}/mover`, {
+            method: "POST",
+            token: token(),
+            body: { destinoId },
+          });
+        } catch {
+          // Revertir si el backend rechazó el movimiento.
+          set((s) => ({
+            carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
+          }));
+          return;
+        }
         await get().loadTree(get().vaultId!);
       },
 
@@ -209,12 +231,25 @@ export const useVaultStore = create<VaultState>()(
 
       async moveNota(id, destinoId) {
         const prev = get().notas.find((n) => n.id === id)?.carpetaId ?? null;
-        await api(`/notas/${id}/mover`, {
-          method: "POST",
-          token: token(),
-          body: { destinoId },
-        });
-        set({ lastMove: { type: "nota", id, prevParentId: prev } });
+        // Optimista: mover la nota en el árbol al instante (no esperar la red).
+        set((s) => ({
+          notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: destinoId } : n)),
+          lastMove: { type: "nota", id, prevParentId: prev },
+          expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
+        }));
+        try {
+          await api(`/notas/${id}/mover`, {
+            method: "POST",
+            token: token(),
+            body: { destinoId },
+          });
+        } catch {
+          // Revertir si el backend rechazó el movimiento.
+          set((s) => ({
+            notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
+          }));
+          return;
+        }
         await get().loadTree(get().vaultId!);
       },
 
