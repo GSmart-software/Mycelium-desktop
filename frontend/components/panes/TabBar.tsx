@@ -13,6 +13,7 @@ import {
   type Tab,
 } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useWheelHScroll } from "@/lib/useWheelHScroll";
 import styles from "./panes.module.css";
 
 /** Tab bar de un pane (HU-25): pestañas con dot de sync, drag y menú "...". */
@@ -26,6 +27,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  useWheelHScroll(tabBarRef);
 
   // El menú se posiciona con position:fixed para escapar del overflow del
   // tab bar (si no, quedaba recortado detrás del editor).
@@ -81,7 +84,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     : null;
 
   return (
-    <div className={styles.tabBar} role="tablist">
+    <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
       {pane.tabs.map((tab, index) => {
         const sync = syncByNota[tab.notaId] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;

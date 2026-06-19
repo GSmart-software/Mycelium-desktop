@@ -20,9 +20,10 @@ import {
   Search,
   Shapes,
   Strikethrough,
+  Type,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUiStore } from "@/stores/uiStore";
 import {
   insertHorizontalRule,
@@ -53,9 +54,15 @@ const SYNC_LABEL: Record<SyncState, string> = {
   error: "Error de sincronización — cambios pendientes",
 };
 
+/** Acción de formato: o un divisor, o un botón con ícono. */
+type FormatAction =
+  | { divider: true }
+  | { icon: LucideIcon; label: string; run?: (view: EditorView) => void; action?: () => void };
+
 /**
- * Barra de herramientas del editor (HU-02): formato a la izquierda,
- * selector de modo a la derecha. En modo `read` solo queda el selector.
+ * Barra de herramientas del editor (HU-02): formato a la izquierda, selector de
+ * modo a la derecha. En `read` solo queda el selector. Cuando el ancho no
+ * alcanza, el grupo de formato se colapsa en un menú desplegable (responsive).
  */
 export function EditorToolbar({
   getView,
@@ -77,6 +84,14 @@ export function EditorToolbar({
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkPos, setLinkPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [collapsed, setCollapsed] = useState(false);
+  const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const formatWrapRef = useRef<HTMLDivElement>(null);
 
   function run(action: (view: EditorView) => void) {
     const view = getView();
@@ -92,7 +107,10 @@ export function EditorToolbar({
     const { from, to } = view.state.selection.main;
     setLinkText(view.state.sliceDoc(from, to));
     setLinkUrl("");
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    if (rect) setLinkPos({ top: rect.bottom + 4, left: rect.left + 8 });
     setLinkOpen(true);
+    setFormatMenuOpen(false);
   }
 
   function confirmLink() {
@@ -103,12 +121,7 @@ export function EditorToolbar({
   // Ctrl+K desde el editor abre el popover (HU-02 CA6)
   useEffect(() => {
     function onRequest() {
-      const view = getView();
-      if (!view) return;
-      const { from, to } = view.state.selection.main;
-      setLinkText(view.state.sliceDoc(from, to));
-      setLinkUrl("");
-      setLinkOpen(true);
+      openLinkPopover();
     }
     window.addEventListener("micelio:link-popover", onRequest);
     return () => window.removeEventListener("micelio:link-popover", onRequest);
@@ -117,99 +130,191 @@ export function EditorToolbar({
 
   const showFormatTools = mode !== "read";
 
+  // Colapsar el grupo de formato si su ancho natural no entra en la barra.
+  useEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const measure = () => {
+      const natural = measureRef.current?.offsetWidth ?? 0;
+      const right = rightRef.current?.offsetWidth ?? 0;
+      const available = toolbar.clientWidth - right - 16;
+      setCollapsed(natural > 0 && natural > available);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(toolbar);
+    return () => ro.disconnect();
+  }, [showFormatTools, onInsertDiagram]);
+
+  // Cerrar el menú de formato al hacer clic fuera.
+  useEffect(() => {
+    if (!formatMenuOpen) return;
+    function onDown(e: PointerEvent) {
+      if (!formatWrapRef.current?.contains(e.target as Node)) setFormatMenuOpen(false);
+    }
+    window.addEventListener("pointerdown", onDown);
+    return () => window.removeEventListener("pointerdown", onDown);
+  }, [formatMenuOpen]);
+
+  const formatActions: FormatAction[] = [
+    { icon: Bold, label: "Negrita (Ctrl+B)", run: (v) => wrapSelection(v, "**") },
+    { icon: Italic, label: "Cursiva (Ctrl+I)", run: (v) => wrapSelection(v, "*") },
+    { icon: Strikethrough, label: "Tachado", run: (v) => wrapSelection(v, "~~") },
+    { icon: Braces, label: "Código inline (Ctrl+Shift+C)", run: (v) => wrapSelection(v, "`") },
+    { divider: true },
+    { icon: Heading1, label: "Título 1", run: (v) => setHeading(v, 1) },
+    { icon: Heading2, label: "Título 2", run: (v) => setHeading(v, 2) },
+    { icon: Heading3, label: "Título 3", run: (v) => setHeading(v, 3) },
+    { divider: true },
+    { icon: List, label: "Lista desordenada", run: (v) => toggleLinePrefix(v, "- ") },
+    { icon: ListOrdered, label: "Lista ordenada", run: (v) => toggleLinePrefix(v, "1. ") },
+    { icon: Quote, label: "Cita", run: (v) => toggleLinePrefix(v, "> ") },
+    { icon: Link, label: "Link (Ctrl+K)", action: openLinkPopover },
+    { icon: Minus, label: "Divisor horizontal", run: insertHorizontalRule },
+    ...(onInsertDiagram
+      ? ([
+          { divider: true },
+          { icon: Shapes, label: "Insertar diagrama Excalidraw", action: onInsertDiagram },
+        ] as FormatAction[])
+      : []),
+  ];
+
+  const runAction = (a: Extract<FormatAction, { icon: LucideIcon }>) => {
+    if (a.run) run(a.run);
+    else a.action?.();
+  };
+
   return (
-    <div className={styles.toolbar}>
-      {showFormatTools && (
+    <div className={styles.toolbar} ref={toolbarRef}>
+      {showFormatTools && !collapsed && (
         <div className={styles.formatGroup}>
-          <ToolButton icon={Bold} label="Negrita (Ctrl+B)" onClick={() => run((v) => wrapSelection(v, "**"))} />
-          <ToolButton icon={Italic} label="Cursiva (Ctrl+I)" onClick={() => run((v) => wrapSelection(v, "*"))} />
-          <ToolButton icon={Strikethrough} label="Tachado" onClick={() => run((v) => wrapSelection(v, "~~"))} />
-          <ToolButton icon={Braces} label="Código inline (Ctrl+Shift+C)" onClick={() => run((v) => wrapSelection(v, "`"))} />
-          <span className={styles.divider} />
-          <ToolButton icon={Heading1} label="Título 1" onClick={() => run((v) => setHeading(v, 1))} />
-          <ToolButton icon={Heading2} label="Título 2" onClick={() => run((v) => setHeading(v, 2))} />
-          <ToolButton icon={Heading3} label="Título 3" onClick={() => run((v) => setHeading(v, 3))} />
-          <span className={styles.divider} />
-          <ToolButton icon={List} label="Lista desordenada" onClick={() => run((v) => toggleLinePrefix(v, "- "))} />
-          <ToolButton icon={ListOrdered} label="Lista ordenada" onClick={() => run((v) => toggleLinePrefix(v, "1. "))} />
-          <ToolButton icon={Quote} label="Cita" onClick={() => run((v) => toggleLinePrefix(v, "> "))} />
-          <span className={styles.relative}>
-            <ToolButton icon={Link} label="Link (Ctrl+K)" onClick={openLinkPopover} />
-            {linkOpen && (
-              <div className={styles.linkPopover}>
-                <input
-                  className={styles.linkInput}
-                  placeholder="Texto del enlace"
-                  value={linkText}
-                  autoFocus
-                  onChange={(e) => setLinkText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && confirmLink()}
-                />
-                <input
-                  className={styles.linkInput}
-                  placeholder="URL"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") confirmLink();
-                    if (e.key === "Escape") setLinkOpen(false);
-                  }}
-                />
-                <div className={styles.linkActions}>
-                  <button type="button" className={styles.linkConfirm} onClick={confirmLink}>
-                    Insertar
-                  </button>
-                  <button type="button" className={styles.linkCancel} onClick={() => setLinkOpen(false)}>
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-          </span>
-          <ToolButton icon={Minus} label="Divisor horizontal" onClick={() => run(insertHorizontalRule)} />
-          {onInsertDiagram && (
-            <>
-              <span className={styles.divider} />
-              <ToolButton
-                icon={Shapes}
-                label="Insertar diagrama Excalidraw"
-                onClick={onInsertDiagram}
-              />
-            </>
+          {formatActions.map((a, i) =>
+            "divider" in a ? (
+              <span key={i} className={styles.divider} />
+            ) : (
+              <ToolButton key={i} icon={a.icon} label={a.label} onClick={() => runAction(a)} />
+            ),
           )}
+        </div>
+      )}
+
+      {showFormatTools && collapsed && (
+        <div className={styles.formatMenuWrap} ref={formatWrapRef}>
+          <button
+            type="button"
+            className={styles.toolButton}
+            title="Formato"
+            aria-label="Herramientas de formato"
+            aria-haspopup="menu"
+            aria-expanded={formatMenuOpen}
+            onClick={() => setFormatMenuOpen((o) => !o)}
+          >
+            <Type size={16} aria-hidden />
+          </button>
+          {formatMenuOpen && (
+            <div className={styles.formatMenu} role="menu">
+              {formatActions.map((a, i) =>
+                "divider" in a ? (
+                  <div key={i} className={styles.formatMenuSep} />
+                ) : (
+                  <button
+                    key={i}
+                    type="button"
+                    role="menuitem"
+                    className={styles.formatMenuItem}
+                    onClick={() => {
+                      runAction(a);
+                      setFormatMenuOpen(false);
+                    }}
+                  >
+                    <a.icon size={15} aria-hidden />
+                    <span>{a.label}</span>
+                  </button>
+                ),
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Medidor oculto: ancho natural del grupo de formato (para decidir colapso). */}
+      {showFormatTools && (
+        <div className={styles.measure} aria-hidden ref={measureRef}>
+          {formatActions.map((a, i) =>
+            "divider" in a ? (
+              <span key={i} className={styles.divider} />
+            ) : (
+              <span key={i} className={styles.toolButton}>
+                <a.icon size={16} aria-hidden />
+              </span>
+            ),
+          )}
+        </div>
+      )}
+
+      {linkOpen && (
+        <div className={styles.linkPopover} style={{ position: "fixed", top: linkPos.top, left: linkPos.left }}>
+          <input
+            className={styles.linkInput}
+            placeholder="Texto del enlace"
+            value={linkText}
+            autoFocus
+            onChange={(e) => setLinkText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && confirmLink()}
+          />
+          <input
+            className={styles.linkInput}
+            placeholder="URL"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmLink();
+              if (e.key === "Escape") setLinkOpen(false);
+            }}
+          />
+          <div className={styles.linkActions}>
+            <button type="button" className={styles.linkConfirm} onClick={confirmLink}>
+              Insertar
+            </button>
+            <button type="button" className={styles.linkCancel} onClick={() => setLinkOpen(false)}>
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
 
       <div className={styles.spacer} />
 
-      <span
-        className={`${styles.syncDot} ${styles[`sync_${syncState}`]}`}
-        title={SYNC_LABEL[syncState]}
-        aria-label={SYNC_LABEL[syncState]}
-      />
+      <div className={styles.right} ref={rightRef}>
+        <span
+          className={`${styles.syncDot} ${styles[`sync_${syncState}`]}`}
+          title={SYNC_LABEL[syncState]}
+          aria-label={SYNC_LABEL[syncState]}
+        />
 
-      <ToolButton
-        icon={Search}
-        label="Buscar en el archivo (Ctrl+F)"
-        onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
-      />
+        <ToolButton
+          icon={Search}
+          label="Buscar en el archivo (Ctrl+F)"
+          onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
+        />
 
-      <ExportMenu notaId={notaId} titulo={titulo} />
+        <ExportMenu notaId={notaId} titulo={titulo} />
 
-      <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
-        {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
-          <button
-            key={m}
-            type="button"
-            className={mode === m ? `${styles.modeButton} ${styles.modeActive}` : styles.modeButton}
-            data-mode={m}
-            title={`${label} (${shortcut})`}
-            aria-pressed={mode === m}
-            onClick={() => onModeChange(m)}
-          >
-            <Icon size={16} aria-hidden />
-          </button>
-        ))}
+        <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
+          {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
+            <button
+              key={m}
+              type="button"
+              className={mode === m ? `${styles.modeButton} ${styles.modeActive}` : styles.modeButton}
+              data-mode={m}
+              title={`${label} (${shortcut})`}
+              aria-pressed={mode === m}
+              onClick={() => onModeChange(m)}
+            >
+              <Icon size={16} aria-hidden />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

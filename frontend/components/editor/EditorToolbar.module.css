@@ -13,7 +13,66 @@
   display: flex;
   align-items: center;
   gap: 0.1rem;
-  overflow-x: auto;
+  min-width: 0;
+}
+
+/* Medidor oculto del ancho natural del grupo de formato (decide el colapso). */
+.measure {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.formatMenuWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.formatMenu {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 0.3rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 22%, transparent);
+}
+
+.formatMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--mic-text-primary);
+  border-radius: var(--mic-radius-sm);
+}
+
+.formatMenuItem svg {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.formatMenuItem:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.formatMenuSep {
+  height: 1px;
+  margin: 0.25rem 0.2rem;
+  background: color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
 }
 
 .divider {
