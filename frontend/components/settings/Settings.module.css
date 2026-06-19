@@ -158,6 +158,13 @@
   background: var(--mic-bg-hover);
 }
 
+.hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
 /* ── Avatar (HU-34 CA1) ─────────────────────────────────────────── */
 .avatarRow {
   display: flex;

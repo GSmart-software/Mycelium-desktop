@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /**
  * Id sentinela para la pestaña del grafo global: se abre como una ventana más
@@ -6,8 +7,12 @@ import { create } from "zustand";
  */
 export const GRAPH_TAB_ID = "graph:global";
 
-/** Pestaña: instancia de una nota abierta en un pane (HU-25). */
-export type Tab = { id: string; notaId: string };
+/**
+ * Pestaña: instancia de una nota abierta en un pane (HU-25). `preview` marca
+ * la pestaña efímera (estilo Obsidian/VSCode): si solo se está viendo el
+ * archivo, abrir otro la reemplaza; al editarla o fijarla pasa a permanente.
+ */
+export type Tab = { id: string; notaId: string; preview?: boolean };
 
 export type LeafPane = {
   id: string;
@@ -53,6 +58,10 @@ type TabsState = {
   dragging: { srcPaneId: string; tabId: string } | null;
 
   openNote: (notaId: string) => void;
+  /** Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda). */
+  openNoteBackground: (notaId: string) => void;
+  /** Fija una pestaña de preview como permanente (al editar o doble-clic). */
+  pinTab: (paneId: string, tabId: string) => void;
   activateTab: (paneId: string, tabId: string) => void;
   closeTab: (paneId: string, tabId: string) => void;
   closeActiveTab: () => void;
@@ -146,20 +155,79 @@ export const useTabsStore = create<TabsState>((set, get) => ({
         allLeaves(root).find((l) => l.linkedTo === null) ?? targetLeaf;
     }
     const existing = targetLeaf.tabs.find((t) => t.notaId === notaId);
-    if (existing && targetLeaf.activeTabId === existing.id) return;
+    if (existing) {
+      if (targetLeaf.activeTabId === existing.id) return;
+      set({
+        root: mapTree(root, (leaf) =>
+          leaf.id === targetLeaf.id ? { ...leaf, activeTabId: existing.id } : leaf,
+        ),
+        activePaneId: targetLeaf.id,
+      });
+      return;
+    }
 
-    const newTab: Tab = existing ?? { id: newId(), notaId };
+    // Pestañas de preview (estilo Obsidian): si la pestaña activa solo se está
+    // viendo (preview) y el grafo no, se reemplaza en vez de abrir una nueva.
+    const previewEnabled = usePreferencesStore.getState().prefs.previewTabs;
+    const isPreview = notaId !== GRAPH_TAB_ID && previewEnabled;
+    const activeTab = targetLeaf.tabs.find((t) => t.id === targetLeaf.activeTabId);
+    const replace =
+      previewEnabled &&
+      activeTab?.preview === true &&
+      activeTab.notaId !== GRAPH_TAB_ID;
+
+    // Id nuevo siempre (el editor se monta por instancia de pestaña): al
+    // reemplazar, ocupa el lugar de la pestaña de preview sin arrastrar estado.
+    const newTab: Tab = { id: newId(), notaId, preview: isPreview };
     set({
-      root: mapTree(get().root, (leaf) =>
+      root: mapTree(root, (leaf) =>
         leaf.id === targetLeaf.id
           ? {
               ...leaf,
-              tabs: existing ? leaf.tabs : [...leaf.tabs, newTab],
+              tabs: replace
+                ? leaf.tabs.map((t) => (t.id === activeTab!.id ? newTab : t))
+                : [...leaf.tabs, newTab],
               activeTabId: newTab.id,
             }
           : leaf,
       ),
       activePaneId: targetLeaf.id,
+    });
+  },
+
+  openNoteBackground(notaId) {
+    const { root, activePaneId } = get();
+    let targetLeaf = findLeaf(root, activePaneId) ?? firstLeaf(root);
+    if (targetLeaf.linkedTo !== null) {
+      targetLeaf = allLeaves(root).find((l) => l.linkedTo === null) ?? targetLeaf;
+    }
+    // Si no hay ningún archivo visible, abrir normal (con foco).
+    if (targetLeaf.activeTabId === null || targetLeaf.tabs.length === 0) {
+      get().openNote(notaId);
+      return;
+    }
+    // Si ya está abierta, no robar el foco ni duplicar.
+    if (targetLeaf.tabs.some((t) => t.notaId === notaId)) return;
+
+    // Pestaña permanente en segundo plano: se conserva el foco actual.
+    const newTab: Tab = { id: newId(), notaId, preview: false };
+    set({
+      root: mapTree(root, (leaf) =>
+        leaf.id === targetLeaf.id ? { ...leaf, tabs: [...leaf.tabs, newTab] } : leaf,
+      ),
+    });
+  },
+
+  pinTab(paneId, tabId) {
+    const leaf = findLeaf(get().root, paneId);
+    const tab = leaf?.tabs.find((t) => t.id === tabId);
+    if (!tab || !tab.preview) return; // ya es permanente: nada que hacer
+    set({
+      root: mapTree(get().root, (l) =>
+        l.id === paneId
+          ? { ...l, tabs: l.tabs.map((t) => (t.id === tabId ? { ...t, preview: false } : t)) }
+          : l,
+      ),
     });
   },
 

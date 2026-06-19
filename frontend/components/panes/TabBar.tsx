@@ -95,11 +95,19 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             aria-selected={isActiveTab}
             draggable
             title={tooltipOf(tab)}
-            className={isActiveTab ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+            className={[
+              styles.tab,
+              isActiveTab ? styles.tabActive : "",
+              tab.preview ? styles.tabPreview : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             onClick={() => {
               store.activateTab(pane.id, tab.id);
               router.push(`/workspace?note=${tab.notaId}`);
             }}
+            // Doble clic fija la pestaña de preview como permanente (Obsidian).
+            onDoubleClick={() => store.pinTab(pane.id, tab.id)}
             onDragStart={(e) => {
               e.dataTransfer.setData("text/plain", tab.id);
               e.dataTransfer.effectAllowed = "move";

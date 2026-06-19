@@ -113,6 +113,11 @@
   color: var(--mic-text-primary);
 }
 
+/* Pestaña de preview (efímera): título en cursiva, como Obsidian/VSCode */
+.tabPreview .tabTitle {
+  font-style: italic;
+}
+
 .tabTitle {
   overflow: hidden;
   text-overflow: ellipsis;

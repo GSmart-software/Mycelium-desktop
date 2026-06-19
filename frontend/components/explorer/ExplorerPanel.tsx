@@ -137,6 +137,16 @@ export function ExplorerPanel() {
     [router],
   );
 
+  // Clic con la rueda: abre la nota en segundo plano (sin robar el foco).
+  const openNotaBackground = useCallback(
+    (id: string) => {
+      useTabsStore.getState().openNoteBackground(id);
+      const nid = useTabsStore.getState().activeNotaId();
+      router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+    },
+    [router],
+  );
+
   function onDragEnd(event: DragEndEvent) {
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
@@ -313,6 +323,7 @@ export function ExplorerPanel() {
         onRenameCommit={commitRename}
         onRenameCancel={() => setRenaming(null)}
         onOpen={() => openNota(nota.id)}
+        onOpenBackground={() => openNotaBackground(nota.id)}
         onContextMenu={(e) => {
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY, items: notaMenu(nota) });
@@ -561,6 +572,7 @@ function NoteRow({
   active,
   shared,
   onOpen,
+  onOpenBackground,
   onContextMenu,
   onDoubleClick,
   ...rename
@@ -570,6 +582,7 @@ function NoteRow({
   active: boolean;
   shared: boolean;
   onOpen: () => void;
+  onOpenBackground: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
 } & RowRenameProps) {
@@ -590,6 +603,14 @@ function NoteRow({
       className={className}
       style={{ paddingLeft: `${depth * 14 + 22}px` }}
       onClick={onOpen}
+      // Evita el auto-scroll del navegador al pulsar la rueda sobre la fila.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+      onAuxClick={(e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          onOpenBackground();
+        }
+      }}
       onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
       {...drag.listeners}

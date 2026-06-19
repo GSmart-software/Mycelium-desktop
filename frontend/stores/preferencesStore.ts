@@ -30,6 +30,12 @@ export type Preferencias = {
   editorSize: number;
   previewFont: string;
   previewSize: number;
+  /**
+   * Pestañas de previsualización (estilo Obsidian/VSCode): al abrir un archivo
+   * que solo se está viendo (sin editar) se reemplaza esa pestaña en vez de
+   * abrir una nueva. Desactivar para abrir siempre una pestaña nueva.
+   */
+  previewTabs: boolean;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -37,6 +43,7 @@ const DEFAULT_PREFS: Preferencias = {
   editorSize: 16,
   previewFont: PREVIEW_FONTS[0].value,
   previewSize: 16,
+  previewTabs: true,
 };
 
 type PreferencesState = {

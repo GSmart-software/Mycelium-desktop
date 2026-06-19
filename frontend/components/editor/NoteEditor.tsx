@@ -271,6 +271,17 @@ export function NoteEditor({
               }
               onDocChanged(doc);
               publishDoc(notaId, instanceId, doc);
+              // Editar fija la pestaña de preview como permanente (Obsidian).
+              if (
+                update.transactions.some(
+                  (tr) =>
+                    tr.isUserEvent("input") ||
+                    tr.isUserEvent("delete") ||
+                    tr.isUserEvent("move"),
+                )
+              ) {
+                useTabsStore.getState().pinTab(paneId, instanceId);
+              }
             }),
           ],
         }),
