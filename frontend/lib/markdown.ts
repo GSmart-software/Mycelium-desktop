@@ -57,14 +57,18 @@ function remarkMicelio() {
       }
 
       for (const match of value.matchAll(WIKILINK)) {
+        // [[destino|alias]]: el destino navega; el alias es lo que se muestra.
+        const pipe = match[1].indexOf("|");
+        const target = (pipe === -1 ? match[1] : match[1].slice(0, pipe)).trim();
+        const label = pipe === -1 ? target : match[1].slice(pipe + 1).trim() || target;
         matches.push({
           start: match.index,
           end: match.index + match[0].length,
           node: {
             type: "link",
-            url: `#wikilink:${encodeURIComponent(match[1])}`,
+            url: `#wikilink:${encodeURIComponent(target)}`,
             data: { hProperties: { className: "mic-wikilink" } },
-            children: [{ type: "text", value: match[1] }],
+            children: [{ type: "text", value: label }],
           },
         });
       }

@@ -1,5 +1,6 @@
 "use client";
 
+import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
@@ -16,6 +17,7 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
+import { resolveWikilink, wikilinkCompletions } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
@@ -138,9 +140,9 @@ export function NoteEditor({
 
   const openByTitle = useCallback(
     (title: string) => {
-      const target = useVaultStore
-        .getState()
-        .notas.find((n) => n.titulo.toLowerCase() === title.toLowerCase());
+      const { notas, carpetas } = useVaultStore.getState();
+      // Acepta `título` o `Carpeta/título` para desambiguar homónimos.
+      const target = resolveWikilink(title, notas, carpetas);
       if (target) {
         useTabsStore.getState().openNote(target.id);
         router.push(`/workspace?note=${target.id}`);
@@ -245,6 +247,9 @@ export function NoteEditor({
             // se reemplaza por un nodo vacío para activar el resaltado.
             search({ createPanel: () => ({ dom: document.createElement("div") }) }),
             markdown({ extensions: GFM, codeLanguages: languages }),
+            // Autocompletado de wikilinks al escribir dentro de `[[` (estilo
+            // Obsidian); inserta la ruta de carpeta si el nombre es ambiguo.
+            autocompletion({ override: [wikilinkCompletions] }),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(

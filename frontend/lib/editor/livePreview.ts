@@ -516,15 +516,21 @@ function buildDecorations(view: EditorView): DecorationSet {
         const start = line.from + match.index;
         const innerFrom = start + 2;
         const innerTo = innerFrom + match[1].length;
+        // [[destino|alias]]: el destino navega, el alias es lo visible.
+        const pipe = match[1].indexOf("|");
+        const target = (pipe === -1 ? match[1] : match[1].slice(0, pipe)).trim();
+        // Tramo que se muestra estilizado (alias si lo hay; si no, el destino).
+        const labelFrom = pipe === -1 ? innerFrom : innerFrom + pipe + 1;
         if (!isActive) {
-          decos.push({ from: start, to: innerFrom, deco: hide });
+          // Oculta `[[` y, si hay alias, también `destino|`.
+          decos.push({ from: start, to: labelFrom, deco: hide });
         }
         decos.push({
-          from: innerFrom,
+          from: labelFrom,
           to: innerTo,
           deco: Decoration.mark({
             class: "mic-wikilink-cm",
-            attributes: { "data-title": match[1] },
+            attributes: { "data-title": target },
           }),
         });
         if (!isActive) {
