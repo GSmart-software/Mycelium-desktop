@@ -10,6 +10,8 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  IndentDecrease,
+  IndentIncrease,
   Italic,
   Link,
   List,
@@ -26,8 +28,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useUiStore } from "@/stores/uiStore";
 import {
+  indentLine,
   insertHorizontalRule,
   insertLink,
+  outdentLine,
   setHeading,
   toggleLinePrefix,
   wrapSelection,
@@ -169,6 +173,8 @@ export function EditorToolbar({
     { icon: List, label: "Lista desordenada", run: (v) => toggleLinePrefix(v, "- ") },
     { icon: ListOrdered, label: "Lista ordenada", run: (v) => toggleLinePrefix(v, "1. ") },
     { icon: Quote, label: "Cita", run: (v) => toggleLinePrefix(v, "> ") },
+    { icon: IndentIncrease, label: "Aumentar sangría (Tab)", run: indentLine },
+    { icon: IndentDecrease, label: "Disminuir sangría (Shift+Tab)", run: outdentLine },
     { icon: Link, label: "Link (Ctrl+K)", action: openLinkPopover },
     { icon: Minus, label: "Divisor horizontal", run: insertHorizontalRule },
     ...(onInsertDiagram

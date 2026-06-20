@@ -1,7 +1,7 @@
 "use client";
 
 import { autocompletion } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
@@ -251,7 +251,8 @@ export function NoteEditor({
           doc: content,
           extensions: [
             history(),
-            keymap.of([...defaultKeymap, ...historyKeymap]),
+            // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
+            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
             formatKeymap,
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.

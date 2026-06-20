@@ -1,3 +1,4 @@
+import { indentLess, indentMore } from "@codemirror/commands";
 import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 
@@ -64,6 +65,16 @@ export function insertLink(view: EditorView, text: string, url: string) {
     changes: { from, to, insert: markdown },
     selection: EditorSelection.cursor(from + markdown.length),
   });
+}
+
+/** Aumenta la sangría de la(s) línea(s) seleccionada(s) — botón y Tab. */
+export function indentLine(view: EditorView) {
+  indentMore(view);
+}
+
+/** Disminuye la sangría de la(s) línea(s) seleccionada(s) — botón y Shift+Tab. */
+export function outdentLine(view: EditorView) {
+  indentLess(view);
 }
 
 /** Inserta `---` en una línea nueva (HU-02). */
