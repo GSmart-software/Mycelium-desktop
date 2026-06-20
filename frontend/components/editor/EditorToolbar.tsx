@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useUiStore } from "@/stores/uiStore";
 import {
   indentLine,
@@ -295,36 +296,42 @@ export function EditorToolbar({
         </div>
       )}
 
-      {linkOpen && (
-        <div className={styles.linkPopover} style={{ position: "fixed", top: linkPos.top, left: linkPos.left }}>
-          <input
-            className={styles.linkInput}
-            placeholder="Texto del enlace"
-            value={linkText}
-            autoFocus
-            onChange={(e) => setLinkText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && confirmLink()}
-          />
-          <input
-            className={styles.linkInput}
-            placeholder="URL"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") confirmLink();
-              if (e.key === "Escape") setLinkOpen(false);
-            }}
-          />
-          <div className={styles.linkActions}>
-            <button type="button" className={styles.linkConfirm} onClick={confirmLink}>
-              Insertar
-            </button>
-            <button type="button" className={styles.linkCancel} onClick={() => setLinkOpen(false)}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Popover en un portal a <body>: así nunca queda recortado por el
+          overflow de la toolbar/panes ni por un containing-block (transform)
+          de un ancestro. Posición fija calculada desde el rect de la toolbar. */}
+      {linkOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className={styles.linkPopover} style={{ position: "fixed", top: linkPos.top, left: linkPos.left }}>
+            <input
+              className={styles.linkInput}
+              placeholder="Texto del enlace"
+              value={linkText}
+              autoFocus
+              onChange={(e) => setLinkText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmLink()}
+            />
+            <input
+              className={styles.linkInput}
+              placeholder="URL"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmLink();
+                if (e.key === "Escape") setLinkOpen(false);
+              }}
+            />
+            <div className={styles.linkActions}>
+              <button type="button" className={styles.linkConfirm} onClick={confirmLink}>
+                Insertar
+              </button>
+              <button type="button" className={styles.linkCancel} onClick={() => setLinkOpen(false)}>
+                Cancelar
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       <div className={styles.spacer} />
 
