@@ -312,6 +312,94 @@
   text-decoration: none;
 }
 
+/* ── Plegado de títulos (HU-01 mejora estilo Obsidian) ──────────── */
+
+/* Gutter de plegado en edición en vivo / raw: discreto, sin fondo ni borde. */
+.cm-editor .cm-gutters {
+  background: transparent;
+  border-right: none;
+  color: var(--mic-text-muted);
+}
+
+.cm-editor .cm-foldGutter {
+  width: 1.1em;
+}
+
+.cm-editor .cm-foldGutter .cm-gutterElement {
+  cursor: pointer;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  color: var(--mic-text-muted);
+}
+
+/* La flecha aparece al pasar el ratón por el editor o si la sección está plegada. */
+.cm-editor:hover .cm-foldGutter .cm-gutterElement,
+.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"] {
+  opacity: 0.7;
+}
+
+.cm-editor .cm-foldGutter .cm-gutterElement:hover {
+  opacity: 1;
+  color: var(--mic-accent);
+}
+
+/* Marcador de contenido plegado (el "…" que sustituye la sección). */
+.cm-editor .cm-foldPlaceholder {
+  background: color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  border: none;
+  color: var(--mic-text-muted);
+  border-radius: var(--mic-radius-sm);
+  margin: 0 0.3em;
+  padding: 0 0.4em;
+}
+
+/* Plegado en la vista de lectura: flecha a la izquierda de cada título. */
+.mic-preview .mic-foldable {
+  position: relative;
+}
+
+.mic-preview .mic-fold-arrow {
+  position: absolute;
+  left: -0.95em;
+  top: 0;
+  width: 0.8em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.2em;
+  cursor: pointer;
+  color: var(--mic-text-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  user-select: none;
+}
+
+.mic-preview .mic-foldable:hover .mic-fold-arrow,
+.mic-preview .mic-foldable.mic-collapsed .mic-fold-arrow {
+  opacity: 0.75;
+}
+
+.mic-preview .mic-fold-arrow:hover {
+  opacity: 1;
+  color: var(--mic-accent);
+}
+
+.mic-preview .mic-fold-arrow::before {
+  content: "⌄";
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.mic-preview .mic-foldable.mic-collapsed .mic-fold-arrow::before {
+  content: "›";
+}
+
+/* Una sección plegada muestra solo su título; el resto se oculta. */
+.mic-preview .mic-fold-hidden {
+  display: none;
+}
+
 /* ── Preview renderizado (.mic-preview, docs/DESIGN_SYSTEM.md) ───── */
 
 .mic-preview {

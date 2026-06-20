@@ -2,6 +2,7 @@
 
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
@@ -17,6 +18,7 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
+import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
   markMissingWikilinks,
   resolveWikilink,
@@ -252,7 +254,7 @@ export function NoteEditor({
           extensions: [
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
-            keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+            keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
             formatKeymap,
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.
@@ -261,6 +263,11 @@ export function NoteEditor({
             // Autocompletado de wikilinks al escribir dentro de `[[` (estilo
             // Obsidian); inserta la ruta de carpeta si el nombre es ambiguo.
             autocompletion({ override: [wikilinkCompletions] }),
+            // Plegar secciones por título (raw + edición en vivo): flecha en el
+            // gutter sobre cada título; pliega hasta el próximo título <= nivel.
+            codeFolding(),
+            foldGutter({ openText: "⌄", closedText: "›" }),
+            headingFoldService,
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -528,6 +535,7 @@ export function NoteEditor({
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current, notaId);
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
+      attachHeadingFolds(previewRef.current); // plegar secciones por título (lectura)
     }
   }, [previewHtml, mode, previewTick, notaId]);
 
