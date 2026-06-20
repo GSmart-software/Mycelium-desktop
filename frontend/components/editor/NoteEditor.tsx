@@ -18,6 +18,7 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
+import { autoPairs } from "@/lib/editor/autoPairs";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
   markMissingWikilinks,
@@ -33,6 +34,7 @@ import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -256,6 +258,9 @@ export function NoteEditor({
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
             keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
             formatKeymap,
+            // Autocierre de pares ()[]{}""''``** __ con envoltura de la selección;
+            // se consulta la preferencia en cada pulsación (toggle en vivo).
+            autoPairs(() => usePreferencesStore.getState().prefs.autoCloseBrackets),
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.
             search({ createPanel: () => ({ dom: document.createElement("div") }) }),

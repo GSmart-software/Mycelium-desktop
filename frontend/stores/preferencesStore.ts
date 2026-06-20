@@ -42,6 +42,12 @@ export type Preferencias = {
    * asentarse para ahorrar CPU.
    */
   graphContinuousSim: boolean;
+  /**
+   * Autocerrar pares en el editor: al escribir `(`, `[`, `{`, `"`, `'`, `` ` ``,
+   * `*`, `_` se inserta el cierre y, con texto seleccionado, se envuelve la
+   * selección. Por defecto `true`.
+   */
+  autoCloseBrackets: boolean;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -51,6 +57,7 @@ const DEFAULT_PREFS: Preferencias = {
   previewSize: 16,
   previewTabs: true,
   graphContinuousSim: false,
+  autoCloseBrackets: true,
 };
 
 type PreferencesState = {
