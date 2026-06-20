@@ -316,14 +316,19 @@
 }
 
 /* Archivo referenciado inexistente: mismo color, más oscuro (feedback visual).
-   Selector específico (incluye .cm-editor y las dos clases) para que un snippet
-   CSS del usuario que estilice los wikilinks no pise este feedback por orden de
-   cascada. */
-.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing {
+   El texto del wikilink también recibe el resaltado de sintaxis (tags.link →
+   color del acento) en un <span> generado (.ͼ…) ANIDADO dentro de nuestro span.
+   Ese span hijo fija `color` explícito, así que gana por herencia (no por
+   especificidad): hay que pintar también los descendientes (`*`) para que el
+   feedback llegue al span del highlight. El selector incluye .cm-editor para
+   resistir además snippets CSS del usuario por orden de cascada. */
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing,
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing * {
   color: color-mix(in srgb, var(--mic-accent) 40%, #000);
 }
 
-.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover {
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover,
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover * {
   color: color-mix(in srgb, var(--mic-glow) 48%, #000);
 }
 
