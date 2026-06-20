@@ -54,6 +54,8 @@ export function GraphView() {
           onOpen={open}
           initialPositions={useGraphStore.getState().positions}
           onPositions={savePositions}
+          getInitialView={() => useGraphStore.getState().view}
+          onView={(v) => useGraphStore.getState().saveView(v)}
         />
       </div>
     );

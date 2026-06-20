@@ -5,18 +5,25 @@ import { useAuthStore } from "@/stores/authStore";
 
 export type GraphData = { nodos: GraphNode[]; aristas: GraphEdge[] };
 export type NodePos = { x: number; y: number };
+/** Transformación de la vista del grafo: zoom (scale) y desplazamiento (ox/oy). */
+export type GraphView = { scale: number; ox: number; oy: number };
+
+const DEFAULT_VIEW: GraphView = { scale: 1, ox: 0, oy: 0 };
 
 type GraphState = {
   vaultId: string | null;
   data: GraphData | null;
   /** Posiciones asentadas por nodo: cache del layout para no re-simular desde cero. */
   positions: Record<string, NodePos>;
+  /** Zoom/pan actual: se conserva al refrescar (nodo nuevo) o cambiar de pestaña. */
+  view: GraphView;
   status: "idle" | "loading" | "ready" | "error";
   /** Algo cambió (nota creada/renombrada/borrada o contenido guardado) → refrescar. */
   stale: boolean;
   fetch: (vaultId: string, opts?: { force?: boolean }) => Promise<void>;
   markStale: () => void;
   savePositions: (positions: Record<string, NodePos>) => void;
+  saveView: (view: GraphView) => void;
 };
 
 // Dedupe de peticiones concurrentes (p. ej. montaje + refresh por stale a la vez).
@@ -32,6 +39,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   vaultId: null,
   data: null,
   positions: {},
+  view: DEFAULT_VIEW,
   status: "idle",
   stale: false,
 
@@ -56,7 +64,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
           data: res,
           status: "ready",
           stale: false,
-          ...(resetPositions ? { positions: {} } : {}),
+          // Al cambiar de vault, el layout y la vista cacheados ya no aplican.
+          ...(resetPositions ? { positions: {}, view: DEFAULT_VIEW } : {}),
         });
       } catch {
         set({ status: "error", stale: false });
@@ -75,5 +84,9 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   savePositions(positions) {
     set({ positions });
+  },
+
+  saveView(view) {
+    set({ view });
   },
 }));

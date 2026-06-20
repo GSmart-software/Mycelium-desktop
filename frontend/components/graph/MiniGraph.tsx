@@ -16,6 +16,8 @@ type SimEdge = { s: SimNode; t: SimNode };
  * aristas usan curvas bezier suaves estilo Obsidian (CA4). Clic en un nodo →
  * `onOpen(id)` (CA5). Reutilizado por el grafo global del rail.
  */
+export type GraphView = { scale: number; ox: number; oy: number };
+
 export function MiniGraph({
   nodes,
   edges,
@@ -23,6 +25,8 @@ export function MiniGraph({
   onOpen,
   initialPositions,
   onPositions,
+  getInitialView,
+  onView,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -32,6 +36,10 @@ export function MiniGraph({
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
   onPositions?: (positions: Record<string, { x: number; y: number }>) => void;
+  /** Getter de la vista (zoom/pan) cacheada — se lee al (re)iniciar la simulación. */
+  getInitialView?: () => GraphView;
+  /** Guarda la vista actual al desmontar/recalcular, para conservar el zoom. */
+  onView?: (view: GraphView) => void;
 }) {
   // Si está activo, la simulación corre en cada frame de forma continua (sin
   // reposo). Por defecto false: el grafo se bloquea al asentarse (ahorra CPU).
@@ -44,6 +52,10 @@ export function MiniGraph({
   initialPosRef.current = initialPositions;
   const onPositionsRef = useRef(onPositions);
   onPositionsRef.current = onPositions;
+  const getInitialViewRef = useRef(getInitialView);
+  getInitialViewRef.current = getInitialView;
+  const onViewRef = useRef(onView);
+  onViewRef.current = onView;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -88,9 +100,12 @@ export function MiniGraph({
       if (s && t) simEdges.push({ s, t });
     }
 
-    let scale = 1;
-    let ox = 0;
-    let oy = 0;
+    // Zoom/pan restaurados de la cache (se leen aquí, tras el cleanup previo que
+    // los guardó), para que agregar un nodo no resetee la vista a la de por defecto.
+    const v0 = getInitialViewRef.current?.();
+    let scale = v0?.scale ?? 1;
+    let ox = v0?.ox ?? 0;
+    let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
     let panning = false;
@@ -341,6 +356,8 @@ export function MiniGraph({
       const positions: Record<string, { x: number; y: number }> = {};
       for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
       onPositionsRef.current?.(positions);
+      // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
+      onViewRef.current?.({ scale, ox, oy });
 
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
