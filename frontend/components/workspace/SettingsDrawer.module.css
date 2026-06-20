@@ -52,6 +52,24 @@
   overflow-y: auto;
 }
 
+/* Subtítulo que separa subsecciones agrupadas dentro de una pestaña. */
+.groupTitle {
+  margin: 1.5rem 0 0.8rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 16%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mic-text-muted);
+}
+
+.groupTitle:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 @keyframes slide-in {
   from {
     transform: translateX(100%);

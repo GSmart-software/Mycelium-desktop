@@ -14,28 +14,19 @@ import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SettingsDrawer.module.css";
 
-type SettingsTab =
-  | "cuenta"
-  | "apariencia"
-  | "tipografia"
-  | "editor"
-  | "grafo"
-  | "css"
-  | "vault";
+type SettingsTab = "cuenta" | "apariencia" | "editor" | "vault";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "cuenta", label: "Cuenta" },
   { id: "apariencia", label: "Apariencia" },
-  { id: "tipografia", label: "Tipografía" },
   { id: "editor", label: "Editor" },
-  { id: "grafo", label: "Grafo" },
-  { id: "css", label: "CSS" },
   { id: "vault", label: "Vault" },
 ];
 
 /**
- * Settings drawer (HU-28 CA4) con secciones Cuenta (HU-34), Apariencia (HU-12),
- * Tipografía (HU-14) y CSS personalizado (HU-13/15).
+ * Settings drawer (HU-28 CA4). Pestañas agrupadas: Cuenta (HU-34), Apariencia
+ * (tema HU-12 + tipografía HU-14 + snippets CSS HU-13/15), Editor (pestañas +
+ * grafo) y Vault.
  */
 export function SettingsDrawer() {
   const router = useRouter();
@@ -90,11 +81,22 @@ export function SettingsDrawer() {
 
         <div className={styles.body}>
           {tab === "cuenta" && <AccountSection onClose={close} />}
-          {tab === "apariencia" && <AppearanceSection />}
-          {tab === "tipografia" && <TypographySection />}
-          {tab === "editor" && <EditorSection />}
-          {tab === "grafo" && <GraphSection />}
-          {tab === "css" && <CustomCssSection />}
+          {tab === "apariencia" && (
+            <>
+              <AppearanceSection />
+              <h3 className={styles.groupTitle}>Tipografía</h3>
+              <TypographySection />
+              <h3 className={styles.groupTitle}>Snippets CSS</h3>
+              <CustomCssSection />
+            </>
+          )}
+          {tab === "editor" && (
+            <>
+              <EditorSection />
+              <h3 className={styles.groupTitle}>Grafo</h3>
+              <GraphSection />
+            </>
+          )}
           {tab === "vault" && <VaultSection />}
         </div>
 
