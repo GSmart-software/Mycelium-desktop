@@ -315,13 +315,16 @@
   color: var(--mic-glow);
 }
 
-/* Archivo referenciado inexistente: mismo color, más oscuro (feedback visual) */
-.mic-wikilink-cm-missing {
-  color: color-mix(in srgb, var(--mic-accent) 50%, #000);
+/* Archivo referenciado inexistente: mismo color, más oscuro (feedback visual).
+   Selector específico (incluye .cm-editor y las dos clases) para que un snippet
+   CSS del usuario que estilice los wikilinks no pise este feedback por orden de
+   cascada. */
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing {
+  color: color-mix(in srgb, var(--mic-accent) 40%, #000);
 }
 
-.mic-wikilink-cm-missing:hover {
-  color: color-mix(in srgb, var(--mic-glow) 55%, #000);
+.cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover {
+  color: color-mix(in srgb, var(--mic-glow) 48%, #000);
 }
 
 /* Tags como píldoras (HU-01 CA9) */
@@ -458,9 +461,11 @@
 .mic-preview a       { color: var(--mic-accent); text-decoration: underline; }
 .mic-preview a:hover { color: var(--mic-glow); }
 
-/* Wikilink a un archivo inexistente: mismo color, más oscuro (feedback) */
-.mic-preview a.mic-wikilink-missing       { color: color-mix(in srgb, var(--mic-accent) 50%, #000); }
-.mic-preview a.mic-wikilink-missing:hover { color: color-mix(in srgb, var(--mic-glow) 55%, #000); }
+/* Wikilink a un archivo inexistente: mismo color, más oscuro (feedback).
+   Selector específico (a.mic-wikilink.mic-wikilink-missing) para que un snippet
+   CSS del usuario no lo pise por orden de cascada. */
+.mic-preview a.mic-wikilink.mic-wikilink-missing       { color: color-mix(in srgb, var(--mic-accent) 40%, #000); }
+.mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: color-mix(in srgb, var(--mic-glow) 48%, #000); }
 
 .mic-preview code {
   font-family: var(--mic-font-mono);
