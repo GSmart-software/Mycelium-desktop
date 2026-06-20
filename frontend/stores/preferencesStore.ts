@@ -48,6 +48,11 @@ export type Preferencias = {
    * selección. Por defecto `true`.
    */
   autoCloseBrackets: boolean;
+  /**
+   * Mostrar el nombre del archivo como título centrado en la parte superior de
+   * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
+   */
+  showFileTitle: boolean;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -58,6 +63,7 @@ const DEFAULT_PREFS: Preferencias = {
   previewTabs: true,
   graphContinuousSim: false,
   autoCloseBrackets: true,
+  showFileTitle: true,
 };
 
 type PreferencesState = {

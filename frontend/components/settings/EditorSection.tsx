@@ -8,6 +8,7 @@ import styles from "./Settings.module.css";
 export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
+  const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const setPref = usePreferencesStore((s) => s.setPref);
 
   return (
@@ -47,6 +48,24 @@ export function EditorSection() {
         <code>&apos;</code>, <code>`</code>, <code>*</code> o <code>_</code> se inserta también
         el símbolo de cierre. Con texto seleccionado, lo envuelve en vez de
         reemplazarlo. Desactivá esta opción para escribir los símbolos tal cual.
+      </p>
+
+      <div className={styles.toggleRow}>
+        <span className={styles.label}>Mostrar título del archivo</span>
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={() => setPref("showFileTitle", !showFileTitle)}
+          aria-pressed={showFileTitle}
+        >
+          {showFileTitle ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
+          {showFileTitle ? "Activado" : "Desactivado"}
+        </button>
+      </div>
+      <p className={styles.hint}>
+        Muestra el nombre del archivo como título centrado en la parte superior
+        de todas las vistas. No es un encabezado <code>#</code> del documento.
+        Desactivá esta opción para ocultarlo.
       </p>
     </div>
   );

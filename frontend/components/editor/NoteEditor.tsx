@@ -669,6 +669,8 @@ export function NoteEditor({
     (s) => s.notas.find((n) => n.id === notaId)?.titulo ?? "nota",
   );
 
+  const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
+
   return (
     <div className={styles.editor}>
       <EditorToolbar
@@ -694,6 +696,10 @@ export function NoteEditor({
           </button>
         </div>
       )}
+
+      {/* Nombre del archivo como título (no es un `#` del documento): centrado
+          arriba, visible en todas las vistas. Se puede ocultar en preferencias. */}
+      {showFileTitle && <div className={styles.fileTitle}>{notaTitulo}</div>}
 
       <div className={`${styles.content} ${styles[`layout_${mode}`]}`}>
         <div
