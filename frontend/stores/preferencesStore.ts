@@ -36,6 +36,12 @@ export type Preferencias = {
    * abrir una nueva. Desactivar para abrir siempre una pestaña nueva.
    */
   previewTabs: boolean;
+  /**
+   * Grafo: si es `true`, la simulación corre en cada frame de forma continua
+   * (mayor consumo de CPU). Por defecto `false`: el grafo deja de simular al
+   * asentarse para ahorrar CPU.
+   */
+  graphContinuousSim: boolean;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -44,6 +50,7 @@ const DEFAULT_PREFS: Preferencias = {
   previewFont: PREVIEW_FONTS[0].value,
   previewSize: 16,
   previewTabs: true,
+  graphContinuousSim: false,
 };
 
 type PreferencesState = {

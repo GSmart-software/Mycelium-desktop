@@ -7,19 +7,28 @@ import { AccountSection } from "@/components/settings/AccountSection";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
+import { GraphSection } from "@/components/settings/GraphSection";
 import { TypographySection } from "@/components/settings/TypographySection";
 import { VaultSection } from "@/components/settings/VaultSection";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SettingsDrawer.module.css";
 
-type SettingsTab = "cuenta" | "apariencia" | "tipografia" | "editor" | "css" | "vault";
+type SettingsTab =
+  | "cuenta"
+  | "apariencia"
+  | "tipografia"
+  | "editor"
+  | "grafo"
+  | "css"
+  | "vault";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "cuenta", label: "Cuenta" },
   { id: "apariencia", label: "Apariencia" },
   { id: "tipografia", label: "Tipografía" },
   { id: "editor", label: "Editor" },
+  { id: "grafo", label: "Grafo" },
   { id: "css", label: "CSS" },
   { id: "vault", label: "Vault" },
 ];
@@ -84,6 +93,7 @@ export function SettingsDrawer() {
           {tab === "apariencia" && <AppearanceSection />}
           {tab === "tipografia" && <TypographySection />}
           {tab === "editor" && <EditorSection />}
+          {tab === "grafo" && <GraphSection />}
           {tab === "css" && <CustomCssSection />}
           {tab === "vault" && <VaultSection />}
         </div>

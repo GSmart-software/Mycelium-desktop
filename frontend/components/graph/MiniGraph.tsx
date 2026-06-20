@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 
 export type GraphNode = { id: string; titulo: string; conexiones: number };
 export type GraphEdge = { source: string; target: string };
@@ -32,6 +33,9 @@ export function MiniGraph({
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
   onPositions?: (positions: Record<string, { x: number; y: number }>) => void;
 }) {
+  // Si está activo, la simulación corre en cada frame de forma continua (sin
+  // reposo). Por defecto false: el grafo se bloquea al asentarse (ahorra CPU).
+  const continuousSim = usePreferencesStore((s) => s.prefs.graphContinuousSim);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -97,8 +101,12 @@ export function MiniGraph({
     // Reposo: cuando el grafo se asienta (alpha bajo y sin interacción) se deja
     // de simular/redibujar para no consumir CPU con muchos nodos. Cualquier
     // interacción (drag, hover, zoom, resize) lo despierta. `frame` = rAF pendiente.
+    // Si `continuousSim`, nunca se bloquea (corre en cada frame). Tras asentarse
+    // sigue simulando IDLE_GRACE_MS antes de bloquearse.
     const REST = 0.03;
+    const IDLE_GRACE_MS = 5000;
     let frame = 0;
+    let lastEnergetic = performance.now();
     const wake = () => {
       if (running && frame === 0) frame = requestAnimationFrame(tick);
     };
@@ -308,12 +316,18 @@ export function MiniGraph({
     const tick = () => {
       frame = 0;
       if (!running || !canvas.isConnected) return;
+      const now = performance.now();
       const interacting = !!dragNode || panning;
-      const active = alpha > REST || interacting;
+      // Mientras haya energía o interacción, se reinicia el contador de reposo.
+      if (interacting || alpha > REST) lastEnergetic = now;
+      // Bloqueo (por defecto): tras asentarse y pasar el período de gracia, se
+      // detiene. Con `continuousSim` el bloqueo está desactivado: nunca para.
+      const idle = !continuousSim && now - lastEnergetic > IDLE_GRACE_MS;
+      const active = !idle;
       if (active) simulate();
       draw();
-      // Sigue animando solo mientras haya energía o interacción; al asentarse
-      // queda en reposo (sin rAF) hasta que algo lo despierte con wake().
+      // Sigue animando salvo que esté en reposo; entonces queda detenido (sin
+      // rAF) hasta que algo lo despierte con wake().
       if (active) frame = requestAnimationFrame(tick);
     };
     resize(); // dimensiona el canvas antes del primer frame
@@ -334,7 +348,7 @@ export function MiniGraph({
       canvas.removeEventListener("wheel", onWheel);
       ro.disconnect();
     };
-  }, [nodes, edges, centerId]);
+  }, [nodes, edges, centerId, continuousSim]);
 
   return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />;
 }
