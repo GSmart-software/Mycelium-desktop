@@ -197,13 +197,36 @@
   transform: rotate(45deg);
 }
 
-/* Checkbox de tarea togglable en lectura/dividido */
+/* Checkbox de tarea togglable en lectura/dividido: mismo estilo que en la
+   edición en vivo (.mic-live-check), dibujado con appearance:none. */
 .mic-preview input.mic-task-check {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.18em;
+  margin-right: 0.35rem;
+  border: 1.5px solid var(--mic-text-muted);
+  border-radius: 4px;
+  box-sizing: border-box;
+  position: relative;
   cursor: pointer;
-  accent-color: var(--mic-accent);
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.1em;
+}
+.mic-preview input.mic-task-check:checked {
+  background: var(--mic-accent);
+  border-color: var(--mic-accent);
+}
+.mic-preview input.mic-task-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 0.33em;
+  top: 0.1em;
+  width: 0.28em;
+  height: 0.55em;
+  border: solid var(--mic-raw-canvas);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 /* Callouts en vivo: bloque coloreado por tipo (HU-03) */
