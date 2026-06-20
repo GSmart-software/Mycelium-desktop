@@ -75,7 +75,7 @@ export function MiniGraph({
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
     // integrarlos suavemente; si todo es nuevo, simulación completa.
     const cachedRatio = N > 0 ? savedCount / N : 0;
-    const initialAlpha = cachedRatio >= 0.999 ? 0.08 : cachedRatio > 0 ? 0.4 : 1;
+    const initialAlpha = cachedRatio >= 0.999 ? 0.05 : cachedRatio > 0 ? 0.4 : 1;
     const byId = new Map(sim.map((n) => [n.id, n]));
     const simEdges: SimEdge[] = [];
     for (const e of edges) {
@@ -94,6 +94,14 @@ export function MiniGraph({
     let alpha = initialAlpha;
     let dpr = window.devicePixelRatio || 1;
     let running = true;
+    // Reposo: cuando el grafo se asienta (alpha bajo y sin interacción) se deja
+    // de simular/redibujar para no consumir CPU con muchos nodos. Cualquier
+    // interacción (drag, hover, zoom, resize) lo despierta. `frame` = rAF pendiente.
+    const REST = 0.03;
+    let frame = 0;
+    const wake = () => {
+      if (running && frame === 0) frame = requestAnimationFrame(tick);
+    };
 
     const radius = (n: SimNode) => {
       const base = Math.min(4 + n.conexiones * 1.6, 15);
@@ -109,6 +117,7 @@ export function MiniGraph({
       canvas.style.width = `${parent.clientWidth}px`;
       canvas.style.height = `${parent.clientHeight}px`;
       alpha = Math.max(alpha, 0.3);
+      wake();
     };
 
     const toWorld = (ev: MouseEvent) => {
@@ -142,6 +151,7 @@ export function MiniGraph({
       } else {
         panning = true;
       }
+      wake();
     };
     const onMouseMove = (ev: MouseEvent) => {
       if (dragNode) {
@@ -151,14 +161,17 @@ export function MiniGraph({
         dragNode.vx = 0;
         dragNode.vy = 0;
         alpha = Math.max(alpha, 0.4);
+        wake();
       } else if (panning) {
         ox += ev.movementX;
         oy += ev.movementY;
+        wake();
       } else {
         const n = pick(ev);
         if (n !== hover) {
           hover = n;
           canvas.style.cursor = n ? "pointer" : "grab";
+          wake(); // un redibujo para el resaltado de hover
         }
       }
     };
@@ -179,6 +192,7 @@ export function MiniGraph({
       ox = mx - (mx - ox) * factor;
       oy = my - (my - oy) * factor;
       scale = Math.min(Math.max(scale * factor, 0.3), 4);
+      wake(); // un redibujo para reflejar el zoom
     };
 
     canvas.addEventListener("mousedown", onMouseDown);
@@ -187,7 +201,6 @@ export function MiniGraph({
     canvas.addEventListener("wheel", onWheel, { passive: false });
     const ro = new ResizeObserver(resize);
     ro.observe(canvas.parentElement ?? canvas);
-    resize();
 
     const simulate = () => {
       const k = 80;
@@ -293,16 +306,22 @@ export function MiniGraph({
     };
 
     const tick = () => {
-      if (!running) return;
-      if (!canvas.isConnected) return;
-      simulate();
+      frame = 0;
+      if (!running || !canvas.isConnected) return;
+      const interacting = !!dragNode || panning;
+      const active = alpha > REST || interacting;
+      if (active) simulate();
       draw();
-      requestAnimationFrame(tick);
+      // Sigue animando solo mientras haya energía o interacción; al asentarse
+      // queda en reposo (sin rAF) hasta que algo lo despierte con wake().
+      if (active) frame = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
+    resize(); // dimensiona el canvas antes del primer frame
+    wake();
 
     return () => {
       running = false;
+      if (frame) cancelAnimationFrame(frame);
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
       const positions: Record<string, { x: number; y: number }> = {};

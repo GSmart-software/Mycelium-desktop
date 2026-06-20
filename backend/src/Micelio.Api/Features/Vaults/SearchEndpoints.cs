@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -14,6 +15,9 @@ public static partial class SearchEndpoints
 {
     [GeneratedRegex(@"\[\[([^\[\]]+)\]\]")]
     private static partial Regex WikilinkRegex();
+
+    /// <summary>Lecturas de blob simultáneas al escanear el grafo (R2/local).</summary>
+    private const int BlobReadConcurrency = 32;
 
     public static void MapSearchEndpoints(this WebApplication app)
     {
@@ -194,30 +198,49 @@ public static partial class SearchEndpoints
             titulosPorId[nid] = titulo;
         }
 
-        var contenidos = new Dictionary<string, string>();
-        foreach (var n in notas)
+        // Lectura de blobs EN PARALELO con concurrencia acotada: el escaneo del
+        // grafo es dominado por N lecturas de blob (en R2, N round-trips de red).
+        // Secuencial era O(N) round-trips; esto las solapa (~DegreeOfParallelism
+        // simultáneas), clave cuando el vault tiene muchos archivos.
+        var contenidos = new ConcurrentDictionary<string, string>();
+        using var gate = new SemaphoreSlim(BlobReadConcurrency);
+        await Task.WhenAll(notas.Select(async n =>
         {
-            var key = $"vaults/{vaultId}/notas/{n.GetString("id")}.md";
-            await using var stream = await blobs.GetAsync(key, ct);
-            if (stream is null) continue;
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            contenidos[n.GetString("id")] = await reader.ReadToEndAsync(ct);
-        }
+            var nid = n.GetString("id");
+            await gate.WaitAsync(ct);
+            try
+            {
+                await using var stream = await blobs.GetAsync($"vaults/{vaultId}/notas/{nid}.md", ct);
+                if (stream is null) return;
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                contenidos[nid] = await reader.ReadToEndAsync(ct);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }));
 
         var aristas = new HashSet<(string From, string To)>();
         foreach (var (notaId, contenido) in contenidos)
         {
             foreach (Match m in WikilinkRegex().Matches(contenido))
             {
-                if (porTitulo.TryGetValue(m.Groups[1].Value.Trim(), out var destinoId)
-                    && destinoId != notaId)
+                // [[destino|alias]] y [[Carpeta/destino]]: el enlace apunta al
+                // título (parte antes del `|`, último segmento de la ruta).
+                var inner = m.Groups[1].Value;
+                var pipe = inner.IndexOf('|');
+                if (pipe >= 0) inner = inner[..pipe];
+                var slash = inner.LastIndexOf('/');
+                var destino = (slash >= 0 ? inner[(slash + 1)..] : inner).Trim();
+                if (porTitulo.TryGetValue(destino, out var destinoId) && destinoId != notaId)
                 {
                     aristas.Add((notaId, destinoId));
                 }
             }
         }
 
-        return (aristas, titulosPorId, contenidos);
+        return (aristas, titulosPorId, new Dictionary<string, string>(contenidos));
     }
 
     /// <summary>Grado total (entrante + saliente) de cada nodo (HU-30 CA3).</summary>
