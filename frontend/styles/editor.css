@@ -253,6 +253,13 @@
 .mic-live-callout-head[class*="mic-live-callout-"] {
   color: var(--mic-cc, var(--mic-callout-note-border));
 }
+/* El título escrito del callout es texto de cita (tags.quote), que el resaltado
+   de sintaxis pinta de gris en un <span> anidado y gana por herencia. Pintamos
+   también los descendientes para que el título mantenga el color representativo
+   del callout (igual que la etiqueta cuando no hay título). */
+.cm-editor .mic-live-callout-head[class*="mic-live-callout-"] span {
+  color: var(--mic-cc, var(--mic-callout-note-border));
+}
 
 /* Cuerpo plegado de un callout (símbolo -) */
 .cm-line.mic-callout-hidden {
