@@ -7,32 +7,6 @@
   min-width: 0;
 }
 
-/* Título = nombre del archivo (no es un encabezado `#` del documento). Estilo
-   distintivo: centrado, fuente del preview y un subrayado de acento corto, para
-   diferenciarlo de los títulos escritos (alineados a la izquierda) del texto. */
-.fileTitle {
-  flex-shrink: 0;
-  text-align: center;
-  font-family: var(--mic-preview-font-family);
-  font-size: 1.7rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--mic-text-primary);
-  padding: 0.75rem 1.5rem 0.55rem;
-  word-break: break-word;
-  border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted) 14%, transparent);
-}
-
-.fileTitle::after {
-  content: "";
-  display: block;
-  width: 38px;
-  height: 2px;
-  margin: 0.5rem auto 0;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--mic-accent) 55%, transparent);
-}
-
 .content {
   flex: 1;
   min-height: 0;

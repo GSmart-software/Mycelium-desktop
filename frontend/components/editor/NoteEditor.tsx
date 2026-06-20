@@ -19,6 +19,7 @@ import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
 import { autoPairs } from "@/lib/editor/autoPairs";
+import { docTitleField, setDocTitle } from "@/lib/editor/docTitle";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
   markMissingWikilinks,
@@ -273,6 +274,8 @@ export function NoteEditor({
             codeFolding(),
             foldGutter({ openText: "⌄", closedText: "›" }),
             headingFoldService,
+            // Título (nombre del archivo) como bloque al inicio del documento.
+            docTitleField,
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -311,6 +314,15 @@ export function NoteEditor({
       });
 
       registerView(paneId, viewRef.current);
+
+      // Título inicial dentro del documento (se lee del store para evitar
+      // closures obsoletos; los cambios posteriores los aplica un efecto).
+      {
+        const titulo =
+          useVaultStore.getState().notas.find((n) => n.id === notaId)?.titulo ?? "nota";
+        const show = usePreferencesStore.getState().prefs.showFileTitle;
+        viewRef.current.dispatch({ effects: setDocTitle.of({ title: titulo, show }) });
+      }
 
       // Intentar colaboración en tiempo real (inerte en local; HU-05/06/37)
       if (!collabRef.current) {
@@ -671,6 +683,13 @@ export function NoteEditor({
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
 
+  // Mantener el título del bloque del editor al renombrar o togglear la opción.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: setDocTitle.of({ title: notaTitulo, show: showFileTitle }),
+    });
+  }, [notaTitulo, showFileTitle]);
+
   return (
     <div className={styles.editor}>
       <EditorToolbar
@@ -696,10 +715,6 @@ export function NoteEditor({
           </button>
         </div>
       )}
-
-      {/* Nombre del archivo como título (no es un `#` del documento): centrado
-          arriba, visible en todas las vistas. Se puede ocultar en preferencias. */}
-      {showFileTitle && <div className={styles.fileTitle}>{notaTitulo}</div>}
 
       <div className={`${styles.content} ${styles[`layout_${mode}`]}`}>
         <div
@@ -740,6 +755,11 @@ export function NoteEditor({
             onClick={onPreviewClick}
             onContextMenu={onPreviewContextMenu}
           >
+            {/* Título dentro del documento, al inicio (se desplaza con el
+                contenido); tipografía del preview. */}
+            {showFileTitle && (
+              <div className="mic-doc-title mic-doc-title-preview">{notaTitulo}</div>
+            )}
             <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
         )}

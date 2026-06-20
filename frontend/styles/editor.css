@@ -334,6 +334,29 @@
   -webkit-text-fill-color: transparent;
 }
 
+/* Título = nombre del archivo, renderizado DENTRO del documento al inicio (se
+   desplaza con el contenido, no es fijo). Degradado glow→accent. La tipografía
+   depende de la vista: -editor (en vivo/raw) usa la fuente del editor y -preview
+   (lectura/dividido) la del preview. */
+.mic-doc-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.9rem;
+  line-height: 1.25;
+  padding: 0.2rem 1rem 0.9rem;
+  word-break: break-word;
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.mic-doc-title-editor {
+  font-family: var(--mic-editor-font-family);
+}
+.mic-doc-title-preview {
+  font-family: var(--mic-preview-font-family);
+}
+
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
   color: var(--mic-accent);
