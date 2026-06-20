@@ -17,6 +17,7 @@ import {
   List,
   ListOrdered,
   Minus,
+  MoreVertical,
   PenLine,
   Quote,
   Search,
@@ -36,6 +37,8 @@ import {
   toggleLinePrefix,
   wrapSelection,
 } from "@/lib/editor/commands";
+import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { ExportMenu } from "./ExportMenu";
 import styles from "./EditorToolbar.module.css";
 
@@ -91,11 +94,23 @@ export function EditorToolbar({
   const [linkPos, setLinkPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [collapsed, setCollapsed] = useState(false);
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [rightMenuOpen, setRightMenuOpen] = useState(false);
+  const [rightMenuPos, setRightMenuPos] = useState<{ top: number; right: number }>({
+    top: 0,
+    right: 0,
+  });
+
+  const liveTables = useUiStore((s) => s.liveTables);
+  const setLiveTables = useUiStore((s) => s.setLiveTables);
 
   const toolbarRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
+  const rightMeasureRef = useRef<HTMLDivElement>(null);
   const formatWrapRef = useRef<HTMLDivElement>(null);
+  const rightMenuWrapRef = useRef<HTMLDivElement>(null);
+  const rightMenuBtnRef = useRef<HTMLButtonElement>(null);
 
   function run(action: (view: EditorView) => void) {
     const view = getView();
@@ -134,15 +149,30 @@ export function EditorToolbar({
 
   const showFormatTools = mode !== "read";
 
-  // Colapsar el grupo de formato si su ancho natural no entra en la barra.
+  // Colapso responsive en dos etapas según el ancho disponible, medido con
+  // medidores ocultos (anchos naturales, sin feedback al colapsar):
+  //   1) si no entra todo, se colapsa primero el grupo de formato;
+  //   2) si aun así no entra, se colapsa también el grupo derecho (buscar,
+  //      exportar y modos) en un menú "⋯".
   useEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
     const measure = () => {
-      const natural = measureRef.current?.offsetWidth ?? 0;
-      const right = rightRef.current?.offsetWidth ?? 0;
-      const available = toolbar.clientWidth - right - 16;
-      setCollapsed(natural > 0 && natural > available);
+      const formatNatural = showFormatTools ? measureRef.current?.offsetWidth ?? 0 : 0;
+      const rightNatural = rightMeasureRef.current?.offsetWidth ?? 0;
+      const formatBtn = showFormatTools ? 34 : 0; // botón "Formato" colapsado
+      const available = toolbar.clientWidth - 16;
+
+      if (formatNatural + rightNatural <= available) {
+        setCollapsed(false);
+        setRightCollapsed(false);
+      } else if (formatBtn + rightNatural <= available) {
+        setCollapsed(true);
+        setRightCollapsed(false);
+      } else {
+        setCollapsed(true);
+        setRightCollapsed(true);
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -150,15 +180,22 @@ export function EditorToolbar({
     return () => ro.disconnect();
   }, [showFormatTools, onInsertDiagram]);
 
-  // Cerrar el menú de formato al hacer clic fuera.
+  // Cerrar los menús al hacer clic fuera.
   useEffect(() => {
-    if (!formatMenuOpen) return;
+    if (!formatMenuOpen && !rightMenuOpen) return;
     function onDown(e: PointerEvent) {
       if (!formatWrapRef.current?.contains(e.target as Node)) setFormatMenuOpen(false);
+      if (!rightMenuWrapRef.current?.contains(e.target as Node)) setRightMenuOpen(false);
     }
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
-  }, [formatMenuOpen]);
+  }, [formatMenuOpen, rightMenuOpen]);
+
+  const openRightMenu = () => {
+    const r = rightMenuBtnRef.current?.getBoundingClientRect();
+    if (r) setRightMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+    setRightMenuOpen((v) => !v);
+  };
 
   const formatActions: FormatAction[] = [
     { icon: Bold, label: "Negrita (Ctrl+B)", run: (v) => wrapSelection(v, "**") },
@@ -298,29 +335,154 @@ export function EditorToolbar({
           aria-label={SYNC_LABEL[syncState]}
         />
 
-        <ToolButton
-          icon={Search}
-          label="Buscar en el archivo (Ctrl+F)"
-          onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
-        />
+        {!rightCollapsed ? (
+          <>
+            <ToolButton
+              icon={Search}
+              label="Buscar en el archivo (Ctrl+F)"
+              onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
+            />
 
-        <ExportMenu notaId={notaId} titulo={titulo} />
+            <ExportMenu notaId={notaId} titulo={titulo} />
 
-        <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
-          {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
+            <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
+              {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={mode === m ? `${styles.modeButton} ${styles.modeActive}` : styles.modeButton}
+                  data-mode={m}
+                  title={`${label} (${shortcut})`}
+                  aria-pressed={mode === m}
+                  onClick={() => onModeChange(m)}
+                >
+                  <Icon size={16} aria-hidden />
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          // Pantalla muy chica: buscar, exportar y modos colapsados en "⋯".
+          <div className={styles.rightMenuWrap} ref={rightMenuWrapRef}>
             <button
-              key={m}
+              ref={rightMenuBtnRef}
               type="button"
-              className={mode === m ? `${styles.modeButton} ${styles.modeActive}` : styles.modeButton}
-              data-mode={m}
-              title={`${label} (${shortcut})`}
-              aria-pressed={mode === m}
-              onClick={() => onModeChange(m)}
+              className={styles.toolButton}
+              title="Más acciones"
+              aria-label="Más acciones"
+              aria-haspopup="menu"
+              aria-expanded={rightMenuOpen}
+              onClick={openRightMenu}
             >
-              <Icon size={16} aria-hidden />
+              <MoreVertical size={16} aria-hidden />
             </button>
+            {rightMenuOpen && (
+              <div
+                className={styles.rightMenu}
+                role="menu"
+                style={{ position: "fixed", top: rightMenuPos.top, right: rightMenuPos.right }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.formatMenuItem}
+                  onClick={() => {
+                    useUiStore.getState().setSearchInNoteOpen(true);
+                    setRightMenuOpen(false);
+                  }}
+                >
+                  <Search size={15} aria-hidden />
+                  <span>Buscar en el archivo</span>
+                </button>
+                <div className={styles.formatMenuSep} />
+                {MODES.map(({ mode: m, icon: Icon, label }) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={mode === m}
+                    className={
+                      mode === m
+                        ? `${styles.formatMenuItem} ${styles.menuItemActive}`
+                        : styles.formatMenuItem
+                    }
+                    onClick={() => {
+                      onModeChange(m);
+                      setRightMenuOpen(false);
+                    }}
+                  >
+                    <Icon size={15} aria-hidden />
+                    <span>{label}</span>
+                  </button>
+                ))}
+                <div className={styles.formatMenuSep} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.formatMenuItem}
+                  onClick={() => {
+                    void exportNoteMd(notaId, titulo);
+                    setRightMenuOpen(false);
+                  }}
+                >
+                  <span>Exportar como .md</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.formatMenuItem}
+                  onClick={() => {
+                    void exportNotePdfActive(notaId, titulo, "A4");
+                    setRightMenuOpen(false);
+                  }}
+                >
+                  <span>Exportar como PDF (A4)</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.formatMenuItem}
+                  onClick={() => {
+                    void exportNotePdfActive(notaId, titulo, "Letter");
+                    setRightMenuOpen(false);
+                  }}
+                >
+                  <span>Exportar como PDF (Letter)</span>
+                </button>
+                <div className={styles.formatMenuSep} />
+                <label className={styles.rightMenuCheck}>
+                  <input
+                    type="checkbox"
+                    checked={liveTables}
+                    onChange={(e) => {
+                      setLiveTables(e.target.checked);
+                      refreshAllLiveViews();
+                    }}
+                  />
+                  Renderizar tablas (vista en vivo)
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Medidor oculto del grupo derecho (ancho natural para decidir colapso). */}
+      <div className={styles.measure} aria-hidden ref={rightMeasureRef} style={{ gap: "0.4rem" }}>
+        <span className={styles.syncDot} />
+        <span className={styles.toolButton}>
+          <Search size={16} aria-hidden />
+        </span>
+        <span className={styles.toolButton}>
+          <MoreVertical size={16} aria-hidden />
+        </span>
+        <span className={styles.modeGroup}>
+          {MODES.map(({ mode: m, icon: Icon }) => (
+            <span key={m} className={styles.modeButton} data-mode={m}>
+              <Icon size={16} aria-hidden />
+            </span>
           ))}
-        </div>
+        </span>
       </div>
     </div>
   );

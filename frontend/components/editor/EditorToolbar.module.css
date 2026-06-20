@@ -75,6 +75,48 @@
   background: color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
 }
 
+/* Ítem de menú resaltado (modo activo dentro del menú "⋯"). */
+.menuItemActive {
+  color: var(--mic-text-primary);
+  background-color: color-mix(in srgb, var(--mic-accent) 18%, transparent);
+}
+
+/* Grupo derecho: dot de sync + buscar + exportar + modos, en fila. */
+.right {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.rightMenuWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Menú "⋯" del grupo derecho (posición fija calculada en JS). */
+.rightMenu {
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 0.3rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 22%, transparent);
+}
+
+.rightMenuCheck {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
 .divider {
   width: 1px;
   height: 18px;
