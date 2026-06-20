@@ -1,6 +1,6 @@
 "use client";
 
-import { closeCompletion, completionStatus } from "@codemirror/autocomplete";
+import { closeCompletion } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
@@ -97,24 +97,21 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
   }, []);
 
   useEffect(() => {
-    // El modal se apropia del Esc mientras está abierto: primero cierra el
-    // autocompletado (si está abierto), y solo si no hay ninguno cierra el modal.
-    // En captura + stopImmediatePropagation para que el Esc no llegue al
-    // SettingsDrawer (que también cierra con Esc) ni cierre todo de golpe.
+    // El modal se apropia del Esc mientras está abierto: si hay autocompletado
+    // abierto lo cierra; si no, NO hace nada (Esc NO cierra el editor del
+    // snippet, para no perder los cambios; se cierra con la X o "Guardar").
+    // En captura + stopImmediatePropagation para que el Esc no llegue ni a
+    // CodeMirror ni al SettingsDrawer (que también cierra con Esc).
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       const view = viewRef.current;
-      if (view && completionStatus(view.state) !== null) {
-        closeCompletion(view);
-      } else {
-        onClose();
-      }
+      if (view) closeCompletion(view); // no-op si no hay autocompletado abierto
       e.preventDefault();
       e.stopImmediatePropagation();
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
+  }, []);
 
   const handleSave = async () => {
     await updateContent(snippet.id, cssRef.current);
