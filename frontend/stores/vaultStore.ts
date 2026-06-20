@@ -3,9 +3,16 @@ import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 
-/** Marca el grafo como desactualizado tras un cambio que altera nodos/enlaces. */
-const markGraphStale = () => useGraphStore.getState().markStale();
+/**
+ * Marca el grafo como desactualizado y redispara el live preview tras un cambio
+ * que altera nodos/enlaces (también afecta el feedback de wikilinks rotos).
+ */
+const markGraphStale = () => {
+  useGraphStore.getState().markStale();
+  refreshAllLiveViews();
+};
 
 export type TreeCarpeta = { id: string; padreId: string | null; nombre: string };
 export type NotaTipo = "markdown" | "excalidraw";
@@ -191,6 +198,7 @@ export const useVaultStore = create<VaultState>()(
           return;
         }
         await get().loadTree(get().vaultId!);
+        refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
       },
 
       async createNota(carpetaId, tipo = "markdown") {
@@ -251,6 +259,7 @@ export const useVaultStore = create<VaultState>()(
           return;
         }
         await get().loadTree(get().vaultId!);
+        refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
       },
 
       async restoreNota(id) {

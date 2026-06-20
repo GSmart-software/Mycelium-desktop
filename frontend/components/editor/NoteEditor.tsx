@@ -17,7 +17,11 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions } from "@/lib/editor/livePreview";
-import { resolveWikilink, wikilinkCompletions } from "@/lib/editor/wikilink";
+import {
+  markMissingWikilinks,
+  resolveWikilink,
+  wikilinkCompletions,
+} from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
@@ -151,6 +155,12 @@ export function NoteEditor({
     [router],
   );
 
+  // ¿Existe el archivo referenciado por un wikilink? (feedback de inexistencia)
+  const noteExists = useCallback((target: string) => {
+    const { notas, carpetas } = useVaultStore.getState();
+    return resolveWikilink(target, notas, carpetas) !== undefined;
+  }, []);
+
   // ── Persistencia local + sync ───────────────────────────────────
 
   const saveLocal = useCallback(() => {
@@ -253,7 +263,7 @@ export function NoteEditor({
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
-              modeRef.current === "live" ? liveExtensions(openByTitle) : [],
+              modeRef.current === "live" ? liveExtensions(openByTitle, noteExists) : [],
             ),
             // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
             // compartidas con relay disponible (cloudflare).
@@ -317,7 +327,7 @@ export function NoteEditor({
       const pendingTerm = takePendingMatch(notaId);
       if (pendingTerm) gotoMatch(viewRef.current, pendingTerm);
     },
-    [onDocChanged, openByTitle, notaId, instanceId, paneId],
+    [onDocChanged, openByTitle, noteExists, notaId, instanceId, paneId],
   );
 
   const applyContent = useCallback((content: string) => {
@@ -483,14 +493,14 @@ export function NoteEditor({
       window.localStorage.setItem(`micelio-mode-${notaId}`, next);
       viewRef.current?.dispatch({
         effects: liveCompartment.current.reconfigure(
-          next === "live" ? liveExtensions(openByTitle) : [],
+          next === "live" ? liveExtensions(openByTitle, noteExists) : [],
         ),
       });
       if (next === "split" || next === "read") {
         setPreviewHtml(renderMarkdown(contentRef.current));
       }
     },
-    [notaId, openByTitle],
+    [notaId, openByTitle, noteExists],
   );
 
   useEffect(() => {
@@ -519,6 +529,16 @@ export function NoteEditor({
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
   }, [previewHtml, mode, previewTick, notaId]);
+
+  // Feedback de inexistencia: oscurece los wikilinks a archivos que no existen.
+  // Reacciona a cambios del vault (crear/renombrar/borrar/mover) via suscripción.
+  const vaultNotas = useVaultStore((s) => s.notas);
+  const vaultCarpetas = useVaultStore((s) => s.carpetas);
+  useEffect(() => {
+    if ((mode === "split" || mode === "read") && previewRef.current) {
+      markMissingWikilinks(previewRef.current, vaultNotas, vaultCarpetas);
+    }
+  }, [previewHtml, mode, previewTick, vaultNotas, vaultCarpetas]);
 
   /** Inserta un diagrama nuevo en el cursor (HU-16 CA1a). */
   const insertDiagram = useCallback(() => {

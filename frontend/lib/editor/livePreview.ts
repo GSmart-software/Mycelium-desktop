@@ -145,8 +145,15 @@ const tableField = StateField.define<TableState>({
 });
 
 /** Extensiones del modo `live`: highlight + tablas (block) + decoraciones inline. */
-export function liveExtensions(onWikilinkClick: (title: string) => void): Extension {
-  return [syntaxHighlighting(micelioHighlight), tableField, livePreview(onWikilinkClick)];
+export function liveExtensions(
+  onWikilinkClick: (title: string) => void,
+  noteExists: (target: string) => boolean,
+): Extension {
+  return [
+    syntaxHighlighting(micelioHighlight),
+    tableField,
+    livePreview(onWikilinkClick, noteExists),
+  ];
 }
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
@@ -256,13 +263,16 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
  * cursor/selección — idéntico al Live Preview de Obsidian. El estilo del
  * texto (negrita, tamaño de heading, etc.) lo aplica syntaxHighlighting.
  */
-export function livePreview(onWikilinkClick: (title: string) => void) {
+export function livePreview(
+  onWikilinkClick: (title: string) => void,
+  noteExists: (target: string) => boolean,
+) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view);
+        this.decorations = buildDecorations(view, noteExists);
       }
 
       update(update: ViewUpdate) {
@@ -270,7 +280,7 @@ export function livePreview(onWikilinkClick: (title: string) => void) {
           tr.effects.some((e) => e.is(refreshLiveEffect)),
         );
         if (update.docChanged || update.selectionSet || update.viewportChanged || refreshed) {
-          this.decorations = buildDecorations(update.view);
+          this.decorations = buildDecorations(update.view, noteExists);
         }
       }
     },
@@ -299,7 +309,10 @@ export function livePreview(onWikilinkClick: (title: string) => void) {
 
 type PendingDeco = { from: number; to: number; deco: Decoration };
 
-function buildDecorations(view: EditorView): DecorationSet {
+function buildDecorations(
+  view: EditorView,
+  noteExists: (target: string) => boolean,
+): DecorationSet {
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
 
@@ -525,11 +538,13 @@ function buildDecorations(view: EditorView): DecorationSet {
           // Oculta `[[` y, si hay alias, también `destino|`.
           decos.push({ from: start, to: labelFrom, deco: hide });
         }
+        // Feedback de inexistencia: mismo color, más oscuro (CA8 mejora).
+        const missing = !noteExists(target);
         decos.push({
           from: labelFrom,
           to: innerTo,
           deco: Decoration.mark({
-            class: "mic-wikilink-cm",
+            class: missing ? "mic-wikilink-cm mic-wikilink-cm-missing" : "mic-wikilink-cm",
             attributes: { "data-title": target },
           }),
         });

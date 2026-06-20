@@ -88,6 +88,26 @@ export function resolveWikilink(
 }
 
 /**
+ * Marca los wikilinks de un preview ya renderizado cuyo destino no existe en el
+ * vault, añadiendo la clase `mic-wikilink-missing` (feedback visual: mismo color
+ * más oscuro). Se ejecuta sobre el DOM para no acoplar el render de markdown al
+ * estado del vault (se reutiliza en PDF/CSS de ejemplo).
+ */
+export function markMissingWikilinks(
+  root: HTMLElement,
+  notas: TreeNota[],
+  carpetas: TreeCarpeta[],
+): void {
+  root.querySelectorAll<HTMLAnchorElement>("a.mic-wikilink").forEach((a) => {
+    const href = a.getAttribute("href") ?? "";
+    if (!href.startsWith("#wikilink:")) return;
+    const target = decodeURIComponent(href.slice("#wikilink:".length));
+    const exists = resolveWikilink(target, notas, carpetas) !== undefined;
+    a.classList.toggle("mic-wikilink-missing", !exists);
+  });
+}
+
+/**
  * Fuente de autocompletado para CodeMirror: se dispara mientras se escribe
  * dentro de `[[…`. Sugiere los títulos del vault; si un título se repite,
  * inserta la ruta de carpeta (`Carpeta/Sub/título`) para referenciar el correcto.
