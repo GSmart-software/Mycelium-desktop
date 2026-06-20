@@ -167,6 +167,53 @@ function remarkCallouts() {
 }
 
 /**
+ * Estilo propio de Mycelium para diferenciar el énfasis con `*` del énfasis con
+ * `_` (markdown estándar los trata igual; aquí es solo visual dentro del sistema):
+ *   *x*   cursiva                         _x_   cursiva + color --mic-glow
+ *   **x** negrita                         __x__ negrita + color --mic-accent
+ *   ***x*** cursiva + negrita             ___x___ negrita (sin cursiva) + degradado
+ * El marcador (`*`/`_`) no se conserva en el AST, así que se recupera leyendo el
+ * carácter del documento original en la posición del nodo.
+ */
+function remarkEmphasisStyle() {
+  return (tree: Parent, file: { toString(): string }) => {
+    const src = String(file);
+    const marker = (n: MdNode): string => {
+      const off = (n as { position?: { start?: { offset?: number } } }).position?.start?.offset;
+      return off === undefined ? "" : src[off] ?? "";
+    };
+    const handled = new WeakSet<MdNode>();
+    visit(tree, (node: MdNode) => {
+      if (node.type !== "emphasis" && node.type !== "strong") return;
+      if (handled.has(node)) return;
+      if (marker(node) !== "_") return; // `*` usa el estilo por defecto
+
+      // ___texto___  →  emphasis(_) que envuelve un único strong(_)
+      const inner = node.children?.[0];
+      if (
+        node.type === "emphasis" &&
+        node.children?.length === 1 &&
+        inner?.type === "strong" &&
+        marker(inner) === "_"
+      ) {
+        addClass(node, "mic-em-us-tri-outer"); // <em> sin cursiva
+        addClass(inner, "mic-em-us-tri"); // <strong> negrita + degradado
+        handled.add(inner);
+        return;
+      }
+      addClass(node, node.type === "emphasis" ? "mic-em-us" : "mic-strong-us");
+    });
+  };
+}
+
+function addClass(node: MdNode, cls: string) {
+  node.data ??= {};
+  const props = (node.data.hProperties ??= {});
+  const prev = typeof props.className === "string" ? props.className : "";
+  props.className = prev ? `${prev} ${cls}` : cls;
+}
+
+/**
  * Hace togglables los checkboxes de listas de tareas en lectura/dividido: quita
  * el `disabled` que pone remark-gfm y numera cada uno en orden de documento
  * (data-task) para que el editor sepa qué marcador `[ ]`/`[x]` alternar.
@@ -190,6 +237,7 @@ const processor = unified()
   .use(remarkMath)
   .use(remarkMicelio)
   .use(remarkCallouts)
+  .use(remarkEmphasisStyle)
   .use(remarkRehype)
   .use(rehypeTaskCheckbox)
   // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos

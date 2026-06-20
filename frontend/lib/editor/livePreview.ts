@@ -378,6 +378,44 @@ function buildDecorations(
           return;
         }
 
+        // Énfasis con `_` (estilo propio de Mycelium): _x_ cursiva + glow,
+        // __x__ negrita + accent, ___x___ negrita sin cursiva + degradado. Los
+        // de `*` usan el resaltado estándar (cursiva/negrita) y no se tocan.
+        if (node.name === "Emphasis" || node.name === "StrongEmphasis") {
+          const marks = node.node.getChildren("EmphasisMark");
+          if (marks.length >= 2 && doc.sliceString(marks[0].from, marks[0].from + 1) === "_") {
+            const line = doc.lineAt(node.from);
+            const isActive = activeLines.has(line.number);
+            const strong = node.name === "Emphasis" ? node.node.getChild("StrongEmphasis") : null;
+            if (strong) {
+              // ___texto___ → triple: ocultar todas las marcas y pintar el centro
+              const im = strong.getChildren("EmphasisMark");
+              const cFrom = im.length >= 2 ? im[0].to : strong.from;
+              const cTo = im.length >= 2 ? im[im.length - 1].from : strong.to;
+              if (!isActive) {
+                decos.push({ from: node.from, to: cFrom, deco: hide });
+                decos.push({ from: cTo, to: node.to, deco: hide });
+              }
+              if (cFrom < cTo) {
+                decos.push({ from: cFrom, to: cTo, deco: Decoration.mark({ class: "mic-em-cm-tri" }) });
+              }
+              return false; // ya gestionamos marcas y contenido
+            }
+            const cFrom = marks[0].to;
+            const cTo = marks[marks.length - 1].from;
+            if (cFrom < cTo) {
+              decos.push({
+                from: cFrom,
+                to: cTo,
+                deco: Decoration.mark({
+                  class: node.name === "Emphasis" ? "mic-em-cm-us" : "mic-strong-cm-us",
+                }),
+              });
+            }
+            // sin return: el caso EmphasisMark oculta las marcas fuera de foco
+          }
+        }
+
         switch (node.name) {
           case "HeaderMark": {
             const line = doc.lineAt(node.from);

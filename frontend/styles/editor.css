@@ -311,6 +311,29 @@
   --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
 }
 
+/* Énfasis con `_` (estilo propio de Mycelium) en la edición en vivo. El color
+   se pinta también en los descendientes para ganarle al <span> anidado del
+   resaltado de sintaxis (que decide el color/estilo por herencia). */
+.cm-editor .mic-em-cm-us,
+.cm-editor .mic-em-cm-us * {
+  color: var(--mic-glow); /* _texto_ : cursiva (del highlight) + glow */
+}
+.cm-editor .mic-strong-cm-us,
+.cm-editor .mic-strong-cm-us * {
+  color: var(--mic-accent); /* __texto__ : negrita (del highlight) + accent */
+}
+/* ___texto___ : negrita, sin cursiva, degradado glow→accent. El degradado se
+   aplica también a los descendientes para que cada <span> de texto lo muestre. */
+.cm-editor .mic-em-cm-tri,
+.cm-editor .mic-em-cm-tri * {
+  font-style: normal;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
   color: var(--mic-accent);
@@ -478,6 +501,20 @@
    CSS del usuario no lo pise por orden de cascada. */
 .mic-preview a.mic-wikilink.mic-wikilink-missing       { color: color-mix(in srgb, var(--mic-accent) 40%, #000); }
 .mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: color-mix(in srgb, var(--mic-glow) 48%, #000); }
+
+/* Énfasis con `_` (estilo propio de Mycelium) en lectura. `*`/`**`/`***` usan el
+   estilo por defecto de <em>/<strong>. */
+.mic-preview em.mic-em-us       { color: var(--mic-glow); }   /* _texto_  : cursiva + glow */
+.mic-preview strong.mic-strong-us { color: var(--mic-accent); } /* __texto__ : negrita + accent */
+.mic-preview em.mic-em-us-tri-outer { font-style: normal; }  /* ___texto___ : sin cursiva */
+.mic-preview strong.mic-em-us-tri {
+  font-weight: 700;
+  font-style: normal;
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
 .mic-preview code {
   font-family: var(--mic-font-mono);
