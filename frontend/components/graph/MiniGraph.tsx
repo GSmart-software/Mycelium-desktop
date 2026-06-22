@@ -69,6 +69,8 @@ export function MiniGraph({
     const colGlow = styles.getPropertyValue("--mic-glow").trim() || "#5DCAA5";
     const colNode = colGlow;
     const colCenter = "#eafff8";
+    // Segundo color: nodos que REFERENCIAN al nodo en foco (centro u hover).
+    const colAccent = styles.getPropertyValue("--mic-accent").trim() || "#19E6FF";
     const colEdge = "rgba(160, 224, 208, 0.22)";
     const colEdgeLit = colGlow;
     const colText = "rgba(206, 232, 224, 0.82)";
@@ -99,6 +101,18 @@ export function MiniGraph({
       const t = byId.get(e.target);
       if (s && t) simEdges.push({ s, t });
     }
+
+    // Nodo en foco (centro fijo del panel, o el que está bajo el cursor) y el
+    // conjunto de nodos que LO referencian (aristas nodo→foco), para pintarlos
+    // con --mic-accent. Se recalcula solo al cambiar el foco (no por frame).
+    const centerNode = centerId ? byId.get(centerId) ?? null : null;
+    let focusRefs = new Set<string>();
+    const computeRefs = (focus: SimNode | null) => {
+      const next = new Set<string>();
+      if (focus) for (const e of simEdges) if (e.t === focus) next.add(e.s.id);
+      focusRefs = next;
+    };
+    computeRefs(centerNode);
 
     // Zoom/pan restaurados de la cache (se leen aquí, tras el cleanup previo que
     // los guardó), para que agregar un nodo no resetee la vista a la de por defecto.
@@ -193,6 +207,7 @@ export function MiniGraph({
         const n = pick(ev);
         if (n !== hover) {
           hover = n;
+          computeRefs(hover ?? centerNode); // foco = hover, o el centro si no hay
           canvas.style.cursor = n ? "pointer" : "grab";
           wake(); // un redibujo para el resaltado de hover
         }
@@ -307,11 +322,13 @@ export function MiniGraph({
 
       for (const n of sim) {
         const r = radius(n);
-        const isCenter = n.id === centerId;
-        const lit = n === hover || isCenter;
-        ctx.shadowColor = colGlow;
-        ctx.shadowBlur = lit ? 22 : 12;
-        ctx.fillStyle = isCenter ? colCenter : colNode;
+        // Blanco: el nodo central y el que está bajo el cursor. Accent: los que
+        // referencian al nodo en foco (foco = hover, o el centro si no hay hover).
+        const isWhite = n.id === centerId || n === hover;
+        const refsFocus = !isWhite && focusRefs.has(n.id);
+        ctx.shadowColor = refsFocus ? colAccent : colGlow;
+        ctx.shadowBlur = isWhite ? 22 : refsFocus ? 16 : 12;
+        ctx.fillStyle = isWhite ? colCenter : refsFocus ? colAccent : colNode;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fill();

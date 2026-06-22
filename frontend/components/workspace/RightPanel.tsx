@@ -29,6 +29,11 @@ type Conexiones = {
 
 type Tab = "grafo" | "salientes" | "retro";
 
+// Cache en memoria de las conexiones por nota (stale-while-revalidate): al volver
+// a una nota ya vista, el panel se muestra al instante mientras se refresca en
+// segundo plano, en vez de esperar al escaneo del backend cada vez.
+const conexionesCache = new Map<string, Conexiones>();
+
 const fmtFecha = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
@@ -89,14 +94,18 @@ export function RightPanel() {
       return;
     }
     let cancelled = false;
+    // Mostrar lo cacheado al instante; refrescar en segundo plano.
+    const cached = conexionesCache.get(activeNotaId);
+    setData(cached ?? null);
     void api<Conexiones>(`/notas/${activeNotaId}/conexiones`, {
       token: useAuthStore.getState().accessToken,
     })
       .then((res) => {
+        conexionesCache.set(activeNotaId, res);
         if (!cancelled) setData(res);
       })
       .catch(() => {
-        if (!cancelled) setData(null);
+        if (!cancelled && !cached) setData(null);
       });
     return () => {
       cancelled = true;
