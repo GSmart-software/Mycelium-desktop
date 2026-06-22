@@ -65,7 +65,11 @@ export function CustomCssSection() {
     while (existentes.has(nombre)) nombre = `nuevo-${i++}.css`;
     let contenido = "/* Nuevo snippet de Mycelium */\n";
     try {
-      contenido = await fetch("/plantilla-estilos.css").then((r) => r.text());
+      // `no-store`: evita que el navegador sirva una plantilla cacheada vieja
+      // tras actualizar la app (la plantilla estática no fuerza revalidación).
+      contenido = await fetch("/plantilla-estilos.css", { cache: "no-store" }).then((r) =>
+        r.text(),
+      );
     } catch {
       // sin plantilla disponible → snippet con comentario base
     }
@@ -74,7 +78,9 @@ export function CustomCssSection() {
   };
 
   const descargarPlantilla = async () => {
-    const css = await fetch("/plantilla-estilos.css").then((r) => r.text());
+    const css = await fetch("/plantilla-estilos.css", { cache: "no-store" }).then((r) =>
+      r.text(),
+    );
     descargar("plantilla-estilos.css", css);
   };
 
