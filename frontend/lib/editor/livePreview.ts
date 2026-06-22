@@ -488,6 +488,7 @@ function buildDecorations(
     let pos = from;
     let calloutType: string | null = null; // tipo del callout en curso
     let calloutCollapsed = false; // si el callout actual está plegado (-)
+    let firstBodyPending = false; // la próxima línea de cuerpo es la 1ª del contenido
     while (pos <= to) {
       const line = doc.lineAt(pos);
 
@@ -516,6 +517,7 @@ function buildDecorations(
         if (foldable) headClass += " mic-live-callout-foldable";
         if (calloutCollapsed) headClass += " mic-live-callout-collapsed";
         if (calloutCollapsed || !continuesCallout(line.number)) headClass += " mic-live-callout-last";
+        firstBodyPending = true; // la siguiente línea `>` será la 1ª del contenido
         decos.push({
           from: line.from,
           to: line.from,
@@ -554,9 +556,12 @@ function buildDecorations(
           }
         }
       } else if (calloutType && quoteMark) {
-        // Cuerpo del callout: oculto si está plegado (-). Lleva -body y, si es la
-        // última línea del callout, -last (para redondear/cerrar el bloque por CSS).
+        // Cuerpo del callout. Ganchos: -body siempre; -body-first en la 1ª línea
+        // de contenido; -last en la última; -callout-hidden si está plegado. Así
+        // se pueden estilar distinto la primera, las intermedias y la última.
         let cls = "mic-live-callout mic-live-callout-body";
+        if (firstBodyPending) cls += " mic-live-callout-body-first";
+        firstBodyPending = false;
         if (calloutCollapsed) cls += " mic-callout-hidden";
         if (!continuesCallout(line.number)) cls += " mic-live-callout-last";
         decos.push({
@@ -570,6 +575,7 @@ function buildDecorations(
         }
       } else if (quoteMark) {
         calloutType = null;
+        firstBodyPending = false;
         decos.push({
           from: line.from,
           to: line.from,
@@ -580,6 +586,7 @@ function buildDecorations(
         }
       } else if (text.trim() !== "") {
         calloutType = null;
+        firstBodyPending = false;
       }
 
       for (const match of line.text.matchAll(WIKILINK_RE)) {
