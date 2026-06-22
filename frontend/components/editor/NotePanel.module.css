@@ -1,3 +1,17 @@
+/* Contenedor del panel embebido a la derecha del editor. */
+.panel {
+  flex-shrink: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  overflow-y: auto;
+  background: var(--mic-bg-surface);
+  border-left: 1px solid var(--mic-border);
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;
@@ -63,7 +77,6 @@
   flex: 1;
   min-height: 220px;
   border-radius: 8px;
-  /* Lienzo oscuro estilo Obsidian, en cualquier tema */
   background: var(--mic-raw-base-deep);
   overflow: hidden;
 }

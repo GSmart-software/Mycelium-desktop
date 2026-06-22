@@ -41,7 +41,9 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
+import { NotePanel } from "./NotePanel";
 import { SearchBar } from "./SearchBar";
+import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
@@ -682,6 +684,8 @@ export function NoteEditor({
   );
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
+  // Panel de metadatos embebido a la derecha de ESTE editor (toggle global).
+  const metaPanelOpen = usePanelLayoutStore((s) => s.rightOpen);
 
   // Mantener el título del bloque del editor al renombrar o togglear la opción.
   useEffect(() => {
@@ -716,6 +720,7 @@ export function NoteEditor({
         </div>
       )}
 
+      <div className={styles.body}>
       <div className={`${styles.content} ${styles[`layout_${mode}`]}`}>
         <div
           ref={hostRef}
@@ -763,6 +768,8 @@ export function NoteEditor({
             <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
         )}
+      </div>
+        {metaPanelOpen && <NotePanel notaId={notaId} />}
       </div>
 
       {diagMenu && <ContextMenu {...diagMenu} onClose={() => setDiagMenu(null)} />}

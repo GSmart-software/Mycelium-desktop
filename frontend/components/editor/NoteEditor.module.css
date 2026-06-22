@@ -7,8 +7,17 @@
   min-width: 0;
 }
 
+/* Fila: contenido del editor (flex 1) + panel de metadatos embebido a la derecha. */
+.body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
 .content {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: grid;
 }

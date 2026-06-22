@@ -8,7 +8,6 @@ import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
-import { RightPanel } from "@/components/workspace/RightPanel";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
@@ -80,8 +79,7 @@ function WorkspaceShell() {
       }
     : null;
 
-  const { activeSection, leftWidth, rightOpen, rightWidth, toggleLeft, toggleRight } =
-    usePanelLayoutStore();
+  const { activeSection, leftWidth, toggleLeft, toggleRight } = usePanelLayoutStore();
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {
@@ -131,7 +129,6 @@ function WorkspaceShell() {
       style={
         {
           "--mic-panel-left-width": activeSection !== null ? `${leftWidth}px` : "0px",
-          "--mic-panel-right-width": rightOpen ? `${rightWidth}px` : "0px",
         } as React.CSSProperties
       }
     >
@@ -139,7 +136,6 @@ function WorkspaceShell() {
       <Rail />
       <LeftPanel />
       <EditorArea />
-      <RightPanel />
       <SettingsDrawer />
       <ImportDialogs />
       <ShareModal />

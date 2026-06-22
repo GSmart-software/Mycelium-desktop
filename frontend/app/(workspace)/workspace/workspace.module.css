@@ -1,13 +1,12 @@
 .workspace {
   display: grid;
   grid-template-areas:
-    'topbar topbar topbar topbar'
-    'rail left editor right';
+    'topbar topbar topbar'
+    'rail left editor';
   grid-template-columns:
     var(--mic-rail-width)
     var(--mic-panel-left-width)
-    1fr
-    var(--mic-panel-right-width);
+    1fr;
   grid-template-rows: var(--mic-topbar-height) 1fr;
   height: 100vh;
   min-height: 0;
