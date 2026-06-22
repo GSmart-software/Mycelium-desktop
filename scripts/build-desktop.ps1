@@ -36,32 +36,42 @@ New-Item -ItemType Directory -Force -Path $wwwroot | Out-Null
 Copy-Item -Recurse -Force (Join-Path $frontend "out/*") $wwwroot
 
 Write-Host "==> [3/5] Publish del backend (self-contained single-file)" -ForegroundColor Cyan
-# Preservar credenciales locales si ya existen: no perderlas al reconstruir.
+# Preservar credenciales locales (gitignored) al reconstruir: se respaldan ANTES de
+# borrar dist/ y se restauran SIEMPRE en el finally (aunque el publish falle), para
+# no dejarlas huerfanas en TEMP y romper el modo desktop (puerto/ServeFrontend).
 $localCfg = Join-Path $outDir "appsettings.Local.json"
-$savedCfg = $null
+$savedCfg = Join-Path $env:TEMP "micelio.appsettings.Local.json.bak"
 if (Test-Path $localCfg) {
-    $savedCfg = Join-Path $env:TEMP "micelio.appsettings.Local.json.bak"
     Copy-Item -Force $localCfg $savedCfg
-    Write-Host "    (appsettings.Local.json existente respaldado y se restaurara)" -ForegroundColor DarkGray
+    Write-Host "    (appsettings.Local.json respaldado y se restaurara)" -ForegroundColor DarkGray
+} elseif (Test-Path $savedCfg) {
+    # Un build anterior quedo a medias: recuperamos el respaldo huerfano.
+    Write-Host "    (recuperando appsettings.Local.json de un build previo interrumpido)" -ForegroundColor Yellow
 }
-if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
-dotnet publish $apiProj -c Release -r win-x64 --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -o $outDir
-if ($LASTEXITCODE -ne 0) { throw "Fallo el publish del backend." }
 
-Write-Host "==> [4/5] Limpiando config que no aplica al modo desktop" -ForegroundColor Cyan
-# En desktop NO queremos las cookies SameSite=None de produccion (rompen sobre http).
-$prod = Join-Path $outDir "appsettings.Production.json"
-if (Test-Path $prod) { Remove-Item -Force $prod }
+try {
+    if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
+    dotnet publish $apiProj -c Release -r win-x64 --self-contained true `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $outDir
+    if ($LASTEXITCODE -ne 0) { throw "Fallo el publish del backend." }
 
-Write-Host "==> [5/5] Dejando la plantilla de credenciales" -ForegroundColor Cyan
-Copy-Item -Force (Join-Path $apiProj "appsettings.Local.example.json") (Join-Path $outDir "appsettings.Local.example.json")
-# Restaurar las credenciales reales si existian antes del rebuild.
-if ($savedCfg) {
-    Copy-Item -Force $savedCfg $localCfg
-    Remove-Item -Force $savedCfg
-    Write-Host "    (appsettings.Local.json restaurado)" -ForegroundColor DarkGray
+    Write-Host "==> [4/5] Limpiando config que no aplica al modo desktop" -ForegroundColor Cyan
+    # En desktop NO queremos las cookies SameSite=None de produccion (rompen sobre http).
+    $prod = Join-Path $outDir "appsettings.Production.json"
+    if (Test-Path $prod) { Remove-Item -Force $prod }
+
+    Write-Host "==> [5/5] Dejando la plantilla de credenciales" -ForegroundColor Cyan
+    Copy-Item -Force (Join-Path $apiProj "appsettings.Local.example.json") (Join-Path $outDir "appsettings.Local.example.json")
+}
+finally {
+    # Restaurar SIEMPRE las credenciales reales (aunque algo haya fallado arriba).
+    if (Test-Path $savedCfg) {
+        New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+        Copy-Item -Force $savedCfg $localCfg
+        Remove-Item -Force $savedCfg
+        Write-Host "    (appsettings.Local.json restaurado)" -ForegroundColor DarkGray
+    }
 }
 
 Write-Host ""
