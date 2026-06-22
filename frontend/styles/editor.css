@@ -229,36 +229,77 @@
   transform: rotate(45deg);
 }
 
-/* Callouts en vivo: bloque coloreado por tipo (HU-03) */
+/* ── Callouts: estilo por tipo dirigido por atributo (HU-03) ──────────────
+   El estilo de cada callout lo deciden el atributo data-callout="<tipo>" y dos
+   variables: --mic-callout-color y --mic-callout-icon. La estructura (borde,
+   fondo, color del título, ícono) se define UNA sola vez y consume esas
+   variables; los tipos integrados —y los snippets del usuario— solo asignan las
+   dos variables en `[data-callout="<tipo>"]`. Así se pueden crear callouts
+   nuevos (`> [!loquesea]`) o redefinir los integrados solo con CSS, sin tocar
+   código. Las reglas `[data-callout]` van sin prefijo de vista para valer en
+   lectura y en vivo y para que un snippet (inyectado después) las pueda pisar. */
+
+:root {
+  /* Ícono por defecto para tipos sin --mic-callout-icon propio. */
+  --mic-callout-icon-default: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
+}
+
+[data-callout="note"] {
+  --mic-callout-color: var(--mic-callout-note-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
+}
+[data-callout="info"] {
+  --mic-callout-color: var(--mic-callout-info-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
+}
+[data-callout="tip"] {
+  --mic-callout-color: var(--mic-callout-tip-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
+}
+[data-callout="important"] {
+  --mic-callout-color: var(--mic-callout-important-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
+}
+[data-callout="warning"] {
+  --mic-callout-color: var(--mic-callout-warning-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/></svg>");
+}
+[data-callout="caution"] {
+  --mic-callout-color: var(--mic-callout-caution-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 8v4'/><path d='M12 16h.01'/></svg>");
+}
+[data-callout="success"] {
+  --mic-callout-color: var(--mic-callout-success-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
+}
+[data-callout="error"],
+[data-callout="danger"] {
+  --mic-callout-color: var(--mic-callout-error-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m15 9-6 6'/><path d='m9 9 6 6'/></svg>");
+}
+[data-callout="danger"] {
+  --mic-callout-color: var(--mic-callout-danger-border);
+}
+[data-callout="question"] {
+  --mic-callout-color: var(--mic-callout-question-border);
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
+}
+
+/* ── Callouts en vivo: estructura (consume las variables) ───────────────── */
 .mic-live-callout {
-  border-left: 3px solid var(--mic-callout-note-border);
-  background: color-mix(in srgb, var(--mic-callout-note-border) 9%, transparent);
+  border-left: 3px solid var(--mic-callout-color, var(--mic-callout-note-border));
+  background: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) 10%, transparent);
   padding-left: 0.75rem;
 }
-.mic-live-callout-head { font-weight: 600; }
-.mic-live-callout-note { --mic-cc: var(--mic-callout-note-border); }
-.mic-live-callout-info { --mic-cc: var(--mic-callout-info-border); }
-.mic-live-callout-tip { --mic-cc: var(--mic-callout-tip-border); }
-.mic-live-callout-success { --mic-cc: var(--mic-callout-success-border); }
-.mic-live-callout-important { --mic-cc: var(--mic-callout-important-border); }
-.mic-live-callout-warning { --mic-cc: var(--mic-callout-warning-border); }
-.mic-live-callout-caution { --mic-cc: var(--mic-callout-warning-border); }
-.mic-live-callout-error { --mic-cc: var(--mic-callout-error-border); }
-.mic-live-callout-danger { --mic-cc: var(--mic-callout-danger-border); }
-.mic-live-callout-question { --mic-cc: var(--mic-callout-question-border); }
-.mic-live-callout[class*="mic-live-callout-"] {
-  border-left-color: var(--mic-cc, var(--mic-callout-note-border));
-  background: color-mix(in srgb, var(--mic-cc, var(--mic-callout-note-border)) 10%, transparent);
-}
-.mic-live-callout-head[class*="mic-live-callout-"] {
-  color: var(--mic-cc, var(--mic-callout-note-border));
+.mic-live-callout-head {
+  font-weight: 600;
+  color: var(--mic-callout-color, var(--mic-callout-note-border));
 }
 /* El título escrito del callout es texto de cita (tags.quote), que el resaltado
    de sintaxis pinta de gris en un <span> anidado y gana por herencia. Pintamos
-   también los descendientes para que el título mantenga el color representativo
-   del callout (igual que la etiqueta cuando no hay título). */
-.cm-editor .mic-live-callout-head[class*="mic-live-callout-"] span {
-  color: var(--mic-cc, var(--mic-callout-note-border));
+   también los descendientes para que el título mantenga el color del callout. */
+.cm-editor .mic-live-callout-head span {
+  color: var(--mic-callout-color, var(--mic-callout-note-border));
 }
 
 /* Cuerpo plegado de un callout (símbolo -) */
@@ -271,7 +312,7 @@
   cursor: pointer;
   user-select: none;
   margin-right: 0.3em;
-  color: var(--mic-cc, var(--mic-callout-note-border));
+  color: var(--mic-callout-color, var(--mic-callout-note-border));
 }
 
 /* Ícono del callout en la cabecera del editor (visible en vivo) */
@@ -282,33 +323,9 @@
   height: 1em;
   margin-right: 0.35em;
   vertical-align: -0.15em;
-  background-color: var(--mic-cc, var(--mic-callout-note-border));
-  -webkit-mask: var(--mic-callout-icon) center / contain no-repeat;
-  mask: var(--mic-callout-icon) center / contain no-repeat;
-}
-.mic-live-callout-note,
-.mic-live-callout-info {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
-}
-.mic-live-callout-tip {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
-}
-.mic-live-callout-important {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
-}
-.mic-live-callout-warning,
-.mic-live-callout-caution {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/></svg>");
-}
-.mic-live-callout-success {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
-}
-.mic-live-callout-error,
-.mic-live-callout-danger {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m15 9-6 6'/><path d='m9 9 6 6'/></svg>");
-}
-.mic-live-callout-question {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
+  background-color: var(--mic-callout-color, var(--mic-callout-note-border));
+  -webkit-mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
+  mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
 }
 
 /* Énfasis con `_` (estilo propio de Mycelium) en la edición en vivo. El color
@@ -648,8 +665,8 @@
 /* ── Callouts (HU-03 CA5/CA6) ────────────────────────────────────── */
 
 .mic-preview .mic-callout {
-  border-left: 3px solid var(--mic-callout-note-border);
-  background: color-mix(in srgb, var(--mic-callout-note-border) 8%, transparent);
+  border-left: 3px solid var(--mic-callout-color, var(--mic-callout-note-border));
+  background: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) 8%, transparent);
   color: var(--mic-text-primary);
   padding: var(--mic-radius-md) var(--mic-radius-lg);
   margin: 0 0 0.85rem 0;
@@ -667,6 +684,7 @@
   font-weight: 600;
   font-family: var(--mic-font-sans);
   margin-bottom: 0.35rem;
+  color: var(--mic-callout-color, var(--mic-callout-note-border));
 }
 
 .mic-preview .mic-callout-title::before {
@@ -675,74 +693,9 @@
   height: 16px;
   flex-shrink: 0;
   background-color: currentColor;
-  -webkit-mask: var(--mic-callout-icon) center / contain no-repeat;
-  mask: var(--mic-callout-icon) center / contain no-repeat;
+  -webkit-mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
+  mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
 }
-
-.mic-preview .mic-callout-note {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
-  border-color: var(--mic-callout-note-border);
-  background: color-mix(in srgb, var(--mic-callout-note-border) 8%, transparent);
-}
-.mic-preview .mic-callout-note .mic-callout-title { color: var(--mic-callout-note-border); }
-
-.mic-preview .mic-callout-tip {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5'/><path d='M9 18h6'/><path d='M10 22h4'/></svg>");
-  border-color: var(--mic-callout-tip-border);
-  background: color-mix(in srgb, var(--mic-callout-tip-border) 8%, transparent);
-}
-.mic-preview .mic-callout-tip .mic-callout-title { color: var(--mic-callout-tip-border); }
-
-.mic-preview .mic-callout-important {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
-  border-color: var(--mic-callout-important-border);
-  background: color-mix(in srgb, var(--mic-callout-important-border) 8%, transparent);
-}
-.mic-preview .mic-callout-important .mic-callout-title { color: var(--mic-callout-important-border); }
-
-.mic-preview .mic-callout-warning {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/><path d='M12 9v4'/><path d='M12 17h.01'/></svg>");
-  border-color: var(--mic-callout-warning-border);
-  background: color-mix(in srgb, var(--mic-callout-warning-border) 8%, transparent);
-}
-.mic-preview .mic-callout-warning .mic-callout-title { color: var(--mic-callout-warning-border); }
-
-.mic-preview .mic-callout-caution {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 8v4'/><path d='M12 16h.01'/></svg>");
-  border-color: var(--mic-callout-caution-border);
-  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
-}
-.mic-preview .mic-callout-caution .mic-callout-title { color: var(--mic-callout-caution-border); }
-
-.mic-preview .mic-callout-info {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/></svg>");
-  border-color: var(--mic-callout-info-border);
-  background: color-mix(in srgb, var(--mic-callout-info-border) 8%, transparent);
-}
-.mic-preview .mic-callout-info .mic-callout-title { color: var(--mic-callout-info-border); }
-
-.mic-preview .mic-callout-success {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
-  border-color: var(--mic-callout-success-border);
-  background: color-mix(in srgb, var(--mic-callout-success-border) 8%, transparent);
-}
-.mic-preview .mic-callout-success .mic-callout-title { color: var(--mic-callout-success-border); }
-
-.mic-preview .mic-callout-error,
-.mic-preview .mic-callout-danger {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='m15 9-6 6'/><path d='m9 9 6 6'/></svg>");
-  border-color: var(--mic-callout-error-border);
-  background: color-mix(in srgb, var(--mic-callout-error-border) 8%, transparent);
-}
-.mic-preview .mic-callout-error .mic-callout-title,
-.mic-preview .mic-callout-danger .mic-callout-title { color: var(--mic-callout-error-border); }
-
-.mic-preview .mic-callout-question {
-  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
-  border-color: var(--mic-callout-question-border);
-  background: color-mix(in srgb, var(--mic-callout-question-border) 8%, transparent);
-}
-.mic-preview .mic-callout-question .mic-callout-title { color: var(--mic-callout-question-border); }
 
 /* Callout plegable (> [!tipo]-/+) renderizado como <details>/<summary> */
 .mic-preview details.mic-callout > summary {

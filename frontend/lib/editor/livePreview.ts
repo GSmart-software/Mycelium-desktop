@@ -159,7 +159,7 @@ export function liveExtensions(
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` con símbolo de plegado opcional (-/+). */
-const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!(\w+)\]([-+]?)/;
+const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!([\w-]+)\]([-+]?)/;
 
 /** Etiquetas por tipo, usadas como título cuando el callout no tiene uno. */
 const CALLOUT_LABELS: Record<string, string> = {
@@ -503,8 +503,10 @@ function buildDecorations(
         decos.push({
           from: line.from,
           to: line.from,
+          // El estilo lo decide data-callout + variables CSS (no la clase por tipo).
           deco: Decoration.line({
-            class: `mic-live-callout mic-live-callout-${calloutType} mic-live-callout-head`,
+            class: "mic-live-callout mic-live-callout-head",
+            attributes: { "data-callout": calloutType },
           }),
         });
         if (foldable) {
@@ -537,13 +539,11 @@ function buildDecorations(
         }
       } else if (calloutType && quoteMark) {
         // Cuerpo del callout: oculto si está plegado (-)
-        const cls =
-          `mic-live-callout mic-live-callout-${calloutType}` +
-          (calloutCollapsed ? " mic-callout-hidden" : "");
+        const cls = "mic-live-callout" + (calloutCollapsed ? " mic-callout-hidden" : "");
         decos.push({
           from: line.from,
           to: line.from,
-          deco: Decoration.line({ class: cls }),
+          deco: Decoration.line({ class: cls, attributes: { "data-callout": calloutType } }),
         });
         // Ocultar el marcador de cita `>` del cuerpo fuera de la línea activa
         if (!isActive && !calloutCollapsed) {

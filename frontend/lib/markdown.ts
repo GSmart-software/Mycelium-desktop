@@ -108,8 +108,10 @@ function remarkMicelio() {
  * Callouts estilo Obsidian: `> [!TIPO]` con plegado opcional `-`/`+` y título
  * en la primera línea (HU-03 CA5/CA6). Acepta mayúsculas/minúsculas.
  */
-const CALLOUT_RE =
-  /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION|INFO|SUCCESS|ERROR|DANGER|QUESTION)\]([-+]?)[ \t]*/i;
+// Tipo genérico (`[\w-]+`): cualquier tipo es válido para poder crear callouts
+// nuevos solo con CSS/snippets (estilo Obsidian); el estilo lo decide el atributo
+// data-callout + las variables --mic-callout-color/--mic-callout-icon.
+const CALLOUT_RE = /^\[!([\w-]+)\]([-+]?)[ \t]*/;
 
 const CALLOUT_LABELS: Record<string, string> = {
   note: "Nota",
@@ -148,11 +150,16 @@ function remarkCallouts() {
         node.children!.shift();
       }
 
-      const className = `mic-callout mic-callout-${tipo}`;
+      // El estilo lo decide `data-callout` + las variables CSS (no la clase por
+      // tipo), así un snippet puede crear/redefinir tipos sin tocar código.
+      const hProperties: Record<string, string | boolean> = {
+        className: "mic-callout",
+        dataCallout: tipo,
+      };
       // Plegable → <details>/<summary>; `+` abierto, `-` cerrado (HU-03)
       node.data = {
         hName: foldable ? "details" : undefined,
-        hProperties: foldable && open ? { className, open: true } : { className },
+        hProperties: foldable && open ? { ...hProperties, open: true } : hProperties,
       };
       node.children!.unshift({
         type: "paragraph",
@@ -160,7 +167,8 @@ function remarkCallouts() {
           hName: foldable ? "summary" : undefined,
           hProperties: { className: "mic-callout-title" },
         },
-        children: [{ type: "text", value: titulo || CALLOUT_LABELS[tipo] }],
+        // Tipo desconocido sin título → usar el nombre del tipo como etiqueta.
+        children: [{ type: "text", value: titulo || CALLOUT_LABELS[tipo] || tipo }],
       });
     });
   };
