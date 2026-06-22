@@ -316,6 +316,15 @@ function buildDecorations(
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
 
+  // ¿La línea siguiente sigue siendo parte del MISMO callout? Lo es si empieza
+  // con `>` y no es la cabecera de un callout nuevo. Sirve para marcar la última
+  // línea del callout (no se pueden envolver las líneas en un <div> en CodeMirror).
+  const continuesCallout = (lineNumber: number): boolean => {
+    if (lineNumber >= doc.lines) return false;
+    const t = doc.line(lineNumber + 1).text;
+    return /^\s*>/.test(t) && !CALLOUT_HEAD_RE.test(t);
+  };
+
   // Líneas "activas": las tocadas por el cursor o la selección (CA1/CA2)
   const activeLines = new Set<number>();
   for (const range of view.state.selection.ranges) {
@@ -500,12 +509,19 @@ function buildDecorations(
         const symbol = calloutStart[3];
         calloutCollapsed = symbol === "-";
         const foldable = symbol === "-" || symbol === "+";
+        // Ganchos por línea para CSS (no se puede englobar el callout en un div):
+        // -first/-last delimitan el bloque; -foldable/-collapsed dan el estado del
+        // plegado en la cabecera. Plegado → la cabecera es también la última visible.
+        let headClass = "mic-live-callout mic-live-callout-head mic-live-callout-first";
+        if (foldable) headClass += " mic-live-callout-foldable";
+        if (calloutCollapsed) headClass += " mic-live-callout-collapsed";
+        if (calloutCollapsed || !continuesCallout(line.number)) headClass += " mic-live-callout-last";
         decos.push({
           from: line.from,
           to: line.from,
           // El estilo lo decide data-callout + variables CSS (no la clase por tipo).
           deco: Decoration.line({
-            class: "mic-live-callout mic-live-callout-head",
+            class: headClass,
             attributes: { "data-callout": calloutType },
           }),
         });
@@ -538,8 +554,11 @@ function buildDecorations(
           }
         }
       } else if (calloutType && quoteMark) {
-        // Cuerpo del callout: oculto si está plegado (-)
-        const cls = "mic-live-callout" + (calloutCollapsed ? " mic-callout-hidden" : "");
+        // Cuerpo del callout: oculto si está plegado (-). Lleva -body y, si es la
+        // última línea del callout, -last (para redondear/cerrar el bloque por CSS).
+        let cls = "mic-live-callout mic-live-callout-body";
+        if (calloutCollapsed) cls += " mic-callout-hidden";
+        if (!continuesCallout(line.number)) cls += " mic-live-callout-last";
         decos.push({
           from: line.from,
           to: line.from,
