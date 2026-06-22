@@ -171,7 +171,22 @@
 /* Redefinir un tipo integrado (p. ej. otro color para "note"): */
 /* [data-callout="note"] { --mic-callout-color: #3DFFC4; } */
 
-/* Ajustes generales de todos los callouts: */
+/* ESTRUCTURA EN LECTURA: el callout es un contenedor .mic-callout con un título
+   .mic-callout-title y párrafos de cuerpo. Para apuntar al título se usa un
+   selector DESCENDIENTE (con espacio), porque el título es hijo del contenedor.
+   En la edición en vivo la estructura es distinta (cada renglón es una línea):
+   ver la sección «Callouts en vivo» más abajo. */
+/* .mic-preview [data-callout="estudio"] .mic-callout-title { letter-spacing: .02em; } */
+/* .mic-preview [data-callout="estudio"] > p:not(.mic-callout-title) { font-style: italic; } */
+
+/* Título con el MISMO estilo en las dos vistas: combiná el selector de cada una
+   (descendiente en lectura, compuesto en vivo — ver más abajo). */
+/* .mic-preview [data-callout="estudio"] .mic-callout-title,
+   .mic-live-callout-head[data-callout="estudio"] {
+     background: linear-gradient(90deg, #c678dd, #7c9cff); color: #111;
+   } */
+
+/* Ajustes generales de todos los callouts (lectura): */
 /* .mic-preview .mic-callout { border-radius: 8px; } */
 /* .mic-preview .mic-callout-title { font-weight: 700; } */
 /* .mic-preview details.mic-callout > summary { cursor: pointer; } */
@@ -197,8 +212,44 @@
 /* .mic-wikilink-cm { color: var(--mic-accent); } */
 /* .mic-tag-cm { color: var(--mic-glow); } */
 
-/* Callouts en vivo. El estilo por tipo se controla con [data-callout="..."] y
-   --mic-callout-color/--mic-callout-icon (ver la sección de callouts de arriba,
-   que aplica también acá). Estas reglas son ajustes extra de estructura. */
-/* .mic-live-callout { padding-left: 0.75rem; } */
-/* .mic-live-callout-head { font-weight: 700; } */
+/* Callouts en vivo.
+   El color y el ícono salen de [data-callout="tipo"] + --mic-callout-color /
+   --mic-callout-icon (definidos en la sección 2; valen en lectura y en vivo).
+
+   OJO con la ESTRUCTURA: a diferencia de la lectura, en vivo NO hay un contenedor
+   ni un <p> de título. Cada renglón del callout es una LÍNEA independiente con
+   clases que indican su rol, y el atributo data-callout está EN cada línea. Por
+   eso, para apuntar a la cabecera se usa un selector COMPUESTO (sin espacio):
+       .mic-live-callout-head[data-callout="tipo"]        (correcto)
+       [data-callout="tipo"] .mic-live-callout-head       (NO funciona: no hay anidación)
+
+   Clases por línea (combinalas con [data-callout="tipo"]):
+     .mic-live-callout            todas las líneas del callout
+     .mic-live-callout-head       la cabecera (1er renglón)
+     .mic-live-callout-foldable   la cabecera, si el callout es desplegable (- o +)
+     .mic-live-callout-collapsed  la cabecera, si está plegada (-)
+     .mic-live-callout-first      primera línea del bloque (= la cabecera)
+     .mic-live-callout-body       líneas de contenido (cuerpo)
+     .mic-live-callout-body-first 1ª línea de contenido
+     .mic-live-callout-last       última línea del bloque
+*/
+
+/* Cabecera */
+/* .mic-live-callout-head[data-callout="estudio"] { font-weight: 800; } */
+
+/* Cabecera desplegada (abierta) vs plegada (cerrada) */
+/* .mic-live-callout-foldable:not(.mic-live-callout-collapsed)[data-callout="estudio"] { opacity: 1; } */
+/* .mic-live-callout-collapsed[data-callout="estudio"] { opacity: .85; border-bottom-right-radius: 8px; } */
+
+/* Cuerpo: 1ª línea de contenido · líneas intermedias · última línea de contenido */
+/* .mic-live-callout-body-first[data-callout="estudio"] { padding-top: .25em; } */
+/* .mic-live-callout-body[data-callout="estudio"]:not(.mic-live-callout-body-first):not(.mic-live-callout-last) { font-style: italic; } */
+/* .mic-live-callout-body.mic-live-callout-last[data-callout="estudio"] { padding-bottom: .25em; } */
+
+/* Bloque cohesionado: redondear los extremos (primera y última línea) */
+/* .mic-live-callout-first[data-callout="estudio"] { border-top-right-radius: 8px; } */
+/* .mic-live-callout-last[data-callout="estudio"]  { border-bottom-right-radius: 8px; } */
+
+/* Nota: .mic-live-callout-last marca la última línea del callout COMPLETO; en un
+   callout de una sola línea o plegado, esa marca cae en la cabecera. Por eso, para
+   la última línea de CONTENIDO usá .mic-live-callout-body.mic-live-callout-last. */
