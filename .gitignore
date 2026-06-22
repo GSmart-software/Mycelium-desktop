@@ -17,3 +17,5 @@ micelio.local.db*
 appsettings.Local.json
 backend/src/Micelio.Api/wwwroot/
 dist/
+# Logs de verificación local (Playwright/stack aislado)
+.verify-*.log

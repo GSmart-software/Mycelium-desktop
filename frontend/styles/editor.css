@@ -286,20 +286,26 @@
 }
 
 /* ── Callouts en vivo: estructura (consume las variables) ───────────────── */
-.mic-live-callout {
+/* Estructura por defecto de los callouts en vivo. Va con :where() (especificidad
+   0) para que un snippet del usuario la pueda pisar con un selector simple, p. ej.
+   `.mic-live-callout-head[data-callout="gold"] { background: ... }`. El color/ícono
+   por defecto siguen saliendo de las variables --mic-callout-color/-icon. */
+:where(.mic-live-callout) {
   border-left: 3px solid var(--mic-callout-color, var(--mic-callout-note-border));
   background: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) 10%, transparent);
   padding-left: 0.75rem;
 }
-.mic-live-callout-head {
+:where(.mic-live-callout-head) {
   font-weight: 600;
   color: var(--mic-callout-color, var(--mic-callout-note-border));
 }
 /* El título escrito del callout es texto de cita (tags.quote), que el resaltado
-   de sintaxis pinta de gris en un <span> anidado y gana por herencia. Pintamos
-   también los descendientes para que el título mantenga el color del callout. */
+   de sintaxis pinta de gris en un <span> anidado y gana por herencia. Este span
+   HEREDA el color de la cabecera (mantiene su especificidad para ganarle al
+   resaltado): así, si un snippet cambia el color de la cabecera, el texto lo
+   sigue. */
 .cm-editor .mic-live-callout-head span {
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: inherit;
 }
 
 /* Cuerpo plegado de un callout (símbolo -) */
@@ -308,7 +314,7 @@
 }
 
 /* Chevron clickeable de plegado en la cabecera del callout */
-.mic-callout-fold {
+:where(.mic-callout-fold) {
   cursor: pointer;
   user-select: none;
   margin-right: 0.3em;
@@ -316,7 +322,7 @@
 }
 
 /* Ícono del callout en la cabecera del editor (visible en vivo) */
-.mic-live-callout-head::before {
+:where(.mic-live-callout-head)::before {
   content: "";
   display: inline-block;
   width: 1em;
