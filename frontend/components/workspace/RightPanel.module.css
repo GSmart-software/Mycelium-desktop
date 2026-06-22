@@ -31,6 +31,34 @@
   flex-direction: column;
 }
 
+/* Dos opciones del grafo (combinables): referencia / lo referencian */
+.graphFilters {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+
+.chip {
+  flex: 1;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  text-align: center;
+}
+
+.chip:hover {
+  color: var(--mic-text-primary);
+}
+
+.chipActive {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-glow);
+  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+}
+
 .graphBox {
   flex: 1;
   min-height: 220px;

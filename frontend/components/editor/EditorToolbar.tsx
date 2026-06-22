@@ -18,6 +18,7 @@ import {
   ListOrdered,
   Minus,
   MoreVertical,
+  PanelRight,
   PenLine,
   Quote,
   Search,
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
 import {
   indentLine,
@@ -149,6 +151,9 @@ export function EditorToolbar({
   }, []);
 
   const showFormatTools = mode !== "read";
+  // Panel de metadatos/conexiones a la derecha (toggle desde la toolbar).
+  const metaPanelOpen = usePanelLayoutStore((s) => s.rightOpen);
+  const toggleMetaPanel = () => usePanelLayoutStore.getState().toggleRight();
 
   // Colapso responsive en dos etapas según el ancho disponible, medido con
   // medidores ocultos (anchos naturales, sin feedback al colapsar):
@@ -350,6 +355,17 @@ export function EditorToolbar({
               onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
             />
 
+            <button
+              type="button"
+              className={metaPanelOpen ? `${styles.toolButton} ${styles.modeActive}` : styles.toolButton}
+              title="Panel de metadatos (Ctrl+Shift+\\)"
+              aria-label="Panel de metadatos"
+              aria-pressed={metaPanelOpen}
+              onClick={toggleMetaPanel}
+            >
+              <PanelRight size={16} aria-hidden />
+            </button>
+
             <ExportMenu notaId={notaId} titulo={titulo} />
 
             <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
@@ -400,6 +416,22 @@ export function EditorToolbar({
                 >
                   <Search size={15} aria-hidden />
                   <span>Buscar en el archivo</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={
+                    metaPanelOpen
+                      ? `${styles.formatMenuItem} ${styles.menuItemActive}`
+                      : styles.formatMenuItem
+                  }
+                  onClick={() => {
+                    toggleMetaPanel();
+                    setRightMenuOpen(false);
+                  }}
+                >
+                  <PanelRight size={15} aria-hidden />
+                  <span>Panel de metadatos</span>
                 </button>
                 <div className={styles.formatMenuSep} />
                 {MODES.map(({ mode: m, icon: Icon, label }) => (
@@ -479,6 +511,9 @@ export function EditorToolbar({
         <span className={styles.syncDot} />
         <span className={styles.toolButton}>
           <Search size={16} aria-hidden />
+        </span>
+        <span className={styles.toolButton}>
+          <PanelRight size={16} aria-hidden />
         </span>
         <span className={styles.toolButton}>
           <MoreVertical size={16} aria-hidden />

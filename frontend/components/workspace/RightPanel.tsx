@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MiniGraph, type GraphEdge, type GraphNode } from "@/components/graph/MiniGraph";
 import { api } from "@/lib/api";
 import { folderPath } from "@/lib/search";
@@ -62,6 +62,26 @@ export function RightPanel() {
 
   const [tab, setTab] = useState<Tab>("grafo");
   const [data, setData] = useState<Conexiones | null>(null);
+  // Dos opciones del grafo, combinables: mostrar las que esta nota referencia
+  // (salientes) y/o las que la referencian (retro). Por defecto ambas activas.
+  const [showSalientes, setShowSalientes] = useState(true);
+  const [showRetro, setShowRetro] = useState(true);
+
+  // Grafo filtrado por dirección según los dos toggles.
+  const grafo = useMemo(() => {
+    if (!data) return { nodos: [] as GraphNode[], aristas: [] as GraphEdge[] };
+    const centro = data.nota.id;
+    const aristas = data.grafo.aristas.filter(
+      (a) =>
+        (showSalientes && a.source === centro) || (showRetro && a.target === centro),
+    );
+    const ids = new Set<string>([centro]);
+    for (const e of aristas) {
+      ids.add(e.source);
+      ids.add(e.target);
+    }
+    return { nodos: data.grafo.nodos.filter((n) => ids.has(n.id)), aristas };
+  }, [data, showSalientes, showRetro]);
 
   useEffect(() => {
     if (!rightOpen || !activeNotaId) {
@@ -116,14 +136,38 @@ export function RightPanel() {
 
                 <div className={styles.tabBody}>
                   {tab === "grafo" && (
-                    <div className={styles.graphBox}>
-                      <MiniGraph
-                        nodes={data.grafo.nodos}
-                        edges={data.grafo.aristas}
-                        centerId={data.nota.id}
-                        onOpen={open}
-                      />
-                    </div>
+                    <>
+                      <div className={styles.graphFilters}>
+                        <button
+                          type="button"
+                          className={
+                            showSalientes ? `${styles.chip} ${styles.chipActive}` : styles.chip
+                          }
+                          aria-pressed={showSalientes}
+                          title="Archivos que esta nota referencia"
+                          onClick={() => setShowSalientes((v) => !v)}
+                        >
+                          Referencia ({data.salientes.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={showRetro ? `${styles.chip} ${styles.chipActive}` : styles.chip}
+                          aria-pressed={showRetro}
+                          title="Archivos que referencian a esta nota"
+                          onClick={() => setShowRetro((v) => !v)}
+                        >
+                          Lo referencian ({data.retro.length})
+                        </button>
+                      </div>
+                      <div className={styles.graphBox}>
+                        <MiniGraph
+                          nodes={grafo.nodos}
+                          edges={grafo.aristas}
+                          centerId={data.nota.id}
+                          onOpen={open}
+                        />
+                      </div>
+                    </>
                   )}
 
                   {tab === "salientes" && (
