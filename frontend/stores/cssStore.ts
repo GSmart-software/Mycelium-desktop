@@ -16,6 +16,7 @@ type CssState = {
   importSnippet: (nombre: string, contenido: string) => Promise<CssSnippet>;
   toggle: (id: string, activo: boolean) => Promise<void>;
   updateContent: (id: string, contenido: string) => Promise<void>;
+  rename: (id: string, nombre: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 };
 
@@ -86,6 +87,17 @@ export const useCssStore = create<CssState>((set, get) => ({
       method: "PATCH",
       token: token(),
       body: { contenido },
+    }).catch(() => undefined);
+  },
+
+  async rename(id, nombre) {
+    const snippets = get().snippets.map((s) => (s.id === id ? { ...s, nombre } : s));
+    set({ snippets });
+    applySnippets(snippets); // el comentario /* nombre */ del <style> se actualiza
+    await api(`/auth/css/snippets/${id}`, {
+      method: "PATCH",
+      token: token(),
+      body: { nombre },
     }).catch(() => undefined);
   },
 

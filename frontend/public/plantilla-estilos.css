@@ -89,6 +89,22 @@
 /* .mic-preview del { opacity: 0.6; } */
 /* .mic-preview mark { background: color-mix(in srgb, var(--mic-glow) 30%, transparent); } */
 
+/* Énfasis propio de Mycelium: distingue `_` de `*` (es solo visual aquí).
+   *x* cursiva · **x** negrita · ***x*** ambas (estilo estándar)
+   _x_ cursiva+glow · __x__ negrita+accent · ___x___ negrita+degradado
+   Clases en Lectura: em.mic-em-us, strong.mic-strong-us,
+   em.mic-em-us-tri-outer, strong.mic-em-us-tri */
+/* .mic-preview em.mic-em-us { color: var(--mic-glow); } */
+/* .mic-preview strong.mic-strong-us { color: var(--mic-accent); } */
+/* En vivo: .mic-em-cm-us, .mic-strong-cm-us, .mic-em-cm-tri (pintar también
+   descendientes para ganarle al resaltado de sintaxis): */
+/* .cm-editor .mic-em-cm-us, .cm-editor .mic-em-cm-us * { color: var(--mic-glow); } */
+
+/* Título del archivo (nombre, arriba del documento, degradado por defecto).
+   -editor usa la fuente del editor; -preview, la del preview. */
+/* .mic-doc-title { font-size: 1.9rem; } */
+/* .mic-doc-title-preview { letter-spacing: 0.01em; } */
+
 /* Enlaces */
 /* .mic-preview a { color: var(--mic-accent); text-decoration: underline; } */
 /* .mic-preview a:hover { color: var(--mic-glow); } */
@@ -135,13 +151,29 @@
 /* .mic-preview .mic-excalidraw-block { border: 1px dashed var(--mic-border); border-radius: 8px; } */
 
 /* Callouts (> [!tipo] Título).
-   Tipos: note, tip, important, warning, caution, info, success, error,
-   danger, question. */
+   El estilo lo deciden el atributo  data-callout="<tipo>"  y DOS variables:
+     --mic-callout-color  → color del borde, el título y el ícono
+     --mic-callout-icon   → ícono, como url(...) de un SVG/imagen
+   Las reglas [data-callout="..."] valen a la vez en Lectura y en Edición en vivo.
+
+   Tipos integrados: note, tip, important, warning, caution, info, success,
+   error, danger, question.
+
+   ── Crear un callout NUEVO (solo con CSS, sin tocar código) ──
+   Definí las dos variables para tu tipo y usalo con  > [!estudio] Título  */
+/*
+[data-callout="estudio"] {
+  --mic-callout-color: #c678dd;
+  --mic-callout-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/><path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'/></svg>");
+}
+*/
+
+/* Redefinir un tipo integrado (p. ej. otro color para "note"): */
+/* [data-callout="note"] { --mic-callout-color: #3DFFC4; } */
+
+/* Ajustes generales de todos los callouts: */
 /* .mic-preview .mic-callout { border-radius: 8px; } */
 /* .mic-preview .mic-callout-title { font-weight: 700; } */
-/* .mic-preview .mic-callout-note    { border-color: #3DFFC4; } */
-/* .mic-preview .mic-callout-error   { border-color: #E5484D; } */
-/* .mic-preview .mic-callout-success { border-color: #3CA06B; } */
 /* .mic-preview details.mic-callout > summary { cursor: pointer; } */
 
 
@@ -165,6 +197,8 @@
 /* .mic-wikilink-cm { color: var(--mic-accent); } */
 /* .mic-tag-cm { color: var(--mic-glow); } */
 
-/* Callouts en vivo */
-/* .mic-live-callout { border-left: 3px solid var(--mic-glow); } */
+/* Callouts en vivo. El estilo por tipo se controla con [data-callout="..."] y
+   --mic-callout-color/--mic-callout-icon (ver la sección de callouts de arriba,
+   que aplica también acá). Estas reglas son ajustes extra de estructura. */
+/* .mic-live-callout { padding-left: 0.75rem; } */
 /* .mic-live-callout-head { font-weight: 700; } */

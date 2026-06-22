@@ -18,11 +18,24 @@ export function CustomCssSection() {
   const snippets = useCssStore((s) => s.snippets);
   const importSnippet = useCssStore((s) => s.importSnippet);
   const toggle = useCssStore((s) => s.toggle);
+  const rename = useCssStore((s) => s.rename);
   const remove = useCssStore((s) => s.remove);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [editando, setEditando] = useState<CssSnippet | null>(null);
+  const [renombrando, setRenombrando] = useState<string | null>(null);
+  const [nombreTmp, setNombreTmp] = useState("");
+
+  const iniciarRenombre = (s: CssSnippet) => {
+    setRenombrando(s.id);
+    setNombreTmp(s.nombre);
+  };
+  const confirmarRenombre = (s: CssSnippet) => {
+    const nombre = nombreTmp.trim();
+    if (nombre && nombre !== s.nombre) void rename(s.id, nombre);
+    setRenombrando(null);
+  };
 
   const onPickFile = async (file: File) => {
     setAviso(null);
@@ -121,7 +134,29 @@ export function CustomCssSection() {
               />
               <span className={styles.switchTrack} aria-hidden />
             </label>
-            <span className={styles.snippetName} title={s.nombre}>{s.nombre}</span>
+            {renombrando === s.id ? (
+              <input
+                className={styles.snippetRename}
+                value={nombreTmp}
+                autoFocus
+                onChange={(e) => setNombreTmp(e.target.value)}
+                onBlur={() => confirmarRenombre(s)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmarRenombre(s);
+                  if (e.key === "Escape") setRenombrando(null);
+                }}
+                aria-label={`Renombrar ${s.nombre}`}
+              />
+            ) : (
+              <button
+                type="button"
+                className={styles.snippetName}
+                title="Renombrar"
+                onClick={() => iniciarRenombre(s)}
+              >
+                {s.nombre}
+              </button>
+            )}
             <button
               type="button"
               className={styles.snippetIcon}

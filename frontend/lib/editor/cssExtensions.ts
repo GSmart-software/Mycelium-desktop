@@ -4,6 +4,7 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete";
+import { indentWithTab } from "@codemirror/commands";
 import { css, cssLanguage } from "@codemirror/lang-css";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { type Diagnostic, linter, lintGutter } from "@codemirror/lint";
@@ -13,6 +14,7 @@ import {
   Decoration,
   type DecorationSet,
   EditorView,
+  keymap,
   lineNumbers,
   ViewPlugin,
   type ViewUpdate,
@@ -52,6 +54,8 @@ const MIC_TOKENS = [
   "--mic-callout-error-border",
   "--mic-callout-danger-border",
   "--mic-callout-question-border",
+  "--mic-callout-color",
+  "--mic-callout-icon",
 ];
 
 const MIC_OPTIONS: Completion[] = MIC_TOKENS.map((t) => ({
@@ -192,5 +196,8 @@ export function cssEditorExtensions(): Extension {
     linter(cssLinter),
     colorSwatches,
     EditorView.lineWrapping,
+    // Tab/Shift+Tab aplican sangría en el editor (en vez de mover el foco al
+    // siguiente panel). Va al final: menor precedencia que el autocompletado.
+    keymap.of([indentWithTab]),
   ];
 }
