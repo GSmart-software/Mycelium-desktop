@@ -53,6 +53,17 @@ export type Preferencias = {
    * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
    */
   showFileTitle: boolean;
+  /**
+   * Grafo del vault: indicador de dirección de los enlaces. `animated` = flujo
+   * animado a lo largo del enlace (prioridad); `arrow` = flecha hacia el destino;
+   * `both` = ambos; `none` = sin indicador. Por defecto `animated`.
+   */
+  graphEdgeDirection: "none" | "animated" | "arrow" | "both";
+  /**
+   * Grafo del vault: intensidad (0–2) del brillo de las conexiones de un nodo
+   * al apuntarlo con el cursor. 0 = sin resaltado; 1 = por defecto.
+   */
+  graphHoverGlow: number;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -64,6 +75,8 @@ const DEFAULT_PREFS: Preferencias = {
   graphContinuousSim: false,
   autoCloseBrackets: true,
   showFileTitle: true,
+  graphEdgeDirection: "animated",
+  graphHoverGlow: 1,
 };
 
 type PreferencesState = {

@@ -1,0 +1,88 @@
+.wrap {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 10;
+}
+
+.button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-bg-surface) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.button:hover {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+}
+
+.menu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.8rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.value {
+  font-weight: 500;
+  color: var(--mic-text-muted);
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+}
+
+.segment {
+  font-size: 0.7rem;
+  padding: 0.3rem 0.2rem;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
+  color: var(--mic-text-muted);
+  text-align: center;
+}
+
+.segment:hover {
+  color: var(--mic-text-primary);
+}
+
+.segmentActive {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-glow);
+  background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--mic-glow);
+}

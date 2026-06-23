@@ -44,6 +44,19 @@ export function MiniGraph({
   // Si está activo, la simulación corre en cada frame de forma continua (sin
   // reposo). Por defecto false: el grafo se bloquea al asentarse (ahorra CPU).
   const continuousSim = usePreferencesStore((s) => s.prefs.graphContinuousSim);
+  // Indicador de dirección y brillo de hover: en refs para NO reiniciar la
+  // simulación (ni relayoutear) al cambiarlos. Un efecto aparte despierta el
+  // bucle cuando cambian (para arrancar la animación o redibujar).
+  const edgeDirection = usePreferencesStore((s) => s.prefs.graphEdgeDirection);
+  const hoverGlow = usePreferencesStore((s) => s.prefs.graphHoverGlow);
+  const edgeDirectionRef = useRef(edgeDirection);
+  edgeDirectionRef.current = edgeDirection;
+  const hoverGlowRef = useRef(hoverGlow);
+  hoverGlowRef.current = hoverGlow;
+  const wakeRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    wakeRef.current?.();
+  }, [edgeDirection, hoverGlow]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -139,6 +152,7 @@ export function MiniGraph({
     const wake = () => {
       if (running && frame === 0) frame = requestAnimationFrame(tick);
     };
+    wakeRef.current = wake; // permite despertar el bucle al cambiar las opciones
 
     const radius = (n: SimNode) => {
       const base = Math.min(4 + n.conexiones * 1.6, 15);
@@ -298,26 +312,72 @@ export function MiniGraph({
       ctx.translate(w / (2 * dpr) + ox, h / (2 * dpr) + oy);
       ctx.scale(scale, scale);
 
-      // Aristas con curva bezier suave (CA4)
+      // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
+      // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
+      const dir = edgeDirectionRef.current;
+      const showFlow = dir === "animated" || dir === "both";
+      const showArrow = dir === "arrow" || dir === "both";
+      const glow = hoverGlowRef.current;
+      const flowOffset = -((performance.now() / 1000) * 30) / scale;
       for (const e of simEdges) {
         const lit = hover && (e.s === hover || e.t === hover);
-        ctx.strokeStyle = lit ? colEdgeLit : colEdge;
-        ctx.globalAlpha = 1;
-        ctx.lineWidth = (lit ? 1.8 : 1.1) / scale;
         const mx = (e.s.x + e.t.x) / 2;
         const my = (e.s.y + e.t.y) / 2;
-        // Desplazamiento perpendicular para curvar la línea
         const nx = -(e.t.y - e.s.y);
         const ny = e.t.x - e.s.x;
         const len = Math.max(Math.hypot(nx, ny), 1);
         const bend = 0.12;
         const cx = mx + (nx / len) * len * bend;
         const cy = my + (ny / len) * len * bend;
-        ctx.beginPath();
-        ctx.moveTo(e.s.x, e.s.y);
-        ctx.quadraticCurveTo(cx, cy, e.t.x, e.t.y);
-        ctx.stroke();
+        const curve = () => {
+          ctx.beginPath();
+          ctx.moveTo(e.s.x, e.s.y);
+          ctx.quadraticCurveTo(cx, cy, e.t.x, e.t.y);
+          ctx.stroke();
+        };
+
+        // Línea base. Al apuntar un nodo, sus enlaces brillan con intensidad
+        // `glow` (ancho + halo); con glow=0 apenas se resaltan.
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = lit ? colEdgeLit : colEdge;
+        ctx.lineWidth = (lit ? 1.2 + 0.9 * glow : 1.1) / scale;
+        if (lit && glow > 0) {
+          ctx.shadowColor = colEdgeLit;
+          ctx.shadowBlur = (8 * glow) / scale;
+        }
+        curve();
+        ctx.shadowBlur = 0;
+
+        // Flujo animado a lo largo del enlace (dirección origen→destino).
+        if (showFlow) {
+          ctx.setLineDash([2 / scale, 9 / scale]);
+          ctx.lineDashOffset = flowOffset;
+          ctx.strokeStyle = lit ? colCenter : colEdgeLit;
+          ctx.globalAlpha = lit ? 0.95 : 0.5;
+          ctx.lineWidth = (lit ? 2.2 : 1.5) / scale;
+          curve();
+          ctx.setLineDash([]);
+          ctx.lineDashOffset = 0;
+          ctx.globalAlpha = 1;
+        }
+
+        // Flecha al medio del enlace apuntando al destino.
+        if (showArrow) {
+          const bx = 0.25 * e.s.x + 0.5 * cx + 0.25 * e.t.x;
+          const by = 0.25 * e.s.y + 0.5 * cy + 0.25 * e.t.y;
+          const a = Math.atan2(e.t.y - e.s.y, e.t.x - e.s.x);
+          const size = 6 / scale;
+          ctx.fillStyle = lit ? colEdgeLit : colEdge;
+          ctx.beginPath();
+          ctx.moveTo(bx + Math.cos(a) * size, by + Math.sin(a) * size);
+          ctx.lineTo(bx + Math.cos(a + 2.6) * size, by + Math.sin(a + 2.6) * size);
+          ctx.lineTo(bx + Math.cos(a - 2.6) * size, by + Math.sin(a - 2.6) * size);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
 
       for (const n of sim) {
@@ -356,17 +416,22 @@ export function MiniGraph({
       // detiene. Con `continuousSim` el bloqueo está desactivado: nunca para.
       const idle = !continuousSim && now - lastEnergetic > IDLE_GRACE_MS;
       const active = !idle;
+      // Flujo animado en los enlaces → mantener el redibujo aunque la simulación
+      // esté en reposo (en ese caso solo se dibuja, sin simular).
+      const d = edgeDirectionRef.current;
+      const animating = d === "animated" || d === "both";
       if (active) simulate();
       draw();
-      // Sigue animando salvo que esté en reposo; entonces queda detenido (sin
-      // rAF) hasta que algo lo despierte con wake().
-      if (active) frame = requestAnimationFrame(tick);
+      // Si no hay nada activo ni animándose, se detiene (sin rAF) hasta que algo
+      // lo despierte con wake().
+      if (active || animating) frame = requestAnimationFrame(tick);
     };
     resize(); // dimensiona el canvas antes del primer frame
     wake();
 
     return () => {
       running = false;
+      if (wakeRef.current === wake) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.

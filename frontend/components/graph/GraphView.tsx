@@ -5,6 +5,7 @@ import { useCallback, useEffect } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore, type NodePos } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { GraphOptionsMenu } from "./GraphOptionsMenu";
 import { MiniGraph } from "./MiniGraph";
 import styles from "./GraphView.module.css";
 
@@ -47,6 +48,7 @@ export function GraphView() {
   if (data && data.nodos.length > 0) {
     return (
       <div className={styles.view}>
+        <GraphOptionsMenu />
         <MiniGraph
           nodes={data.nodos}
           edges={data.aristas}
