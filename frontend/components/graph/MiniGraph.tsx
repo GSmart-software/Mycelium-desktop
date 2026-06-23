@@ -34,7 +34,7 @@ export function MiniGraph({
   getInitialView,
   onView,
   nodeColors,
-  revealCutoff,
+  revealCount,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -42,9 +42,9 @@ export function MiniGraph({
   onOpen: (id: string) => void;
   /** Color por id según los grupos de color del usuario (sobrescribe el glow). */
   nodeColors?: Map<string, string>;
-  /** Construcción temporal: solo se dibujan nodos con creadoEn <= este epoch ms
-   *  (y sus aristas). `null`/`undefined` = mostrar todo. */
-  revealCutoff?: number | null;
+  /** Construcción temporal: solo se dibujan los primeros `revealCount` nodos en
+   *  orden de creación (y sus aristas). `null`/`undefined` = mostrar todo. */
+  revealCount?: number | null;
   /** Posiciones cacheadas por id: arrancar asentado en vez de re-simular desde cero. */
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
@@ -68,12 +68,12 @@ export function MiniGraph({
   hoverGlowRef.current = hoverGlow;
   const nodeColorsRef = useRef(nodeColors);
   nodeColorsRef.current = nodeColors;
-  const revealCutoffRef = useRef(revealCutoff);
-  revealCutoffRef.current = revealCutoff;
+  const revealCountRef = useRef(revealCount);
+  revealCountRef.current = revealCount;
   const wakeRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     wakeRef.current?.();
-  }, [edgeDirection, hoverGlow, nodeColors, revealCutoff]);
+  }, [edgeDirection, hoverGlow, nodeColors, revealCount]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -125,12 +125,20 @@ export function MiniGraph({
     const cachedRatio = N > 0 ? savedCount / N : 0;
     const initialAlpha = cachedRatio >= 0.999 ? 0.05 : cachedRatio > 0 ? 0.4 : 1;
     const byId = new Map(sim.map((n) => [n.id, n]));
-    // Fecha de creación por id (epoch ms) para la construcción temporal.
-    const timeById = new Map(nodes.map((n) => [n.id, n.creadoEn ? Date.parse(n.creadoEn) : 0]));
-    // ¿El nodo ya "apareció" según el cutoff temporal? (null = mostrar todo).
+    // Rango de aparición por id: orden de creación (creadoEn, desempate por id
+    // para coincidir con el orden que usa GraphView al contar). Permite revelar
+    // los nodos de a uno aunque compartan la misma fecha.
+    const rankById = new Map(
+      nodes
+        .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : 0 }))
+        .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((o, i) => [o.id, i] as const),
+    );
+    // ¿El nodo ya "apareció"? Se muestran los primeros `revealCount` en orden de
+    // creación (null = mostrar todo).
     const revealed = (n: SimNode) => {
-      const cut = revealCutoffRef.current;
-      return cut == null || (timeById.get(n.id) ?? 0) <= cut;
+      const rc = revealCountRef.current;
+      return rc == null || (rankById.get(n.id) ?? 0) < rc;
     };
     const simEdges: SimEdge[] = [];
     for (const e of edges) {

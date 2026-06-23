@@ -14,6 +14,14 @@ import { MiniGraph } from "./MiniGraph";
 import styles from "./GraphView.module.css";
 
 /**
+ * Normaliza una ruta para comparar reglas: minúsculas y separador `/` sin
+ * espacios. `folderPath` usa " / " como separador visual, así que sin esto las
+ * reglas de ruta no detectaban subcarpetas (p. ej. "proyectos / sub").
+ */
+const normPath = (s: string) =>
+  s.toLowerCase().trim().replace(/\s*\/\s*/g, "/").replace(/\/+$/, "");
+
+/**
  * Vista del grafo global como ventana del área de panes (estilo Obsidian):
  * ocupa toda la pestaña, fondo oscuro, todos los nodos del vault. Clic en un
  * nodo abre la nota en una pestaña.
@@ -57,20 +65,25 @@ export function GraphView() {
 
   // Reglas de exclusión → ids a ocultar. name = el nombre contiene `value`;
   // tag = tiene esa etiqueta; path = ruta EXACTA de archivo o de directorio (en
-  // este último caso oculta también su contenido).
+  // este último caso oculta también su contenido, incluidas subcarpetas).
   const excludedIds = useMemo(() => {
     const reglas = excludeRules.filter((r) => r.value.trim());
     if (reglas.length === 0 || !data) return null;
     const set = new Set<string>();
     for (const node of data.nodos) {
-      const fp = folderPath(carpetaById.get(node.id) ?? null, carpetas).toLowerCase();
-      const full = fp ? `${fp}/${node.titulo.toLowerCase()}` : node.titulo.toLowerCase();
+      const fp = normPath(folderPath(carpetaById.get(node.id) ?? null, carpetas));
+      const full = fp ? `${fp}/${normPath(node.titulo)}` : normPath(node.titulo);
       for (const r of reglas) {
-        const v = r.value.trim().toLowerCase().replace(/\/+$/, "");
+        const raw = r.value.trim().toLowerCase();
         let hit = false;
-        if (r.type === "name") hit = node.titulo.toLowerCase().includes(v);
-        else if (r.type === "tag") hit = (node.tags ?? []).some((t) => t.toLowerCase() === v);
-        else hit = full === v || fp === v || fp.startsWith(`${v}/`);
+        if (r.type === "name") hit = node.titulo.toLowerCase().includes(raw);
+        else if (r.type === "tag") hit = (node.tags ?? []).some((t) => t.toLowerCase() === raw);
+        else {
+          // Ruta exacta del archivo, o de un directorio (oculta también todo lo
+          // que contiene: archivos y subcarpetas).
+          const v = normPath(r.value);
+          hit = !!v && (full === v || fp === v || fp.startsWith(`${v}/`));
+        }
         if (hit) {
           set.add(node.id);
           break;
@@ -103,7 +116,7 @@ export function GraphView() {
         let match = false;
         if (g.type === "name") match = node.titulo.toLowerCase().includes(v);
         else if (g.type === "tag") match = (node.tags ?? []).some((t) => t.toLowerCase() === v);
-        else match = folderPath(carpetaById.get(node.id) ?? null, carpetas).toLowerCase().includes(v);
+        else match = normPath(folderPath(carpetaById.get(node.id) ?? null, carpetas)).includes(normPath(g.value));
         if (match) {
           m.set(node.id, g.color);
           break;
@@ -113,11 +126,11 @@ export function GraphView() {
     return m;
   }, [colorGroups, visible, carpetaById, carpetas]);
 
-  // ── Construcción temporal (timelapse): los nodos aparecen por fecha de
-  //    creación; la fecha avanza día a día sin saltear los días sin nodos. ──
-  const [timelapse, setTimelapse] = useState<{ cutoff: number; label: string } | null>(null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const DAY = 86_400_000;
+  // ── Construcción temporal (timelapse): los nodos aparecen de a uno en orden
+  //    de creación; la fecha avanza día a día sin saltear los días sin nodos.
+  //    `count` = cuántos nodos (en orden de creación) están revelados. ──
+  const [timelapse, setTimelapse] = useState<{ count: number; label: string } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fmtDay = (ms: number) => {
     const d = new Date(ms);
     const mes = d.toLocaleDateString(undefined, { month: "short" }).replace(".", "");
@@ -126,7 +139,7 @@ export function GraphView() {
 
   const stopTimelapse = useCallback(() => {
     if (timer.current) {
-      clearInterval(timer.current);
+      clearTimeout(timer.current);
       timer.current = null;
     }
     setTimelapse(null);
@@ -138,29 +151,64 @@ export function GraphView() {
       stopTimelapse();
       return;
     }
-    const times = visible.nodos
-      .map((n) => (n.creadoEn ? Date.parse(n.creadoEn) : NaN))
-      .filter((t) => !Number.isNaN(t));
-    if (times.length === 0) return;
-    const startDay = Math.floor(Math.min(...times) / DAY) * DAY;
-    const endDay = Math.floor(Math.max(...times) / DAY) * DAY;
-    const days = Math.round((endDay - startDay) / DAY) + 1;
-    const interval = Math.min(260, Math.max(25, Math.round(16_000 / days))); // ~16 s total
-    let cur = startDay;
-    const stepDay = () => {
-      setTimelapse({ cutoff: cur + DAY - 1, label: fmtDay(cur) });
-      if (cur >= endDay) {
-        if (timer.current) {
-          clearInterval(timer.current);
-          timer.current = null;
+    // Orden de creación (desempate por id para coincidir con MiniGraph).
+    const sorted = visible.nodos
+      .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : NaN }))
+      .filter((n) => !Number.isNaN(n.t))
+      .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    if (sorted.length === 0) return;
+
+    // Días en hora LOCAL (la etiqueta debe coincidir con la fecha que ve el
+    // usuario; bucketizar en UTC mostraría la fecha corrida un día).
+    const dayStart = (t: number) => {
+      const d = new Date(t);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    };
+    const nextDay = (ms: number) => {
+      const d = new Date(ms);
+      d.setDate(d.getDate() + 1);
+      return d.getTime();
+    };
+    const lastDay = dayStart(sorted[sorted.length - 1].t);
+    // Un nodo cada ~0.15 s (acotado por presupuesto en vaults grandes) y ~0.5 s
+    // de pausa al cambiar de fecha o en una fecha sin nodos.
+    const NODE_MS = Math.min(200, Math.max(80, Math.round(24_000 / sorted.length)));
+    const DAY_PAUSE_MS = 500;
+
+    // Secuencia de pasos {count,label,delay}: recorre día a día (sin saltear los
+    // vacíos) y dentro de cada día revela los nodos de a uno.
+    const steps: { count: number; label: string; delay: number }[] = [];
+    let count = 0;
+    let i = 0;
+    for (let dayMs = dayStart(sorted[0].t); dayMs <= lastDay; dayMs = nextDay(dayMs)) {
+      const label = fmtDay(dayMs);
+      const limit = nextDay(dayMs);
+      const firstOfDay = i;
+      while (i < sorted.length && sorted[i].t < limit) i++;
+      const inDay = i - firstOfDay;
+      if (inDay === 0) {
+        steps.push({ count, label, delay: DAY_PAUSE_MS }); // día vacío: solo etiqueta
+      } else {
+        for (let k = 0; k < inDay; k++) {
+          count++;
+          const isLast = k === inDay - 1;
+          steps.push({ count, label, delay: isLast ? DAY_PAUSE_MS : NODE_MS });
         }
-        window.setTimeout(() => setTimelapse(null), 1200); // al terminar, mostrar todo
+      }
+    }
+
+    let s = 0;
+    const play = () => {
+      if (s >= steps.length) {
+        timer.current = setTimeout(() => setTimelapse(null), 1000); // al terminar, mostrar todo
         return;
       }
-      cur += DAY;
+      const step = steps[s++];
+      setTimelapse({ count: step.count, label: step.label });
+      timer.current = setTimeout(play, step.delay);
     };
-    stepDay();
-    timer.current = setInterval(stepDay, interval);
+    play();
   };
 
   const hasNotes = !!data && data.nodos.length > 0;
@@ -195,7 +243,7 @@ export function GraphView() {
           getInitialView={() => useGraphStore.getState().view}
           onView={(v) => useGraphStore.getState().saveView(v)}
           nodeColors={nodeColors}
-          revealCutoff={timelapse?.cutoff ?? null}
+          revealCount={timelapse?.count ?? null}
         />
       ) : (
         <div className={styles.empty}>
