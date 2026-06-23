@@ -29,13 +29,20 @@ type PanelLayoutState = {
 const clamp = (width: number) =>
   Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, width));
 
+// El panel derecho (metadatos/conexiones) admite más ancho: tiene grafo, listas
+// y metadatos que necesitan espacio para no recortarse.
+const RIGHT_MIN_WIDTH = 240;
+const RIGHT_MAX_WIDTH = 680;
+const clampRight = (width: number) =>
+  Math.min(RIGHT_MAX_WIDTH, Math.max(RIGHT_MIN_WIDTH, width));
+
 export const usePanelLayoutStore = create<PanelLayoutState>()(
   persist(
     (set, get) => ({
       activeSection: "explorer",
       lastSection: "explorer",
       leftWidth: 240,
-      rightWidth: 280,
+      rightWidth: 340,
       rightOpen: false,
 
       toggleSection(section) {
@@ -61,9 +68,19 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
       },
 
       setRightWidth(width) {
-        set({ rightWidth: clamp(width) });
+        set({ rightWidth: clampRight(width) });
       },
     }),
-    { name: "micelio-panel-layout" },
+    {
+      name: "micelio-panel-layout",
+      version: 1,
+      // v1: el panel derecho se embebió en el editor y se agrandó; descartar el
+      // ancho viejo (280, muy chico) para que tome el nuevo default cómodo.
+      migrate: (persisted, version) => {
+        const s = (persisted ?? {}) as Partial<PanelLayoutState>;
+        if (version < 1) return { ...s, rightWidth: 340 } as PanelLayoutState;
+        return s as PanelLayoutState;
+      },
+    },
   ),
 );

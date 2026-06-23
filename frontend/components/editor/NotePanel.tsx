@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MiniGraph, type GraphEdge, type GraphNode } from "@/components/graph/MiniGraph";
 import { api } from "@/lib/api";
 import { folderPath } from "@/lib/search";
@@ -49,6 +49,11 @@ const fmtTamano = (bytes: number) =>
 export function NotePanel({ notaId }: { notaId: string }) {
   const router = useRouter();
   const width = usePanelLayoutStore((s) => s.rightWidth);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Borde derecho del panel (fijo) capturado al iniciar el arrastre; el ancho
+  // nuevo = borde derecho - x del puntero. Es un handle por-pane (no anclado a
+  // la ventana como el de los paneles laterales).
+  const resizeEdge = useRef<number | null>(null);
   const carpetas = useVaultStore((s) => s.carpetas);
   const vaultId = useVaultStore((s) => s.vaultId);
   const vaultNombre = useAuthStore(
@@ -99,16 +104,39 @@ export function NotePanel({ notaId }: { notaId: string }) {
     router.push(`/workspace?note=${id}`);
   };
 
+  const resizeHandle = (
+    <div
+      className={styles.resize}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Redimensionar panel"
+      onPointerDown={(e) => {
+        resizeEdge.current = panelRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (resizeEdge.current == null) return;
+        usePanelLayoutStore.getState().setRightWidth(resizeEdge.current - e.clientX);
+      }}
+      onPointerUp={(e) => {
+        resizeEdge.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }}
+    />
+  );
+
   if (!data) {
     return (
-      <div className={styles.panel} style={{ width }}>
+      <div className={styles.panel} ref={panelRef} style={{ width }}>
+        {resizeHandle}
         <p className={styles.empty}>Cargando conexiones…</p>
       </div>
     );
   }
 
   return (
-    <div className={styles.panel} style={{ width }}>
+    <div className={styles.panel} ref={panelRef} style={{ width }}>
+      {resizeHandle}
       <div className={styles.tabs} role="tablist">
         <TabButton active={tab === "grafo"} onClick={() => setTab("grafo")}>
           GRAFO

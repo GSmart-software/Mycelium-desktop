@@ -1,5 +1,6 @@
 /* Contenedor del panel embebido a la derecha del editor. */
 .panel {
+  position: relative;
   flex-shrink: 0;
   height: 100%;
   min-height: 0;
@@ -8,8 +9,25 @@
   gap: 0.75rem;
   padding: 0.75rem;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--mic-bg-surface);
   border-left: 1px solid var(--mic-border);
+}
+
+/* Handle de redimensionado en el borde izquierdo del panel. */
+.resize {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
+}
+
+.resize:hover {
+  background: color-mix(in srgb, var(--mic-glow) 35%, transparent);
 }
 
 .tabs {
@@ -39,10 +57,15 @@
 }
 
 .tabBody {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Empuja los metadatos al fondo del panel. */
+.tabBody + .meta {
+  margin-top: auto;
 }
 
 /* Dos opciones del grafo (combinables): referencia / lo referencian */
@@ -73,9 +96,11 @@
   background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
 }
 
+/* El grafo ocupa una altura fija reducida; el resto del panel queda para las
+   listas y los metadatos. */
 .graphBox {
-  flex: 1;
-  min-height: 220px;
+  flex: 0 0 auto;
+  height: 190px;
   border-radius: 8px;
   background: var(--mic-raw-base-deep);
   overflow: hidden;
