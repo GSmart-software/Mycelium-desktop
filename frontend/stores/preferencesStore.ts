@@ -64,6 +64,12 @@ export type Preferencias = {
    * al apuntarlo con el cursor. 0 = sin resaltado; 1 = por defecto.
    */
   graphHoverGlow: number;
+  /**
+   * Grafo del vault: grupos de color. Cada nodo que cumple una regla (su ruta
+   * contiene `value`, tiene la etiqueta `value`, o su nombre contiene `value`)
+   * se dibuja con el color del grupo. Gana el primer grupo que coincide.
+   */
+  graphColorGroups: { id: string; type: "path" | "tag" | "name"; value: string; color: string }[];
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -77,6 +83,7 @@ const DEFAULT_PREFS: Preferencias = {
   showFileTitle: true,
   graphEdgeDirection: "animated",
   graphHoverGlow: 1,
+  graphColorGroups: [],
 };
 
 type PreferencesState = {

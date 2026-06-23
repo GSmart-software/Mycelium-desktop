@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { folderPath } from "@/lib/search";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore, type NodePos } from "@/stores/graphStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { useVaultStore } from "@/stores/vaultStore";
 import { GraphOptionsMenu } from "./GraphOptionsMenu";
 import { MiniGraph } from "./MiniGraph";
 import styles from "./GraphView.module.css";
@@ -45,6 +48,32 @@ export function GraphView() {
     [],
   );
 
+  // Color por nodo según los grupos del usuario: gana el primer grupo cuya regla
+  // coincide (ruta contiene / etiqueta exacta / nombre contiene `value`).
+  const colorGroups = usePreferencesStore((s) => s.prefs.graphColorGroups);
+  const notas = useVaultStore((s) => s.notas);
+  const carpetas = useVaultStore((s) => s.carpetas);
+  const nodeColors = useMemo(() => {
+    const grupos = colorGroups.filter((g) => g.value.trim());
+    if (grupos.length === 0 || !data) return undefined;
+    const carpetaById = new Map(notas.map((n) => [n.id, n.carpetaId]));
+    const m = new Map<string, string>();
+    for (const node of data.nodos) {
+      for (const g of grupos) {
+        const v = g.value.trim().toLowerCase();
+        let match = false;
+        if (g.type === "name") match = node.titulo.toLowerCase().includes(v);
+        else if (g.type === "tag") match = (node.tags ?? []).some((t) => t.toLowerCase() === v);
+        else match = folderPath(carpetaById.get(node.id) ?? null, carpetas).toLowerCase().includes(v);
+        if (match) {
+          m.set(node.id, g.color);
+          break;
+        }
+      }
+    }
+    return m;
+  }, [colorGroups, data, notas, carpetas]);
+
   if (data && data.nodos.length > 0) {
     return (
       <div className={styles.view}>
@@ -58,6 +87,7 @@ export function GraphView() {
           onPositions={savePositions}
           getInitialView={() => useGraphStore.getState().view}
           onView={(v) => useGraphStore.getState().saveView(v)}
+          nodeColors={nodeColors}
         />
       </div>
     );

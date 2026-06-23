@@ -26,7 +26,9 @@
   position: absolute;
   top: 38px;
   right: 0;
-  width: 260px;
+  width: 300px;
+  max-height: 70vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
@@ -85,4 +87,79 @@
 .slider {
   width: 100%;
   accent-color: var(--mic-glow);
+}
+
+.hint {
+  font-size: 0.7rem;
+  color: var(--mic-text-muted);
+  line-height: 1.4;
+}
+
+.addBtn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+}
+
+.addBtn:hover {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-glow);
+}
+
+.groupRow {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.select {
+  flex-shrink: 0;
+  width: 78px;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.2rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-base);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.groupValue {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  padding: 0.25rem 0.4rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-base);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.colorInput {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.delBtn {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.delBtn:hover {
+  color: var(--mic-callout-caution-border);
+  background: var(--mic-bg-hover);
 }

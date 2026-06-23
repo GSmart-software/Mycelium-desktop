@@ -16,6 +16,10 @@ public static partial class SearchEndpoints
     [GeneratedRegex(@"\[\[([^\[\]]+)\]\]")]
     private static partial Regex WikilinkRegex();
 
+    // #tag al inicio o tras un espacio/paréntesis (igual que el cliente).
+    [GeneratedRegex(@"(?:^|[\s(])#([\p{L}\p{N}_/-]+)")]
+    private static partial Regex TagRegex();
+
     /// <summary>Lecturas de blob simultáneas al escanear el grafo (R2/local).</summary>
     private const int BlobReadConcurrency = 32;
 
@@ -77,7 +81,16 @@ public static partial class SearchEndpoints
             }
 
             var (_, notas) = await repo.GetTreeAsync(vaultId, ct);
-            var (aristasVault, titulosPorId, _) = await BuildVaultGraphAsync(notas, vaultId, blobs, ct);
+            var (aristasVault, titulosPorId, contenidos) =
+                await BuildVaultGraphAsync(notas, vaultId, blobs, ct);
+
+            // Etiquetas (#tag) por nota, para colorear nodos por etiqueta (HU-30).
+            var tagsPorId = contenidos.ToDictionary(
+                kv => kv.Key,
+                kv => TagRegex().Matches(kv.Value)
+                    .Select(m => m.Groups[1].Value)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray());
 
             var conexionesTotales = ContarConexiones(aristasVault);
             var nodos = titulosPorId.Select(kv => new
@@ -85,6 +98,7 @@ public static partial class SearchEndpoints
                 id = kv.Key,
                 titulo = kv.Value,
                 conexiones = conexionesTotales.GetValueOrDefault(kv.Key),
+                tags = tagsPorId.GetValueOrDefault(kv.Key, Array.Empty<string>()),
             });
             var aristas = aristasVault.Select(a => new { source = a.From, target = a.To });
 

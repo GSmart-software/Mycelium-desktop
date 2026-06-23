@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
-export type GraphNode = { id: string; titulo: string; conexiones: number };
+export type GraphNode = { id: string; titulo: string; conexiones: number; tags?: string[] };
 export type GraphEdge = { source: string; target: string };
 
 type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number };
@@ -27,11 +27,14 @@ export function MiniGraph({
   onPositions,
   getInitialView,
   onView,
+  nodeColors,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   centerId: string | null;
   onOpen: (id: string) => void;
+  /** Color por id según los grupos de color del usuario (sobrescribe el glow). */
+  nodeColors?: Map<string, string>;
   /** Posiciones cacheadas por id: arrancar asentado en vez de re-simular desde cero. */
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
@@ -53,10 +56,12 @@ export function MiniGraph({
   edgeDirectionRef.current = edgeDirection;
   const hoverGlowRef = useRef(hoverGlow);
   hoverGlowRef.current = hoverGlow;
+  const nodeColorsRef = useRef(nodeColors);
+  nodeColorsRef.current = nodeColors;
   const wakeRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     wakeRef.current?.();
-  }, [edgeDirection, hoverGlow]);
+  }, [edgeDirection, hoverGlow, nodeColors]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -383,12 +388,15 @@ export function MiniGraph({
       for (const n of sim) {
         const r = radius(n);
         // Blanco: el nodo central y el que está bajo el cursor. Accent: los que
-        // referencian al nodo en foco (foco = hover, o el centro si no hay hover).
+        // referencian al nodo en foco. Si no, el color del grupo (si tiene) o el
+        // glow por defecto.
         const isWhite = n.id === centerId || n === hover;
         const refsFocus = !isWhite && focusRefs.has(n.id);
-        ctx.shadowColor = refsFocus ? colAccent : colGlow;
+        const custom = nodeColorsRef.current?.get(n.id);
+        const base = custom ?? colNode;
+        ctx.shadowColor = refsFocus ? colAccent : base;
         ctx.shadowBlur = isWhite ? 22 : refsFocus ? 16 : 12;
-        ctx.fillStyle = isWhite ? colCenter : refsFocus ? colAccent : colNode;
+        ctx.fillStyle = isWhite ? colCenter : refsFocus ? colAccent : base;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
         ctx.fill();
