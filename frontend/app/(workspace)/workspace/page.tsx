@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
@@ -80,6 +80,26 @@ function WorkspaceShell() {
     : null;
 
   const { activeSection, leftWidth, toggleLeft, toggleRight } = usePanelLayoutStore();
+  const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
+  const notas = useVaultStore((s) => s.notas);
+  const reconciledRef = useRef(false);
+
+  // Cargar el árbol del vault al entrar, aunque el explorador esté colapsado:
+  // hace falta para los títulos de las pestañas y para reconciliar el layout
+  // restaurado. Idempotente (treeSeq descarta recargas solapadas).
+  useEffect(() => {
+    if (vaultId && useVaultStore.getState().vaultId !== vaultId) {
+      void useVaultStore.getState().loadTree(vaultId);
+    }
+  }, [vaultId]);
+
+  // Una vez cargado el árbol, descartar del layout restaurado las pestañas cuyas
+  // notas ya no existen (borradas mientras el sistema estaba cerrado).
+  useEffect(() => {
+    if (reconciledRef.current || notas.length === 0) return;
+    reconciledRef.current = true;
+    useTabsStore.getState().reconcileNotes(new Set(notas.map((n) => n.id)));
+  }, [notas]);
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {

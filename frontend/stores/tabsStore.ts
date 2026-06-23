@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /**
@@ -80,6 +81,12 @@ type TabsState = {
   activeNotaId: () => string | null;
   /** Cierra las pestañas de una nota en todos los panes (al ir a papelera). */
   closeNotaEverywhere: (notaId: string) => void;
+  /**
+   * Tras restaurar el layout persistido, descarta las pestañas cuyas notas ya
+   * no existen en el vault (borradas mientras estaba cerrado). Se llama una vez
+   * cuando el árbol del vault termina de cargar.
+   */
+  reconcileNotes: (validIds: Set<string>) => void;
 };
 
 // ── Helpers de árbol ──────────────────────────────────────────────
@@ -140,7 +147,9 @@ function cleanLinks(node: PaneNode): PaneNode {
 
 const initialRoot = makeLeaf();
 
-export const useTabsStore = create<TabsState>((set, get) => ({
+export const useTabsStore = create<TabsState>()(
+  persist(
+    (set, get) => ({
   root: initialRoot,
   activePaneId: initialRoot.id,
   closedHistory: [],
@@ -426,6 +435,39 @@ export const useTabsStore = create<TabsState>((set, get) => ({
       activePaneId: activeStillExists ? get().activePaneId : firstLeaf(root).id,
     });
   },
-}));
+
+  reconcileNotes(validIds) {
+    const keep = (notaId: string) => notaId === GRAPH_TAB_ID || validIds.has(notaId);
+    let changed = false;
+    let root = mapTree(get().root, (leaf) => {
+      const tabs = leaf.tabs.filter((t) => keep(t.notaId));
+      if (tabs.length === leaf.tabs.length) return leaf;
+      changed = true;
+      const activeStill = tabs.some((t) => t.id === leaf.activeTabId);
+      return { ...leaf, tabs, activeTabId: activeStill ? leaf.activeTabId : tabs[0]?.id ?? null };
+    });
+    const closedHistory = get().closedHistory.filter((id) => validIds.has(id));
+    if (!changed && closedHistory.length === get().closedHistory.length) return;
+    root = cleanLinks(pruneEmpty(root));
+    const activeStillExists = findLeaf(root, get().activePaneId) !== null;
+    set({
+      root,
+      activePaneId: activeStillExists ? get().activePaneId : firstLeaf(root).id,
+      closedHistory,
+    });
+  },
+    }),
+    {
+      name: "micelio-tabs",
+      version: 1,
+      // No persistir el estado transitorio de arrastre.
+      partialize: (state) => ({
+        root: state.root,
+        activePaneId: state.activePaneId,
+        closedHistory: state.closedHistory,
+      }),
+    },
+  ),
+);
 
 export { allLeaves, findLeaf };
