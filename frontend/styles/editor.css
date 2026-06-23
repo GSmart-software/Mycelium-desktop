@@ -20,7 +20,7 @@
 .mic-editor-host .cm-content {
   caret-color: var(--mic-glow);
   color: var(--mic-text-primary);
-  max-width: 80ch;
+  /* max-width: 80ch; */
 }
 
 .mic-editor-host .cm-cursor {
