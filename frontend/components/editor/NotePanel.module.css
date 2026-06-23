@@ -65,7 +65,8 @@
 
 /* Empuja los metadatos al fondo del panel. */
 .tabBody + .meta {
-  margin-top: auto;
+  /* margin-top: auto; */
+  background: var(--mic-bg-surface);
 }
 
 /* Dos opciones del grafo (combinables): referencia / lo referencian */
@@ -100,7 +101,7 @@
    listas y los metadatos. */
 .graphBox {
   flex: 0 0 auto;
-  height: 190px;
+  height: 300px;
   border-radius: 8px;
   background: var(--mic-raw-base-deep);
   overflow: hidden;
