@@ -34,8 +34,21 @@ export function SettingsDrawer() {
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const logout = useAuthStore((s) => s.logout);
   const [tab, setTab] = useState<SettingsTab>("cuenta");
+  // Se mantiene montado durante la animación de salida para que el panel se
+  // repliegue con la misma animación con que aparece (DEF-020).
+  const [render, setRender] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const close = () => setSettingsOpen(false);
+
+  useEffect(() => {
+    if (settingsOpen) {
+      setRender(true);
+      setClosing(false);
+    } else {
+      setClosing(true); // dispara la animación de salida (si está montado)
+    }
+  }, [settingsOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -46,12 +59,22 @@ export function SettingsDrawer() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [settingsOpen, setSettingsOpen]);
 
-  if (!settingsOpen) return null;
+  if (!render) return null;
 
   return (
     <>
-      <div className={styles.overlay} onClick={close} />
-      <aside className={styles.drawer} aria-label="Configuración">
+      <div
+        className={`${styles.overlay} ${closing ? styles.overlayClosing : ""}`}
+        onClick={close}
+      />
+      <aside
+        className={`${styles.drawer} ${closing ? styles.drawerClosing : ""}`}
+        aria-label="Configuración"
+        // Al terminar la animación de salida del propio panel, desmontar.
+        onAnimationEnd={(e) => {
+          if (e.target === e.currentTarget && closing) setRender(false);
+        }}
+      >
         <header className={styles.header}>
           <h2 className={styles.title}>Configuración</h2>
           <button
