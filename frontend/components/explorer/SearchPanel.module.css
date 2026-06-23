@@ -48,6 +48,26 @@
   background: var(--mic-bg-hover);
 }
 
+.exactToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.exactToggle input {
+  accent-color: var(--mic-glow);
+  cursor: pointer;
+}
+
+.exactToggle:hover {
+  color: var(--mic-text-primary);
+}
+
 .hint {
   font-size: 0.6875rem;
   color: var(--mic-text-muted);

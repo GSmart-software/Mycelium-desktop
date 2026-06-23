@@ -33,6 +33,9 @@ export function SearchPanel() {
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [loading, setLoading] = useState(false);
   const [buscado, setBuscado] = useState(false);
+  // Por defecto desactivado: busca por COINCIDENCIA (prefijo). Activado: solo
+  // coincidencias de la palabra exacta (DEF-035).
+  const [exacto, setExacto] = useState(false);
 
   const carpetas = useVaultStore((s) => s.carpetas);
   const vaultId = useVaultStore((s) => s.vaultId);
@@ -55,7 +58,7 @@ export function SearchPanel() {
       setLoading(true);
       try {
         const data = await api<{ resultados: Resultado[] }>(
-          `/vaults/${vaultId}/buscar?q=${encodeURIComponent(term)}`,
+          `/vaults/${vaultId}/buscar?q=${encodeURIComponent(term)}&exacto=${exacto}`,
           { token: useAuthStore.getState().accessToken },
         );
         setResultados(data.resultados);
@@ -67,7 +70,7 @@ export function SearchPanel() {
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [query, vaultId]);
+  }, [query, vaultId, exacto]);
 
   const restoreExplorer = () => {
     usePanelLayoutStore.getState().toggleSection("explorer");
@@ -123,6 +126,15 @@ export function SearchPanel() {
           </button>
         )}
       </div>
+
+      <label className={styles.exactToggle} title="Si está activo, solo busca la palabra completa; si no, busca por coincidencia (p. ej. «perr» encuentra «perro»).">
+        <input
+          type="checkbox"
+          checked={exacto}
+          onChange={(e) => setExacto(e.target.checked)}
+        />
+        Búsqueda exacta
+      </label>
 
       <p className={styles.hint}>
         AND implícito · <code>&quot;frase exacta&quot;</code> ·{" "}

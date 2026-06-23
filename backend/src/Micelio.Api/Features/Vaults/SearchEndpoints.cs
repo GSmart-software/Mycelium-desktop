@@ -31,6 +31,7 @@ public static partial class SearchEndpoints
         group.MapGet("/vaults/{vaultId}/buscar", async (
             string vaultId,
             string? q,
+            bool? exacto,
             ClaimsPrincipal user,
             VaultRepository repo,
             ID1Client d1,
@@ -42,7 +43,8 @@ public static partial class SearchEndpoints
                 return Results.Json(new { error = "Sin acceso a este vault." }, statusCode: 403);
             }
 
-            var match = BuildFtsQuery(q ?? "");
+            // Por defecto (exacto=false) la búsqueda es por coincidencia (prefijo).
+            var match = BuildFtsQuery(q ?? "", prefix: !(exacto ?? false));
             if (match.Length == 0)
             {
                 return Results.Ok(new { resultados = Array.Empty<object>() });
@@ -288,10 +290,14 @@ public static partial class SearchEndpoints
     /// Query del usuario → expresión FTS5 segura (HU-21 CA5/CA6/CA7):
     /// AND implícito, frases entre comillas, `tag:x` y `#x` buscan el tag.
     /// </summary>
-    internal static string BuildFtsQuery(string raw)
+    internal static string BuildFtsQuery(string raw, bool prefix = false)
     {
+        // `prefix` (búsqueda por coincidencia, por defecto): cada término se trata
+        // como prefijo (`"perr"*` encuentra "perro"). Si es false (búsqueda
+        // exacta), solo coincide la palabra completa.
         var parts = new List<string>();
         var tokens = Regex.Matches(raw, "\"[^\"]+\"|\\S+");
+        var star = prefix ? "*" : "";
 
         foreach (Match token in tokens)
         {
@@ -299,8 +305,9 @@ public static partial class SearchEndpoints
 
             if (text.StartsWith('"') && text.EndsWith('"') && text.Length > 2)
             {
-                // Frase exacta: escapar comillas internas
-                parts.Add($"\"{text[1..^1].Replace("\"", "\"\"")}\"");
+                // Frase exacta: escapar comillas internas (en modo coincidencia, el
+                // `*` aplica el prefijo al último término de la frase).
+                parts.Add($"\"{text[1..^1].Replace("\"", "\"\"")}\"{star}");
                 continue;
             }
 
@@ -313,7 +320,7 @@ public static partial class SearchEndpoints
             var sanitized = text.Replace("\"", "\"\"");
             if (sanitized.Length > 0)
             {
-                parts.Add($"\"{sanitized}\"");
+                parts.Add($"\"{sanitized}\"{star}");
             }
         }
 
