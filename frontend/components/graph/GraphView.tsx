@@ -1,7 +1,8 @@
 "use client";
 
+import { History, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { folderPath } from "@/lib/search";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore, type NodePos } from "@/stores/graphStore";
@@ -112,13 +113,77 @@ export function GraphView() {
     return m;
   }, [colorGroups, visible, carpetaById, carpetas]);
 
+  // ── Construcción temporal (timelapse): los nodos aparecen por fecha de
+  //    creación; la fecha avanza día a día sin saltear los días sin nodos. ──
+  const [timelapse, setTimelapse] = useState<{ cutoff: number; label: string } | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const DAY = 86_400_000;
+  const fmtDay = (ms: number) => {
+    const d = new Date(ms);
+    const mes = d.toLocaleDateString(undefined, { month: "short" }).replace(".", "");
+    return `${d.getDate()} ${mes} ${d.getFullYear()}`; // p. ej. "10 jun 2026"
+  };
+
+  const stopTimelapse = useCallback(() => {
+    if (timer.current) {
+      clearInterval(timer.current);
+      timer.current = null;
+    }
+    setTimelapse(null);
+  }, []);
+  useEffect(() => stopTimelapse, [stopTimelapse]); // detener al desmontar
+
+  const startTimelapse = () => {
+    if (timer.current) {
+      stopTimelapse();
+      return;
+    }
+    const times = visible.nodos
+      .map((n) => (n.creadoEn ? Date.parse(n.creadoEn) : NaN))
+      .filter((t) => !Number.isNaN(t));
+    if (times.length === 0) return;
+    const startDay = Math.floor(Math.min(...times) / DAY) * DAY;
+    const endDay = Math.floor(Math.max(...times) / DAY) * DAY;
+    const days = Math.round((endDay - startDay) / DAY) + 1;
+    const interval = Math.min(260, Math.max(25, Math.round(16_000 / days))); // ~16 s total
+    let cur = startDay;
+    const stepDay = () => {
+      setTimelapse({ cutoff: cur + DAY - 1, label: fmtDay(cur) });
+      if (cur >= endDay) {
+        if (timer.current) {
+          clearInterval(timer.current);
+          timer.current = null;
+        }
+        window.setTimeout(() => setTimelapse(null), 1200); // al terminar, mostrar todo
+        return;
+      }
+      cur += DAY;
+    };
+    stepDay();
+    timer.current = setInterval(stepDay, interval);
+  };
+
   const hasNotes = !!data && data.nodos.length > 0;
 
   return (
     <div className={styles.view}>
-      {/* El menú está siempre disponible mientras haya notas, para poder deshacer
-          una exclusión aunque oculte todos los nodos. */}
-      {hasNotes && <GraphOptionsMenu />}
+      {/* Controles siempre disponibles mientras haya notas. */}
+      {hasNotes && (
+        <>
+          <button
+            type="button"
+            className={timelapse ? `${styles.controlBtn} ${styles.controlActive}` : styles.controlBtn}
+            title={timelapse ? "Detener construcción" : "Construcción temporal (cronológica)"}
+            aria-label="Construcción temporal del grafo"
+            aria-pressed={!!timelapse}
+            onClick={startTimelapse}
+          >
+            {timelapse ? <Square size={15} aria-hidden /> : <History size={16} aria-hidden />}
+          </button>
+          <GraphOptionsMenu />
+        </>
+      )}
+      {timelapse?.label && <div className={styles.timelapseDate}>{timelapse.label}</div>}
       {visible.nodos.length > 0 ? (
         <MiniGraph
           nodes={visible.nodos}
@@ -130,6 +195,7 @@ export function GraphView() {
           getInitialView={() => useGraphStore.getState().view}
           onView={(v) => useGraphStore.getState().saveView(v)}
           nodeColors={nodeColors}
+          revealCutoff={timelapse?.cutoff ?? null}
         />
       ) : (
         <div className={styles.empty}>

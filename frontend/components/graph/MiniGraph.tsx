@@ -3,7 +3,13 @@
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
-export type GraphNode = { id: string; titulo: string; conexiones: number; tags?: string[] };
+export type GraphNode = {
+  id: string;
+  titulo: string;
+  conexiones: number;
+  tags?: string[];
+  creadoEn?: string;
+};
 export type GraphEdge = { source: string; target: string };
 
 type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number };
@@ -28,6 +34,7 @@ export function MiniGraph({
   getInitialView,
   onView,
   nodeColors,
+  revealCutoff,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -35,6 +42,9 @@ export function MiniGraph({
   onOpen: (id: string) => void;
   /** Color por id según los grupos de color del usuario (sobrescribe el glow). */
   nodeColors?: Map<string, string>;
+  /** Construcción temporal: solo se dibujan nodos con creadoEn <= este epoch ms
+   *  (y sus aristas). `null`/`undefined` = mostrar todo. */
+  revealCutoff?: number | null;
   /** Posiciones cacheadas por id: arrancar asentado en vez de re-simular desde cero. */
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
@@ -58,10 +68,12 @@ export function MiniGraph({
   hoverGlowRef.current = hoverGlow;
   const nodeColorsRef = useRef(nodeColors);
   nodeColorsRef.current = nodeColors;
+  const revealCutoffRef = useRef(revealCutoff);
+  revealCutoffRef.current = revealCutoff;
   const wakeRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     wakeRef.current?.();
-  }, [edgeDirection, hoverGlow, nodeColors]);
+  }, [edgeDirection, hoverGlow, nodeColors, revealCutoff]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -113,6 +125,13 @@ export function MiniGraph({
     const cachedRatio = N > 0 ? savedCount / N : 0;
     const initialAlpha = cachedRatio >= 0.999 ? 0.05 : cachedRatio > 0 ? 0.4 : 1;
     const byId = new Map(sim.map((n) => [n.id, n]));
+    // Fecha de creación por id (epoch ms) para la construcción temporal.
+    const timeById = new Map(nodes.map((n) => [n.id, n.creadoEn ? Date.parse(n.creadoEn) : 0]));
+    // ¿El nodo ya "apareció" según el cutoff temporal? (null = mostrar todo).
+    const revealed = (n: SimNode) => {
+      const cut = revealCutoffRef.current;
+      return cut == null || (timeById.get(n.id) ?? 0) <= cut;
+    };
     const simEdges: SimEdge[] = [];
     for (const e of edges) {
       const s = byId.get(e.source);
@@ -325,6 +344,7 @@ export function MiniGraph({
       const glow = hoverGlowRef.current;
       const flowOffset = -((performance.now() / 1000) * 30) / scale;
       for (const e of simEdges) {
+        if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
         const lit = hover && (e.s === hover || e.t === hover);
         const mx = (e.s.x + e.t.x) / 2;
         const my = (e.s.y + e.t.y) / 2;
@@ -386,6 +406,7 @@ export function MiniGraph({
       ctx.globalAlpha = 1;
 
       for (const n of sim) {
+        if (!revealed(n)) continue; // construcción temporal: aún no apareció
         const r = radius(n);
         // Blanco: el nodo central y el que está bajo el cursor. Accent: los que
         // referencian al nodo en foco. Si no, el color del grupo (si tiene) o el
@@ -407,6 +428,7 @@ export function MiniGraph({
       ctx.textAlign = "center";
       ctx.font = `${12 / scale}px var(--mic-font-sans, sans-serif)`;
       for (const n of sim) {
+        if (!revealed(n)) continue;
         if (!showAll && n !== hover && n.id !== centerId) continue;
         ctx.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
         ctx.fillText(n.titulo, n.x, n.y + radius(n) + 13 / scale);

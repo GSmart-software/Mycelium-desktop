@@ -20,6 +20,52 @@
   font-size: 0.9rem;
 }
 
+/* Botón de construcción temporal (a la izquierda del menú de opciones). */
+.controlBtn {
+  position: absolute;
+  top: 0.6rem;
+  right: 3rem;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-bg-surface) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.controlBtn:hover {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+}
+
+.controlActive {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-glow);
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+}
+
+/* Fecha actual durante la construcción temporal. */
+.timelapseDate {
+  position: absolute;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 0.4rem 1rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--mic-raw-mist) 90%, white);
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 70%, transparent);
+  border-radius: var(--mic-radius-md);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
 .hint {
   font-size: 0.8125rem;
   opacity: 0.7;

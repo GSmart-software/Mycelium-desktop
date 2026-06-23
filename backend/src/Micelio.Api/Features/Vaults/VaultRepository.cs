@@ -45,7 +45,7 @@ public sealed class VaultRepository(ID1Client d1)
             [vaultId], ct);
         var notas = await d1.QueryAsync(
             """
-            SELECT id, carpeta_id, titulo, tipo, actualizado_en FROM notas
+            SELECT id, carpeta_id, titulo, tipo, creado_en, actualizado_en FROM notas
             WHERE vault_id = ? AND id NOT IN (SELECT nota_id FROM papelera)
             ORDER BY titulo COLLATE NOCASE
             """,

@@ -91,6 +91,8 @@ public static partial class SearchEndpoints
                     .Select(m => m.Groups[1].Value)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray());
+            // Fecha de creación por nota, para la construcción temporal del grafo.
+            var creadoPorId = notas.ToDictionary(n => n.GetString("id"), n => n.GetString("creado_en"));
 
             var conexionesTotales = ContarConexiones(aristasVault);
             var nodos = titulosPorId.Select(kv => new
@@ -99,6 +101,7 @@ public static partial class SearchEndpoints
                 titulo = kv.Value,
                 conexiones = conexionesTotales.GetValueOrDefault(kv.Key),
                 tags = tagsPorId.GetValueOrDefault(kv.Key, Array.Empty<string>()),
+                creadoEn = creadoPorId.GetValueOrDefault(kv.Key),
             });
             var aristas = aristasVault.Select(a => new { source = a.From, target = a.To });
 
