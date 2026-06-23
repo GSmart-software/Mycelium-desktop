@@ -61,6 +61,14 @@ export function SharedSection() {
     router.push(`/workspace?note=${notaId}`);
   };
 
+  // Clic con la rueda: abre la nota compartida en una pestaña nueva sin robar el
+  // foco (igual que en el explorador normal — DEF-033).
+  const openBackground = (notaId: string) => {
+    useTabsStore.getState().openNoteBackground(notaId);
+    const nid = useTabsStore.getState().activeNotaId();
+    router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+  };
+
   const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
   const renderTree = (
@@ -99,6 +107,14 @@ export function SharedSection() {
             className={styles.row}
             style={{ paddingLeft: `${depth * 14 + 22}px` }}
             onClick={() => open(n.id)}
+            // Evita el auto-scroll del navegador al pulsar la rueda sobre la fila.
+            onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+            onAuxClick={(e) => {
+              if (e.button === 1) {
+                e.preventDefault();
+                openBackground(n.id);
+              }
+            }}
           >
             <FileText size={15} className={styles.noteIcon} aria-hidden />
             <span className={styles.name}>{n.titulo}</span>
