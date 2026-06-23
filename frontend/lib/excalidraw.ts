@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/stores/authStore";
+import type { TreeNota } from "@/stores/vaultStore";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5279";
 
@@ -27,6 +28,31 @@ export async function loadDiagram(
   });
   if (!response.ok) return null;
   return (await response.json()) as ExcalidrawScene;
+}
+
+/**
+ * Carga la escena de un archivo .excalidraw del vault (nota tipo 'excalidraw'),
+ * cuyo contenido es el JSON de la escena (igual que cualquier nota). Permite
+ * embeber `![[archivo.excalidraw]]` apuntando a un archivo independiente.
+ */
+export async function loadNotaScene(notaId: string): Promise<ExcalidrawScene | null> {
+  const response = await fetch(`${API_URL}/notas/${notaId}/contenido`, {
+    credentials: "include",
+    headers: authHeaders(),
+  });
+  if (!response.ok) return null;
+  const data = (await response.json()) as { contenido?: string };
+  if (!data.contenido) return { elements: [] };
+  try {
+    const parsed = JSON.parse(data.contenido);
+    return {
+      elements: parsed.elements ?? [],
+      appState: parsed.appState,
+      files: parsed.files ?? null,
+    };
+  } catch {
+    return { elements: [] };
+  }
 }
 
 export async function saveDiagram(
@@ -72,21 +98,32 @@ async function sceneToSvg(scene: ExcalidrawScene): Promise<SVGSVGElement> {
 export async function renderExcalidrawIn(
   container: HTMLElement,
   notaId: string,
+  resolveNota?: (ref: string) => TreeNota | undefined,
 ): Promise<void> {
   const anchors = container.querySelectorAll<HTMLElement>(
     "a.mic-excalidraw[data-diag]",
   );
   for (const anchor of Array.from(anchors)) {
-    const diagId = anchor.getAttribute("data-diag");
-    if (!diagId) continue;
+    const ref = anchor.getAttribute("data-diag");
+    if (!ref) continue;
 
     const block = document.createElement("div");
     block.className = "mic-excalidraw-block";
-    block.setAttribute("data-diag", diagId);
-    block.title = "Clic para editar el diagrama";
+    block.setAttribute("data-diag", ref);
 
     try {
-      const scene = await loadDiagram(notaId, diagId);
+      // 1) Archivo .excalidraw del vault (nota independiente) referenciado por
+      //    título/ruta. 2) Si no, diagrama embebido bajo la nota actual (legado).
+      let scene: ExcalidrawScene | null = null;
+      const target = resolveNota?.(ref);
+      if (target && target.tipo === "excalidraw") {
+        scene = await loadNotaScene(target.id);
+        block.setAttribute("data-nota", target.id); // clic → abrir el archivo
+        block.title = "Clic para abrir el dibujo";
+      } else {
+        scene = await loadDiagram(notaId, ref);
+        block.title = "Clic para editar el diagrama";
+      }
       if (!scene) throw new Error("no encontrado");
       if (scene.elements.length === 0) {
         block.classList.add("mic-excalidraw-empty");
@@ -98,7 +135,7 @@ export async function renderExcalidrawIn(
     } catch {
       const error = document.createElement("div");
       error.className = "mic-excalidraw-error";
-      error.textContent = `No se pudo cargar el diagrama "${diagId}".`;
+      error.textContent = `No se pudo cargar el diagrama "${ref}".`;
       anchor.replaceWith(error);
     }
   }

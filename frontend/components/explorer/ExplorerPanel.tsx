@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { insertRefAtPoint } from "@/lib/editor/viewRegistry";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
@@ -150,6 +151,22 @@ export function ExplorerPanel() {
   function onDragEnd(event: DragEndEvent) {
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
+
+    // Soltar una nota sobre un markdown abierto inserta su vínculo en el punto de
+    // soltado (los archivos .excalidraw se insertan como embed para verse inline).
+    if (!over && dragged.startsWith("nota:")) {
+      const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
+      if (nota) {
+        const act = event.activatorEvent as MouseEvent | null;
+        const x = (act?.clientX ?? 0) + event.delta.x;
+        const y = (act?.clientY ?? 0) + event.delta.y;
+        const ref =
+          nota.tipo === "excalidraw"
+            ? `![[${nota.titulo}.excalidraw]]`
+            : `[[${nota.titulo}]]`;
+        if (insertRefAtPoint(x, y, ref)) return;
+      }
+    }
     if (!over) return;
 
     const destinoId = over === "root" ? null : over.replace("folder:", "");

@@ -548,37 +548,48 @@ export function NoteEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [setMode, isActivePane]);
 
+  // Datos del vault para resolver wikilinks/embeds del preview. Reacciona a
+  // cambios del vault (crear/renombrar/borrar/mover) via suscripción.
+  const vaultNotas = useVaultStore((s) => s.notas);
+  const vaultCarpetas = useVaultStore((s) => s.carpetas);
+
   // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) en el preview
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
-      void renderExcalidrawIn(previewRef.current, notaId);
+      void renderExcalidrawIn(previewRef.current, notaId, (ref) =>
+        resolveWikilink(ref, vaultNotas, vaultCarpetas),
+      );
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
       attachHeadingFolds(previewRef.current); // plegar secciones por título (lectura)
     }
-  }, [previewHtml, mode, previewTick, notaId]);
+  }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas]);
 
   // Feedback de inexistencia: oscurece los wikilinks a archivos que no existen.
-  // Reacciona a cambios del vault (crear/renombrar/borrar/mover) via suscripción.
-  const vaultNotas = useVaultStore((s) => s.notas);
-  const vaultCarpetas = useVaultStore((s) => s.carpetas);
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       markMissingWikilinks(previewRef.current, vaultNotas, vaultCarpetas);
     }
   }, [previewHtml, mode, previewTick, vaultNotas, vaultCarpetas]);
 
-  /** Inserta un diagrama nuevo en el cursor (HU-16 CA1a). */
+  /**
+   * Crea un archivo .excalidraw REAL en la carpeta de la nota actual (aparece en
+   * el explorador y es manipulable como cualquier nota) e inserta su embed por
+   * título. Se abre en segundo plano para que la nota actual conserve el foco y
+   * autoguarde el embed insertado (HU-16 CA1a).
+   */
   const insertDiagram = useCallback(() => {
     const view = viewRef.current;
     if (!view) return;
-    const diagId = crypto.randomUUID();
-    void saveDiagram(notaId, diagId, { elements: [] }).then(() => {
+    const vault = useVaultStore.getState();
+    const carpetaId = vault.notas.find((n) => n.id === notaId)?.carpetaId ?? null;
+    void vault.createNota(carpetaId, "excalidraw").then((newId) => {
+      const titulo =
+        useVaultStore.getState().notas.find((n) => n.id === newId)?.titulo ??
+        "Dibujo sin título";
       const { from } = view.state.selection.main;
-      view.dispatch({
-        changes: { from, insert: `![[${diagId}.excalidraw]]` },
-      });
-      setEditingDiag(diagId);
+      view.dispatch({ changes: { from, insert: `![[${titulo}.excalidraw]]` } });
+      useTabsStore.getState().openNoteBackground(newId);
     });
   }, [notaId]);
 
@@ -624,8 +635,15 @@ export function NoteEditor({
       }
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
       if (diagram) {
-        // Clic en el diagrama renderizado → editor Excalidraw (HU-16 CA3)
-        setEditingDiag(diagram.getAttribute("data-diag"));
+        const targetNota = diagram.getAttribute("data-nota");
+        if (targetNota) {
+          // Archivo .excalidraw independiente → abrirlo como pestaña.
+          useTabsStore.getState().openNote(targetNota);
+          router.push(`/workspace?note=${targetNota}`);
+        } else {
+          // Diagrama embebido (legado) → editor Excalidraw en modal (HU-16 CA3).
+          setEditingDiag(diagram.getAttribute("data-diag"));
+        }
         return;
       }
       const anchor = (event.target as HTMLElement).closest("a");
@@ -638,7 +656,7 @@ export function NoteEditor({
         event.preventDefault(); // la vista de tags llega en una versión futura
       }
     },
-    [openByTitle],
+    [openByTitle, router],
   );
 
   // Menú contextual del diagrama: exportar PNG/SVG (HU-17 CA1)
