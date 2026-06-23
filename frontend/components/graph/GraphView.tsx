@@ -48,17 +48,55 @@ export function GraphView() {
     [],
   );
 
-  // Color por nodo según los grupos del usuario: gana el primer grupo cuya regla
-  // coincide (ruta contiene / etiqueta exacta / nombre contiene `value`).
   const colorGroups = usePreferencesStore((s) => s.prefs.graphColorGroups);
+  const excludeRules = usePreferencesStore((s) => s.prefs.graphExcludeRules);
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
+  const carpetaById = useMemo(() => new Map(notas.map((n) => [n.id, n.carpetaId])), [notas]);
+
+  // Reglas de exclusión → ids a ocultar. name = el nombre contiene `value`;
+  // tag = tiene esa etiqueta; path = ruta EXACTA de archivo o de directorio (en
+  // este último caso oculta también su contenido).
+  const excludedIds = useMemo(() => {
+    const reglas = excludeRules.filter((r) => r.value.trim());
+    if (reglas.length === 0 || !data) return null;
+    const set = new Set<string>();
+    for (const node of data.nodos) {
+      const fp = folderPath(carpetaById.get(node.id) ?? null, carpetas).toLowerCase();
+      const full = fp ? `${fp}/${node.titulo.toLowerCase()}` : node.titulo.toLowerCase();
+      for (const r of reglas) {
+        const v = r.value.trim().toLowerCase().replace(/\/+$/, "");
+        let hit = false;
+        if (r.type === "name") hit = node.titulo.toLowerCase().includes(v);
+        else if (r.type === "tag") hit = (node.tags ?? []).some((t) => t.toLowerCase() === v);
+        else hit = full === v || fp === v || fp.startsWith(`${v}/`);
+        if (hit) {
+          set.add(node.id);
+          break;
+        }
+      }
+    }
+    return set;
+  }, [excludeRules, data, carpetaById, carpetas]);
+
+  // Grafo visible tras aplicar las exclusiones (se quitan nodos y sus aristas).
+  const visible = useMemo(() => {
+    if (!data) return { nodos: [], aristas: [] };
+    if (!excludedIds || excludedIds.size === 0) return data;
+    return {
+      nodos: data.nodos.filter((n) => !excludedIds.has(n.id)),
+      aristas: data.aristas.filter(
+        (a) => !excludedIds.has(a.source) && !excludedIds.has(a.target),
+      ),
+    };
+  }, [data, excludedIds]);
+
+  // Color por nodo (sobre el grafo visible): gana el primer grupo que coincide.
   const nodeColors = useMemo(() => {
     const grupos = colorGroups.filter((g) => g.value.trim());
-    if (grupos.length === 0 || !data) return undefined;
-    const carpetaById = new Map(notas.map((n) => [n.id, n.carpetaId]));
+    if (grupos.length === 0) return undefined;
     const m = new Map<string, string>();
-    for (const node of data.nodos) {
+    for (const node of visible.nodos) {
       for (const g of grupos) {
         const v = g.value.trim().toLowerCase();
         let match = false;
@@ -72,15 +110,19 @@ export function GraphView() {
       }
     }
     return m;
-  }, [colorGroups, data, notas, carpetas]);
+  }, [colorGroups, visible, carpetaById, carpetas]);
 
-  if (data && data.nodos.length > 0) {
-    return (
-      <div className={styles.view}>
-        <GraphOptionsMenu />
+  const hasNotes = !!data && data.nodos.length > 0;
+
+  return (
+    <div className={styles.view}>
+      {/* El menú está siempre disponible mientras haya notas, para poder deshacer
+          una exclusión aunque oculte todos los nodos. */}
+      {hasNotes && <GraphOptionsMenu />}
+      {visible.nodos.length > 0 ? (
         <MiniGraph
-          nodes={data.nodos}
-          edges={data.aristas}
+          nodes={visible.nodos}
+          edges={visible.aristas}
           centerId={null}
           onOpen={open}
           initialPositions={useGraphStore.getState().positions}
@@ -89,24 +131,25 @@ export function GraphView() {
           onView={(v) => useGraphStore.getState().saveView(v)}
           nodeColors={nodeColors}
         />
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.view}>
-      <div className={styles.empty}>
-        {status === "loading" ? (
-          <p>Cargando grafo…</p>
-        ) : (
-          <>
-            <p>Aún no hay notas en el grafo.</p>
-            <p className={styles.hint}>
-              Enlazá notas con <code>[[nombre]]</code> para tejer tu red.
-            </p>
-          </>
-        )}
-      </div>
+      ) : (
+        <div className={styles.empty}>
+          {status === "loading" ? (
+            <p>Cargando grafo…</p>
+          ) : hasNotes ? (
+            <>
+              <p>Las reglas de exclusión ocultan todos los nodos.</p>
+              <p className={styles.hint}>Quitá alguna regla desde el menú de opciones.</p>
+            </>
+          ) : (
+            <>
+              <p>Aún no hay notas en el grafo.</p>
+              <p className={styles.hint}>
+                Enlazá notas con <code>[[nombre]]</code> para tejer tu red.
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

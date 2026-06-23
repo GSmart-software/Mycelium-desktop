@@ -70,6 +70,12 @@ export type Preferencias = {
    * se dibuja con el color del grupo. Gana el primer grupo que coincide.
    */
   graphColorGroups: { id: string; type: "path" | "tag" | "name"; value: string; color: string }[];
+  /**
+   * Grafo del vault: reglas para OCULTAR nodos. `name` = el nombre contiene
+   * `value` (todas las coincidencias); `path` = ruta exacta de archivo o
+   * directorio (excluye también su contenido); `tag` = tiene esa etiqueta.
+   */
+  graphExcludeRules: { id: string; type: "path" | "tag" | "name"; value: string }[];
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -84,6 +90,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphEdgeDirection: "animated",
   graphHoverGlow: 1,
   graphColorGroups: [],
+  graphExcludeRules: [],
 };
 
 type PreferencesState = {

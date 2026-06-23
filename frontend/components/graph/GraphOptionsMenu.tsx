@@ -17,18 +17,26 @@ const DIRECTIONS: { value: "none" | "animated" | "arrow" | "both"; label: string
  * Pensado para crecer con más opciones; por ahora: indicador de dirección de los
  * enlaces e intensidad del brillo de las conexiones al apuntar un nodo.
  */
-type ColorGroup = { id: string; type: "path" | "tag" | "name"; value: string; color: string };
+type RuleType = "path" | "tag" | "name";
+type ColorGroup = { id: string; type: RuleType; value: string; color: string };
+type ExcludeRule = { id: string; type: RuleType; value: string };
 
-const PLACEHOLDER: Record<ColorGroup["type"], string> = {
+const PLACEHOLDER: Record<RuleType, string> = {
   path: "carpeta o ruta",
   tag: "etiqueta (sin #)",
   name: "texto del nombre",
+};
+const EXCLUDE_PLACEHOLDER: Record<RuleType, string> = {
+  path: "ruta exacta (archivo/carpeta)",
+  tag: "etiqueta (sin #)",
+  name: "nombre a ocultar",
 };
 
 export function GraphOptionsMenu() {
   const edgeDirection = usePreferencesStore((s) => s.prefs.graphEdgeDirection);
   const hoverGlow = usePreferencesStore((s) => s.prefs.graphHoverGlow);
   const colorGroups = usePreferencesStore((s) => s.prefs.graphColorGroups);
+  const excludeRules = usePreferencesStore((s) => s.prefs.graphExcludeRules);
   const setPref = usePreferencesStore((s) => s.setPref);
 
   const [open, setOpen] = useState(false);
@@ -40,6 +48,13 @@ export function GraphOptionsMenu() {
   const updateGroup = (id: string, patch: Partial<ColorGroup>) =>
     setGroups(colorGroups.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   const removeGroup = (id: string) => setGroups(colorGroups.filter((g) => g.id !== id));
+
+  const setRules = (next: ExcludeRule[]) => setPref("graphExcludeRules", next);
+  const addRule = () =>
+    setRules([...excludeRules, { id: crypto.randomUUID(), type: "name", value: "" }]);
+  const updateRule = (id: string, patch: Partial<ExcludeRule>) =>
+    setRules(excludeRules.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const removeRule = (id: string) => setRules(excludeRules.filter((r) => r.id !== id));
 
   useEffect(() => {
     if (!open) return;
@@ -156,6 +171,57 @@ export function GraphOptionsMenu() {
                   onClick={() => removeGroup(g.id)}
                   title="Quitar grupo"
                   aria-label="Quitar grupo"
+                >
+                  <X size={13} aria-hidden />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.group}>
+            <span className={styles.label}>
+              Ocultar del grafo
+              <button
+                type="button"
+                className={styles.addBtn}
+                onClick={addRule}
+                title="Agregar regla de exclusión"
+                aria-label="Agregar regla de exclusión"
+              >
+                <Plus size={14} aria-hidden />
+              </button>
+            </span>
+            {excludeRules.length === 0 && (
+              <span className={styles.hint}>
+                Oculta nodos por nombre (todas las coincidencias), ruta exacta de
+                archivo/carpeta, o etiqueta.
+              </span>
+            )}
+            {excludeRules.map((r) => (
+              <div key={r.id} className={styles.groupRow}>
+                <select
+                  className={styles.select}
+                  value={r.type}
+                  onChange={(e) => updateRule(r.id, { type: e.target.value as RuleType })}
+                  aria-label="Tipo de exclusión"
+                >
+                  <option value="name">Nombre</option>
+                  <option value="path">Ruta</option>
+                  <option value="tag">Etiqueta</option>
+                </select>
+                <input
+                  className={styles.groupValue}
+                  value={r.value}
+                  placeholder={EXCLUDE_PLACEHOLDER[r.type]}
+                  onChange={(e) => updateRule(r.id, { value: e.target.value })}
+                  aria-label="Valor de la exclusión"
+                />
+                <button
+                  type="button"
+                  className={styles.delBtn}
+                  onClick={() => removeRule(r.id)}
+                  title="Quitar regla"
+                  aria-label="Quitar regla"
                 >
                   <X size={13} aria-hidden />
                 </button>
