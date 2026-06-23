@@ -147,6 +147,48 @@ export function MiniGraph({
       if (s && t) simEdges.push({ s, t });
     }
 
+    // ── Construcción temporal: el grafo CRECE. Solo los nodos ya "aparecidos"
+    //    participan en la simulación; al aparecer, cada nodo se coloca cerca de
+    //    sus vecinos ya presentes y el layout se readapta (estilo Obsidian). ──
+    const orderedSim = [...sim].sort(
+      (a, b) => (rankById.get(a.id) ?? 0) - (rankById.get(b.id) ?? 0),
+    );
+    const neighborsById = new Map<string, SimNode[]>();
+    const addNbr = (a: SimNode, b: SimNode) => {
+      const arr = neighborsById.get(a.id);
+      if (arr) arr.push(b);
+      else neighborsById.set(a.id, [b]);
+    };
+    for (const e of simEdges) {
+      addNbr(e.s, e.t);
+      addNbr(e.t, e.s);
+    }
+    const activated = new Set<string>();
+    // Coloca un nodo que recién aparece cerca del centroide de sus vecinos ya
+    // presentes (o cerca del origen si aún no tiene vecinos visibles).
+    const placeNew = (n: SimNode) => {
+      const nbrs = (neighborsById.get(n.id) ?? []).filter((m) => activated.has(m.id));
+      if (nbrs.length > 0) {
+        let sx = 0;
+        let sy = 0;
+        for (const m of nbrs) {
+          sx += m.x;
+          sy += m.y;
+        }
+        n.x = sx / nbrs.length + (Math.random() - 0.5) * 24;
+        n.y = sy / nbrs.length + (Math.random() - 0.5) * 24;
+      } else {
+        const ang = Math.random() * Math.PI * 2;
+        const rad = 16 + Math.random() * 28;
+        n.x = Math.cos(ang) * rad;
+        n.y = Math.sin(ang) * rad;
+      }
+      n.vx = 0;
+      n.vy = 0;
+      activated.add(n.id);
+    };
+    let prevRc: number | null = null;
+
     // Nodo en foco (centro fijo del panel, o el que está bajo el cursor) y el
     // conjunto de nodos que LO referencian (aristas nodo→foco), para pintarlos
     // con --mic-accent. Se recalcula solo al cambiar el foco (no por frame).
@@ -216,6 +258,7 @@ export function MiniGraph({
       let best: SimNode | null = null;
       let bestD = 14 / scale;
       for (const n of sim) {
+        if (!revealed(n)) continue; // no se puede apuntar un nodo aún invisible
         const d = Math.hypot(n.x - p.x, n.y - p.y);
         if (d < bestD + radius(n)) {
           best = n;
@@ -287,11 +330,15 @@ export function MiniGraph({
     ro.observe(canvas.parentElement ?? canvas);
 
     const simulate = () => {
+      // En construcción temporal solo simulan los nodos ya aparecidos, así el
+      // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
+      const tl = revealCountRef.current != null;
+      const active = tl ? sim.filter((n) => activated.has(n.id)) : sim;
       const k = 80;
-      for (let i = 0; i < sim.length; i++) {
-        const a = sim[i];
-        for (let j = i + 1; j < sim.length; j++) {
-          const b = sim[j];
+      for (let i = 0; i < active.length; i++) {
+        const a = active[i];
+        for (let j = i + 1; j < active.length; j++) {
+          const b = active[j];
           let dx = a.x - b.x;
           let dy = a.y - b.y;
           let d2 = dx * dx + dy * dy;
@@ -309,6 +356,7 @@ export function MiniGraph({
         }
       }
       for (const e of simEdges) {
+        if (tl && (!activated.has(e.s.id) || !activated.has(e.t.id))) continue;
         const dx = e.t.x - e.s.x;
         const dy = e.t.y - e.s.y;
         const d = Math.max(Math.hypot(dx, dy), 1);
@@ -318,7 +366,7 @@ export function MiniGraph({
         e.t.vx -= dx * f * 0.05;
         e.t.vy -= dy * f * 0.05;
       }
-      for (const n of sim) {
+      for (const n of active) {
         n.vx -= n.x * 0.004 * alpha;
         n.vy -= n.y * 0.004 * alpha;
         if (n === dragNode) continue;
@@ -446,6 +494,16 @@ export function MiniGraph({
     const tick = () => {
       frame = 0;
       if (!running || !canvas.isConnected) return;
+      // Construcción temporal: colocar los nodos recién aparecidos (en orden de
+      // creación) y dar energía para que el grafo se reacomode al crecer.
+      const rc = revealCountRef.current;
+      if (rc != null) {
+        if (prevRc == null) activated.clear(); // (re)inicio: crecer desde cero
+        const target = Math.min(rc, orderedSim.length);
+        while (activated.size < target) placeNew(orderedSim[activated.size]);
+        if (rc !== prevRc) alpha = Math.max(alpha, 0.6);
+      }
+      prevRc = rc ?? null;
       const now = performance.now();
       const interacting = !!dragNode || panning;
       // Mientras haya energía o interacción, se reinicia el contador de reposo.
