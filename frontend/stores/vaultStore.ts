@@ -89,6 +89,14 @@ const token = () => useAuthStore.getState().accessToken;
 // (que leyó antes de un move) resuelva última y revierta el árbol.
 let treeSeq = 0;
 
+// Movimientos recientes (id de nota/carpeta → carpeta/padre destino) para que una
+// lectura del árbol que aún NO refleja el cambio (réplica/caché del backend que
+// va por detrás del UPDATE) no revierta visualmente un archivo recién movido.
+// Cada entrada se confirma y limpia en cuanto el servidor refleja el destino;
+// expira por seguridad pasado el período (si el servidor nunca confirma).
+const pendingMoves = new Map<string, { parent: string | null; ts: number }>();
+const MOVE_GRACE_MS = 60_000;
+
 export const useVaultStore = create<VaultState>()(
   persist(
     (set, get) => ({
@@ -109,21 +117,41 @@ export const useVaultStore = create<VaultState>()(
         );
         // Si ya se inició una recarga más nueva, descartar este resultado viejo.
         if (seq !== treeSeq) return;
-        set({
-          vaultId,
-          carpetas: data.carpetas.map((c) => ({
-            id: c.id,
-            padreId: c.padre_id,
-            nombre: c.nombre,
-          })),
-          notas: data.notas.map((n) => ({
-            id: n.id,
-            carpetaId: n.carpeta_id,
-            titulo: n.titulo,
-            tipo: n.tipo === "excalidraw" ? "excalidraw" : "markdown",
-            actualizadoEn: n.actualizado_en,
-          })),
-        });
+
+        const carpetas: TreeCarpeta[] = data.carpetas.map((c) => ({
+          id: c.id,
+          padreId: c.padre_id,
+          nombre: c.nombre,
+        }));
+        const notas: TreeNota[] = data.notas.map((n) => ({
+          id: n.id,
+          carpetaId: n.carpeta_id,
+          titulo: n.titulo,
+          tipo: n.tipo === "excalidraw" ? "excalidraw" : "markdown",
+          actualizadoEn: n.actualizado_en,
+        }));
+
+        // Reconciliar con los movimientos recientes: si el árbol recibido todavía
+        // no refleja un move (lectura atrasada del backend), mantener la posición
+        // local; si ya lo refleja, dar el move por confirmado y olvidarlo.
+        const now = Date.now();
+        for (const [id, m] of pendingMoves) {
+          if (now - m.ts > MOVE_GRACE_MS) pendingMoves.delete(id);
+        }
+        for (const c of carpetas) {
+          const m = pendingMoves.get(c.id);
+          if (!m) continue;
+          if (c.padreId === m.parent) pendingMoves.delete(c.id);
+          else c.padreId = m.parent;
+        }
+        for (const n of notas) {
+          const m = pendingMoves.get(n.id);
+          if (!m) continue;
+          if (n.carpetaId === m.parent) pendingMoves.delete(n.id);
+          else n.carpetaId = m.parent;
+        }
+
+        set({ vaultId, carpetas, notas });
         // Marcador de carpetas compartidas para el árbol general (HU-35 CA5)
         try {
           const shared = await api<{ ids: string[] }>(
@@ -184,6 +212,7 @@ export const useVaultStore = create<VaultState>()(
           lastMove: { type: "carpeta", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
+        pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         try {
           await api(`/carpetas/${id}/mover`, {
             method: "POST",
@@ -192,6 +221,7 @@ export const useVaultStore = create<VaultState>()(
           });
         } catch {
           // Revertir si el backend rechazó el movimiento.
+          pendingMoves.delete(id);
           set((s) => ({
             carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
           }));
@@ -245,6 +275,7 @@ export const useVaultStore = create<VaultState>()(
           lastMove: { type: "nota", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
+        pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         try {
           await api(`/notas/${id}/mover`, {
             method: "POST",
@@ -253,6 +284,7 @@ export const useVaultStore = create<VaultState>()(
           });
         } catch {
           // Revertir si el backend rechazó el movimiento.
+          pendingMoves.delete(id);
           set((s) => ({
             notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
           }));
@@ -277,6 +309,7 @@ export const useVaultStore = create<VaultState>()(
         const move = get().lastMove;
         if (!move) return;
         set({ lastMove: null });
+        pendingMoves.set(move.id, { parent: move.prevParentId, ts: Date.now() });
         if (move.type === "nota") {
           await api(`/notas/${move.id}/mover`, {
             method: "POST",
