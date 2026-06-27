@@ -2,12 +2,14 @@
 
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   ChevronDown,
@@ -32,6 +34,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { SharedSection } from "./SharedSection";
 import {
   useVaultStore,
+  type NotaTipo,
   type TreeCarpeta,
   type TreeNota,
 } from "@/stores/vaultStore";
@@ -148,7 +151,24 @@ export function ExplorerPanel() {
     [router],
   );
 
+  // Vista fantasma que sigue al puntero al arrastrar (DEF-034).
+  const [dragGhost, setDragGhost] = useState<
+    { kind: "nota" | "carpeta"; nombre: string; tipo?: NotaTipo } | null
+  >(null);
+
+  function onDragStart(event: DragStartEvent) {
+    const id = String(event.active.id);
+    if (id.startsWith("nota:")) {
+      const nota = store.notas.find((n) => n.id === id.replace("nota:", ""));
+      if (nota) setDragGhost({ kind: "nota", nombre: nota.titulo, tipo: nota.tipo });
+    } else if (id.startsWith("carpeta:")) {
+      const carpeta = store.carpetas.find((c) => c.id === id.replace("carpeta:", ""));
+      if (carpeta) setDragGhost({ kind: "carpeta", nombre: carpeta.nombre });
+    }
+  }
+
   function onDragEnd(event: DragEndEvent) {
+    setDragGhost(null);
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
 
@@ -438,7 +458,7 @@ export function ExplorerPanel() {
         </button>
       </div>
 
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragGhost(null)}>
         <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
           <SectionHeader
             title="Archivos"
@@ -458,6 +478,22 @@ export function ExplorerPanel() {
           )}
           <SharedSection />
         </RootDropZone>
+
+        {/* Sombra que sigue al puntero mientras se arrastra (DEF-034). */}
+        <DragOverlay dropAnimation={null}>
+          {dragGhost && (
+            <div className={styles.dragGhost}>
+              {dragGhost.kind === "carpeta" ? (
+                <Folder size={15} className={styles.folderIcon} aria-hidden />
+              ) : dragGhost.tipo === "excalidraw" ? (
+                <Shapes size={15} className={styles.noteIcon} aria-hidden />
+              ) : (
+                <FileText size={15} className={styles.noteIcon} aria-hidden />
+              )}
+              <span className={styles.name}>{dragGhost.nombre}</span>
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
 
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}

@@ -114,6 +114,26 @@
   opacity: 0.45;
 }
 
+/* Sombra que sigue al puntero al arrastrar un archivo/carpeta (DEF-034). */
+.dragGhost {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--mic-glow) 45%, transparent);
+  border-radius: var(--mic-radius-sm);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  cursor: grabbing;
+  pointer-events: none;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .chevron {
   flex-shrink: 0;
   color: var(--mic-text-muted);

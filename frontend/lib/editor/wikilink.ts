@@ -66,7 +66,14 @@ export function resolveWikilink(
   const title = parts[parts.length - 1].toLowerCase();
   const hint = parts.slice(0, -1).map((s) => s.toLowerCase());
 
-  const matches = notas.filter((n) => n.titulo.toLowerCase() === title);
+  let matches = notas.filter((n) => n.titulo.toLowerCase() === title);
+  // Las referencias a archivos llevan extensión (`archivo.excalidraw`), pero el
+  // título de la nota no la incluye: si no hubo match exacto, se prueba sin la
+  // extensión para que el enlace/embed resuelva y no se estile como inexistente.
+  if (matches.length === 0) {
+    const stripped = title.replace(/\.(excalidraw|md)$/, "");
+    if (stripped !== title) matches = notas.filter((n) => n.titulo.toLowerCase() === stripped);
+  }
   if (matches.length === 0) return undefined;
 
   const byDepth = (a: TreeNota, b: TreeNota) =>

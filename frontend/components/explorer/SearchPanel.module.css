@@ -59,9 +59,50 @@
   user-select: none;
 }
 
+/* Checkbox propio del sistema (sin el control nativo del navegador). */
 .exactToggle input {
-  accent-color: var(--mic-glow);
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 55%, transparent);
+  border-radius: 4px;
+  background: var(--mic-bg-base);
   cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.exactToggle input::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  transition: transform 120ms ease-in-out;
+  /* Tilde dibujada con clip-path; el color lo da el box-shadow interior. */
+  box-shadow: inset 1em 1em var(--mic-raw-base-deep);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.exactToggle input:hover {
+  border-color: var(--mic-glow);
+}
+
+.exactToggle input:checked {
+  background: var(--mic-glow);
+  border-color: var(--mic-glow);
+}
+
+.exactToggle input:checked::before {
+  transform: scale(1);
+}
+
+.exactToggle input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--mic-glow) 60%, transparent);
+  outline-offset: 1px;
 }
 
 .exactToggle:hover {
