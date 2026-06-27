@@ -17,7 +17,7 @@ import { startCollab, type CollabHandle } from "@/lib/collab/collab";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
-import { liveExtensions } from "@/lib/editor/livePreview";
+import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import { docTitleField, setDocTitle } from "@/lib/editor/docTitle";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
@@ -137,6 +137,8 @@ export function NoteEditor({
   const [previewHtml, setPreviewHtml] = useState("");
   const [conflict, setConflict] = useState<string | null>(null);
   const [editingDiag, setEditingDiag] = useState<string | null>(null);
+  // Archivo .excalidraw del vault que se edita en el modal embebido (HU-16).
+  const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
 
@@ -281,7 +283,7 @@ export function NoteEditor({
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
-              modeRef.current === "live" ? liveExtensions(openByTitle, noteExists) : [],
+              modeRef.current === "live" ? liveExtensions(openByTitle, noteExists, notaId) : [],
             ),
             // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
             // compartidas con relay disponible (cloudflare).
@@ -520,7 +522,7 @@ export function NoteEditor({
       window.localStorage.setItem(`micelio-mode-${notaId}`, next);
       viewRef.current?.dispatch({
         effects: liveCompartment.current.reconfigure(
-          next === "live" ? liveExtensions(openByTitle, noteExists) : [],
+          next === "live" ? liveExtensions(openByTitle, noteExists, notaId) : [],
         ),
       });
       if (next === "split" || next === "read") {
@@ -557,9 +559,7 @@ export function NoteEditor({
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
-      void renderExcalidrawIn(previewRef.current, notaId, (ref) =>
-        resolveWikilink(ref, vaultNotas, vaultCarpetas),
-      );
+      void renderExcalidrawIn(previewRef.current, notaId);
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
       attachHeadingFolds(previewRef.current); // plegar secciones por título (lectura)
     }
@@ -574,9 +574,9 @@ export function NoteEditor({
 
   /**
    * Crea un archivo .excalidraw REAL en la carpeta de la nota actual (aparece en
-   * el explorador y es manipulable como cualquier nota) e inserta su embed por
-   * título. Se abre en segundo plano para que la nota actual conserve el foco y
-   * autoguarde el embed insertado (HU-16 CA1a).
+   * el explorador y es manipulable como cualquier nota), inserta su embed por
+   * título y abre el panel de edición embebido (modal) para dibujar enseguida,
+   * sin salir del markdown (HU-16 CA1a).
    */
   const insertDiagram = useCallback(() => {
     const view = viewRef.current;
@@ -589,7 +589,7 @@ export function NoteEditor({
         "Dibujo sin título";
       const { from } = view.state.selection.main;
       view.dispatch({ changes: { from, insert: `![[${titulo}.excalidraw]]` } });
-      useTabsStore.getState().openNoteBackground(newId);
+      setEditingFile(newId); // abrir el editor embebido del nuevo dibujo
     });
   }, [notaId]);
 
@@ -637,11 +637,11 @@ export function NoteEditor({
       if (diagram) {
         const targetNota = diagram.getAttribute("data-nota");
         if (targetNota) {
-          // Archivo .excalidraw independiente → abrirlo como pestaña.
-          useTabsStore.getState().openNote(targetNota);
-          router.push(`/workspace?note=${targetNota}`);
+          // Archivo .excalidraw del vault → editarlo en el modal embebido, sin
+          // salir del markdown (HU-16 CA3).
+          setEditingFile(targetNota);
         } else {
-          // Diagrama embebido (legado) → editor Excalidraw en modal (HU-16 CA3).
+          // Diagrama embebido (legado) → editor Excalidraw en modal.
           setEditingDiag(diagram.getAttribute("data-diag"));
         }
         return;
@@ -799,6 +799,17 @@ export function NoteEditor({
           onClose={() => {
             setEditingDiag(null);
             setPreviewTick((t) => t + 1); // re-render del SVG embebido
+          }}
+        />
+      )}
+
+      {editingFile && (
+        <ExcalidrawModal
+          fileId={editingFile}
+          onClose={() => {
+            setEditingFile(null);
+            setPreviewTick((t) => t + 1); // re-render del SVG en lectura/dividido
+            refreshAllLiveViews(); // re-render del embed en vivo
           }}
         />
       )}

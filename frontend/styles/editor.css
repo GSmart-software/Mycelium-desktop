@@ -779,6 +779,36 @@
   margin-bottom: 0.85rem;
 }
 
+/* Embed de excalidraw renderizado en el editor en vivo (widget de bloque). */
+.mic-live-excalidraw {
+  display: flex;
+  justify-content: center;
+  padding: 0.4rem 0;
+  cursor: pointer;
+  border-radius: var(--mic-radius-md);
+  transition: background-color 120ms ease;
+}
+
+.mic-live-excalidraw:hover {
+  background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+.mic-live-excalidraw svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mic-live-excalidraw.mic-excalidraw-empty {
+  padding: 1.25rem;
+  color: var(--mic-text-muted);
+  border: 1px dashed color-mix(in srgb, var(--mic-glow) 50%, transparent);
+}
+
+.mic-live-excalidraw.mic-excalidraw-error {
+  color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+}
+
 /* ── Notas al pie (HU-03 CA7) ────────────────────────────────────── */
 
 .mic-preview .footnotes {

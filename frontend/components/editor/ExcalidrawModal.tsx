@@ -2,7 +2,13 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { loadDiagram, saveDiagram, type ExcalidrawScene } from "@/lib/excalidraw";
+import {
+  loadDiagram,
+  loadNotaScene,
+  saveDiagram,
+  saveNotaScene,
+  type ExcalidrawScene,
+} from "@/lib/excalidraw";
 import styles from "./ExcalidrawModal.module.css";
 
 const Excalidraw = dynamic(
@@ -16,16 +22,20 @@ type ExcalidrawApi = {
 };
 
 /**
- * Editor Excalidraw en modal (HU-16 CA3/CA5): se abre al clicar el diagrama
- * renderizado; al cerrar guarda automáticamente.
+ * Editor Excalidraw en modal (HU-16 CA3/CA5): se abre al crear o al clicar un
+ * diagrama renderizado; al cerrar guarda automáticamente. Edita un archivo
+ * .excalidraw del vault (`fileId`, contenido de la nota) o, en su defecto, un
+ * diagrama embebido legado (`notaId`+`diagId`).
  */
 export function ExcalidrawModal({
   notaId,
   diagId,
+  fileId,
   onClose,
 }: {
-  notaId: string;
-  diagId: string;
+  notaId?: string;
+  diagId?: string;
+  fileId?: string;
   onClose: () => void;
 }) {
   const apiRef = useRef<ExcalidrawApi | null>(null);
@@ -34,19 +44,24 @@ export function ExcalidrawModal({
   );
 
   useEffect(() => {
-    void loadDiagram(notaId, diagId).then((scene) =>
-      setInitialScene(scene ?? { elements: [] }),
-    );
-  }, [notaId, diagId]);
+    const load = fileId
+      ? loadNotaScene(fileId)
+      : notaId && diagId
+        ? loadDiagram(notaId, diagId)
+        : Promise.resolve<ExcalidrawScene | null>({ elements: [] });
+    void load.then((scene) => setInitialScene(scene ?? { elements: [] }));
+  }, [fileId, notaId, diagId]);
 
   async function saveAndClose() {
     const api = apiRef.current;
     if (api) {
-      await saveDiagram(notaId, diagId, {
+      const scene: ExcalidrawScene = {
         elements: api.getSceneElements(),
         appState: {},
         files: api.getFiles(),
-      });
+      };
+      if (fileId) await saveNotaScene(fileId, scene);
+      else if (notaId && diagId) await saveDiagram(notaId, diagId, scene);
     }
     onClose();
   }
@@ -55,7 +70,7 @@ export function ExcalidrawModal({
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <header className={styles.header}>
-          <span className={styles.title}>Diagrama {diagId.slice(0, 8)}</span>
+          <span className={styles.title}>Dibujo</span>
           <button type="button" className={styles.save} onClick={() => void saveAndClose()}>
             Guardar y cerrar
           </button>

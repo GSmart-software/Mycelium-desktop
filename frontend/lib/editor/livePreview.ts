@@ -20,6 +20,7 @@ import {
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { renderMarkdown } from "@/lib/markdown";
+import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -62,8 +63,13 @@ const micelioHighlight = HighlightStyle.define([
 /** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */
 export const refreshLiveEffect = StateEffect.define<null>();
 
+// Generación de los embeds excalidraw en vivo: aumenta en cada refresh para que
+// los widgets se vuelvan a renderizar (su eq() la incluye) tras guardar un dibujo.
+let liveGen = 0;
+
 /** Redispara el live preview en todos los editores abiertos. */
 export function refreshAllLiveViews() {
+  liveGen++;
   for (const view of getAllViews()) {
     view.dispatch({ effects: refreshLiveEffect.of(null) });
   }
@@ -148,15 +154,18 @@ const tableField = StateField.define<TableState>({
 export function liveExtensions(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
+  notaId: string | null = null,
 ): Extension {
   return [
     syntaxHighlighting(micelioHighlight),
     tableField,
-    livePreview(onWikilinkClick, noteExists),
+    livePreview(onWikilinkClick, noteExists, notaId),
   ];
 }
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
+/** Embed de un diagrama/archivo excalidraw: `![[ref.excalidraw]]`. */
+const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` con símbolo de plegado opcional (-/+). */
 const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!([\w-]+)\]([-+]?)/;
@@ -266,13 +275,14 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
 export function livePreview(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
+  notaId: string | null = null,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, noteExists);
+        this.decorations = buildDecorations(view, noteExists, notaId);
       }
 
       update(update: ViewUpdate) {
@@ -280,7 +290,7 @@ export function livePreview(
           tr.effects.some((e) => e.is(refreshLiveEffect)),
         );
         if (update.docChanged || update.selectionSet || update.viewportChanged || refreshed) {
-          this.decorations = buildDecorations(update.view, noteExists);
+          this.decorations = buildDecorations(update.view, noteExists, notaId);
         }
       }
     },
@@ -307,11 +317,50 @@ export function livePreview(
   );
 }
 
+/**
+ * Widget de bloque que renderiza un embed de excalidraw (`![[ref.excalidraw]]`)
+ * como el dibujo (SVG). Al hacer clic, coloca el cursor en la línea del embed
+ * para que se muestre la fuente (se deja de renderizar), como el resto del live
+ * preview. Solo aparece cuando el cursor NO está en esa línea.
+ */
+class ExcalidrawWidget extends WidgetType {
+  constructor(
+    readonly ref: string,
+    readonly notaId: string | null,
+    readonly pos: number,
+    readonly gen: number,
+  ) {
+    super();
+  }
+
+  eq(other: ExcalidrawWidget) {
+    return other.ref === this.ref && other.notaId === this.notaId && other.gen === this.gen;
+  }
+
+  toDOM(view: EditorView) {
+    const block = document.createElement("div");
+    block.className = "mic-live-excalidraw";
+    block.addEventListener("mousedown", (event) => {
+      // Clic → revelar la fuente: colocar el cursor en la línea del embed.
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    void renderExcalidrawInto(block, this.ref, this.notaId);
+    return block;
+  }
+
+  ignoreEvent() {
+    return true; // dejamos que nuestro propio listener de mousedown gestione el clic
+  }
+}
+
 type PendingDeco = { from: number; to: number; deco: Decoration };
 
 function buildDecorations(
   view: EditorView,
   noteExists: (target: string) => boolean,
+  notaId: string | null = null,
 ): DecorationSet {
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
@@ -589,8 +638,27 @@ function buildDecorations(
         firstBodyPending = false;
       }
 
+      // Embeds de excalidraw (`![[ref.excalidraw]]`): se renderizan como bloque
+      // cuando ocupan toda la línea y el cursor no está en ella. Sus rangos se
+      // excluyen del paso de wikilinks (el `[[…]]` interno no debe estilarse).
+      const exRanges: [number, number][] = [];
+      for (const match of line.text.matchAll(EXCALIDRAW_RE)) {
+        const mFrom = line.from + match.index;
+        exRanges.push([mFrom, mFrom + match[0].length]);
+        if (!isActive && text.trim() === match[0]) {
+          decos.push({
+            from: line.from,
+            to: line.to,
+            deco: Decoration.replace({
+              widget: new ExcalidrawWidget(match[1], notaId, line.from, liveGen),
+            }),
+          });
+        }
+      }
+
       for (const match of line.text.matchAll(WIKILINK_RE)) {
         const start = line.from + match.index;
+        if (exRanges.some(([f, t]) => start >= f && start < t)) continue;
         const innerFrom = start + 2;
         const innerTo = innerFrom + match[1].length;
         // [[destino|alias]]: el destino navega, el alias es lo visible.
