@@ -10,6 +10,7 @@
  * Rutas de fases posteriores (auth, preferencias, css, búsqueda, grafo,
  * conexiones, compartido) devuelven 501 hasta que se implementen.
  */
+import { actualizarPerfil, me, session } from "@/lib/db/auth";
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
@@ -18,6 +19,9 @@ import { DbError } from "@/lib/db/errors";
 import { conexiones, grafo } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
+import { putPreferencias } from "@/lib/db/preferencias";
+import { compartido, miembros, noop } from "@/lib/db/sharing";
+import { actualizarSnippet, borrarSnippet, crearSnippet, listarSnippets } from "@/lib/db/snippets";
 import { carpetasCompartidas, tree } from "@/lib/db/tree";
 
 export class ApiError extends Error {
@@ -53,7 +57,45 @@ async function dispatch(
   q: URLSearchParams,
   body: Body,
 ): Promise<unknown> {
-  const [a, b, c, d] = seg;
+  const [a, b, c, d, e] = seg;
+
+  // ── /auth/... (auth latente, preferencias, css) ───────────────────────────
+  if (a === "auth") {
+    if (b === "refresh" && method === "POST") return session();
+    if (b === "login" && method === "POST") return session();
+    if (b === "me" && method === "GET") return me();
+    if (b === "logout" && method === "POST") return { ok: true };
+    if (b === "cerrar-todo" && method === "POST") return { ok: true };
+    if (b === "register" && method === "POST") return { message: "Cuenta local lista." };
+    if (b === "verify-email" && method === "POST") return { message: "Verificado." };
+    if (b === "forgot-password" && method === "POST") return { message: "Sin correo en modo local." };
+    if (b === "reset-password" && method === "POST") return { message: "Contraseña actualizada." };
+    if (b === "cambiar-password" && method === "POST") return { message: "Contraseña actualizada." };
+    if (b === "perfil" && method === "PATCH") {
+      return actualizarPerfil(s(body.nombre), s(body.avatarUrl));
+    }
+    if (b === "preferencias" && method === "PUT") {
+      return putPreferencias(s(body.tema), Boolean(body.modoOscuro), body.preferencias);
+    }
+    // /auth/css/snippets[/:id]
+    if (b === "css" && c === "snippets") {
+      if (!d && method === "GET") return listarSnippets();
+      if (!d && method === "POST") {
+        return crearSnippet(String(body.nombre ?? ""), String(body.contenido ?? ""));
+      }
+      if (d && method === "PATCH") {
+        return actualizarSnippet(d, {
+          nombre: body.nombre === undefined ? undefined : String(body.nombre),
+          contenido: body.contenido === undefined ? undefined : String(body.contenido),
+          activo: body.activo === undefined ? undefined : Boolean(body.activo),
+        });
+      }
+      if (d && method === "DELETE") return borrarSnippet(d);
+    }
+  }
+
+  // ── /compartido (sharing latente) ─────────────────────────────────────────
+  if (a === "compartido" && method === "GET") return compartido();
 
   // ── /vaults/:vaultId/... ──────────────────────────────────────────────────
   if (a === "vaults" && b) {
@@ -86,6 +128,10 @@ async function dispatch(
       await moverCarpeta(b, s(body.destinoId));
       return { id: b };
     }
+    // Sharing latente (no-op): miembros / compartir
+    if (c === "miembros" && !d && method === "GET") return miembros();
+    if (c === "compartir" && method === "POST") return noop();
+    if (c === "miembros" && e && (method === "PATCH" || method === "DELETE")) return noop();
   }
 
   // ── /notas/:id/... ────────────────────────────────────────────────────────
@@ -112,6 +158,8 @@ async function dispatch(
       return { id: b };
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
+    // Colaboración deshabilitada en local: sin relay (como el backend local).
+    if (c === "colaboracion" && method === "GET") return null;
     if (c === "contenido" && method === "GET") return getContenido(b);
     if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
     // /notas/:notaId/diagramas/:diagId
