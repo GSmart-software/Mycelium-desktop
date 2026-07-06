@@ -28,6 +28,20 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "fileAssociations": [
+      {
+        "ext": ["md"],
+        "name": "Markdown",
+        "description": "Nota Markdown de Mycelium",
+        "role": "Editor"
+      },
+      {
+        "ext": ["excalidraw"],
+        "name": "Excalidraw",
+        "description": "Dibujo Excalidraw de Mycelium",
+        "role": "Editor"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
