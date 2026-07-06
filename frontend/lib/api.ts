@@ -158,8 +158,9 @@ async function dispatch(
       return { id: b };
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
-    // Colaboración deshabilitada en local: sin relay (como el backend local).
-    if (c === "colaboracion" && method === "GET") return null;
+    // Colaboración deshabilitada en local: sin relay. Se devuelve un objeto con
+    // `habilitada:false` (NO null) para que startCollab caiga con gracia.
+    if (c === "colaboracion" && method === "GET") return { habilitada: false };
     if (c === "contenido" && method === "GET") return getContenido(b);
     if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
     // /notas/:notaId/diagramas/:diagId
