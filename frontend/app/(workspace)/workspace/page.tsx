@@ -6,7 +6,6 @@ import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
-import { DesktopMenu } from "@/components/workspace/DesktopMenu";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
@@ -22,7 +21,6 @@ import styles from "./workspace.module.css";
 export default function WorkspacePage() {
   return (
     <Suspense>
-      <DesktopMenu />
       <WorkspaceGuard />
     </Suspense>
   );
