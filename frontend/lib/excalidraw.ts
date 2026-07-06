@@ -1,9 +1,7 @@
+import { api } from "@/lib/api";
 import { resolveWikilink } from "@/lib/editor/wikilink";
-import { useAuthStore } from "@/stores/authStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import type { TreeNota } from "@/stores/vaultStore";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5279";
 
 /** Escena .excalidraw mínima que persistimos (HU-16 CA4/CA5). */
 export type ExcalidrawScene = {
@@ -15,21 +13,18 @@ export type ExcalidrawScene = {
   files?: Record<string, unknown> | null;
 };
 
-function authHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().accessToken;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export async function loadDiagram(
   notaId: string,
   diagId: string,
 ): Promise<ExcalidrawScene | null> {
-  const response = await fetch(`${API_URL}/notas/${notaId}/diagramas/${diagId}`, {
-    credentials: "include",
-    headers: authHeaders(),
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as ExcalidrawScene;
+  try {
+    // El dispatcher devuelve la escena como JSON crudo (string), igual que el
+    // backend antiguo con Results.Text.
+    const json = await api<string>(`/notas/${notaId}/diagramas/${diagId}`);
+    return JSON.parse(json) as ExcalidrawScene;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -38,12 +33,12 @@ export async function loadDiagram(
  * embeber `![[archivo.excalidraw]]` apuntando a un archivo independiente.
  */
 export async function loadNotaScene(notaId: string): Promise<ExcalidrawScene | null> {
-  const response = await fetch(`${API_URL}/notas/${notaId}/contenido`, {
-    credentials: "include",
-    headers: authHeaders(),
-  });
-  if (!response.ok) return null;
-  const data = (await response.json()) as { contenido?: string };
+  let data: { contenido?: string };
+  try {
+    data = await api<{ contenido?: string }>(`/notas/${notaId}/contenido`);
+  } catch {
+    return null;
+  }
   if (!data.contenido) return { elements: [] };
   try {
     const parsed = JSON.parse(data.contenido);
@@ -62,16 +57,15 @@ export async function saveDiagram(
   diagId: string,
   scene: ExcalidrawScene,
 ): Promise<void> {
-  await fetch(`${API_URL}/notas/${notaId}/diagramas/${diagId}`, {
+  const contenido = JSON.stringify({
+    type: "excalidraw",
+    version: 2,
+    source: "micelio",
+    ...scene,
+  });
+  await api(`/notas/${notaId}/diagramas/${diagId}`, {
     method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({
-      type: "excalidraw",
-      version: 2,
-      source: "micelio",
-      ...scene,
-    }),
+    body: { contenido },
   });
 }
 
@@ -85,11 +79,9 @@ export async function saveNotaScene(notaId: string, scene: ExcalidrawScene): Pro
     appState: scene.appState ?? {},
     files: scene.files ?? {},
   });
-  await fetch(`${API_URL}/notas/${notaId}/contenido`, {
+  await api(`/notas/${notaId}/contenido`, {
     method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ contenido }),
+    body: { contenido },
   });
 }
 

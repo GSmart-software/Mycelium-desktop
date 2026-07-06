@@ -486,21 +486,13 @@ export function NoteEditor({
     const interval = setInterval(() => void syncNow(), SYNC_INTERVAL_MS);
     const onOnline = () => void syncNow();
     const onBeforeUnload = () => {
+      // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
+      // dispatcher local (antes era un fetch al backend .NET).
       if (dirtyRef.current) {
-        const token = useAuthStore.getState().accessToken;
-        void fetch(
-          `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5279"}/notas/${notaId}/contenido`,
-          {
-            method: "PUT",
-            keepalive: true,
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ contenido: contentRef.current }),
-          },
-        );
+        void api(`/notas/${notaId}/contenido`, {
+          method: "PUT",
+          body: { contenido: contentRef.current },
+        });
       }
     };
 

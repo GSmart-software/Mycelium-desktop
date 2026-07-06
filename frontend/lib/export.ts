@@ -9,7 +9,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5279";
 const EXCALIDRAW_RE = /!\[\[([0-9a-f-]+)\.excalidraw\]\]/gi;
 
 /** Nombre de archivo seguro a partir del título de la nota. */
@@ -71,7 +70,6 @@ export async function exportVaultZip(
 ): Promise<void> {
   const { notas, vaultId } = useVaultStore.getState();
   const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
-  const token = useAuthStore.getState().accessToken;
 
   const zip = new JSZip();
   const adjuntos = new Set<string>();
@@ -91,11 +89,8 @@ export async function exportVaultZip(
   for (const ref of adjuntos) {
     const [notaId, diagId] = ref.split(":");
     try {
-      const res = await fetch(`${API_URL}/notas/${notaId}/diagramas/${diagId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        credentials: "include",
-      });
-      if (res.ok) zip.file(`adjuntos/${diagId}.excalidraw`, await res.text());
+      const json = await api<string>(`/notas/${notaId}/diagramas/${diagId}`);
+      zip.file(`adjuntos/${diagId}.excalidraw`, json);
     } catch {
       // adjunto inaccesible → se omite
     }
@@ -129,7 +124,13 @@ async function renderNoteHtml(notaId: string): Promise<string> {
   }
 }
 
-/** Exporta la nota como PDF con el tema aplicado, vía backend (HU-10). */
+/**
+ * Exporta la nota como PDF 100% en el cliente (HU-10, escritorio): renderiza el
+ * HTML de la nota (con SVG de Mermaid/Excalidraw) en un iframe oculto con el tema
+ * y el tamaño de página aplicados, y abre el diálogo de impresión del webview
+ * (el usuario elige "Guardar como PDF"). Sustituye la generación por PuppeteerSharp
+ * del backend; el resultado puede diferir ligeramente.
+ */
 export async function exportNotePdf(
   notaId: string,
   titulo: string,
@@ -138,22 +139,41 @@ export async function exportNotePdf(
   modoOscuro: boolean,
 ): Promise<void> {
   const html = await renderNoteHtml(notaId);
-  const res = await fetch(`${API_URL}/notas/${notaId}/exportar-pdf`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(useAuthStore.getState().accessToken
-        ? { Authorization: `Bearer ${useAuthStore.getState().accessToken}` }
-        : {}),
-    },
-    body: JSON.stringify({ pageSize, tema, modoOscuro, html, css: PRINT_CSS }),
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  Object.assign(iframe.style, {
+    position: "fixed",
+    right: "0",
+    bottom: "0",
+    width: "0",
+    height: "0",
+    border: "0",
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
-    throw new Error((err as { error?: string })?.error ?? "No se pudo exportar el PDF.");
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    iframe.remove();
+    throw new Error("No se pudo preparar la impresión.");
   }
-  downloadBlob(await res.blob(), `${safeName(titulo)}.pdf`);
+
+  const darkAttr = modoOscuro ? ' data-dark="true"' : "";
+  doc.open();
+  doc.write(
+    `<!doctype html><html data-theme="${tema}"${darkAttr}><head><meta charset="utf-8">` +
+      `<title>${safeName(titulo)}</title>` +
+      `<style>@page { size: ${pageSize}; margin: 16mm; } ${PRINT_CSS}</style></head>` +
+      `<body><div class="mic-preview">${html}</div></body></html>`,
+  );
+  doc.close();
+
+  // Dar tiempo a que rendericen SVG/imágenes antes de abrir el diálogo.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  iframe.contentWindow?.focus();
+  iframe.contentWindow?.print();
+  // Retirar el iframe tras cerrar el diálogo (no bloqueante).
+  setTimeout(() => iframe.remove(), 1000);
 }
 
 /** Atajo de exportación a PDF con el tema activo de preferencias (HU-10). */
