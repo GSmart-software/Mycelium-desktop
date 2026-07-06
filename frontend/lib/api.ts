@@ -10,10 +10,12 @@
  * Rutas de fases posteriores (auth, preferencias, css, búsqueda, grafo,
  * conexiones, compartido) devuelven 501 hasta que se implementen.
  */
+import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
 import { getDiagrama, putDiagrama } from "@/lib/db/diagramas";
 import { DbError } from "@/lib/db/errors";
+import { conexiones, grafo } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
 import { carpetasCompartidas, tree } from "@/lib/db/tree";
@@ -45,7 +47,12 @@ const s = (v: unknown): string | null => (v === undefined || v === null ? null :
  * Enruta la petición a la capa de datos. Devuelve la forma exacta que cada
  * call-site ya espera de `api()`.
  */
-async function dispatch(method: Method, seg: string[], body: Body): Promise<unknown> {
+async function dispatch(
+  method: Method,
+  seg: string[],
+  q: URLSearchParams,
+  body: Body,
+): Promise<unknown> {
   const [a, b, c, d] = seg;
 
   // ── /vaults/:vaultId/... ──────────────────────────────────────────────────
@@ -53,6 +60,10 @@ async function dispatch(method: Method, seg: string[], body: Body): Promise<unkn
     if (c === "tree" && method === "GET") return tree(b);
     if (c === "carpetas-compartidas" && method === "GET") return carpetasCompartidas(b);
     if (c === "papelera" && method === "GET") return listarPapelera(b);
+    if (c === "grafo" && method === "GET") return grafo(b);
+    if (c === "buscar" && method === "GET") {
+      return buscar(b, q.get("q") ?? "", q.get("exacto") === "true");
+    }
     if (c === "carpetas" && !d && method === "POST") {
       return crearCarpeta(b, s(body.padreId), String(body.nombre ?? ""));
     }
@@ -100,6 +111,7 @@ async function dispatch(method: Method, seg: string[], body: Body): Promise<unkn
       await borrarPermanente(b);
       return { id: b };
     }
+    if (c === "conexiones" && method === "GET") return conexiones(b);
     if (c === "contenido" && method === "GET") return getContenido(b);
     if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
     // /notas/:notaId/diagramas/:diagId
@@ -114,12 +126,13 @@ async function dispatch(method: Method, seg: string[], body: Body): Promise<unkn
 
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const method = (options.method ?? "GET") as Method;
-  const rawPath = path.split("?")[0];
+  const [rawPath, rawQuery] = path.split("?");
   const seg = rawPath.split("/").filter(Boolean);
+  const q = new URLSearchParams(rawQuery ?? "");
   const body = (options.body ?? {}) as Body;
 
   try {
-    return (await dispatch(method, seg, body)) as T;
+    return (await dispatch(method, seg, q, body)) as T;
   } catch (err) {
     if (err instanceof DbError) throw new ApiError(err.status, err.message);
     if (err instanceof ApiError) throw err;
