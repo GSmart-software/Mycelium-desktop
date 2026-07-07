@@ -67,7 +67,7 @@ export function GraphView() {
   // tag = tiene esa etiqueta; path = ruta EXACTA de archivo o de directorio (en
   // este último caso oculta también su contenido, incluidas subcarpetas).
   const excludedIds = useMemo(() => {
-    const reglas = excludeRules.filter((r) => r.value.trim());
+    const reglas = excludeRules.filter((r) => r.value.trim() && r.enabled !== false);
     if (reglas.length === 0 || !data) return null;
     const set = new Set<string>();
     for (const node of data.nodos) {
@@ -107,7 +107,7 @@ export function GraphView() {
 
   // Color por nodo (sobre el grafo visible): gana el primer grupo que coincide.
   const nodeColors = useMemo(() => {
-    const grupos = colorGroups.filter((g) => g.value.trim());
+    const grupos = colorGroups.filter((g) => g.value.trim() && g.enabled !== false);
     if (grupos.length === 0) return undefined;
     const m = new Map<string, string>();
     for (const node of visible.nodos) {
