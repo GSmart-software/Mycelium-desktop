@@ -18,8 +18,8 @@ const DIRECTIONS: { value: "none" | "animated" | "arrow" | "both"; label: string
  * enlaces e intensidad del brillo de las conexiones al apuntar un nodo.
  */
 type RuleType = "path" | "tag" | "name";
-type ColorGroup = { id: string; type: RuleType; value: string; color: string };
-type ExcludeRule = { id: string; type: RuleType; value: string };
+type ColorGroup = { id: string; type: RuleType; value: string; color: string; enabled?: boolean };
+type ExcludeRule = { id: string; type: RuleType; value: string; enabled?: boolean };
 
 const PLACEHOLDER: Record<RuleType, string> = {
   path: "carpeta o ruta",
@@ -44,14 +44,14 @@ export function GraphOptionsMenu() {
 
   const setGroups = (next: ColorGroup[]) => setPref("graphColorGroups", next);
   const addGroup = () =>
-    setGroups([...colorGroups, { id: crypto.randomUUID(), type: "tag", value: "", color: "#7c9cff" }]);
+    setGroups([...colorGroups, { id: crypto.randomUUID(), type: "tag", value: "", color: "#7c9cff", enabled: true }]);
   const updateGroup = (id: string, patch: Partial<ColorGroup>) =>
     setGroups(colorGroups.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   const removeGroup = (id: string) => setGroups(colorGroups.filter((g) => g.id !== id));
 
   const setRules = (next: ExcludeRule[]) => setPref("graphExcludeRules", next);
   const addRule = () =>
-    setRules([...excludeRules, { id: crypto.randomUUID(), type: "name", value: "" }]);
+    setRules([...excludeRules, { id: crypto.randomUUID(), type: "name", value: "", enabled: true }]);
   const updateRule = (id: string, patch: Partial<ExcludeRule>) =>
     setRules(excludeRules.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const removeRule = (id: string) => setRules(excludeRules.filter((r) => r.id !== id));
@@ -141,6 +141,15 @@ export function GraphOptionsMenu() {
             )}
             {colorGroups.map((g) => (
               <div key={g.id} className={styles.groupRow}>
+                <label className={styles.switch} title={g.enabled === false ? "Regla desactivada" : "Regla activada"}>
+                  <input
+                    type="checkbox"
+                    checked={g.enabled !== false}
+                    onChange={(e) => updateGroup(g.id, { enabled: e.target.checked })}
+                    aria-label="Activar o desactivar la regla"
+                  />
+                  <span className={styles.switchTrack} aria-hidden />
+                </label>
                 <select
                   className={styles.select}
                   value={g.type}
@@ -199,6 +208,15 @@ export function GraphOptionsMenu() {
             )}
             {excludeRules.map((r) => (
               <div key={r.id} className={styles.groupRow}>
+                <label className={styles.switch} title={r.enabled === false ? "Regla desactivada" : "Regla activada"}>
+                  <input
+                    type="checkbox"
+                    checked={r.enabled !== false}
+                    onChange={(e) => updateRule(r.id, { enabled: e.target.checked })}
+                    aria-label="Activar o desactivar la regla"
+                  />
+                  <span className={styles.switchTrack} aria-hidden />
+                </label>
                 <select
                   className={styles.select}
                   value={r.type}

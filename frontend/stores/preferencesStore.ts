@@ -69,13 +69,13 @@ export type Preferencias = {
    * contiene `value`, tiene la etiqueta `value`, o su nombre contiene `value`)
    * se dibuja con el color del grupo. Gana el primer grupo que coincide.
    */
-  graphColorGroups: { id: string; type: "path" | "tag" | "name"; value: string; color: string }[];
+  graphColorGroups: { id: string; type: "path" | "tag" | "name"; value: string; color: string; enabled?: boolean }[];
   /**
    * Grafo del vault: reglas para OCULTAR nodos. `name` = el nombre contiene
    * `value` (todas las coincidencias); `path` = ruta exacta de archivo o
    * directorio (excluye también su contenido); `tag` = tiene esa etiqueta.
    */
-  graphExcludeRules: { id: string; type: "path" | "tag" | "name"; value: string }[];
+  graphExcludeRules: { id: string; type: "path" | "tag" | "name"; value: string; enabled?: boolean }[];
 };
 
 const DEFAULT_PREFS: Preferencias = {

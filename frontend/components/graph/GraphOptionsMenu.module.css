@@ -163,3 +163,46 @@
   color: var(--mic-callout-caution-border);
   background: var(--mic-bg-hover);
 }
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switchTrack {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-text-muted) 35%, transparent);
+  transition: background 0.15s ease;
+  position: relative;
+}
+.switchTrack::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--mic-raw-canvas);
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .switchTrack {
+  background: var(--mic-accent);
+}
+.switch input:checked + .switchTrack::after {
+  transform: translateX(16px);
+}
+.switch input:focus-visible + .switchTrack {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
