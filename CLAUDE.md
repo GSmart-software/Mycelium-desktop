@@ -81,8 +81,8 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
   - Desktop/Rust: `cd frontend/src-tauri && cargo check`.
   - Web/.NET: compila el backend (`dotnet build` en `backend/`).
   - Si hay smoke tests (`frontend/scripts/smoke-*.mjs`), adáptalos/córrelos.
-- Commits en **español**, estilo del repo (`tipo(area): descripción`), y terminando con:
-  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Commits en **español**, estilo del repo (`tipo(area): descripción`). Nunca terminar con:
+  `Co-Authored-By: Claude {model} <noreply@anthropic.com>`. Siempre se harán los commits como si los creara el propio usuario. Ningún commit debe figurar como si Claude (o cualquier IA) hubiera participado
 - No hagas `push` ni toques el remoto salvo que se indique.
 - Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, dudas.
 
