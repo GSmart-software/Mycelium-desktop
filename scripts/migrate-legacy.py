@@ -202,7 +202,8 @@ def main() -> int:
     finally:
         new.close()
 
-    print("\n✔ Migración completa. Abre la app: entrará al vault real (auth latente).")
+    # OJO: solo caracteres cp1252 (el ✔ revienta en la consola de Windows).
+    print("\nOK - Migración completa. Abre la app: entrará al vault real (auth latente).")
     print(f"  Si algo sale mal, restaura el backup: {bak} -> {args.new_db}")
     return 0
 
