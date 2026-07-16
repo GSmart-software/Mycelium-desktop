@@ -137,7 +137,7 @@ export type VaultDto = {
   rol: "lector" | "editor" | "propietario";
 };
 
-/** `POST /auth/login` y `/auth/refresh`. */
+/** `POST /auth/refresh` (sesión fija del vault local). */
 export type SessionResponse = {
   accessToken: string;
   expiresInMinutes: number;

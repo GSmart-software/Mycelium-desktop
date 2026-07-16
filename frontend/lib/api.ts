@@ -5,12 +5,12 @@
  * AHORA: enruta `(method, path)` a las funciones de la capa de datos
  * (`lib/db/*`), que consultan SQLite nativo vía `tauri-plugin-sql`. Los ~53
  * call-sites que usan `api<T>(path, {method, body, token})` NO cambian: la firma
- * y `ApiError` se conservan. El `token` se ignora (auth latente, sin JWT local).
+ * y `ApiError` se conservan. El `token` se ignora (sesión local, sin JWT).
  *
- * Rutas de fases posteriores (auth, preferencias, css, búsqueda, grafo,
- * conexiones, compartido) devuelven 501 hasta que se implementen.
+ * No hay usuarios ni login en desktop: `/auth/refresh` y `/auth/me` devuelven
+ * la sesión fija del vault local. Las rutas no implementadas devuelven 501.
  */
-import { actualizarPerfil, me, session } from "@/lib/db/auth";
+import { me, session } from "@/lib/db/auth";
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
@@ -59,21 +59,10 @@ async function dispatch(
 ): Promise<unknown> {
   const [a, b, c, d, e] = seg;
 
-  // ── /auth/... (auth latente, preferencias, css) ───────────────────────────
+  // ── /auth/... (sesión local, preferencias, css) ───────────────────────────
   if (a === "auth") {
     if (b === "refresh" && method === "POST") return session();
-    if (b === "login" && method === "POST") return session();
     if (b === "me" && method === "GET") return me();
-    if (b === "logout" && method === "POST") return { ok: true };
-    if (b === "cerrar-todo" && method === "POST") return { ok: true };
-    if (b === "register" && method === "POST") return { message: "Cuenta local lista." };
-    if (b === "verify-email" && method === "POST") return { message: "Verificado." };
-    if (b === "forgot-password" && method === "POST") return { message: "Sin correo en modo local." };
-    if (b === "reset-password" && method === "POST") return { message: "Contraseña actualizada." };
-    if (b === "cambiar-password" && method === "POST") return { message: "Contraseña actualizada." };
-    if (b === "perfil" && method === "PATCH") {
-      return actualizarPerfil(s(body.nombre), s(body.avatarUrl));
-    }
     if (b === "preferencias" && method === "PUT") {
       return putPreferencias(s(body.tema), Boolean(body.modoOscuro), body.preferencias);
     }

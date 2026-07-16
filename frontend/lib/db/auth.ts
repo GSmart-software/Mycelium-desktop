@@ -1,8 +1,9 @@
 /**
- * Auth latente (desktop). No hay login real: se siembra 1 usuario + 1 vault por
- * defecto y `me()`/`refresh()` devuelven esa sesión fija (sin JWT). Se conservan
- * las tablas usuarios/vaults/membresias y la FORMA de las respuestas para que la
- * futura integración con la nube no exija otra migración ni tocar `authStore`.
+ * Identidad interna del vault local (desktop). No hay usuarios ni login: se
+ * siembra 1 registro + 1 vault por defecto y `me()`/`session()` devuelven esa
+ * sesión fija (sin JWT). Las tablas usuarios/vaults/membresias se conservan
+ * como plomería interna (el checksum de la migración sqlx impide tocar el
+ * esquema) y la FORMA de las respuestas no cambia para no tocar `authStore`.
  */
 import { execute, select } from "./client";
 import type { MeResponse, RowUsuario, SessionResponse, UserDto, VaultDto } from "./types";
@@ -10,7 +11,7 @@ import { ahoraIso } from "./util";
 
 const LOCAL_USER_ID = "local-user";
 const LOCAL_VAULT_ID = "local-vault";
-// ~1 año: el timer de refresh del authStore no llega a redispararse.
+// ~1 año: valor simbólico, la sesión local no expira (nadie lo consume).
 const EXPIRES_IN_MINUTES = 525_600;
 
 /** Siembra usuario+vault+membresía por defecto si la DB está vacía (idempotente). */
@@ -79,7 +80,7 @@ async function vaultsDe(usuarioId: string): Promise<VaultDto[]> {
   return rows;
 }
 
-/** Sesión fija (login/refresh). El accessToken es un marcador; no se valida. */
+/** Sesión fija (`POST /auth/refresh`). El accessToken es un marcador; no se valida. */
 export async function session(): Promise<SessionResponse> {
   const user = await usuarioLocal();
   return { accessToken: "local", expiresInMinutes: EXPIRES_IN_MINUTES, user };
@@ -89,23 +90,4 @@ export async function session(): Promise<SessionResponse> {
 export async function me(): Promise<MeResponse> {
   const user = await usuarioLocal();
   return { user, vaults: await vaultsDe(user.id) };
-}
-
-/** `PATCH /auth/perfil`. */
-export async function actualizarPerfil(
-  nombre: string | null,
-  avatarUrl: string | null,
-): Promise<UserDto> {
-  await ensureSeed();
-  const sets: string[] = ["actualizado_en = ?"];
-  const params: unknown[] = [ahoraIso()];
-  if (nombre !== null) {
-    sets.unshift("nombre = ?");
-    params.unshift(nombre);
-  }
-  sets.push("avatar_url = ?");
-  params.push(avatarUrl);
-  params.push(LOCAL_USER_ID);
-  await execute(`UPDATE usuarios SET ${sets.join(", ")} WHERE id = ?`, params);
-  return usuarioLocal();
 }

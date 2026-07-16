@@ -103,22 +103,6 @@
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--mic-accent);
-  color: var(--mic-raw-mist);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.avatar:hover {
-  filter: brightness(1.15);
-}
-
 @media (max-width: 767px) {
   .logoFull {
     display: none;

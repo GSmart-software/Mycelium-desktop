@@ -170,19 +170,3 @@
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
 }
-
-.logout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  padding: 0.5rem;
-  border-radius: var(--mic-radius-md);
-  border: 1px solid color-mix(in srgb, var(--mic-callout-caution-border) 50%, transparent);
-  color: var(--mic-callout-caution-border);
-  font-size: 0.875rem;
-}
-
-.logout:hover {
-  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
-}
