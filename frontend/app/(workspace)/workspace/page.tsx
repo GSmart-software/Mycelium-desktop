@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
@@ -28,22 +28,19 @@ export default function WorkspacePage() {
   );
 }
 
-/** Guard de sesión: restaura desde la cookie de refresh o redirige a /login. */
+/**
+ * Guard del vault local: abre la sesión sembrada al cargar. No hay login en
+ * desktop: si `restore()` falla se muestra un error local con reintento.
+ */
 function WorkspaceGuard() {
-  const router = useRouter();
-  const { user, initialized, restore } = useAuthStore();
+  const { user, initialized, error, restore } = useAuthStore();
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
-    if (!initialized) {
-      void restore().then((ok) => {
-        if (!ok) router.replace("/login");
-      });
-    } else if (!user) {
-      router.replace("/login");
-    }
-  }, [initialized, user, restore, router]);
+    if (!initialized) void restore();
+  }, [initialized, restore]);
 
-  // Aplicar tema, modo oscuro, tipografía y CSS propio al autenticarse (HU-12/14/13)
+  // Aplicar tema, modo oscuro, tipografía y CSS propio al abrir el vault (HU-12/14/13)
   useEffect(() => {
     if (user) {
       usePreferencesStore.getState().hydrateFromUser();
@@ -52,6 +49,27 @@ function WorkspaceGuard() {
   }, [user]);
 
   if (!user) {
+    if (initialized) {
+      return (
+        <main className={styles.loading}>
+          <div className={styles.errorBox} role="alert">
+            <p className={styles.errorTitle}>No se pudo abrir el vault local.</p>
+            {error && <p className={styles.errorDetail}>{error}</p>}
+            <button
+              type="button"
+              className={styles.retryButton}
+              disabled={retrying}
+              onClick={() => {
+                setRetrying(true);
+                void restore().finally(() => setRetrying(false));
+              }}
+            >
+              {retrying ? "Reintentando…" : "Reintentar"}
+            </button>
+          </div>
+        </main>
+      );
+    }
     return (
       <main className={styles.loading}>
         <p>Cargando…</p>

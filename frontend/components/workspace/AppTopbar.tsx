@@ -2,13 +2,12 @@
 
 import { Search, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./AppTopbar.module.css";
 
 /**
- * AppTopbar del workspace (HU-38): logo, búsqueda en la nota activa,
- * botón Compartir y avatar. Siempre visible.
+ * AppTopbar del workspace (HU-38): logo, búsqueda en la nota activa y
+ * botón Compartir. Siempre visible.
  */
 export function AppTopbar({
   shareFolder,
@@ -16,16 +15,7 @@ export function AppTopbar({
   shareFolder: { id: string; nombre: string } | null;
 }) {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const setShareTarget = useUiStore((s) => s.setShareTarget);
-
-  const initials = (user?.nombre ?? "?")
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 
   // El botón Compartir se habilita cuando la nota activa está en una carpeta
   // compartible (HU-35 CA1b).
@@ -78,16 +68,6 @@ export function AppTopbar({
         >
           <Share2 size={14} aria-hidden />
           <span className={styles.shareLabel}>Compartir</span>
-        </button>
-
-        <button
-          type="button"
-          className={styles.avatar}
-          onClick={() => setSettingsOpen(true)}
-          title={user?.nombre ?? "Cuenta"}
-          aria-label="Abrir configuración"
-        >
-          {initials}
         </button>
       </div>
     </header>

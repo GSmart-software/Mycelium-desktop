@@ -29,3 +29,42 @@
   color: var(--mic-text-muted);
   background: var(--mic-bg-canvas);
 }
+
+/* ── Error al abrir el vault local (sin login en desktop) ──────── */
+.errorBox {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  max-width: 26rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.errorTitle {
+  font-size: 0.95rem;
+  color: var(--mic-text-primary);
+}
+
+.errorDetail {
+  font-size: 0.8rem;
+  color: var(--mic-text-muted);
+  word-break: break-word;
+}
+
+.retryButton {
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-primary);
+  font-size: 0.8125rem;
+}
+
+.retryButton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.retryButton:disabled {
+  opacity: 0.6;
+}

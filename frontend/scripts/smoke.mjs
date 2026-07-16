@@ -1,5 +1,5 @@
-// Smoke test del workspace: login con el usuario seed y captura del shell.
-// Requiere backend en :5279 y frontend en :3000 ya corriendo.
+// Smoke test del workspace: abre el vault local y captura del shell.
+// Requiere el frontend en :3000 ya corriendo (con la capa de datos disponible).
 // Uso: node scripts/smoke.mjs
 import { chromium } from "playwright";
 
@@ -11,10 +11,8 @@ page.on("console", (msg) => {
 });
 
 try {
-  await page.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
-  await page.fill("#email", "dev@micelio.local");
-  await page.fill("#password", "micelio123");
-  await page.click("button[type=submit]");
+  // Sin login en desktop: el workspace abre directo el vault local.
+  await page.goto("http://localhost:3000/workspace", { waitUntil: "networkidle" });
 
   // Workspace: esperar el estado vacío del editor
   await page.waitForSelector("text=Abrí una nota desde el explorador", { timeout: 20000 });
@@ -32,10 +30,10 @@ try {
   checks.panelColapsadoTrasToggle = !(await page.isVisible("text=El explorador de notas"));
   await page.click("button[aria-label=Explorador]");
 
-  // Settings drawer desde el avatar (HU-38 CA6)
-  await page.click("button[aria-label='Abrir configuración']");
-  await page.waitForSelector("text=Cerrar sesión");
-  checks.settingsDrawer = await page.isVisible("text=dev@micelio.local");
+  // Settings drawer desde el rail (HU-28 CA4)
+  await page.click("button[aria-label='Configuración']");
+  await page.waitForSelector("text=Configuración");
+  checks.settingsDrawer = await page.isVisible("text=Apariencia");
   await page.keyboard.press("Escape");
 
   await page.screenshot({ path: "scripts/smoke-workspace.png", fullPage: false });

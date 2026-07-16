@@ -172,30 +172,6 @@
   color: var(--mic-sync-warn);
 }
 
-/* ── Avatar (HU-34 CA1) ─────────────────────────────────────────── */
-.avatarRow {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--mic-bg-base);
-  border: 1px solid var(--mic-border);
-}
-
-.avatarFallback {
-  display: grid;
-  place-items: center;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--mic-text-primary);
-}
-
 /* ── CSS personalizado (HU-15) ──────────────────────────────────── */
 .cssPreviewNote {
   font-size: 0.75rem;

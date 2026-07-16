@@ -18,10 +18,8 @@ page.on("dialog", (dialog) => {
 const checks = {};
 
 try {
-  await page.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
-  await page.fill("#email", "dev@micelio.local");
-  await page.fill("#password", "micelio123");
-  await page.click("button[type=submit]");
+  // Sin login en desktop: el workspace abre directo el vault local.
+  await page.goto("http://localhost:3000/workspace", { waitUntil: "networkidle" });
   await page.waitForSelector("text=Abrí una nota desde el explorador", { timeout: 20000 });
 
   // Crear nota → aparece en el árbol y se abre (?note= en URL)

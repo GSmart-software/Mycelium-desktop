@@ -1,4 +1,4 @@
-// Smoke test de temas y preferencias (HU-12/13/14/34). Requiere backend+frontend.
+// Smoke test de temas y preferencias (HU-12/13/14). Requiere el frontend corriendo.
 import { chromium } from "playwright";
 
 const consoleErrors = [];
@@ -16,10 +16,8 @@ const html = () => page.evaluate(() => ({
 }));
 
 try {
-  await page.goto("http://localhost:3000/login", { waitUntil: "networkidle" });
-  await page.fill("#email", "dev@micelio.local");
-  await page.fill("#password", "micelio123");
-  await page.click("button[type=submit]");
+  // Sin login en desktop: el workspace abre directo el vault local.
+  await page.goto("http://localhost:3000/workspace", { waitUntil: "networkidle" });
   await page.waitForSelector("text=Abrí una nota desde el explorador", { timeout: 20000 });
 
   // Abrir settings
@@ -49,22 +47,7 @@ try {
   checks.cssSnippetsUi =
     (await page.locator("button:has-text('Importar .css')").count()) === 1;
 
-  // ── HU-34: perfil ───────────────────────────────────────────────
-  await page.click("[role=tab]:text-is('Cuenta')");
-  const nombre = page.locator("#acc-nombre");
-  await nombre.fill("Dev Renombrado");
-  await page.click("button:has-text('Guardar perfil')");
-  await page.waitForSelector("text=Perfil actualizado.", { timeout: 5000 });
-  checks.perfilGuardado = true;
-
-  // Validación: contraseña corta deshabilita el botón
-  await page.fill("#acc-actual", "micelio123");
-  await page.fill("#acc-nueva", "corta");
-  checks.pwdValidacion = await page
-    .locator("button:has-text('Cambiar contraseña')")
-    .isDisabled();
-
-  // ── Persistencia: recargar y verificar tema+dark desde backend ──
+  // ── Persistencia: recargar y verificar tema+dark desde la base local ──
   await page.waitForTimeout(600); // debounce de guardado de preferencias
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForTimeout(800);
