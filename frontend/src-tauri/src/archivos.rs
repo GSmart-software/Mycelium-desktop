@@ -23,6 +23,37 @@ pub struct ArchivoLeido {
     pub contenido: String,
 }
 
+/// Archivo del vault con los metadatos que el índice derivado necesita para la
+/// validación incremental por `mtime` (fase 2 del "vault en carpeta").
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivoMeta {
+    pub ruta_relativa: String,
+    pub contenido: String,
+    /// Fecha de modificación en milisegundos epoch (de `metadata().modified()`).
+    pub mtime: i64,
+    /// `"excalidraw"` para `.excalidraw`, `"markdown"` para el resto (`.md`).
+    pub tipo: String,
+}
+
+/// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
+fn tipo_de(path: &Path) -> String {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
+        _ => "markdown".to_string(),
+    }
+}
+
+/// `mtime` en milisegundos epoch (0 si el SO no lo expone).
+fn mtime_ms(metadata: &std::fs::Metadata) -> i64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 /// Extensiones que se importan como notas del vault.
 fn es_importable(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
@@ -133,6 +164,64 @@ pub fn leer_carpeta(origen: String) -> Result<Vec<ArchivoLeido>, String> {
     Ok(out)
 }
 
+/// Recorre `dir` recursivamente acumulando los archivos importables con sus
+/// metadatos (`mtime`, `tipo`). Gemelo de `recorrer`, pero para el índice.
+fn recorrer_meta(dir: &Path, base: &Path, out: &mut Vec<ArchivoMeta>) -> Result<(), String> {
+    let entradas =
+        std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
+
+    for entrada in entradas {
+        let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
+        let ruta = entrada.path();
+        let nombre = entrada.file_name().to_string_lossy().to_string();
+
+        if ruta.is_dir() {
+            // `es_oculto` ya descarta cualquier dir con punto inicial, lo que
+            // incluye `.git`, `.obsidian` y también `.mycelium` (el propio dir
+            // del índice, que nunca debe indexarse).
+            if es_oculto(&nombre) {
+                continue;
+            }
+            recorrer_meta(&ruta, base, out)?;
+        } else if es_importable(&ruta) {
+            // Igual que `recorrer`: los archivos no UTF-8 se omiten (best-effort).
+            let Ok(contenido) = std::fs::read_to_string(&ruta) else {
+                continue;
+            };
+            let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
+            let relativa = ruta
+                .strip_prefix(base)
+                .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join("/");
+            out.push(ArchivoMeta {
+                ruta_relativa: relativa,
+                contenido,
+                mtime,
+                tipo: tipo_de(&ruta),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw` con su ruta
+/// relativa (separador `/`), su contenido UTF-8, su `mtime` (ms epoch) y su
+/// `tipo`. Es la fuente del indexador derivado (fase 2 del vault en carpeta):
+/// ignora directorios ocultos y el propio dir del índice (`.mycelium`).
+#[tauri::command]
+pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> {
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let mut out = Vec::new();
+    recorrer_meta(&base, &base, &mut out)?;
+    Ok(out)
+}
+
 /// `true` si la carpeta tiene al menos una entrada. La UI lo usa para pedir
 /// confirmación antes de exportar sobre una carpeta con contenido.
 #[tauri::command]
@@ -201,6 +290,35 @@ mod tests {
         );
         assert_eq!(leidos[2].contenido, "# Raíz con acentos ñ");
         assert_eq!(leidos[1].contenido, "contenido anidado");
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// `listar_archivos_meta` devuelve el tipo correcto por extensión, un
+    /// `mtime > 0` para cada archivo y salta directorios ocultos (incl. el
+    /// propio `.mycelium`).
+    #[test]
+    fn listar_meta_devuelve_mtime_y_tipo() {
+        let base = std::env::temp_dir().join(format!("mycelium-meta-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("sub")).unwrap();
+        std::fs::create_dir_all(base.join(".mycelium")).unwrap();
+        std::fs::write(base.join("nota.md"), "# hola").unwrap();
+        std::fs::write(base.join("sub/diagrama.excalidraw"), "{}").unwrap();
+        // Ruido que debe ignorarse: el índice y una extensión ajena.
+        std::fs::write(base.join(".mycelium/index-abc.db"), "x").unwrap();
+        std::fs::write(base.join("imagen.png"), "x").unwrap();
+
+        let mut metas =
+            listar_archivos_meta(base.to_string_lossy().to_string()).unwrap();
+        metas.sort_by(|a, b| a.ruta_relativa.cmp(&b.ruta_relativa));
+
+        assert_eq!(metas.len(), 2);
+        assert_eq!(metas[0].ruta_relativa, "nota.md");
+        assert_eq!(metas[0].tipo, "markdown");
+        assert_eq!(metas[1].ruta_relativa, "sub/diagrama.excalidraw");
+        assert_eq!(metas[1].tipo, "excalidraw");
+        assert!(metas.iter().all(|m| m.mtime > 0), "mtime debe ser > 0");
 
         std::fs::remove_dir_all(&base).unwrap();
     }
