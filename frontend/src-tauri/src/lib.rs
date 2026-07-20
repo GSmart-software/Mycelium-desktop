@@ -99,6 +99,7 @@ pub fn run() {
             take_opened_files,
             archivos::exportar_a_carpeta,
             archivos::leer_carpeta,
+            archivos::listar_archivos_meta,
             archivos::carpeta_no_vacia,
             vault_config::listar_vaults,
             vault_config::vincular_vault,

@@ -40,10 +40,13 @@ export function setExecutor(executor: SqlExecutor | null): void {
   loading = null;
 }
 
-/** Crea el executor por defecto sobre `tauri-plugin-sql` (carga perezosa). */
-async function loadTauriExecutor(): Promise<SqlExecutor> {
+/**
+ * Crea un executor sobre `tauri-plugin-sql` (carga perezosa). Por defecto abre
+ * `mycelium.db`; se le puede pasar otra URL (p. ej. el índice de un vault).
+ */
+async function loadTauriExecutor(dbUrl: string = DB_URL): Promise<SqlExecutor> {
   const { default: Database } = await import("@tauri-apps/plugin-sql");
-  const db = await Database.load(DB_URL);
+  const db = await Database.load(dbUrl);
   return {
     select: (sql, params = []) => db.select(sql, params),
     execute: async (sql, params = []) => {
@@ -51,6 +54,37 @@ async function loadTauriExecutor(): Promise<SqlExecutor> {
       return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId };
     },
   };
+}
+
+/**
+ * Hash corto y estable de una ruta absoluta: los primeros 16 hex de su SHA-256
+ * (vía SubtleCrypto). Se usa para nombrar el archivo del índice de cada vault
+ * (`index-<hash>.db`) sin depender de la ruta absoluta —arbitraria en Windows—.
+ */
+async function hashRuta(ruta: string): Promise<string> {
+  const datos = new TextEncoder().encode(ruta);
+  const buf = await crypto.subtle.digest("SHA-256", datos);
+  return Array.from(new Uint8Array(buf))
+    .slice(0, 8) // 8 bytes = 16 caracteres hex
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Abre (creando si no existe) el índice derivado del vault ubicado en
+ * `vaultRuta` y lo deja como executor activo. El índice vive en el app-data de
+ * la app —NO dentro del vault—, un archivo por vault: `sqlite:index-<hash>.db`,
+ * donde `<hash>` deriva de la ruta absoluta del vault. Nombre relativo → el
+ * plugin lo resuelve dentro del app-data. El índice es desechable/reconstruible.
+ *
+ * Devuelve el executor y lo inyecta con `setExecutor`; sin llamar a esta función
+ * todo sigue usando `mycelium.db` (el comportamiento por defecto no cambia).
+ */
+export async function abrirIndiceDeVault(vaultRuta: string): Promise<SqlExecutor> {
+  const hash = await hashRuta(vaultRuta);
+  const executor = await loadTauriExecutor(`sqlite:index-${hash}.db`);
+  setExecutor(executor);
+  return executor;
 }
 
 /** Devuelve el executor activo (inyectado o Tauri), cacheado. */
