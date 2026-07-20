@@ -57,6 +57,23 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<Collect
   return out;
 }
 
+/**
+ * Lee una carpeta real del SO elegida con el diálogo nativo (escritorio). El
+ * recorrido recursivo lo hace el comando Rust `leer_carpeta` (ignora directorios
+ * ocultos como `.git`/`.obsidian`); aquí solo se envuelve cada resultado en un
+ * `File` para que encaje con el pipeline de importación existente.
+ */
+export async function collectFromNativeFolder(origen: string): Promise<CollectedFile[]> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const archivos = await invoke<{ ruta_relativa: string; contenido: string }[]>("leer_carpeta", {
+    origen,
+  });
+  return archivos.map(({ ruta_relativa: path, contenido }) => ({
+    path,
+    file: new File([contenido], path.split("/").pop() ?? path, { type: "text/markdown" }),
+  }));
+}
+
 /** Extrae archivos de un .zip de Obsidian (HU-11 CA1). */
 export async function collectFromZip(zipFile: File): Promise<CollectedFile[]> {
   const zip = await JSZip.loadAsync(zipFile);

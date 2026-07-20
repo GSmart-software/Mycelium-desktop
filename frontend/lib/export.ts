@@ -60,24 +60,29 @@ function notePath(carpetaId: string | null): string {
   return parts.length ? `${parts.join("/")}/` : "";
 }
 
-/**
- * Exporta todo el vault como ZIP en el cliente (HU-09): preserva la estructura
- * de carpetas y agrega los diagramas referenciados en `adjuntos/`. La rama
- * servidor para vaults ≥ 200 MB queda diferida (docs/FUTURE_IMPLEMENTATIONS.md).
- */
-export async function exportVaultZip(
-  onProgress?: (done: number, total: number) => void,
-): Promise<void> {
-  const { notas, vaultId } = useVaultStore.getState();
-  const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
+/** Un archivo del vault listo para escribirse (en un ZIP o en disco). */
+export type ArchivoVault = { rutaRelativa: string; contenido: string };
 
-  const zip = new JSZip();
+/**
+ * Recolecta todo el vault como una lista de archivos de texto: una entrada `.md`
+ * por nota (preservando la estructura de carpetas) más los diagramas Excalidraw
+ * referenciados en `adjuntos/` (HU-09 CA3). Es la fuente común del export a ZIP
+ * y del export a carpeta nativa.
+ */
+export async function recolectarArchivosVault(
+  onProgress?: (done: number, total: number) => void,
+): Promise<ArchivoVault[]> {
+  const { notas } = useVaultStore.getState();
+  const out: ArchivoVault[] = [];
   const adjuntos = new Set<string>();
   let done = 0;
 
   for (const nota of notas) {
     const contenido = await fetchNoteContent(nota.id);
-    zip.file(`${notePath(nota.carpetaId)}${safeName(nota.titulo)}.md`, contenido);
+    out.push({
+      rutaRelativa: `${notePath(nota.carpetaId)}${safeName(nota.titulo)}.md`,
+      contenido,
+    });
 
     for (const match of contenido.matchAll(EXCALIDRAW_RE)) {
       adjuntos.add(`${nota.id}:${match[1]}`);
@@ -90,15 +95,51 @@ export async function exportVaultZip(
     const [notaId, diagId] = ref.split(":");
     try {
       const json = await api<string>(`/notas/${notaId}/diagramas/${diagId}`);
-      zip.file(`adjuntos/${diagId}.excalidraw`, json);
+      out.push({ rutaRelativa: `adjuntos/${diagId}.excalidraw`, contenido: json });
     } catch {
       // adjunto inaccesible → se omite
     }
   }
 
+  return out;
+}
+
+/**
+ * Exporta todo el vault como ZIP en el cliente (HU-09): preserva la estructura
+ * de carpetas y agrega los diagramas referenciados en `adjuntos/`. La rama
+ * servidor para vaults ≥ 200 MB queda diferida (docs/FUTURE_IMPLEMENTATIONS.md).
+ */
+export async function exportVaultZip(
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
+  const { vaultId } = useVaultStore.getState();
+  const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
+
+  const zip = new JSZip();
+  for (const archivo of await recolectarArchivosVault(onProgress)) {
+    zip.file(archivo.rutaRelativa, archivo.contenido);
+  }
+
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   const fecha = new Date().toISOString().slice(0, 10);
   downloadBlob(blob, `vault-${safeName(vaultNombre)}-${fecha}.zip`);
+}
+
+/**
+ * Exporta todo el vault a una carpeta real del SO como árbol de `.md` (escritorio).
+ * La escritura la hace el comando Rust `exportar_a_carpeta`, que valida que ninguna
+ * ruta se salga del destino. Devuelve cuántos archivos se escribieron.
+ */
+export async function exportVaultACarpeta(
+  destino: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<number> {
+  const archivos = await recolectarArchivosVault(onProgress);
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<number>("exportar_a_carpeta", {
+    destino,
+    archivos: archivos.map((a) => ({ ruta_relativa: a.rutaRelativa, contenido: a.contenido })),
+  });
 }
 
 /**

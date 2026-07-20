@@ -3,6 +3,8 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod archivos;
+
 /// URL de la base local. `tauri-plugin-sql` la resuelve dentro del app-data dir
 /// del SO. El frontend usa la MISMA URL con `Database.load()` para obtener la DB
 /// ya migrada.
@@ -90,8 +92,14 @@ pub fn run() {
                 .add_migrations(DB_URL, migrations)
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .manage(Pending(Mutex::new(pendientes)))
-        .invoke_handler(tauri::generate_handler![take_opened_files])
+        .invoke_handler(tauri::generate_handler![
+            take_opened_files,
+            archivos::exportar_a_carpeta,
+            archivos::leer_carpeta,
+            archivos::carpeta_no_vacia
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
