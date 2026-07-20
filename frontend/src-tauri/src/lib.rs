@@ -100,9 +100,12 @@ pub fn run() {
             archivos::exportar_a_carpeta,
             archivos::leer_carpeta,
             archivos::carpeta_no_vacia,
-            vault_config::get_vault_ruta,
-            vault_config::set_vault_ruta,
-            vault_config::limpiar_vault_ruta
+            vault_config::listar_vaults,
+            vault_config::vincular_vault,
+            vault_config::desvincular_vault,
+            vault_config::get_auto_abrir,
+            vault_config::set_auto_abrir,
+            vault_config::marcar_acceso
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
