@@ -17,6 +17,7 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./workspace.module.css";
 
 export default function WorkspacePage() {
@@ -29,16 +30,39 @@ export default function WorkspacePage() {
 }
 
 /**
- * Guard del vault local: abre la sesión sembrada al cargar. No hay login en
- * desktop: si `restore()` falla se muestra un error local con reintento.
+ * Guard del vault local: prepara la sesión al cargar. En modo carpeta (fase 3),
+ * si se entra directo a `/workspace` tras una recarga y no hay vault abierto en
+ * runtime pero sí uno persistido, primero reabre ese vault (abre su índice) y
+ * LUEGO restaura la sesión, para que la capa de datos apunte a la carpeta y no
+ * a `mycelium.db`. Si no hay vault ni sesión disponible, ofrece elegir uno.
  */
 function WorkspaceGuard() {
+  const router = useRouter();
   const { user, initialized, error, restore } = useAuthStore();
   const [retrying, setRetrying] = useState(false);
+  const [preparando, setPreparando] = useState(true);
+  const bootstrapRef = useRef(false);
 
   useEffect(() => {
-    if (!initialized) void restore();
-  }, [initialized, restore]);
+    if (bootstrapRef.current) return;
+    bootstrapRef.current = true;
+    let cancelado = false;
+    void (async () => {
+      // Reabrir el vault persistido si no hay uno abierto (entrada directa tras
+      // recarga). Debe ocurrir ANTES de restore() para fijar el executor.
+      if (useVaultSessionStore.getState().rutaActual === null) {
+        const persistida = rutaVaultPersistida();
+        if (persistida) await useVaultSessionStore.getState().abrir(persistida);
+      }
+      if (!cancelado && !useAuthStore.getState().initialized) {
+        await useAuthStore.getState().restore();
+      }
+      if (!cancelado) setPreparando(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   // Aplicar tema, modo oscuro, tipografía y CSS propio al abrir el vault (HU-12/14/13)
   useEffect(() => {
@@ -49,23 +73,32 @@ function WorkspaceGuard() {
   }, [user]);
 
   if (!user) {
-    if (initialized) {
+    if (initialized && !preparando) {
       return (
         <main className={styles.loading}>
           <div className={styles.errorBox} role="alert">
             <p className={styles.errorTitle}>No se pudo abrir el vault local.</p>
             {error && <p className={styles.errorDetail}>{error}</p>}
-            <button
-              type="button"
-              className={styles.retryButton}
-              disabled={retrying}
-              onClick={() => {
-                setRetrying(true);
-                void restore().finally(() => setRetrying(false));
-              }}
-            >
-              {retrying ? "Reintentando…" : "Reintentar"}
-            </button>
+            <div className={styles.errorActions}>
+              <button
+                type="button"
+                className={styles.retryButton}
+                disabled={retrying}
+                onClick={() => {
+                  setRetrying(true);
+                  void restore().finally(() => setRetrying(false));
+                }}
+              >
+                {retrying ? "Reintentando…" : "Reintentar"}
+              </button>
+              <button
+                type="button"
+                className={styles.retryButton}
+                onClick={() => router.replace("/vaults")}
+              >
+                Elegir vault
+              </button>
+            </div>
           </div>
         </main>
       );

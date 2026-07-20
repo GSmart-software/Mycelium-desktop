@@ -51,8 +51,13 @@
   word-break: break-word;
 }
 
-.retryButton {
+.errorActions {
+  display: flex;
+  gap: 0.5rem;
   margin-top: 0.35rem;
+}
+
+.retryButton {
   padding: 0.35rem 0.9rem;
   border-radius: var(--mic-radius-md);
   border: 1px solid var(--mic-border);

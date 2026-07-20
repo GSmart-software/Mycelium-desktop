@@ -1,8 +1,9 @@
 "use client";
 
-import { Search, Share2 } from "lucide-react";
+import { LogOut, Search, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/stores/uiStore";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./AppTopbar.module.css";
 
 /**
@@ -16,10 +17,18 @@ export function AppTopbar({
 }) {
   const router = useRouter();
   const setShareTarget = useUiStore((s) => s.setShareTarget);
+  // Solo hay vault en carpeta (fase 3) cuando la sesión tiene ruta abierta; en
+  // modo SQLite clásico `rutaActual` es null y no se muestra "Salir del vault".
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
   // El botón Compartir se habilita cuando la nota activa está en una carpeta
   // compartible (HU-35 CA1b).
   const canShare = shareFolder !== null;
+
+  async function salirDelVault() {
+    await useVaultSessionStore.getState().salir();
+    router.replace("/vaults");
+  }
 
   return (
     <header className={styles.topbar}>
@@ -69,6 +78,18 @@ export function AppTopbar({
           <Share2 size={14} aria-hidden />
           <span className={styles.shareLabel}>Compartir</span>
         </button>
+
+        {rutaVault && (
+          <button
+            type="button"
+            className={styles.vaultExitButton}
+            aria-label="Salir del vault"
+            title="Salir del vault"
+            onClick={() => void salirDelVault()}
+          >
+            <LogOut size={14} aria-hidden />
+          </button>
+        )}
       </div>
     </header>
   );
