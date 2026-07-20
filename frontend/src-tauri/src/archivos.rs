@@ -158,4 +158,50 @@ mod tests {
         assert!(ruta_segura(base, "/etc/passwd").is_err());
         assert!(ruta_segura(base, "notas/ok.md").is_ok());
     }
+
+    /// Ida y vuelta real contra el disco: exportar un vault a una carpeta y
+    /// volver a leerlo debe devolver exactamente lo mismo, con la estructura
+    /// de subcarpetas intacta y saltándose lo oculto y lo no importable.
+    #[test]
+    fn exportar_y_releer_conserva_el_arbol() {
+        let base = std::env::temp_dir().join(format!("mycelium-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let destino = base.to_string_lossy().to_string();
+
+        let archivos = vec![
+            ArchivoExport {
+                ruta_relativa: "raiz.md".into(),
+                contenido: "# Raíz con acentos ñ".into(),
+            },
+            ArchivoExport {
+                ruta_relativa: "proyectos/2026/plan.md".into(),
+                contenido: "contenido anidado".into(),
+            },
+            ArchivoExport {
+                ruta_relativa: "adjuntos/diagrama.excalidraw".into(),
+                contenido: "{\"type\":\"excalidraw\"}".into(),
+            },
+        ];
+        assert_eq!(exportar_a_carpeta(destino.clone(), archivos).unwrap(), 3);
+        assert!(base.join("proyectos/2026/plan.md").exists());
+        assert!(carpeta_no_vacia(destino.clone()).unwrap());
+
+        // Ruido que la importación debe ignorar: oculto y extensión ajena.
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        std::fs::write(base.join(".git/config"), "x").unwrap();
+        std::fs::write(base.join("imagen.png"), "x").unwrap();
+
+        let mut leidos = leer_carpeta(destino).unwrap();
+        leidos.sort_by(|a, b| a.ruta_relativa.cmp(&b.ruta_relativa));
+        let rutas: Vec<&str> = leidos.iter().map(|a| a.ruta_relativa.as_str()).collect();
+        assert_eq!(
+            rutas,
+            vec!["adjuntos/diagrama.excalidraw", "proyectos/2026/plan.md", "raiz.md"]
+        );
+        assert_eq!(leidos[2].contenido, "# Raíz con acentos ñ");
+        assert_eq!(leidos[1].contenido, "contenido anidado");
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
 }
