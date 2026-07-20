@@ -103,6 +103,20 @@
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
+.vaultExitButton {
+  display: grid;
+  place-items: center;
+  padding: 0.35rem;
+  border-radius: var(--mic-radius-md);
+  color: var(--mic-text-muted);
+  border: 1px solid transparent;
+}
+
+.vaultExitButton:hover {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-border);
+}
+
 @media (max-width: 767px) {
   .logoFull {
     display: none;

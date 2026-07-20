@@ -10,7 +10,13 @@ import type { MeResponse, RowUsuario, SessionResponse, UserDto, VaultDto } from 
 import { ahoraIso } from "./util";
 
 const LOCAL_USER_ID = "local-user";
-const LOCAL_VAULT_ID = "local-vault";
+/**
+ * Id del vault local sembrado. Se exporta porque el índice del "vault en
+ * carpeta" (fase 3) lo reutiliza: el indexador escribe las notas con este
+ * `vault_id` para que `tree(LOCAL_VAULT_ID)` y el resto de la capa de datos
+ * funcionen igual contra el índice que contra `mycelium.db`.
+ */
+export const LOCAL_VAULT_ID = "local-vault";
 // ~1 año: valor simbólico, la sesión local no expira (nadie lo consume).
 const EXPIRES_IN_MINUTES = 525_600;
 

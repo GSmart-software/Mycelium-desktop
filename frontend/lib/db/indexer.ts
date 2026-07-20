@@ -13,28 +13,68 @@
  *   - `titulo`   = nombre del archivo sin extensión.
  *   - `tipo`     = `markdown` | `excalidraw` según la extensión.
  *   - `carpetas.id` = ruta POSIX de la carpeta; `padre_id` = carpeta padre o NULL.
- *   - `vault_id`  = constante `"vault"` (hay un índice por vault).
+ *   - `vault_id`  = `LOCAL_VAULT_ID` (fase 3): el índice reutiliza el vault
+ *     sembrado por `ensureSeed()` para que `tree(LOCAL_VAULT_ID)` y toda la capa
+ *     de datos funcionen contra el índice igual que contra `mycelium.db`.
  */
+import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
 import { ahoraIso, byteLen } from "./util";
 
-/** Id de vault constante: el índice es por vault, no hace falta distinguir. */
-const VAULT_ID = "vault";
+/**
+ * Id del vault en el índice. Coincide con el vault sembrado (`LOCAL_VAULT_ID`)
+ * para que `tree(LOCAL_VAULT_ID)` devuelva las notas indexadas. Antes era la
+ * constante `"vault"`; se reconcilió en fase 3.
+ */
+const VAULT_ID = LOCAL_VAULT_ID;
 
 /**
- * Esquema del índice. ESPEJA `frontend/src-tauri/migrations/001_init.sql` para
- * las tablas que consultan los repos existentes (`carpetas`, `notas`,
- * `contenidos`, `notas_fts`, `papelera`, `diagramas`) y DEBE mantenerse en sync
- * con él. Diferencias intencionadas respecto a 001_init:
- *   - Se omiten las tablas `usuarios`/`vaults`/`membresias`/`css_snippets` y las
- *     claves foráneas hacia `vaults`/`usuarios`: el índice es autónomo y no las
- *     necesita (`vault_id` queda como TEXT plano).
+ * Esquema del índice. ESPEJA `frontend/src-tauri/migrations/001_init.sql`
+ * (esquema COMPLETO desde fase 3) y DEBE mantenerse en sync con él, para que
+ * TODA la capa de datos (`session`/`me`/`tree`/CSS…) funcione contra el índice
+ * igual que contra `mycelium.db`. Incluye `usuarios`/`vaults`/`membresias`/
+ * `css_snippets`, que `ensureSeed()` puebla antes de indexar. Diferencias
+ * intencionadas respecto a 001_init:
+ *   - Se omiten las claves foráneas hacia `vaults`/`usuarios` en `carpetas`/
+ *     `notas` (`vault_id`/`carpeta_id` quedan como TEXT plano): las filas del
+ *     índice se upsertan por ruta y no se quiere el coste de validar la FK.
  *   - `notas` añade una columna `mtime INTEGER` (propia del índice) para la
  *     validación incremental por fecha de modificación.
  * NO se usa `_sqlx_migrations`: el índice no se migra con sqlx, se crea con
  * estos `CREATE TABLE IF NOT EXISTS`.
  */
 const ESQUEMA_INDICE: string[] = [
+  `CREATE TABLE IF NOT EXISTS usuarios (
+     id                TEXT PRIMARY KEY,
+     email             TEXT NOT NULL UNIQUE,
+     nombre            TEXT NOT NULL,
+     password_hash     TEXT,
+     github_id         TEXT,
+     avatar_url        TEXT,
+     email_verificado  INTEGER NOT NULL DEFAULT 0,
+     tema              TEXT NOT NULL DEFAULT 'bioluminiscencia',
+     modo_oscuro       INTEGER NOT NULL DEFAULT 1,
+     preferencias_json TEXT,
+     creado_en         TEXT NOT NULL,
+     actualizado_en    TEXT NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS vaults (
+     id             TEXT PRIMARY KEY,
+     nombre         TEXT NOT NULL,
+     propietario_id TEXT NOT NULL REFERENCES usuarios(id),
+     creado_en      TEXT NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS membresias (
+     id           TEXT PRIMARY KEY,
+     usuario_id   TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+     recurso_tipo TEXT NOT NULL CHECK (recurso_tipo IN ('vault', 'carpeta')),
+     recurso_id   TEXT NOT NULL,
+     rol          TEXT NOT NULL CHECK (rol IN ('lector', 'editor', 'propietario')),
+     creado_en    TEXT NOT NULL,
+     UNIQUE (usuario_id, recurso_tipo, recurso_id)
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_membresias_usuario ON membresias(usuario_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_membresias_recurso ON membresias(recurso_tipo, recurso_id)`,
   `CREATE TABLE IF NOT EXISTS carpetas (
      id             TEXT PRIMARY KEY,
      vault_id       TEXT NOT NULL,
@@ -82,6 +122,15 @@ const ESQUEMA_INDICE: string[] = [
      titulo,
      contenido
    )`,
+  `CREATE TABLE IF NOT EXISTS css_snippets (
+     id          TEXT PRIMARY KEY,
+     usuario_id  TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+     nombre      TEXT NOT NULL,
+     activo      INTEGER NOT NULL DEFAULT 1,
+     contenido   TEXT NOT NULL DEFAULT '',
+     creado_en   TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_css_snippets_usuario ON css_snippets(usuario_id)`,
 ];
 
 /** Crea el esquema del índice (idempotente) contra el executor activo. */
