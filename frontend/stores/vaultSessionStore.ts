@@ -20,7 +20,9 @@ import { ensureSeed } from "@/lib/db/auth";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import { marcarAcceso } from "@/lib/vaultMode";
+import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
 const CLAVE_VAULT_ABIERTO = "mycelium:vault-abierto";
@@ -59,6 +61,12 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       await ensureSeed();
       await indexarVault(ruta);
       await marcarAcceso(ruta);
+      // Recargar la sesión (usuario/vaults) y las preferencias DESDE ESTE índice:
+      // cada vault tiene sus propios ajustes (grafo, tipografía, tema…). Sin esto,
+      // al cambiar de vault el WorkspaceGuard no re-ejecuta restore() (initialized
+      // ya es true) y quedarían los ajustes del vault anterior.
+      await useAuthStore.getState().restore();
+      usePreferencesStore.getState().hydrateFromUser();
       // Watcher nativo (fase 5): observa la carpeta para reflejar en la UI los
       // cambios hechos desde fuera de la app. No es fatal si falla (el vault
       // sigue usable, solo no se auto-refresca ante cambios externos).
