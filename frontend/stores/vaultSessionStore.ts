@@ -34,7 +34,7 @@ type VaultSessionState = {
   /** Abre un vault (índice + seed + indexado). Devuelve true si quedó listo. */
   abrir: (ruta: string) => Promise<boolean>;
   /** Cierra el vault: vuelve al executor por defecto y limpia el estado. */
-  salir: () => void;
+  salir: () => Promise<void>;
 };
 
 export const useVaultSessionStore = create<VaultSessionState>((set) => ({
@@ -51,6 +51,15 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       await ensureSeed();
       await indexarVault(ruta);
       await marcarAcceso(ruta);
+      // Watcher nativo (fase 5): observa la carpeta para reflejar en la UI los
+      // cambios hechos desde fuera de la app. No es fatal si falla (el vault
+      // sigue usable, solo no se auto-refresca ante cambios externos).
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("iniciar_watcher", { vaultRuta: ruta });
+      } catch {
+        // sin watcher no hay auto-refresco, pero el vault funciona igual
+      }
       try {
         sessionStorage.setItem(CLAVE_VAULT_ABIERTO, ruta);
       } catch {
@@ -65,7 +74,14 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     }
   },
 
-  salir() {
+  async salir() {
+    // Detener el watcher antes de soltar el vault (fase 5). Best-effort.
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("detener_watcher");
+    } catch {
+      // si no había watcher o falla el invoke, no impide salir del vault
+    }
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     try {

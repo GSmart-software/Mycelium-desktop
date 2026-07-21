@@ -6,6 +6,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 mod archivos;
 mod vault_config;
 mod vault_fs;
+mod vault_watch;
 
 /// URL de la base local. `tauri-plugin-sql` la resuelve dentro del app-data dir
 /// del SO. El frontend usa la MISMA URL con `Database.load()` para obtener la DB
@@ -96,6 +97,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .manage(Pending(Mutex::new(pendientes)))
+        .manage(vault_watch::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
             archivos::exportar_a_carpeta,
@@ -114,7 +116,9 @@ pub fn run() {
             vault_fs::copiar_archivo,
             vault_fs::borrar_a_papelera,
             vault_fs::restaurar_de_papelera,
-            vault_fs::borrar_definitivo
+            vault_fs::borrar_definitivo,
+            vault_watch::iniciar_watcher,
+            vault_watch::detener_watcher
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

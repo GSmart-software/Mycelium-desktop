@@ -25,6 +25,9 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+# Watcher del vault en carpeta (fase 5): observa la carpeta y agrupa las ráfagas
+# de eventos del SO. `notify-debouncer-full` trae `notify` v6 como dependencia.
+notify-debouncer-full = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

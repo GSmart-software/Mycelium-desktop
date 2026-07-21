@@ -29,6 +29,7 @@ import {
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
+import { EVENTO_RECARGA } from "@/lib/vaultWatch";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
@@ -367,6 +368,43 @@ export function NoteEditor({
     });
   }, []);
 
+  // ── Recarga por cambio EXTERNO del archivo (modo carpeta, fase 5) ──
+  //
+  // El watcher del vault detectó que algo cambió en disco y `vaultWatch` ya
+  // reindexó; aquí releemos el contenido de ESTA nota desde el índice (que
+  // refleja el disco) y lo aplicamos, pero SOLO si el editor no tiene cambios
+  // locales sin guardar: no se pisan ediciones en curso. Si los hay, se deja la
+  // versión local intacta (un aviso de conflicto explícito queda para más
+  // adelante). Cada instancia abierta de la nota se recarga sola.
+  const reloadFromDisk = useCallback(async () => {
+    if (dirtyRef.current || !viewRef.current) return;
+    try {
+      const remote = await api<{ contenido: string; actualizadoEn: string }>(
+        `/notas/${notaId}/contenido`,
+        { token: useAuthStore.getState().accessToken },
+      );
+      // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
+      if (dirtyRef.current || !viewRef.current) return;
+      if (remote.actualizadoEn === remoteUpdatedAtRef.current) return; // sin cambios
+      if (remote.contenido === contentRef.current) {
+        remoteUpdatedAtRef.current = remote.actualizadoEn;
+        saveLocal();
+        return;
+      }
+      // Aplicar como cambio "remoto" (brokerApplyRef evita marcar la nota sucia).
+      brokerApplyRef.current = true;
+      applyContent(remote.contenido);
+      brokerApplyRef.current = false;
+      contentRef.current = remote.contenido;
+      dirtyRef.current = false;
+      remoteUpdatedAtRef.current = remote.actualizadoEn;
+      saveLocal();
+      setSyncState("synced");
+    } catch {
+      // Best-effort: si falla la relectura, no se toca lo que hay en pantalla.
+    }
+  }, [notaId, applyContent, saveLocal, setSyncState]);
+
   // ── Carga inicial: IndexedDB primero (HU-19), remoto después ───
 
   useEffect(() => {
@@ -469,6 +507,17 @@ export function NoteEditor({
     window.addEventListener("micelio:goto-match", onGoto);
     return () => window.removeEventListener("micelio:goto-match", onGoto);
   }, [notaId]);
+
+  // Recarga ante cambios externos del vault (modo carpeta, fase 5). El evento lo
+  // dispara `vaultWatch` tras reindexar; `reloadFromDisk` respeta los cambios
+  // locales sin guardar.
+  useEffect(() => {
+    function onRecarga() {
+      void reloadFromDisk();
+    }
+    window.addEventListener(EVENTO_RECARGA, onRecarga);
+    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
+  }, [reloadFromDisk]);
 
   // Espejo en tiempo real con otras instancias de la misma nota
   useEffect(() => {
