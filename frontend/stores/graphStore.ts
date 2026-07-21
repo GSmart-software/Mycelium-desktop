@@ -24,6 +24,9 @@ type GraphState = {
   markStale: () => void;
   savePositions: (positions: Record<string, NodePos>) => void;
   saveView: (view: GraphView) => void;
+  /** Vacía la caché del grafo (al cambiar de vault: el `vaultId` es el mismo
+   *  `LOCAL_VAULT_ID` en modo carpeta, así que hay que resetear explícitamente). */
+  reset: () => void;
 };
 
 // Dedupe de peticiones concurrentes (p. ej. montaje + refresh por stale a la vez).
@@ -88,5 +91,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   saveView(view) {
     set({ view });
+  },
+
+  reset() {
+    inflight = null;
+    inflightKey = "";
+    set({
+      vaultId: null,
+      data: null,
+      positions: {},
+      view: DEFAULT_VIEW,
+      status: "idle",
+      stale: false,
+    });
   },
 }));

@@ -20,6 +20,7 @@ import { ensureSeed } from "@/lib/db/auth";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import { marcarAcceso } from "@/lib/vaultMode";
+import { useGraphStore } from "@/stores/graphStore";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
 const CLAVE_VAULT_ABIERTO = "mycelium:vault-abierto";
@@ -44,6 +45,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
 
   async abrir(ruta) {
     set({ abriendo: true, error: null });
+    // Vaciar la caché del grafo del vault anterior: en modo carpeta todos los
+    // vaults comparten `LOCAL_VAULT_ID`, así que el grafo no detecta el cambio
+    // por sí solo y mostraría el del vault previo.
+    useGraphStore.getState().reset();
     try {
       await abrirIndiceDeVault(ruta);
       // El índice recién abierto puede estar vacío: hay que crear el esquema
@@ -88,6 +93,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     }
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
+    useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra
     try {
       sessionStorage.removeItem(CLAVE_VAULT_ABIERTO);
     } catch {
