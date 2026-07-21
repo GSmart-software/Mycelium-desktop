@@ -10,6 +10,8 @@ import { execute, select } from "./client";
 import { DbError } from "./errors";
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
+import { getVaultActual } from "./vaultContext";
+import { escribirNota } from "./vaultFs";
 
 /** `GET /notas/{id}/contenido`. */
 export async function getContenido(id: string): Promise<ContenidoResponse> {
@@ -31,6 +33,13 @@ export async function putContenido(id: string, contenido: string | null): Promis
   const texto = contenido ?? "";
   const bytes = byteLen(texto);
   const now = ahoraIso();
+
+  // Modo carpeta: los archivos son la fuente de verdad. El editor ya llega con
+  // debounce de 800 ms, así que se escribe en disco en cada guardado (id = ruta).
+  const vault = getVaultActual();
+  if (vault !== null) {
+    await escribirNota(vault, id, texto);
+  }
 
   await execute(
     `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)

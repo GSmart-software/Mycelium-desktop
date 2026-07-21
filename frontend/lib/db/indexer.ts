@@ -40,6 +40,8 @@ const VAULT_ID = LOCAL_VAULT_ID;
  *     índice se upsertan por ruta y no se quiere el coste de validar la FK.
  *   - `notas` añade una columna `mtime INTEGER` (propia del índice) para la
  *     validación incremental por fecha de modificación.
+ *   - `papelera` añade `ruta_papelera TEXT` (fase 4): dónde quedó el archivo en
+ *     `.mycelium/.trash` para poder restaurarlo (solo se usa en modo carpeta).
  * NO se usa `_sqlx_migrations`: el índice no se migra con sqlx, se crea con
  * estos `CREATE TABLE IF NOT EXISTS`.
  */
@@ -115,7 +117,8 @@ const ESQUEMA_INDICE: string[] = [
      nota_id             TEXT NOT NULL UNIQUE REFERENCES notas(id) ON DELETE CASCADE,
      ruta_original       TEXT NOT NULL,
      carpeta_original_id TEXT,
-     eliminado_en        TEXT NOT NULL
+     eliminado_en        TEXT NOT NULL,
+     ruta_papelera       TEXT
    )`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS notas_fts USING fts5(
      nota_id UNINDEXED,
@@ -137,6 +140,14 @@ const ESQUEMA_INDICE: string[] = [
 export async function crearEsquemaIndice(): Promise<void> {
   for (const sql of ESQUEMA_INDICE) {
     await execute(sql);
+  }
+  // Migración defensiva: los índices creados en fases anteriores no tienen la
+  // columna `papelera.ruta_papelera` (fase 4) y `CREATE TABLE IF NOT EXISTS` no
+  // la añade. El ALTER falla si ya existe → se ignora (es idempotente así).
+  try {
+    await execute("ALTER TABLE papelera ADD COLUMN ruta_papelera TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
   }
 }
 
@@ -171,13 +182,13 @@ function carpetasDeRuta(ruta: string): CarpetaDerivada[] {
 }
 
 /** carpeta_id de un archivo (la carpeta que lo contiene) o null si está en raíz. */
-function carpetaDeArchivo(ruta: string): string | null {
+export function carpetaDeArchivo(ruta: string): string | null {
   const i = ruta.lastIndexOf("/");
   return i === -1 ? null : ruta.slice(0, i);
 }
 
 /** Título = nombre de archivo sin la extensión final. */
-function tituloDeRuta(ruta: string): string {
+export function tituloDeRuta(ruta: string): string {
   const nombre = ruta.slice(ruta.lastIndexOf("/") + 1);
   return nombre.replace(/\.[^.]+$/, "");
 }

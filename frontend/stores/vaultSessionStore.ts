@@ -18,6 +18,7 @@ import { create } from "zustand";
 import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
 import { ensureSeed } from "@/lib/db/auth";
 import { indexarVault } from "@/lib/db/indexer";
+import { setVaultActual } from "@/lib/db/vaultContext";
 import { marcarAcceso } from "@/lib/vaultMode";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
@@ -45,6 +46,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     set({ abriendo: true, error: null });
     try {
       await abrirIndiceDeVault(ruta);
+      // A partir de aquí los repos escriben también en disco (modo carpeta).
+      setVaultActual(ruta);
       await ensureSeed();
       await indexarVault(ruta);
       await marcarAcceso(ruta);
@@ -64,6 +67,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
 
   salir() {
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
+    setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     try {
       sessionStorage.removeItem(CLAVE_VAULT_ABIERTO);
     } catch {

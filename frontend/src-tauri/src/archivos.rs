@@ -73,7 +73,8 @@ fn es_oculto(nombre: &str) -> bool {
 /// Resuelve `relativa` dentro de `base` rechazando cualquier intento de salirse
 /// (`..`, rutas absolutas, prefijos de unidad en Windows). Es la defensa contra
 /// path traversal: el frontend arma las rutas a partir de títulos del usuario.
-fn ruta_segura(base: &Path, relativa: &str) -> Result<PathBuf, String> {
+/// `pub(crate)` para reutilizarla desde `vault_fs` (mutaciones a disco, fase 4).
+pub(crate) fn ruta_segura(base: &Path, relativa: &str) -> Result<PathBuf, String> {
     let rel = Path::new(relativa);
     let mut destino = base.to_path_buf();
 
