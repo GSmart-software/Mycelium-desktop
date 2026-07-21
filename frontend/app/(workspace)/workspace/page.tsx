@@ -18,6 +18,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
 
 export default function WorkspacePage() {
@@ -136,6 +137,26 @@ function WorkspaceShell() {
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
+  // Solo en modo carpeta (fase 5) hay watcher; en SQLite clásico `rutaActual` es null.
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
+
+  // Escuchar cambios EXTERNOS del vault en carpeta: el watcher nativo emite
+  // `vault-cambios` y `escucharCambiosVault` reindexa (incremental) y refresca la
+  // UI. Se re-suscribe si cambia la carpeta abierta y se limpia al desmontar/salir
+  // para no duplicar listeners (fase 5, solo-desktop).
+  useEffect(() => {
+    if (!rutaVault) return;
+    let dispose: (() => void) | null = null;
+    let vigente = true;
+    void escucharCambiosVault().then((unlisten) => {
+      if (vigente) dispose = unlisten;
+      else unlisten(); // se desmontó antes de resolver: limpiar de inmediato
+    });
+    return () => {
+      vigente = false;
+      dispose?.();
+    };
+  }, [rutaVault]);
 
   // Cargar el árbol del vault al entrar, aunque el explorador esté colapsado:
   // hace falta para los títulos de las pestañas y para reconciliar el layout
