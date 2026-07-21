@@ -34,8 +34,11 @@ pub struct VaultRef {
 struct Registro {
     #[serde(default)]
     vaults: Vec<VaultRef>,
+    /// Si es `true`, al arrancar se reabre automáticamente el ÚLTIMO vault usado
+    /// (el de `ultimoAcceso` más reciente), sea cual sea. Ajuste global, no por
+    /// vault. (El antiguo campo `autoAbrir` se ignora si aparece en configs viejas.)
     #[serde(default)]
-    auto_abrir: Option<String>,
+    abrir_ultimo: bool,
 }
 
 fn ruta_config(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -93,12 +96,9 @@ fn aplicar_vincular(reg: &mut Registro, ruta: &str) -> VaultRef {
     nuevo
 }
 
-/// Quita un vault del registro; si era el `autoAbrir`, lo limpia.
+/// Quita un vault del registro (no toca la preferencia global `abrir_ultimo`).
 fn aplicar_desvincular(reg: &mut Registro, ruta: &str) {
     reg.vaults.retain(|v| v.ruta != ruta);
-    if reg.auto_abrir.as_deref() == Some(ruta) {
-        reg.auto_abrir = None;
-    }
 }
 
 // ── Comandos ────────────────────────────────────────────────────────────────
@@ -133,23 +133,18 @@ pub fn desvincular_vault(app: tauri::AppHandle, ruta: String) -> Result<(), Stri
     escribir_registro(&config, &reg)
 }
 
-/// Ruta del vault que se abre solo al arrancar (o `null` → mostrar selector).
+/// `true` si al arrancar debe reabrirse automáticamente el último vault usado.
 #[tauri::command]
-pub fn get_auto_abrir(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    Ok(leer_registro(&ruta_config(&app)?).auto_abrir)
+pub fn get_abrir_ultimo(app: tauri::AppHandle) -> Result<bool, String> {
+    Ok(leer_registro(&ruta_config(&app)?).abrir_ultimo)
 }
 
-/// Fija (o limpia con `null`) el vault de apertura automática. Debe estar vinculado.
+/// Activa/desactiva la reapertura automática del último vault al arrancar.
 #[tauri::command]
-pub fn set_auto_abrir(app: tauri::AppHandle, ruta: Option<String>) -> Result<(), String> {
+pub fn set_abrir_ultimo(app: tauri::AppHandle, valor: bool) -> Result<(), String> {
     let config = ruta_config(&app)?;
     let mut reg = leer_registro(&config);
-    if let Some(r) = &ruta {
-        if !reg.vaults.iter().any(|v| &v.ruta == r) {
-            return Err("Ese vault no está vinculado.".to_string());
-        }
-    }
-    reg.auto_abrir = ruta;
+    reg.abrir_ultimo = valor;
     escribir_registro(&config, &reg)
 }
 
@@ -170,33 +165,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registro_persiste_vincular_auto_y_desvincular() {
+    fn registro_persiste_vincular_abrir_ultimo_y_desvincular() {
         let base = std::env::temp_dir().join(format!("mycelium-vaults-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let config = base.join("sub").join(ARCHIVO); // el padre no existe aún
 
         assert!(leer_registro(&config).vaults.is_empty(), "sin archivo → vacío");
+        assert!(!leer_registro(&config).abrir_ultimo, "por defecto no reabre");
 
         let mut reg = leer_registro(&config);
         aplicar_vincular(&mut reg, "C:/Notas/A");
         aplicar_vincular(&mut reg, "C:/Notas/B");
-        reg.auto_abrir = Some("C:/Notas/B".to_string());
+        reg.abrir_ultimo = true;
         escribir_registro(&config, &reg).unwrap();
 
         let reg = leer_registro(&config);
         assert_eq!(reg.vaults.len(), 2);
         assert_eq!(reg.vaults[0].nombre, "A"); // nombre = basename
-        assert_eq!(reg.auto_abrir.as_deref(), Some("C:/Notas/B"));
+        assert!(reg.abrir_ultimo);
 
         // Revincular no duplica.
         let mut reg = leer_registro(&config);
         aplicar_vincular(&mut reg, "C:/Notas/A");
         assert_eq!(reg.vaults.len(), 2);
 
-        // Desvincular el auto lo limpia.
+        // Desvincular no toca la preferencia global.
         aplicar_desvincular(&mut reg, "C:/Notas/B");
         assert_eq!(reg.vaults.len(), 1);
-        assert_eq!(reg.auto_abrir, None);
+        assert!(reg.abrir_ultimo);
 
         std::fs::remove_dir_all(&base).unwrap();
     }

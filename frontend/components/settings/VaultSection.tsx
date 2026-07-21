@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
+import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { useImportStore } from "@/stores/importStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
@@ -25,9 +26,23 @@ export function VaultSection() {
   );
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [abrirUltimo, setAbrirUltimoState] = useState(false);
   const zipRef = useRef<HTMLInputElement>(null);
 
   const ocupado = progress !== null || carpetaProgress !== null;
+
+  useEffect(() => {
+    void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
+  }, []);
+
+  const onToggleAbrirUltimo = async (valor: boolean) => {
+    setAbrirUltimoState(valor); // optimista
+    try {
+      await setAbrirUltimo(valor);
+    } catch {
+      setAbrirUltimoState(!valor); // revertir si falla
+    }
+  };
 
   const handleZip = async () => {
     setProgress({ done: 0, total: 1 });
@@ -90,6 +105,28 @@ export function VaultSection() {
 
   return (
     <div>
+      <div className={styles.field}>
+        <div className={styles.toggleRow}>
+          <span className={styles.label}>Abrir el último vault al iniciar</span>
+          <label
+            className={styles.switch}
+            title={abrirUltimo ? "Activado" : "Desactivado"}
+          >
+            <input
+              type="checkbox"
+              checked={abrirUltimo}
+              onChange={(e) => void onToggleAbrirUltimo(e.target.checked)}
+              aria-label="Abrir automáticamente el último vault al iniciar"
+            />
+            <span className={styles.switchTrack} aria-hidden />
+          </label>
+        </div>
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          Al abrir Mycelium se reabre automáticamente el último vault que usaste. Si
+          está desactivado, se muestra el selector de vaults para elegir.
+        </p>
+      </div>
+
       <div className={styles.field}>
         <span className={styles.label}>Exportar</span>
         <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getAutoAbrir } from "@/lib/vaultMode";
+import { getAbrirUltimo, listarVaults } from "@/lib/vaultMode";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./page.module.css";
 
@@ -11,7 +11,8 @@ import styles from "./page.module.css";
  * dónde ir al arrancar:
  *   1. Si hay una ruta de vault persistida (recarga con vault abierto) → la
  *      reabre y entra al workspace.
- *   2. Si hay un vault de apertura automática (`autoAbrir`) → lo abre y entra.
+ *   2. Si el ajuste global "abrir el último vault" está activo → reabre el vault
+ *      más reciente (el primero de `listarVaults`, que va ordenado por acceso).
  *   3. Si no → muestra el selector de vaults (`/vaults`).
  * Si abrir un vault falla, cae al selector para elegir otro.
  */
@@ -32,13 +33,17 @@ export default function Home() {
         return;
       }
 
-      const auto = await getAutoAbrir();
+      const abrirUltimo = await getAbrirUltimo();
       if (cancelado) return;
-      if (auto) {
-        const ok = await abrir(auto);
+      if (abrirUltimo) {
+        const vaults = await listarVaults(); // ordenados por acceso reciente
         if (cancelado) return;
-        router.replace(ok ? "/workspace" : "/vaults");
-        return;
+        if (vaults.length > 0) {
+          const ok = await abrir(vaults[0].ruta);
+          if (cancelado) return;
+          router.replace(ok ? "/workspace" : "/vaults");
+          return;
+        }
       }
 
       router.replace("/vaults");

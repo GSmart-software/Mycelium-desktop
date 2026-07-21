@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   desvincularVault,
-  getAutoAbrir,
   listarVaults,
-  setAutoAbrir,
   vincularVault,
   type VaultRef,
 } from "@/lib/vaultMode";
@@ -17,14 +15,13 @@ import styles from "./page.module.css";
 /**
  * Selector de vaults (fase 3 del "vault en carpeta", solo-desktop). Lista los
  * vaults vinculados, permite vincular una carpeta nueva (diálogo del SO), abrir
- * uno (entra al workspace leyendo esa carpeta), quitarlo del registro y marcar
- * uno como "abrir automáticamente". Es la pantalla de arranque cuando no hay
- * autoAbrir. Ver `docs/features/vault-en-carpeta.md`.
+ * uno (entra al workspace leyendo esa carpeta) y quitarlo del registro. La
+ * apertura automática del último vault es un ajuste GLOBAL en Configuración, no
+ * una opción por vault. Ver `docs/features/vault-en-carpeta.md`.
  */
 export default function VaultsPage() {
   const router = useRouter();
   const [vaults, setVaults] = useState<VaultRef[]>([]);
-  const [autoAbrir, setAutoAbrirRuta] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,9 +30,8 @@ export default function VaultsPage() {
   const refrescar = useCallback(async () => {
     setCargando(true);
     try {
-      const [lista, auto] = await Promise.all([listarVaults(), getAutoAbrir()]);
+      const lista = await listarVaults();
       setVaults(lista);
-      setAutoAbrirRuta(auto);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo leer el registro de vaults.");
@@ -79,15 +75,6 @@ export default function VaultsPage() {
     }
   }
 
-  async function onToggleAuto(ruta: string, activar: boolean) {
-    try {
-      await setAutoAbrir(activar ? ruta : null);
-      setAutoAbrirRuta(activar ? ruta : null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar la apertura automática.");
-    }
-  }
-
   return (
     <main className={styles.main}>
       <section className={styles.panel}>
@@ -117,7 +104,6 @@ export default function VaultsPage() {
         ) : (
           <ul className={styles.list}>
             {vaults.map((v) => {
-              const esAuto = autoAbrir === v.ruta;
               return (
                 <li key={v.ruta} className={styles.item}>
                   <div className={styles.itemInfo}>
@@ -125,15 +111,6 @@ export default function VaultsPage() {
                     <span className={styles.itemPath} title={v.ruta}>
                       {v.ruta}
                     </span>
-                    <label className={styles.autoLabel}>
-                      <input
-                        type="checkbox"
-                        checked={esAuto}
-                        disabled={abriendo}
-                        onChange={(e) => void onToggleAuto(v.ruta, e.target.checked)}
-                      />
-                      Abrir automáticamente
-                    </label>
                   </div>
                   <div className={styles.itemActions}>
                     <button

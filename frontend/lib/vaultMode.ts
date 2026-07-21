@@ -33,14 +33,14 @@ export async function desvincularVault(ruta: string): Promise<void> {
   await invoke("desvincular_vault", { ruta });
 }
 
-/** Ruta del vault de apertura automática, o `null` si hay que mostrar el selector. */
-export async function getAutoAbrir(): Promise<string | null> {
-  return (await invoke<string | null>("get_auto_abrir")) ?? null;
+/** `true` si al arrancar se reabre automáticamente el último vault usado. */
+export async function getAbrirUltimo(): Promise<boolean> {
+  return (await invoke<boolean>("get_abrir_ultimo")) ?? false;
 }
 
-/** Fija (o limpia con `null`) el vault que se abre solo al arrancar. */
-export async function setAutoAbrir(ruta: string | null): Promise<void> {
-  await invoke("set_auto_abrir", { ruta });
+/** Activa/desactiva la reapertura automática del último vault al arrancar. */
+export async function setAbrirUltimo(valor: boolean): Promise<void> {
+  await invoke("set_abrir_ultimo", { valor });
 }
 
 /** Marca un vault como accedido ahora (para ordenar por reciente). */
