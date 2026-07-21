@@ -17,7 +17,7 @@
 import { create } from "zustand";
 import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
 import { ensureSeed } from "@/lib/db/auth";
-import { indexarVault } from "@/lib/db/indexer";
+import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import { marcarAcceso } from "@/lib/vaultMode";
 
@@ -46,6 +46,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     set({ abriendo: true, error: null });
     try {
       await abrirIndiceDeVault(ruta);
+      // El índice recién abierto puede estar vacío: hay que crear el esquema
+      // ANTES de sembrar, porque `ensureSeed()` consulta la tabla `usuarios`.
+      await crearEsquemaIndice();
       // A partir de aquí los repos escriben también en disco (modo carpeta).
       setVaultActual(ruta);
       await ensureSeed();
@@ -68,6 +71,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       set({ rutaActual: ruta, abriendo: false, error: null });
       return true;
     } catch (error) {
+      console.error("[vault] fallo al abrir el vault:", error);
       const message = error instanceof Error ? error.message : "Error desconocido";
       set({ abriendo: false, error: message });
       return false;
