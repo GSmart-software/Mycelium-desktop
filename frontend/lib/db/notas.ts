@@ -16,7 +16,9 @@ import {
   extDe,
   extDeTipo,
   moverRuta,
+  nombreNotaLibre,
   rekeyIndice,
+  rutaOcupada,
   sanearNombre,
   unir,
 } from "./vaultFs";
@@ -65,13 +67,16 @@ export async function crearNota(
 
   const vault = getVaultActual();
   if (vault !== null) {
-    // Modo carpeta: la identidad es la ruta. Se crea el `.md`/`.excalidraw` vacío
-    // en disco y se indexa con id = ruta (carpetaId ya es la ruta de la carpeta).
-    const id = unir(carpetaId, sanearNombre(unico) + extDeTipo(t));
+    // Modo carpeta: la identidad es la ruta. El saneo + desambiguación por sufijo
+    // se hace a nivel de NOMBRE DE ARCHIVO (`nombreNotaLibre`), no de título: así
+    // se evita pisar un archivo real cuando dos títulos distintos sanean al mismo
+    // nombre o cuando ya existe una carpeta con ese nombre. El título mostrado pasa
+    // a ser el nombre saneado (como Obsidian). Se crea el `.md`/`.excalidraw` vacío.
+    const { id, titulo } = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
     await escribirNota(vault, id, "");
     await execute(
       "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-      [id, vaultId, carpetaId, unico, t, Date.now(), now, now],
+      [id, vaultId, carpetaId, titulo, t, Date.now(), now, now],
     );
     await execute(
       "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",
@@ -79,7 +84,7 @@ export async function crearNota(
     );
     await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, '')", [
       id,
-      unico,
+      titulo,
     ]);
     return { id };
   }
@@ -109,6 +114,11 @@ export async function renombrarNota(id: string, titulo: string): Promise<Created
     const nuevoTitulo = sanearNombre(limpio);
     const newId = unir(carpeta, nuevoTitulo + extDe(id));
     if (newId !== id) {
+      // Renombrar NO desambigua: si ya hay algo con ese nombre en la carpeta, se
+      // rechaza (a diferencia de crear/duplicar, que sí añaden sufijo).
+      if (await rutaOcupada(newId, id)) {
+        throw new DbError(409, "Ya existe una nota o carpeta con ese nombre aquí.");
+      }
       await moverRuta(vault, id, newId);
       await rekeyIndice([], [{ oldId: id, newId, newCarpetaId: carpeta, newTitulo: nuevoTitulo }]);
     }
@@ -149,6 +159,9 @@ export async function moverNota(
     if (existe.length === 0) throw new DbError(404, "La nota no existe.");
     const newId = unir(destinoId, basenameDe(id)); // mismo archivo, otra carpeta
     if (newId !== id) {
+      if (await rutaOcupada(newId, id)) {
+        throw new DbError(409, "Ya existe una nota o carpeta con ese nombre en el destino.");
+      }
       await moverRuta(vault, id, newId);
       await rekeyIndice(
         [],
@@ -181,20 +194,24 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
   const now = ahoraIso();
   const vault = getVaultActual();
 
-  // En modo carpeta el sufijo por defecto es "(copia)" (estilo Obsidian) sobre el
-  // nombre de archivo; en clásico se conserva el sufijo numérico del backend.
-  const baseTitulo = vault !== null ? `${nota.titulo} (copia)` : nota.titulo;
-  const titulo = tituloUnico(baseTitulo, await titulosEnCarpeta(nota.vault_id, nota.carpeta_id));
-
+  // En modo carpeta el sufijo por defecto es "(copia)" (estilo Obsidian) y la
+  // desambiguación se hace a nivel de nombre de archivo (`nombreNotaLibre`); en
+  // clásico se conserva el sufijo numérico del backend sobre el título.
   let nuevo: string;
+  let titulo: string;
   if (vault !== null) {
-    nuevo = unir(nota.carpeta_id, sanearNombre(titulo) + extDeTipo(nota.tipo));
+    ({ id: nuevo, titulo } = await nombreNotaLibre(
+      nota.carpeta_id,
+      `${nota.titulo} (copia)`,
+      extDeTipo(nota.tipo),
+    ));
     await copiarArchivo(vault, id, nuevo);
     await execute(
       "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [nuevo, nota.vault_id, nota.carpeta_id, titulo, nota.tipo, nota.tamano_bytes, Date.now(), now, now],
     );
   } else {
+    titulo = tituloUnico(nota.titulo, await titulosEnCarpeta(nota.vault_id, nota.carpeta_id));
     nuevo = nuevoId();
     await execute(
       "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

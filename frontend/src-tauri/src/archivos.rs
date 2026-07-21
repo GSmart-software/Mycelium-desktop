@@ -223,6 +223,53 @@ pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> 
     Ok(out)
 }
 
+/// Recorre `dir` recursivamente acumulando las rutas relativas (separador `/`) de
+/// TODOS los subdirectorios reales, ignorando los ocultos (`.git`, `.obsidian`,
+/// `.mycelium`, …). A diferencia del listado de archivos, aquí importan también los
+/// directorios VACÍOS: son la única forma de que una carpeta sin notas sobreviva a
+/// un reindex (el indexador, si solo derivara carpetas de las rutas de archivos,
+/// las perdería).
+fn recorrer_dirs(dir: &Path, base: &Path, out: &mut Vec<String>) -> Result<(), String> {
+    let entradas =
+        std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
+
+    for entrada in entradas {
+        let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
+        let ruta = entrada.path();
+        if !ruta.is_dir() {
+            continue;
+        }
+        let nombre = entrada.file_name().to_string_lossy().to_string();
+        if es_oculto(&nombre) {
+            continue; // .git, .obsidian, .mycelium, …
+        }
+        let relativa = ruta
+            .strip_prefix(base)
+            .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
+            .join("/");
+        out.push(relativa);
+        recorrer_dirs(&ruta, base, out)?;
+    }
+    Ok(())
+}
+
+/// Lista las rutas relativas POSIX de TODOS los subdirectorios de `origen`
+/// (incluidos los vacíos), ignorando los ocultos y `.mycelium`. Es el complemento
+/// de `listar_archivos_meta` para que el índice conserve las carpetas vacías.
+#[tauri::command]
+pub fn listar_directorios(origen: String) -> Result<Vec<String>, String> {
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let mut out = Vec::new();
+    recorrer_dirs(&base, &base, &mut out)?;
+    Ok(out)
+}
+
 /// `true` si la carpeta tiene al menos una entrada. La UI lo usa para pedir
 /// confirmación antes de exportar sobre una carpeta con contenido.
 #[tauri::command]
@@ -320,6 +367,25 @@ mod tests {
         assert_eq!(metas[1].ruta_relativa, "sub/diagrama.excalidraw");
         assert_eq!(metas[1].tipo, "excalidraw");
         assert!(metas.iter().all(|m| m.mtime > 0), "mtime debe ser > 0");
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// `listar_directorios` enumera TODOS los subdirectorios (incluidos los
+    /// vacíos) con ruta relativa POSIX, e ignora ocultos y `.mycelium`.
+    #[test]
+    fn listar_directorios_incluye_vacios_e_ignora_ocultos() {
+        let base = std::env::temp_dir().join(format!("mycelium-dirs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("Proyectos/2026")).unwrap();
+        std::fs::create_dir_all(base.join("Vacía")).unwrap(); // sin archivos
+        std::fs::create_dir_all(base.join(".mycelium/.trash")).unwrap();
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        std::fs::write(base.join("Proyectos/2026/plan.md"), "x").unwrap();
+
+        let mut dirs = listar_directorios(base.to_string_lossy().to_string()).unwrap();
+        dirs.sort();
+        assert_eq!(dirs, vec!["Proyectos", "Proyectos/2026", "Vacía"]);
 
         std::fs::remove_dir_all(&base).unwrap();
     }
