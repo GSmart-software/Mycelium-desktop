@@ -103,6 +103,7 @@ pub fn run() {
             archivos::exportar_a_carpeta,
             archivos::leer_carpeta,
             archivos::listar_archivos_meta,
+            archivos::listar_directorios,
             archivos::carpeta_no_vacia,
             vault_config::listar_vaults,
             vault_config::vincular_vault,

@@ -181,6 +181,26 @@ function carpetasDeRuta(ruta: string): CarpetaDerivada[] {
   return out;
 }
 
+/**
+ * Deriva una carpeta (por su ruta POSIX) y todos sus ancestros. Para
+ * `Proyectos/2026` devuelve `Proyectos` (padre null) y `Proyectos/2026` (padre
+ * `Proyectos`). A diferencia de `carpetasDeRuta`, NO descarta el último segmento:
+ * la entrada YA es una carpeta (no un archivo), así que la propia carpeta cuenta.
+ * Se usa para persistir las carpetas VACÍAS enumeradas por `listar_directorios`.
+ */
+function carpetasDeDir(dir: string): CarpetaDerivada[] {
+  const partes = dir.split("/");
+  const out: CarpetaDerivada[] = [];
+  for (let i = 0; i < partes.length; i++) {
+    out.push({
+      id: partes.slice(0, i + 1).join("/"),
+      padre_id: i === 0 ? null : partes.slice(0, i).join("/"),
+      nombre: partes[i],
+    });
+  }
+  return out;
+}
+
 /** carpeta_id de un archivo (la carpeta que lo contiene) o null si está en raíz. */
 export function carpetaDeArchivo(ruta: string): string | null {
   const i = ruta.lastIndexOf("/");
@@ -215,11 +235,21 @@ export async function indexarVault(
   const archivos = await invoke<ArchivoMeta[]>("listar_archivos_meta", {
     origen: vaultRuta,
   });
+  // Directorios reales del vault (incluidos los vacíos): sin esto, una carpeta sin
+  // notas desaparecería al reindexar (solo se derivarían carpetas de las rutas de
+  // archivos). Ver `listar_directorios` (fase 7, frente 4).
+  const directorios = await invoke<string[]>("listar_directorios", {
+    origen: vaultRuta,
+  });
 
-  // Carpetas únicas derivadas de todas las rutas (padres antes que hijos).
+  // Carpetas únicas: las derivadas de las rutas de archivos MÁS los directorios
+  // reales (que cubren además las carpetas vacías). Padres antes que hijos.
   const carpetas = new Map<string, CarpetaDerivada>();
   for (const a of archivos) {
     for (const c of carpetasDeRuta(a.rutaRelativa)) carpetas.set(c.id, c);
+  }
+  for (const dir of directorios) {
+    for (const c of carpetasDeDir(dir)) carpetas.set(c.id, c);
   }
 
   // Estado actual del índice: mtime por nota y carpetas existentes (para limpieza).

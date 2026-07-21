@@ -84,6 +84,21 @@ pub fn mover_ruta(vault_ruta: String, origen_rel: String, destino_rel: String) -
     if !origen.exists() {
         return Err(format!("No existe el origen: {origen_rel}"));
     }
+    // Red de seguridad contra colisiones: NO se sobrescribe un destino existente
+    // (el frontend ya rechaza la colisión antes con un mensaje claro, pero un
+    // `rename` de Rust pisaría el destino en silencio). Se permite el caso especial
+    // de un renombrado que solo cambia mayúsculas/minúsculas en un sistema de
+    // archivos insensible (Windows/macOS): ahí origen y destino canonicalizan al
+    // MISMO archivo, y bloquearlo impediría corregir el uso de mayúsculas.
+    if destino.exists() {
+        let mismo_archivo = match (std::fs::canonicalize(&origen), std::fs::canonicalize(&destino)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        };
+        if !mismo_archivo {
+            return Err(format!("Ya existe algo en el destino: {destino_rel}"));
+        }
+    }
     asegurar_padre(&destino)?;
     std::fs::rename(&origen, &destino)
         .map_err(|e| format!("No se pudo mover {origen_rel} → {destino_rel}: {e}"))
@@ -154,7 +169,28 @@ pub fn restaurar_de_papelera(
         .map_err(|e| format!("No se pudo restaurar {ruta_papelera_rel} → {destino_rel}: {e}"))
 }
 
-/// Borra definitivamente un elemento de la papelera (archivo o carpeta).
+/// Elimina los directorios ANCESTROS de `desde` que hayan quedado vacíos, sin
+/// pasar de `tope` (la raíz de la papelera). Evita que purgar/borrar archivos deje
+/// un esqueleto de subcarpetas vacías dentro de `.mycelium/.trash`. Best-effort:
+/// cualquier error (dir no vacío, permisos) detiene la poda en silencio.
+fn podar_ancestros_vacios(desde: &Path, tope: &Path) {
+    let mut actual = desde.parent();
+    while let Some(dir) = actual {
+        if !dir.starts_with(tope) || dir == tope {
+            break; // no subir más allá de la raíz de la papelera
+        }
+        // `remove_dir` solo borra si está vacío; si no lo está, paramos.
+        if std::fs::remove_dir(dir).is_err() {
+            break;
+        }
+        actual = dir.parent();
+    }
+}
+
+/// Borra definitivamente un elemento de la papelera (archivo o carpeta). En modo
+/// carpeta esto ELIMINA físicamente el `.md`/`.excalidraw` (o la subcarpeta) de
+/// `.mycelium/.trash`, no solo la fila del índice. Tras borrar, poda los
+/// directorios ancestros que queden vacíos dentro de la papelera.
 #[tauri::command]
 pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
@@ -167,7 +203,12 @@ pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Resul
     } else {
         std::fs::remove_file(&destino)
     };
-    res.map_err(|e| format!("No se pudo borrar {ruta_papelera_rel}: {e}"))
+    res.map_err(|e| format!("No se pudo borrar {ruta_papelera_rel}: {e}"))?;
+
+    // Poda de subcarpetas vacías dentro de la papelera (no toca nada fuera de ella).
+    let tope = base.join(".mycelium").join(".trash");
+    podar_ancestros_vacios(&destino, &tope);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -269,6 +310,34 @@ mod tests {
         assert!(!base.join("Sub").exists());
         assert!(base.join(".mycelium/.trash/Sub/a.md").exists());
         assert!(base.join(".mycelium/.trash/Sub/b.md").exists());
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn mover_rechaza_pisar_un_destino_existente() {
+        let base = tmp_vault("colision");
+        let v = base.to_string_lossy().to_string();
+        escribir_nota(v.clone(), "a.md".into(), "aaa".into()).unwrap();
+        escribir_nota(v.clone(), "b.md".into(), "bbb".into()).unwrap();
+        // Mover a.md sobre b.md (que ya existe) debe fallar y NO pisar b.md.
+        assert!(mover_ruta(v.clone(), "a.md".into(), "b.md".into()).is_err());
+        assert_eq!(std::fs::read_to_string(base.join("a.md")).unwrap(), "aaa");
+        assert_eq!(std::fs::read_to_string(base.join("b.md")).unwrap(), "bbb");
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn borrar_definitivo_poda_subcarpetas_vacias_de_la_papelera() {
+        let base = tmp_vault("poda");
+        let v = base.to_string_lossy().to_string();
+        escribir_nota(v.clone(), "Carpeta/Sub/nota.md".into(), "hola".into()).unwrap();
+        let rel = borrar_a_papelera(v.clone(), "Carpeta/Sub/nota.md".into()).unwrap();
+        assert!(base.join(&rel).exists());
+        borrar_definitivo(v.clone(), rel).unwrap();
+        // Al quedar vacías, las subcarpetas de la papelera se podan, pero la raíz
+        // `.mycelium/.trash` se conserva.
+        assert!(!base.join(".mycelium/.trash/Carpeta").exists());
+        assert!(base.join(".mycelium/.trash").exists());
         std::fs::remove_dir_all(&base).unwrap();
     }
 

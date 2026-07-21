@@ -13,7 +13,9 @@ import {
   borrarAPapelera,
   crearDirectorio,
   moverRuta,
+  nombreCarpetaLibre,
   rekeyIndice,
+  rutaOcupada,
   sanearNombre,
   unir,
   type CarpetaRekey,
@@ -109,9 +111,10 @@ export async function crearCarpeta(
 
   const vault = getVaultActual();
   if (vault !== null) {
-    // Modo carpeta: la identidad es la ruta; se crea el directorio real.
-    const nombreFs = sanearNombre(limpio);
-    const id = unir(padreId, nombreFs);
+    // Modo carpeta: la identidad es la ruta; se crea el directorio real. Se sanea
+    // y se desambigua con sufijo incremental si ya existe otra carpeta/nota con
+    // ese nombre en el mismo padre (estilo Obsidian: "Carpeta", "Carpeta 1"…).
+    const { id, nombre: nombreFs } = await nombreCarpetaLibre(padreId, limpio);
     await crearDirectorio(vault, id);
     await execute(
       "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
@@ -141,9 +144,12 @@ export async function renombrarCarpeta(id: string, nombre: string): Promise<Crea
     const existe = await vaultIdOfCarpeta(id);
     if (existe === null) throw new DbError(404, "La carpeta no existe.");
     const padre = carpetaDeArchivo(id); // carpeta padre (o null en raíz)
-    const nombreFs = sanearNombre(limpio);
+    const nombreFs = sanearNombre(limpio, "Sin nombre");
     const newId = unir(padre, nombreFs);
     if (newId !== id) {
+      if (await rutaOcupada(newId, id)) {
+        throw new DbError(409, "Ya existe una carpeta o nota con ese nombre aquí.");
+      }
       await moverRuta(vault, id, newId);
       await reindexarSubarbol(id, newId, nombreFs, padre);
     }
@@ -185,6 +191,9 @@ export async function moverCarpeta(
     const nombre = basenameDe(id); // el nombre no cambia al mover
     const newId = unir(destinoId, nombre);
     if (newId !== id) {
+      if (await rutaOcupada(newId, id)) {
+        throw new DbError(409, "Ya existe una carpeta o nota con ese nombre en el destino.");
+      }
       await moverRuta(vault, id, newId);
       await reindexarSubarbol(id, newId, nombre, destinoId);
     }

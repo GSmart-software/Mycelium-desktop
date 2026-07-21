@@ -14,7 +14,12 @@
  * `contenido.ts` compartan la misma lógica sin duplicarla.
  */
 import { execute, select } from "./client";
+import { desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
+
+// Re-exporta el saneo puro (definido sin dependencias en `nombres.ts`) para que
+// los repos sigan importándolo desde `vaultFs` como hasta ahora.
+export { desambiguar, esReservadoWindows, sanearNombre } from "./nombres";
 
 // ── Envoltorios de los comandos Rust (invoke perezoso) ────────────────────────
 
@@ -94,19 +99,80 @@ export function unir(carpeta: string | null, nombre: string): string {
   return carpeta ? `${carpeta}/${nombre}` : nombre;
 }
 
+// ── Colisiones de nombre en la misma carpeta (fase 7) ─────────────────────────
+
 /**
- * Saneo MÍNIMO de un nombre de archivo/carpeta (el endurecido completo —nombres
- * reservados de Windows, longitud, colisiones— es fase 7). Sustituye los
- * caracteres prohibidos por el SO (`\ / : * ? " < > |`) por un espacio y recorta
- * puntos/espacios finales (Windows los rechaza). Nunca devuelve cadena vacía.
+ * Basenames (nombre de archivo con extensión + nombres de carpeta) ya ocupados
+ * dentro de `carpetaId` (o la raíz si es `null`) según el ÍNDICE. Sirve para
+ * desambiguar al crear/duplicar sin pisar un archivo real (dos entradas con el
+ * mismo basename son imposibles en disco). Excluye notas ya en la papelera.
  */
-export function sanearNombre(nombre: string): string {
-  const limpio = nombre
-    .replace(/[\\/:*?"<>|]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[. ]+$/, "");
-  return limpio.length > 0 ? limpio : "Sin título";
+async function basenamesOcupados(carpetaId: string | null): Promise<Set<string>> {
+  const notas =
+    carpetaId === null
+      ? await select<{ id: string }>(
+          "SELECT id FROM notas WHERE carpeta_id IS NULL AND id NOT IN (SELECT nota_id FROM papelera)",
+        )
+      : await select<{ id: string }>(
+          "SELECT id FROM notas WHERE carpeta_id = ? AND id NOT IN (SELECT nota_id FROM papelera)",
+          [carpetaId],
+        );
+  const carpetas =
+    carpetaId === null
+      ? await select<{ id: string }>("SELECT id FROM carpetas WHERE padre_id IS NULL")
+      : await select<{ id: string }>("SELECT id FROM carpetas WHERE padre_id = ?", [carpetaId]);
+
+  const set = new Set<string>();
+  for (const n of notas) set.add(basenameDe(n.id));
+  for (const c of carpetas) set.add(basenameDe(c.id));
+  return set;
+}
+
+/**
+ * Calcula un nombre de archivo libre para una nota nueva/duplicada en `carpetaId`.
+ * Sanea `baseTitulo`, y si el basename (`<stem><ext>`) ya existe en la carpeta,
+ * añade sufijo incremental (" 1", " 2"…, estilo Obsidian). Devuelve el `id` (ruta
+ * relativa) y el `titulo` (= stem saneado y desambiguado, que en modo carpeta
+ * coincide con el nombre del archivo).
+ */
+export async function nombreNotaLibre(
+  carpetaId: string | null,
+  baseTitulo: string,
+  ext: string,
+): Promise<{ id: string; titulo: string }> {
+  const ocupados = await basenamesOcupados(carpetaId);
+  const base = sanearNombre(baseTitulo);
+  const stem = desambiguar(base, (cand) => ocupados.has(cand + ext) || ocupados.has(cand));
+  return { id: unir(carpetaId, stem + ext), titulo: stem };
+}
+
+/**
+ * Calcula un nombre de directorio libre para una carpeta nueva bajo `padreId`.
+ * Igual que `nombreNotaLibre` pero sin extensión y con fallback "Sin nombre".
+ */
+export async function nombreCarpetaLibre(
+  padreId: string | null,
+  baseNombre: string,
+): Promise<{ id: string; nombre: string }> {
+  const ocupados = await basenamesOcupados(padreId);
+  const base = sanearNombre(baseNombre, "Sin nombre");
+  const nombre = desambiguar(base, (cand) => ocupados.has(cand));
+  return { id: unir(padreId, nombre), nombre };
+}
+
+/**
+ * Comprueba si `destinoId` (ruta relativa POSIX) ya está ocupado en el índice por
+ * una nota o una carpeta DISTINTA de `origenId`. Se usa antes de renombrar/mover
+ * en modo carpeta para RECHAZAR la colisión (en vez de pisar). La comparación es
+ * exacta sobre la ruta; un renombrado que solo cambia mayúsculas/minúsculas
+ * (`Nota.md` → `nota.md`) NO se considera colisión (ids distintos, mismo archivo).
+ */
+export async function rutaOcupada(destinoId: string, origenId: string): Promise<boolean> {
+  if (destinoId === origenId) return false;
+  const nota = await select<{ id: string }>("SELECT id FROM notas WHERE id = ?", [destinoId]);
+  if (nota.length > 0) return true;
+  const carpeta = await select<{ id: string }>("SELECT id FROM carpetas WHERE id = ?", [destinoId]);
+  return carpeta.length > 0;
 }
 
 // ── Recodificación de ids en el índice (identidad = ruta) ─────────────────────
