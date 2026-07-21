@@ -21,3 +21,6 @@ dist/
 # Logs de verificación local (Playwright/stack aislado)
 .verify-*.log
 
+
+# Datos internos del harness de Claude Code
+.claude/
