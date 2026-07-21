@@ -31,7 +31,7 @@ export async function startCollab(
 ): Promise<CollabHandle | null> {
   let info: CollabInfo;
   try {
-    info = await api<CollabInfo>(`/notas/${notaId}/colaboracion`, {
+    info = await api<CollabInfo>(`/notas/${encodeURIComponent(notaId)}/colaboracion`, {
       token: useAuthStore.getState().accessToken,
     });
   } catch {

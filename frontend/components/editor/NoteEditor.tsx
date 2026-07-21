@@ -189,7 +189,7 @@ export function NoteEditor({
     setSyncState("syncing");
     try {
       const result = await api<{ actualizadoEn: string }>(
-        `/notas/${notaId}/contenido`,
+        `/notas/${encodeURIComponent(notaId)}/contenido`,
         {
           method: "PUT",
           token: useAuthStore.getState().accessToken,
@@ -380,7 +380,7 @@ export function NoteEditor({
     if (dirtyRef.current || !viewRef.current) return;
     try {
       const remote = await api<{ contenido: string; actualizadoEn: string }>(
-        `/notas/${notaId}/contenido`,
+        `/notas/${encodeURIComponent(notaId)}/contenido`,
         { token: useAuthStore.getState().accessToken },
       );
       // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
@@ -428,7 +428,7 @@ export function NoteEditor({
 
       try {
         const remote = await api<{ contenido: string; actualizadoEn: string }>(
-          `/notas/${notaId}/contenido`,
+          `/notas/${encodeURIComponent(notaId)}/contenido`,
           { token: useAuthStore.getState().accessToken },
         );
         if (cancelled) return;
@@ -538,7 +538,7 @@ export function NoteEditor({
       // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
       // dispatcher local (antes era un fetch al backend .NET).
       if (dirtyRef.current) {
-        void api(`/notas/${notaId}/contenido`, {
+        void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
           method: "PUT",
           body: { contenido: contentRef.current },
         });

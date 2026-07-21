@@ -165,7 +165,10 @@ async function dispatch(
 export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const method = (options.method ?? "GET") as Method;
   const [rawPath, rawQuery] = path.split("?");
-  const seg = rawPath.split("/").filter(Boolean);
+  // Los ids de nota/carpeta son RUTAS (contienen `/`): los call-sites los mandan
+  // con encodeURIComponent, así que cada segmento se decodifica aquí para
+  // recuperar el id real (p. ej. "Anime%2FBoku.md" → "Anime/Boku.md").
+  const seg = rawPath.split("/").filter(Boolean).map((s) => decodeURIComponent(s));
   const q = new URLSearchParams(rawQuery ?? "");
   const body = (options.body ?? {}) as Body;
 

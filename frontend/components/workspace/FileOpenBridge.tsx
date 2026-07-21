@@ -35,7 +35,7 @@ async function abrirArchivo(f: OpenedFile): Promise<void> {
     method: "POST",
     body: { titulo: f.name, carpetaId: vault.activeFolderId, tipo },
   });
-  await api(`/notas/${created.id}/contenido`, {
+  await api(`/notas/${encodeURIComponent(created.id)}/contenido`, {
     method: "PUT",
     body: { contenido: f.content },
   });

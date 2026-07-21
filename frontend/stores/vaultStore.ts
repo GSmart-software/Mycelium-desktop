@@ -196,7 +196,7 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameCarpeta(id, nombre) {
-        const res = await api<{ id: string }>(`/carpetas/${id}`, {
+        const res = await api<{ id: string }>(`/carpetas/${encodeURIComponent(id)}`, {
           method: "PATCH",
           token: token(),
           body: { nombre },
@@ -208,7 +208,7 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async deleteCarpeta(id) {
-        await api(`/carpetas/${id}`, { method: "DELETE", token: token() });
+        await api(`/carpetas/${encodeURIComponent(id)}`, { method: "DELETE", token: token() });
         await get().loadTree(get().vaultId!);
       },
 
@@ -223,13 +223,14 @@ export const useVaultStore = create<VaultState>()(
         pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         let res: { id: string };
         try {
-          res = await api<{ id: string }>(`/carpetas/${id}/mover`, {
+          res = await api<{ id: string }>(`/carpetas/${encodeURIComponent(id)}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId },
           });
-        } catch {
+        } catch (err) {
           // Revertir si el backend rechazó el movimiento.
+          console.error("[vault] fallo al mover carpeta:", err);
           pendingMoves.delete(id);
           set((s) => ({
             carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
@@ -271,7 +272,7 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameNota(id, titulo) {
-        const res = await api<{ id: string }>(`/notas/${id}`, {
+        const res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}`, {
           method: "PATCH",
           token: token(),
           body: { titulo },
@@ -284,13 +285,13 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async deleteNota(id) {
-        await api(`/notas/${id}`, { method: "DELETE", token: token() });
+        await api(`/notas/${encodeURIComponent(id)}`, { method: "DELETE", token: token() });
         await get().loadTree(get().vaultId!);
         markGraphStale();
       },
 
       async duplicateNota(id) {
-        await api(`/notas/${id}/duplicar`, { method: "POST", token: token() });
+        await api(`/notas/${encodeURIComponent(id)}/duplicar`, { method: "POST", token: token() });
         await get().loadTree(get().vaultId!);
         markGraphStale();
       },
@@ -306,13 +307,14 @@ export const useVaultStore = create<VaultState>()(
         pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         let res: { id: string };
         try {
-          res = await api<{ id: string }>(`/notas/${id}/mover`, {
+          res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId },
           });
-        } catch {
+        } catch (err) {
           // Revertir si el backend rechazó el movimiento.
+          console.error("[vault] fallo al mover nota:", err);
           pendingMoves.delete(id);
           set((s) => ({
             notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
@@ -337,13 +339,13 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async restoreNota(id) {
-        await api(`/notas/${id}/recuperar`, { method: "POST", token: token() });
+        await api(`/notas/${encodeURIComponent(id)}/recuperar`, { method: "POST", token: token() });
         await Promise.all([get().loadPapelera(), get().loadTree(get().vaultId!)]);
         markGraphStale();
       },
 
       async deleteNotaForever(id) {
-        await api(`/notas/${id}/permanente`, { method: "DELETE", token: token() });
+        await api(`/notas/${encodeURIComponent(id)}/permanente`, { method: "DELETE", token: token() });
         await get().loadPapelera();
       },
 
@@ -353,13 +355,13 @@ export const useVaultStore = create<VaultState>()(
         set({ lastMove: null });
         pendingMoves.set(move.id, { parent: move.prevParentId, ts: Date.now() });
         if (move.type === "nota") {
-          await api(`/notas/${move.id}/mover`, {
+          await api(`/notas/${encodeURIComponent(move.id)}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId: move.prevParentId },
           });
         } else {
-          await api(`/carpetas/${move.id}/mover`, {
+          await api(`/carpetas/${encodeURIComponent(move.id)}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId: move.prevParentId },

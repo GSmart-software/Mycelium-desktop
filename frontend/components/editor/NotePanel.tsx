@@ -69,7 +69,7 @@ export function NotePanel({ notaId }: { notaId: string }) {
     let cancelled = false;
     const cached = conexionesCache.get(notaId);
     setData(cached ?? null);
-    void api<Conexiones>(`/notas/${notaId}/conexiones`, {
+    void api<Conexiones>(`/notas/${encodeURIComponent(notaId)}/conexiones`, {
       token: useAuthStore.getState().accessToken,
     })
       .then((res) => {

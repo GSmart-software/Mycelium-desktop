@@ -181,7 +181,7 @@ export async function importFiles(
       token: token(),
       body: { titulo, carpetaId },
     });
-    await api(`/notas/${created.id}/contenido`, {
+    await api(`/notas/${encodeURIComponent(created.id)}/contenido`, {
       method: "PUT",
       token: token(),
       body: { contenido: text },

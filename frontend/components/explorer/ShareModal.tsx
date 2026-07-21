@@ -35,7 +35,7 @@ export function ShareModal() {
   const load = useCallback(async () => {
     if (!target) return;
     try {
-      const data = await api<{ miembros: Miembro[] }>(`/carpetas/${target.id}/miembros`, {
+      const data = await api<{ miembros: Miembro[] }>(`/carpetas/${encodeURIComponent(target.id)}/miembros`, {
         token: token(),
       });
       setMiembros(data.miembros);
@@ -53,7 +53,7 @@ export function ShareModal() {
   const compartir = async () => {
     setMsg(null);
     try {
-      await api(`/carpetas/${target.id}/compartir`, {
+      await api(`/carpetas/${encodeURIComponent(target.id)}/compartir`, {
         method: "POST",
         token: token(),
         body: { email: email.trim(), rol },
@@ -69,7 +69,7 @@ export function ShareModal() {
   const cambiarRol = async (m: Miembro, nuevoRol: string) => {
     setMsg(null);
     try {
-      await api(`/carpetas/${target.id}/miembros/${m.usuario_id}`, {
+      await api(`/carpetas/${encodeURIComponent(target.id)}/miembros/${m.usuario_id}`, {
         method: "PATCH",
         token: token(),
         body: { rol: nuevoRol },
@@ -83,7 +83,7 @@ export function ShareModal() {
   const revocar = async (m: Miembro) => {
     setMsg(null);
     try {
-      await api(`/carpetas/${target.id}/miembros/${m.usuario_id}`, {
+      await api(`/carpetas/${encodeURIComponent(target.id)}/miembros/${m.usuario_id}`, {
         method: "DELETE",
         token: token(),
       });

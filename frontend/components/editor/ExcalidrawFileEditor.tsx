@@ -33,7 +33,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    void api<{ contenido: string }>(`/notas/${notaId}/contenido`, {
+    void api<{ contenido: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
       token: useAuthStore.getState().accessToken,
     })
       .then((d) => {
@@ -70,7 +70,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
       files: api2.getFiles(),
     });
     useSyncStore.getState().setSyncState(notaId, "syncing");
-    void api(`/notas/${notaId}/contenido`, {
+    void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
       method: "PUT",
       token: useAuthStore.getState().accessToken,
       body: { contenido },

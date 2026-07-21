@@ -29,7 +29,7 @@ function downloadBlob(blob: Blob, filename: string): void {
 /** Contenido de una nota: backend primero, IndexedDB si no hay conexión (HU-08 CA5). */
 export async function fetchNoteContent(notaId: string): Promise<string> {
   try {
-    const data = await api<{ contenido: string }>(`/notas/${notaId}/contenido`, {
+    const data = await api<{ contenido: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
       token: useAuthStore.getState().accessToken,
     });
     return data.contenido;
@@ -94,7 +94,7 @@ export async function recolectarArchivosVault(
   for (const ref of adjuntos) {
     const [notaId, diagId] = ref.split(":");
     try {
-      const json = await api<string>(`/notas/${notaId}/diagramas/${diagId}`);
+      const json = await api<string>(`/notas/${encodeURIComponent(notaId)}/diagramas/${diagId}`);
       out.push({ rutaRelativa: `adjuntos/${diagId}.excalidraw`, contenido: json });
     } catch {
       // adjunto inaccesible → se omite

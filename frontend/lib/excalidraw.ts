@@ -20,7 +20,7 @@ export async function loadDiagram(
   try {
     // El dispatcher devuelve la escena como JSON crudo (string), igual que el
     // backend antiguo con Results.Text.
-    const json = await api<string>(`/notas/${notaId}/diagramas/${diagId}`);
+    const json = await api<string>(`/notas/${encodeURIComponent(notaId)}/diagramas/${diagId}`);
     return JSON.parse(json) as ExcalidrawScene;
   } catch {
     return null;
@@ -35,7 +35,7 @@ export async function loadDiagram(
 export async function loadNotaScene(notaId: string): Promise<ExcalidrawScene | null> {
   let data: { contenido?: string };
   try {
-    data = await api<{ contenido?: string }>(`/notas/${notaId}/contenido`);
+    data = await api<{ contenido?: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`);
   } catch {
     return null;
   }
@@ -63,7 +63,7 @@ export async function saveDiagram(
     source: "micelio",
     ...scene,
   });
-  await api(`/notas/${notaId}/diagramas/${diagId}`, {
+  await api(`/notas/${encodeURIComponent(notaId)}/diagramas/${diagId}`, {
     method: "PUT",
     body: { contenido },
   });
@@ -79,7 +79,7 @@ export async function saveNotaScene(notaId: string, scene: ExcalidrawScene): Pro
     appState: scene.appState ?? {},
     files: scene.files ?? {},
   });
-  await api(`/notas/${notaId}/contenido`, {
+  await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
     method: "PUT",
     body: { contenido },
   });
