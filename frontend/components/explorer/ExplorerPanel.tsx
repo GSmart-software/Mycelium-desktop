@@ -25,9 +25,11 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { insertRefAtPoint } from "@/lib/editor/viewRegistry";
+import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -54,6 +56,9 @@ export function ExplorerPanel() {
   const activeNoteId = searchParams.get("note");
 
   const vaults = useAuthStore((s) => s.vaults);
+  // Ruta del vault en carpeta abierto (null en modo SQLite clásico): habilita
+  // "Mostrar en el explorador", que solo tiene sentido con archivos en disco.
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const store = useVaultStore();
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
@@ -244,6 +249,14 @@ export function ExplorerPanel() {
         onClick: () =>
           setRenaming({ type: "carpeta", id: carpeta.id, valor: carpeta.nombre }),
       },
+      ...(rutaVault
+        ? [
+            {
+              label: "Mostrar en el explorador",
+              onClick: () => void revelarEnSistema(rutaVault, carpeta.id),
+            },
+          ]
+        : []),
       {
         label: "Eliminar",
         danger: true,
@@ -281,6 +294,14 @@ export function ExplorerPanel() {
         label: "Exportar como PDF (Letter)",
         onClick: () => void exportNotePdfActive(nota.id, nota.titulo, "Letter"),
       },
+      ...(rutaVault
+        ? [
+            {
+              label: "Mostrar en el explorador",
+              onClick: () => void revelarEnSistema(rutaVault, nota.id),
+            },
+          ]
+        : []),
       {
         label: "Eliminar",
         danger: true,

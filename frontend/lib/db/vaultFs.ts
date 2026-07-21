@@ -35,6 +35,12 @@ export async function escribirNota(vault: string, rutaRel: string, contenido: st
   await invoke("escribir_nota", { vaultRuta: vault, rutaRel, contenido });
 }
 
+/** Abre el explorador del SO mostrando el archivo/carpeta `rutaRel` del vault. */
+export async function revelarEnSistema(vault: string, rutaRel: string): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke("revelar_en_sistema", { vaultRuta: vault, rutaRel });
+}
+
 /** Renombra/mueve un archivo o carpeta dentro del vault. */
 export async function moverRuta(vault: string, origenRel: string, destinoRel: string): Promise<void> {
   const invoke = await getInvoke();

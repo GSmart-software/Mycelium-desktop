@@ -211,6 +211,59 @@ pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Resul
     Ok(())
 }
 
+/// Abre el explorador de archivos del SO mostrando (y seleccionando, donde se
+/// pueda) el archivo/carpeta `ruta_rel` del vault. Solo tiene sentido en modo
+/// carpeta (los archivos existen en disco).
+#[tauri::command]
+pub fn revelar_en_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    use std::process::Command;
+    let base = base_vault(&vault_ruta)?;
+    let destino = ruta_segura(&base, &ruta_rel)?;
+    if !destino.exists() {
+        return Err(format!("No existe en disco: {ruta_rel}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // `explorer /select,<ruta>` selecciona el elemento dentro de su carpeta.
+        // explorer.exe suele devolver código de salida != 0 aun con éxito, así que
+        // se lanza sin comprobar el estado.
+        Command::new("explorer")
+            .arg(format!("/select,{}", destino.display()))
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el explorador: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .args(["-R".as_ref(), destino.as_os_str()])
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir Finder: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // No hay "seleccionar" universal en Linux: se abre la carpeta contenedora
+        // (o la propia carpeta si el destino es un directorio).
+        let dir = if destino.is_dir() {
+            destino.as_path()
+        } else {
+            destino.parent().unwrap_or(&base)
+        };
+        Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el explorador: {e}"))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Plataforma no soportada.".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
