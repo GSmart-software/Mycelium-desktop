@@ -23,13 +23,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use notify::{EventKind, RecursiveMode};
+// `notify` no es dependencia directa: se usa el re-export de `notify-debouncer-full`
+// para garantizar que los tipos coinciden con los del debouncer. `Watcher` (trait)
+// hace falta en scope para el método `.watch()`.
+use notify_debouncer_full::notify::{EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
 use tauri::{AppHandle, Emitter};
 
 /// Debouncer activo (uno por vault). El tipo concreto que devuelve
 /// `new_debouncer`: watcher recomendado del SO + caché de ids de archivo.
-type VaultDebouncer = Debouncer<notify::RecommendedWatcher, FileIdMap>;
+type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, FileIdMap>;
 
 /// Estado gestionado por Tauri con el watcher activo (`None` cuando no hay vault
 /// de carpeta abierto). Se reemplaza al cambiar de vault y se descarta al salir:
