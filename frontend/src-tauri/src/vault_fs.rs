@@ -226,10 +226,14 @@ pub fn revelar_en_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), St
     #[cfg(target_os = "windows")]
     {
         // `explorer /select,<ruta>` selecciona el elemento dentro de su carpeta.
-        // explorer.exe suele devolver código de salida != 0 aun con éxito, así que
-        // se lanza sin comprobar el estado.
+        // OJO: explorer exige `/select,` FUERA de comillas y la ruta ENTRE comillas.
+        // Con `.arg(...)` Rust entrecomilla el argumento entero (`"/select,C:\...")`)
+        // y explorer, al no parsearlo, abre Documentos. Por eso se usa `raw_arg`,
+        // que pasa la línea de comandos tal cual. explorer.exe suele devolver código
+        // != 0 aun con éxito, así que se lanza sin comprobar el estado.
+        use std::os::windows::process::CommandExt;
         Command::new("explorer")
-            .arg(format!("/select,{}", destino.display()))
+            .raw_arg(format!("/select,\"{}\"", destino.display()))
             .spawn()
             .map_err(|e| format!("No se pudo abrir el explorador: {e}"))?;
         return Ok(());
