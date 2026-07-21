@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 
 /**
@@ -195,7 +196,14 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameCarpeta(id, nombre) {
-        await api(`/carpetas/${id}`, { method: "PATCH", token: token(), body: { nombre } });
+        const res = await api<{ id: string }>(`/carpetas/${id}`, {
+          method: "PATCH",
+          token: token(),
+          body: { nombre },
+        });
+        // Modo carpeta: renombrar la carpeta cambia su ruta y la de todo su
+        // subárbol; reapuntar las pestañas de las notas que colgaban de ella.
+        if (res.id !== id) useTabsStore.getState().remapCarpeta(id, res.id);
         await get().loadTree(get().vaultId!);
       },
 
@@ -213,8 +221,9 @@ export const useVaultStore = create<VaultState>()(
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
         pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
+        let res: { id: string };
         try {
-          await api(`/carpetas/${id}/mover`, {
+          res = await api<{ id: string }>(`/carpetas/${id}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId },
@@ -226,6 +235,18 @@ export const useVaultStore = create<VaultState>()(
             carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
           }));
           return;
+        }
+        // Modo carpeta: mover la carpeta cambia su ruta (id) y la de su subárbol.
+        if (res.id !== id) {
+          useTabsStore.getState().remapCarpeta(id, res.id);
+          pendingMoves.delete(id);
+          pendingMoves.set(res.id, { parent: destinoId, ts: Date.now() });
+          set((s) => ({
+            lastMove:
+              s.lastMove && s.lastMove.type === "carpeta" && s.lastMove.id === id
+                ? { ...s.lastMove, id: res.id }
+                : s.lastMove,
+          }));
         }
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
@@ -250,7 +271,14 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameNota(id, titulo) {
-        await api(`/notas/${id}`, { method: "PATCH", token: token(), body: { titulo } });
+        const res = await api<{ id: string }>(`/notas/${id}`, {
+          method: "PATCH",
+          token: token(),
+          body: { titulo },
+        });
+        // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
+        // seguir a la nota con su id nuevo antes de reconciliar el árbol.
+        if (res.id !== id) useTabsStore.getState().remapNota(id, res.id);
         await get().loadTree(get().vaultId!);
         markGraphStale();
       },
@@ -276,8 +304,9 @@ export const useVaultStore = create<VaultState>()(
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
         pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
+        let res: { id: string };
         try {
-          await api(`/notas/${id}/mover`, {
+          res = await api<{ id: string }>(`/notas/${id}/mover`, {
             method: "POST",
             token: token(),
             body: { destinoId },
@@ -289,6 +318,19 @@ export const useVaultStore = create<VaultState>()(
             notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
           }));
           return;
+        }
+        // Modo carpeta: mover cambia el id (=ruta). Seguir la pestaña abierta y
+        // apuntar deshacer/pendientes al id nuevo.
+        if (res.id !== id) {
+          useTabsStore.getState().remapNota(id, res.id);
+          pendingMoves.delete(id);
+          pendingMoves.set(res.id, { parent: destinoId, ts: Date.now() });
+          set((s) => ({
+            lastMove:
+              s.lastMove && s.lastMove.type === "nota" && s.lastMove.id === id
+                ? { ...s.lastMove, id: res.id }
+                : s.lastMove,
+          }));
         }
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta

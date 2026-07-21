@@ -105,17 +105,17 @@ async function dispatch(
 
   // ── /carpetas/:id/... ─────────────────────────────────────────────────────
   if (a === "carpetas" && b) {
+    // Renombrar/mover puede cambiar el id (=ruta) en modo carpeta: se devuelve el
+    // id NUEVO que calcula el repo (en clásico coincide con `b`).
     if (!c && method === "PATCH") {
-      await renombrarCarpeta(b, String(body.nombre ?? ""));
-      return { id: b };
+      return renombrarCarpeta(b, String(body.nombre ?? ""));
     }
     if (!c && method === "DELETE") {
       await borrarCarpeta(b);
       return { id: b };
     }
     if (c === "mover" && method === "POST") {
-      await moverCarpeta(b, s(body.destinoId));
-      return { id: b };
+      return moverCarpeta(b, s(body.destinoId));
     }
     // Sharing latente (no-op): miembros / compartir
     if (c === "miembros" && !d && method === "GET") return miembros();
@@ -125,17 +125,17 @@ async function dispatch(
 
   // ── /notas/:id/... ────────────────────────────────────────────────────────
   if (a === "notas" && b) {
+    // Renombrar/mover puede cambiar el id (=ruta) en modo carpeta: se devuelve el
+    // id NUEVO que calcula el repo (en clásico coincide con `b`).
     if (!c && method === "PATCH") {
-      await renombrarNota(b, String(body.titulo ?? ""));
-      return { id: b };
+      return renombrarNota(b, String(body.titulo ?? ""));
     }
     if (!c && method === "DELETE") {
       await borrarNota(b);
       return { id: b };
     }
     if (c === "mover" && method === "POST") {
-      await moverNota(b, s(body.destinoId));
-      return { id: b };
+      return moverNota(b, s(body.destinoId));
     }
     if (c === "duplicar" && method === "POST") return duplicarNota(b);
     if (c === "recuperar" && method === "POST") {

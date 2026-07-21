@@ -82,6 +82,18 @@ type TabsState = {
   /** Cierra las pestañas de una nota en todos los panes (al ir a papelera). */
   closeNotaEverywhere: (notaId: string) => void;
   /**
+   * Reapunta las pestañas (y el historial de cerradas) de una nota a su id nuevo.
+   * En modo carpeta la identidad es la ruta, así que renombrar/mover una nota
+   * cambia su id: la pestaña abierta debe seguir a la nota, no quedar huérfana.
+   */
+  remapNota: (oldId: string, newId: string) => void;
+  /**
+   * Reapunta las pestañas cuyo id cuelga de una carpeta renombrada/movida
+   * (prefijo `oldPrefix` → `newPrefix`): al cambiar la ruta de la carpeta cambian
+   * los ids (=ruta) de todas las notas de su subárbol.
+   */
+  remapCarpeta: (oldPrefix: string, newPrefix: string) => void;
+  /**
    * Tras restaurar el layout persistido, descarta las pestañas cuyas notas ya
    * no existen en el vault (borradas mientras estaba cerrado). Se llama una vez
    * cuando el árbol del vault termina de cargar.
@@ -433,6 +445,35 @@ export const useTabsStore = create<TabsState>()(
     set({
       root,
       activePaneId: activeStillExists ? get().activePaneId : firstLeaf(root).id,
+    });
+  },
+
+  remapNota(oldId, newId) {
+    if (oldId === newId) return;
+    const map = (id: string) => (id === oldId ? newId : id);
+    set({
+      root: mapTree(get().root, (leaf) => ({
+        ...leaf,
+        tabs: leaf.tabs.map((t) => (t.notaId === oldId ? { ...t, notaId: newId } : t)),
+      })),
+      closedHistory: get().closedHistory.map(map),
+    });
+  },
+
+  remapCarpeta(oldPrefix, newPrefix) {
+    if (oldPrefix === newPrefix) return;
+    const map = (id: string) =>
+      id === oldPrefix
+        ? newPrefix
+        : id.startsWith(`${oldPrefix}/`)
+          ? newPrefix + id.slice(oldPrefix.length)
+          : id;
+    set({
+      root: mapTree(get().root, (leaf) => ({
+        ...leaf,
+        tabs: leaf.tabs.map((t) => ({ ...t, notaId: map(t.notaId) })),
+      })),
+      closedHistory: get().closedHistory.map(map),
     });
   },
 
