@@ -435,9 +435,31 @@
 .cm-editor .cm-foldGutter .cm-gutterElement {
   cursor: pointer;
   text-align: center;
+  position: relative;
+  /* IMPORTANTE: NO se toca la altura/line-height del elemento — la hereda del
+     editor y así casa 1:1 con las líneas (si se fuerza, el gutter se desfasa
+     acumulativamente al crecer el documento). El glifo ›/⌄ se hace invisible
+     (conservando su caja de línea) y el chevron se dibuja centrado con ::before. */
+  color: transparent;
   opacity: 0;
   transition: opacity 0.12s ease;
-  color: var(--mic-text-muted);
+}
+
+/* DEF-015b: chevron propio, centrado en la línea (vertical y horizontal). */
+.cm-editor .cm-foldGutter .cm-gutterElement::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 2px solid var(--mic-text-muted);
+  border-bottom: 2px solid var(--mic-text-muted);
+  border-radius: 1px;
+  transform: translate(-50%, -62%) rotate(45deg); /* ⌄ expandido */
+}
+.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"]::before {
+  transform: translate(-50%, -50%) rotate(-45deg); /* › plegado */
 }
 
 /* La flecha aparece al pasar el ratón por el editor o si la sección está plegada. */
@@ -448,7 +470,9 @@
 
 .cm-editor .cm-foldGutter .cm-gutterElement:hover {
   opacity: 1;
-  color: var(--mic-accent);
+}
+.cm-editor .cm-foldGutter .cm-gutterElement:hover::before {
+  border-color: var(--mic-accent);
 }
 
 /* Marcador de contenido plegado (el "…" que sustituye la sección). */
@@ -464,27 +488,28 @@
 /* Plegado en la vista de lectura: flecha a la izquierda de cada título. */
 .mic-preview .mic-foldable {
   position: relative;
+  padding-left: 1.15em; /* reserva el hueco de la flecha (si no, queda recortada) */
 }
 
 .mic-preview .mic-fold-arrow {
   position: absolute;
-  left: -0.95em;
+  left: 0;
   top: 0;
-  width: 0.8em;
+  width: 0.9em;
+  height: 1lh; /* exactamente una línea → el chevron queda centrado en la 1ª línea */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 1.2em;
   cursor: pointer;
   color: var(--mic-text-muted);
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  opacity: 0.5; /* DEF-015b: visible siempre (antes 0, solo al hover → no se descubría) */
+  transition: opacity 0.12s ease, color 0.12s ease;
   user-select: none;
 }
 
 .mic-preview .mic-foldable:hover .mic-fold-arrow,
 .mic-preview .mic-foldable.mic-collapsed .mic-fold-arrow {
-  opacity: 0.75;
+  opacity: 0.9;
 }
 
 .mic-preview .mic-fold-arrow:hover {
@@ -492,14 +517,22 @@
   color: var(--mic-accent);
 }
 
+/* DEF-015b: chevron dibujado con CSS (no un glifo) para un estilo propio y nítido. */
 .mic-preview .mic-fold-arrow::before {
-  content: "⌄";
-  font-size: 0.85em;
-  line-height: 1;
+  content: "";
+  width: 0.42em;
+  height: 0.42em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-radius: 1px;
+  margin-top: -0.16em; /* compensa el peso visual del chevron hacia abajo */
+  transform: rotate(45deg); /* ⌄ expandido */
+  transition: transform 0.12s ease;
 }
 
 .mic-preview .mic-foldable.mic-collapsed .mic-fold-arrow::before {
-  content: "›";
+  margin-top: 0;
+  transform: rotate(-45deg); /* › plegado */
 }
 
 /* Una sección plegada muestra solo su título; el resto se oculta. */
@@ -710,6 +743,24 @@
 }
 .mic-preview details.mic-callout > summary::-webkit-details-marker {
   display: none;
+}
+/* DEF-015b: chevron de plegado propio y visible, a la derecha del título del
+   callout, centrado vertical y rotando según el estado abierto/cerrado. */
+.mic-preview details.mic-callout > summary.mic-callout-title::after {
+  content: "";
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 0.42em;
+  height: 0.42em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-radius: 1px;
+  opacity: 0.7;
+  transform: rotate(-45deg); /* › cerrado */
+  transition: transform 0.12s ease;
+}
+.mic-preview details.mic-callout[open] > summary.mic-callout-title::after {
+  transform: rotate(45deg); /* ⌄ abierto */
 }
 
 /* ── Mermaid (HU-18) ─────────────────────────────────────────────── */

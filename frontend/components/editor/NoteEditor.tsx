@@ -824,7 +824,7 @@ export function NoteEditor({
             {showFileTitle && (
               <div className="mic-doc-title mic-doc-title-preview">{notaTitulo}</div>
             )}
-            <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            <div className="mic-preview-body" dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
         )}
       </div>

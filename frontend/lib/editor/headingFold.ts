@@ -44,8 +44,14 @@ const isHeading = (el: Element): boolean => /^H[1-6]$/.test(el.tagName);
  * recalcula desde cero respetando el anidamiento.
  */
 export function attachHeadingFolds(root: HTMLElement): void {
-  // Las cabeceras cuelgan del div interno (dangerouslySetInnerHTML).
-  const container = (root.querySelector(":scope > div") as HTMLElement | null) ?? root;
+  // Las cabeceras cuelgan del div de contenido (`.mic-preview-body`), NO del div
+  // opcional del título del documento (`.mic-doc-title`), que es el primer hijo
+  // cuando "mostrar título" está activo. Apuntar al `:scope > div` genérico
+  // agarraba el título y no encontraba ningún H → no aparecían las flechas.
+  const container =
+    (root.querySelector(":scope > .mic-preview-body") as HTMLElement | null) ??
+    (root.querySelector(":scope > div:not(.mic-doc-title)") as HTMLElement | null) ??
+    root;
   const children = Array.from(container.children) as HTMLElement[];
   const collapsed = new Set<HTMLElement>();
 
