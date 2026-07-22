@@ -1,11 +1,14 @@
 "use client";
 
+import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import styles from "./ImportDialogs.module.css";
 
 /**
- * Diálogos de importación (HU-07/11): barra de progreso, modal de conflicto de
- * nombre (Reemplazar / Renombrar / Cancelar) y modal de resumen final.
+ * Progreso y diálogos de tareas de fondo (HU-07/11): barra de progreso de
+ * importación Y de exportación (DEF-018: la de export vive en un store global
+ * para no perderse al cerrar el menú de opciones), modal de conflicto de nombre
+ * y modal de resumen final. Se monta a nivel de app (workspace).
  */
 export function ImportDialogs() {
   const progress = useImportStore((s) => s.progress);
@@ -14,6 +17,7 @@ export function ImportDialogs() {
   const titulo = useImportStore((s) => s.titulo);
   const answerConflict = useImportStore((s) => s.answerConflict);
   const clearSummary = useImportStore((s) => s.clearSummary);
+  const exportProgreso = useExportStore((s) => s.progreso);
 
   return (
     <>
@@ -26,6 +30,22 @@ export function ImportDialogs() {
             <div
               className={styles.fill}
               style={{ width: `${(progress.done / Math.max(1, progress.total)) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {exportProgreso && (
+        <div className={styles.progressBar} role="status">
+          <span>
+            {exportProgreso.titulo}… {exportProgreso.done}/{exportProgreso.total}
+          </span>
+          <div className={styles.track}>
+            <div
+              className={styles.fill}
+              style={{
+                width: `${(exportProgreso.done / Math.max(1, exportProgreso.total)) * 100}%`,
+              }}
             />
           </div>
         </div>

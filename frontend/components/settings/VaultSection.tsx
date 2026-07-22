@@ -4,9 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
+import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
+
+// Títulos de progreso (DEF-018): identifican qué exportación corre para etiquetar
+// el botón correcto y la barra global.
+const T_ZIP = "Comprimiendo ZIP";
+const T_CARPETA = "Exportando a carpeta";
 
 /** Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. */
 async function elegirCarpeta(title: string): Promise<string | null> {
@@ -20,16 +26,15 @@ async function elegirCarpeta(title: string): Promise<string | null> {
  * importar Obsidian desde carpeta nativa o .zip (HU-11).
  */
 export function VaultSection() {
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [carpetaProgress, setCarpetaProgress] = useState<{ done: number; total: number } | null>(
-    null,
-  );
+  // Progreso GLOBAL (DEF-018): sobrevive al cierre del menú de opciones.
+  const progreso = useExportStore((s) => s.progreso);
+  const setProgreso = useExportStore((s) => s.setProgreso);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   const zipRef = useRef<HTMLInputElement>(null);
 
-  const ocupado = progress !== null || carpetaProgress !== null;
+  const ocupado = progreso !== null;
 
   useEffect(() => {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
@@ -45,11 +50,11 @@ export function VaultSection() {
   };
 
   const handleZip = async () => {
-    setProgress({ done: 0, total: 1 });
+    setProgreso({ done: 0, total: 1, titulo: T_ZIP });
     try {
-      await exportVaultZip((done, total) => setProgress({ done, total }));
+      await exportVaultZip((done, total) => setProgreso({ done, total, titulo: T_ZIP }));
     } finally {
-      setProgress(null);
+      setProgreso(null);
     }
   };
 
@@ -72,15 +77,15 @@ export function VaultSection() {
         return;
       }
 
-      setCarpetaProgress({ done: 0, total: 1 });
+      setProgreso({ done: 0, total: 1, titulo: T_CARPETA });
       const escritos = await exportVaultACarpeta(destino, (done, total) =>
-        setCarpetaProgress({ done, total }),
+        setProgreso({ done, total, titulo: T_CARPETA }),
       );
       setMensaje(`Se escribieron ${escritos} archivos en ${destino}`);
     } catch (e) {
       setError((e as Error).message ?? String(e));
     } finally {
-      setCarpetaProgress(null);
+      setProgreso(null);
     }
   };
 
@@ -140,8 +145,8 @@ export function VaultSection() {
             disabled={ocupado}
             onClick={() => void handleCarpeta()}
           >
-            {carpetaProgress
-              ? `Exportando… ${carpetaProgress.done}/${carpetaProgress.total}`
+            {progreso?.titulo === T_CARPETA
+              ? `Exportando… ${progreso.done}/${progreso.total}`
               : "Exportar a carpeta…"}
           </button>
           <button
@@ -150,8 +155,8 @@ export function VaultSection() {
             disabled={ocupado}
             onClick={() => void handleZip()}
           >
-            {progress
-              ? `Comprimiendo… ${progress.done}/${progress.total}`
+            {progreso?.titulo === T_ZIP
+              ? `Comprimiendo… ${progreso.done}/${progreso.total}`
               : "Exportar vault como ZIP"}
           </button>
         </div>
