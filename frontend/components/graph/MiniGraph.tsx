@@ -324,7 +324,9 @@ export function MiniGraph({
       const my = ev.clientY - rect.top - rect.height / 2;
       ox = mx - (mx - ox) * factor;
       oy = my - (my - oy) * factor;
-      scale = Math.min(Math.max(scale * factor, 0.3), 4);
+      // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
+      // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
+      scale = Math.min(Math.max(scale * factor, 0.05), 4);
       wake(); // un redibujo para reflejar el zoom
     };
 
