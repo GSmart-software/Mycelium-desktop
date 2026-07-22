@@ -89,6 +89,18 @@ class TableWidget extends WidgetType {
     wrap.innerHTML = renderMarkdown(this.md);
     return wrap;
   }
+  /**
+   * Altura estimada del widget para el height-map de CodeMirror. Es CLAVE: sin
+   * ella (por defecto -1 = desconocida) CM estima mal la altura de las tablas
+   * FUERA de pantalla, y el height-map (que posiciona el gutter y el scroll del
+   * buscador) diverge del contenido real medido, acumulando desfase cuanto más
+   * contenido hay. Estimación: nº de filas (líneas con `|`) × alto de fila
+   * (~36px: fuente 0.875rem·1.7 + padding + borde) + márgenes de tabla/widget.
+   */
+  get estimatedHeight() {
+    const filas = this.md.split("\n").filter((l) => l.includes("|")).length;
+    return Math.max(1, filas) * 36 + 26;
+  }
   ignoreEvent() {
     return false;
   }

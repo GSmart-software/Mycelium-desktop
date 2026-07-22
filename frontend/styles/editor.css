@@ -138,7 +138,21 @@
 
 /* Tabla renderizada dentro del editor en vivo */
 .mic-live-table {
-  margin: 0.4rem 0;
+  /* DEF-031/037: el widget usa la clase `mic-preview` SOLO para heredar el estilo
+     de la tabla (`.mic-preview table`), pero NO debe arrastrar las propiedades de
+     PANEL de `.mic-preview` (height:100%, overflow-y:auto). Además:
+     - el espaciado va como PADDING, no margin: CodeMirror mide la altura del widget
+       con offsetHeight (que NO incluye márgenes), así que un margin dejaba el
+       layout ~más alto de lo que CM registra → gutter/scroll/coords desfasados,
+       acumulándose por cada tabla;
+     - el padding también evita que el margin del <table> interno "escape" del
+       wrapper (colapso de márgenes) y quede sin medir. */
+  margin: 0;
+  padding: 0.4rem 0;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
 }
 .mic-live-table table {
   margin: 0;
