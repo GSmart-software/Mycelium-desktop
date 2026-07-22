@@ -57,6 +57,12 @@ export function MiniGraph({
   // Si está activo, la simulación corre en cada frame de forma continua (sin
   // reposo). Por defecto false: el grafo se bloquea al asentarse (ahorra CPU).
   const continuousSim = usePreferencesStore((s) => s.prefs.graphContinuousSim);
+  // Tema activo (DEF-030): los colores del grafo (--mic-glow/--mic-accent) se leen
+  // con getComputedStyle dentro del efecto de simulación. Al cambiar el tema hay
+  // que re-ejecutarlo para recolorear (reutiliza las posiciones cacheadas, así el
+  // layout se conserva). Sin esto había que cerrar y reabrir el grafo.
+  const tema = usePreferencesStore((s) => s.tema);
+  const modoOscuro = usePreferencesStore((s) => s.modoOscuro);
   // Indicador de dirección y brillo de hover: en refs para NO reiniciar la
   // simulación (ni relayoutear) al cambiarlos. Un efecto aparte despierta el
   // bucle cuando cambian (para arrancar la animación o redibujar).
@@ -543,7 +549,7 @@ export function MiniGraph({
       canvas.removeEventListener("wheel", onWheel);
       ro.disconnect();
     };
-  }, [nodes, edges, centerId, continuousSim]);
+  }, [nodes, edges, centerId, continuousSim, tema, modoOscuro]);
 
   return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />;
 }
