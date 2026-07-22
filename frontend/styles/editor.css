@@ -309,6 +309,17 @@
   background: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) 10%, transparent);
   padding-left: 0.75rem;
 }
+/* Callouts anidados (DEF-022): cada nivel se indenta para que se vea el callout
+   interior dentro del exterior (su borde/color propio corridos a la derecha). */
+:where(.mic-live-callout[data-callout-depth="2"]) {
+  margin-left: 1.1rem;
+}
+:where(.mic-live-callout[data-callout-depth="3"]) {
+  margin-left: 2.2rem;
+}
+:where(.mic-live-callout[data-callout-depth="4"]) {
+  margin-left: 3.3rem;
+}
 :where(.mic-live-callout-head) {
   font-weight: 600;
   color: var(--mic-callout-color, var(--mic-callout-note-border));

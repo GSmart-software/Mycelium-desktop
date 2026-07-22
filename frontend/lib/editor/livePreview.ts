@@ -179,8 +179,10 @@ const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 /** Embed de un diagrama/archivo excalidraw: `![[ref.excalidraw]]`. */
 const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
-/** Cabecera de callout: `> [!tipo]` con símbolo de plegado opcional (-/+). */
-const CALLOUT_HEAD_RE = /^(\s*>\s*)\[!([\w-]+)\]([-+]?)/;
+/** Cabecera de callout: `> [!tipo]` (con `>` anidados para callouts dentro de
+ *  callouts, DEF-022) y símbolo de plegado opcional (-/+). Grupo 1 = marcadores
+ *  `>` (su nº = profundidad), 2 = tipo, 3 = símbolo. */
+const CALLOUT_HEAD_RE = /^((?:\s*>\s*)+)\[!([\w-]+)\]([-+]?)/;
 
 /** Etiquetas por tipo, usadas como título cuando el callout no tiene uno. */
 const CALLOUT_LABELS: Record<string, string> = {
@@ -270,7 +272,7 @@ class FoldWidget extends WidgetType {
 /** Alterna el símbolo de plegado (-/+) de la cabecera de un callout. */
 function toggleCalloutFold(view: EditorView, headFrom: number) {
   const line = view.state.doc.lineAt(headFrom);
-  const match = /^(\s*>\s*\[!\w+\])([-+])/.exec(line.text);
+  const match = /^((?:\s*>\s*)+\[!\w+\])([-+])/.exec(line.text);
   if (!match) return;
   const pos = line.from + match[1].length;
   view.dispatch({
@@ -377,13 +379,22 @@ function buildDecorations(
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
 
-  // ¿La línea siguiente sigue siendo parte del MISMO callout? Lo es si empieza
-  // con `>` y no es la cabecera de un callout nuevo. Sirve para marcar la última
-  // línea del callout (no se pueden envolver las líneas en un <div> en CodeMirror).
-  const continuesCallout = (lineNumber: number): boolean => {
+  // Marcadores de cita al inicio de la línea (uno o varios `>` anidados).
+  const QUOTE_RE = /^((?:\s*>\s?)+)/;
+  const contarProf = (marcadores: string): number => (marcadores.match(/>/g) ?? []).length;
+
+  // ¿El callout de profundidad `prof` continúa en la línea siguiente? Sirve para
+  // marcar su última línea (no se puede envolver el callout en un <div> en CM).
+  // No continúa si: no hay línea, la cita se acorta por debajo de `prof`, o
+  // aparece una cabecera de callout nueva a profundidad ≤ `prof` (la reemplaza).
+  const continuaEnProf = (lineNumber: number, prof: number): boolean => {
     if (lineNumber >= doc.lines) return false;
     const t = doc.line(lineNumber + 1).text;
-    return /^\s*>/.test(t) && !CALLOUT_HEAD_RE.test(t);
+    const m = QUOTE_RE.exec(t);
+    if (!m || contarProf(m[1]) < prof) return false;
+    const head = CALLOUT_HEAD_RE.exec(t);
+    if (head && contarProf(head[1]) <= prof) return false;
+    return true;
   };
 
   // Líneas "activas": las tocadas por el cursor o la selección (CA1/CA2)
@@ -547,9 +558,12 @@ function buildDecorations(
 
     // [[wikilinks]], #tags, citas y callouts se detectan por línea.
     let pos = from;
-    let calloutType: string | null = null; // tipo del callout en curso
-    let calloutCollapsed = false; // si el callout actual está plegado (-)
-    let firstBodyPending = false; // la próxima línea de cuerpo es la 1ª del contenido
+    // Callouts anidados (DEF-022): tipos y estado de plegado POR PROFUNDIDAD de
+    // blockquote. `tipos[d-1]` = tipo del callout activo a profundidad d (o
+    // undefined si a esa profundidad hay cita sin cabecera de callout).
+    const tipos: (string | undefined)[] = [];
+    const colapsado: boolean[] = [];
+    let firstBodyDepth = 0; // profundidad cuya próxima línea de cuerpo es la 1ª
     while (pos <= to) {
       const line = doc.lineAt(pos);
 
@@ -563,96 +577,108 @@ function buildDecorations(
       const isActive = activeLines.has(line.number);
       const text = line.text;
 
-      // Callouts (> [!tipo] …) y citas (>) — estilo en vivo (HU-03)
-      const calloutStart = CALLOUT_HEAD_RE.exec(text);
-      const quoteMark = /^\s*>\s?/.exec(text);
-      if (calloutStart) {
-        calloutType = calloutStart[2].toLowerCase();
-        const symbol = calloutStart[3];
-        calloutCollapsed = symbol === "-";
-        const foldable = symbol === "-" || symbol === "+";
-        // Ganchos por línea para CSS (no se puede englobar el callout en un div):
-        // -first/-last delimitan el bloque; -foldable/-collapsed dan el estado del
-        // plegado en la cabecera. Plegado → la cabecera es también la última visible.
-        let headClass = "mic-live-callout mic-live-callout-head mic-live-callout-first";
-        if (foldable) headClass += " mic-live-callout-foldable";
-        if (calloutCollapsed) headClass += " mic-live-callout-collapsed";
-        if (calloutCollapsed || !continuesCallout(line.number)) headClass += " mic-live-callout-last";
-        firstBodyPending = true; // la siguiente línea `>` será la 1ª del contenido
-        decos.push({
-          from: line.from,
-          to: line.from,
-          // El estilo lo decide data-callout + variables CSS (no la clase por tipo).
-          deco: Decoration.line({
-            class: headClass,
-            attributes: { "data-callout": calloutType },
-          }),
-        });
-        if (foldable) {
+      // Callouts (> [!tipo] …, con anidamiento — DEF-022) y citas (>) en vivo.
+      const headMatch = CALLOUT_HEAD_RE.exec(text);
+      const quote = QUOTE_RE.exec(text);
+      if (quote) {
+        const prof = contarProf(quote[1]);
+        const markerLen = quote[1].length;
+        // Una cita menos profunda cierra los callouts más profundos.
+        if (tipos.length > prof) {
+          tipos.length = prof;
+          colapsado.length = prof;
+        }
+        const algunColapsado = colapsado.slice(0, prof).some(Boolean);
+
+        if (headMatch) {
+          const tipo = headMatch[2].toLowerCase();
+          const symbol = headMatch[3];
+          const estePlegado = symbol === "-";
+          const foldable = symbol === "-" || symbol === "+";
+          tipos[prof - 1] = tipo;
+          colapsado[prof - 1] = estePlegado;
+          firstBodyDepth = prof; // la siguiente línea `>` a esta prof. es la 1ª del cuerpo
+          // Ganchos por línea (no se puede englobar el callout en un div):
+          // -first/-last delimitan; -foldable/-collapsed dan el estado; data-callout
+          // el tipo (color/ícono) y data-callout-depth la profundidad (indentado).
+          let headClass = "mic-live-callout mic-live-callout-head mic-live-callout-first";
+          if (foldable) headClass += " mic-live-callout-foldable";
+          if (estePlegado) headClass += " mic-live-callout-collapsed";
+          if (estePlegado || !continuaEnProf(line.number, prof)) headClass += " mic-live-callout-last";
           decos.push({
             from: line.from,
             to: line.from,
-            deco: Decoration.widget({
-              widget: new FoldWidget(line.from, calloutCollapsed),
-              side: -1,
+            deco: Decoration.line({
+              class: headClass,
+              attributes: { "data-callout": tipo, "data-callout-depth": String(prof) },
             }),
           });
-        }
-        // Fuera de la línea activa, ocultar el marcador (> [!tipo] -/+) y dejar
-        // solo el título; si no hay título, mostrar la etiqueta del tipo.
-        if (!isActive) {
-          const afterMarker = text.slice(calloutStart[0].length);
-          const titulo = afterMarker.replace(/^[ \t]+/, "");
-          const titleStartCol = calloutStart[0].length + (afterMarker.length - titulo.length);
-          if (titulo.length > 0) {
-            decos.push({ from: line.from, to: line.from + titleStartCol, deco: hide });
-          } else {
+          if (foldable) {
             decos.push({
               from: line.from,
-              to: line.to,
-              deco: Decoration.replace({
-                widget: new LabelWidget(CALLOUT_LABELS[calloutType] ?? calloutType),
+              to: line.from,
+              deco: Decoration.widget({
+                widget: new FoldWidget(line.from, estePlegado),
+                side: -1,
               }),
             });
           }
-        }
-      } else if (calloutType && quoteMark) {
-        // Cuerpo del callout. Ganchos: -body siempre; -body-first en la 1ª línea
-        // de contenido; -last en la última; -callout-hidden si está plegado. Así
-        // se pueden estilar distinto la primera, las intermedias y la última.
-        let cls = "mic-live-callout mic-live-callout-body";
-        if (firstBodyPending) cls += " mic-live-callout-body-first";
-        firstBodyPending = false;
-        if (calloutCollapsed) cls += " mic-callout-hidden";
-        if (!continuesCallout(line.number)) cls += " mic-live-callout-last";
-        decos.push({
-          from: line.from,
-          to: line.from,
-          deco: Decoration.line({ class: cls, attributes: { "data-callout": calloutType } }),
-        });
-        // Ocultar el marcador de cita `>` del cuerpo fuera de la línea activa
-        if (!isActive && !calloutCollapsed) {
-          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
-        }
-      } else if (quoteMark) {
-        calloutType = null;
-        firstBodyPending = false;
-        decos.push({
-          from: line.from,
-          to: line.from,
-          deco: Decoration.line({ class: "mic-live-quote" }),
-        });
-        if (!isActive) {
-          decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
+          // Fuera de la línea activa, ocultar el marcador (`> …[!tipo]-/+`) y dejar
+          // solo el título; si no hay título, mostrar la etiqueta del tipo.
+          if (!isActive) {
+            const afterMarker = text.slice(headMatch[0].length);
+            const titulo = afterMarker.replace(/^[ \t]+/, "");
+            const titleStartCol = headMatch[0].length + (afterMarker.length - titulo.length);
+            if (titulo.length > 0) {
+              decos.push({ from: line.from, to: line.from + titleStartCol, deco: hide });
+            } else {
+              decos.push({
+                from: line.from,
+                to: line.to,
+                deco: Decoration.replace({
+                  widget: new LabelWidget(CALLOUT_LABELS[tipo] ?? tipo),
+                }),
+              });
+            }
+          }
+        } else if (tipos[prof - 1]) {
+          // Cuerpo de un callout a esta profundidad.
+          const tipo = tipos[prof - 1]!;
+          let cls = "mic-live-callout mic-live-callout-body";
+          if (firstBodyDepth === prof) cls += " mic-live-callout-body-first";
+          firstBodyDepth = 0;
+          if (algunColapsado) cls += " mic-callout-hidden";
+          if (!continuaEnProf(line.number, prof)) cls += " mic-live-callout-last";
+          decos.push({
+            from: line.from,
+            to: line.from,
+            deco: Decoration.line({
+              class: cls,
+              attributes: { "data-callout": tipo, "data-callout-depth": String(prof) },
+            }),
+          });
+          // Ocultar los marcadores de cita `>` del cuerpo fuera de la línea activa
+          if (!isActive && !algunColapsado) {
+            decos.push({ from: line.from, to: line.from + markerLen, deco: hide });
+          }
+        } else {
+          // Cita simple (posiblemente anidada) sin cabecera de callout.
+          decos.push({
+            from: line.from,
+            to: line.from,
+            deco: Decoration.line({ class: "mic-live-quote" }),
+          });
+          if (!isActive) {
+            decos.push({ from: line.from, to: line.from + markerLen, deco: hide });
+          }
         }
       } else {
-        // Cualquier otra línea (incluida una EN BLANCO) cierra el callout/cita en
-        // curso: en markdown una línea vacía termina el blockquote. Sin resetear
-        // aquí, un `>` posterior separado por una línea en blanco heredaba el
-        // estilo del callout previo (DEF-021). Para continuar un callout tras un
-        // párrafo se usa una línea `>` vacía (que sí lleva quoteMark y no llega aquí).
-        calloutType = null;
-        firstBodyPending = false;
+        // Línea sin `>` (en blanco u otra): cierra TODO callout/cita en curso
+        // (DEF-021: una línea vacía termina el blockquote en markdown). Para
+        // continuar un callout tras un párrafo se usa una línea `>` vacía.
+        tipos.length = 0;
+        colapsado.length = 0;
+        firstBodyDepth = 0;
       }
 
       // Embeds de excalidraw (`![[ref.excalidraw]]`): se renderizan como bloque
