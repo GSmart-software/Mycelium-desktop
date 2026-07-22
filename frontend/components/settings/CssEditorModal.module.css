@@ -119,6 +119,13 @@
   border-left-color: var(--mic-glow);
 }
 
+/* DEF-026: el editor CSS usa el caret NATIVO del navegador; sin `caret-color`
+   quedaba invisible (la regla del editor de notas solo aplica a
+   `.cm-content.cm-lineWrapping`, clases que este editor no tiene). */
+.cssHost :global(.cm-content) {
+  caret-color: var(--mic-glow);
+}
+
 .cssHost :global(.cm-selectionBackground),
 .cssHost :global(.cm-editor ::selection) {
   background: color-mix(in srgb, var(--mic-glow) 30%, transparent) !important;
