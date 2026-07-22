@@ -645,7 +645,12 @@ function buildDecorations(
         if (!isActive) {
           decos.push({ from: line.from, to: line.from + quoteMark[0].length, deco: hide });
         }
-      } else if (text.trim() !== "") {
+      } else {
+        // Cualquier otra línea (incluida una EN BLANCO) cierra el callout/cita en
+        // curso: en markdown una línea vacía termina el blockquote. Sin resetear
+        // aquí, un `>` posterior separado por una línea en blanco heredaba el
+        // estilo del callout previo (DEF-021). Para continuar un callout tras un
+        // párrafo se usa una línea `>` vacía (que sí lleva quoteMark y no llega aquí).
         calloutType = null;
         firstBodyPending = false;
       }
