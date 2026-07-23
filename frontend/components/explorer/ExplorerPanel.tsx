@@ -4,10 +4,13 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -42,6 +45,23 @@ import {
 } from "@/stores/vaultStore";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import styles from "./ExplorerPanel.module.css";
+
+/**
+ * Colisión para el arrastre interno: como la zona de cada carpeta cubre también
+ * su contenido, varias zonas anidadas (y la raíz) se solapan bajo el puntero.
+ * Gana la MÁS PEQUEÑA, que es la carpeta más profunda; la raíz (la mayor) solo
+ * si el puntero no está dentro de ninguna carpeta. Así, soltar en el hueco de
+ * una carpeta deja el archivo DENTRO de ella y no en la raíz.
+ */
+const dropMasProfundo: CollisionDetection = (args) => {
+  const dentro = pointerWithin(args);
+  if (dentro.length === 0) return rectIntersection(args);
+  const area = (id: string | number) => {
+    const r = args.droppableRects.get(id);
+    return r ? r.width * r.height : Number.POSITIVE_INFINITY;
+  };
+  return [...dentro].sort((a, b) => area(a.id) - area(b.id));
+};
 
 type MenuState = { x: number; y: number; items: MenuItem[] } | null;
 type RenameState = { type: "carpeta" | "nota"; id: string; valor: string } | null;
@@ -330,30 +350,23 @@ export function ExplorerPanel() {
     const isActive = store.activeFolderId === carpeta.id;
 
     return (
-      <div
+      <FolderDropZone
         key={carpeta.id}
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes("Files")) {
-            e.preventDefault();
-            e.stopPropagation(); // la carpeta más interna bajo el cursor gana
-            setOsDropTarget(carpeta.id);
-          }
-        }}
-        onDrop={(e) => {
-          if (!e.dataTransfer.types.includes("Files")) return;
-          e.preventDefault();
-          e.stopPropagation();
-          const dt = e.dataTransfer;
+        carpetaId={carpeta.id}
+        onOsOver={() => setOsDropTarget(carpeta.id)}
+        onOsFiles={(dt) => {
           setOsDropTarget(undefined);
           importarSoltados(dt, carpeta.id);
         }}
       >
+        {(dropOver) => (
+          <>
         <FolderRow
           carpeta={carpeta}
           depth={depth}
           expanded={isExpanded}
           active={isActive}
-          osDropOver={osDropTarget === carpeta.id}
+          dropOver={dropOver || osDropTarget === carpeta.id}
           shared={isCarpetaShared(carpeta.id)}
           renaming={renaming?.type === "carpeta" && renaming.id === carpeta.id}
           renameValue={renaming?.valor ?? ""}
@@ -383,7 +396,9 @@ export function ExplorerPanel() {
             )}
           </div>
         )}
-      </div>
+          </>
+        )}
+      </FolderDropZone>
     );
   }
 
@@ -507,7 +522,13 @@ export function ExplorerPanel() {
         </button>
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragGhost(null)}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={dropMasProfundo}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setDragGhost(null)}
+      >
         <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
           <SectionHeader
             title="Archivos"
@@ -604,13 +625,53 @@ function RenameInput({
   );
 }
 
+/**
+ * Zona de drop de una carpeta: cubre su fila Y su contenido expandido, así
+ * soltar en cualquier parte del área de la carpeta la toma como destino (antes
+ * solo la fila era droppable y soltar en el hueco de los hijos caía en la raíz).
+ * También recibe los archivos arrastrados desde el SO (DEF-036).
+ */
+function FolderDropZone({
+  carpetaId,
+  onOsOver,
+  onOsFiles,
+  children,
+}: {
+  carpetaId: string;
+  onOsOver: () => void;
+  onOsFiles: (dt: DataTransfer) => void;
+  children: (dropOver: boolean) => React.ReactNode;
+}) {
+  const drop = useDroppable({ id: `folder:${carpetaId}` });
+  return (
+    <div
+      ref={drop.setNodeRef}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          e.stopPropagation(); // la carpeta más interna bajo el cursor gana
+          onOsOver();
+        }
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onOsFiles(e.dataTransfer);
+      }}
+    >
+      {children(drop.isOver)}
+    </div>
+  );
+}
+
 function FolderRow({
   carpeta,
   depth,
   expanded,
   active,
   shared,
-  osDropOver,
+  dropOver,
   onToggle,
   onContextMenu,
   onDoubleClick,
@@ -621,19 +682,19 @@ function FolderRow({
   expanded: boolean;
   active: boolean;
   shared: boolean;
-  /** Resaltado cuando se arrastran archivos del SO sobre esta carpeta (DEF-036b). */
-  osDropOver?: boolean;
+  /** Resaltado de destino: arrastre interno sobre la zona de la carpeta o
+   *  archivos del SO sobre ella (DEF-036b). Lo decide `FolderDropZone`. */
+  dropOver?: boolean;
   onToggle: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
 } & RowRenameProps) {
   const drag = useDraggable({ id: `carpeta:${carpeta.id}` });
-  const drop = useDroppable({ id: `folder:${carpeta.id}` });
 
   const className = [
     styles.row,
     active ? styles.rowActive : "",
-    drop.isOver || osDropOver ? styles.rowDropTarget : "",
+    dropOver ? styles.rowDropTarget : "",
     drag.isDragging ? styles.rowDragging : "",
   ]
     .filter(Boolean)
@@ -641,10 +702,7 @@ function FolderRow({
 
   return (
     <div
-      ref={(node) => {
-        drag.setNodeRef(node);
-        drop.setNodeRef(node);
-      }}
+      ref={drag.setNodeRef}
       className={className}
       style={{ paddingLeft: `${depth * 14 + 4}px` }}
       onClick={onToggle}
