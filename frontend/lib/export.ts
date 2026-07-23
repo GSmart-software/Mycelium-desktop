@@ -223,7 +223,6 @@ export async function exportNotePdf(
   setTimeout(() => iframe.remove(), 1000);
 }
 
-/** Atajo de exportación a PDF con el tema activo de preferencias (HU-10). */
 /**
  * Punto de entrada desde la UI (DEF-024): abre el diálogo de opciones de PDF para
  * la nota; la exportación real la dispara el diálogo con las opciones elegidas.
