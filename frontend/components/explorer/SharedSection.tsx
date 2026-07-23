@@ -24,19 +24,17 @@ type Compartido = {
  * compartieron con el usuario actual, en árbol de solo lectura de navegación.
  * Se refresca al montar y al volver el foco a la ventana (aprox. de CA4).
  */
-export function SharedSection() {
+export function SharedSection({
+  collapsed,
+  onToggle,
+}: {
+  /** Colapso elevado al ExplorerPanel para coordinar la división redimensionable (DEF-023). */
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
   const router = useRouter();
   const [items, setItems] = useState<Compartido[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [collapsed, setCollapsed] = useState(
-    () => typeof window !== "undefined" && localStorage.getItem("mic-sec-compartido") === "1",
-  );
-  const toggleCollapsed = () =>
-    setCollapsed((v) => {
-      const next = !v;
-      localStorage.setItem("mic-sec-compartido", next ? "1" : "0");
-      return next;
-    });
 
   const load = useCallback(async () => {
     try {
@@ -127,7 +125,7 @@ export function SharedSection() {
 
   return (
     <div className={styles.sharedSection}>
-      <button type="button" className={styles.sectionHeader} onClick={toggleCollapsed}>
+      <button type="button" className={styles.sectionHeader} onClick={onToggle}>
         {collapsed ? (
           <ChevronRight size={13} aria-hidden />
         ) : (

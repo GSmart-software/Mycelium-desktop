@@ -35,9 +35,34 @@
 
 .tree {
   flex: 1;
-  min-height: 120px;
+  min-height: 60px;
   overflow-y: auto;
   border-radius: var(--mic-radius-sm);
+}
+
+/* División redimensionable Archivos / Compartido (DEF-023). Archivos ocupa el
+   espacio libre con su propio scroll; Compartido tiene alto ajustable (inline)
+   y su propio scroll; el divisor arrastra entre ambos. */
+.paneArchivos {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.paneCompartidos {
+  min-height: 0;
+}
+.divisor {
+  flex: 0 0 auto;
+  height: 7px;
+  margin: -0.15rem 0;
+  cursor: row-resize;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+  transition: background 0.12s ease;
+}
+.divisor:hover {
+  background: color-mix(in srgb, var(--mic-glow) 55%, transparent);
 }
 
 .treeDropTarget {

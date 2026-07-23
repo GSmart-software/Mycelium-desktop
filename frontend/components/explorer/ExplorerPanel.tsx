@@ -94,6 +94,25 @@ export function ExplorerPanel() {
       localStorage.setItem("mic-sec-archivos", next ? "1" : "0");
       return next;
     });
+  // Colapso de "Compartido" elevado aquí para coordinar la división redimensionable
+  // (DEF-023). Misma clave localStorage que antes usaba SharedSection.
+  const [compartidosCollapsed, setCompartidosCollapsed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("mic-sec-compartido") === "1",
+  );
+  const toggleCompartidos = () =>
+    setCompartidosCollapsed((v) => {
+      const next = !v;
+      localStorage.setItem("mic-sec-compartido", next ? "1" : "0");
+      return next;
+    });
+  // Alto (px) del panel "Compartido" cuando está expandido; ajustable con el
+  // divisor y persistido. Archivos ocupa el resto. (DEF-023)
+  const [compartidosPx, setCompartidosPx] = useState(() => {
+    if (typeof window === "undefined") return 200;
+    const v = Number(localStorage.getItem("mic-split-compartido"));
+    return Number.isFinite(v) && v > 0 ? v : 200;
+  });
+  const explorerRef = useRef<HTMLDivElement>(null);
   const mdInputRef = useRef<HTMLInputElement>(null);
   const importTargetRef = useRef<string | null>(null);
 
@@ -444,8 +463,34 @@ export function ExplorerPanel() {
     });
   };
 
+  // Arrastre del divisor (DEF-023): el alto del panel Compartido = distancia del
+  // cursor al borde inferior del explorador; Archivos ocupa el resto. Clamp para
+  // dejar un mínimo a ambos. Se persiste al soltar.
+  const onDivisorPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const cont = explorerRef.current;
+    if (!cont) return;
+    const onMove = (ev: PointerEvent) => {
+      const rect = cont.getBoundingClientRect();
+      const px = Math.round(rect.bottom - ev.clientY);
+      const max = Math.max(60, rect.height - 160); // mínimo para Archivos
+      setCompartidosPx(Math.max(60, Math.min(px, max)));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setCompartidosPx((v) => {
+        localStorage.setItem("mic-split-compartido", String(v));
+        return v;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   return (
     <div
+      ref={explorerRef}
       className={`${styles.explorer} ${osDropTarget === null ? styles.osDragOver : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
@@ -529,14 +574,15 @@ export function ExplorerPanel() {
         onDragEnd={onDragEnd}
         onDragCancel={() => setDragGhost(null)}
       >
-        <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
+        {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}
+        <div className={styles.paneArchivos}>
           <SectionHeader
             title="Archivos"
             collapsed={archivosCollapsed}
             onToggle={toggleArchivos}
           />
           {!archivosCollapsed && (
-            <>
+            <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
               {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 0))}
               {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 0))}
               {store.carpetas.length === 0 && store.notas.length === 0 && (
@@ -544,10 +590,33 @@ export function ExplorerPanel() {
                   Vault vacío. Creá tu primera nota con el botón de arriba.
                 </p>
               )}
-            </>
+            </RootDropZone>
           )}
-          <SharedSection />
-        </RootDropZone>
+        </div>
+
+        {/* Divisor arrastrable (DEF-023): solo con Compartido expandido. */}
+        {!compartidosCollapsed && (
+          <div
+            className={styles.divisor}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Ajustar el tamaño de Compartido"
+            onPointerDown={onDivisorPointerDown}
+          />
+        )}
+
+        {/* Panel "Compartido": alto ajustable con su propio scroll; colapsado
+            ocupa solo su cabecera. */}
+        <div
+          className={styles.paneCompartidos}
+          style={
+            compartidosCollapsed
+              ? undefined
+              : { height: `${compartidosPx}px`, overflowY: "auto", flexShrink: 0 }
+          }
+        >
+          <SharedSection collapsed={compartidosCollapsed} onToggle={toggleCompartidos} />
+        </div>
 
         {/* Sombra que sigue al puntero mientras se arrastra (DEF-034). */}
         <DragOverlay dropAnimation={null}>
