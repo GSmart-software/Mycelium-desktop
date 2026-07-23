@@ -62,7 +62,9 @@ export function ExplorerPanel() {
   const store = useVaultStore();
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
-  const [osDragOver, setOsDragOver] = useState(false);
+  // Destino de un arrastre de archivos DESDE el SO (DEF-036/036b): id de la
+  // carpeta bajo el cursor, `null` = raíz, `undefined` = no hay arrastre.
+  const [osDropTarget, setOsDropTarget] = useState<string | null | undefined>(undefined);
   const [archivosCollapsed, setArchivosCollapsed] = useState(
     () => typeof window !== "undefined" && localStorage.getItem("mic-sec-archivos") === "1",
   );
@@ -328,12 +330,30 @@ export function ExplorerPanel() {
     const isActive = store.activeFolderId === carpeta.id;
 
     return (
-      <div key={carpeta.id}>
+      <div
+        key={carpeta.id}
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes("Files")) {
+            e.preventDefault();
+            e.stopPropagation(); // la carpeta más interna bajo el cursor gana
+            setOsDropTarget(carpeta.id);
+          }
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const dt = e.dataTransfer;
+          setOsDropTarget(undefined);
+          importarSoltados(dt, carpeta.id);
+        }}
+      >
         <FolderRow
           carpeta={carpeta}
           depth={depth}
           expanded={isExpanded}
           active={isActive}
+          osDropOver={osDropTarget === carpeta.id}
           shared={isCarpetaShared(carpeta.id)}
           renaming={renaming?.type === "carpeta" && renaming.id === carpeta.id}
           renameValue={renaming?.valor ?? ""}
@@ -397,31 +417,39 @@ export function ExplorerPanel() {
     return <p className={styles.empty}>Sin vault activo.</p>;
   }
 
-  const onOsDrop = (event: React.DragEvent) => {
-    if (!event.dataTransfer.types.includes("Files")) return;
-    event.preventDefault();
-    setOsDragOver(false);
-    void collectFromDataTransfer(event.dataTransfer).then((files) => {
+  // DEF-036: importa los archivos soltados desde el SO en la carpeta DESTINO (la
+  // que estaba bajo el cursor; `null` = raíz). Antes iba siempre a la carpeta
+  // activa, ignorando dónde se soltó.
+  const importarSoltados = (dataTransfer: DataTransfer, targetId: string | null) => {
+    void collectFromDataTransfer(dataTransfer).then((files) => {
       const onlyMd = files.filter((f) => /\.md$/i.test(f.path) || !/\.[^/]+$/.test(f.path));
       if (onlyMd.length > 0) {
-        useImportStore.getState().run(onlyMd, store.activeFolderId, "Importación");
+        useImportStore.getState().run(onlyMd, targetId, "Importación");
       }
     });
   };
 
   return (
     <div
-      className={`${styles.explorer} ${osDragOver ? styles.osDragOver : ""}`}
+      className={`${styles.explorer} ${osDropTarget === null ? styles.osDragOver : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
-          setOsDragOver(true);
+          // Raíz: si el cursor está sobre una carpeta, ese div hace stopPropagation
+          // y fija su propio destino; aquí solo llega el área vacía/raíz.
+          setOsDropTarget(null);
         }
       }}
       onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setOsDragOver(false);
+        if (e.currentTarget === e.target) setOsDropTarget(undefined);
       }}
-      onDrop={onOsDrop}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        const dt = e.dataTransfer;
+        setOsDropTarget(undefined);
+        importarSoltados(dt, null);
+      }}
     >
       <input
         ref={mdInputRef}
@@ -582,6 +610,7 @@ function FolderRow({
   expanded,
   active,
   shared,
+  osDropOver,
   onToggle,
   onContextMenu,
   onDoubleClick,
@@ -592,6 +621,8 @@ function FolderRow({
   expanded: boolean;
   active: boolean;
   shared: boolean;
+  /** Resaltado cuando se arrastran archivos del SO sobre esta carpeta (DEF-036b). */
+  osDropOver?: boolean;
   onToggle: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
@@ -602,7 +633,7 @@ function FolderRow({
   const className = [
     styles.row,
     active ? styles.rowActive : "",
-    drop.isOver ? styles.rowDropTarget : "",
+    drop.isOver || osDropOver ? styles.rowDropTarget : "",
     drag.isDragging ? styles.rowDragging : "",
   ]
     .filter(Boolean)
