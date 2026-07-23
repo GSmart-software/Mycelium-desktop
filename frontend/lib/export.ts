@@ -4,9 +4,10 @@ import { getCachedNote } from "@/lib/idb";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
-import { PRINT_CSS } from "@/lib/printStyles";
+import { buildPrintCss, type PdfPrintOpts } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { usePdfExportStore } from "@/stores/pdfExportStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 const EXCALIDRAW_RE = /!\[\[([0-9a-f-]+)\.excalidraw\]\]/gi;
@@ -176,9 +177,9 @@ export async function exportNotePdf(
   notaId: string,
   titulo: string,
   pageSize: "A4" | "Letter",
-  tema: string,
-  modoOscuro: boolean,
+  opts: PdfPrintOpts,
 ): Promise<void> {
+  const { tema, modoOscuro } = usePreferencesStore.getState();
   const html = await renderNoteHtml(notaId);
 
   const iframe = document.createElement("iframe");
@@ -199,12 +200,17 @@ export async function exportNotePdf(
     throw new Error("No se pudo preparar la impresión.");
   }
 
-  const darkAttr = modoOscuro ? ' data-dark="true"' : "";
+  // Con fondo blanco se ignora el tema (blanco + negro); si no, se usa el tema de
+  // Mycelium (incluido oscuro si el usuario lo tiene). `@page { margin }` da los
+  // márgenes por página. NOTA (DEF-024): con márgenes, Chromium dibuja su
+  // encabezado/pie (fecha/título/página) en ese margen; se quita destildando
+  // "Encabezados y pies de página" en el diálogo de impresión (queda recordado).
+  const darkAttr = !opts.fondoBlanco && modoOscuro ? ' data-dark="true"' : "";
   doc.open();
   doc.write(
     `<!doctype html><html data-theme="${tema}"${darkAttr}><head><meta charset="utf-8">` +
       `<title>${safeName(titulo)}</title>` +
-      `<style>@page { size: ${pageSize}; margin: 16mm; } ${PRINT_CSS}</style></head>` +
+      `<style>@page { size: ${pageSize}; margin: 16mm; } ${buildPrintCss(opts)}</style></head>` +
       `<body><div class="mic-preview">${html}</div></body></html>`,
   );
   doc.close();
@@ -218,15 +224,10 @@ export async function exportNotePdf(
 }
 
 /** Atajo de exportación a PDF con el tema activo de preferencias (HU-10). */
-export async function exportNotePdfActive(
-  notaId: string,
-  titulo: string,
-  pageSize: "A4" | "Letter",
-): Promise<void> {
-  const { tema, modoOscuro } = usePreferencesStore.getState();
-  try {
-    await exportNotePdf(notaId, titulo, pageSize, tema, modoOscuro);
-  } catch (error) {
-    if (typeof window !== "undefined") window.alert((error as Error).message);
-  }
+/**
+ * Punto de entrada desde la UI (DEF-024): abre el diálogo de opciones de PDF para
+ * la nota; la exportación real la dispara el diálogo con las opciones elegidas.
+ */
+export function exportNotePdfActive(notaId: string, titulo: string): void {
+  usePdfExportStore.getState().abrir({ notaId, titulo });
 }

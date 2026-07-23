@@ -206,21 +206,11 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   type="button"
                   className={styles.tabMenuItem}
                   onClick={() => {
-                    void exportNotePdfActive(activeNota.id, activeNota.titulo, "A4");
+                    exportNotePdfActive(activeNota.id, activeNota.titulo);
                     setMenuOpen(false);
                   }}
                 >
-                  Exportar como PDF (A4)
-                </button>
-                <button
-                  type="button"
-                  className={styles.tabMenuItem}
-                  onClick={() => {
-                    void exportNotePdfActive(activeNota.id, activeNota.titulo, "Letter");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Exportar como PDF (Letter)
+                  Exportar como PDF…
                 </button>
                 <div className={styles.tabMenuSep} />
               </>

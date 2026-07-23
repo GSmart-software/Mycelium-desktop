@@ -471,22 +471,11 @@ export function EditorToolbar({
                   role="menuitem"
                   className={styles.formatMenuItem}
                   onClick={() => {
-                    void exportNotePdfActive(notaId, titulo, "A4");
+                    exportNotePdfActive(notaId, titulo);
                     setRightMenuOpen(false);
                   }}
                 >
-                  <span>Exportar como PDF (A4)</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={styles.formatMenuItem}
-                  onClick={() => {
-                    void exportNotePdfActive(notaId, titulo, "Letter");
-                    setRightMenuOpen(false);
-                  }}
-                >
-                  <span>Exportar como PDF (Letter)</span>
+                  <span>Exportar como PDF…</span>
                 </button>
                 <div className={styles.formatMenuSep} />
                 <label className={styles.rightMenuCheck}>

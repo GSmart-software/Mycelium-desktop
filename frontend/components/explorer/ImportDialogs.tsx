@@ -1,5 +1,6 @@
 "use client";
 
+import { PdfExportDialog } from "@/components/editor/PdfExportDialog";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import styles from "./ImportDialogs.module.css";
@@ -114,6 +115,9 @@ export function ImportDialogs() {
           </div>
         </div>
       )}
+
+      {/* Diálogo de opciones de exportación a PDF (DEF-024). */}
+      <PdfExportDialog />
     </>
   );
 }

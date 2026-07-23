@@ -328,12 +328,8 @@ export function ExplorerPanel() {
         onClick: () => void exportNoteMd(nota.id, nota.titulo),
       },
       {
-        label: "Exportar como PDF (A4)",
-        onClick: () => void exportNotePdfActive(nota.id, nota.titulo, "A4"),
-      },
-      {
-        label: "Exportar como PDF (Letter)",
-        onClick: () => void exportNotePdfActive(nota.id, nota.titulo, "Letter"),
+        label: "Exportar como PDF…",
+        onClick: () => exportNotePdfActive(nota.id, nota.titulo),
       },
       ...(rutaVault
         ? [

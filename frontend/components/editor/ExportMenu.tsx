@@ -63,21 +63,11 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
             type="button"
             className={styles.item}
             onClick={() => {
-              void exportNotePdfActive(notaId, titulo, "A4");
+              exportNotePdfActive(notaId, titulo);
               setOpen(false);
             }}
           >
-            Exportar como PDF (A4)
-          </button>
-          <button
-            type="button"
-            className={styles.item}
-            onClick={() => {
-              void exportNotePdfActive(notaId, titulo, "Letter");
-              setOpen(false);
-            }}
-          >
-            Exportar como PDF (Letter)
+            Exportar como PDF…
           </button>
           <div className={styles.sep} />
           <label className={styles.check}>
