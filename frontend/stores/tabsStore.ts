@@ -72,6 +72,12 @@ type TabsState = {
    * soltar, el explorador lee esto para dividir (borde) o abrir (centro).
    */
   notaDropTarget: { paneId: string; edge: SplitEdge | "center" } | null;
+  /**
+   * Documento del explorador (DEF-023 P3) que se está arrastrando DE VUELTA al área
+   * de trabajo. Mientras está activo, los panes muestran una zona para soltarlo y
+   * abrirlo ahí (drag nativo, separado de `draggingNota` que va del árbol al pane).
+   */
+  draggingSidebarNota: string | null;
 
   openNote: (notaId: string) => void;
   /** Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda). */
@@ -94,6 +100,7 @@ type TabsState = {
   setDragging: (dragging: TabsState["dragging"]) => void;
   setDraggingNota: (notaId: string | null) => void;
   setNotaDropTarget: (target: TabsState["notaDropTarget"]) => void;
+  setDraggingSidebarNota: (notaId: string | null) => void;
   /** Abre una nota como pestaña en un pane concreto (drop en su barra de pestañas). */
   openNotaInPane: (notaId: string, paneId: string) => void;
   /** Divide un pane abriendo una nota en un pane nuevo a un lado (drop en un borde). */
@@ -189,6 +196,7 @@ export const useTabsStore = create<TabsState>()(
   dragging: null,
   draggingNota: null,
   notaDropTarget: null,
+  draggingSidebarNota: null,
 
   openNote(notaId) {
     const { root, activePaneId } = get();
@@ -452,6 +460,10 @@ export const useTabsStore = create<TabsState>()(
 
   setNotaDropTarget(target) {
     set({ notaDropTarget: target });
+  },
+
+  setDraggingSidebarNota(notaId) {
+    set({ draggingSidebarNota: notaId });
   },
 
   openNotaInPane(notaId, paneId) {

@@ -2,31 +2,33 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 
-/** Id de la pestaña permanente del árbol de archivos (no se puede cerrar). */
-export const EXPLORER_TAB = "explorer";
-
 /**
- * Pestañas del explorador como visor (DEF-023 P3, estilo Obsidian): además del
- * árbol (pestaña permanente `EXPLORER_TAB`), la barra lateral puede alojar
- * documentos anclados (arrastrando una pestaña del área de trabajo). Cada
- * documento se ve en solo lectura por defecto, con opción de editar.
+ * Documentos anclados en el explorador (DEF-023 P3, estilo Obsidian). El árbol de
+ * archivos SIEMPRE está arriba; debajo, en una región redimensionable, se muestran
+ * los documentos anclados (arrastrando una pestaña del área de trabajo), con su
+ * propia barra de pestañas. Cada documento se ve en solo lectura por defecto, con
+ * opción de editar. Se pueden devolver al área de trabajo arrastrándolos.
  */
 type SidebarViewerState = {
-  /** notaIds anclados como pestañas del explorador. */
+  /** Documentos anclados (notaIds o `GRAPH_TAB_ID`). */
   tabs: string[];
-  /** Pestaña activa: `EXPLORER_TAB` o un notaId anclado. */
+  /** Documento activo en la región inferior; "" si no hay ninguno. */
   activeTab: string;
-  /** Por notaId: true si está en modo edición (por defecto solo lectura). */
+  /** Por documento: true si está en modo edición (por defecto solo lectura). */
   editing: Record<string, boolean>;
+  /** Alto (px) de la región de documentos (divisor arrastrable). */
+  docsHeight: number;
 
   /** Ancla un documento (si no estaba) y lo activa. */
   dock: (notaId: string) => void;
-  /** Cierra una pestaña de documento; si era la activa vuelve al árbol. */
+  /** Cierra un documento; si era el activo, pasa a otro (o a ninguno). */
   cerrar: (notaId: string) => void;
-  /** Activa una pestaña (árbol o documento). */
-  activar: (tab: string) => void;
+  /** Activa un documento anclado. */
+  activar: (notaId: string) => void;
   /** Alterna ver/editar de un documento anclado. */
   toggleEdit: (notaId: string) => void;
+  /** Ajusta el alto de la región de documentos (min 120px). */
+  setDocsHeight: (px: number) => void;
   /** Descarta documentos anclados cuyas notas ya no existen. */
   reconcile: (validIds: Set<string>) => void;
 };
@@ -35,8 +37,9 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
   persist(
     (set, get) => ({
       tabs: [],
-      activeTab: EXPLORER_TAB,
+      activeTab: "",
       editing: {},
+      docsHeight: 300,
 
       dock(notaId) {
         const { tabs } = get();
@@ -48,21 +51,26 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
 
       cerrar(notaId) {
         const { tabs, activeTab, editing } = get();
+        const rest = tabs.filter((id) => id !== notaId);
         const editingRest = { ...editing };
         delete editingRest[notaId];
         set({
-          tabs: tabs.filter((id) => id !== notaId),
+          tabs: rest,
           editing: editingRest,
-          activeTab: activeTab === notaId ? EXPLORER_TAB : activeTab,
+          activeTab: activeTab === notaId ? rest[rest.length - 1] ?? "" : activeTab,
         });
       },
 
-      activar(tab) {
-        set({ activeTab: tab });
+      activar(notaId) {
+        set({ activeTab: notaId });
       },
 
       toggleEdit(notaId) {
         set({ editing: { ...get().editing, [notaId]: !get().editing[notaId] } });
+      },
+
+      setDocsHeight(px) {
+        set({ docsHeight: Math.max(120, px) });
       },
 
       reconcile(validIds) {
@@ -72,17 +80,18 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
         if (rest.length === tabs.length) return;
         set({
           tabs: rest,
-          activeTab: rest.includes(activeTab) ? activeTab : EXPLORER_TAB,
+          activeTab: rest.includes(activeTab) ? activeTab : rest[rest.length - 1] ?? "",
         });
       },
     }),
     {
       name: "mic-sidebar-viewer",
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         tabs: state.tabs,
         activeTab: state.activeTab,
         editing: state.editing,
+        docsHeight: state.docsHeight,
       }),
     },
   ),

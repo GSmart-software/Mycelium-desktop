@@ -6,6 +6,7 @@ import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { GRAPH_TAB_ID, useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
+import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
 import { TabBar } from "./TabBar";
@@ -18,6 +19,7 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   const dragging = useTabsStore((s) => s.dragging);
   const draggingNota = useTabsStore((s) => s.draggingNota);
   const notaDropTarget = useTabsStore((s) => s.notaDropTarget);
+  const draggingSidebarNota = useTabsStore((s) => s.draggingSidebarNota);
   const setActivePane = useTabsStore((s) => s.setActivePane);
   const splitWithTab = useTabsStore((s) => s.splitWithTab);
 
@@ -81,6 +83,27 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
             geometría con el tracking de dnd-kit y la publica en `notaDropTarget`. */}
         {draggingNota && notaDropTarget?.paneId === pane.id && (
           <div className={`${styles.noteDropHint} ${styles[`nd_${notaDropTarget.edge}`]}`} />
+        )}
+
+        {/* Devolver al workspace un documento anclado en el explorador (DEF-023 P3):
+            zona nativa que cubre el pane; al soltar, abre la nota aquí y la quita del
+            explorador. */}
+        {draggingSidebarNota && (
+          <div
+            className={styles.sidebarReturnZone}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const nid = useTabsStore.getState().draggingSidebarNota;
+              useTabsStore.getState().setDraggingSidebarNota(null);
+              if (!nid) return;
+              useTabsStore.getState().openNotaInPane(nid, pane.id);
+              useSidebarViewerStore.getState().cerrar(nid);
+              router.push(`/workspace?note=${nid}`);
+            }}
+          >
+            Abrir aquí
+          </div>
         )}
       </div>
     </section>

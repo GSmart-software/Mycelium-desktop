@@ -315,6 +315,22 @@
   width: 50%;
 }
 
+/* Zona para soltar un documento devuelto desde el explorador (DEF-023 P3): cubre
+   todo el pane y abre la nota aquí. */
+.sidebarReturnZone {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+  outline: 2px dashed var(--mic-glow);
+  outline-offset: -6px;
+}
+
 /* Overlay semitransparente indicando la dirección del split */
 .dropZoneHover {
   background: color-mix(in srgb, var(--mic-glow) 30%, transparent);

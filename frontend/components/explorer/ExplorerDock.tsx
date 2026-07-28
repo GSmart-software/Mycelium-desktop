@@ -1,29 +1,26 @@
 "use client";
 
-import { Folder, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-  findLeaf,
-  GRAPH_TAB_ID,
-  useTabsStore,
-} from "@/stores/tabsStore";
-import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { SidebarNoteView } from "./SidebarNoteView";
 import styles from "./ExplorerDock.module.css";
 
 /**
- * Explorador como visor con pestañas (DEF-023 P3, estilo Obsidian). Barra de
- * pestañas arriba: "Explorador" (árbol, permanente, no cerrable) + una por
- * documento anclado. Se ancla arrastrando una pestaña del área de trabajo (drag
- * nativo de la `TabBar`) y soltándola aquí. El árbol se mantiene MONTADO (oculto
- * cuando hay un documento activo) para no perder su estado.
+ * Explorador como visor (DEF-023 P3, estilo Obsidian). El árbol de archivos SIEMPRE
+ * está arriba; debajo, en una región redimensionable (divisor arrastrable), se
+ * muestran los documentos anclados con su propia barra de pestañas. Se ancla
+ * arrastrando una pestaña del área de trabajo aquí; se devuelve arrastrando la
+ * pestaña del documento de vuelta al área de trabajo.
  */
 export function ExplorerDock() {
   const notas = useVaultStore((s) => s.notas);
   const tabs = useSidebarViewerStore((s) => s.tabs);
   const activeTab = useSidebarViewerStore((s) => s.activeTab);
+  const docsHeight = useSidebarViewerStore((s) => s.docsHeight);
   const activar = useSidebarViewerStore((s) => s.activar);
   const cerrar = useSidebarViewerStore((s) => s.cerrar);
   const [dropActivo, setDropActivo] = useState(false);
@@ -39,9 +36,11 @@ export function ExplorerDock() {
     notaId === GRAPH_TAB_ID
       ? "Grafo de conexiones"
       : notas.find((n) => n.id === notaId)?.titulo ?? "…";
-  const mostrandoArbol = activeTab === EXPLORER_TAB || !tabs.includes(activeTab);
 
-  // Ancla la pestaña del workspace que se esté arrastrando (drag nativo).
+  const hayDocs = tabs.length > 0;
+  const activo = tabs.includes(activeTab) ? activeTab : tabs[tabs.length - 1] ?? "";
+
+  // Ancla la pestaña del workspace que se esté arrastrando (drag nativo de la TabBar).
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDropActivo(false);
@@ -55,6 +54,22 @@ export function ExplorerDock() {
     useTabsStore.getState().closeTab(drag.srcPaneId, drag.tabId);
   }
 
+  // Divisor: arrastrar hacia ARRIBA agranda la región de documentos.
+  function onDivisorDown(e: React.PointerEvent) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = useSidebarViewerStore.getState().docsHeight;
+    function onMove(ev: PointerEvent) {
+      useSidebarViewerStore.getState().setDocsHeight(startH + (startY - ev.clientY));
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
   return (
     <div
       className={styles.dock}
@@ -64,65 +79,69 @@ export function ExplorerDock() {
         setDropActivo(true);
       }}
       onDragLeave={(e) => {
-        // Solo si el puntero sale del dock (no al pasar entre hijos).
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropActivo(false);
       }}
       onDrop={onDrop}
     >
-      <div className={styles.tabBar} role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mostrandoArbol}
-          className={`${styles.tab} ${mostrandoArbol ? styles.tabActive : ""}`}
-          title="Explorador"
-          onClick={() => activar(EXPLORER_TAB)}
-        >
-          <Folder size={15} aria-hidden />
-        </button>
-        {tabs.map((notaId) => {
-          const activa = activeTab === notaId;
-          return (
-            <div
-              key={notaId}
-              role="tab"
-              aria-selected={activa}
-              className={`${styles.tab} ${styles.tabDoc} ${activa ? styles.tabActive : ""}`}
-              title={tituloDe(notaId)}
-              onClick={() => activar(notaId)}
-            >
-              <span className={styles.tabTitulo}>{tituloDe(notaId)}</span>
-              <button
-                type="button"
-                className={styles.tabClose}
-                aria-label={`Cerrar ${tituloDe(notaId)}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  cerrar(notaId);
-                }}
-              >
-                <X size={12} aria-hidden />
-              </button>
+      {/* Árbol de archivos: siempre visible, ocupa el espacio libre de arriba. */}
+      <div className={styles.treeRegion}>
+        <ExplorerPanel />
+      </div>
+
+      {hayDocs && (
+        <>
+          <div
+            className={styles.divisor}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Ajustar el tamaño del visor"
+            onPointerDown={onDivisorDown}
+          />
+          <div className={styles.docsRegion} style={{ height: `${docsHeight}px` }}>
+            <div className={styles.tabBar} role="tablist">
+              {tabs.map((notaId) => {
+                const activaTab = activo === notaId;
+                return (
+                  <div
+                    key={notaId}
+                    role="tab"
+                    aria-selected={activaTab}
+                    draggable
+                    className={`${styles.tab} ${activaTab ? styles.tabActive : ""}`}
+                    title={tituloDe(notaId)}
+                    onClick={() => activar(notaId)}
+                    // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", notaId);
+                      e.dataTransfer.effectAllowed = "move";
+                      useTabsStore.getState().setDraggingSidebarNota(notaId);
+                    }}
+                    onDragEnd={() => useTabsStore.getState().setDraggingSidebarNota(null)}
+                  >
+                    <span className={styles.tabTitulo}>{tituloDe(notaId)}</span>
+                    <button
+                      type="button"
+                      className={styles.tabClose}
+                      aria-label={`Cerrar ${tituloDe(notaId)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cerrar(notaId);
+                      }}
+                    >
+                      <X size={12} aria-hidden />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-
-      <div className={styles.body}>
-        {/* Árbol siempre montado; oculto cuando hay un documento activo. */}
-        <div className={mostrandoArbol ? styles.pane : styles.paneOculto}>
-          <ExplorerPanel />
-        </div>
-        {!mostrandoArbol && (
-          <div className={styles.pane}>
-            <SidebarNoteView key={activeTab} notaId={activeTab} />
+            <div className={styles.docBody}>
+              {activo && <SidebarNoteView key={activo} notaId={activo} />}
+            </div>
           </div>
-        )}
-      </div>
-
-      {dropActivo && (
-        <div className={styles.dropHint}>Soltá para abrir aquí</div>
+        </>
       )}
+
+      {dropActivo && <div className={styles.dropHint}>Soltá para abrir aquí</div>}
     </div>
   );
 }
