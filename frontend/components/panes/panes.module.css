@@ -281,6 +281,14 @@
   width: 20px;
 }
 
+/* Zona central (solo al arrastrar una nota, DEF-023 P2): abrir como pestaña. Va
+   detrás de los bordes (z-index menor) y separada 20px para no pisarlos. */
+.dropZoneCenter {
+  position: absolute;
+  inset: 20px;
+  z-index: 19;
+}
+
 /* Overlay semitransparente indicando la dirección del split */
 .dropZoneHover {
   background: color-mix(in srgb, var(--mic-glow) 30%, transparent);

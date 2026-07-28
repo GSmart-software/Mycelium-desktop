@@ -29,6 +29,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   return (
     <section
       className={isActive ? `${styles.pane} ${styles.paneActive}` : styles.pane}
+      // Identifica el pane para el hit-test del drop de una nota (DEF-023 P2).
+      data-pane-id={pane.id}
       onPointerDownCapture={() => {
         if (!isActive) setActivePane(pane.id);
       }}
@@ -91,10 +93,22 @@ function DropZones({
   noteDrag: boolean;
   onDrop: (edge: SplitEdge) => void;
 }) {
-  const [hover, setHover] = useState<SplitEdge | null>(null);
+  const [hover, setHover] = useState<SplitEdge | "center" | null>(null);
 
   return (
     <>
+      {/* Zona central: solo al arrastrar una nota (DEF-023 P2) = abrir como pestaña.
+          Se dibuja detrás de los bordes para que estos ganen en las esquinas. */}
+      {noteDrag && (
+        <div
+          data-pane-drop={paneId}
+          className={`${styles.dropZoneCenter} ${
+            hover === "center" ? styles.dropZoneHover : ""
+          }`}
+          onPointerEnter={() => setHover("center")}
+          onPointerLeave={() => setHover(null)}
+        />
+      )}
       {EDGES.map((edge) => (
         <div
           key={edge}

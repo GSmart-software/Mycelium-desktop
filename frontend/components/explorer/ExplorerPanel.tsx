@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { insertRefAtPoint } from "@/lib/editor/viewRegistry";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
@@ -205,9 +204,9 @@ export function ExplorerPanel() {
   /**
    * DEF-023 P2: hit-test del punto de soltado contra los panes del área de trabajo.
    * Si cae sobre un BORDE de un pane → divide y abre la nota en un pane nuevo a ese
-   * lado; si cae sobre la BARRA DE PESTAÑAS → la abre como pestaña en ese pane.
-   * Devuelve true si abrió (el explorador usa dnd-kit por puntero, que no llega a
-   * los panes, así que resolvemos por `document.elementFromPoint`).
+   * lado; sobre cualquier OTRA parte del pane (barra de pestañas o cuerpo) → la abre
+   * como pestaña en ese pane. Devuelve true si abrió (el explorador usa dnd-kit por
+   * puntero, que no llega a los panes, así que resolvemos por `elementFromPoint`).
    */
   function abrirNotaEnPunto(notaId: string, x: number, y: number): boolean {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
@@ -220,9 +219,9 @@ export function ExplorerPanel() {
       router.push(`/workspace?note=${notaId}`);
       return true;
     }
-    const barra = el.closest<HTMLElement>("[data-tabbar-drop]");
-    if (barra) {
-      useTabsStore.getState().openNotaInPane(notaId, barra.dataset.tabbarDrop!);
+    const pane = el.closest<HTMLElement>("[data-pane-id]");
+    if (pane) {
+      useTabsStore.getState().openNotaInPane(notaId, pane.dataset.paneId!);
       router.push(`/workspace?note=${notaId}`);
       return true;
     }
@@ -245,28 +244,26 @@ export function ExplorerPanel() {
 
   function onDragEnd(event: DragEndEvent) {
     setDragGhost(null);
-    useTabsStore.getState().setDraggingNota(null);
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
 
-    // Soltar una nota fuera del explorador: primero se prueba soltarla sobre un
-    // pane (DEF-023 P2, borde = dividir / barra de pestañas = abrir); si no cae
-    // sobre un pane, sobre un markdown abierto inserta su vínculo en el punto de
-    // soltado (DEF-034; los .excalidraw se insertan como embed para verse inline).
+    // Soltar una nota FUERA del explorador la abre en un pane (DEF-023 P2): borde
+    // = dividir, resto del pane (barra o cuerpo) = abrir como pestaña. El hit-test
+    // (`abrirNotaEnPunto`) debe correr ANTES de limpiar `draggingNota`: al limpiarlo
+    // se desmontan las zonas de drop y `elementFromPoint` ya no las encontraría.
     if (!over && dragged.startsWith("nota:")) {
       const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
       if (nota) {
         const act = event.activatorEvent as MouseEvent | null;
         const x = (act?.clientX ?? 0) + event.delta.x;
         const y = (act?.clientY ?? 0) + event.delta.y;
-        if (abrirNotaEnPunto(nota.id, x, y)) return;
-        const ref =
-          nota.tipo === "excalidraw"
-            ? `![[${nota.titulo}.excalidraw]]`
-            : `[[${nota.titulo}]]`;
-        if (insertRefAtPoint(x, y, ref)) return;
+        abrirNotaEnPunto(nota.id, x, y);
+        useTabsStore.getState().setDraggingNota(null);
+        return;
       }
     }
+
+    useTabsStore.getState().setDraggingNota(null);
     if (!over) return;
 
     const destinoId = over === "root" ? null : over.replace("folder:", "");
