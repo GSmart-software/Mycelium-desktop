@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 
 /** Id de la pestaña permanente del árbol de archivos (no se puede cerrar). */
 export const EXPLORER_TAB = "explorer";
@@ -66,7 +67,8 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
 
       reconcile(validIds) {
         const { tabs, activeTab } = get();
-        const rest = tabs.filter((id) => validIds.has(id));
+        // El grafo no es una nota real: nunca se descarta por reconciliación.
+        const rest = tabs.filter((id) => id === GRAPH_TAB_ID || validIds.has(id));
         if (rest.length === tabs.length) return;
         set({
           tabs: rest,

@@ -35,7 +35,10 @@ export function ExplorerDock() {
     }
   }, [notas]);
 
-  const tituloDe = (notaId: string) => notas.find((n) => n.id === notaId)?.titulo ?? "…";
+  const tituloDe = (notaId: string) =>
+    notaId === GRAPH_TAB_ID
+      ? "Grafo de conexiones"
+      : notas.find((n) => n.id === notaId)?.titulo ?? "…";
   const mostrandoArbol = activeTab === EXPLORER_TAB || !tabs.includes(activeTab);
 
   // Ancla la pestaña del workspace que se esté arrastrando (drag nativo).
@@ -47,7 +50,7 @@ export function ExplorerDock() {
     const leaf = findLeaf(useTabsStore.getState().root, drag.srcPaneId);
     const tab = leaf?.tabs.find((t) => t.id === drag.tabId);
     useTabsStore.getState().setDragging(null);
-    if (!tab || tab.notaId === GRAPH_TAB_ID) return; // el grafo no se ancla
+    if (!tab) return;
     useSidebarViewerStore.getState().dock(tab.notaId);
     useTabsStore.getState().closeTab(drag.srcPaneId, drag.tabId);
   }

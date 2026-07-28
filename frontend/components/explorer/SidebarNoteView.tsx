@@ -4,12 +4,14 @@ import { Eye, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
+import { GraphView } from "@/components/graph/GraphView";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { fetchNoteContent } from "@/lib/export";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./ExplorerDock.module.css";
 
@@ -23,6 +25,20 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
   const editing = useSidebarViewerStore((s) => !!s.editing[notaId]);
   const toggleEdit = useSidebarViewerStore((s) => s.toggleEdit);
   const esExcalidraw = nota?.tipo === "excalidraw";
+
+  // El grafo de conexiones también se puede anclar (no es una nota editable).
+  if (notaId === GRAPH_TAB_ID) {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>Grafo de conexiones</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <GraphView />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.viewer}>
