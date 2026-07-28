@@ -8,6 +8,7 @@ import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
 import { TypographySection } from "@/components/settings/TypographySection";
 import { VaultSection } from "@/components/settings/VaultSection";
+import { APP_VERSION } from "@/lib/version";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SettingsDrawer.module.css";
 
@@ -114,6 +115,8 @@ export function SettingsDrawer() {
           )}
           {tab === "vault" && <VaultSection />}
         </div>
+
+        <footer className={styles.footer}>Mycelium v{APP_VERSION}</footer>
       </aside>
     </>
   );
