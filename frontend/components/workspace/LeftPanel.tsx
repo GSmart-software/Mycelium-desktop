@@ -1,6 +1,6 @@
 "use client";
 
-import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
+import { ExplorerDock } from "@/components/explorer/ExplorerDock";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
@@ -30,8 +30,15 @@ export function LeftPanel() {
       {activeSection !== null && (
         <>
           <div className={styles.panelContent}>
-            <h2 className={styles.panelTitle}>{SECTION_TITLES[activeSection]}</h2>
-            <SectionContent section={activeSection} />
+            {activeSection === "explorer" ? (
+              // El explorador aporta su propia barra de pestañas (DEF-023 P3), sin título.
+              <ExplorerDock />
+            ) : (
+              <>
+                <h2 className={styles.panelTitle}>{SECTION_TITLES[activeSection]}</h2>
+                <SectionContent section={activeSection} />
+              </>
+            )}
           </div>
           <ResizeHandle side="left" onResize={setLeftWidth} />
         </>
@@ -43,7 +50,7 @@ export function LeftPanel() {
 function SectionContent({ section }: { section: RailSection }) {
   switch (section) {
     case "explorer":
-      return <ExplorerPanel />;
+      return null; // el explorador se renderiza como ExplorerDock (arriba)
     case "search":
       return <SearchPanel />;
     case "tags":
