@@ -57,6 +57,12 @@ type TabsState = {
   closedHistory: string[];
   /** Tab en drag activo (para mostrar las zonas de split). */
   dragging: { srcPaneId: string; tabId: string } | null;
+  /**
+   * Nota en drag DESDE el explorador (DEF-023 P2): mientras está activa, los panes
+   * muestran sus zonas de drop (bordes = dividir, barra de pestañas = abrir). El
+   * drop real lo resuelve el explorador por hit-test (dnd-kit no llega a los panes).
+   */
+  draggingNota: string | null;
 
   openNote: (notaId: string) => void;
   /** Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda). */
@@ -77,6 +83,11 @@ type TabsState = {
   linkPane: (paneId: string, sourcePaneId: string | null) => void;
   toggleLinkedScrollSync: (paneId: string) => void;
   setDragging: (dragging: TabsState["dragging"]) => void;
+  setDraggingNota: (notaId: string | null) => void;
+  /** Abre una nota como pestaña en un pane concreto (drop en su barra de pestañas). */
+  openNotaInPane: (notaId: string, paneId: string) => void;
+  /** Divide un pane abriendo una nota en un pane nuevo a un lado (drop en un borde). */
+  splitPaneWithNota: (notaId: string, dstPaneId: string, edge: SplitEdge) => void;
   /** Nota activa del pane activo (para sincronizar la URL). */
   activeNotaId: () => string | null;
   /** Cierra las pestañas de una nota en todos los panes (al ir a papelera). */
@@ -166,6 +177,7 @@ export const useTabsStore = create<TabsState>()(
   activePaneId: initialRoot.id,
   closedHistory: [],
   dragging: null,
+  draggingNota: null,
 
   openNote(notaId) {
     const { root, activePaneId } = get();
@@ -421,6 +433,58 @@ export const useTabsStore = create<TabsState>()(
 
   setDragging(dragging) {
     set({ dragging });
+  },
+
+  setDraggingNota(notaId) {
+    set({ draggingNota: notaId });
+  },
+
+  openNotaInPane(notaId, paneId) {
+    const { root } = get();
+    const target = findLeaf(root, paneId);
+    if (!target) return;
+    const existing = target.tabs.find((t) => t.notaId === notaId);
+    // Pestaña permanente (arrastrar es una acción deliberada, no un preview).
+    const newTab: Tab = existing ?? { id: newId(), notaId, preview: false };
+    set({
+      root: mapTree(root, (leaf) =>
+        leaf.id === paneId
+          ? {
+              ...leaf,
+              tabs: existing ? leaf.tabs : [...leaf.tabs, newTab],
+              activeTabId: newTab.id,
+            }
+          : leaf,
+      ),
+      activePaneId: paneId,
+      draggingNota: null,
+    });
+  },
+
+  splitPaneWithNota(notaId, dstPaneId, edge) {
+    const newTab: Tab = { id: newId(), notaId, preview: false };
+    const newLeaf = makeLeaf([newTab], newTab.id);
+    const direction: SplitPane["direction"] =
+      edge === "left" || edge === "right" ? "row" : "column";
+    const before = edge === "left" || edge === "top";
+
+    function insert(node: PaneNode): PaneNode {
+      if (node.type === "leaf") {
+        if (node.id !== dstPaneId) return node;
+        const split: SplitPane = {
+          id: newId(),
+          type: "split",
+          direction,
+          children: before ? [newLeaf, node] : [node, newLeaf],
+          sizes: [0.5, 0.5],
+        };
+        return split;
+      }
+      return { ...node, children: node.children.map(insert) };
+    }
+
+    const root = cleanLinks(pruneEmpty(insert(get().root)));
+    set({ root, activePaneId: newLeaf.id, draggingNota: null });
   },
 
   activeNotaId() {

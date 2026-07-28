@@ -16,6 +16,7 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   const router = useRouter();
   const activePaneId = useTabsStore((s) => s.activePaneId);
   const dragging = useTabsStore((s) => s.dragging);
+  const draggingNota = useTabsStore((s) => s.draggingNota);
   const setActivePane = useTabsStore((s) => s.setActivePane);
   const splitWithTab = useTabsStore((s) => s.splitWithTab);
 
@@ -57,11 +58,18 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           </div>
         )}
 
-        {/* Zonas de drop en los bordes para crear splits (HU-25 CA9 / HU-26 CA1-2) */}
-        {dragging && (
+        {/* Zonas de drop en los bordes para crear splits (HU-25 CA9 / HU-26 CA1-2).
+            También al arrastrar una nota del explorador (DEF-023 P2): en ese caso
+            solo dan feedback visual + atributos para el hit-test; el drop lo resuelve
+            el explorador (dnd-kit no alcanza a los panes). */}
+        {(dragging || draggingNota) && (
           <DropZones
+            paneId={pane.id}
+            noteDrag={draggingNota !== null}
             onDrop={(edge) => {
-              splitWithTab(dragging.srcPaneId, dragging.tabId, pane.id, edge);
+              const drag = useTabsStore.getState().dragging;
+              if (!drag) return; // drag de nota: lo maneja el explorador
+              splitWithTab(drag.srcPaneId, drag.tabId, pane.id, edge);
               const nid = useTabsStore.getState().activeNotaId();
               router.push(nid ? `/workspace?note=${nid}` : "/workspace");
             }}
@@ -74,7 +82,15 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
 
 const EDGES: SplitEdge[] = ["top", "bottom", "left", "right"];
 
-function DropZones({ onDrop }: { onDrop: (edge: SplitEdge) => void }) {
+function DropZones({
+  paneId,
+  noteDrag,
+  onDrop,
+}: {
+  paneId: string;
+  noteDrag: boolean;
+  onDrop: (edge: SplitEdge) => void;
+}) {
   const [hover, setHover] = useState<SplitEdge | null>(null);
 
   return (
@@ -82,10 +98,12 @@ function DropZones({ onDrop }: { onDrop: (edge: SplitEdge) => void }) {
       {EDGES.map((edge) => (
         <div
           key={edge}
+          data-pane-drop={paneId}
           data-edge={edge}
           className={`${styles.dropZone} ${styles[`dropZone_${edge}`]} ${
             hover === edge ? styles.dropZoneHover : ""
           }`}
+          // Drag NATIVO de pestañas (HU-25/26)
           onDragOver={(e) => {
             e.preventDefault();
             setHover(edge);
@@ -96,6 +114,9 @@ function DropZones({ onDrop }: { onDrop: (edge: SplitEdge) => void }) {
             setHover(null);
             onDrop(edge);
           }}
+          // Drag de nota (dnd-kit, por puntero): solo feedback visual (DEF-023 P2)
+          onPointerEnter={() => noteDrag && setHover(edge)}
+          onPointerLeave={() => noteDrag && setHover(null)}
         />
       ))}
     </>

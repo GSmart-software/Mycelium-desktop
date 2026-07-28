@@ -34,7 +34,7 @@ import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
-import { useTabsStore } from "@/stores/tabsStore";
+import { useTabsStore, type SplitEdge } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { SharedSection } from "./SharedSection";
 import {
@@ -202,11 +202,41 @@ export function ExplorerPanel() {
     { kind: "nota" | "carpeta"; nombre: string; tipo?: NotaTipo } | null
   >(null);
 
+  /**
+   * DEF-023 P2: hit-test del punto de soltado contra los panes del área de trabajo.
+   * Si cae sobre un BORDE de un pane → divide y abre la nota en un pane nuevo a ese
+   * lado; si cae sobre la BARRA DE PESTAÑAS → la abre como pestaña en ese pane.
+   * Devuelve true si abrió (el explorador usa dnd-kit por puntero, que no llega a
+   * los panes, así que resolvemos por `document.elementFromPoint`).
+   */
+  function abrirNotaEnPunto(notaId: string, x: number, y: number): boolean {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    if (!el) return false;
+    const borde = el.closest<HTMLElement>("[data-pane-drop][data-edge]");
+    if (borde) {
+      useTabsStore
+        .getState()
+        .splitPaneWithNota(notaId, borde.dataset.paneDrop!, borde.dataset.edge as SplitEdge);
+      router.push(`/workspace?note=${notaId}`);
+      return true;
+    }
+    const barra = el.closest<HTMLElement>("[data-tabbar-drop]");
+    if (barra) {
+      useTabsStore.getState().openNotaInPane(notaId, barra.dataset.tabbarDrop!);
+      router.push(`/workspace?note=${notaId}`);
+      return true;
+    }
+    return false;
+  }
+
   function onDragStart(event: DragStartEvent) {
     const id = String(event.active.id);
     if (id.startsWith("nota:")) {
-      const nota = store.notas.find((n) => n.id === id.replace("nota:", ""));
+      const notaId = id.replace("nota:", "");
+      const nota = store.notas.find((n) => n.id === notaId);
       if (nota) setDragGhost({ kind: "nota", nombre: nota.titulo, tipo: nota.tipo });
+      // DEF-023 P2: avisa a los panes para que muestren sus zonas de drop.
+      useTabsStore.getState().setDraggingNota(notaId);
     } else if (id.startsWith("carpeta:")) {
       const carpeta = store.carpetas.find((c) => c.id === id.replace("carpeta:", ""));
       if (carpeta) setDragGhost({ kind: "carpeta", nombre: carpeta.nombre });
@@ -215,17 +245,21 @@ export function ExplorerPanel() {
 
   function onDragEnd(event: DragEndEvent) {
     setDragGhost(null);
+    useTabsStore.getState().setDraggingNota(null);
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
 
-    // Soltar una nota sobre un markdown abierto inserta su vínculo en el punto de
-    // soltado (los archivos .excalidraw se insertan como embed para verse inline).
+    // Soltar una nota fuera del explorador: primero se prueba soltarla sobre un
+    // pane (DEF-023 P2, borde = dividir / barra de pestañas = abrir); si no cae
+    // sobre un pane, sobre un markdown abierto inserta su vínculo en el punto de
+    // soltado (DEF-034; los .excalidraw se insertan como embed para verse inline).
     if (!over && dragged.startsWith("nota:")) {
       const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
       if (nota) {
         const act = event.activatorEvent as MouseEvent | null;
         const x = (act?.clientX ?? 0) + event.delta.x;
         const y = (act?.clientY ?? 0) + event.delta.y;
+        if (abrirNotaEnPunto(nota.id, x, y)) return;
         const ref =
           nota.tipo === "excalidraw"
             ? `![[${nota.titulo}.excalidraw]]`
@@ -568,7 +602,10 @@ export function ExplorerPanel() {
         collisionDetection={dropMasProfundo}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
-        onDragCancel={() => setDragGhost(null)}
+        onDragCancel={() => {
+          setDragGhost(null);
+          useTabsStore.getState().setDraggingNota(null);
+        }}
       >
         {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}
         <div className={styles.paneArchivos}>

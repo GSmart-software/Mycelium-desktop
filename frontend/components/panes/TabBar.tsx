@@ -23,6 +23,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const syncByNota = useSyncStore((s) => s.byNota);
+  const draggingNota = useTabsStore((s) => s.draggingNota);
+  const [notaOver, setNotaOver] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,17 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     : null;
 
   return (
-    <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
+    <div
+      className={`${styles.tabBar} ${draggingNota && notaOver ? styles.tabBarNotaOver : ""}`}
+      role="tablist"
+      ref={tabBarRef}
+      // Objetivo de drop "abrir como pestaña" al arrastrar una nota del explorador
+      // (DEF-023 P2). El drop real lo resuelve el explorador por hit-test; aquí solo
+      // marcamos el pane y damos feedback visual.
+      data-tabbar-drop={pane.id}
+      onPointerEnter={() => useTabsStore.getState().draggingNota && setNotaOver(true)}
+      onPointerLeave={() => setNotaOver(false)}
+    >
       {pane.tabs.map((tab, index) => {
         const sync = syncByNota[tab.notaId] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;

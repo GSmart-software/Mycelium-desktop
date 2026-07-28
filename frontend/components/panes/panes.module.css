@@ -87,6 +87,13 @@
   overflow-y: hidden;
 }
 
+/* Resalte de la barra de pestañas como objetivo de drop de una nota (DEF-023 P2). */
+.tabBarNotaOver {
+  background: color-mix(in srgb, var(--mic-glow) 25%, var(--mic-bg-surface));
+  outline: 2px dashed var(--mic-glow);
+  outline-offset: -2px;
+}
+
 .tab {
   position: relative;
   display: flex;
