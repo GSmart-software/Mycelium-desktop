@@ -16,8 +16,14 @@ type SidebarViewerState = {
   activeTab: string;
   /** Por documento: true si está en modo edición (por defecto solo lectura). */
   editing: Record<string, boolean>;
-  /** Alto (px) de la región de documentos (divisor arrastrable). */
+  /** Alto (px) de la región de documentos (divisor arrastrable, solo en `split`). */
   docsHeight: number;
+  /**
+   * Disposición del visor: `split` = árbol arriba + documento abajo (redimensionable);
+   * `full` = el documento ocupa todo el explorador (el árbol queda oculto). El usuario
+   * alterna con el botón de maximizar/restaurar.
+   */
+  mode: "split" | "full";
 
   /** Ancla un documento (si no estaba) y lo activa. */
   dock: (notaId: string) => void;
@@ -29,6 +35,8 @@ type SidebarViewerState = {
   toggleEdit: (notaId: string) => void;
   /** Ajusta el alto de la región de documentos (min 120px). */
   setDocsHeight: (px: number) => void;
+  /** Alterna entre documento dividido (`split`) y a pantalla completa (`full`). */
+  toggleMode: () => void;
   /** Descarta documentos anclados cuyas notas ya no existen. */
   reconcile: (validIds: Set<string>) => void;
 };
@@ -40,6 +48,7 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
       activeTab: "",
       editing: {},
       docsHeight: 300,
+      mode: "split",
 
       dock(notaId) {
         const { tabs } = get();
@@ -73,6 +82,10 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
         set({ docsHeight: Math.max(120, px) });
       },
 
+      toggleMode() {
+        set({ mode: get().mode === "split" ? "full" : "split" });
+      },
+
       reconcile(validIds) {
         const { tabs, activeTab } = get();
         // El grafo no es una nota real: nunca se descarta por reconciliación.
@@ -92,6 +105,7 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
         activeTab: state.activeTab,
         editing: state.editing,
         docsHeight: state.docsHeight,
+        mode: state.mode,
       }),
     },
   ),

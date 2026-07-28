@@ -14,6 +14,11 @@
   flex-direction: column;
 }
 
+/* Árbol oculto cuando el documento está a pantalla completa (mode "full"). */
+.treeOculto {
+  display: none;
+}
+
 /* ── Divisor arrastrable entre árbol y visor ────────────────────── */
 .divisor {
   flex-shrink: 0;
@@ -35,6 +40,12 @@
   display: flex;
   flex-direction: column;
   border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+}
+
+/* Documento a pantalla completa: ocupa todo el explorador (sin alto fijo). */
+.docsFull {
+  flex: 1;
+  border-top: none;
 }
 
 .tabBar {
@@ -93,6 +104,24 @@
 .tabClose:hover {
   background: color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
   opacity: 1;
+}
+
+/* Botón maximizar/restaurar (empujado a la derecha de la barra de pestañas). */
+.modeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 0.4rem;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.modeToggle:hover {
+  color: var(--mic-text-primary);
 }
 
 .docBody {

@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
@@ -21,8 +21,10 @@ export function ExplorerDock() {
   const tabs = useSidebarViewerStore((s) => s.tabs);
   const activeTab = useSidebarViewerStore((s) => s.activeTab);
   const docsHeight = useSidebarViewerStore((s) => s.docsHeight);
+  const mode = useSidebarViewerStore((s) => s.mode);
   const activar = useSidebarViewerStore((s) => s.activar);
   const cerrar = useSidebarViewerStore((s) => s.cerrar);
+  const toggleMode = useSidebarViewerStore((s) => s.toggleMode);
   const [dropActivo, setDropActivo] = useState(false);
 
   // Descartar documentos anclados cuyas notas ya no existen (borradas).
@@ -83,23 +85,33 @@ export function ExplorerDock() {
       }}
       onDrop={onDrop}
     >
-      {/* Árbol de archivos: siempre visible, ocupa el espacio libre de arriba. */}
-      <div className={styles.treeRegion}>
+      {/* Árbol de archivos: ocupa el espacio libre de arriba; se oculta cuando el
+          documento está a pantalla completa (mode === "full"). */}
+      <div
+        className={`${styles.treeRegion} ${
+          hayDocs && mode === "full" ? styles.treeOculto : ""
+        }`}
+      >
         <ExplorerPanel />
       </div>
 
+      {hayDocs && mode === "split" && (
+        <div
+          className={styles.divisor}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Ajustar el tamaño del visor"
+          onPointerDown={onDivisorDown}
+        />
+      )}
+
       {hayDocs && (
-        <>
-          <div
-            className={styles.divisor}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Ajustar el tamaño del visor"
-            onPointerDown={onDivisorDown}
-          />
-          <div className={styles.docsRegion} style={{ height: `${docsHeight}px` }}>
-            <div className={styles.tabBar} role="tablist">
-              {tabs.map((notaId) => {
+        <div
+          className={`${styles.docsRegion} ${mode === "full" ? styles.docsFull : ""}`}
+          style={mode === "split" ? { height: `${docsHeight}px` } : undefined}
+        >
+          <div className={styles.tabBar} role="tablist">
+            {tabs.map((notaId) => {
                 const activaTab = activo === notaId;
                 return (
                   <div
@@ -133,12 +145,24 @@ export function ExplorerDock() {
                   </div>
                 );
               })}
+              <button
+                type="button"
+                className={styles.modeToggle}
+                onClick={toggleMode}
+                title={mode === "full" ? "Dividir con el explorador" : "Pantalla completa"}
+                aria-label={mode === "full" ? "Dividir" : "Pantalla completa"}
+              >
+                {mode === "full" ? (
+                  <Minimize2 size={13} aria-hidden />
+                ) : (
+                  <Maximize2 size={13} aria-hidden />
+                )}
+              </button>
             </div>
             <div className={styles.docBody}>
               {activo && <SidebarNoteView key={activo} notaId={activo} />}
             </div>
-          </div>
-        </>
+        </div>
       )}
 
       {dropActivo && <div className={styles.dropHint}>Soltá para abrir aquí</div>}
