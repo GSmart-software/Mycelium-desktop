@@ -3,6 +3,12 @@ import { persist } from "zustand/middleware";
 import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 
 /**
+ * Valor de `activeTab` que representa la pestaña del árbol de archivos. Solo se usa
+ * en modo `full` (en `split` el árbol está siempre arriba, no como pestaña).
+ */
+export const EXPLORER_TAB = "explorer";
+
+/**
  * Documentos anclados en el explorador (DEF-023 P3, estilo Obsidian). El árbol de
  * archivos SIEMPRE está arriba; debajo, en una región redimensionable, se muestran
  * los documentos anclados (arrastrando una pestaña del área de trabajo), con su
@@ -91,9 +97,11 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
         // El grafo no es una nota real: nunca se descarta por reconciliación.
         const rest = tabs.filter((id) => id === GRAPH_TAB_ID || validIds.has(id));
         if (rest.length === tabs.length) return;
+        // `EXPLORER_TAB` (árbol) siempre es un activeTab válido.
+        const activaOk = activeTab === EXPLORER_TAB || rest.includes(activeTab);
         set({
           tabs: rest,
-          activeTab: rest.includes(activeTab) ? activeTab : rest[rest.length - 1] ?? "",
+          activeTab: activaOk ? activeTab : rest[rest.length - 1] ?? "",
         });
       },
     }),

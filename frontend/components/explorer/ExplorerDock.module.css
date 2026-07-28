@@ -42,12 +42,6 @@
   border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
 }
 
-/* Documento a pantalla completa: ocupa todo el explorador (sin alto fijo). */
-.docsFull {
-  flex: 1;
-  border-top: none;
-}
-
 .tabBar {
   display: flex;
   align-items: stretch;
@@ -81,6 +75,12 @@
 .tabActive {
   color: var(--mic-text-primary);
   background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+}
+
+/* Pestaña del Explorador (solo ícono) en modo full. */
+.tabExplorer {
+  flex-shrink: 0;
+  padding: 0 0.55rem;
 }
 
 .tabTitulo {

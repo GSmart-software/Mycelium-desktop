@@ -1,20 +1,22 @@
 "use client";
 
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Folder, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
-import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { SidebarNoteView } from "./SidebarNoteView";
 import styles from "./ExplorerDock.module.css";
 
 /**
- * Explorador como visor (DEF-023 P3, estilo Obsidian). El árbol de archivos SIEMPRE
- * está arriba; debajo, en una región redimensionable (divisor arrastrable), se
- * muestran los documentos anclados con su propia barra de pestañas. Se ancla
- * arrastrando una pestaña del área de trabajo aquí; se devuelve arrastrando la
- * pestaña del documento de vuelta al área de trabajo.
+ * Explorador como visor (DEF-023 P3, estilo Obsidian). Dos disposiciones:
+ * - `split`: el árbol de archivos SIEMPRE arriba + los documentos anclados en una
+ *   región inferior redimensionable con sus pestañas (el árbol NO es pestaña).
+ * - `full`: barra de pestañas arriba donde el Explorador ES una pestaña (carpeta)
+ *   junto a los documentos; la seleccionada ocupa todo el explorador.
+ * El árbol (`ExplorerPanel`) se mantiene montado en el mismo lugar en ambos modos
+ * (se oculta cuando no toca mostrarlo), para no perder su estado.
  */
 export function ExplorerDock() {
   const notas = useVaultStore((s) => s.notas);
@@ -40,7 +42,13 @@ export function ExplorerDock() {
       : notas.find((n) => n.id === notaId)?.titulo ?? "…";
 
   const hayDocs = tabs.length > 0;
-  const activo = tabs.includes(activeTab) ? activeTab : tabs[tabs.length - 1] ?? "";
+  const activeEsDoc = tabs.includes(activeTab);
+  const activeDoc = activeEsDoc ? activeTab : tabs[tabs.length - 1] ?? "";
+  // Documento que se muestra: en split, siempre el activo; en full, solo si la
+  // pestaña activa es un documento (si es la del Explorador, se muestra el árbol).
+  const docMostrado = mode === "split" ? activeDoc : activeEsDoc ? activeTab : "";
+  const treeVisible = mode === "split" || !activeEsDoc;
+  const mostrarDocFull = mode === "full" && activeEsDoc;
 
   // Ancla la pestaña del workspace que se esté arrastrando (drag nativo de la TabBar).
   function onDrop(e: React.DragEvent) {
@@ -56,7 +64,7 @@ export function ExplorerDock() {
     useTabsStore.getState().closeTab(drag.srcPaneId, drag.tabId);
   }
 
-  // Divisor: arrastrar hacia ARRIBA agranda la región de documentos.
+  // Divisor (solo en split): arrastrar hacia ARRIBA agranda la región de documentos.
   function onDivisorDown(e: React.PointerEvent) {
     e.preventDefault();
     const startY = e.clientY;
@@ -72,6 +80,50 @@ export function ExplorerDock() {
     window.addEventListener("pointerup", onUp);
   }
 
+  const botonModo = (
+    <button
+      type="button"
+      className={styles.modeToggle}
+      onClick={toggleMode}
+      title={mode === "full" ? "Dividir con el explorador" : "Pantalla completa"}
+      aria-label={mode === "full" ? "Dividir" : "Pantalla completa"}
+    >
+      {mode === "full" ? <Minimize2 size={13} aria-hidden /> : <Maximize2 size={13} aria-hidden />}
+    </button>
+  );
+
+  const pestañaDoc = (notaId: string) => (
+    <div
+      key={notaId}
+      role="tab"
+      aria-selected={docMostrado === notaId}
+      draggable
+      className={`${styles.tab} ${docMostrado === notaId ? styles.tabActive : ""}`}
+      title={tituloDe(notaId)}
+      onClick={() => activar(notaId)}
+      // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", notaId);
+        e.dataTransfer.effectAllowed = "move";
+        useTabsStore.getState().setDraggingSidebarNota(notaId);
+      }}
+      onDragEnd={() => useTabsStore.getState().setDraggingSidebarNota(null)}
+    >
+      <span className={styles.tabTitulo}>{tituloDe(notaId)}</span>
+      <button
+        type="button"
+        className={styles.tabClose}
+        aria-label={`Cerrar ${tituloDe(notaId)}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          cerrar(notaId);
+        }}
+      >
+        <X size={12} aria-hidden />
+      </button>
+    </div>
+  );
+
   return (
     <div
       className={styles.dock}
@@ -85,83 +137,55 @@ export function ExplorerDock() {
       }}
       onDrop={onDrop}
     >
-      {/* Árbol de archivos: ocupa el espacio libre de arriba; se oculta cuando el
-          documento está a pantalla completa (mode === "full"). */}
-      <div
-        className={`${styles.treeRegion} ${
-          hayDocs && mode === "full" ? styles.treeOculto : ""
-        }`}
-      >
+      {/* Modo full: barra de pestañas arriba con el Explorador como pestaña. */}
+      {hayDocs && mode === "full" && (
+        <div className={styles.tabBar} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!activeEsDoc}
+            className={`${styles.tab} ${styles.tabExplorer} ${!activeEsDoc ? styles.tabActive : ""}`}
+            title="Explorador"
+            onClick={() => activar(EXPLORER_TAB)}
+          >
+            <Folder size={15} aria-hidden />
+          </button>
+          {tabs.map(pestañaDoc)}
+          {botonModo}
+        </div>
+      )}
+
+      {/* Árbol de archivos: siempre montado (mismo lugar); oculto si no toca mostrarlo. */}
+      <div className={`${styles.treeRegion} ${treeVisible ? "" : styles.treeOculto}`}>
         <ExplorerPanel />
       </div>
 
+      {/* Modo split: divisor + región de documentos abajo. */}
       {hayDocs && mode === "split" && (
-        <div
-          className={styles.divisor}
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Ajustar el tamaño del visor"
-          onPointerDown={onDivisorDown}
-        />
-      )}
-
-      {hayDocs && (
-        <div
-          className={`${styles.docsRegion} ${mode === "full" ? styles.docsFull : ""}`}
-          style={mode === "split" ? { height: `${docsHeight}px` } : undefined}
-        >
-          <div className={styles.tabBar} role="tablist">
-            {tabs.map((notaId) => {
-                const activaTab = activo === notaId;
-                return (
-                  <div
-                    key={notaId}
-                    role="tab"
-                    aria-selected={activaTab}
-                    draggable
-                    className={`${styles.tab} ${activaTab ? styles.tabActive : ""}`}
-                    title={tituloDe(notaId)}
-                    onClick={() => activar(notaId)}
-                    // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", notaId);
-                      e.dataTransfer.effectAllowed = "move";
-                      useTabsStore.getState().setDraggingSidebarNota(notaId);
-                    }}
-                    onDragEnd={() => useTabsStore.getState().setDraggingSidebarNota(null)}
-                  >
-                    <span className={styles.tabTitulo}>{tituloDe(notaId)}</span>
-                    <button
-                      type="button"
-                      className={styles.tabClose}
-                      aria-label={`Cerrar ${tituloDe(notaId)}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cerrar(notaId);
-                      }}
-                    >
-                      <X size={12} aria-hidden />
-                    </button>
-                  </div>
-                );
-              })}
-              <button
-                type="button"
-                className={styles.modeToggle}
-                onClick={toggleMode}
-                title={mode === "full" ? "Dividir con el explorador" : "Pantalla completa"}
-                aria-label={mode === "full" ? "Dividir" : "Pantalla completa"}
-              >
-                {mode === "full" ? (
-                  <Minimize2 size={13} aria-hidden />
-                ) : (
-                  <Maximize2 size={13} aria-hidden />
-                )}
-              </button>
+        <>
+          <div
+            className={styles.divisor}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Ajustar el tamaño del visor"
+            onPointerDown={onDivisorDown}
+          />
+          <div className={styles.docsRegion} style={{ height: `${docsHeight}px` }}>
+            <div className={styles.tabBar} role="tablist">
+              {tabs.map(pestañaDoc)}
+              {botonModo}
             </div>
             <div className={styles.docBody}>
-              {activo && <SidebarNoteView key={activo} notaId={activo} />}
+              {docMostrado && <SidebarNoteView key={docMostrado} notaId={docMostrado} />}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Modo full: cuerpo del documento (debajo de la barra, en lugar del árbol). */}
+      {mostrarDocFull && (
+        <div className={styles.docBody}>
+          <SidebarNoteView key={docMostrado} notaId={docMostrado} />
         </div>
       )}
 
