@@ -29,8 +29,6 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   return (
     <section
       className={isActive ? `${styles.pane} ${styles.paneActive}` : styles.pane}
-      // Identifica el pane para el hit-test del drop de una nota (DEF-023 P2).
-      data-pane-id={pane.id}
       onPointerDownCapture={() => {
         if (!isActive) setActivePane(pane.id);
       }}
@@ -101,18 +99,23 @@ function DropZones({
           Se dibuja detrás de los bordes para que estos ganen en las esquinas. */}
       {noteDrag && (
         <div
-          data-pane-drop={paneId}
+          data-edge="center"
           className={`${styles.dropZoneCenter} ${
             hover === "center" ? styles.dropZoneHover : ""
           }`}
-          onPointerEnter={() => setHover("center")}
-          onPointerLeave={() => setHover(null)}
+          onPointerEnter={() => {
+            setHover("center");
+            useTabsStore.getState().setNotaDropTarget({ paneId, edge: "center" });
+          }}
+          onPointerLeave={() => {
+            setHover(null);
+            useTabsStore.getState().setNotaDropTarget(null);
+          }}
         />
       )}
       {EDGES.map((edge) => (
         <div
           key={edge}
-          data-pane-drop={paneId}
           data-edge={edge}
           className={`${styles.dropZone} ${styles[`dropZone_${edge}`]} ${
             hover === edge ? styles.dropZoneHover : ""
@@ -128,9 +131,18 @@ function DropZones({
             setHover(null);
             onDrop(edge);
           }}
-          // Drag de nota (dnd-kit, por puntero): solo feedback visual (DEF-023 P2)
-          onPointerEnter={() => noteDrag && setHover(edge)}
-          onPointerLeave={() => noteDrag && setHover(null)}
+          // Drag de nota (dnd-kit, por puntero): feedback + registro del objetivo.
+          // El drop lo resuelve el explorador leyendo notaDropTarget (DEF-023 P2).
+          onPointerEnter={() => {
+            if (!noteDrag) return;
+            setHover(edge);
+            useTabsStore.getState().setNotaDropTarget({ paneId, edge });
+          }}
+          onPointerLeave={() => {
+            if (!noteDrag) return;
+            setHover(null);
+            useTabsStore.getState().setNotaDropTarget(null);
+          }}
         />
       ))}
     </>

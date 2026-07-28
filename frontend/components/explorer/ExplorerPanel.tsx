@@ -33,7 +33,7 @@ import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
-import { useTabsStore, type SplitEdge } from "@/stores/tabsStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { SharedSection } from "./SharedSection";
 import {
@@ -202,30 +202,27 @@ export function ExplorerPanel() {
   >(null);
 
   /**
-   * DEF-023 P2: hit-test del punto de soltado contra los panes del área de trabajo.
-   * Si cae sobre un BORDE de un pane → divide y abre la nota en un pane nuevo a ese
-   * lado; sobre cualquier OTRA parte del pane (barra de pestañas o cuerpo) → la abre
-   * como pestaña en ese pane. Devuelve true si abrió (el explorador usa dnd-kit por
-   * puntero, que no llega a los panes, así que resolvemos por `elementFromPoint`).
+   * DEF-023 P2: abre la nota en el pane/zona que las propias zonas de drop
+   * registraron en `notaDropTarget` mientras el puntero pasaba por encima (los
+   * eventos de puntero SÍ llegan a las zonas durante el drag de dnd-kit). Borde =
+   * dividir a ese lado; centro = abrir como pestaña. Devuelve true si abrió.
    */
-  function abrirNotaEnPunto(notaId: string, x: number, y: number): boolean {
-    const el = document.elementFromPoint(x, y) as HTMLElement | null;
-    if (!el) return false;
-    const borde = el.closest<HTMLElement>("[data-pane-drop][data-edge]");
-    if (borde) {
-      useTabsStore
-        .getState()
-        .splitPaneWithNota(notaId, borde.dataset.paneDrop!, borde.dataset.edge as SplitEdge);
-      router.push(`/workspace?note=${notaId}`);
-      return true;
+  function abrirNotaEnObjetivo(notaId: string): boolean {
+    const target = useTabsStore.getState().notaDropTarget;
+    if (!target) return false;
+    if (target.edge === "center") {
+      useTabsStore.getState().openNotaInPane(notaId, target.paneId);
+    } else {
+      useTabsStore.getState().splitPaneWithNota(notaId, target.paneId, target.edge);
     }
-    const pane = el.closest<HTMLElement>("[data-pane-id]");
-    if (pane) {
-      useTabsStore.getState().openNotaInPane(notaId, pane.dataset.paneId!);
-      router.push(`/workspace?note=${notaId}`);
-      return true;
-    }
-    return false;
+    router.push(`/workspace?note=${notaId}`);
+    return true;
+  }
+
+  /** Limpia el estado transitorio del arrastre de una nota (DEF-023 P2). */
+  function limpiarDragNota() {
+    useTabsStore.getState().setDraggingNota(null);
+    useTabsStore.getState().setNotaDropTarget(null);
   }
 
   function onDragStart(event: DragStartEvent) {
@@ -248,22 +245,16 @@ export function ExplorerPanel() {
     const over = event.over ? String(event.over.id) : null;
 
     // Soltar una nota FUERA del explorador la abre en un pane (DEF-023 P2): borde
-    // = dividir, resto del pane (barra o cuerpo) = abrir como pestaña. El hit-test
-    // (`abrirNotaEnPunto`) debe correr ANTES de limpiar `draggingNota`: al limpiarlo
-    // se desmontan las zonas de drop y `elementFromPoint` ya no las encontraría.
+    // = dividir, resto del pane (barra o cuerpo) = abrir como pestaña. El objetivo
+    // lo registraron las zonas en `notaDropTarget`; se lee ANTES de limpiarlo.
     if (!over && dragged.startsWith("nota:")) {
       const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
-      if (nota) {
-        const act = event.activatorEvent as MouseEvent | null;
-        const x = (act?.clientX ?? 0) + event.delta.x;
-        const y = (act?.clientY ?? 0) + event.delta.y;
-        abrirNotaEnPunto(nota.id, x, y);
-        useTabsStore.getState().setDraggingNota(null);
-        return;
-      }
+      if (nota) abrirNotaEnObjetivo(nota.id);
+      limpiarDragNota();
+      return;
     }
 
-    useTabsStore.getState().setDraggingNota(null);
+    limpiarDragNota();
     if (!over) return;
 
     const destinoId = over === "root" ? null : over.replace("folder:", "");
@@ -601,7 +592,7 @@ export function ExplorerPanel() {
         onDragEnd={onDragEnd}
         onDragCancel={() => {
           setDragGhost(null);
-          useTabsStore.getState().setDraggingNota(null);
+          limpiarDragNota();
         }}
       >
         {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}

@@ -60,9 +60,18 @@ type TabsState = {
   /**
    * Nota en drag DESDE el explorador (DEF-023 P2): mientras está activa, los panes
    * muestran sus zonas de drop (bordes = dividir, barra de pestañas = abrir). El
-   * drop real lo resuelve el explorador por hit-test (dnd-kit no llega a los panes).
+   * drop real lo resuelve el explorador leyendo `notaDropTarget` (dnd-kit no llega
+   * a los panes).
    */
   draggingNota: string | null;
+  /**
+   * Pane/zona bajo el puntero mientras se arrastra una nota (DEF-023 P2). Lo fijan
+   * las propias zonas de drop con sus `onPointerEnter`/`onPointerLeave` (los eventos
+   * de puntero SÍ llegan a las zonas durante el drag de dnd-kit, a diferencia de
+   * `document.elementFromPoint`, que en el WebView devuelve el ghost/editor). Al
+   * soltar, el explorador lee esto para dividir (borde) o abrir (centro).
+   */
+  notaDropTarget: { paneId: string; edge: SplitEdge | "center" } | null;
 
   openNote: (notaId: string) => void;
   /** Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda). */
@@ -84,6 +93,7 @@ type TabsState = {
   toggleLinkedScrollSync: (paneId: string) => void;
   setDragging: (dragging: TabsState["dragging"]) => void;
   setDraggingNota: (notaId: string | null) => void;
+  setNotaDropTarget: (target: TabsState["notaDropTarget"]) => void;
   /** Abre una nota como pestaña en un pane concreto (drop en su barra de pestañas). */
   openNotaInPane: (notaId: string, paneId: string) => void;
   /** Divide un pane abriendo una nota en un pane nuevo a un lado (drop en un borde). */
@@ -178,6 +188,7 @@ export const useTabsStore = create<TabsState>()(
   closedHistory: [],
   dragging: null,
   draggingNota: null,
+  notaDropTarget: null,
 
   openNote(notaId) {
     const { root, activePaneId } = get();
@@ -437,6 +448,10 @@ export const useTabsStore = create<TabsState>()(
 
   setDraggingNota(notaId) {
     set({ draggingNota: notaId });
+  },
+
+  setNotaDropTarget(target) {
+    set({ notaDropTarget: target });
   },
 
   openNotaInPane(notaId, paneId) {
