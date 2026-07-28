@@ -47,13 +47,50 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import styles from "./ExplorerPanel.module.css";
 
 /**
+ * DEF-023 P2: pane y zona (borde = dividir / centro = abrir) bajo un punto de
+ * pantalla, por geometría de los cuerpos de pane (`[data-pane-id]`). Se usa el
+ * punto REAL del puntero (no `elementFromPoint`, que en el WebView de Tauri
+ * devuelve el ghost). `null` si el punto no cae en ningún pane.
+ */
+function paneObjetivoEnPunto(
+  x: number,
+  y: number,
+): { paneId: string; edge: "top" | "bottom" | "left" | "right" | "center" } | null {
+  const UMBRAL = 56; // px desde el borde para dividir; más adentro = centro
+  for (const el of document.querySelectorAll<HTMLElement>("[data-pane-id]")) {
+    const r = el.getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    const d = { top: y - r.top, bottom: r.bottom - y, left: x - r.left, right: r.right - x };
+    const min = Math.min(d.top, d.bottom, d.left, d.right);
+    const edge =
+      min > UMBRAL
+        ? "center"
+        : min === d.top
+          ? "top"
+          : min === d.bottom
+            ? "bottom"
+            : min === d.left
+              ? "left"
+              : "right";
+    return { paneId: el.dataset.paneId!, edge };
+  }
+  return null;
+}
+
+/**
  * Colisión para el arrastre interno: como la zona de cada carpeta cubre también
  * su contenido, varias zonas anidadas (y la raíz) se solapan bajo el puntero.
  * Gana la MÁS PEQUEÑA, que es la carpeta más profunda; la raíz (la mayor) solo
  * si el puntero no está dentro de ninguna carpeta. Así, soltar en el hueco de
  * una carpeta deja el archivo DENTRO de ella y no en la raíz.
+ *
+ * DEF-023 P2: si el PUNTERO está sobre un pane del área de trabajo, no colisiona
+ * con ninguna carpeta (devuelve []), para que soltar ahí solo abra/divida y NO
+ * mueva el archivo en el explorador (la decisión sigue al puntero, no al ghost).
  */
 const dropMasProfundo: CollisionDetection = (args) => {
+  const p = args.pointerCoordinates;
+  if (p && paneObjetivoEnPunto(p.x, p.y)) return [];
   const dentro = pointerWithin(args);
   if (dentro.length === 0) return rectIntersection(args);
   const area = (id: string | number) => {
@@ -213,36 +250,6 @@ export function ExplorerPanel() {
     return { x: (act?.clientX ?? 0) + event.delta.x, y: (act?.clientY ?? 0) + event.delta.y };
   }
 
-  /**
-   * DEF-023 P2: pane y zona (borde = dividir / centro = abrir) bajo un punto de
-   * pantalla, por geometría de los cuerpos de pane (`[data-pane-id]`). No usa
-   * `elementFromPoint` (no fiable en el WebView de Tauri durante el drag).
-   */
-  function objetivoEnPunto(
-    x: number,
-    y: number,
-  ): { paneId: string; edge: "top" | "bottom" | "left" | "right" | "center" } | null {
-    const UMBRAL = 56; // px desde el borde para dividir; más adentro = centro
-    for (const el of document.querySelectorAll<HTMLElement>("[data-pane-id]")) {
-      const r = el.getBoundingClientRect();
-      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
-      const d = { top: y - r.top, bottom: r.bottom - y, left: x - r.left, right: r.right - x };
-      const min = Math.min(d.top, d.bottom, d.left, d.right);
-      const edge =
-        min > UMBRAL
-          ? "center"
-          : min === d.top
-            ? "top"
-            : min === d.bottom
-              ? "bottom"
-              : min === d.left
-                ? "left"
-                : "right";
-      return { paneId: el.dataset.paneId!, edge };
-    }
-    return null;
-  }
-
   /** Limpia el estado transitorio del arrastre de una nota (DEF-023 P2). */
   function limpiarDragNota() {
     useTabsStore.getState().setDraggingNota(null);
@@ -268,7 +275,7 @@ export function ExplorerPanel() {
   function onDragMove(event: DragMoveEvent) {
     if (!String(event.active.id).startsWith("nota:")) return;
     const { x, y } = puntoDelDrag(event);
-    useTabsStore.getState().setNotaDropTarget(objetivoEnPunto(x, y));
+    useTabsStore.getState().setNotaDropTarget(paneObjetivoEnPunto(x, y));
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -282,7 +289,7 @@ export function ExplorerPanel() {
     if (!over && dragged.startsWith("nota:")) {
       const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
       const { x, y } = puntoDelDrag(event);
-      const objetivo = nota ? objetivoEnPunto(x, y) : null;
+      const objetivo = nota ? paneObjetivoEnPunto(x, y) : null;
       if (nota && objetivo) {
         if (objetivo.edge === "center") {
           useTabsStore.getState().openNotaInPane(nota.id, objetivo.paneId);
