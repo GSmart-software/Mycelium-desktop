@@ -94,8 +94,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
       // (DEF-023 P2). El drop real lo resuelve el explorador por hit-test; aquí solo
       // marcamos el pane y damos feedback visual.
       data-tabbar-drop={pane.id}
-      onPointerEnter={() => useTabsStore.getState().draggingNota && setNotaOver(true)}
-      onPointerLeave={() => setNotaOver(false)}
+      onPointerEnter={() => {
+        if (!useTabsStore.getState().draggingNota) return;
+        setNotaOver(true);
+        useTabsStore.getState().setNotaDropTarget({ paneId: pane.id, edge: "center" });
+      }}
+      onPointerLeave={() => {
+        setNotaOver(false);
+        if (useTabsStore.getState().draggingNota) useTabsStore.getState().setNotaDropTarget(null);
+      }}
     >
       {pane.tabs.map((tab, index) => {
         const sync = syncByNota[tab.notaId] ?? "synced";

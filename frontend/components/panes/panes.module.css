@@ -281,12 +281,51 @@
   width: 20px;
 }
 
-/* Zona central (solo al arrastrar una nota, DEF-023 P2): abrir como pestaña. Va
-   detrás de los bordes (z-index menor) y separada 20px para no pisarlos. */
-.dropZoneCenter {
+/* Overlay único al arrastrar una NOTA del explorador (DEF-023 P2): cubre todo el
+   pane por encima del editor para que el puntero no lo alcance (si no, CodeMirror
+   cancelaría el drag de dnd-kit). Detecta borde/centro por posición. */
+.noteDropOverlay {
   position: absolute;
-  inset: 20px;
-  z-index: 19;
+  inset: 0;
+  z-index: 30;
+}
+
+/* Previo de la zona objetivo (mitad para bordes, todo para centro). */
+.noteDropHint {
+  position: absolute;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--mic-glow) 22%, transparent);
+  outline: 2px dashed var(--mic-glow);
+  outline-offset: -2px;
+  border-radius: 4px;
+  transition: all 70ms ease;
+}
+.nd_center {
+  inset: 0;
+}
+.nd_top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+}
+.nd_bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+}
+.nd_left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+}
+.nd_right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 50%;
 }
 
 /* Overlay semitransparente indicando la dirección del split */

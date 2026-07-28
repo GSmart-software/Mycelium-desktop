@@ -58,23 +58,26 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           </div>
         )}
 
-        {/* Zonas de drop en los bordes para crear splits (HU-25 CA9 / HU-26 CA1-2).
-            También al arrastrar una nota del explorador (DEF-023 P2): en ese caso
-            solo dan feedback visual + atributos para el hit-test; el drop lo resuelve
-            el explorador (dnd-kit no alcanza a los panes). */}
-        {(dragging || draggingNota) && (
+        {/* Zonas de drop en los bordes para crear splits al arrastrar una PESTAÑA
+            (drag nativo HTML5, HU-25 CA9 / HU-26 CA1-2). */}
+        {dragging && (
           <DropZones
-            paneId={pane.id}
-            noteDrag={draggingNota !== null}
             onDrop={(edge) => {
               const drag = useTabsStore.getState().dragging;
-              if (!drag) return; // drag de nota: lo maneja el explorador
+              if (!drag) return;
               splitWithTab(drag.srcPaneId, drag.tabId, pane.id, edge);
               const nid = useTabsStore.getState().activeNotaId();
               router.push(nid ? `/workspace?note=${nid}` : "/workspace");
             }}
           />
         )}
+
+        {/* Al arrastrar una NOTA del explorador (DEF-023 P2): un único overlay por
+            encima del editor cubre todo el pane. Así el puntero nunca llega a
+            CodeMirror (que si no iniciaría una selección y cancelaría el drag de
+            dnd-kit). Calcula borde/centro por posición y registra `notaDropTarget`;
+            el drop real lo resuelve el explorador leyéndolo. */}
+        {draggingNota && <NoteDropOverlay paneId={pane.id} />}
       </div>
     </section>
   );
@@ -82,37 +85,11 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
 
 const EDGES: SplitEdge[] = ["top", "bottom", "left", "right"];
 
-function DropZones({
-  paneId,
-  noteDrag,
-  onDrop,
-}: {
-  paneId: string;
-  noteDrag: boolean;
-  onDrop: (edge: SplitEdge) => void;
-}) {
-  const [hover, setHover] = useState<SplitEdge | "center" | null>(null);
+function DropZones({ onDrop }: { onDrop: (edge: SplitEdge) => void }) {
+  const [hover, setHover] = useState<SplitEdge | null>(null);
 
   return (
     <>
-      {/* Zona central: solo al arrastrar una nota (DEF-023 P2) = abrir como pestaña.
-          Se dibuja detrás de los bordes para que estos ganen en las esquinas. */}
-      {noteDrag && (
-        <div
-          data-edge="center"
-          className={`${styles.dropZoneCenter} ${
-            hover === "center" ? styles.dropZoneHover : ""
-          }`}
-          onPointerEnter={() => {
-            setHover("center");
-            useTabsStore.getState().setNotaDropTarget({ paneId, edge: "center" });
-          }}
-          onPointerLeave={() => {
-            setHover(null);
-            useTabsStore.getState().setNotaDropTarget(null);
-          }}
-        />
-      )}
       {EDGES.map((edge) => (
         <div
           key={edge}
@@ -120,7 +97,6 @@ function DropZones({
           className={`${styles.dropZone} ${styles[`dropZone_${edge}`]} ${
             hover === edge ? styles.dropZoneHover : ""
           }`}
-          // Drag NATIVO de pestañas (HU-25/26)
           onDragOver={(e) => {
             e.preventDefault();
             setHover(edge);
@@ -131,20 +107,50 @@ function DropZones({
             setHover(null);
             onDrop(edge);
           }}
-          // Drag de nota (dnd-kit, por puntero): feedback + registro del objetivo.
-          // El drop lo resuelve el explorador leyendo notaDropTarget (DEF-023 P2).
-          onPointerEnter={() => {
-            if (!noteDrag) return;
-            setHover(edge);
-            useTabsStore.getState().setNotaDropTarget({ paneId, edge });
-          }}
-          onPointerLeave={() => {
-            if (!noteDrag) return;
-            setHover(null);
-            useTabsStore.getState().setNotaDropTarget(null);
-          }}
         />
       ))}
     </>
+  );
+}
+
+/** Distancia al borde bajo la cual el drop divide en ese lado; el resto = centro. */
+const UMBRAL_BORDE = 56;
+
+/** Zona (borde o centro) según la posición local del puntero dentro del pane. */
+function zonaEn(x: number, y: number, w: number, h: number): SplitEdge | "center" {
+  const d = { top: y, bottom: h - y, left: x, right: w - x };
+  const min = Math.min(d.top, d.bottom, d.left, d.right);
+  if (min > UMBRAL_BORDE) return "center";
+  if (min === d.top) return "top";
+  if (min === d.bottom) return "bottom";
+  if (min === d.left) return "left";
+  return "right";
+}
+
+/**
+ * Overlay de drop para arrastrar una nota del explorador (DEF-023 P2). Cubre todo
+ * el pane por encima del editor: el puntero no llega a CodeMirror (evita que este
+ * cancele el drag de dnd-kit). Registra la zona bajo el puntero en `notaDropTarget`
+ * y muestra el previo del split/apertura; el drop lo resuelve el explorador.
+ */
+function NoteDropOverlay({ paneId }: { paneId: string }) {
+  const [zona, setZona] = useState<SplitEdge | "center" | null>(null);
+
+  return (
+    <div
+      className={styles.noteDropOverlay}
+      onPointerMove={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        const z = zonaEn(e.clientX - r.left, e.clientY - r.top, r.width, r.height);
+        setZona(z);
+        useTabsStore.getState().setNotaDropTarget({ paneId, edge: z });
+      }}
+      onPointerLeave={() => {
+        setZona(null);
+        useTabsStore.getState().setNotaDropTarget(null);
+      }}
+    >
+      {zona && <div className={`${styles.noteDropHint} ${styles[`nd_${zona}`]}`} />}
+    </div>
   );
 }
