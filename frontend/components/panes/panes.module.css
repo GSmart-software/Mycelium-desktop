@@ -87,13 +87,6 @@
   overflow-y: hidden;
 }
 
-/* Resalte de la barra de pestañas como objetivo de drop de una nota (DEF-023 P2). */
-.tabBarNotaOver {
-  background: color-mix(in srgb, var(--mic-glow) 25%, var(--mic-bg-surface));
-  outline: 2px dashed var(--mic-glow);
-  outline-offset: -2px;
-}
-
 .tab {
   position: relative;
   display: flex;
@@ -281,17 +274,11 @@
   width: 20px;
 }
 
-/* Overlay único al arrastrar una NOTA del explorador (DEF-023 P2): cubre todo el
-   pane por encima del editor para que el puntero no lo alcance (si no, CodeMirror
-   cancelaría el drag de dnd-kit). Detecta borde/centro por posición. */
-.noteDropOverlay {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-}
-
-/* Previo de la zona objetivo (mitad para bordes, todo para centro). */
+/* Previo de la zona objetivo al arrastrar una nota (DEF-023 P2): mitad del pane
+   para dividir, todo para abrir como pestaña. Solo visual (pointer-events:none),
+   dibujado dentro del cuerpo del pane. */
 .noteDropHint {
+  z-index: 30;
   position: absolute;
   pointer-events: none;
   background: color-mix(in srgb, var(--mic-glow) 22%, transparent);

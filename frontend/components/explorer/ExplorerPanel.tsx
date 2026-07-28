@@ -12,6 +12,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
@@ -202,21 +203,44 @@ export function ExplorerPanel() {
   >(null);
 
   /**
-   * DEF-023 P2: abre la nota en el pane/zona que las propias zonas de drop
-   * registraron en `notaDropTarget` mientras el puntero pasaba por encima (los
-   * eventos de puntero SÍ llegan a las zonas durante el drag de dnd-kit). Borde =
-   * dividir a ese lado; centro = abrir como pestaña. Devuelve true si abrió.
+   * DEF-023 P2: coordenada de pantalla del puntero durante un drag de dnd-kit. Se
+   * calcula con el evento activador + el desplazamiento acumulado (mismo cálculo
+   * que usa la detección de colisiones de dnd-kit, fiable aunque el ghost del
+   * `DragOverlay` tape el DOM y bloquee `pointermove`/`elementFromPoint`).
    */
-  function abrirNotaEnObjetivo(notaId: string): boolean {
-    const target = useTabsStore.getState().notaDropTarget;
-    if (!target) return false;
-    if (target.edge === "center") {
-      useTabsStore.getState().openNotaInPane(notaId, target.paneId);
-    } else {
-      useTabsStore.getState().splitPaneWithNota(notaId, target.paneId, target.edge);
+  function puntoDelDrag(event: DragMoveEvent | DragEndEvent): { x: number; y: number } {
+    const act = event.activatorEvent as MouseEvent | null;
+    return { x: (act?.clientX ?? 0) + event.delta.x, y: (act?.clientY ?? 0) + event.delta.y };
+  }
+
+  /**
+   * DEF-023 P2: pane y zona (borde = dividir / centro = abrir) bajo un punto de
+   * pantalla, por geometría de los cuerpos de pane (`[data-pane-id]`). No usa
+   * `elementFromPoint` (no fiable en el WebView de Tauri durante el drag).
+   */
+  function objetivoEnPunto(
+    x: number,
+    y: number,
+  ): { paneId: string; edge: "top" | "bottom" | "left" | "right" | "center" } | null {
+    const UMBRAL = 56; // px desde el borde para dividir; más adentro = centro
+    for (const el of document.querySelectorAll<HTMLElement>("[data-pane-id]")) {
+      const r = el.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const d = { top: y - r.top, bottom: r.bottom - y, left: x - r.left, right: r.right - x };
+      const min = Math.min(d.top, d.bottom, d.left, d.right);
+      const edge =
+        min > UMBRAL
+          ? "center"
+          : min === d.top
+            ? "top"
+            : min === d.bottom
+              ? "bottom"
+              : min === d.left
+                ? "left"
+                : "right";
+      return { paneId: el.dataset.paneId!, edge };
     }
-    router.push(`/workspace?note=${notaId}`);
-    return true;
+    return null;
   }
 
   /** Limpia el estado transitorio del arrastre de una nota (DEF-023 P2). */
@@ -231,12 +255,20 @@ export function ExplorerPanel() {
       const notaId = id.replace("nota:", "");
       const nota = store.notas.find((n) => n.id === notaId);
       if (nota) setDragGhost({ kind: "nota", nombre: nota.titulo, tipo: nota.tipo });
-      // DEF-023 P2: avisa a los panes para que muestren sus zonas de drop.
+      // DEF-023 P2: avisa a los panes para que muestren el previo de drop.
       useTabsStore.getState().setDraggingNota(notaId);
     } else if (id.startsWith("carpeta:")) {
       const carpeta = store.carpetas.find((c) => c.id === id.replace("carpeta:", ""));
       if (carpeta) setDragGhost({ kind: "carpeta", nombre: carpeta.nombre });
     }
+  }
+
+  // DEF-023 P2: mientras se arrastra una nota, publica la zona bajo el puntero
+  // (usando el tracking fiable de dnd-kit) para que el pane muestre el previo.
+  function onDragMove(event: DragMoveEvent) {
+    if (!String(event.active.id).startsWith("nota:")) return;
+    const { x, y } = puntoDelDrag(event);
+    useTabsStore.getState().setNotaDropTarget(objetivoEnPunto(x, y));
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -245,11 +277,20 @@ export function ExplorerPanel() {
     const over = event.over ? String(event.over.id) : null;
 
     // Soltar una nota FUERA del explorador la abre en un pane (DEF-023 P2): borde
-    // = dividir, resto del pane (barra o cuerpo) = abrir como pestaña. El objetivo
-    // lo registraron las zonas en `notaDropTarget`; se lee ANTES de limpiarlo.
+    // = dividir, centro = abrir como pestaña. La zona se recalcula por geometría
+    // desde el punto final del drag (fiable pese al ghost del DragOverlay).
     if (!over && dragged.startsWith("nota:")) {
       const nota = store.notas.find((n) => n.id === dragged.replace("nota:", ""));
-      if (nota) abrirNotaEnObjetivo(nota.id);
+      const { x, y } = puntoDelDrag(event);
+      const objetivo = nota ? objetivoEnPunto(x, y) : null;
+      if (nota && objetivo) {
+        if (objetivo.edge === "center") {
+          useTabsStore.getState().openNotaInPane(nota.id, objetivo.paneId);
+        } else {
+          useTabsStore.getState().splitPaneWithNota(nota.id, objetivo.paneId, objetivo.edge);
+        }
+        router.push(`/workspace?note=${nota.id}`);
+      }
       limpiarDragNota();
       return;
     }
@@ -589,6 +630,7 @@ export function ExplorerPanel() {
         sensors={sensors}
         collisionDetection={dropMasProfundo}
         onDragStart={onDragStart}
+        onDragMove={onDragMove}
         onDragEnd={onDragEnd}
         onDragCancel={() => {
           setDragGhost(null);
