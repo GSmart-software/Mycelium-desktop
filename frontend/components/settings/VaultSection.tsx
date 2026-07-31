@@ -2,10 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
+import {
+  FRAMEWORK_IA_VERSION,
+  generarFramework,
+  versionInstalada,
+} from "@/lib/ia/framework";
 import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
 
@@ -33,12 +39,39 @@ export function VaultSection() {
   const [error, setError] = useState<string | null>(null);
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   const zipRef = useRef<HTMLInputElement>(null);
+  // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
+  const [versionIa, setVersionIa] = useState<string | null>(null);
+  const [generandoIa, setGenerandoIa] = useState(false);
 
   const ocupado = progreso !== null;
 
   useEffect(() => {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (rutaVault) void versionInstalada(rutaVault).then(setVersionIa);
+    else setVersionIa(null);
+  }, [rutaVault]);
+
+  const handleGenerarIa = async () => {
+    if (!rutaVault) return;
+    setMensaje(null);
+    setError(null);
+    setGenerandoIa(true);
+    try {
+      await generarFramework(rutaVault);
+      setVersionIa(FRAMEWORK_IA_VERSION);
+      setMensaje(
+        `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
+      );
+    } catch (e) {
+      setError((e as Error).message ?? String(e));
+    } finally {
+      setGenerandoIa(false);
+    }
+  };
 
   const onToggleAbrirUltimo = async (valor: boolean) => {
     setAbrirUltimoState(valor); // optimista
@@ -201,6 +234,46 @@ export function VaultSection() {
             e.target.value = "";
           }}
         />
+      </div>
+
+      <div className={styles.field}>
+        <span className={styles.label}>Asistente IA (Claude Code)</span>
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          Genera en el vault las instrucciones para asistentes de IA por terminal
+          (<code>CLAUDE.md</code> + skill + comandos en <code>.claude/</code>): le
+          enseñan a navegar tus notas con los vínculos <code>[[...]]</code>, la
+          estructura y las funciones de Mycelium. Solo se crean si lo pedís acá.
+          {versionIa && (
+            <>
+              {" "}Instalado: <strong>v{versionIa}</strong>
+              {versionIa !== FRAMEWORK_IA_VERSION && (
+                <> · disponible: <strong>v{FRAMEWORK_IA_VERSION}</strong></>
+              )}
+            </>
+          )}
+        </p>
+        {rutaVault ? (
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={versionIa ? styles.secondaryBtn : styles.primaryBtn}
+              disabled={generandoIa}
+              onClick={() => void handleGenerarIa()}
+            >
+              {generandoIa
+                ? "Generando…"
+                : !versionIa
+                  ? "Generar instrucciones IA"
+                  : versionIa !== FRAMEWORK_IA_VERSION
+                    ? `Actualizar a v${FRAMEWORK_IA_VERSION}`
+                    : "Regenerar"}
+            </button>
+          </div>
+        ) : (
+          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+            Disponible solo con un vault en carpeta (los archivos se escriben en disco).
+          </p>
+        )}
       </div>
 
       {mensaje && (

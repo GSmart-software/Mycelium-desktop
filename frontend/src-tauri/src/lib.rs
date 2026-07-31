@@ -125,6 +125,7 @@ pub fn run() {
             vault_fs::borrar_a_papelera,
             vault_fs::restaurar_de_papelera,
             vault_fs::borrar_definitivo,
+            vault_fs::leer_archivo_texto,
             vault_fs::revelar_en_sistema,
             vault_watch::iniciar_watcher,
             vault_watch::detener_watcher

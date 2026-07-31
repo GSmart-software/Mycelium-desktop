@@ -211,6 +211,21 @@ pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Resul
     Ok(())
 }
 
+/// Lee un archivo de texto del vault (ruta validada). Lo usa el framework IA
+/// (FUN-L-08) para detectar la versión instalada (`.claude/mycelium-ia.json`).
+/// Devuelve `Ok(None)` si el archivo no existe.
+#[tauri::command]
+pub fn leer_archivo_texto(vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
+    let base = base_vault(&vault_ruta)?;
+    let ruta = ruta_segura(&base, &ruta_rel)?;
+    if !ruta.is_file() {
+        return Ok(None);
+    }
+    std::fs::read_to_string(&ruta)
+        .map(Some)
+        .map_err(|e| format!("No se pudo leer {ruta_rel}: {e}"))
+}
+
 /// Abre el explorador de archivos del SO mostrando (y seleccionando, donde se
 /// pueda) el archivo/carpeta `ruta_rel` del vault. Solo tiene sentido en modo
 /// carpeta (los archivos existen en disco).
