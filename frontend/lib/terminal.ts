@@ -224,6 +224,20 @@ function ensureInfra() {
     if (instancias.has(e.payload.id)) finalizarConsola(e.payload.id);
   });
 
+  // Cambio de tema/modo oscuro de Mycelium (data-theme/data-dark en <html>):
+  // re-aplicar los colores a todas las consolas vivas (el tema del xterm se fija
+  // al crear la instancia y no sigue las variables CSS por sí solo).
+  const observerTema = new MutationObserver(() => {
+    const tema = temaXterm();
+    for (const inst of instancias.values()) {
+      inst.term.options.theme = tema;
+    }
+  });
+  observerTema.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "data-dark"],
+  });
+
   // Al cerrar la app: volcar el scrollback de cada consola para poder
   // restaurarlo (CA6). zustand/persist escribe síncrono en localStorage.
   window.addEventListener("beforeunload", () => {
