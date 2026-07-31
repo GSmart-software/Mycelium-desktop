@@ -4,6 +4,7 @@ use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod archivos;
+mod mycignore;
 mod terminal;
 mod vault_config;
 mod vault_fs;

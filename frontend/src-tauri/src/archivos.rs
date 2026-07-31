@@ -165,26 +165,42 @@ pub fn leer_carpeta(origen: String) -> Result<Vec<ArchivoLeido>, String> {
     Ok(out)
 }
 
+/// Ruta relativa POSIX de `ruta` respecto de `base`.
+fn rel_posix(base: &Path, ruta: &Path) -> Result<String, String> {
+    Ok(ruta
+        .strip_prefix(base)
+        .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect::<Vec<_>>()
+        .join("/"))
+}
+
 /// Recorre `dir` recursivamente acumulando los archivos importables con sus
 /// metadatos (`mtime`, `tipo`). Gemelo de `recorrer`, pero para el índice.
-fn recorrer_meta(dir: &Path, base: &Path, out: &mut Vec<ArchivoMeta>) -> Result<(), String> {
+/// El filtrado lo deciden los patrones del `.mycignore` del vault (FUN-M-11);
+/// `.mycelium` queda excluido siempre.
+fn recorrer_meta(
+    dir: &Path,
+    base: &Path,
+    patrones: &[crate::mycignore::Patron],
+    out: &mut Vec<ArchivoMeta>,
+) -> Result<(), String> {
     let entradas =
         std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
 
     for entrada in entradas {
         let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
         let ruta = entrada.path();
-        let nombre = entrada.file_name().to_string_lossy().to_string();
 
         if ruta.is_dir() {
-            // `es_oculto` ya descarta cualquier dir con punto inicial, lo que
-            // incluye `.git`, `.obsidian` y también `.mycelium` (el propio dir
-            // del índice, que nunca debe indexarse).
-            if es_oculto(&nombre) {
+            if crate::mycignore::ignorada(&rel_posix(base, &ruta)?, true, patrones) {
                 continue;
             }
-            recorrer_meta(&ruta, base, out)?;
-        } else if es_importable(&ruta) {
+            recorrer_meta(&ruta, base, patrones, out)?;
+        } else if es_importable(&ruta)
+            && !crate::mycignore::ignorada(&rel_posix(base, &ruta)?, false, patrones)
+        {
             // Igual que `recorrer`: los archivos no UTF-8 se omiten (best-effort).
             let Ok(contenido) = std::fs::read_to_string(&ruta) else {
                 continue;
@@ -210,26 +226,31 @@ fn recorrer_meta(dir: &Path, base: &Path, out: &mut Vec<ArchivoMeta>) -> Result<
 
 /// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw` con su ruta
 /// relativa (separador `/`), su contenido UTF-8, su `mtime` (ms epoch) y su
-/// `tipo`. Es la fuente del indexador derivado (fase 2 del vault en carpeta):
-/// ignora directorios ocultos y el propio dir del índice (`.mycelium`).
+/// `tipo`. Es la fuente del indexador derivado (fase 2 del vault en carpeta).
+/// Qué se ignora lo decide el `.mycignore` del vault (por defecto, `.*/`).
 #[tauri::command]
 pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> {
     let base = PathBuf::from(&origen);
     if !base.is_dir() {
         return Err(format!("La carpeta de origen no existe: {origen}"));
     }
+    let patrones = crate::mycignore::cargar(&base);
     let mut out = Vec::new();
-    recorrer_meta(&base, &base, &mut out)?;
+    recorrer_meta(&base, &base, &patrones, &mut out)?;
     Ok(out)
 }
 
 /// Recorre `dir` recursivamente acumulando las rutas relativas (separador `/`) de
-/// TODOS los subdirectorios reales, ignorando los ocultos (`.git`, `.obsidian`,
-/// `.mycelium`, …). A diferencia del listado de archivos, aquí importan también los
-/// directorios VACÍOS: son la única forma de que una carpeta sin notas sobreviva a
-/// un reindex (el indexador, si solo derivara carpetas de las rutas de archivos,
-/// las perdería).
-fn recorrer_dirs(dir: &Path, base: &Path, out: &mut Vec<String>) -> Result<(), String> {
+/// TODOS los subdirectorios reales no ignorados por el `.mycignore`. A diferencia
+/// del listado de archivos, aquí importan también los directorios VACÍOS: son la
+/// única forma de que una carpeta sin notas sobreviva a un reindex (el indexador,
+/// si solo derivara carpetas de las rutas de archivos, las perdería).
+fn recorrer_dirs(
+    dir: &Path,
+    base: &Path,
+    patrones: &[crate::mycignore::Patron],
+    out: &mut Vec<String>,
+) -> Result<(), String> {
     let entradas =
         std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
 
@@ -239,25 +260,18 @@ fn recorrer_dirs(dir: &Path, base: &Path, out: &mut Vec<String>) -> Result<(), S
         if !ruta.is_dir() {
             continue;
         }
-        let nombre = entrada.file_name().to_string_lossy().to_string();
-        if es_oculto(&nombre) {
-            continue; // .git, .obsidian, .mycelium, …
+        let relativa = rel_posix(base, &ruta)?;
+        if crate::mycignore::ignorada(&relativa, true, patrones) {
+            continue;
         }
-        let relativa = ruta
-            .strip_prefix(base)
-            .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
-            .components()
-            .map(|c| c.as_os_str().to_string_lossy().to_string())
-            .collect::<Vec<_>>()
-            .join("/");
         out.push(relativa);
-        recorrer_dirs(&ruta, base, out)?;
+        recorrer_dirs(&ruta, base, patrones, out)?;
     }
     Ok(())
 }
 
 /// Lista las rutas relativas POSIX de TODOS los subdirectorios de `origen`
-/// (incluidos los vacíos), ignorando los ocultos y `.mycelium`. Es el complemento
+/// (incluidos los vacíos), según el `.mycignore` del vault. Es el complemento
 /// de `listar_archivos_meta` para que el índice conserve las carpetas vacías.
 #[tauri::command]
 pub fn listar_directorios(origen: String) -> Result<Vec<String>, String> {
@@ -265,8 +279,9 @@ pub fn listar_directorios(origen: String) -> Result<Vec<String>, String> {
     if !base.is_dir() {
         return Err(format!("La carpeta de origen no existe: {origen}"));
     }
+    let patrones = crate::mycignore::cargar(&base);
     let mut out = Vec::new();
-    recorrer_dirs(&base, &base, &mut out)?;
+    recorrer_dirs(&base, &base, &patrones, &mut out)?;
     Ok(out)
 }
 

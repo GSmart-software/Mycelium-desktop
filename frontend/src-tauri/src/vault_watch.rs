@@ -40,18 +40,6 @@ type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatche
 #[derive(Default)]
 pub struct WatcherState(pub Mutex<Option<VaultDebouncer>>);
 
-/// ¿Algún componente de la ruta relativa es oculto (`.git`, `.obsidian`,
-/// `.mycelium`, …)? Esos cambios no pertenecen al vault visible y no deben
-/// disparar reindex/refresh (además `.mycelium` es el propio índice).
-fn es_oculta(rel: &Path) -> bool {
-    rel.components().any(|c| {
-        c.as_os_str()
-            .to_str()
-            .map(|s| s.starts_with('.'))
-            .unwrap_or(false)
-    })
-}
-
 /// ¿La ruta es una nota del vault por extensión (`.md`/`.excalidraw`)?
 fn es_nota(path: &Path) -> bool {
     matches!(
@@ -64,12 +52,9 @@ fn es_nota(path: &Path) -> bool {
 }
 
 /// Ruta relativa POSIX de `path` respecto a `base`, o `None` si no cuelga de la
-/// base o si cae bajo un directorio oculto.
+/// base. El filtrado de ignorados lo hace el llamador con el `.mycignore`.
 fn relativa_posix(base: &Path, path: &Path) -> Option<String> {
     let rel = path.strip_prefix(base).ok()?;
-    if es_oculta(rel) {
-        return None;
-    }
     Some(
         rel.components()
             .map(|c| c.as_os_str().to_string_lossy().to_string())
@@ -108,18 +93,29 @@ pub fn iniciar_watcher(
 
             // Rutas relativas afectadas que son notas del vault. Los borrados se
             // dejan pasar aunque no tengan extensión de nota (pueden ser de una
-            // carpeta entera, cuya desaparición también hay que reflejar).
+            // carpeta entera, cuya desaparición también hay que reflejar). Qué se
+            // ignora lo decide el `.mycignore` del vault (recargado por ráfaga:
+            // el usuario puede editarlo en cualquier momento); un cambio del
+            // PROPIO `.mycignore` también dispara reindex.
+            let patrones = crate::mycignore::cargar(&base_evt);
             let mut rutas: Vec<String> = Vec::new();
             for evento in &eventos {
                 let es_borrado = matches!(evento.kind, EventKind::Remove(_));
                 for path in &evento.paths {
-                    if !es_borrado && !es_nota(path) {
+                    let Some(rel) = relativa_posix(&base_evt, path) else {
                         continue;
-                    }
-                    if let Some(rel) = relativa_posix(&base_evt, path) {
-                        if !rutas.contains(&rel) {
-                            rutas.push(rel);
+                    };
+                    let es_mycignore = rel == crate::mycignore::ARCHIVO;
+                    if !es_mycignore {
+                        if !es_borrado && !es_nota(path) {
+                            continue;
                         }
+                        if crate::mycignore::ignorada(&rel, path.is_dir(), &patrones) {
+                            continue;
+                        }
+                    }
+                    if !rutas.contains(&rel) {
+                        rutas.push(rel);
                     }
                 }
             }

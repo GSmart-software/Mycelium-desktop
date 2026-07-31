@@ -12,8 +12,14 @@ import { invoke } from "@tauri-apps/api/core";
  * Configuración detecta la versión instalada en el vault y ofrece actualizar.
  */
 
-/** Versión del framework generado (independiente de la versión de la app). */
-export const FRAMEWORK_IA_VERSION = "1.0.0";
+/**
+ * Versión del framework generado (independiente de la versión de la app).
+ * Historial:
+ * - 1.0.0 — primera versión (estructura, vínculos, reglas, 4 comandos).
+ * - 1.1.0 — `.mycignore` (qué ignora Mycelium, configurable por vault) y aviso
+ *   de que los archivos generados no se pisan (conflictos → copia al lado).
+ */
+export const FRAMEWORK_IA_VERSION = "1.1.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -37,6 +43,9 @@ la referencia completa de sintaxis y convenciones.
 - **\`.mycelium/\`**: índice interno de Mycelium y su papelera
   (\`.mycelium/.trash/\`). **NUNCA lo modifiques ni lo borres.**
 - **\`.claude/\`**: este framework de instrucciones (skill + comandos).
+- **\`.mycignore\`** (opcional, raíz): decide qué ignora Mycelium al indexar, con
+  sintaxis tipo \`.gitignore\` (por defecto \`.*/\`, es decir, los directorios
+  ocultos). Si una carpeta que creaste "no aparece" en la app, revisá este archivo.
 
 ## Vínculos — el corazón del vault
 
@@ -63,7 +72,13 @@ la referencia completa de sintaxis y convenciones.
    fecha, estado…), pero Mycelium todavía **no lo interpreta** — lo muestra como
    texto. Usalo con moderación y consistencia.
 6. **Idioma**: escribí en el idioma dominante del vault.
-7. **No toques** \`.mycelium/\` ni edites \`.claude/\` (se regenera desde Mycelium).
+7. **No toques** \`.mycelium/\` ni edites \`.claude/\` (se regenera desde Mycelium;
+   si el usuario pide regenerar y ya existe un archivo suyo, Mycelium NO lo pisa:
+   crea la versión nueva al lado como \`nombre (mycelium-ia vX).md\` y deja un
+   reporte \`Conflictos instrucciones IA.md\` en la raíz).
+8. **Visibilidad**: lo que esté ignorado por \`.mycignore\` existe en disco pero NO
+   se ve en Mycelium. Si escribís documentación que el usuario deba ver en la app,
+   no la pongas en carpetas ignoradas (por defecto, ninguna que empiece con \`.\`).
 
 ## Qué sabe hacer Mycelium (conocimiento, no control)
 
@@ -120,6 +135,22 @@ description: Referencia del vault de Mycelium — sintaxis de vínculos, estruct
    las notas del tema; el grafo la mostrará como hub.
 4. **Responder preguntas del usuario sobre su vault**: buscá primero en las notas
    (evidencia), citá de qué nota sale cada cosa con su \`[[enlace]]\`.
+
+## Qué ve Mycelium: \`.mycignore\`
+
+El vault puede tener un \`.mycignore\` en la raíz (sintaxis tipo \`.gitignore\`, sin
+negaciones) que define qué NO indexa Mycelium:
+
+- \`nombre/\` → directorios con ese nombre en cualquier nivel.
+- \`ruta/anidada/\` → anclado a la raíz del vault.
+- \`*\`/\`?\` → comodines dentro de un segmento (\`*.tmp.md\`).
+- \`# …\` → comentario.
+- Por defecto (sin archivo): \`.*/\` — se ignoran los directorios ocultos.
+- \`.mycelium/\` está ignorado SIEMPRE.
+
+Consecuencia práctica: un archivo ignorado existe en disco (y vos podés leerlo y
+escribirlo) pero **no aparece en la app ni en el grafo**. Si el usuario dice que no
+ve una nota que creaste, revisá este archivo primero.
 
 ## Precauciones
 
@@ -203,6 +234,15 @@ const versionJson = () =>
   JSON.stringify({ version: FRAMEWORK_IA_VERSION, generado: new Date().toISOString() }, null, 2) +
   "\n";
 
+/** Marca presente en todo archivo generado por el framework. */
+const MARCA_FRAMEWORK = "<!-- mycelium-ia v";
+
+/** Reporte de conflictos que se escribe en la raíz del vault. */
+const RUTA_REPORTE = "Conflictos instrucciones IA.md";
+
+/** Un archivo del framework que no pudo escribirse en su ruta original. */
+export type ConflictoIa = { original: string; generado: string };
+
 /** Archivos que componen el framework (ruta relativa al vault → contenido). */
 export function archivosFramework(): { ruta: string; contenido: string }[] {
   return [
@@ -212,35 +252,96 @@ export function archivosFramework(): { ruta: string; contenido: string }[] {
     { ruta: ".claude/commands/vault-vincular.md", contenido: CMD_VINCULAR },
     { ruta: ".claude/commands/vault-huerfanas.md", contenido: CMD_HUERFANAS },
     { ruta: ".claude/commands/vault-nota.md", contenido: CMD_NOTA },
-    { ruta: RUTA_VERSION, contenido: versionJson() },
   ];
 }
 
-/** Versión del framework instalada en el vault, o null si no está generado. */
-export async function versionInstalada(vaultRuta: string): Promise<string | null> {
+async function leerTexto(vaultRuta: string, rutaRel: string): Promise<string | null> {
   try {
-    const crudo = await invoke<string | null>("leer_archivo_texto", {
-      vaultRuta,
-      rutaRel: RUTA_VERSION,
-    });
-    if (!crudo) return null;
-    const dato = JSON.parse(crudo) as { version?: string };
-    return dato.version ?? null;
+    return await invoke<string | null>("leer_archivo_texto", { vaultRuta, rutaRel });
   } catch {
     return null;
   }
 }
 
+/** Versión del framework instalada en el vault, o null si no está generado. */
+export async function versionInstalada(vaultRuta: string): Promise<string | null> {
+  const crudo = await leerTexto(vaultRuta, RUTA_VERSION);
+  if (!crudo) return null;
+  try {
+    return (JSON.parse(crudo) as { version?: string }).version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** `carpeta/nombre (sufijo).ext` a partir de `carpeta/nombre.ext`. */
+function conSufijo(ruta: string, sufijo: string): string {
+  const punto = ruta.lastIndexOf(".");
+  const barra = ruta.lastIndexOf("/");
+  if (punto <= barra) return `${ruta} (${sufijo})`;
+  return `${ruta.slice(0, punto)} (${sufijo})${ruta.slice(punto)}`;
+}
+
 /**
- * Genera (o regenera) el framework IA en el vault. Sobrescribe los archivos del
- * framework; no toca nada más del vault.
+ * Ruta alternativa LIBRE para un archivo en conflicto: primero
+ * `nombre (mycelium-ia vX).ext`; si también existe, `… (1)`, `… (2)`, etc.
  */
-export async function generarFramework(vaultRuta: string): Promise<void> {
+async function rutaAlternativa(vaultRuta: string, ruta: string): Promise<string> {
+  const base = conSufijo(ruta, `mycelium-ia v${FRAMEWORK_IA_VERSION}`);
+  if ((await leerTexto(vaultRuta, base)) === null) return base;
+  for (let n = 1; ; n++) {
+    const candidata = conSufijo(base, String(n));
+    if ((await leerTexto(vaultRuta, candidata)) === null) return candidata;
+  }
+}
+
+/**
+ * Genera (o actualiza) el framework IA en el vault SIN pisar archivos del
+ * usuario:
+ * - Si la ruta está libre, se escribe normalmente.
+ * - Si existe un archivo GENERADO por el framework (lleva la marca
+ *   `<!-- mycelium-ia … -->`), se sobrescribe (es la actualización esperada).
+ * - Si existe un archivo del usuario (sin la marca), NO se toca: la versión
+ *   nueva se escribe al lado como `nombre (mycelium-ia vX).ext` (con `(1)`,
+ *   `(2)`… si hiciera falta) para que el usuario la integre a mano.
+ * Si hubo conflictos, escribe además un reporte en la raíz
+ * (`Conflictos instrucciones IA.md`) con archivos y rutas.
+ */
+export async function generarFramework(vaultRuta: string): Promise<ConflictoIa[]> {
+  const conflictos: ConflictoIa[] = [];
+
   for (const archivo of archivosFramework()) {
+    const existente = await leerTexto(vaultRuta, archivo.ruta);
+    let destino = archivo.ruta;
+    if (existente !== null && !existente.includes(MARCA_FRAMEWORK)) {
+      destino = await rutaAlternativa(vaultRuta, archivo.ruta);
+      conflictos.push({ original: archivo.ruta, generado: destino });
+    }
     await invoke("escribir_nota", {
       vaultRuta,
-      rutaRel: archivo.ruta,
+      rutaRel: destino,
       contenido: archivo.contenido,
     });
   }
+
+  // Marcador de versión: es siempre del framework, se sobrescribe.
+  await invoke("escribir_nota", {
+    vaultRuta,
+    rutaRel: RUTA_VERSION,
+    contenido: versionJson(),
+  });
+
+  if (conflictos.length > 0) {
+    const lineas = conflictos
+      .map((c) => `- \`${c.original}\` ya existía → generado como \`${c.generado}\``)
+      .join("\n");
+    const reporte =
+      `${MARCA_FRAMEWORK}${FRAMEWORK_IA_VERSION} -->\n# Conflictos al generar las instrucciones IA\n\n` +
+      `Estos archivos ya existían en el vault y NO se tocaron; la versión del\n` +
+      `framework se generó al lado para que la integres o renombres a mano:\n\n` +
+      `${lineas}\n`;
+    await invoke("escribir_nota", { vaultRuta, rutaRel: RUTA_REPORTE, contenido: reporte });
+  }
+
+  return conflictos;
 }

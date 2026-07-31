@@ -43,6 +43,9 @@ export function VaultSection() {
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
+  // .mycignore por vault (FUN-M-11): null = editor cerrado.
+  const [ignoreTexto, setIgnoreTexto] = useState<string | null>(null);
+  const [guardandoIgnore, setGuardandoIgnore] = useState(false);
 
   const ocupado = progreso !== null;
 
@@ -61,11 +64,20 @@ export function VaultSection() {
     setError(null);
     setGenerandoIa(true);
     try {
-      await generarFramework(rutaVault);
+      const conflictos = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
-      setMensaje(
-        `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
-      );
+      if (conflictos.length === 0) {
+        setMensaje(
+          `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
+        );
+      } else {
+        setMensaje(
+          `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas. ⚠ ${conflictos.length} archivo(s) ` +
+            `ya existían y NO se tocaron — la versión nueva se creó al lado: ` +
+            conflictos.map((c) => c.generado).join(" · ") +
+            `. Detalle en "Conflictos instrucciones IA.md" (raíz del vault).`,
+        );
+      }
     } catch (e) {
       setError((e as Error).message ?? String(e));
     } finally {
@@ -123,6 +135,50 @@ export function VaultSection() {
   };
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
+
+  // Plantilla por defecto del .mycignore (mismo comportamiento que sin archivo).
+  const IGNORE_DEFAULT =
+    "# .mycignore — qué ignora Mycelium en este vault (uno por línea)\n" +
+    "# nombre/ = carpetas con ese nombre en cualquier nivel\n" +
+    "# ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario\n" +
+    "# .mycelium/ (índice interno) se ignora siempre.\n" +
+    ".*/\n";
+
+  const abrirIgnore = async () => {
+    if (!rutaVault) return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    const actual = await invoke<string | null>("leer_archivo_texto", {
+      vaultRuta: rutaVault,
+      rutaRel: ".mycignore",
+    });
+    setIgnoreTexto(actual ?? IGNORE_DEFAULT);
+  };
+
+  const guardarIgnore = async () => {
+    if (!rutaVault || ignoreTexto === null) return;
+    setGuardandoIgnore(true);
+    setMensaje(null);
+    setError(null);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("escribir_nota", {
+        vaultRuta: rutaVault,
+        rutaRel: ".mycignore",
+        contenido: ignoreTexto.endsWith("\n") ? ignoreTexto : `${ignoreTexto}\n`,
+      });
+      // Reindexar con las reglas nuevas y refrescar el árbol.
+      const { indexarVault } = await import("@/lib/db/indexer");
+      await indexarVault(rutaVault);
+      const vaultId = useVaultStore.getState().vaultId;
+      if (vaultId) await useVaultStore.getState().loadTree(vaultId);
+      setIgnoreTexto(null);
+      setMensaje(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
+    } catch (e) {
+      setError((e as Error).message ?? String(e));
+    } finally {
+      setGuardandoIgnore(false);
+    }
+  };
 
   const handleImportarCarpeta = async () => {
     setMensaje(null);
@@ -272,6 +328,71 @@ export function VaultSection() {
         ) : (
           <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
             Disponible solo con un vault en carpeta (los archivos se escriben en disco).
+          </p>
+        )}
+      </div>
+
+      <div className={styles.field}>
+        <span className={styles.label}>Archivos ignorados (.mycignore)</span>
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          Como un <code>.gitignore</code>, propio de cada vault: decide qué carpetas y
+          archivos NO se indexan ni aparecen. Por defecto se ignoran los directorios
+          ocultos (<code>.*/</code>); editalo para, p. ej., dejar de ignorar
+          <code> .claude/</code> y ver esa documentación en Mycelium.
+        </p>
+        {rutaVault ? (
+          ignoreTexto === null ? (
+            <div className={styles.btnRow}>
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={() => void abrirIgnore()}
+              >
+                Editar .mycignore
+              </button>
+            </div>
+          ) : (
+            <>
+              <textarea
+                value={ignoreTexto}
+                onChange={(e) => setIgnoreTexto(e.target.value)}
+                rows={8}
+                spellCheck={false}
+                style={{
+                  width: "100%",
+                  resize: "vertical",
+                  padding: "0.5rem",
+                  borderRadius: 6,
+                  border: "1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent)",
+                  background: "var(--mic-bg-canvas)",
+                  color: "var(--mic-text-primary)",
+                  fontFamily: "'JetBrains Mono', Consolas, monospace",
+                  fontSize: "0.8125rem",
+                }}
+              />
+              <div className={styles.btnRow}>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  disabled={guardandoIgnore}
+                  onClick={() => void guardarIgnore()}
+                >
+                  {guardandoIgnore ? "Guardando…" : "Guardar y reindexar"}
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  disabled={guardandoIgnore}
+                  onClick={() => setIgnoreTexto(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          )
+        ) : (
+          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+            Disponible solo con un vault en carpeta.
           </p>
         )}
       </div>
