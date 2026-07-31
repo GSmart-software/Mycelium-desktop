@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, SlidersHorizontal, X } from "lucide-react";
+import { GripVertical, Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./GraphOptionsMenu.module.css";
@@ -32,6 +32,18 @@ const EXCLUDE_PLACEHOLDER: Record<RuleType, string> = {
   name: "nombre a ocultar",
 };
 
+/** Mueve el elemento `from` a la posición `to` (devuelve una lista nueva). */
+function mover<T>(lista: T[], from: number, to: number): T[] {
+  if (from === to || to < 0 || to >= lista.length) return lista;
+  const copia = [...lista];
+  const [item] = copia.splice(from, 1);
+  copia.splice(to, 0, item);
+  return copia;
+}
+
+/** Qué lista se está reordenando y desde qué posición (drag nativo). */
+type Arrastre = { lista: "color" | "exclude"; index: number };
+
 export function GraphOptionsMenu() {
   const edgeDirection = usePreferencesStore((s) => s.prefs.graphEdgeDirection);
   const hoverGlow = usePreferencesStore((s) => s.prefs.graphHoverGlow);
@@ -41,6 +53,10 @@ export function GraphOptionsMenu() {
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Reordenamiento de reglas: el ORDEN define la prioridad (gana la primera que
+  // coincide), así que se puede reacomodar arrastrando el asa de cada fila.
+  const [arrastre, setArrastre] = useState<Arrastre | null>(null);
+  const [sobre, setSobre] = useState<number | null>(null);
 
   const setGroups = (next: ColorGroup[]) => setPref("graphColorGroups", next);
   const addGroup = () =>
@@ -55,6 +71,62 @@ export function GraphOptionsMenu() {
   const updateRule = (id: string, patch: Partial<ExcludeRule>) =>
     setRules(excludeRules.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const removeRule = (id: string) => setRules(excludeRules.filter((r) => r.id !== id));
+
+  /** Reubica una regla dentro de su lista (drag del asa o teclado). */
+  const reordenar = (lista: Arrastre["lista"], from: number, to: number) => {
+    if (lista === "color") setGroups(mover(colorGroups, from, to));
+    else setRules(mover(excludeRules, from, to));
+  };
+
+  /**
+   * Props del asa de arrastre + el contenedor de la fila. El asa es el único
+   * elemento `draggable` (si lo fuera la fila entera, no se podría seleccionar
+   * texto en sus inputs). Con el foco en el asa, ↑/↓ también reordena (teclado).
+   */
+  const propsAsa = (lista: Arrastre["lista"], index: number, total: number) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(index));
+      setArrastre({ lista, index });
+    },
+    onDragEnd: () => {
+      setArrastre(null);
+      setSobre(null);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      reordenar(lista, index, index + (e.key === "ArrowUp" ? -1 : 1));
+    },
+    title: `Arrastrá para cambiar la prioridad (${index + 1} de ${total}); con el foco acá, ↑/↓ también la mueve`,
+    "aria-label": `Reordenar: posición ${index + 1} de ${total}`,
+  });
+
+  /** Props de la fila como zona de destino del reordenamiento. */
+  const propsFila = (lista: Arrastre["lista"], index: number) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (arrastre?.lista !== lista) return; // no mezclar listas distintas
+      e.preventDefault();
+      setSobre(index);
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (arrastre?.lista !== lista) return;
+      e.preventDefault();
+      reordenar(lista, arrastre.index, index);
+      setArrastre(null);
+      setSobre(null);
+    },
+    className: [
+      styles.groupRow,
+      arrastre?.lista === lista && arrastre.index === index ? styles.rowDragging : "",
+      arrastre?.lista === lista && sobre === index && arrastre.index !== index
+        ? styles.rowOver
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -139,8 +211,17 @@ export function GraphOptionsMenu() {
                 comparten color.
               </span>
             )}
-            {colorGroups.map((g) => (
-              <div key={g.id} className={styles.groupRow}>
+            {colorGroups.length > 1 && (
+              <span className={styles.hint}>
+                Gana la primera regla que coincide: arrastrá <GripVertical size={11} aria-hidden />
+                {" "}para cambiar la prioridad.
+              </span>
+            )}
+            {colorGroups.map((g, i) => (
+              <div key={g.id} {...propsFila("color", i)}>
+                <span className={styles.handle} {...propsAsa("color", i, colorGroups.length)} tabIndex={0} role="button">
+                  <GripVertical size={13} aria-hidden />
+                </span>
                 <label className={styles.switch} title={g.enabled === false ? "Regla desactivada" : "Regla activada"}>
                   <input
                     type="checkbox"
@@ -206,8 +287,17 @@ export function GraphOptionsMenu() {
                 archivo/carpeta, o etiqueta.
               </span>
             )}
-            {excludeRules.map((r) => (
-              <div key={r.id} className={styles.groupRow}>
+            {excludeRules.length > 1 && (
+              <span className={styles.hint}>
+                Se evalúan en orden: arrastrá <GripVertical size={11} aria-hidden /> para
+                cambiar la prioridad.
+              </span>
+            )}
+            {excludeRules.map((r, i) => (
+              <div key={r.id} {...propsFila("exclude", i)}>
+                <span className={styles.handle} {...propsAsa("exclude", i, excludeRules.length)} tabIndex={0} role="button">
+                  <GripVertical size={13} aria-hidden />
+                </span>
                 <label className={styles.switch} title={r.enabled === false ? "Regla desactivada" : "Regla activada"}>
                   <input
                     type="checkbox"

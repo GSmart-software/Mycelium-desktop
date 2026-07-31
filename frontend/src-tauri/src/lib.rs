@@ -61,6 +61,19 @@ fn take_opened_files(state: tauri::State<Pending>) -> Vec<OpenedFile> {
     paths.iter().filter_map(|p| leer_archivo(p)).collect()
 }
 
+/// Abre/cierra las herramientas de desarrollador del webview. Disponible también
+/// en las builds de producción gracias a la feature `devtools` del crate `tauri`
+/// (sin ella, estas APIs solo existen con `debug_assertions`). El frontend lo
+/// invoca con F12 / Ctrl+Shift+I: sirve para escribir CSS propio y depurar.
+#[tauri::command]
+fn alternar_devtools(webview: tauri::WebviewWindow) {
+    if webview.is_devtools_open() {
+        webview.close_devtools();
+    } else {
+        webview.open_devtools();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let migrations = vec![Migration {
@@ -103,6 +116,7 @@ pub fn run() {
         .manage(terminal::TerminalesState::default())
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
+            alternar_devtools,
             terminal::terminal_shells,
             terminal::terminal_abrir,
             terminal::terminal_escribir,

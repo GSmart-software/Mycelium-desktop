@@ -8,6 +8,7 @@ import {
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
+import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/atom-one-dark.css";
 import "@excalidraw/excalidraw/index.css";
@@ -66,7 +67,11 @@ export default function RootLayout({
       data-dark="true"
       className={`${geistSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${fontVariables}`}
     >
-      <body>{children}</body>
+      <body>
+        {/* F12 / Ctrl+Shift+I abren las devtools, también en producción. */}
+        <DevToolsHotkey />
+        {children}
+      </body>
     </html>
   );
 }

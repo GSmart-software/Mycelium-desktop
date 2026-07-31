@@ -114,6 +114,43 @@
   display: flex;
   align-items: center;
   gap: 0.3rem;
+  border-top: 2px solid transparent; /* espacio para el indicador de destino */
+  border-bottom: 2px solid transparent;
+}
+
+/* Asa de arrastre: reordena la prioridad de la regla (y con ↑/↓ al tener foco). */
+.handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 1px;
+  cursor: grab;
+  color: var(--mic-text-muted);
+  border-radius: var(--mic-radius-sm);
+}
+
+.handle:hover {
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+}
+
+.handle:focus-visible {
+  outline: 1px solid var(--mic-glow);
+  outline-offset: 1px;
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+/* Fila que se está arrastrando y fila destino (indicador de inserción). */
+.rowDragging {
+  opacity: 0.45;
+}
+
+.rowOver {
+  border-bottom-color: var(--mic-glow);
 }
 
 .select {
