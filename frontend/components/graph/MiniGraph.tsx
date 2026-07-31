@@ -12,8 +12,53 @@ export type GraphNode = {
 };
 export type GraphEdge = { source: string; target: string };
 
-type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number };
+/** `r` = radio del nodo, precalculado (depende solo de `conexiones` y del centro). */
+type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number; r: number };
 type SimEdge = { s: SimNode; t: SimNode };
+
+/**
+ * Caché de "sprites" de nodo: un canvas offscreen con el círculo y su glow ya
+ * rasterizados. Dibujar `shadowBlur` por nodo y por frame es de lo más caro del
+ * canvas 2D (cada `fill()` obliga a un blur gaussiano); con el sprite el blur se
+ * calcula UNA vez por combinación y luego solo se hace `drawImage`.
+ *
+ * El sprite se genera en píxeles REALES de pantalla (radio × scale × dpr) porque
+ * `shadowBlur` no se escala con la transformación del contexto: así el resultado
+ * es visualmente idéntico al dibujo directo, a cualquier zoom, y sin resampleo.
+ */
+type SpriteKey = string;
+const spriteCache = new Map<SpriteKey, HTMLCanvasElement>();
+/** Techo del caché: el zoom continuo genera radios nuevos; evita crecer sin fin. */
+const SPRITE_CACHE_MAX = 400;
+
+function nodeSprite(
+  fill: string,
+  shadow: string,
+  rPix: number,
+  blurPix: number,
+): HTMLCanvasElement {
+  const key: SpriteKey = `${fill}|${shadow}|${rPix}|${blurPix}`;
+  const hit = spriteCache.get(key);
+  if (hit) return hit;
+  if (spriteCache.size > SPRITE_CACHE_MAX) spriteCache.clear();
+
+  const lado = Math.ceil(2 * (rPix + blurPix) + 2);
+  const c = document.createElement("canvas");
+  c.width = lado;
+  c.height = lado;
+  const cx = c.getContext("2d");
+  if (cx) {
+    const centro = lado / 2;
+    cx.shadowColor = shadow;
+    cx.shadowBlur = blurPix;
+    cx.fillStyle = fill;
+    cx.beginPath();
+    cx.arc(centro, centro, rPix, 0, Math.PI * 2);
+    cx.fill();
+  }
+  spriteCache.set(key, c);
+  return c;
+}
 
 /**
  * Mini-grafo force-directed en canvas (HU-30 CA2-CA5), portado de
@@ -111,19 +156,31 @@ export function MiniGraph({
     const colEdgeLit = colGlow;
     const colText = "rgba(206, 232, 224, 0.82)";
     const colText2 = "rgba(245, 255, 252, 0.96)";
+    // La fuente de las etiquetas se lee COMPUTADA del canvas (hereda la de body,
+    // `var(--mic-font-sans)`): `ctx.font` no resuelve variables CSS, así que
+    // pasarle `var(--mic-font-sans)` hacía que cayera siempre al sans-serif del
+    // sistema en vez de la tipografía de Mycelium.
+    const fontFamily = styles.fontFamily || "system-ui, sans-serif";
 
     const N = nodes.length;
     const saved = initialPosRef.current;
     let savedCount = 0;
+    // Radio del nodo: solo depende de sus conexiones y de si es el centro, así que
+    // se calcula UNA vez aquí (antes se recalculaba en cada frame, dos veces por
+    // nodo: en el dibujo de nodos y en el de etiquetas).
+    const radioDe = (n: GraphNode) => {
+      const base = Math.min(4 + n.conexiones * 1.6, 15);
+      return n.id === centerId ? base + 3 : base;
+    };
     const sim: SimNode[] = nodes.map((n, i) => {
       const cached = saved?.[n.id];
       if (cached && n.id !== centerId) {
         savedCount++;
-        return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0 };
+        return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0, r: radioDe(n) };
       }
       const a = (i / Math.max(N, 1)) * Math.PI * 2;
       const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
-      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0 };
+      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, r: radioDe(n) };
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
@@ -234,11 +291,6 @@ export function MiniGraph({
     };
     wakeRef.current = wake; // permite despertar el bucle al cambiar las opciones
 
-    const radius = (n: SimNode) => {
-      const base = Math.min(4 + n.conexiones * 1.6, 15);
-      return n.id === centerId ? base + 3 : base;
-    };
-
     const resize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
@@ -265,10 +317,14 @@ export function MiniGraph({
       let bestD = 14 / scale;
       for (const n of sim) {
         if (!revealed(n)) continue; // no se puede apuntar un nodo aún invisible
-        const d = Math.hypot(n.x - p.x, n.y - p.y);
-        if (d < bestD + radius(n)) {
+        // Comparación al cuadrado: evita una raíz cuadrada por nodo y por
+        // `mousemove` (este bucle corre en cada movimiento del ratón).
+        const dx = n.x - p.x;
+        const dy = n.y - p.y;
+        const umbral = bestD + n.r;
+        if (dx * dx + dy * dy < umbral * umbral) {
           best = n;
-          bestD = d;
+          bestD = Math.sqrt(dx * dx + dy * dy);
         }
       }
       return best;
@@ -367,7 +423,7 @@ export function MiniGraph({
         if (tl && (!activated.has(e.s.id) || !activated.has(e.t.id))) continue;
         const dx = e.t.x - e.s.x;
         const dy = e.t.y - e.s.y;
-        const d = Math.max(Math.hypot(dx, dy), 1);
+        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1); // sqrt < hypot en bucles
         const f = ((d - k) / d) * 0.02 * alpha * 10;
         e.s.vx += dx * f * 0.05;
         e.s.vy += dy * f * 0.05;
@@ -400,6 +456,19 @@ export function MiniGraph({
       ctx.translate(w / (2 * dpr) + ox, h / (2 * dpr) + oy);
       ctx.scale(scale, scale);
 
+      // ── Culling por viewport: rectángulo visible en coordenadas de MUNDO. Todo
+      //    lo que cae fuera no se dibuja (nodos, aristas y etiquetas). El test es
+      //    aritmética simple frente al costo de rasterizar, y no cambia nada de lo
+      //    que se ve: con zoom alto evita pagar por lo que está fuera de pantalla.
+      const cw = w / dpr;
+      const ch = h / dpr;
+      const margen = 40 / scale; // glow + etiqueta del nodo
+      const visL = (-cw / 2 - ox) / scale - margen;
+      const visR = (cw / 2 - ox) / scale + margen;
+      const visT = (-ch / 2 - oy) / scale - margen;
+      const visB = (ch / 2 - oy) / scale + margen;
+      const dentro = (x: number, y: number) => x >= visL && x <= visR && y >= visT && y <= visB;
+
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
       // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
       const dir = edgeDirectionRef.current;
@@ -409,6 +478,15 @@ export function MiniGraph({
       const flowOffset = -((performance.now() / 1000) * 30) / scale;
       for (const e of simEdges) {
         if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
+        // Culling: descartar la arista si su caja envolvente no toca la vista.
+        if (
+          Math.max(e.s.x, e.t.x) < visL ||
+          Math.min(e.s.x, e.t.x) > visR ||
+          Math.max(e.s.y, e.t.y) < visT ||
+          Math.min(e.s.y, e.t.y) > visB
+        ) {
+          continue;
+        }
         const lit = hover && (e.s === hover || e.t === hover);
         const mx = (e.s.x + e.t.x) / 2;
         const my = (e.s.y + e.t.y) / 2;
@@ -469,9 +547,15 @@ export function MiniGraph({
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
 
+      // Nodos: se dibujan como SPRITE cacheado (círculo + glow ya rasterizados) en
+      // vez de aplicar `shadowBlur` en cada `fill()`. El sprite se genera a la
+      // resolución real de pantalla y se coloca en coordenadas de mundo con el
+      // tamaño equivalente, así el resultado es idéntico pero sin un blur
+      // gaussiano por nodo y por frame.
+      const escalaPix = scale * dpr;
       for (const n of sim) {
         if (!revealed(n)) continue; // construcción temporal: aún no apareció
-        const r = radius(n);
+        if (!dentro(n.x, n.y)) continue; // culling
         // Blanco: el nodo central y el que está bajo el cursor. Accent: los que
         // referencian al nodo en foco. Si no, el color del grupo (si tiene) o el
         // glow por defecto.
@@ -479,23 +563,26 @@ export function MiniGraph({
         const refsFocus = !isWhite && focusRefs.has(n.id);
         const custom = nodeColorsRef.current?.get(n.id);
         const base = custom ?? colNode;
-        ctx.shadowColor = refsFocus ? colAccent : base;
-        ctx.shadowBlur = isWhite ? 22 : refsFocus ? 16 : 12;
-        ctx.fillStyle = isWhite ? colCenter : refsFocus ? colAccent : base;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        const shadow = refsFocus ? colAccent : base;
+        const fill = isWhite ? colCenter : refsFocus ? colAccent : base;
+        const blurPix = isWhite ? 22 : refsFocus ? 16 : 12;
+        // Radio en píxeles reales, redondeado a 0.5 para acotar las variantes de
+        // sprite que genera el zoom continuo.
+        const rPix = Math.max(0.5, Math.round(n.r * escalaPix * 2) / 2);
+        const sprite = nodeSprite(fill, shadow, rPix, blurPix);
+        const ladoMundo = sprite.width / escalaPix;
+        ctx.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
       }
 
       const showAll = scale > 0.5;
       ctx.textAlign = "center";
-      ctx.font = `${12 / scale}px var(--mic-font-sans, sans-serif)`;
+      ctx.font = `${12 / scale}px ${fontFamily}`;
       for (const n of sim) {
         if (!revealed(n)) continue;
         if (!showAll && n !== hover && n.id !== centerId) continue;
+        if (!dentro(n.x, n.y)) continue; // culling
         ctx.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
-        ctx.fillText(n.titulo, n.x, n.y + radius(n) + 13 / scale);
+        ctx.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
       }
     };
 
