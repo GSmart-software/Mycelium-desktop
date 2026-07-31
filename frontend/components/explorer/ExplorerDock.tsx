@@ -2,8 +2,10 @@
 
 import { Folder, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { SidebarNoteView } from "./SidebarNoteView";
@@ -36,10 +38,13 @@ export function ExplorerDock() {
     }
   }, [notas]);
 
+  const sesionesTerminal = useTerminalStore((s) => s.sesiones);
   const tituloDe = (notaId: string) =>
     notaId === GRAPH_TAB_ID
       ? "Grafo de conexiones"
-      : notas.find((n) => n.id === notaId)?.titulo ?? "…";
+      : esTabTerminal(notaId)
+        ? sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal"
+        : notas.find((n) => n.id === notaId)?.titulo ?? "…";
 
   const hayDocs = tabs.length > 0;
   const activeEsDoc = tabs.includes(activeTab);

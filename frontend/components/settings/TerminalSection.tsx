@@ -33,8 +33,9 @@ export function TerminalSection() {
         </select>
       </div>
       <p className={styles.hint}>
-        La shell que se inicia al abrir una terminal nueva. Con clic derecho en el
-        botón de terminal del rail podés elegir otra shell para una terminal puntual.
+        La shell que se inicia al crear una consola nueva. En el panel de Consolas
+        (botón de terminal del rail), con clic derecho en &quot;Nueva terminal&quot;
+        podés elegir otra shell para una consola puntual.
       </p>
 
       <div className={styles.toggleRow}>

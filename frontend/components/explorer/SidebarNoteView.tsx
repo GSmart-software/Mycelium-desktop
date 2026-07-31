@@ -5,6 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
+import { TerminalView } from "@/components/terminal/TerminalView";
+import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { fetchNoteContent } from "@/lib/export";
@@ -24,7 +27,25 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
   const nota = useVaultStore((s) => s.notas.find((n) => n.id === notaId) ?? null);
   const editing = useSidebarViewerStore((s) => !!s.editing[notaId]);
   const toggleEdit = useSidebarViewerStore((s) => s.toggleEdit);
+  const tituloTerminal = useTerminalStore((s) =>
+    esTabTerminal(notaId) ? s.sesiones[termIdDe(notaId)]?.titulo ?? "Terminal" : null,
+  );
   const esExcalidraw = nota?.tipo === "excalidraw";
+
+  // Una consola también se puede anclar en el visor (FUN-L-07): se muestra la
+  // TerminalView real (misma sesión), no un render de nota.
+  if (esTabTerminal(notaId)) {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{tituloTerminal}</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <TerminalView termId={termIdDe(notaId)} />
+        </div>
+      </div>
+    );
+  }
 
   // El grafo de conexiones también se puede anclar (no es una nota editable).
   if (notaId === GRAPH_TAB_ID) {

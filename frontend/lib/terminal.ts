@@ -3,7 +3,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { allLeaves, useTabsStore } from "@/stores/tabsStore";
+import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 
@@ -12,6 +13,11 @@ import { useVaultSessionStore } from "@/stores/vaultSessionStore";
  * viven AQUÍ (nivel de módulo), no en el componente: mover la pestaña de panel
  * remonta el componente React, pero la sesión (xterm + PTY) debe sobrevivir
  * (CA2). El componente solo adjunta/desadjunta el DOM de su instancia.
+ *
+ * Ciclo de vida (panel de consolas): cerrar la PESTAÑA de una consola solo la
+ * oculta — el shell sigue corriendo de fondo y puede reabrirse desde el panel.
+ * El shell termina únicamente al FINALIZARLO desde el panel (o si el proceso
+ * muere solo, p. ej. con `exit`).
  */
 
 /** Prefijo de las pestañas de terminal en el tabsStore (patrón `graph:global`). */
@@ -28,8 +34,10 @@ type Instancia = {
 };
 
 const instancias = new Map<string, Instancia>();
-/** Terminales creadas en ESTA corrida (las demás son restauradas de la sesión previa). */
-const creadasEstaCorrida = new Set<string>();
+/** Creadas NUEVAS en esta corrida (no restauradas): no replayean scrollback. */
+const nuevasEstaCorrida = new Set<string>();
+/** Abiertas por el usuario en esta corrida (creadas o reabiertas desde el panel). */
+const tocadasEstaCorrida = new Set<string>();
 let infraLista = false;
 let shellsCache: ShellInfo[] | null = null;
 
@@ -42,6 +50,11 @@ export const esTabTerminal = (tabId: string) => tabId.startsWith(TERMINAL_TAB_PR
 export async function listarShells(): Promise<ShellInfo[]> {
   if (!shellsCache) shellsCache = await invoke<ShellInfo[]>("terminal_shells");
   return shellsCache;
+}
+
+/** ¿El PTY de esta consola está corriendo en esta corrida? */
+export function estaCorriendo(termId: string): boolean {
+  return instancias.get(termId)?.ptyAbierto === true;
 }
 
 /** Tema del xterm a partir de los tokens CSS activos de Mycelium. */
@@ -98,7 +111,7 @@ export async function abrirPty(termId: string): Promise<void> {
   const sesion = sesiones[termId];
 
   // Historial de la sesión anterior (restauración, CA6) antes de la shell nueva.
-  if (!creadasEstaCorrida.has(termId) && prefs.restaurarScrollback && sesion?.scrollback) {
+  if (!nuevasEstaCorrida.has(termId) && prefs.restaurarScrollback && sesion?.scrollback) {
     inst.term.write(sesion.scrollback);
     inst.term.write("\r\n\x1b[2m── sesión anterior restaurada ──\x1b[0m\r\n");
   }
@@ -129,12 +142,13 @@ export async function abrirPty(termId: string): Promise<void> {
 }
 
 /**
- * Crea una terminal nueva y la abre como pestaña del workspace (CA1/CA4).
+ * Crea una consola nueva y la abre como pestaña del workspace (CA1/CA4).
  * Devuelve el id de pestaña para sincronizar la URL.
  */
 export function crearTerminal(opts: { shellId?: string; cwd?: string } = {}): string {
   const termId = crypto.randomUUID();
-  creadasEstaCorrida.add(termId);
+  nuevasEstaCorrida.add(termId);
+  tocadasEstaCorrida.add(termId);
   useTerminalStore.getState().registrar(termId, {
     shellId: opts.shellId ?? null,
     cwd: opts.cwd ?? null,
@@ -145,40 +159,56 @@ export function crearTerminal(opts: { shellId?: string; cwd?: string } = {}): st
   return tabId;
 }
 
-/** ¿Esta terminal fue creada en esta corrida (no restaurada)? */
-export const esNuevaEstaCorrida = (termId: string) => creadasEstaCorrida.has(termId);
+/**
+ * Abre (o enfoca) la pestaña de una consola existente desde el panel de
+ * consolas. Si está anclada en el visor del explorador, la activa allí.
+ */
+export function abrirConsola(termId: string): string {
+  tocadasEstaCorrida.add(termId);
+  ensureInfra();
+  const tabId = tabIdDe(termId);
+  const dock = useSidebarViewerStore.getState();
+  if (dock.tabs.includes(tabId)) {
+    dock.activar(tabId);
+  } else {
+    useTabsStore.getState().openNote(tabId);
+  }
+  return tabId;
+}
 
-/** Cierra la sesión completa: PTY, instancia xterm y registro persistido. */
-function destruirSesion(termId: string) {
+/**
+ * FINALIZA una consola (panel de consolas o `exit` del proceso): mata el PTY,
+ * descarta la instancia xterm, cierra sus pestañas (workspace y visor del
+ * explorador) y elimina su registro.
+ */
+export function finalizarConsola(termId: string) {
+  ocultarPestanas(termId);
   void invoke("terminal_cerrar", { id: termId }).catch(() => {});
   const inst = instancias.get(termId);
   if (inst) {
     inst.term.dispose();
     instancias.delete(termId);
   }
+  nuevasEstaCorrida.delete(termId);
+  tocadasEstaCorrida.delete(termId);
   useTerminalStore.getState().cerrar(termId);
 }
 
-/** Cierra la pestaña (si existe) y la sesión: para `exit` del proceso (CA7). */
-export function cerrarTerminalCompleta(termId: string) {
-  useTabsStore.getState().closeNotaEverywhere(tabIdDe(termId));
-  destruirSesion(termId);
+/** Cierra las pestañas de una consola SIN finalizarla (ocultar). */
+export function ocultarPestanas(termId: string) {
+  const tabId = tabIdDe(termId);
+  useTabsStore.getState().closeNotaEverywhere(tabId);
+  const dock = useSidebarViewerStore.getState();
+  if (dock.tabs.includes(tabId)) dock.cerrar(tabId);
 }
 
-/** Ids de terminal presentes en el árbol de panes. */
-function terminalesEnTabs(): Set<string> {
-  const ids = new Set<string>();
-  for (const leaf of allLeaves(useTabsStore.getState().root)) {
-    for (const tab of leaf.tabs) {
-      if (esTabTerminal(tab.notaId)) ids.add(termIdDe(tab.notaId));
-    }
-  }
-  return ids;
-}
+/** ¿Esta consola fue abierta/creada por el usuario en esta corrida? */
+export const fueTocadaEstaCorrida = (termId: string) => tocadasEstaCorrida.has(termId);
 
 /**
  * Infraestructura global (una sola vez): enrutado de eventos PTY → xterm,
- * watcher "pestaña cerrada → matar PTY" y volcado del scrollback al salir.
+ * fin de proceso y volcado del scrollback al salir. Cerrar una pestaña NO pasa
+ * por aquí: solo oculta la consola (el PTY sigue vivo hasta finalizarla).
  */
 function ensureInfra() {
   if (infraLista) return;
@@ -189,27 +219,16 @@ function ensureInfra() {
     instancias.get(e.payload.id)?.term.write(e.payload.datos);
   });
 
-  // Proceso terminado (p. ej. `exit`) → cerrar la pestaña sola (CA7).
+  // Proceso terminado por sí mismo (p. ej. `exit`) → finalizar la consola (CA7).
   void listen<{ id: string }>("terminal-salida", (e) => {
-    const inst = instancias.get(e.payload.id);
-    if (!inst) return;
-    cerrarTerminalCompleta(e.payload.id);
+    if (instancias.has(e.payload.id)) finalizarConsola(e.payload.id);
   });
 
-  // Pestaña de terminal cerrada por el usuario → matar el PTY (CA7). También
-  // limpia sesiones persistidas huérfanas (sin pestaña) al primer disparo.
-  useTabsStore.subscribe(() => {
-    const abiertas = terminalesEnTabs();
-    for (const termId of Object.keys(useTerminalStore.getState().sesiones)) {
-      if (!abiertas.has(termId)) destruirSesion(termId);
-    }
-  });
-
-  // Al cerrar la app: volcar el scrollback de cada terminal para poder
+  // Al cerrar la app: volcar el scrollback de cada consola para poder
   // restaurarlo (CA6). zustand/persist escribe síncrono en localStorage.
   window.addEventListener("beforeunload", () => {
     const { prefs, guardarScrollback } = useTerminalStore.getState();
-    if (!prefs.restaurarSesiones || !prefs.restaurarScrollback) return;
+    if (!prefs.restaurarScrollback) return;
     for (const [termId, inst] of instancias) {
       try {
         guardarScrollback(termId, inst.serialize.serialize({ scrollback: 200 }));

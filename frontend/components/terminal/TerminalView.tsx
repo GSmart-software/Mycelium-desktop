@@ -5,9 +5,9 @@ import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import {
   abrirPty,
-  cerrarTerminalCompleta,
-  esNuevaEstaCorrida,
+  fueTocadaEstaCorrida,
   getInstancia,
+  ocultarPestanas,
 } from "@/lib/terminal";
 import { useTerminalStore } from "@/stores/terminalStore";
 import styles from "./TerminalView.module.css";
@@ -25,11 +25,12 @@ export function TerminalView({ termId }: { termId: string }) {
     const cont = contRef.current;
     if (!cont) return;
 
-    // Restauración desactivada: una terminal de la sesión anterior no se
-    // recrea — se cierra su pestaña al arrancar (CA6).
+    // Restauración desactivada: una pestaña de la sesión anterior no se reabre
+    // al arrancar — se OCULTA (la consola sigue listada en el panel y puede
+    // abrirse desde allí, que la marca como tocada) (CA6).
     const { prefs } = useTerminalStore.getState();
-    if (!esNuevaEstaCorrida(termId) && !prefs.restaurarSesiones) {
-      cerrarTerminalCompleta(termId);
+    if (!fueTocadaEstaCorrida(termId) && !prefs.restaurarSesiones) {
+      ocultarPestanas(termId);
       return;
     }
 

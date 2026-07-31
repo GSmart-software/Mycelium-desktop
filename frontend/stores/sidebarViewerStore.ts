@@ -94,8 +94,11 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
 
       reconcile(validIds) {
         const { tabs, activeTab } = get();
-        // El grafo no es una nota real: nunca se descarta por reconciliación.
-        const rest = tabs.filter((id) => id === GRAPH_TAB_ID || validIds.has(id));
+        // El grafo y las consolas (FUN-L-07) no son notas reales: nunca se
+        // descartan por reconciliación.
+        const rest = tabs.filter(
+          (id) => id === GRAPH_TAB_ID || id.startsWith("terminal:") || validIds.has(id),
+        );
         if (rest.length === tabs.length) return;
         // `EXPLORER_TAB` (árbol) siempre es un activeTab válido.
         const activaOk = activeTab === EXPLORER_TAB || rest.includes(activeTab);

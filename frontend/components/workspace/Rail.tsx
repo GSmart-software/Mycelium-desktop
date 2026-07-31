@@ -11,9 +11,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
-import { crearTerminal, listarShells } from "@/lib/terminal";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -38,34 +35,11 @@ export function Rail() {
   const activeSection = usePanelLayoutStore((s) => s.activeSection);
   const toggleSection = usePanelLayoutStore((s) => s.toggleSection);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const [shellMenu, setShellMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(
-    null,
-  );
 
   // El grafo se abre como ventana en el área de panes (estilo Obsidian).
   const openGraph = () => {
     useTabsStore.getState().openNote(GRAPH_TAB_ID);
     router.push(`/workspace?note=${GRAPH_TAB_ID}`);
-  };
-
-  // Terminal integrada (FUN-L-07 CA1): clic = shell por defecto; clic derecho =
-  // elegir la shell de ESA terminal (selector puntual).
-  const openTerminal = (shellId?: string) => {
-    const tabId = crearTerminal(shellId ? { shellId } : {});
-    router.push(`/workspace?note=${encodeURIComponent(tabId)}`);
-  };
-
-  const openShellMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const { clientX: x, clientY: y } = e;
-    void listarShells().then((shells) => {
-      if (shells.length === 0) return;
-      setShellMenu({
-        x,
-        y,
-        items: shells.map((s) => ({ label: s.nombre, onClick: () => openTerminal(s.id) })),
-      });
-    });
   };
 
   const renderButton = ({ section, icon: Icon, label }: (typeof TOP_ITEMS)[number]) => (
@@ -95,13 +69,14 @@ export function Rail() {
         >
           <Share2 size={20} aria-hidden />
         </button>
+        {/* Panel de consolas (FUN-L-07): crear, reabrir o finalizar shells. */}
         <button
           type="button"
           className={styles.button}
-          aria-label="Terminal"
-          title="Terminal (clic derecho: elegir shell)"
-          onClick={() => openTerminal()}
-          onContextMenu={openShellMenu}
+          aria-pressed={activeSection === "terminal"}
+          aria-label="Consolas"
+          title="Consolas"
+          onClick={() => toggleSection("terminal")}
         >
           <Terminal size={20} aria-hidden />
         </button>
@@ -119,7 +94,6 @@ export function Rail() {
           <Settings size={20} aria-hidden />
         </button>
       </div>
-      {shellMenu && <ContextMenu {...shellMenu} onClose={() => setShellMenu(null)} />}
     </nav>
   );
 }
