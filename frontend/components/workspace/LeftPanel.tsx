@@ -54,7 +54,7 @@ function SectionContent({ section }: { section: RailSection }) {
     case "search":
       return <SearchPanel />;
     case "tags":
-      // Placeholder permanente en esta versión (docs/FUTURE_IMPLEMENTATIONS.md).
+      // Placeholder permanente en esta versión (docs/BACKLOG.md).
       return <p className={styles.placeholder}>La vista de tags está planificada para una versión futura.</p>;
     case "trash":
       return <TrashPanel />;

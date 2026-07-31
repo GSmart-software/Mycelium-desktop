@@ -108,7 +108,7 @@ export async function recolectarArchivosVault(
 /**
  * Exporta todo el vault como ZIP en el cliente (HU-09): preserva la estructura
  * de carpetas y agrega los diagramas referenciados en `adjuntos/`. La rama
- * servidor para vaults ≥ 200 MB queda diferida (docs/FUTURE_IMPLEMENTATIONS.md).
+ * servidor para vaults ≥ 200 MB queda diferida (docs/BACKLOG.md).
  */
 export async function exportVaultZip(
   onProgress?: (done: number, total: number) => void,

@@ -90,7 +90,7 @@ export async function collectFromZip(zipFile: File): Promise<CollectedFile[]> {
  * Importa un conjunto de archivos al vault preservando la jerarquía (HU-07/11).
  * Crea las carpetas necesarias, resuelve conflictos de nombre y sincroniza el
  * contenido. Los adjuntos/diagramas se cuentan pero no se almacenan en esta
- * versión (sin subsistema de adjuntos — docs/FUTURE_IMPLEMENTATIONS.md).
+ * versión (sin subsistema de adjuntos — docs/BACKLOG.md).
  */
 export async function importFiles(
   files: CollectedFile[],

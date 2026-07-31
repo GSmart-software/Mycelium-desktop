@@ -9,7 +9,7 @@ Tu red de conocimiento, viva y conectada. Editor de notas Markdown con enlaces
 |---------|-----------|
 | `frontend/` | Next.js (App Router, TypeScript). UI del workspace, editor CodeMirror, preview. |
 | `backend/` | .NET 9 minimal API. Datos vía puertos `ID1Client` / `IBlobStorage` con adaptadores local (SQLite + disco) y Cloudflare (D1 + R2, pendientes). |
-| `docs/` | `DESIGN_SYSTEM.md` (tokens, layout, estados visuales) y `FUTURE_IMPLEMENTATIONS.md`. |
+| `docs/` | `DESIGN_SYSTEM.md` (tokens, layout, estados visuales) y `BACKLOG.md` (ideas/roadmap de funcionalidades). |
 | `legacy/` | Prototipo vanilla original (referencia; el grafo y el parser de wikilinks se portan desde aquí). |
 | `HUs.md` | Backlog de historias de usuario con criterios de aceptación. |
 

@@ -512,8 +512,8 @@ simultáneamente.
 8. Al cerrar una pestaña con cambios pendientes, el sync con R2 se completa en segundo plano.
 9. **Splitear:** arrastrar una pestaña al borde de un pane (zona de 20px en top/right/bottom/left) crea un split en esa dirección con esa nota.
 10. Las pestañas recuerdan el scroll y la posición del cursor mientras están abiertas.
-11. **Sin pinning** en esta versión (ver `docs/FUTURE_IMPLEMENTATIONS.md`).
-12. **Sin persistencia al recargar** en esta versión (ver `docs/FUTURE_IMPLEMENTATIONS.md`).
+11. **Sin pinning** en esta versión (ver `docs/BACKLOG.md`).
+12. **Sin persistencia al recargar** en esta versión (ver `docs/BACKLOG.md`).
 
 #### Comportamiento detallado
 - **Misma nota en múltiples panes:** los cambios en una se reflejan en la otra en tiempo real (misma fuente Yjs local).
@@ -535,7 +535,7 @@ simultáneamente.
 5. Se pueden crear splits anidados (un pane dividido se puede volver a dividir), generando grids M×N.
 6. La misma nota en dos panes: cambios en uno reflejados en el otro en tiempo real.
 7. Al cerrar todas las pestañas de un pane, ese pane se colapsa y el espacio se redistribuye.
-8. **Sin persistencia al recargar** en esta versión (ver `docs/FUTURE_IMPLEMENTATIONS.md`).
+8. **Sin persistencia al recargar** en esta versión (ver `docs/BACKLOG.md`).
 
 ---
 
@@ -564,10 +564,10 @@ para acceder a cualquier sección con un clic desde cualquier contexto.
 
 #### Criterios de aceptación
 1. El rail tiene dos grupos separados por un spacer flexible:
-   - **Grupo superior:** Explorador (`Files`), Búsqueda global (`Search`), Grafo global (`Share2`), Tags (`Tag` — reservado, ver `docs/FUTURE_IMPLEMENTATIONS.md`).
+   - **Grupo superior:** Explorador (`Files`), Búsqueda global (`Search`), Grafo global (`Share2`), Tags (`Tag` — reservado, ver `docs/BACKLOG.md`).
    - **Grupo inferior:** Papelera (`Trash2`), Configuración (`Settings`).
 2. Clic en Explorador, Búsqueda, Grafo, o Papelera: abre/activa el panel izquierdo con el contenido correspondiente.
-3. Clic en Tags: actualmente abre un panel placeholder. La UI completa de tags está en `docs/FUTURE_IMPLEMENTATIONS.md`.
+3. Clic en Tags: actualmente abre un panel placeholder. La UI completa de tags está en `docs/BACKLOG.md`.
 4. Clic en Configuración (gear): abre el **settings drawer** deslizable desde el lateral derecho de la pantalla. No reemplaza el panel izquierdo.
 5. El ícono activo: `color: var(--mic-glow)` a opacidad plena + barra izquierda de 3px `background: var(--mic-glow)` (patrón `::before`).
 6. Los íconos inactivos: `color: var(--mic-glow)` con `opacity: 0.55`.
@@ -579,7 +579,7 @@ para acceder a cualquier sección con un clic desde cualquier contexto.
 - Background: `var(--mic-bg-sidebar)`. Íconos: Lucide React.
 - Patrón `::before` de la barra indicadora: ver `docs/DESIGN_SYSTEM.md` sección "Barra indicadora del rail".
 - Sobre `--mic-bg-sidebar`: íconos inactivos = `opacity: 0.55`, activos/hover = `opacity: 1`. No usar `--mic-text-muted`.
-- El ícono `CalendarDays` (Daily Note) está en el código como placeholder — clic sin efecto. Implementación completa en `docs/FUTURE_IMPLEMENTATIONS.md`.
+- El ícono `CalendarDays` (Daily Note) está en el código como placeholder — clic sin efecto. Implementación completa en `docs/BACKLOG.md`.
 - El grupo inferior (Trash2 + Settings) está pendiente de implementación. El rail actual tiene 5 íconos en un solo grupo (sin grupo inferior separado).
 
 ---
@@ -626,7 +626,7 @@ para explorar la red y conocer el contexto del documento.
 11. Sin conexiones: tab GRAFO muestra solo el nodo de la nota activa, sin líneas.
 
 #### Notas de diseño
-- Tags en grafo: **no implementados** en esta versión. Ver `docs/FUTURE_IMPLEMENTATIONS.md`.
+- Tags en grafo: **no implementados** en esta versión. Ver `docs/BACKLOG.md`.
 - Metadatos: `font-size: 0.75rem`, `color: var(--mic-text-muted)`.
 
 ---
