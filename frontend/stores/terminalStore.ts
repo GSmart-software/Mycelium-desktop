@@ -37,6 +37,8 @@ type TerminalState = {
   registrar: (id: string, datos: { shellId: string | null; cwd: string | null }) => string;
   /** Descarta una sesión (pestaña cerrada o proceso terminado). */
   cerrar: (id: string) => void;
+  /** Renombra una consola (título de la pestaña y del panel). */
+  renombrar: (id: string, titulo: string) => void;
   guardarScrollback: (id: string, texto: string) => void;
   setPref: <K extends keyof TerminalPrefs>(key: K, value: TerminalPrefs[K]) => void;
 };
@@ -67,6 +69,13 @@ export const useTerminalStore = create<TerminalState>()(
         delete sesiones[id];
         // Sin sesiones, el correlativo vuelve a empezar (la próxima es "Terminal 1").
         set({ sesiones, contador: Object.keys(sesiones).length === 0 ? 0 : get().contador });
+      },
+
+      renombrar(id, titulo) {
+        const sesion = get().sesiones[id];
+        const limpio = titulo.trim();
+        if (!sesion || !limpio) return;
+        set({ sesiones: { ...get().sesiones, [id]: { ...sesion, titulo: limpio } } });
       },
 
       guardarScrollback(id, texto) {

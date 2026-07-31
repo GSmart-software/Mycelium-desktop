@@ -5,22 +5,42 @@
   min-height: 0;
 }
 
+/* Grupo "Nueva terminal" + selector de shell (botón partido). */
+.acciones {
+  display: flex;
+  align-items: stretch;
+  align-self: flex-start;
+}
+
 .nueva {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  align-self: flex-start;
   padding: 0.3rem 0.6rem;
   border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
-  border-radius: 6px;
+  border-radius: 6px 0 0 6px;
   background: transparent;
   color: var(--mic-text-primary);
   cursor: pointer;
   font-size: 0.8125rem;
 }
 
-.nueva:hover {
+.elegir {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.nueva:hover,
+.elegir:hover {
   background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  color: var(--mic-text-primary);
 }
 
 .vacio {
@@ -92,7 +112,8 @@
   white-space: nowrap;
 }
 
-.finalizar {
+/* Botones de la fila (renombrar / finalizar). */
+.accionFila {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -106,8 +127,23 @@
   opacity: 0.8;
 }
 
-.finalizar:hover {
-  color: var(--mic-callout-caution-border, #c05050);
+.accionFila:hover {
+  color: var(--mic-text-primary);
   background: color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
   opacity: 1;
+}
+
+.finalizar:hover {
+  color: var(--mic-callout-caution-border, #c05050);
+}
+
+/* Input de renombrado inline (Enter confirma, Escape cancela). */
+.renameInput {
+  width: 100%;
+  padding: 1px 4px;
+  border: 1px solid var(--mic-glow);
+  border-radius: 4px;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8125rem;
 }

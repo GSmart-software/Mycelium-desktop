@@ -1,8 +1,8 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Pencil, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import {
   abrirConsola,
@@ -22,16 +22,20 @@ import styles from "./TerminalPanel.module.css";
 
 /**
  * Panel de consolas (FUN-L-07): lista las consolas iniciadas para reabrirlas
- * (cerrar la pestaña NO termina el shell) y permite crear nuevas o FINALIZARLAS
- * (matar el proceso y quitarlas de la lista). Se abre desde el rail.
+ * (cerrar la pestaña NO termina el shell) y permite crear nuevas — con la shell
+ * por defecto o eligiendo el tipo —, renombrarlas o FINALIZARLAS (matar el
+ * proceso y quitarlas de la lista). Se abre desde el rail.
  */
 export function TerminalPanel() {
   const router = useRouter();
   const sesiones = useTerminalStore((s) => s.sesiones);
+  const renombrar = useTerminalStore((s) => s.renombrar);
   const root = useTabsStore((s) => s.root);
   const dockTabs = useSidebarViewerStore((s) => s.tabs);
   const [shells, setShells] = useState<ShellInfo[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [renombrando, setRenombrando] = useState<{ id: string; valor: string } | null>(null);
+  const elegirRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     void listarShells().then(setShells);
@@ -61,9 +65,8 @@ export function TerminalPanel() {
     router.push(`/workspace?note=${encodeURIComponent(tabIdDe(termId))}`);
   };
 
-  const elegirShell = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const { clientX: x, clientY: y } = e;
+  /** Menú de shells en la posición dada (botón "elegir shell" o clic derecho). */
+  const menuShells = (x: number, y: number) => {
     if (shells.length === 0) return;
     setMenu({
       x,
@@ -72,19 +75,42 @@ export function TerminalPanel() {
     });
   };
 
+  const confirmarRename = () => {
+    if (renombrando) renombrar(renombrando.id, renombrando.valor);
+    setRenombrando(null);
+  };
+
   const ids = Object.keys(sesiones);
 
   return (
     <div className={styles.panel}>
-      <button
-        type="button"
-        className={styles.nueva}
-        onClick={() => nueva()}
-        onContextMenu={elegirShell}
-        title="Nueva terminal (clic derecho: elegir shell)"
-      >
-        <Plus size={15} aria-hidden /> Nueva terminal
-      </button>
+      <div className={styles.acciones}>
+        <button
+          type="button"
+          className={styles.nueva}
+          onClick={() => nueva()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            menuShells(e.clientX, e.clientY);
+          }}
+          title="Nueva terminal con la shell por defecto"
+        >
+          <Plus size={15} aria-hidden /> Nueva terminal
+        </button>
+        <button
+          ref={elegirRef}
+          type="button"
+          className={styles.elegir}
+          aria-label="Nueva terminal eligiendo la shell"
+          title="Elegir el tipo de shell"
+          onClick={() => {
+            const r = elegirRef.current?.getBoundingClientRect();
+            if (r) menuShells(r.left, r.bottom + 4);
+          }}
+        >
+          <ChevronDown size={15} aria-hidden />
+        </button>
+      </div>
 
       {ids.length === 0 ? (
         <p className={styles.vacio}>
@@ -97,6 +123,7 @@ export function TerminalPanel() {
             const sesion = sesiones[termId];
             const corriendo = estaCorriendo(termId);
             const abierta = conPestana.has(termId);
+            const enRename = renombrando?.id === termId;
             return (
               <li key={termId}>
                 <div
@@ -104,8 +131,8 @@ export function TerminalPanel() {
                   role="button"
                   tabIndex={0}
                   title={abierta ? "Ir a la pestaña" : "Reabrir la consola"}
-                  onClick={() => abrir(termId)}
-                  onKeyDown={(e) => e.key === "Enter" && abrir(termId)}
+                  onClick={() => !enRename && abrir(termId)}
+                  onKeyDown={(e) => e.key === "Enter" && !enRename && abrir(termId)}
                 >
                   <span
                     className={`${styles.dot} ${corriendo ? styles.dotOn : ""}`}
@@ -113,12 +140,41 @@ export function TerminalPanel() {
                     aria-hidden
                   />
                   <span className={styles.info}>
-                    <span className={styles.titulo}>{sesion.titulo}</span>
+                    {enRename ? (
+                      <input
+                        className={styles.renameInput}
+                        value={renombrando.valor}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) =>
+                          setRenombrando({ id: termId, valor: e.target.value })
+                        }
+                        onBlur={confirmarRename}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") confirmarRename();
+                          if (e.key === "Escape") setRenombrando(null);
+                        }}
+                      />
+                    ) : (
+                      <span className={styles.titulo}>{sesion.titulo}</span>
+                    )}
                     <span className={styles.shell}>{nombreShell(sesion.shellId)}</span>
                   </span>
                   <button
                     type="button"
-                    className={styles.finalizar}
+                    className={styles.accionFila}
+                    aria-label={`Renombrar ${sesion.titulo}`}
+                    title="Renombrar"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenombrando({ id: termId, valor: sesion.titulo });
+                    }}
+                  >
+                    <Pencil size={12} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.accionFila} ${styles.finalizar}`}
                     aria-label={`Finalizar ${sesion.titulo}`}
                     title="Finalizar (termina el proceso y la quita de la lista)"
                     onClick={(e) => {
