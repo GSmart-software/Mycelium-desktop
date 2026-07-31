@@ -1,26 +1,38 @@
 "use client";
 
-import { Folder, Maximize2, Minimize2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { ExplorerPanel } from "./ExplorerPanel";
-import { SidebarNoteView } from "./SidebarNoteView";
-import styles from "./ExplorerDock.module.css";
+import styles from "./SidebarDock.module.css";
 
 /**
- * Explorador como visor (DEF-023 P3, estilo Obsidian). Dos disposiciones:
- * - `split`: el árbol de archivos SIEMPRE arriba + los documentos anclados en una
- *   región inferior redimensionable con sus pestañas (el árbol NO es pestaña).
- * - `full`: barra de pestañas arriba donde el Explorador ES una pestaña (carpeta)
- *   junto a los documentos; la seleccionada ocupa todo el explorador.
- * El árbol (`ExplorerPanel`) se mantiene montado en el mismo lugar en ambos modos
- * (se oculta cuando no toca mostrarlo), para no perder su estado.
+ * Dock del panel lateral (DEF-023 P3 generalizado): el panel izquierdo es,
+ * además de la sección activa (explorador, búsqueda, tags, consolas…), un
+ * ESPACIO DE PESTAÑAS: cualquier pestaña del workspace (nota, excalidraw, grafo,
+ * terminal) puede arrastrarse aquí y anclarse, sin importar qué sección esté
+ * activa. Dos disposiciones:
+ * - `split`: la sección SIEMPRE arriba + las pestañas ancladas en una región
+ *   inferior redimensionable.
+ * - `full`: barra de pestañas arriba donde la sección ES una pestaña (su ícono)
+ *   junto a las ancladas; la seleccionada ocupa todo el panel.
+ * El contenido de la sección se mantiene MONTADO en ambos modos (se oculta, no
+ * se desmonta) para no perder su estado.
  */
-export function ExplorerDock() {
+export function SidebarDock({
+  icon: Icon,
+  label,
+  children,
+}: {
+  /** Ícono y nombre de la sección activa (para su pestaña en modo full). */
+  icon: LucideIcon;
+  label: string;
+  children: ReactNode;
+}) {
   const notas = useVaultStore((s) => s.notas);
   const tabs = useSidebarViewerStore((s) => s.tabs);
   const activeTab = useSidebarViewerStore((s) => s.activeTab);
@@ -31,7 +43,7 @@ export function ExplorerDock() {
   const toggleMode = useSidebarViewerStore((s) => s.toggleMode);
   const [dropActivo, setDropActivo] = useState(false);
 
-  // Descartar documentos anclados cuyas notas ya no existen (borradas).
+  // Descartar pestañas ancladas cuyas notas ya no existen (borradas).
   useEffect(() => {
     if (notas.length > 0) {
       useSidebarViewerStore.getState().reconcile(new Set(notas.map((n) => n.id)));
@@ -49,10 +61,10 @@ export function ExplorerDock() {
   const hayDocs = tabs.length > 0;
   const activeEsDoc = tabs.includes(activeTab);
   const activeDoc = activeEsDoc ? activeTab : tabs[tabs.length - 1] ?? "";
-  // Documento que se muestra: en split, siempre el activo; en full, solo si la
-  // pestaña activa es un documento (si es la del Explorador, se muestra el árbol).
+  // Pestaña mostrada: en split, siempre la activa; en full, solo si la activa es
+  // una anclada (si es la de la sección, se muestra la sección).
   const docMostrado = mode === "split" ? activeDoc : activeEsDoc ? activeTab : "";
-  const treeVisible = mode === "split" || !activeEsDoc;
+  const seccionVisible = mode === "split" || !activeEsDoc;
   const mostrarDocFull = mode === "full" && activeEsDoc;
 
   // Ancla la pestaña del workspace que se esté arrastrando (drag nativo de la TabBar).
@@ -69,7 +81,7 @@ export function ExplorerDock() {
     useTabsStore.getState().closeTab(drag.srcPaneId, drag.tabId);
   }
 
-  // Divisor (solo en split): arrastrar hacia ARRIBA agranda la región de documentos.
+  // Divisor (solo en split): arrastrar hacia ARRIBA agranda la región anclada.
   function onDivisorDown(e: React.PointerEvent) {
     e.preventDefault();
     const startY = e.clientY;
@@ -90,7 +102,7 @@ export function ExplorerDock() {
       type="button"
       className={styles.modeToggle}
       onClick={toggleMode}
-      title={mode === "full" ? "Dividir con el explorador" : "Pantalla completa"}
+      title={mode === "full" ? `Dividir con ${label}` : "Pantalla completa"}
       aria-label={mode === "full" ? "Dividir" : "Pantalla completa"}
     >
       {mode === "full" ? <Minimize2 size={13} aria-hidden /> : <Maximize2 size={13} aria-hidden />}
@@ -142,30 +154,30 @@ export function ExplorerDock() {
       }}
       onDrop={onDrop}
     >
-      {/* Modo full: barra de pestañas arriba con el Explorador como pestaña. */}
+      {/* Modo full: barra de pestañas arriba con la sección como pestaña. */}
       {hayDocs && mode === "full" && (
         <div className={styles.tabBar} role="tablist">
           <button
             type="button"
             role="tab"
             aria-selected={!activeEsDoc}
-            className={`${styles.tab} ${styles.tabExplorer} ${!activeEsDoc ? styles.tabActive : ""}`}
-            title="Explorador"
+            className={`${styles.tab} ${styles.tabSection} ${!activeEsDoc ? styles.tabActive : ""}`}
+            title={label}
             onClick={() => activar(EXPLORER_TAB)}
           >
-            <Folder size={15} aria-hidden />
+            <Icon size={15} aria-hidden />
           </button>
           {tabs.map(pestañaDoc)}
           {botonModo}
         </div>
       )}
 
-      {/* Árbol de archivos: siempre montado (mismo lugar); oculto si no toca mostrarlo. */}
-      <div className={`${styles.treeRegion} ${treeVisible ? "" : styles.treeOculto}`}>
-        <ExplorerPanel />
+      {/* Sección activa: siempre montada; oculta si no toca mostrarla. */}
+      <div className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}>
+        {children}
       </div>
 
-      {/* Modo split: divisor + región de documentos abajo. */}
+      {/* Modo split: divisor + región de pestañas ancladas abajo. */}
       {hayDocs && mode === "split" && (
         <>
           <div
@@ -187,7 +199,7 @@ export function ExplorerDock() {
         </>
       )}
 
-      {/* Modo full: cuerpo del documento (debajo de la barra, en lugar del árbol). */}
+      {/* Modo full: cuerpo de la pestaña anclada (en lugar de la sección). */}
       {mostrarDocFull && (
         <div className={styles.docBody}>
           <SidebarNoteView key={docMostrado} notaId={docMostrado} />

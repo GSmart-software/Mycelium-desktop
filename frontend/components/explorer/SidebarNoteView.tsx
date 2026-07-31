@@ -16,7 +16,7 @@ import { renderMermaidIn } from "@/lib/mermaid";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import styles from "./ExplorerDock.module.css";
+import styles from "../workspace/SidebarDock.module.css";
 
 /**
  * Documento anclado en el explorador (DEF-023 P3): solo lectura por defecto, con

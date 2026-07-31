@@ -6,20 +6,21 @@
   min-height: 0;
 }
 
-/* ── Árbol de archivos: siempre arriba, ocupa el espacio libre ──── */
-.treeRegion {
+/* ── Contenido de la sección activa (explorador, tags, consolas…): ocupa el
+   espacio libre de arriba; se oculta cuando una pestaña anclada está a pantalla
+   completa (se mantiene MONTADO para no perder su estado). ─────── */
+.sectionRegion {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* Árbol oculto cuando el documento está a pantalla completa (mode "full"). */
-.treeOculto {
+.sectionOculta {
   display: none;
 }
 
-/* ── Divisor arrastrable entre árbol y visor ────────────────────── */
+/* ── Divisor arrastrable entre la sección y el visor ────────────── */
 .divisor {
   flex-shrink: 0;
   height: 7px;
@@ -33,7 +34,7 @@
   background: color-mix(in srgb, var(--mic-glow) 45%, transparent);
 }
 
-/* ── Región de documentos anclados (alto por estilo inline) ─────── */
+/* ── Región de pestañas ancladas (alto por estilo inline) ───────── */
 .docsRegion {
   flex-shrink: 0;
   min-height: 0;
@@ -77,8 +78,8 @@
   background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
 }
 
-/* Pestaña del Explorador (solo ícono) en modo full. */
-.tabExplorer {
+/* Pestaña de la sección activa (solo ícono) en modo full. */
+.tabSection {
   flex-shrink: 0;
   padding: 0 0.55rem;
 }
@@ -131,7 +132,7 @@
   flex-direction: column;
 }
 
-/* ── Visor de documento (usado por SidebarNoteView) ─────────────── */
+/* ── Visor del contenido anclado (usado por SidebarNoteView) ────── */
 .viewer {
   display: flex;
   flex-direction: column;
@@ -183,11 +184,19 @@
   overflow: auto;
 }
 
-/* Contenedor del grafo anclado: llena el alto, sin scroll propio. */
+/* Contenedor de contenidos que llenan el alto sin scroll propio (grafo,
+   terminal): el hijo debe ESTIRARSE en ancho y alto (si no, una terminal
+   anclada colapsaba a un par de columnas). */
 .viewerGraph {
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+.viewerGraph > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* ── Feedback de drop de una pestaña del workspace ──────────────── */
