@@ -4,6 +4,7 @@ use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod archivos;
+mod terminal;
 mod vault_config;
 mod vault_fs;
 mod vault_watch;
@@ -98,8 +99,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Pending(Mutex::new(pendientes)))
         .manage(vault_watch::WatcherState::default())
+        .manage(terminal::TerminalesState::default())
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
+            terminal::terminal_shells,
+            terminal::terminal_abrir,
+            terminal::terminal_escribir,
+            terminal::terminal_redimensionar,
+            terminal::terminal_cerrar,
             archivos::exportar_a_carpeta,
             archivos::leer_carpeta,
             archivos::listar_archivos_meta,

@@ -4,7 +4,9 @@ import { MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { useSyncStore } from "@/stores/syncStore";
+import { useTerminalStore } from "@/stores/terminalStore";
 import {
   allLeaves,
   GRAPH_TAB_ID,
@@ -22,6 +24,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const store = useTabsStore();
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
+  const sesionesTerminal = useTerminalStore((s) => s.sesiones);
   const syncByNota = useSyncStore((s) => s.byNota);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
@@ -54,12 +57,16 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
   function titleOf(tab: Tab) {
     if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
+    if (esTabTerminal(tab.notaId)) {
+      return sesionesTerminal[termIdDe(tab.notaId)]?.titulo ?? "Terminal";
+    }
     return notas.find((n) => n.id === tab.notaId)?.titulo ?? "…";
   }
 
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
   function tooltipOf(tab: Tab) {
     if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
+    if (esTabTerminal(tab.notaId)) return titleOf(tab);
     const nota = notas.find((n) => n.id === tab.notaId);
     if (!nota) return "";
     const parts: string[] = [];

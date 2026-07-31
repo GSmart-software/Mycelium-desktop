@@ -30,6 +30,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { crearTerminal } from "@/lib/terminal";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -345,6 +346,19 @@ export function ExplorerPanel() {
           mdInputRef.current?.click();
         },
       },
+      // Terminal integrada (FUN-L-07 CA4): solo en vault de carpeta, donde la
+      // carpeta existe en disco (su id ES la ruta relativa).
+      ...(rutaVault
+        ? [
+            {
+              label: "Abrir terminal aquí",
+              onClick: () => {
+                const tabId = crearTerminal({ cwd: `${rutaVault}/${carpeta.id}` });
+                router.push(`/workspace?note=${encodeURIComponent(tabId)}`);
+              },
+            },
+          ]
+        : []),
       {
         label: "Compartir",
         onClick: () =>

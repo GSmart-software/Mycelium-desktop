@@ -1,0 +1,13 @@
+/* Contenedor de la terminal integrada: llena el cuerpo del pane. El fondo usa el
+   token del lienzo para que el "sobrante" alrededor del grid de xterm no contraste. */
+.terminal {
+  height: 100%;
+  min-height: 0;
+  padding: 4px 0 0 6px;
+  background: var(--mic-bg-canvas);
+  overflow: hidden;
+}
+
+.terminal :global(.xterm) {
+  height: 100%;
+}

@@ -220,8 +220,10 @@ export const useTabsStore = create<TabsState>()(
 
     // Pestañas de preview (estilo Obsidian): si la pestaña activa solo se está
     // viendo (preview) y el grafo no, se reemplaza en vez de abrir una nueva.
+    // Las terminales (FUN-L-07) tampoco son preview: reemplazarlas mataría la sesión.
     const previewEnabled = usePreferencesStore.getState().prefs.previewTabs;
-    const isPreview = notaId !== GRAPH_TAB_ID && previewEnabled;
+    const isPreview =
+      notaId !== GRAPH_TAB_ID && !notaId.startsWith("terminal:") && previewEnabled;
     const activeTab = targetLeaf.tabs.find((t) => t.id === targetLeaf.activeTabId);
     const replace =
       previewEnabled &&
@@ -569,7 +571,10 @@ export const useTabsStore = create<TabsState>()(
   },
 
   reconcileNotes(validIds) {
-    const keep = (notaId: string) => notaId === GRAPH_TAB_ID || validIds.has(notaId);
+    // El grafo y las terminales (FUN-L-07) no son notas del vault: no se descartan
+    // aquí (la restauración/limpieza de terminales la gestiona lib/terminal.ts).
+    const keep = (notaId: string) =>
+      notaId === GRAPH_TAB_ID || notaId.startsWith("terminal:") || validIds.has(notaId);
     let changed = false;
     let root = mapTree(get().root, (leaf) => {
       const tabs = leaf.tabs.filter((t) => keep(t.notaId));

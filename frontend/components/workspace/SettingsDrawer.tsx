@@ -6,6 +6,7 @@ import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
+import { TerminalSection } from "@/components/settings/TerminalSection";
 import { TypographySection } from "@/components/settings/TypographySection";
 import { VaultSection } from "@/components/settings/VaultSection";
 import { APP_VERSION } from "@/lib/version";
@@ -111,6 +112,8 @@ export function SettingsDrawer() {
               <EditorSection />
               <h3 className={styles.groupTitle}>Grafo</h3>
               <GraphSection />
+              <h3 className={styles.groupTitle}>Terminal</h3>
+              <TerminalSection />
             </>
           )}
           {tab === "vault" && <VaultSection />}
