@@ -286,12 +286,19 @@ Usa subagentes para trabajo real que afecte a **ambas** versiones o que sea no t
 Al subir de versión hay que tocar **todos** estos lugares a mano (no hay automatización):
 `frontend/lib/version.ts` (`APP_VERSION`, es lo que ve el usuario) · `frontend/package.json`
 · `frontend/src-tauri/Cargo.toml` · `frontend/src-tauri/tauri.conf.json` (define el nombre
-del instalador). El criterio SemVer lo decide **qué cambia para el usuario**, no el
-tamaño del trabajo: si no puede hacer nada que antes no pudiera, es **patch** —aunque el
-cambio haya costado mucho—; si gana funcionalidad, minor; si es rearquitectura, major.
-Los tamaños del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
+del instalador). El criterio lo decide **qué cambia para el usuario**, no el tamaño del
+trabajo: si no puede hacer nada que antes no pudiera, es **patch** —aunque el cambio haya
+costado mucho—; si gana funcionalidad, minor; si es rearquitectura, major. Los tamaños
+del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 **Si una rama no recibió cambios funcionales, no se le sube la versión.**
-Detalle en [[Versionado del sistema]].
+
+> [!important] Una unidad de versión POR funcionalidad
+> Si entran **dos** funcionalidades, la versión sube **dos** minors: desde `1.1.1` se va
+> a **`1.3.0`**, no a `1.2.0`. Nunca se agrupan varias funcionalidades en un solo salto.
+> Lo mismo con las correcciones: cada una suma un patch. **Al subir un dígito, los de la
+> derecha vuelven a `0`** (por eso 1 funcionalidad + 2 correcciones desde `1.1.1` es
+> `1.2.0`: el minor sube y el patch se resetea). Detalle y ejemplos en
+> [[Versionado del sistema]].
 
 > [!important] El framework de IA se versiona aparte
 > `FRAMEWORK_IA_VERSION` en `frontend/lib/ia/framework.ts` **no** sigue la versión de la
