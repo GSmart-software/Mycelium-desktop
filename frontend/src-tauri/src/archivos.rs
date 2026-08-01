@@ -25,11 +25,15 @@ pub struct ArchivoLeido {
 
 /// Archivo del vault con los metadatos que el índice derivado necesita para la
 /// validación incremental por `mtime` (fase 2 del "vault en carpeta").
+///
+/// **Sin `contenido` a propósito** (FUN-M-12): el indexador compara `mtime` y
+/// recién entonces pide el texto de lo que cambió, con `leer_archivos`. Antes
+/// esta estructura llevaba el contenido de TODOS los archivos y se descartaba
+/// casi entero en cada apertura (14 MB por IPC en un vault sobre un repo).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchivoMeta {
     pub ruta_relativa: String,
-    pub contenido: String,
     /// Fecha de modificación en milisegundos epoch (de `metadata().modified()`).
     pub mtime: i64,
     /// `"excalidraw"` para `.excalidraw`, `"markdown"` para el resto (`.md`).
@@ -180,6 +184,16 @@ fn rel_posix(base: &Path, ruta: &Path) -> Result<String, String> {
 /// metadatos (`mtime`, `tipo`). Gemelo de `recorrer`, pero para el índice.
 /// El filtrado lo deciden los patrones del `.mycignore` del vault (FUN-M-11);
 /// `.mycelium` queda excluido siempre.
+///
+/// **No lee el contenido** (FUN-M-12): eso lo hace `leer_archivos`, y solo para
+/// las rutas que el indexador decidió reindexar comparando `mtime`.
+///
+/// Micro-optimizaciones del walker (FUN-M-12): se usa `entrada.file_type()` en
+/// vez de `ruta.is_dir()` —el tipo ya viene en la entrada del directorio, así que
+/// se ahorra un `stat` por archivo, notorio en Windows— y `rel_posix` se calcula
+/// UNA vez por entrada en lugar de dos. Contrapartida asumida: `file_type()` no
+/// sigue enlaces simbólicos, así que un symlink a una carpeta ya no se recorre
+/// (antes sí). Es lo deseable: evita ciclos y duplicados en el índice.
 fn recorrer_meta(
     dir: &Path,
     base: &Path,
@@ -192,42 +206,32 @@ fn recorrer_meta(
     for entrada in entradas {
         let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
         let ruta = entrada.path();
+        let es_dir = entrada.file_type().map(|t| t.is_dir()).unwrap_or(false);
 
-        if ruta.is_dir() {
-            if crate::mycignore::ignorada(&rel_posix(base, &ruta)?, true, patrones) {
+        if es_dir {
+            let relativa = rel_posix(base, &ruta)?;
+            if crate::mycignore::ignorada(&relativa, true, patrones) {
                 continue;
             }
             recorrer_meta(&ruta, base, patrones, out)?;
-        } else if es_importable(&ruta)
-            && !crate::mycignore::ignorada(&rel_posix(base, &ruta)?, false, patrones)
-        {
-            // Igual que `recorrer`: los archivos no UTF-8 se omiten (best-effort).
-            let Ok(contenido) = std::fs::read_to_string(&ruta) else {
+        } else if es_importable(&ruta) {
+            let relativa = rel_posix(base, &ruta)?;
+            if crate::mycignore::ignorada(&relativa, false, patrones) {
                 continue;
-            };
+            }
             let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
-            let relativa = ruta
-                .strip_prefix(base)
-                .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
-                .components()
-                .map(|c| c.as_os_str().to_string_lossy().to_string())
-                .collect::<Vec<_>>()
-                .join("/");
-            out.push(ArchivoMeta {
-                ruta_relativa: relativa,
-                contenido,
-                mtime,
-                tipo: tipo_de(&ruta),
-            });
+            out.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta) });
         }
     }
     Ok(())
 }
 
 /// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw` con su ruta
-/// relativa (separador `/`), su contenido UTF-8, su `mtime` (ms epoch) y su
-/// `tipo`. Es la fuente del indexador derivado (fase 2 del vault en carpeta).
-/// Qué se ignora lo decide el `.mycignore` del vault (por defecto, `.*/`).
+/// relativa (separador `/`), su `mtime` (ms epoch) y su `tipo` — **sin el
+/// contenido**. Es la fuente del indexador derivado (fase 2 del vault en
+/// carpeta): con esto le alcanza para decidir qué reindexar, y el texto lo pide
+/// después con `leer_archivos`. Qué se ignora lo decide el `.mycignore` del
+/// vault (ver el default de `mycignore::DEFAULT`).
 #[tauri::command]
 pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> {
     let base = PathBuf::from(&origen);
@@ -237,6 +241,34 @@ pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> 
     let patrones = crate::mycignore::cargar(&base);
     let mut out = Vec::new();
     recorrer_meta(&base, &base, &patrones, &mut out)?;
+    Ok(out)
+}
+
+/// Devuelve el contenido UTF-8 de las `rutas` (relativas POSIX) pedidas dentro
+/// de `origen`. Complemento de `listar_archivos_meta` (FUN-M-12): el indexador
+/// pide SOLO lo que va a reescribir, en tandas, en vez de recibir el vault
+/// entero por IPC en cada apertura.
+///
+/// Cada ruta se resuelve con `ruta_segura` (defensa contra path traversal: el
+/// frontend arma las rutas a partir del listado, pero el comando es invocable
+/// desde el webview). Lo que no exista, no se pueda leer o no sea UTF-8 se
+/// **omite en silencio**: el resultado puede traer menos entradas que `rutas`
+/// —p. ej. si el archivo se borró entre las dos fases— y el llamador debe
+/// tolerarlo.
+#[tauri::command]
+pub fn leer_archivos(origen: String, rutas: Vec<String>) -> Result<Vec<ArchivoLeido>, String> {
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let mut out = Vec::with_capacity(rutas.len());
+    for relativa in rutas {
+        let ruta = ruta_segura(&base, &relativa)?;
+        let Ok(contenido) = std::fs::read_to_string(&ruta) else {
+            continue; // borrado entre fases, binario o no UTF-8: best-effort
+        };
+        out.push(ArchivoLeido { ruta_relativa: relativa, contenido });
+    }
     Ok(out)
 }
 
@@ -256,10 +288,12 @@ fn recorrer_dirs(
 
     for entrada in entradas {
         let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
-        let ruta = entrada.path();
-        if !ruta.is_dir() {
+        // `file_type()` en vez de `is_dir()`: el tipo viene con la entrada del
+        // directorio y evita un `stat` por archivo (FUN-M-12).
+        if !entrada.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             continue;
         }
+        let ruta = entrada.path();
         let relativa = rel_posix(base, &ruta)?;
         if crate::mycignore::ignorada(&relativa, true, patrones) {
             continue;
@@ -382,6 +416,50 @@ mod tests {
         assert_eq!(metas[1].ruta_relativa, "sub/diagrama.excalidraw");
         assert_eq!(metas[1].tipo, "excalidraw");
         assert!(metas.iter().all(|m| m.mtime > 0), "mtime debe ser > 0");
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// `leer_archivos` devuelve el contenido SOLO de las rutas pedidas, omite en
+    /// silencio lo que no existe (borrado entre las dos fases del indexado) y
+    /// **rechaza** cualquier ruta que intente salirse del vault (FUN-M-12).
+    #[test]
+    fn leer_archivos_devuelve_lo_pedido_y_rechaza_escapes() {
+        let base = std::env::temp_dir().join(format!("mycelium-leer-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("sub")).unwrap();
+        std::fs::write(base.join("nota.md"), "# hola ñ").unwrap();
+        std::fs::write(base.join("sub/otra.md"), "contenido anidado").unwrap();
+        std::fs::write(base.join("ignorada.md"), "no se pide").unwrap();
+        let origen = base.to_string_lossy().to_string();
+
+        // Solo lo pedido, en el orden pedido.
+        let leidos = leer_archivos(
+            origen.clone(),
+            vec!["sub/otra.md".into(), "nota.md".into()],
+        )
+        .unwrap();
+        let rutas: Vec<&str> = leidos.iter().map(|a| a.ruta_relativa.as_str()).collect();
+        assert_eq!(rutas, vec!["sub/otra.md", "nota.md"]);
+        assert_eq!(leidos[0].contenido, "contenido anidado");
+        assert_eq!(leidos[1].contenido, "# hola ñ");
+
+        // Un archivo que ya no está se omite: el llamador recibe menos entradas.
+        let leidos = leer_archivos(
+            origen.clone(),
+            vec!["nota.md".into(), "fantasma.md".into()],
+        )
+        .unwrap();
+        assert_eq!(leidos.len(), 1);
+        assert_eq!(leidos[0].ruta_relativa, "nota.md");
+
+        // Path traversal: error, no lectura fuera del vault.
+        assert!(leer_archivos(origen.clone(), vec!["../fuera.md".into()]).is_err());
+        assert!(leer_archivos(origen.clone(), vec!["sub/../../fuera.md".into()]).is_err());
+        assert!(leer_archivos(origen.clone(), vec!["/etc/passwd".into()]).is_err());
+
+        // Lista vacía: no falla y no devuelve nada.
+        assert!(leer_archivos(origen, vec![]).unwrap().is_empty());
 
         std::fs::remove_dir_all(&base).unwrap();
     }

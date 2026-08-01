@@ -26,6 +26,13 @@ export default function VaultsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const abriendo = useVaultSessionStore((s) => s.abriendo);
+  // Avance del indexado (FUN-M-12): mientras hay progreso el botón lo muestra en
+  // lugar del spinner mudo. `total === 0` (vault vacío) no aporta nada útil.
+  const progreso = useVaultSessionStore((s) => s.progreso);
+  const etiquetaAbrir =
+    abriendo && progreso && progreso.total > 0
+      ? `Indexando ${progreso.hechas}/${progreso.total}`
+      : "Abrir";
 
   const refrescar = useCallback(async () => {
     setCargando(true);
@@ -122,7 +129,7 @@ export default function VaultsPage() {
                       {abriendo ? (
                         <Loader2 size={14} aria-hidden className={styles.spin} />
                       ) : null}
-                      Abrir
+                      {etiquetaAbrir}
                     </button>
                     <button
                       type="button"
