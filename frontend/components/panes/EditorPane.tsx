@@ -76,7 +76,7 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
               if (!drag) return;
               splitWithTab(drag.srcPaneId, drag.tabId, pane.id, edge);
               const nid = useTabsStore.getState().activeNotaId();
-              router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+              router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
             }}
           />
         )}
@@ -103,7 +103,7 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
               if (!nid) return;
               useTabsStore.getState().openNotaInPane(nid, pane.id);
               useSidebarViewerStore.getState().cerrar(nid);
-              router.push(`/workspace?note=${nid}`);
+              router.replace(`/workspace?note=${nid}`);
             }}
           >
             Abrir aquí

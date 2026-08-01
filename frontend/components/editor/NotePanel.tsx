@@ -101,7 +101,7 @@ export function NotePanel({ notaId }: { notaId: string }) {
 
   const open = (id: string) => {
     useTabsStore.getState().openNote(id);
-    router.push(`/workspace?note=${id}`);
+    router.replace(`/workspace?note=${id}`);
   };
 
   const resizeHandle = (

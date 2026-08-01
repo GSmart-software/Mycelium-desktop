@@ -39,7 +39,7 @@ export function Rail() {
   // El grafo se abre como ventana en el área de panes (estilo Obsidian).
   const openGraph = () => {
     useTabsStore.getState().openNote(GRAPH_TAB_ID);
-    router.push(`/workspace?note=${GRAPH_TAB_ID}`);
+    router.replace(`/workspace?note=${GRAPH_TAB_ID}`);
   };
 
   const renderButton = ({ section, icon: Icon, label }: (typeof TOP_ITEMS)[number]) => (

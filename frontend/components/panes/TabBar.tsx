@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
@@ -50,17 +50,32 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [menuOpen]);
 
+  // `replace` y no `push` (DEF-040): la pila del WebView compite con el historial
+  // propio de cada pestaña. La URL sigue reflejando la nota activa.
   function pushUrl() {
     const nid = useTabsStore.getState().activeNotaId();
-    router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+    router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
+  }
+
+  function tituloDeNotaId(notaId: string) {
+    if (notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
+    if (esTabTerminal(notaId)) {
+      return sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal";
+    }
+    return notas.find((n) => n.id === notaId)?.titulo ?? "…";
   }
 
   function titleOf(tab: Tab) {
-    if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
-    if (esTabTerminal(tab.notaId)) {
-      return sesionesTerminal[termIdDe(tab.notaId)]?.titulo ?? "Terminal";
-    }
-    return notas.find((n) => n.id === tab.notaId)?.titulo ?? "…";
+    return tituloDeNotaId(tab.notaId);
+  }
+
+  // Historial de la pestaña activa de ESTE pane (DEF-040).
+  const atras = store.destinoHistorial(pane.id, -1);
+  const adelante = store.destinoHistorial(pane.id, 1);
+
+  function navegar(delta: -1 | 1) {
+    store.navegarHistorial(pane.id, delta);
+    pushUrl();
   }
 
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
@@ -92,6 +107,30 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
   return (
     <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
+      {/* Atrás/adelante del historial de la pestaña activa (DEF-040). */}
+      <div className={styles.navGroup}>
+        <button
+          type="button"
+          className={styles.navButton}
+          disabled={atras === null}
+          title={atras !== null ? `Atrás: ${tituloDeNotaId(atras)}` : "Atrás"}
+          aria-label="Atrás"
+          onClick={() => navegar(-1)}
+        >
+          <ArrowLeft size={14} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.navButton}
+          disabled={adelante === null}
+          title={adelante !== null ? `Adelante: ${tituloDeNotaId(adelante)}` : "Adelante"}
+          aria-label="Adelante"
+          onClick={() => navegar(1)}
+        >
+          <ArrowRight size={14} aria-hidden />
+        </button>
+      </div>
+
       {pane.tabs.map((tab, index) => {
         const sync = syncByNota[tab.notaId] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;
@@ -111,7 +150,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               .join(" ")}
             onClick={() => {
               store.activateTab(pane.id, tab.id);
-              router.push(`/workspace?note=${tab.notaId}`);
+              router.replace(`/workspace?note=${tab.notaId}`);
             }}
             // Doble clic fija la pestaña de preview como permanente (Obsidian).
             onDoubleClick={() => store.pinTab(pane.id, tab.id)}

@@ -49,7 +49,7 @@ export function GraphView() {
 
   const open = (notaId: string) => {
     useTabsStore.getState().openNote(notaId);
-    router.push(`/workspace?note=${notaId}`);
+    router.replace(`/workspace?note=${notaId}`);
   };
 
   const savePositions = useCallback(

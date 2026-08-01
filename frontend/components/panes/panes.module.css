@@ -87,6 +87,43 @@
   overflow-y: hidden;
 }
 
+/* Atrás/adelante del historial de la pestaña (DEF-040): a la izquierda de las
+   pestañas, con el mismo lenguaje visual que el botón "..." del pane. */
+.navGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+  /* La barra desplaza en horizontal cuando hay muchas pestañas: los controles
+     de navegación quedan anclados a la izquierda. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--mic-bg-surface);
+  border-right: 1px solid color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+.navButton {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.navButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+/* Control inerte: sin puntero y atenuado (patrón del design system). */
+.navButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .tab {
   position: relative;
   display: flex;

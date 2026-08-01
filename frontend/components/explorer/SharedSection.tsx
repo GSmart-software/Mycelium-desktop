@@ -56,7 +56,7 @@ export function SharedSection({
 
   const open = (notaId: string) => {
     useTabsStore.getState().openNote(notaId);
-    router.push(`/workspace?note=${notaId}`);
+    router.replace(`/workspace?note=${notaId}`);
   };
 
   // Clic con la rueda: abre la nota compartida en una pestaña nueva sin robar el
@@ -64,7 +64,7 @@ export function SharedSection({
   const openBackground = (notaId: string) => {
     useTabsStore.getState().openNoteBackground(notaId);
     const nid = useTabsStore.getState().activeNotaId();
-    router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+    router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
   };
 
   const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));

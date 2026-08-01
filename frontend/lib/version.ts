@@ -12,8 +12,15 @@
  *   los metadatos viajan sin el contenido; las carpetas se upsertan solo si son
  *   nuevas; WAL en el índice; y el indexado muestra su avance. **Patch**: no hay
  *   funcionalidad nueva — lo mismo, más rápido y mejor comunicado.
+ * - `1.1.5` — solo desktop: navegación por pestaña. **Cuatro patches**, uno por
+ *   corrección: `DEF-039` (el scroll se conserva al volver a una pestaña),
+ *   `DEF-040` (cada pestaña lleva su propio historial, con botones de atrás y
+ *   adelante), `DEF-041` (endurecido el reemplazo de la pestaña de
+ *   previsualización) y hacer visibles con botones las flechas de historial que
+ *   antes solo existían en los botones auxiliares del ratón. Ninguna suma minor:
+ *   no hay capacidad nueva, se corrige y se muestra lo que ya existía.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión.
  */
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.1.5";

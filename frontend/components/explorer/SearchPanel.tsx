@@ -80,7 +80,7 @@ export function SearchPanel() {
     const term = firstSearchTerm(query);
     setPendingMatch(notaId, term);
     useTabsStore.getState().openNote(notaId);
-    router.push(`/workspace?note=${notaId}`);
+    router.replace(`/workspace?note=${notaId}`);
     // Si la nota ya estaba abierta, el editor montado salta a la coincidencia.
     window.dispatchEvent(
       new CustomEvent("micelio:goto-match", { detail: { notaId, term } }),

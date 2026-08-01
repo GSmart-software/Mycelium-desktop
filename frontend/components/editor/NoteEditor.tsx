@@ -7,7 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -52,10 +52,31 @@ const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
 const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 
-/** Cursor y scroll por pestaña mientras está abierta (HU-25 CA10). */
+/**
+ * Cursor y scroll por pestaña mientras está abierta (HU-25 CA10).
+ *
+ * `scroll` NO es un `scrollTop` en píxeles (DEF-039): es el efecto de
+ * `EditorView.scrollSnapshot()`, que ancla la posición a un punto del
+ * DOCUMENTO. Es lo único fiable acá, por dos motivos:
+ *
+ * 1. Se captura mientras el usuario hace scroll, no al desmontar. React 18+
+ *    ejecuta la limpieza de un `useEffect` DESPUÉS de sacar el nodo del DOM, y
+ *    `scrollTop` de un elemento sin caja devuelve **0** (CSSOM): lo que se
+ *    guardaba al volver era siempre el principio del documento.
+ * 2. Al restaurar, CodeMirror reaplica el objetivo tras cada medición hasta que
+ *    el height-map se estabiliza. Asignar `scrollTop` a mano no puede funcionar:
+ *    al crear la vista solo está medido el viewport.
+ */
 const instanceCache = new Map<
   string,
-  { doc: string; anchor: number; head: number; scrollTop: number }
+  {
+    doc: string;
+    anchor: number;
+    head: number;
+    scroll: StateEffect<unknown> | null;
+    /** Scroll del panel de lectura/dividido, que NO es el scroller de CodeMirror. */
+    previewScrollTop: number;
+  }
 >();
 
 /** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
@@ -121,6 +142,12 @@ export function NoteEditor({
   const collabCompartment = useRef(new Compartment());
   const collabRef = useRef<CollabHandle | null>(null);
   const brokerApplyRef = useRef(false);
+  // DEF-039: posición de scroll capturada EN VIVO (ver `instanceCache`).
+  const scrollSnapshotRef = useRef<StateEffect<unknown> | null>(null);
+  const previewScrollRef = useRef(0);
+  /** Scroll del preview pendiente de restaurar (null = nada que restaurar). */
+  const previewScrollPendienteRef = useRef<number | null>(null);
+  const soltarScrollRef = useRef<(() => void) | null>(null);
 
   const [mode, setModeState] = useState<EditorMode>(() => {
     if (typeof window === "undefined") return "live";
@@ -159,7 +186,7 @@ export function NoteEditor({
       const target = resolveWikilink(title, notas, carpetas);
       if (target) {
         useTabsStore.getState().openNote(target.id);
-        router.push(`/workspace?note=${target.id}`);
+        router.replace(`/workspace?note=${target.id}`);
       }
     },
     [router],
@@ -255,10 +282,26 @@ export function NoteEditor({
         },
       ]);
 
+      // Estado guardado de ESTA pestaña (HU-25 CA10 / DEF-039). Solo se
+      // restaura si el documento es el mismo que se guardó: si cambió en disco
+      // desde fuera, una posición vieja apuntaría a cualquier lado y es
+      // preferible arrancar del principio.
+      const cached = instanceCache.get(instanceId);
+      const restaurable = cached !== undefined && cached.doc === content;
+
       viewRef.current = new EditorView({
         parent: hostRef.current,
+        // El scroll se restaura con el mecanismo propio de CodeMirror: sabe
+        // reaplicar el objetivo mientras el height-map se va midiendo.
+        scrollTo: restaurable ? cached.scroll ?? undefined : undefined,
         state: EditorState.create({
           doc: content,
+          selection: restaurable
+            ? {
+                anchor: Math.min(cached.anchor, content.length),
+                head: Math.min(cached.head, content.length),
+              }
+            : undefined,
           extensions: [
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
@@ -338,17 +381,35 @@ export function NoteEditor({
         );
       }
 
-      // Restaurar cursor y scroll de la pestaña (HU-25 CA10)
-      const cached = instanceCache.get(instanceId);
-      if (cached && cached.doc === content) {
-        const docLength = viewRef.current.state.doc.length;
-        viewRef.current.dispatch({
-          selection: {
-            anchor: Math.min(cached.anchor, docLength),
-            head: Math.min(cached.head, docLength),
-          },
-        });
-        viewRef.current.scrollDOM.scrollTop = cached.scrollTop;
+      // El cursor y el `scrollTo` ya viajaron en la creación de la vista; queda
+      // sembrar los refs para no perder la posición si el usuario vuelve a
+      // cambiar de pestaña sin haber hecho scroll (DEF-039).
+      if (restaurable) {
+        scrollSnapshotRef.current = cached.scroll;
+        previewScrollRef.current = cached.previewScrollTop;
+        previewScrollPendienteRef.current =
+          cached.previewScrollTop > 0 ? cached.previewScrollTop : null;
+      }
+
+      // Capturar la posición MIENTRAS se hace scroll: al desmontar ya no se
+      // puede leer del DOM (React lo desmonta antes de ejecutar la limpieza del
+      // efecto y `scrollTop` de un nodo desprendido vale 0).
+      {
+        const scroller = viewRef.current.scrollDOM;
+        let pedido = 0;
+        const onScroll = () => {
+          if (pedido) return;
+          pedido = requestAnimationFrame(() => {
+            pedido = 0;
+            const view = viewRef.current;
+            if (view) scrollSnapshotRef.current = view.scrollSnapshot();
+          });
+        };
+        scroller.addEventListener("scroll", onScroll, { passive: true });
+        soltarScrollRef.current = () => {
+          if (pedido) cancelAnimationFrame(pedido);
+          scroller.removeEventListener("scroll", onScroll);
+        };
       }
 
       setPreviewHtml(renderMarkdown(content));
@@ -476,15 +537,20 @@ export function NoteEditor({
       }
       collabRef.current?.destroy();
       collabRef.current = null;
+      soltarScrollRef.current?.();
+      soltarScrollRef.current = null;
       const view = viewRef.current;
       if (view) {
-        // Cursor/scroll de la pestaña para restaurar al volver (HU-25 CA10)
+        // Cursor/scroll de la pestaña para restaurar al volver (HU-25 CA10).
+        // OJO (DEF-039): acá NO se puede leer el scroll del DOM — React ya
+        // desmontó el nodo y `scrollTop` valdría 0. Se usa lo capturado en vivo.
         const { anchor, head } = view.state.selection.main;
         instanceCache.set(instanceId, {
           doc: contentRef.current,
           anchor,
           head,
-          scrollTop: view.scrollDOM.scrollTop,
+          scroll: scrollSnapshotRef.current,
+          previewScrollTop: previewScrollRef.current,
         });
         unregisterView(paneId, view);
         view.destroy();
@@ -633,6 +699,45 @@ export function NoteEditor({
       setEditingFile(newId); // abrir el editor embebido del nuevo dibujo
     });
   }, [notaId]);
+
+  // DEF-039 CA2: en modo lectura (y en dividido) el scroller VISIBLE no es el de
+  // CodeMirror sino el del preview, así que hay que seguirlo aparte. Mientras
+  // haya una restauración pendiente no se registra: los reintentos de abajo
+  // producen valores intermedios recortados.
+  useEffect(() => {
+    const preview = previewRef.current;
+    if (!preview) return;
+    const onScroll = () => {
+      if (previewScrollPendienteRef.current !== null) return;
+      previewScrollRef.current = preview.scrollTop;
+    };
+    preview.addEventListener("scroll", onScroll, { passive: true });
+    return () => preview.removeEventListener("scroll", onScroll);
+  }, [mode]);
+
+  // DEF-039 CA2: restaurar el scroll del preview. Se reintenta por frames porque
+  // el alto real llega tarde (Mermaid, Excalidraw e imágenes se renderizan
+  // después), y hasta entonces el navegador recorta la asignación.
+  useEffect(() => {
+    if (previewScrollPendienteRef.current === null) return;
+    if (mode !== "read" && mode !== "split") return;
+    let raf = 0;
+    let intentos = 0;
+    const aplicar = () => {
+      const preview = previewRef.current;
+      const objetivo = previewScrollPendienteRef.current;
+      if (!preview || objetivo === null) return;
+      preview.scrollTop = objetivo;
+      if (Math.abs(preview.scrollTop - objetivo) > 1 && intentos++ < 30) {
+        raf = requestAnimationFrame(aplicar);
+      } else {
+        previewScrollRef.current = preview.scrollTop;
+        previewScrollPendienteRef.current = null;
+      }
+    };
+    raf = requestAnimationFrame(aplicar);
+    return () => cancelAnimationFrame(raf);
+  }, [previewHtml, mode, previewTick]);
 
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {

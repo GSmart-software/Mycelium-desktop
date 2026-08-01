@@ -220,7 +220,7 @@ export function ExplorerPanel() {
     (id: string) => {
       // Abrir en el pane activo aunque la URL ya apunte a esta nota
       useTabsStore.getState().openNote(id);
-      router.push(`/workspace?note=${id}`);
+      router.replace(`/workspace?note=${id}`);
     },
     [router],
   );
@@ -230,7 +230,7 @@ export function ExplorerPanel() {
     (id: string) => {
       useTabsStore.getState().openNoteBackground(id);
       const nid = useTabsStore.getState().activeNotaId();
-      router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+      router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
     },
     [router],
   );
@@ -297,7 +297,7 @@ export function ExplorerPanel() {
         } else {
           useTabsStore.getState().splitPaneWithNota(nota.id, objetivo.paneId, objetivo.edge);
         }
-        router.push(`/workspace?note=${nota.id}`);
+        router.replace(`/workspace?note=${nota.id}`);
       }
       limpiarDragNota();
       return;
@@ -354,7 +354,7 @@ export function ExplorerPanel() {
               label: "Abrir terminal aquí",
               onClick: () => {
                 const tabId = crearTerminal({ cwd: `${rutaVault}/${carpeta.id}` });
-                router.push(`/workspace?note=${encodeURIComponent(tabId)}`);
+                router.replace(`/workspace?note=${encodeURIComponent(tabId)}`);
               },
             },
           ]

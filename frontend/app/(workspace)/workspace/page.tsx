@@ -205,6 +205,18 @@ function WorkspaceShell() {
         event.preventDefault();
         useTabsStore.getState().reopenLastClosed();
         syncUrlWithTabs();
+        return;
+      }
+      // Alt+←/→: historial de la pestaña activa (DEF-040). Si el editor ya
+      // consumió la pulsación, no se duplica la acción.
+      if (event.altKey && !event.ctrlKey && !event.shiftKey && !event.defaultPrevented) {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          navegarHistorialActivo(-1);
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault();
+          navegarHistorialActivo(1);
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -212,9 +224,43 @@ function WorkspaceShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toggleLeft, toggleRight]);
 
+  /**
+   * Botones auxiliares del ratón (DEF-040): 3 = atrás, 4 = adelante. Hasta
+   * ahora navegaban el historial del WEBVIEW (la pila de `router.push` de todas
+   * las aperturas, global y sin relación con el pane), que es justamente lo que
+   * hacía que "atrás" mostrara cualquier cosa — e incluso podía salirse del
+   * workspace. Se cancelan en `mousedown`/`auxclick` (así Chromium no navega) y
+   * se enrutan al historial de la pestaña activa.
+   */
+  useEffect(() => {
+    function onMouseDown(event: MouseEvent) {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      navegarHistorialActivo(event.button === 3 ? -1 : 1);
+    }
+    function onAuxClick(event: MouseEvent) {
+      if (event.button === 3 || event.button === 4) event.preventDefault();
+    }
+    window.addEventListener("mousedown", onMouseDown, { capture: true });
+    window.addEventListener("auxclick", onAuxClick, { capture: true });
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown, { capture: true });
+      window.removeEventListener("auxclick", onAuxClick, { capture: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function navegarHistorialActivo(delta: -1 | 1) {
+    const { activePaneId, navegarHistorial } = useTabsStore.getState();
+    navegarHistorial(activePaneId, delta);
+    syncUrlWithTabs();
+  }
+
+  // `replace` y no `push` (DEF-040): con historial propio por pestaña, la pila
+  // del WebView solo compite y confunde. La URL sigue reflejando la nota activa.
   function syncUrlWithTabs() {
     const nid = useTabsStore.getState().activeNotaId();
-    router.push(nid ? `/workspace?note=${nid}` : "/workspace");
+    router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
   }
 
   return (
