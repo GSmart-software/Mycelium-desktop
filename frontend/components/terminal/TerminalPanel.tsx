@@ -57,12 +57,12 @@ export function TerminalPanel() {
 
   const nueva = (shellId?: string) => {
     const tabId = crearTerminal(shellId ? { shellId } : {});
-    router.push(`/workspace?note=${encodeURIComponent(tabId)}`);
+    router.replace(`/workspace?note=${encodeURIComponent(tabId)}`);
   };
 
   const abrir = (termId: string) => {
     abrirConsola(termId);
-    router.push(`/workspace?note=${encodeURIComponent(tabIdDe(termId))}`);
+    router.replace(`/workspace?note=${encodeURIComponent(tabIdDe(termId))}`);
   };
 
   /** Menú de shells en la posición dada (botón "elegir shell" o clic derecho). */

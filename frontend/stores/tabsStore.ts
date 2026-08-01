@@ -12,8 +12,25 @@ export const GRAPH_TAB_ID = "graph:global";
  * Pestaña: instancia de una nota abierta en un pane (HU-25). `preview` marca
  * la pestaña efímera (estilo Obsidian/VSCode): si solo se está viendo el
  * archivo, abrir otro la reemplaza; al editarla o fijarla pasa a permanente.
+ *
+ * `historial`/`indice` son la línea de navegación PROPIA de la pestaña
+ * (`DEF-040`): la secuencia de documentos que esa pestaña mostró y dónde está
+ * parada. Son opcionales a propósito: las pestañas persistidas antes de
+ * `DEF-040` no los tienen y se leen como línea de un solo elemento (ver
+ * `lineaDe`), así que NO hace falta subir la versión del `persist` — subirla
+ * sin `migrate` haría que zustand descartara el estado y el usuario perdiera
+ * todas sus pestañas.
  */
-export type Tab = { id: string; notaId: string; preview?: boolean };
+export type Tab = {
+  id: string;
+  notaId: string;
+  preview?: boolean;
+  historial?: string[];
+  indice?: number;
+};
+
+/** Tope de entradas por línea de historial (DEF-040): se descartan las viejas. */
+const MAX_HISTORIAL = 50;
 
 export type LeafPane = {
   id: string;
@@ -40,6 +57,62 @@ export type PaneNode = LeafPane | SplitPane;
 export type SplitEdge = "top" | "bottom" | "left" | "right";
 
 const newId = () => Math.random().toString(36).slice(2, 10);
+
+/**
+ * Ids que no son notas del vault: el grafo y las terminales (ver "ids sentinela"
+ * en docs/aprendizajes/Estado con Zustand.md). No pueden ser pestaña de preview
+ * ni entrar en una línea de historial: reemplazar una terminal mata su sesión.
+ */
+const esSentinela = (notaId: string) =>
+  notaId === GRAPH_TAB_ID || notaId.startsWith("terminal:");
+
+// ── Historial por pestaña (DEF-040) ───────────────────────────────
+
+/**
+ * Línea de historial de una pestaña, normalizada. Tolera las pestañas viejas
+ * (sin `historial`/`indice`) y los índices fuera de rango: en ambos casos la
+ * línea es simplemente el documento que la pestaña muestra ahora.
+ */
+function lineaDe(tab: Tab): { historial: string[]; indice: number } {
+  const historial =
+    tab.historial && tab.historial.length > 0 ? tab.historial : [tab.notaId];
+  const indice = Math.min(Math.max(tab.indice ?? historial.length - 1, 0), historial.length - 1);
+  return { historial, indice };
+}
+
+/**
+ * Añade `notaId` al final de la línea de `tab`: trunca la rama de adelante
+ * (comportamiento estándar de un historial: navegar atrás y abrir otra cosa
+ * descarta lo que había delante) y recorta a `MAX_HISTORIAL`.
+ */
+function empujarEnLinea(tab: Tab, notaId: string): { historial: string[]; indice: number } {
+  const { historial, indice } = lineaDe(tab);
+  const linea = [...historial.slice(0, indice + 1), notaId].slice(-MAX_HISTORIAL);
+  return { historial: linea, indice: linea.length - 1 };
+}
+
+/** Reescribe los ids de la línea (renombres/movimientos) sin perder la posición. */
+function reescribirLinea(tab: Tab, map: (id: string) => string): Tab {
+  if (!tab.historial) return tab;
+  return { ...tab, historial: tab.historial.map(map) };
+}
+
+/**
+ * Descarta de la línea las entradas que ya no son válidas (notas borradas
+ * mientras el sistema estaba cerrado) y recoloca el índice sobre el documento
+ * que la pestaña muestra. Si el documento actual no queda en la línea, se
+ * reinicia: perder el historial es aceptable, mostrar una nota fantasma no.
+ */
+function filtrarLinea(tab: Tab, esValido: (notaId: string) => boolean): Tab {
+  if (!tab.historial) return tab;
+  const { historial, indice } = lineaDe(tab);
+  const actual = historial[indice];
+  const linea = historial.filter((id, i) => i === indice || esValido(id));
+  const nuevoIndice = linea.indexOf(actual);
+  if (nuevoIndice < 0) return { ...tab, historial: [tab.notaId], indice: 0 };
+  if (linea.length === historial.length && nuevoIndice === indice) return tab;
+  return { ...tab, historial: linea, indice: nuevoIndice };
+}
 
 const makeLeaf = (tabs: Tab[] = [], activeTabId: string | null = null): LeafPane => ({
   id: newId(),
@@ -84,6 +157,17 @@ type TabsState = {
   openNoteBackground: (notaId: string) => void;
   /** Fija una pestaña de preview como permanente (al editar o doble-clic). */
   pinTab: (paneId: string, tabId: string) => void;
+  /**
+   * Navega el historial PROPIO de la pestaña activa del pane (DEF-040):
+   * `-1` atrás, `+1` adelante. Reemplaza el documento de esa pestaña; nunca
+   * abre una pestaña nueva ni cambia de pane.
+   */
+  navegarHistorial: (paneId: string, delta: -1 | 1) => void;
+  /**
+   * Nota a la que llevaría atrás (`-1`) o adelante (`+1`) en la pestaña activa
+   * del pane, o `null` si no hay a dónde ir (botón deshabilitado).
+   */
+  destinoHistorial: (paneId: string, delta: -1 | 1) => string | null;
   activateTab: (paneId: string, tabId: string) => void;
   closeTab: (paneId: string, tabId: string) => void;
   closeActiveTab: () => void;
@@ -206,6 +290,13 @@ export const useTabsStore = create<TabsState>()(
       targetLeaf =
         allLeaves(root).find((l) => l.linkedTo === null) ?? targetLeaf;
     }
+    // La pestaña activa ya muestra esta nota: no hay nada que hacer. Hace falta
+    // porque la URL vuelve a llamar a `openNote` tras cada apertura y tras cada
+    // paso del historial (DEF-040); sin esto, si la misma nota estuviera abierta
+    // en OTRA pestaña del pane, el efecto de la URL saltaría a esa otra pestaña.
+    const activo = targetLeaf.tabs.find((t) => t.id === targetLeaf.activeTabId);
+    if (activo?.notaId === notaId) return;
+
     const existing = targetLeaf.tabs.find((t) => t.notaId === notaId);
     if (existing) {
       if (targetLeaf.activeTabId === existing.id) return;
@@ -221,18 +312,27 @@ export const useTabsStore = create<TabsState>()(
     // Pestañas de preview (estilo Obsidian): si la pestaña activa solo se está
     // viendo (preview) y el grafo no, se reemplaza en vez de abrir una nueva.
     // Las terminales (FUN-L-07) tampoco son preview: reemplazarlas mataría la sesión.
-    const previewEnabled = usePreferencesStore.getState().prefs.previewTabs;
-    const isPreview =
-      notaId !== GRAPH_TAB_ID && !notaId.startsWith("terminal:") && previewEnabled;
+    // `Boolean(...)` a propósito: `preview` se compara con `=== true` más abajo,
+    // así que tiene que ser un booleano de verdad y no el valor de la preferencia.
+    const previewEnabled = usePreferencesStore.getState().prefs.previewTabs === true;
+    const isPreview = !esSentinela(notaId) && previewEnabled;
     const activeTab = targetLeaf.tabs.find((t) => t.id === targetLeaf.activeTabId);
     const replace =
-      previewEnabled &&
-      activeTab?.preview === true &&
-      activeTab.notaId !== GRAPH_TAB_ID;
+      previewEnabled && activeTab?.preview === true && !esSentinela(activeTab.notaId);
+
+    // Historial propio de la pestaña (DEF-040): al reemplazar una pestaña de
+    // preview, la nueva HEREDA su línea con el documento saliente al final —
+    // es lo que hace que "atrás" devuelva lo que esa pestaña mostraba antes.
+    // El grafo y las terminales arrancan línea propia: nunca deben poder
+    // "volver" a una nota (y volver desde una terminal mataría su sesión).
+    const linea =
+      replace && !esSentinela(notaId)
+        ? empujarEnLinea(activeTab!, notaId)
+        : { historial: [notaId], indice: 0 };
 
     // Id nuevo siempre (el editor se monta por instancia de pestaña): al
     // reemplazar, ocupa el lugar de la pestaña de preview sin arrastrar estado.
-    const newTab: Tab = { id: newId(), notaId, preview: isPreview };
+    const newTab: Tab = { id: newId(), notaId, preview: isPreview, ...linea };
     set({
       root: mapTree(root, (leaf) =>
         leaf.id === targetLeaf.id
@@ -264,7 +364,7 @@ export const useTabsStore = create<TabsState>()(
     if (targetLeaf.tabs.some((t) => t.notaId === notaId)) return;
 
     // Pestaña permanente en segundo plano: se conserva el foco actual.
-    const newTab: Tab = { id: newId(), notaId, preview: false };
+    const newTab: Tab = { id: newId(), notaId, preview: false, historial: [notaId], indice: 0 };
     set({
       root: mapTree(root, (leaf) =>
         leaf.id === targetLeaf.id ? { ...leaf, tabs: [...leaf.tabs, newTab] } : leaf,
@@ -280,6 +380,46 @@ export const useTabsStore = create<TabsState>()(
       root: mapTree(get().root, (l) =>
         l.id === paneId
           ? { ...l, tabs: l.tabs.map((t) => (t.id === tabId ? { ...t, preview: false } : t)) }
+          : l,
+      ),
+    });
+  },
+
+  destinoHistorial(paneId, delta) {
+    const leaf = findLeaf(get().root, paneId);
+    const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId);
+    if (!tab) return null;
+    const { historial, indice } = lineaDe(tab);
+    const destino = indice + delta;
+    return destino >= 0 && destino < historial.length ? historial[destino] : null;
+  },
+
+  navegarHistorial(paneId, delta) {
+    const leaf = findLeaf(get().root, paneId);
+    const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId);
+    if (!leaf || !tab) return;
+    const { historial, indice } = lineaDe(tab);
+    const destino = indice + delta;
+    if (destino < 0 || destino >= historial.length) return;
+
+    // Id nuevo, mismo criterio que `openNote`: el editor se monta por instancia
+    // de pestaña, así que cambiar el documento sin cambiar el id le dejaría el
+    // contenido de la nota anterior (el caché de instancias va por id).
+    const nuevo: Tab = {
+      id: newId(),
+      notaId: historial[destino],
+      preview: tab.preview,
+      historial,
+      indice: destino,
+    };
+    set({
+      root: mapTree(get().root, (l) =>
+        l.id === paneId
+          ? {
+              ...l,
+              tabs: l.tabs.map((t) => (t.id === tab.id ? nuevo : t)),
+              activeTabId: nuevo.id,
+            }
           : l,
       ),
     });
@@ -379,8 +519,11 @@ export const useTabsStore = create<TabsState>()(
     // Si es la única pestaña y se divide sobre su propio pane, se DUPLICA la
     // nota en el nuevo pane (si se moviera, el origen quedaría vacío y el split
     // se aplanaría). Así "dividir" con una sola pestaña funciona como Obsidian.
+    // Al duplicar se copia la pestaña entera (incluidos `preview` y su línea de
+    // historial): antes se creaba `{id, notaId}` y la copia perdía el flag de
+    // preview, así que el pane nuevo arrancaba con una pestaña permanente.
     const duplicate = srcPaneId === dstPaneId && src!.tabs.length === 1;
-    const newTab: Tab = duplicate ? { id: newId(), notaId: tab.notaId } : tab;
+    const newTab: Tab = duplicate ? { ...tab, id: newId() } : tab;
     const newLeaf = makeLeaf([newTab], newTab.id);
     const direction: SplitPane["direction"] =
       edge === "left" || edge === "right" ? "row" : "column";
@@ -474,7 +617,8 @@ export const useTabsStore = create<TabsState>()(
     if (!target) return;
     const existing = target.tabs.find((t) => t.notaId === notaId);
     // Pestaña permanente (arrastrar es una acción deliberada, no un preview).
-    const newTab: Tab = existing ?? { id: newId(), notaId, preview: false };
+    const newTab: Tab =
+      existing ?? { id: newId(), notaId, preview: false, historial: [notaId], indice: 0 };
     set({
       root: mapTree(root, (leaf) =>
         leaf.id === paneId
@@ -491,7 +635,7 @@ export const useTabsStore = create<TabsState>()(
   },
 
   splitPaneWithNota(notaId, dstPaneId, edge) {
-    const newTab: Tab = { id: newId(), notaId, preview: false };
+    const newTab: Tab = { id: newId(), notaId, preview: false, historial: [notaId], indice: 0 };
     const newLeaf = makeLeaf([newTab], newTab.id);
     const direction: SplitPane["direction"] =
       edge === "left" || edge === "right" ? "row" : "column";
@@ -523,9 +667,16 @@ export const useTabsStore = create<TabsState>()(
   },
 
   closeNotaEverywhere(notaId) {
+    // La nota se fue a la papelera: además de cerrar sus pestañas hay que
+    // sacarla de las líneas de historial, o "atrás" la resucitaría (DEF-040).
+    const vigente = (id: string) => id !== notaId;
     let root = mapTree(get().root, (leaf) => {
-      const tabs = leaf.tabs.filter((t) => t.notaId !== notaId);
-      if (tabs.length === leaf.tabs.length) return leaf;
+      const tabs = leaf.tabs
+        .filter((t) => t.notaId !== notaId)
+        .map((t) => filtrarLinea(t, vigente));
+      if (tabs.length === leaf.tabs.length && tabs.every((t, i) => t === leaf.tabs[i])) {
+        return leaf;
+      }
       const activeStill = tabs.some((t) => t.id === leaf.activeTabId);
       return {
         ...leaf,
@@ -547,7 +698,9 @@ export const useTabsStore = create<TabsState>()(
     set({
       root: mapTree(get().root, (leaf) => ({
         ...leaf,
-        tabs: leaf.tabs.map((t) => (t.notaId === oldId ? { ...t, notaId: newId } : t)),
+        tabs: leaf.tabs.map((t) =>
+          reescribirLinea(t.notaId === oldId ? { ...t, notaId: newId } : t, map),
+        ),
       })),
       closedHistory: get().closedHistory.map(map),
     });
@@ -564,7 +717,7 @@ export const useTabsStore = create<TabsState>()(
     set({
       root: mapTree(get().root, (leaf) => ({
         ...leaf,
-        tabs: leaf.tabs.map((t) => ({ ...t, notaId: map(t.notaId) })),
+        tabs: leaf.tabs.map((t) => reescribirLinea({ ...t, notaId: map(t.notaId) }, map)),
       })),
       closedHistory: get().closedHistory.map(map),
     });
@@ -573,12 +726,17 @@ export const useTabsStore = create<TabsState>()(
   reconcileNotes(validIds) {
     // El grafo y las terminales (FUN-L-07) no son notas del vault: no se descartan
     // aquí (la restauración/limpieza de terminales la gestiona lib/terminal.ts).
-    const keep = (notaId: string) =>
-      notaId === GRAPH_TAB_ID || notaId.startsWith("terminal:") || validIds.has(notaId);
+    const keep = (notaId: string) => esSentinela(notaId) || validIds.has(notaId);
     let changed = false;
     let root = mapTree(get().root, (leaf) => {
-      const tabs = leaf.tabs.filter((t) => keep(t.notaId));
-      if (tabs.length === leaf.tabs.length) return leaf;
+      // Las líneas de historial también se depuran: pueden nombrar notas
+      // borradas mientras el sistema estaba cerrado (DEF-040).
+      const tabs = leaf.tabs
+        .filter((t) => keep(t.notaId))
+        .map((t) => filtrarLinea(t, keep));
+      const igual =
+        tabs.length === leaf.tabs.length && tabs.every((t, i) => t === leaf.tabs[i]);
+      if (igual) return leaf;
       changed = true;
       const activeStill = tabs.some((t) => t.id === leaf.activeTabId);
       return { ...leaf, tabs, activeTabId: activeStill ? leaf.activeTabId : tabs[0]?.id ?? null };
