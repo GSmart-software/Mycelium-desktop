@@ -129,14 +129,43 @@ exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (```mermaid) y KaT
 Mycelium es un clon de Obsidian que se mantiene en **dos versiones** que comparten
 casi todo el frontend y divergen en la capa de datos:
 
-| Versión | Rama | Stack de datos |
-|---|---|---|
-| **Web** | `web-cloud` | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
-| **Desktop** | `desktop-tauri` | Tauri + **SQLite nativo** (`tauri-plugin-sql`); `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| Versión | Rama | Versión actual | Stack de datos |
+|---|---|---|---|
+| **Desktop** | `desktop-tauri` | **1.1.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Web** | `web-cloud` | **1.0.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
-Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores). Ver
-[docs/RAMAS.md](docs/RAMAS.md) (ramas y archivos divergentes) y
-[docs/MIGRACION-TAURI.md](docs/MIGRACION-TAURI.md) (historia de la migración).
+Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores).
+
+> [!important] Las dos líneas se separaron en 1.1.0
+> Todo lo que entró después de 1.0.0 es **solo-desktop** (terminal integrada,
+> framework de IA del vault, `.mycignore`, rendimiento del grafo, devtools en
+> producción), así que web sigue en `1.0.0`. La regla "si se puede en las dos, se hace
+> en las dos" **sigue vigente**, pero el foco actual —la línea de IA sobre el vault—
+> por naturaleza no aplica a web. Ver [[Diferencias funcionales aceptadas entre versiones]].
+
+## La documentación del proyecto ES un vault de Mycelium
+
+`docs/` no es una carpeta de documentos sueltos: es la **memoria del proyecto**, una red
+de notas enlazadas con `[[wikilinks]]` (y este repo es el primer caso de uso de
+[[Mycelium como memoria de la IA]]). Aplica la sección de arriba: **recuperá antes de
+responder y consolidá lo que valga recordar**, ahí.
+
+- **Puerta de entrada: [[Mapa de documentacion]]** (`docs/Mapa de documentacion.md`).
+  Empezá siempre por ahí; casi cualquier nota lleva al resto por enlaces.
+- Atajos útiles: [[Estado del proyecto]] (dónde está todo hoy) ·
+  [[Arquitectura de Mycelium]] · [[RAMAS]] (archivos divergentes) ·
+  [[BACKLOG]] (qué falta, con IDs y tamaños) · [[Aprendizajes tecnicos]] ·
+  [[Levantar Mycelium en desarrollo]].
+- Al cerrar un tema, **escribí la nota y enlazala** desde su mapa/nota madre. Las specs
+  de funcionalidad van en `docs/features/<slug>.md`; los procesos en `docs/procesos/`;
+  las decisiones en `docs/decisiones/`.
+
+> [!warning] Documentos desactualizados a propósito
+> `docs/DESKTOP-LOCAL.md` (empaquetado pre-Tauri), `docs/Roadmap general.md`
+> (brainstorming previo) y el `README.md` de la raíz (describe la estructura de la línea
+> **web**: `backend/`, `legacy/`, que no existen en `desktop-tauri`). Se conservan como
+> registro, **no** como referencia.
+
 En `frontend/` rige además [frontend/AGENTS.md](frontend/AGENTS.md): **este Next.js
 tiene cambios de API respecto a lo conocido — consultar `node_modules/next/dist/docs/`
 antes de escribir código de Next.**
@@ -193,6 +222,15 @@ orquestador** hace el merge de cada rama de feature a su principal:
 Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 `desktop-tauri` directamente.
 
+> [!tip] Alternativa: reflejar en vez de implementar en paralelo
+> Cuando el cambio **ya está hecho y confirmado por el usuario en desktop**, en lugar de
+> lanzar un subagente para web se usa la receta de [[Reflejar cambios de desktop a web]]:
+> worktree temporal de `web-cloud`, clasificar cada archivo en **compartido** (se trae
+> entero con `git checkout desktop-tauri -- <archivo>`) o **divergente** (se aplica a
+> mano o con parche `--3way`), y verificar con `npm ci` + `tsc` + `next build`. Es lo que
+> más se usó en la fase de bugs `DEF-*`. La lista viva de archivos divergentes está en
+> [[RAMAS]].
+
 ---
 
 ## Contrato del SUBAGENTE (incluir en el prompt que se le pasa)
@@ -202,13 +240,22 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
   existente (nombres, comentarios en español, idioms del repo).
 - En `frontend/` lee `frontend/AGENTS.md` y la doc de Next en `node_modules` antes de
   escribir código de Next.
-- **Verifica antes de terminar** (según lo que toques):
+- **Verifica antes de terminar** (según lo que toques) — ver [[Verificar antes de integrar]]:
   - Frontend (ambas): `cd frontend && npx tsc --noEmit -p tsconfig.json`.
-  - Desktop/Rust: `cd frontend/src-tauri && cargo check`.
+  - Desktop/Rust: `cd frontend/src-tauri && cargo check` (y `cargo test --lib <modulo>`
+    si el módulo tiene tests, p. ej. `mycignore`).
   - Web/.NET: compila el backend (`dotnet build` en `backend/`).
+  - Reflejo a web o empaquetado: además `npm ci` + `npx next build`.
   - Si hay smoke tests (`frontend/scripts/smoke-*.mjs`), adáptalos/córrelos.
-- Commits en **español**, estilo del repo (`tipo(area): descripción`). Nunca terminar con:
-  `Co-Authored-By: Claude {model} <noreply@anthropic.com>`. Siempre se harán los commits como si los creara el propio usuario. Ningún commit debe figurar como si Claude (o cualquier IA) hubiera participado
+- **Al interpretar la verificación**: no canalices el comando cuyo éxito querés evaluar
+  (`| tee`, `| grep` devuelven **su** exit code y ya reportaron éxito sobre builds rotos);
+  en Rust, el **primer** error cronológico es el que importa. Y `tsc` verde **no** prueba
+  comportamiento: lo visible lo confirma el usuario en la app.
+- Commits en **español**, estilo del repo (`tipo(area): descripción`), referenciando el ID
+  entre corchetes (`[DEF-023]`, `[FUN-L-07]`) y explicando la **causa raíz** en los fix.
+  Nunca terminar con: `Co-Authored-By: Claude {model} <noreply@anthropic.com>`. Siempre se
+  harán los commits como si los creara el propio usuario. Ningún commit debe figurar como
+  si Claude (o cualquier IA) hubiera participado. Ver [[Convenciones de commits]].
 - No hagas `push` ni toques el remoto salvo que se indique.
 - Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, dudas.
 
@@ -222,8 +269,35 @@ Usa subagentes para trabajo real que afecte a **ambas** versiones o que sea no t
 
 ## Convenciones del repo
 - Rama activa por defecto: `desktop-tauri`. Mantén el árbol limpio entre features.
-- No `push`/borrado de remoto sin confirmación del usuario.
+- **No `push`/borrado de remoto sin confirmación del usuario.** `origin` está
+  desalineado **a propósito** (tiene `desktop-cloud`, `main`, `deploy/cloudflare`; los
+  renombres se hicieron en local). Los comandos para alinearlo están en [[RAMAS]],
+  pendientes de decisión del usuario.
 - Verificación: `tsc` (frontend), `cargo check` (Rust), `dotnet build` (.NET) deben
   quedar verdes antes de integrar.
-- Memoria persistente y decisiones: se registran en engram y en
-  `~/.claude/.../memory/` (ver también los `docs/`).
+- **La memoria del proyecto vive en `docs/`** como red de notas enlazadas (entrada:
+  [[Mapa de documentacion]]). Ahí van decisiones, procesos y aprendizajes. engram y
+  `~/.claude/.../memory/` son complementos operativos, no el registro canónico.
+- `frontend/src-tauri/Cargo.toml` puede aparecer modificado por diferencia de fin de
+  línea (CRLF/LF): es ruido del working tree, no un cambio real.
+
+## Versionar y empaquetar (solo desktop)
+
+Al subir de versión hay que tocar **todos** estos lugares a mano (no hay automatización):
+`frontend/lib/version.ts` (`APP_VERSION`, es lo que ve el usuario) · `frontend/package.json`
+· `frontend/src-tauri/Cargo.toml` · `frontend/src-tauri/tauri.conf.json` (define el nombre
+del instalador). Criterio SemVer según el tamaño del cambio (`FUN-S/M/L/XL` del
+[[BACKLOG]]). **Si una rama no recibió cambios funcionales, no se le sube la versión.**
+Detalle en [[Versionado del sistema]].
+
+> [!important] El framework de IA se versiona aparte
+> `FRAMEWORK_IA_VERSION` en `frontend/lib/ia/framework.ts` **no** sigue la versión de la
+> app. Si Mycelium gana una función que la IA deba conocer → subir esa versión y
+> actualizar los templates. Historial: `1.0.0` inicial · `1.1.0` `.mycignore` + política
+> de conflictos · `1.2.0` reenfoque a memoria (el instalado en este vault).
+
+Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
+rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
+preservan en `installers/v<version>/` (fuera de git). **Nunca cambiar el
+`bundle.windows.wix.upgradeCode`** de `tauri.conf.json`: es la identidad de la app para
+Windows. Ver [[Generar instaladores desktop]].
