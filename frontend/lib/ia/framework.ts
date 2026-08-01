@@ -27,8 +27,12 @@ import { invoke } from "@tauri-apps/api/core";
  * - 1.2.0 — reenfoque: el vault es la MEMORIA de la IA. Protocolos de
  *   recuperación y consolidación, skill `mycelium-memoria`, comandos
  *   `/vault-buscar` y `/vault-recordar`, y mapa de cuándo usar cada herramienta.
+ * - 1.2.1 — corrección de texto: al cambiar el default de `.mycignore`
+ *   (`FUN-M-12`), los templates que lo describían quedaron mintiendo. Se
+ *   actualizan la regla 9 del `CLAUDE.md` y la sección `.mycignore` de la skill
+ *   `mycelium-vault`. **Patch**: el framework no gana instrucciones nuevas.
  */
-export const FRAMEWORK_IA_VERSION = "1.2.0";
+export const FRAMEWORK_IA_VERSION = "1.2.1";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -137,9 +141,10 @@ usar cada uno:
    lo regenera Mycelium. Si el usuario regenera y ya hay un archivo suyo, Mycelium
    **no lo pisa**: crea \`nombre (mycelium-ia vX).md\` al lado y un reporte
    \`Conflictos instrucciones IA.md\` en la raíz.
-9. **Visibilidad**: lo ignorado por \`.mycignore\` (por defecto, todo directorio que
-   empieza con \`.\`) existe en disco pero **no aparece en la app ni en el grafo**.
-   No escondas ahí documentación que el usuario deba ver.
+9. **Visibilidad**: lo ignorado por \`.mycignore\` existe en disco pero **no aparece
+   en la app ni en el grafo**. Por defecto se ignoran los directorios que empiezan
+   con \`.\` y las carpetas de dependencias/build (\`node_modules/\`, \`target/\`,
+   \`dist/\`, \`out/\`). No escondas ahí documentación que el usuario deba ver.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -220,7 +225,10 @@ Archivo opcional en la raíz, sintaxis tipo \`.gitignore\` **sin negaciones**:
 - \`ruta/anidada/\` (con \`/\` interno) → anclada a la raíz del vault.
 - \`*\` y \`?\` → comodines dentro de un segmento (\`*.tmp.md\`).
 - \`# …\` → comentario.
-- Sin archivo, el defecto es \`.*/\` (se ignoran los directorios ocultos).
+- Sin archivo, el defecto ignora los directorios ocultos (\`.*/\`) y las carpetas de
+  dependencias/build: \`node_modules/\`, \`target/\`, \`dist/\`, \`out/\`.
+- Si el archivo **existe**, **reemplaza al default por completo** (no hay
+  negaciones): si lo creás, repetí las líneas del default que quieras conservar.
 - \`.mycelium/\` está ignorado **siempre**.
 
 Un archivo ignorado existe en disco (podés leerlo y escribirlo) pero **no aparece
