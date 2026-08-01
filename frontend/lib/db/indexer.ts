@@ -151,13 +151,32 @@ export async function crearEsquemaIndice(): Promise<void> {
   }
 }
 
-/** Metadatos de un archivo devueltos por el comando Rust `listar_archivos_meta`. */
+/**
+ * Metadatos de un archivo devueltos por el comando Rust `listar_archivos_meta`.
+ * **Sin contenido**: el texto se pide aparte con `leer_archivos`, y solo el de
+ * los archivos que hay que reindexar (FUN-M-12).
+ */
 type ArchivoMeta = {
   rutaRelativa: string;
-  contenido: string;
   mtime: number;
   tipo: string;
 };
+
+/**
+ * Contenido de un archivo devuelto por el comando Rust `leer_archivos`.
+ * OJO: sus campos van en `snake_case` (la struct `ArchivoLeido` de Rust no lleva
+ * `rename_all`, a diferencia de `ArchivoMeta`); se respeta para no romper
+ * `leer_carpeta`, que comparte la struct.
+ */
+type ArchivoLeido = { ruta_relativa: string; contenido: string };
+
+/**
+ * Cuántas rutas se piden por llamada a `leer_archivos`. Compromiso entre
+ * round-trips del puente IPC (menos tandas = menos cruces) y memoria/latencia
+ * de cada respuesta (una tanda entera se serializa a JSON de una vez). También
+ * es el grano con el que avanza `onProgress`.
+ */
+const TANDA = 250;
 
 /** Carpeta derivada de una ruta: id (ruta POSIX), padre y nombre (basename). */
 type CarpetaDerivada = { id: string; padre_id: string | null; nombre: string };
@@ -219,6 +238,14 @@ export function tituloDeRuta(ruta: string): string {
  * `mtime`: solo se reindexa lo nuevo o cambiado; lo que ya no existe en disco se
  * borra del índice. Debe llamarse con el índice del vault ya abierto.
  *
+ * Va en DOS FASES (FUN-M-12), porque antes se traía por IPC el contenido de todo
+ * el vault en cada apertura para descartar casi todo comparando `mtime`:
+ *   (a) `listar_archivos_meta` → solo `(ruta, mtime, tipo)`; con eso se calcula
+ *       la lista de rutas a reindexar;
+ *   (b) `leer_archivos(rutas)` en tandas de `TANDA`, escribiendo el índice tanda
+ *       a tanda (así el progreso avanza y no se acumula todo en memoria).
+ * Reabrir un vault sin cambios transfiere 0 bytes de contenido.
+ *
  * Nota Excalidraw: en fase 2 su escena se guarda en `contenidos` igual que el
  * markdown (no se separan aún los `diagramas`); se simplifica así a propósito.
  *
@@ -258,13 +285,18 @@ export async function indexarVault(
   );
   const mtimePorId = new Map(notasExistentes.map((r) => [r.id, r.mtime]));
   const carpetasExistentes = await select<{ id: string }>("SELECT id FROM carpetas");
+  const idsCarpetasExistentes = new Set(carpetasExistentes.map((c) => c.id));
 
   const now = ahoraIso();
 
-  // 1) Upsert de carpetas, ordenadas por profundidad para respetar padre→hijo.
-  const carpetasOrdenadas = [...carpetas.values()].sort(
-    (a, b) => a.id.split("/").length - b.id.split("/").length,
-  );
+  // 1) Upsert de carpetas NUEVAS, ordenadas por profundidad (padre→hijo).
+  // Las que ya están en el índice se saltan (FUN-M-12): el `id` de una carpeta ES
+  // su ruta POSIX, y `nombre`/`padre_id` se derivan de esa ruta, así que si el id
+  // ya existe sus otras columnas no pueden haber cambiado. Reescribirlas costaba
+  // un statement por carpeta en TODA apertura (4020 en un vault sobre este repo).
+  const carpetasOrdenadas = [...carpetas.values()]
+    .filter((c) => !idsCarpetasExistentes.has(c.id))
+    .sort((a, b) => a.id.split("/").length - b.id.split("/").length);
   for (const c of carpetasOrdenadas) {
     await execute(
       `INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en)
@@ -277,55 +309,76 @@ export async function indexarVault(
     );
   }
 
-  // 2) Upsert incremental de notas + contenido + FTS (saltando lo no cambiado).
+  // 2) Fase (a): qué hay que reindexar. Solo se comparan `mtime`s: el contenido
+  // todavía no cruzó el puente IPC.
+  const porReindexar = archivos.filter((a) => {
+    const previo = mtimePorId.get(a.rutaRelativa);
+    return previo === undefined || previo !== a.mtime;
+  });
+  const metaPorRuta = new Map(archivos.map((a) => [a.rutaRelativa, a]));
+
+  // El progreso se mide sobre el total de archivos del vault: lo no cambiado ya
+  // está "hecho" antes de empezar, para que la barra refleje trabajo real.
+  let hechas = archivos.length - porReindexar.length;
+  onProgress?.(hechas, archivos.length);
+
+  // 3) Fase (b): pedir el contenido en tandas y escribir el índice tanda a tanda.
   let reindexadas = 0;
-  let hechas = 0;
-  for (const a of archivos) {
-    const id = a.rutaRelativa;
-    const previo = mtimePorId.get(id);
-    if (previo !== undefined && previo === a.mtime) {
-      hechas++;
-      onProgress?.(hechas, archivos.length);
-      continue; // sin cambios en disco → no se reindexa
+  for (let i = 0; i < porReindexar.length; i += TANDA) {
+    const rutas = porReindexar.slice(i, i + TANDA).map((a) => a.rutaRelativa);
+    const leidos = await invoke<ArchivoLeido[]>("leer_archivos", {
+      origen: vaultRuta,
+      rutas,
+    });
+
+    for (const leido of leidos) {
+      const id = leido.ruta_relativa;
+      // `leer_archivos` puede devolver menos entradas de las pedidas (archivo
+      // borrado entre las dos fases, o no UTF-8): se toma lo que llegó.
+      const meta = metaPorRuta.get(id);
+      if (!meta) continue;
+
+      const titulo = tituloDeRuta(id);
+      const carpetaId = carpetaDeArchivo(id);
+      const bytes = byteLen(leido.contenido);
+
+      await execute(
+        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           carpeta_id = excluded.carpeta_id,
+           titulo = excluded.titulo,
+           tipo = excluded.tipo,
+           tamano_bytes = excluded.tamano_bytes,
+           mtime = excluded.mtime,
+           actualizado_en = excluded.actualizado_en`,
+        [id, VAULT_ID, carpetaId, titulo, meta.tipo, bytes, meta.mtime, now, now],
+      );
+
+      // Contenido: Excalidraw se guarda igual que el markdown (fase 2 no separa
+      // diagramas). Upsert como en `contenido.ts`.
+      await execute(
+        `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
+         ON CONFLICT(nota_id) DO UPDATE SET
+           contenido = excluded.contenido,
+           actualizado_en = excluded.actualizado_en`,
+        [id, leido.contenido, now],
+      );
+
+      // Reindex FTS (delete + insert), como `TouchNotaContenidoAsync`/`contenido.ts`.
+      await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
+      await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
+        id,
+        titulo,
+        leido.contenido,
+      ]);
+
+      reindexadas++;
     }
 
-    const titulo = tituloDeRuta(id);
-    const carpetaId = carpetaDeArchivo(id);
-    const bytes = byteLen(a.contenido);
-
-    await execute(
-      `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         carpeta_id = excluded.carpeta_id,
-         titulo = excluded.titulo,
-         tipo = excluded.tipo,
-         tamano_bytes = excluded.tamano_bytes,
-         mtime = excluded.mtime,
-         actualizado_en = excluded.actualizado_en`,
-      [id, VAULT_ID, carpetaId, titulo, a.tipo, bytes, a.mtime, now, now],
-    );
-
-    // Contenido: Excalidraw se guarda igual que el markdown (fase 2 no separa
-    // diagramas). Upsert como en `contenido.ts`.
-    await execute(
-      `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
-       ON CONFLICT(nota_id) DO UPDATE SET
-         contenido = excluded.contenido,
-         actualizado_en = excluded.actualizado_en`,
-      [id, a.contenido, now],
-    );
-
-    // Reindex FTS (delete + insert), como `TouchNotaContenidoAsync`/`contenido.ts`.
-    await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
-    await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
-      id,
-      titulo,
-      a.contenido,
-    ]);
-
-    reindexadas++;
-    hechas++;
+    // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
+    // las devueltas, para que el progreso llegue al total aunque alguna se omita.
+    hechas += rutas.length;
     onProgress?.(hechas, archivos.length);
   }
 

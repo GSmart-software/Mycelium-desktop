@@ -2,8 +2,8 @@
 //!
 //! Cada vault puede tener un archivo `.mycignore` en su raíz que decide qué
 //! archivos/carpetas IGNORA Mycelium al indexar y al observar cambios. Sin el
-//! archivo, el comportamiento por defecto es el histórico: ignorar todos los
-//! directorios ocultos (`.*/`).
+//! archivo, el comportamiento por defecto ignora los directorios ocultos (`.*/`)
+//! y las carpetas de build/dependencias más habituales (ver `DEFAULT`).
 //!
 //! Sintaxis (subconjunto de gitignore, sin negaciones):
 //! - Líneas vacías y `# comentarios` se omiten.
@@ -18,8 +18,17 @@ use std::path::Path;
 /// Nombre del archivo de configuración en la raíz del vault.
 pub const ARCHIVO: &str = ".mycignore";
 
-/// Comportamiento cuando el vault no tiene `.mycignore`.
-const DEFAULT: &str = ".*/";
+/// Comportamiento cuando el vault no tiene `.mycignore`: directorios ocultos +
+/// las carpetas de dependencias/build que hacen que abrir un repo como vault
+/// indexe decenas de miles de archivos que no son notas (FUN-M-12).
+///
+/// `build/` y `vendor/` quedan fuera a propósito: es más probable que sean
+/// carpetas legítimas de notas que ruido de compilación.
+///
+/// OJO: un `.mycignore` presente **reemplaza este default por completo** (la
+/// sintaxis no tiene negaciones). Quien tenga notas en una carpeta llamada
+/// `dist` escribe su propio archivo sin esa línea.
+const DEFAULT: &str = ".*/\nnode_modules/\ntarget/\ndist/\nout/";
 
 /// Un patrón parseado del `.mycignore`.
 pub struct Patron {
@@ -122,6 +131,28 @@ mod tests {
         assert!(ignorada(".claude/commands/x.md", false, &p));
         assert!(!ignorada(".mycignore", false, &p)); // archivo oculto, no dir
         assert!(!ignorada("notas/a.md", false, &p));
+    }
+
+    /// El default (sin `.mycignore` en el vault) tiene que cubrir las carpetas
+    /// de dependencias/build: es lo que hace que abrir un repo como vault no
+    /// indexe los README de `node_modules` (FUN-M-12).
+    #[test]
+    fn default_ignora_carpetas_de_dependencias_y_build() {
+        let p = parsear(DEFAULT);
+        assert!(ignorada("node_modules", true, &p));
+        assert!(ignorada("node_modules/react/README.md", false, &p));
+        assert!(ignorada("frontend/node_modules/x/LEEME.md", false, &p));
+        assert!(ignorada("frontend/src-tauri/target/debug/x.md", false, &p));
+        assert!(ignorada("dist", true, &p));
+        assert!(ignorada("out/index.md", false, &p));
+        // Sigue ignorando los ocultos, y NO toca las notas de verdad.
+        assert!(ignorada(".git/config", false, &p));
+        assert!(!ignorada("docs/BACKLOG.md", false, &p));
+        // `build/` y `vendor/` quedan fuera del default a propósito.
+        assert!(!ignorada("build/nota.md", false, &p));
+        assert!(!ignorada("vendor/nota.md", false, &p));
+        // Un archivo (no directorio) llamado `dist` no cae: los patrones son `dir/`.
+        assert!(!ignorada("dist", false, &p));
     }
 
     #[test]

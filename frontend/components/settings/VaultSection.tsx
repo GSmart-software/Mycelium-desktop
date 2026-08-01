@@ -136,13 +136,20 @@ export function VaultSection() {
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
 
-  // Plantilla por defecto del .mycignore (mismo comportamiento que sin archivo).
+  // Plantilla por defecto del .mycignore: DEBE espejar `mycignore::DEFAULT` de
+  // `src-tauri/src/mycignore.rs` para que siga siendo "lo mismo que sin archivo".
   const IGNORE_DEFAULT =
     "# .mycignore — qué ignora Mycelium en este vault (uno por línea)\n" +
     "# nombre/ = carpetas con ese nombre en cualquier nivel\n" +
     "# ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario\n" +
     "# .mycelium/ (índice interno) se ignora siempre.\n" +
-    ".*/\n";
+    "# Esto es el comportamiento por defecto: borrá la línea que no te sirva\n" +
+    "# (p. ej. si tenés notas en una carpeta llamada dist).\n" +
+    ".*/\n" +
+    "node_modules/\n" +
+    "target/\n" +
+    "dist/\n" +
+    "out/\n";
 
   const abrirIgnore = async () => {
     if (!rutaVault) return;
@@ -337,8 +344,11 @@ export function VaultSection() {
         <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
           Como un <code>.gitignore</code>, propio de cada vault: decide qué carpetas y
           archivos NO se indexan ni aparecen. Por defecto se ignoran los directorios
-          ocultos (<code>.*/</code>); editalo para, p. ej., dejar de ignorar
-          <code> .claude/</code> y ver esa documentación en Mycelium.
+          ocultos (<code>.*/</code>) y las carpetas de dependencias y compilación
+          (<code>node_modules/</code>, <code>target/</code>, <code>dist/</code>,
+          <code> out/</code>). Editalo para, p. ej., dejar de ignorar
+          <code> .claude/</code> y ver esa documentación en Mycelium. Ojo: si creás el
+          archivo, <strong>reemplaza al default por completo</strong>.
         </p>
         {rutaVault ? (
           ignoreTexto === null ? (

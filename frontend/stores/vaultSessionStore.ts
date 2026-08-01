@@ -32,6 +32,12 @@ type VaultSessionState = {
   rutaActual: string | null;
   /** true mientras se abre/indexa un vault. */
   abriendo: boolean;
+  /**
+   * Avance del indexado mientras `abriendo` es true, o `null` fuera de él
+   * (FUN-M-12). Lo alimenta el `onProgress` de `indexarVault`, que hasta ahora
+   * no tenía ningún llamador: el usuario veía un spinner mudo.
+   */
+  progreso: { hechas: number; total: number } | null;
   /** Detalle del último fallo de `abrir()` (null si no hubo). */
   error: string | null;
   /** Abre un vault (índice + seed + indexado). Devuelve true si quedó listo. */
@@ -43,10 +49,11 @@ type VaultSessionState = {
 export const useVaultSessionStore = create<VaultSessionState>((set) => ({
   rutaActual: null,
   abriendo: false,
+  progreso: null,
   error: null,
 
   async abrir(ruta) {
-    set({ abriendo: true, error: null });
+    set({ abriendo: true, error: null, progreso: null });
     // Vaciar la caché del grafo del vault anterior: en modo carpeta todos los
     // vaults comparten `LOCAL_VAULT_ID`, así que el grafo no detecta el cambio
     // por sí solo y mostraría el del vault previo.
@@ -59,7 +66,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // A partir de aquí los repos escriben también en disco (modo carpeta).
       setVaultActual(ruta);
       await ensureSeed();
-      await indexarVault(ruta);
+      await indexarVault(ruta, (hechas, total) => set({ progreso: { hechas, total } }));
+      set({ progreso: null }); // el indexado terminó: la UI vuelve al spinner
       await marcarAcceso(ruta);
       // Recargar la sesión (usuario/vaults) y las preferencias DESDE ESTE índice:
       // cada vault tiene sus propios ajustes (grafo, tipografía, tema…). Sin esto,
@@ -81,12 +89,12 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       } catch {
         // sessionStorage puede no estar disponible: no es fatal, solo no persiste.
       }
-      set({ rutaActual: ruta, abriendo: false, error: null });
+      set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
       return true;
     } catch (error) {
       console.error("[vault] fallo al abrir el vault:", error);
       const message = error instanceof Error ? error.message : "Error desconocido";
-      set({ abriendo: false, error: message });
+      set({ abriendo: false, progreso: null, error: message });
       return false;
     }
   },
@@ -107,7 +115,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     } catch {
       // sin sessionStorage no hay nada que limpiar
     }
-    set({ rutaActual: null, error: null });
+    set({ rutaActual: null, progreso: null, error: null });
   },
 }));
 
