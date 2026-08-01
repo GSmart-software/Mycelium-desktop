@@ -286,8 +286,11 @@ Usa subagentes para trabajo real que afecte a **ambas** versiones o que sea no t
 Al subir de versión hay que tocar **todos** estos lugares a mano (no hay automatización):
 `frontend/lib/version.ts` (`APP_VERSION`, es lo que ve el usuario) · `frontend/package.json`
 · `frontend/src-tauri/Cargo.toml` · `frontend/src-tauri/tauri.conf.json` (define el nombre
-del instalador). Criterio SemVer según el tamaño del cambio (`FUN-S/M/L/XL` del
-[[BACKLOG]]). **Si una rama no recibió cambios funcionales, no se le sube la versión.**
+del instalador). El criterio SemVer lo decide **qué cambia para el usuario**, no el
+tamaño del trabajo: si no puede hacer nada que antes no pudiera, es **patch** —aunque el
+cambio haya costado mucho—; si gana funcionalidad, minor; si es rearquitectura, major.
+Los tamaños del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
+**Si una rama no recibió cambios funcionales, no se le sube la versión.**
 Detalle en [[Versionado del sistema]].
 
 > [!important] El framework de IA se versiona aparte
