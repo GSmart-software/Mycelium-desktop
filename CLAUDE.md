@@ -131,7 +131,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **1.1.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **1.1.1** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **1.0.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores).
@@ -294,7 +294,8 @@ Detalle en [[Versionado del sistema]].
 > `FRAMEWORK_IA_VERSION` en `frontend/lib/ia/framework.ts` **no** sigue la versión de la
 > app. Si Mycelium gana una función que la IA deba conocer → subir esa versión y
 > actualizar los templates. Historial: `1.0.0` inicial · `1.1.0` `.mycignore` + política
-> de conflictos · `1.2.0` reenfoque a memoria (el instalado en este vault).
+> de conflictos · `1.2.0` reenfoque a memoria (**el instalado en este vault**) · `1.2.1`
+> default de `.mycignore` corregido en los templates (disponible, sin regenerar acá).
 
 Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
 rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
