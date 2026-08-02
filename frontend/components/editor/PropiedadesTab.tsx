@@ -249,14 +249,21 @@ function FilaPropiedad({
   onRenombrar: (clave: string, nueva: string) => void;
   onQuitar: (clave: string) => void;
 }) {
-  const serializado = JSON.stringify(p.valor);
+  const serializado = `${p.clave} ${p.tipo} ${JSON.stringify(p.valor)}`;
   const [clave, setClave] = useState(p.clave);
   const [borrador, setBorrador] = useState(() => comoTexto(p));
   const [nuevoItem, setNuevoItem] = useState("");
   const itemRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => setClave(p.clave), [p.clave]);
-  useEffect(() => setBorrador(comoTexto(p)), [serializado, p.tipo]);
+  // Cuando la propiedad cambia en el documento, el borrador se resetea DURANTE el
+  // render y no en un efecto: así no hay un pintado intermedio con el valor viejo,
+  // y —a diferencia de una `key`— el campo no se remonta ni pierde el foco.
+  const [vistoDe, setVistoDe] = useState(serializado);
+  if (vistoDe !== serializado) {
+    setVistoDe(serializado);
+    setClave(p.clave);
+    setBorrador(comoTexto(p));
+  }
 
   const lista = Array.isArray(p.valor) ? p.valor : [];
 
