@@ -19,8 +19,14 @@
  *   previsualización) y hacer visibles con botones las flechas de historial que
  *   antes solo existían en los botones auxiliares del ratón. Ninguna suma minor:
  *   no hay capacidad nueva, se corrige y se muestra lo que ya existía.
+ * - `1.2.0` — solo desktop: **metadatos YAML** (`FUN-M-04`). El frontmatter deja
+ *   de ser texto y pasa a ser propiedades: tarjeta en lectura y en la vista en
+ *   vivo, pestaña PROPIEDADES en el panel de la nota, tabla `propiedades` en el
+ *   índice y filtro `clave:valor` en el buscador. **Minor** (una funcionalidad,
+ *   un minor; el patch vuelve a 0): el usuario puede hacer algo que antes no
+ *   podía — dar atributos a sus notas y consultarlos.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión.
  */
-export const APP_VERSION = "1.1.5";
+export const APP_VERSION = "1.2.0";
