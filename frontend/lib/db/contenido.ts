@@ -8,6 +8,7 @@
  */
 import { execute, select } from "./client";
 import { DbError } from "./errors";
+import { reindexarPropiedades, textoIndexable } from "./propiedades";
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
 import { getVaultActual } from "./vaultContext";
@@ -51,13 +52,16 @@ export async function putContenido(id: string, contenido: string | null): Promis
     now,
     id,
   ]);
-  // Reindex FTS (delete + insert), como TouchNotaContenidoAsync.
+  // Reindex FTS (delete + insert), como TouchNotaContenidoAsync. Lo que se indexa
+  // es el CUERPO + los VALORES de las propiedades: el YAML crudo (las claves, los
+  // guiones) ensuciaba la búsqueda y los fragmentos de resultado (FUN-M-04).
   await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
   await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
     id,
     notas[0].titulo,
-    texto,
+    textoIndexable(texto),
   ]);
+  await reindexarPropiedades(id, texto);
 
   return { actualizadoEn: now };
 }

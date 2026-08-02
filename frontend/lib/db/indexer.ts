@@ -19,6 +19,7 @@
  */
 import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
+import { reindexarPropiedades, textoIndexable } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 
 /**
@@ -125,6 +126,19 @@ const ESQUEMA_INDICE: string[] = [
      titulo,
      contenido
    )`,
+  // Propiedades del frontmatter YAML (FUN-M-04). Una fila POR ELEMENTO de lista
+  // (`orden` = posición; 0 si es escalar), para poder filtrar con `=` en vez de
+  // `LIKE`. Es una tabla NUEVA del índice: no existe en `001_init.sql`, porque
+  // se deriva del contenido igual que `notas_fts`.
+  `CREATE TABLE IF NOT EXISTS propiedades (
+     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     clave   TEXT NOT NULL,
+     valor   TEXT NOT NULL,
+     tipo    TEXT NOT NULL,
+     orden   INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_propiedades_nota  ON propiedades(nota_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_propiedades_clave ON propiedades(clave, valor)`,
   `CREATE TABLE IF NOT EXISTS css_snippets (
      id          TEXT PRIMARY KEY,
      usuario_id  TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -256,6 +270,16 @@ export async function indexarVault(
   vaultRuta: string,
   onProgress?: (hechas: number, total: number) => void,
 ): Promise<{ notas: number; carpetas: number; reindexadas: number }> {
+  // ¿El índice es anterior a las propiedades (FUN-M-04)? Se pregunta ANTES de
+  // crear el esquema: si la tabla todavía no existe, ninguna nota tiene sus
+  // propiedades indexadas y el `mtime` no cambió, así que el reindexado
+  // incremental las saltaría todas. Una vez creada la tabla, esto no vuelve a
+  // dispararse: es una reindexación completa y única.
+  const tablaPropiedades = await select<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'propiedades'",
+  );
+  const forzarTodo = (tablaPropiedades[0]?.n ?? 0) === 0;
+
   await crearEsquemaIndice();
 
   const { invoke } = await import("@tauri-apps/api/core");
@@ -312,6 +336,7 @@ export async function indexarVault(
   // 2) Fase (a): qué hay que reindexar. Solo se comparan `mtime`s: el contenido
   // todavía no cruzó el puente IPC.
   const porReindexar = archivos.filter((a) => {
+    if (forzarTodo) return true;
     const previo = mtimePorId.get(a.rutaRelativa);
     return previo === undefined || previo !== a.mtime;
   });
@@ -366,12 +391,14 @@ export async function indexarVault(
       );
 
       // Reindex FTS (delete + insert), como `TouchNotaContenidoAsync`/`contenido.ts`.
+      // Al índice va el CUERPO + los VALORES de las propiedades, no el YAML crudo.
       await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
       await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
         id,
         titulo,
-        leido.contenido,
+        textoIndexable(leido.contenido),
       ]);
+      await reindexarPropiedades(id, leido.contenido);
 
       reindexadas++;
     }
@@ -387,6 +414,7 @@ export async function indexarVault(
   for (const { id } of notasExistentes) {
     if (rutasActuales.has(id)) continue;
     await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
+    await execute("DELETE FROM propiedades WHERE nota_id = ?", [id]);
     await execute("DELETE FROM contenidos WHERE nota_id = ?", [id]);
     await execute("DELETE FROM diagramas WHERE nota_id = ?", [id]);
     await execute("DELETE FROM papelera WHERE nota_id = ?", [id]);

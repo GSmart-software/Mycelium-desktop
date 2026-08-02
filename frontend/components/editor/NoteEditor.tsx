@@ -30,7 +30,7 @@ import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { EVENTO_RECARGA } from "@/lib/vaultWatch";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { ExcalidrawModal } from "./ExcalidrawModal";
@@ -248,7 +248,7 @@ export function NoteEditor({
       if (previewTimer.current) clearTimeout(previewTimer.current);
       previewTimer.current = setTimeout(() => {
         if (modeRef.current === "split" || modeRef.current === "read") {
-          setPreviewHtml(renderMarkdown(contentRef.current));
+          setPreviewHtml(renderNota(contentRef.current));
         }
       }, PREVIEW_DEBOUNCE_MS);
     },
@@ -339,7 +339,7 @@ export function NoteEditor({
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
                 if (modeRef.current === "split" || modeRef.current === "read") {
-                  setPreviewHtml(renderMarkdown(doc));
+                  setPreviewHtml(renderNota(doc));
                 }
                 return;
               }
@@ -412,7 +412,7 @@ export function NoteEditor({
         };
       }
 
-      setPreviewHtml(renderMarkdown(content));
+      setPreviewHtml(renderNota(content));
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendingTerm = takePendingMatch(notaId);
@@ -461,10 +461,14 @@ export function NoteEditor({
       remoteUpdatedAtRef.current = remote.actualizadoEn;
       saveLocal();
       setSyncState("synced");
+      // El cambio vino de disco, así que el updateListener no publicó nada: se
+      // avisa a mano para que los suscriptores (el panel de propiedades, otras
+      // instancias de la nota) no se queden con el texto viejo.
+      publishDoc(notaId, instanceId, remote.contenido);
     } catch {
       // Best-effort: si falla la relectura, no se toca lo que hay en pantalla.
     }
-  }, [notaId, applyContent, saveLocal, setSyncState]);
+  }, [notaId, instanceId, applyContent, saveLocal, setSyncState]);
 
   // ── Carga inicial: IndexedDB primero (HU-19), remoto después ───
 
@@ -633,7 +637,7 @@ export function NoteEditor({
         ),
       });
       if (next === "split" || next === "read") {
-        setPreviewHtml(renderMarkdown(contentRef.current));
+        setPreviewHtml(renderNota(contentRef.current));
       }
     },
     [notaId, openByTitle, noteExists],
@@ -933,7 +937,7 @@ export function NoteEditor({
           </div>
         )}
       </div>
-        {metaPanelOpen && <NotePanel notaId={notaId} />}
+        {metaPanelOpen && <NotePanel notaId={notaId} paneId={paneId} />}
       </div>
 
       {diagMenu && <ContextMenu {...diagMenu} onClose={() => setDiagMenu(null)} />}

@@ -19,7 +19,8 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderMarkdown, tarjetaPropiedadesHtml } from "@/lib/markdown";
+import { separarFrontmatter } from "@/lib/frontmatter";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
@@ -162,7 +163,130 @@ const tableField = StateField.define<TableState>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
 });
 
-/** Extensiones del modo `live`: highlight + tablas (block) + decoraciones inline. */
+/**
+ * Widget de bloque que reemplaza el frontmatter YAML por la tarjeta de
+ * propiedades (`FUN-M-04`). Es de **solo lectura** a propósito: no lleva
+ * controles ni edita el documento. Las propiedades se editan en la pestaña
+ * PROPIEDADES del panel de la nota o escribiendo el YAML a mano — los widgets
+ * interactivos dentro de CodeMirror son de donde salieron `DEF-031`/`DEF-037`.
+ */
+class FrontmatterWidget extends WidgetType {
+  /** Filas de la tarjeta, para estimar el alto del bloque (ver abajo). */
+  private readonly filas: number;
+
+  constructor(readonly texto: string) {
+    super();
+    const fm = separarFrontmatter(texto);
+    this.filas = !fm.hay
+      ? 0
+      : fm.soportado
+        ? fm.props.length
+        : fm.crudo.split("\n").length + 1;
+  }
+
+  eq(other: FrontmatterWidget) {
+    return other.texto === this.texto;
+  }
+
+  toDOM() {
+    const wrap = document.createElement("div");
+    wrap.className = "mic-preview mic-live-props";
+    wrap.innerHTML = tarjetaPropiedadesHtml(this.texto);
+    // Los enlaces de la tarjeta (wikilinks, `#tag:`) navegan en la vista de
+    // lectura, no acá: dentro del editor un href `#…` cambiaría la URL del
+    // workspace. El clic queda para CodeMirror, que coloca el cursor dentro del
+    // bloque y así revela la fuente.
+    wrap.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("a")) event.preventDefault();
+    });
+    return wrap;
+  }
+
+  /**
+   * Altura estimada del bloque. OBLIGATORIA: sin ella CodeMirror estima mal la
+   * altura del widget fuera de pantalla y su height-map diverge del layout real,
+   * que es exactamente la causa raíz de `DEF-031`/`DEF-037` (gutter corrido,
+   * clic que selecciona de más, scroll del buscador roto). Estimación: una fila
+   * por propiedad (~28px) + el padding de la tarjeta y del envoltorio.
+   */
+  get estimatedHeight() {
+    return Math.max(1, this.filas) * 28 + 30;
+  }
+
+  ignoreEvent() {
+    return false; // el clic lo gestiona CodeMirror (coloca el cursor → revela)
+  }
+}
+
+type FrontmatterState = { decorations: DecorationSet; ranges: [number, number][] };
+
+/**
+ * Calcula el bloque de frontmatter a renderizar. Igual que las tablas, es una
+ * decoración de BLOQUE y por eso vive en un StateField (un ViewPlugin rompe el
+ * layout de CodeMirror).
+ *
+ * El rango se devuelve SIEMPRE, esté plegado o no: aunque el cursor esté dentro
+ * y se vea el YAML crudo, el resto del live preview debe ignorar esas líneas
+ * (el `---` no es una regla horizontal, y los `#` del YAML no son etiquetas).
+ */
+function computeFrontmatter(state: EditorState): FrontmatterState {
+  const builder = new RangeSetBuilder<Decoration>();
+  const ranges: [number, number][] = [];
+  const doc = state.doc;
+  const vacio = () => ({ decorations: builder.finish(), ranges });
+
+  // Mismas reglas de detección que `separarFrontmatter`, pero sobre las líneas
+  // del documento: así no hay que serializar la nota entera en cada pulsación.
+  if (doc.lines < 2 || sinCr(doc.line(1).text) !== "---") return vacio();
+  let cierre = 0;
+  // El tope acota el coste en el caso patológico: una nota que EMPIEZA con una
+  // regla horizontal `---` y no cierra nunca haría recorrer el documento entero
+  // en cada pulsación. Un frontmatter más largo que esto no es realista.
+  const tope = Math.min(doc.lines, 500);
+  for (let n = 2; n <= tope; n++) {
+    const t = sinCr(doc.line(n).text);
+    if (t === "---" || t === "...") {
+      cierre = n;
+      break;
+    }
+  }
+  if (cierre === 0) return vacio();
+
+  const desde = doc.line(1).from;
+  const hasta = doc.line(cierre).to;
+  ranges.push([desde, hasta]);
+
+  // Cursor dentro del bloque → se muestra la fuente (como tablas y callouts).
+  for (const r of state.selection.ranges) {
+    if (doc.lineAt(r.from).number <= cierre) return vacio();
+  }
+
+  builder.add(
+    desde,
+    hasta,
+    Decoration.replace({
+      widget: new FrontmatterWidget(doc.sliceString(desde, hasta)),
+      block: true,
+    }),
+  );
+  return { decorations: builder.finish(), ranges };
+}
+
+const sinCr = (linea: string): string => (linea.endsWith("\r") ? linea.slice(0, -1) : linea);
+
+/** Frontmatter renderizado como tarjeta (decoración de bloque) — vía StateField. */
+const frontmatterField = StateField.define<FrontmatterState>({
+  create: (state) => computeFrontmatter(state),
+  update(value, tr) {
+    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshLiveEffect))) {
+      return computeFrontmatter(tr.state);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
+});
+
+/** Extensiones del modo `live`: highlight + bloques + decoraciones inline. */
 export function liveExtensions(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
@@ -170,6 +294,7 @@ export function liveExtensions(
 ): Extension {
   return [
     syntaxHighlighting(micelioHighlight),
+    frontmatterField,
     tableField,
     livePreview(onWikilinkClick, noteExists, notaId),
   ];
@@ -405,16 +530,20 @@ function buildDecorations(
     for (let line = fromLine; line <= toLine; line++) activeLines.add(line);
   }
 
-  // Rangos de tablas renderizadas (las calcula tableField); se omiten aquí.
-  const renderedTables = view.state.field(tableField, false)?.ranges ?? [];
+  // Rangos que ya gestionan los StateFields de bloque (tablas y frontmatter): se
+  // omiten aquí para no decorar dos veces ni solapar rangos en el RangeSet.
+  const bloquesRenderizados = [
+    ...(view.state.field(frontmatterField, false)?.ranges ?? []),
+    ...(view.state.field(tableField, false)?.ranges ?? []),
+  ];
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
       to,
       enter(node) {
-        // Omitir cualquier nodo dentro de una tabla renderizada como bloque
-        if (renderedTables.some(([f, t]) => node.from >= f && node.from < t)) {
+        // Omitir cualquier nodo dentro de un bloque ya renderizado (tabla/frontmatter)
+        if (bloquesRenderizados.some(([f, t]) => node.from >= f && node.from < t)) {
           return false;
         }
 
@@ -567,8 +696,8 @@ function buildDecorations(
     while (pos <= to) {
       const line = doc.lineAt(pos);
 
-      // Saltar líneas que quedaron dentro de una tabla renderizada
-      if (renderedTables.some(([f, t]) => line.from >= f && line.from <= t)) {
+      // Saltar líneas que quedaron dentro de un bloque ya renderizado
+      if (bloquesRenderizados.some(([f, t]) => line.from >= f && line.from <= t)) {
         if (line.to >= to) break;
         pos = line.to + 1;
         continue;

@@ -31,8 +31,14 @@ import { invoke } from "@tauri-apps/api/core";
  *   (`FUN-M-12`), los templates que lo describían quedaron mintiendo. Se
  *   actualizan la regla 9 del `CLAUDE.md` y la sección `.mycignore` de la skill
  *   `mycelium-vault`. **Patch**: el framework no gana instrucciones nuevas.
+ * - 1.3.0 — **propiedades del frontmatter** (`FUN-M-04`): hasta 1.2.1 los
+ *   templates afirmaban que el frontmatter YAML no se interpreta, que pasó a ser
+ *   falso. La regla dura 6 del `CLAUDE.md` y la skill `mycelium-vault` describen
+ *   ahora el subconjunto soportado, que `tags:` son etiquetas de la nota y que
+ *   los valores se consultan con `clave:valor`. **Minor**: la IA gana
+ *   instrucciones sobre una capacidad nueva del vault.
  */
-export const FRAMEWORK_IA_VERSION = "1.2.1";
+export const FRAMEWORK_IA_VERSION = "1.3.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -133,9 +139,16 @@ usar cada uno:
 4. **No dupliques**: buscá antes de crear; ampliá antes de fragmentar.
 5. **Estructura**: usá las carpetas/áreas que ya existen; no crees jerarquías
    paralelas.
-6. **Frontmatter YAML** (\`---\` al inicio): podés usarlo para metadatos, pero
-   Mycelium **aún no lo interpreta** (lo muestra como texto). Con moderación y
-   consistencia.
+6. **Propiedades** (frontmatter YAML entre \`---\` al inicio de la nota): Mycelium
+   **las interpreta**. Soporta un mapa PLANO cuyos valores sean texto, número,
+   casilla (\`true\`/\`false\`), fecha (\`YYYY-MM-DD\`), fecha y hora
+   (\`YYYY-MM-DDTHH:mm\`) o lista (\`[a, b]\` o con \`- \`). \`tags:\` son
+   **etiquetas de la nota**, igual que los \`#tag\` del cuerpo. Los valores se
+   consultan en la búsqueda con \`clave:valor\`. Lo que NO soporta —mapas
+   anidados, escalares multilínea (\`|\`, \`>\`), anclas/alias, listas de mapas,
+   claves repetidas— no se rompe, pero esa nota se muestra cruda y sin
+   propiedades: evitalo. Usá propiedades con moderación y con claves consistentes
+   (reusá las que ya existen en el vault en vez de inventar sinónimos).
 7. **Idioma**: el dominante del vault.
 8. **No toques** \`.mycelium/\` (índice interno + papelera). No edites \`.claude/\`:
    lo regenera Mycelium. Si el usuario regenera y ya hay un archivo suyo, Mycelium
@@ -152,9 +165,10 @@ No controlás la aplicación: trabajás sobre sus archivos. Pero es útil saber 
 el usuario, porque es el efecto de lo que escribís: editor Markdown con vista en
 vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`caution\`,
 \`info\`, \`success\`, \`error\`, \`danger\`, \`question\`; plegables con \`[!tipo]-\`),
-incluso anidados; **grafo de conexiones** global y mini-grafo por nota (tus enlaces
-se ven ahí); búsqueda global; panel lateral con pestañas ancladas; **terminal
-integrada** (es probable que estés corriendo en ella, con cwd en el vault);
+incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
+como pestaña editable en el panel; **grafo de conexiones** global y mini-grafo por
+nota (tus enlaces se ven ahí); búsqueda global (\`clave:valor\`, \`tag:x\`); panel
+lateral con pestañas ancladas; **terminal integrada** (es probable que estés corriendo en ella, con cwd en el vault);
 exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (\`\`\`mermaid) y KaTeX
 (\`$…$\`). Mycelium detecta tus cambios en disco y refresca la UI solo.
 `;
@@ -179,6 +193,7 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 | Embed de nota | \`![[Título]]\` | Muestra el contenido inline |
 | Embed de diagrama | \`![[Título.excalidraw]]\` | Renderiza el dibujo |
 | Etiqueta | \`#tag\` | Píldora clicable |
+| Propiedades | bloque \`---\` al inicio | Mapa plano \`clave: valor\` (ver abajo) |
 | Callout | \`> [!note] Título\` | Tipos: note, tip, important, warning, caution, info, success, error, danger, question |
 | Callout plegable | \`> [!tip]- Título\` | \`-\` plegado, \`+\` desplegado |
 | Callout anidado | \`> > [!info]\` | Un nivel de \`>\` por profundidad |
@@ -216,6 +231,47 @@ grep -rl "#tema" --include="*.md" .
 - **Enlaces rotos**: \`[[Objetivo]]\` sin archivo \`Objetivo.md\` en el vault
   (contemplar alias \`[[Objetivo|…]]\` y embeds \`![[Objetivo]]\`).
 
+## Propiedades (frontmatter YAML)
+
+El bloque entre \`---\` al **inicio** del archivo (primera línea, sin espacios
+delante; se cierra con \`---\` o \`...\`) son las **propiedades** de la nota:
+Mycelium las muestra como tarjeta, las deja editar en el panel PROPIEDADES y las
+indexa para poder consultarlas.
+
+Subconjunto soportado — un **mapa plano** cuyos valores sean:
+
+| Tipo | Se escribe | Ejemplo |
+|---|---|---|
+| Texto | escalar suelto o entrecomillado | \`estado: activo\` |
+| Número | entero o decimal | \`prioridad: 3\` |
+| Casilla | \`true\` / \`false\` | \`publicado: false\` |
+| Fecha | \`YYYY-MM-DD\` | \`vence: 2026-08-30\` |
+| Fecha y hora | \`YYYY-MM-DDTHH:mm\` | \`reunion: 2026-08-30T15:00\` |
+| Lista | \`[a, b]\` o una línea \`- \` por elemento | \`tags: [proyecto, activo]\` |
+
+- **\`tags:\`** es la única clave con comportamiento: sus valores son **etiquetas
+  de la nota**, se suman a los \`#tag\` del cuerpo y navegan igual. Se aceptan con
+  y sin \`#\`.
+- Un escalar entrecomillado es siempre texto (\`version: "1.0"\` NO es número).
+- Un \`[[enlace]]\` dentro de un valor cuenta como enlace saliente y se ve en el grafo.
+- **No soportado**: mapas anidados, escalares multilínea (\`|\`, \`>\`), anclas y
+  alias (\`&\`/\`*\`), etiquetas (\`!!\`), listas de mapas y claves repetidas. Esa
+  nota no se rompe, pero se muestra cruda y sin propiedades. No lo uses.
+- **Reusá las claves que ya existen** en el vault en vez de inventar sinónimos
+  (\`estado\` / \`Estado\` / \`status\` fragmentan la memoria):
+  \`grep -rh "^[a-zA-Z_-]*:" --include="*.md" . | sort -u\`.
+- En la búsqueda de Mycelium, \`clave:valor\` filtra por propiedad y \`tag:x\` por
+  etiqueta.
+
+\`\`\`md
+---
+estado: activo
+prioridad: 3
+tags: [proyecto, mycelium]
+relacionada: "[[Mapa del vault]]"
+---
+\`\`\`
+
 ## \`.mycignore\`: qué ve Mycelium
 
 Archivo opcional en la raíz, sintaxis tipo \`.gitignore\` **sin negaciones**:
@@ -239,7 +295,9 @@ revisá este archivo primero.
 
 - Renombrar una nota **no** actualiza los \`[[enlaces]]\` que la apuntaban: hacelo vos.
 - Mycelium reindexa solo al detectar cambios en disco: no hace falta avisar.
-- El frontmatter YAML todavía no se interpreta (se ve como texto).
+- El frontmatter que cae fuera del subconjunto soportado se muestra crudo y la
+  nota queda sin propiedades indexadas: revisalo antes de dar por hecho que se
+  guardaron.
 `;
 
 const SKILL_MEMORIA_MD = `---

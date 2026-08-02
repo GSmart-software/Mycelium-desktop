@@ -77,6 +77,41 @@ export function outdentLine(view: EditorView) {
   indentLess(view);
 }
 
+/**
+ * Aplica al documento el texto `nuevo` con UNA transacción que cambia el rango
+ * MÍNIMO que difiere (prefijo/sufijo comunes descartados). Lo usa el panel de
+ * propiedades (`FUN-M-04`).
+ *
+ * Es deliberado que el panel NO escriba el archivo por su cuenta: si llamara a
+ * `putContenido` mientras el editor tiene el documento montado, el siguiente
+ * autoguardado del editor (debounce de 800 ms sobre SU estado) pisaría el
+ * cambio, y el usuario no podría deshacerlo con Ctrl+Z. Despachando la
+ * transacción, el flujo de guardado normal hace el resto, el undo es de una sola
+ * acción y ni el scroll ni el cursor se mueven.
+ */
+export function aplicarTextoMinimo(view: EditorView, nuevo: string): void {
+  const actual = view.state.doc.toString();
+  if (actual === nuevo) return;
+
+  let inicio = 0;
+  const maximo = Math.min(actual.length, nuevo.length);
+  while (inicio < maximo && actual[inicio] === nuevo[inicio]) inicio++;
+
+  let finActual = actual.length;
+  let finNuevo = nuevo.length;
+  while (finActual > inicio && finNuevo > inicio && actual[finActual - 1] === nuevo[finNuevo - 1]) {
+    finActual--;
+    finNuevo--;
+  }
+
+  view.dispatch({
+    changes: { from: inicio, to: finActual, insert: nuevo.slice(inicio, finNuevo) },
+    // `userEvent` para que el editor marque la nota como editada (y fije la
+    // pestaña de previsualización) igual que si se hubiera escrito a mano.
+    userEvent: "input",
+  });
+}
+
 /** Inserta `---` en una línea nueva (HU-02). */
 export function insertHorizontalRule(view: EditorView) {
   const line = view.state.doc.lineAt(view.state.selection.main.head);

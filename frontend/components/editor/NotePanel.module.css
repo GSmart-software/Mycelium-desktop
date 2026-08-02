@@ -38,13 +38,19 @@
 
 .tab {
   flex: 1;
-  padding: 0.4rem 0.25rem;
+  min-width: 0;
+  padding: 0.4rem 0.15rem;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   color: var(--mic-text-muted);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  /* Con cuatro pestañas el rótulo más largo (PROPIEDADES) puede no entrar en un
+     panel angosto: se recorta en vez de desbordar la barra. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -192,4 +198,180 @@
 
 .meta dd {
   word-break: break-word;
+}
+
+/* ── Pestaña PROPIEDADES (FUN-M-04) ─────────────────────────────────────────
+   Los valores se editan acá y el cambio se despacha al CodeMirror de la nota
+   (ver PropiedadesTab.tsx): el panel nunca escribe el archivo por su cuenta. */
+
+.props {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 0.25rem;
+}
+
+.prop {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mic-text-muted) 7%, transparent);
+}
+
+.propCabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.propIcono {
+  flex: 0 0 auto;
+  width: 1.1em;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.propClave {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.1rem 0.2rem;
+}
+
+.propClave:hover,
+.propClave:focus {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-border);
+  outline: none;
+}
+
+.propValor {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding-left: 1.45em;
+}
+
+.propInput,
+.propItem,
+.propTipo {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-canvas);
+  border: 1px solid var(--mic-border);
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  min-width: 0;
+}
+
+.propInput {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.propInput:focus,
+.propItem:focus,
+.propTipo:focus {
+  outline: none;
+  border-color: var(--mic-glow);
+}
+
+.propBtn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.15rem;
+  border-radius: 4px;
+  color: var(--mic-text-muted);
+}
+
+.propBtn:hover {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-hover);
+}
+
+/* Listas: una pastilla por elemento + un campo para añadir. */
+.propPills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1 1 auto;
+}
+
+.propPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.05rem 0.2rem 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--mic-glow);
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.propPill button {
+  display: flex;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.propPill button:hover {
+  opacity: 1;
+}
+
+.propItem {
+  width: 4.5rem;
+  flex: 0 1 auto;
+}
+
+.propAdd {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-top: 0.15rem;
+}
+
+.propAdd .propInput {
+  flex: 1 1 auto;
+}
+
+.propTipo {
+  flex: 0 0 auto;
+  max-width: 7.5rem;
+}
+
+/* Frontmatter que Mycelium no interpreta: solo lectura, con el motivo a la vista. */
+.propsAviso {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+.propsCrudo {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background: var(--mic-bg-code);
+  font-family: var(--mic-font-mono);
+  font-size: 0.75rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.propsError {
+  font-size: 0.75rem;
+  color: var(--mic-callout-error-border);
+  line-height: 1.4;
 }

@@ -8,6 +8,7 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
+import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
 
 type MdNode = {
   type: string;
@@ -256,4 +257,140 @@ const processor = unified()
 /** Markdown → HTML. 100% en cliente, sin llamadas al servidor (HU-01 CA10). */
 export function renderMarkdown(markdown: string): string {
   return String(processor.processSync(markdown));
+}
+
+// ── Tarjeta de propiedades (FUN-M-04) ────────────────────────────────────────
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+};
+
+const escapar = (s: string): string => s.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]);
+
+/**
+ * Renderiza un valor como markdown EN LÍNEA (sin el `<p>` envolvente): así un
+ * `[[enlace]]` dentro de una propiedad se ve y navega como cualquier wikilink.
+ * El pipeline escapa el HTML, así que el valor del usuario no puede inyectar.
+ */
+function renderEnLinea(md: string): string {
+  return renderMarkdown(md)
+    .replace(/^\s*<p>/, "")
+    .replace(/<\/p>\s*$/, "");
+}
+
+/** Glifo del tipo, para reconocer la propiedad de un vistazo. */
+const ICONO_TIPO: Record<TipoPropiedad, string> = {
+  texto: "T",
+  numero: "#",
+  casilla: "☑",
+  fecha: "▤",
+  fechaHora: "◷",
+  lista: "≡",
+};
+
+/**
+ * Fecha/hora en formato local. Se construye por componentes a propósito: pasar
+ * `2026-08-30` a `new Date()` la interpreta como UTC y en husos negativos se
+ * muestra el día ANTERIOR.
+ */
+export function formatearFecha(valor: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(valor);
+  if (!m) return valor;
+  const d = new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4] ?? "0"),
+    Number(m[5] ?? "0"),
+  );
+  if (Number.isNaN(d.getTime())) return valor;
+  return m[4] === undefined
+    ? d.toLocaleDateString(undefined, { dateStyle: "medium" })
+    : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
+/** El valor de una propiedad como HTML, según su tipo. */
+function valorHtml(p: Propiedad): string {
+  if (p.tipo === "casilla") {
+    const marcado = p.valor === true ? " checked" : "";
+    return `<input type="checkbox" class="mic-prop-check" disabled${marcado} aria-label="${escapar(p.clave)}">`;
+  }
+  if (p.tipo === "fecha" || p.tipo === "fechaHora") {
+    return `<span class="mic-prop-fecha">${escapar(formatearFecha(String(p.valor)))}</span>`;
+  }
+  if (p.tipo === "lista") {
+    const items = Array.isArray(p.valor) ? p.valor : [String(p.valor)];
+    if (items.length === 0) return '<span class="mic-prop-vacio">—</span>';
+    // Las etiquetas usan la píldora que ya existe y el href `#tag:`, que el
+    // workspace intercepta igual que un `#tag` del cuerpo.
+    if (p.clave.toLowerCase() === "tags") {
+      return items
+        .map(
+          (t) =>
+            `<a class="mic-tag-pill" href="#tag:${encodeURIComponent(t)}">#${escapar(t)}</a>`,
+        )
+        .join(" ");
+    }
+    return items.map((v) => `<span class="mic-prop-pill">${renderEnLinea(v)}</span>`).join(" ");
+  }
+  if (p.tipo === "numero") return `<span class="mic-prop-numero">${escapar(String(p.valor))}</span>`;
+  const texto = String(p.valor);
+  if (texto === "") return '<span class="mic-prop-vacio">—</span>';
+  return renderEnLinea(texto);
+}
+
+/**
+ * Tarjeta de propiedades que reemplaza al frontmatter en la vista de lectura y
+ * en el widget de la vista en vivo. Cadena vacía si la nota no tiene bloque: no
+ * debe quedar ni un hueco.
+ *
+ * Un bloque que Mycelium no interpreta se muestra CRUDO con su aviso — nunca se
+ * reescribe ni se adivina: es preferible no tocar los metadatos de alguien antes
+ * que reformatearlos mal.
+ */
+export function tarjetaPropiedadesHtml(texto: string): string {
+  const fm = separarFrontmatter(texto);
+  if (!fm.hay) return "";
+
+  if (!fm.soportado) {
+    return (
+      '<div class="mic-props mic-props-nosop">' +
+      `<p class="mic-props-aviso">Mycelium no interpreta este frontmatter: ${escapar(fm.motivo)}.</p>` +
+      `<pre class="mic-props-crudo"><code>${escapar(fm.crudo)}</code></pre>` +
+      "</div>"
+    );
+  }
+  if (fm.props.length === 0) return "";
+
+  const filas = fm.props
+    .map(
+      (p) =>
+        '<div class="mic-prop" data-tipo="' +
+        p.tipo +
+        '"><span class="mic-prop-clave"><span class="mic-prop-icono" aria-hidden="true">' +
+        ICONO_TIPO[p.tipo] +
+        "</span>" +
+        escapar(p.clave) +
+        '</span><span class="mic-prop-valor">' +
+        valorHtml(p) +
+        "</span></div>",
+    )
+    .join("");
+  return `<div class="mic-props">${filas}</div>`;
+}
+
+/**
+ * Nota completa → HTML: tarjeta de propiedades + markdown del CUERPO. Es lo que
+ * deben usar la vista de lectura/dividida, el visor de la barra lateral, el
+ * preview vinculado y la exportación a PDF; `renderMarkdown` a secas queda para
+ * fragmentos que no son una nota entera (una tabla, un ejemplo de estilos).
+ *
+ * Pasarle el cuerpo y no el texto completo es lo que hace desaparecer la regla
+ * horizontal del primer `---` y el `<h2>` fantasma que generaba el segundo.
+ */
+export function renderNota(texto: string): string {
+  return tarjetaPropiedadesHtml(texto) + renderMarkdown(cuerpoDe(texto));
 }

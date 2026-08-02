@@ -138,7 +138,7 @@ export function SearchPanel() {
 
       <p className={styles.hint}>
         AND implícito · <code>&quot;frase exacta&quot;</code> ·{" "}
-        <code>tag:nombre</code>
+        <code>tag:nombre</code> · <code>clave:valor</code>
       </p>
 
       {loading && resultados.length === 0 && (
