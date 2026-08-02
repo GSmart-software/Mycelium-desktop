@@ -11,7 +11,7 @@ import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { fetchNoteContent } from "@/lib/export";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { GRAPH_TAB_ID } from "@/stores/tabsStore";
@@ -108,7 +108,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
     // Carga inicial (backend/db, con caché offline como respaldo).
     void fetchNoteContent(notaId)
       .then((content) => {
-        if (vigente) setHtml(renderMarkdown(content));
+        if (vigente) setHtml(renderNota(content));
       })
       .catch(() => {
         /* nota inaccesible: se deja vacío */
@@ -116,7 +116,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
     // Actualización en vivo si el documento se edita en otra vista.
     const unsubscribe = subscribeDoc(notaId, `sidebar-read-${notaId}`, (content) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setHtml(renderMarkdown(content)), 130);
+      timer = setTimeout(() => setHtml(renderNota(content)), 130);
     });
     return () => {
       vigente = false;

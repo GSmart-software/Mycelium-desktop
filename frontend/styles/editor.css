@@ -906,3 +906,110 @@
   accent-color: var(--mic-accent);
   margin-right: 0.35rem;
 }
+
+/* ── Propiedades del frontmatter (FUN-M-04) ──────────────────────────────────
+   La MISMA tarjeta se usa en la vista de lectura/dividida y dentro del widget
+   de la vista en vivo, así que el bloque `.mic-props` no lleva `margin`: el
+   espaciado del widget lo pone su envoltorio con `padding` (ver más abajo). */
+
+.mic-props {
+  margin: 0 0 1.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-bg-surface) 60%, transparent);
+  font-family: var(--mic-font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.mic-prop {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+}
+
+.mic-prop + .mic-prop {
+  border-top: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+}
+
+.mic-prop-clave {
+  flex: 0 0 30%;
+  min-width: 6rem;
+  max-width: 14rem;
+  color: var(--mic-text-muted);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mic-prop-icono {
+  display: inline-block;
+  width: 1.25em;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.mic-prop-valor {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Una "pastilla" por elemento de lista; las de `tags` reutilizan .mic-tag-pill. */
+.mic-prop-pill {
+  display: inline-block;
+  padding: 0.05em 0.45em;
+  margin: 0.1em 0.15em 0.1em 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+}
+
+.mic-prop-vacio {
+  color: var(--mic-text-muted);
+  opacity: 0.7;
+}
+
+.mic-prop-check {
+  vertical-align: -0.1em;
+  accent-color: var(--mic-accent);
+}
+
+/* Frontmatter que Mycelium no interpreta: se muestra crudo, con el motivo. */
+.mic-props-aviso {
+  margin: 0 0 0.4rem;
+  color: var(--mic-text-muted);
+  font-style: italic;
+  font-size: 0.8125rem;
+}
+
+.mic-props-crudo {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-code);
+  font-family: var(--mic-font-mono);
+  font-size: 0.8125rem;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Widget de bloque de la vista en vivo. DEF-031/037: el espaciado va como
+   PADDING, nunca como margin — CodeMirror mide los bloques con offsetHeight, que
+   NO incluye los márgenes, y el height-map se desincroniza (gutter corrido, clic
+   mal ubicado, scroll del buscador roto). Ver `docs/aprendizajes/CodeMirror y la
+   vista en vivo.md`. El padding evita además que el margin del `.mic-props`
+   interno "escape" del envoltorio por colapso de márgenes. */
+.mic-live-props {
+  margin: 0;
+  padding: 0.25rem 0;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+  cursor: text;
+}
+
+.mic-live-props .mic-props {
+  margin: 0;
+}

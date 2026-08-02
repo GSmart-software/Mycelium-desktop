@@ -5,7 +5,7 @@ import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import { getCachedNote } from "@/lib/idb";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
 import styles from "./panes.module.css";
@@ -30,11 +30,11 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     }
     let timer: ReturnType<typeof setTimeout> | null = null;
     void getCachedNote(sourceNotaId).then((cached) => {
-      if (cached) setHtml(renderMarkdown(cached.content));
+      if (cached) setHtml(renderNota(cached.content));
     });
     const unsubscribe = subscribeDoc(sourceNotaId, `linked-${pane.id}`, (content) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setHtml(renderMarkdown(content)), 130);
+      timer = setTimeout(() => setHtml(renderNota(content)), 130);
     });
     return () => {
       if (timer) clearTimeout(timer);

@@ -75,6 +75,20 @@ html, body { margin: 0; padding: 0; background: var(--mic-bg-canvas); color: var
 .mic-preview .mic-excalidraw-block, .mic-preview .mermaid { page-break-inside: avoid; text-align: center; }
 .mic-preview .mic-wikilink { color: var(--mic-accent); text-decoration: none; }
 .mic-preview .mic-tag { color: var(--mic-glow); }
+/* Tarjeta de propiedades del frontmatter (FUN-M-04): antes el bloque salía como
+   línea horizontal + título fantasma; ahora se imprime como tabla de metadatos. */
+.mic-preview .mic-props {
+  margin: 0 0 1.2em; padding: 0.5em 0.8em; border-radius: 6px;
+  background: var(--mic-bg-surface); font-size: 0.9em; page-break-inside: avoid;
+}
+.mic-preview .mic-prop { display: flex; gap: 0.8em; padding: 0.15em 0; }
+.mic-preview .mic-prop-clave { flex: 0 0 30%; color: var(--mic-text-muted); font-weight: 600; }
+.mic-preview .mic-prop-icono { display: inline-block; width: 1.2em; opacity: 0.7; }
+.mic-preview .mic-prop-pill, .mic-preview .mic-props .mic-tag-pill {
+  display: inline-block; padding: 0.05em 0.45em; border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent); color: var(--mic-glow);
+}
+.mic-preview .mic-props-aviso { color: var(--mic-text-muted); font-style: italic; margin: 0 0 0.4em; }
 `;
 
 /** Opciones de exportación a PDF (DEF-024). */
@@ -124,6 +138,11 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
 .mic-preview hr { border: none; border-top: 1px solid #ccc; margin: 1.2em 0; }
 .mic-preview .mic-callout { border-left: 3px solid #bbb; background: #f7f7f7; border-radius: 4px; padding: 0.6em 0.9em; margin: 0.8em 0; page-break-inside: avoid; }
 .mic-preview .mic-excalidraw-block, .mic-preview .mermaid { page-break-inside: avoid; text-align: center; }
+.mic-preview .mic-props { margin: 0 0 1.1em; padding: 0.5em 0.8em; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em; page-break-inside: avoid; }
+.mic-preview .mic-prop { display: flex; gap: 0.8em; padding: 0.15em 0; }
+.mic-preview .mic-prop-clave { flex: 0 0 30%; color: #555; font-weight: 600; }
+.mic-preview .mic-prop-icono { display: inline-block; width: 1.2em; opacity: 0.7; }
+.mic-preview .mic-props-aviso { color: #555; font-style: italic; margin: 0 0 0.4em; }
 `;
 
 /**

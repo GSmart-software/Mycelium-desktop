@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { getCachedNote } from "@/lib/idb";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { buildPrintCss, type PdfPrintOpts } from "@/lib/printStyles";
@@ -155,7 +155,7 @@ async function renderNoteHtml(notaId: string): Promise<string> {
   container.style.left = "-99999px";
   container.style.top = "0";
   container.style.width = "800px";
-  container.innerHTML = renderMarkdown(content);
+  container.innerHTML = renderNota(content);
   document.body.appendChild(container);
   try {
     await renderMermaidIn(container);
