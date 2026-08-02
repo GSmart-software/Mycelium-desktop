@@ -2,7 +2,8 @@ import type { TreeCarpeta } from "@/stores/vaultStore";
 
 /**
  * Primer término significativo de la consulta, para posicionar el cursor en la
- * nota (HU-21 CA8): desarma frases entre comillas y el prefijo `tag:`/`#`.
+ * nota (HU-21 CA8): desarma frases entre comillas, el prefijo `tag:`/`#` y los
+ * filtros de propiedad `clave:valor` (FUN-M-04), de los que interesa el valor.
  */
 export function firstSearchTerm(query: string): string {
   const trimmed = query.trim();
@@ -10,6 +11,8 @@ export function firstSearchTerm(query: string): string {
   if (phrase) return phrase[1];
   const first = trimmed.split(/\s+/)[0] ?? "";
   if (/^tag:/i.test(first)) return first.slice(4);
+  const filtro = /^[\p{L}_][\p{L}\p{N}_-]*:([^/].*)$/u.exec(first);
+  if (filtro) return filtro[1].replace(/^"|"$/g, "");
   return first.replace(/^#/, "");
 }
 

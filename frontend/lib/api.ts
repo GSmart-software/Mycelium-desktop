@@ -20,6 +20,7 @@ import { conexiones, grafo } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
 import { putPreferencias } from "@/lib/db/preferencias";
+import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
 import { compartido, miembros, noop } from "@/lib/db/sharing";
 import { actualizarSnippet, borrarSnippet, crearSnippet, listarSnippets } from "@/lib/db/snippets";
 import { carpetasCompartidas, tree } from "@/lib/db/tree";
@@ -95,6 +96,12 @@ async function dispatch(
     if (c === "buscar" && method === "GET") {
       return buscar(b, q.get("q") ?? "", q.get("exacto") === "true");
     }
+    // Propiedades del frontmatter (FUN-M-04): claves del vault (autocompletado
+    // del panel) y notas que tienen una propiedad (base de `FUN-L-03`).
+    if (c === "propiedades" && d === "claves" && method === "GET") return clavesDelVault(b);
+    if (c === "propiedades" && !d && method === "GET") {
+      return notasConPropiedad(b, q.get("clave") ?? "", q.get("valor"));
+    }
     if (c === "carpetas" && !d && method === "POST") {
       return crearCarpeta(b, s(body.padreId), String(body.nombre ?? ""));
     }
@@ -147,6 +154,7 @@ async function dispatch(
       return { id: b };
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
+    if (c === "propiedades" && method === "GET") return propiedadesDeNota(b);
     // Colaboración deshabilitada en local: sin relay. Se devuelve un objeto con
     // `habilitada:false` (NO null) para que startCollab caiga con gracia.
     if (c === "colaboracion" && method === "GET") return { habilitada: false };
