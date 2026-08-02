@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { PropiedadesTab } from "./PropiedadesTab";
 import styles from "./NotePanel.module.css";
 
 type Conexiones = {
@@ -25,7 +26,7 @@ type Conexiones = {
   grafo: { nodos: GraphNode[]; aristas: GraphEdge[] };
 };
 
-type Tab = "grafo" | "salientes" | "retro";
+type Tab = "propiedades" | "grafo" | "salientes" | "retro";
 
 // Cache en memoria por nota (stale-while-revalidate): al volver a una nota ya
 // vista, el panel aparece al instante mientras se refresca en segundo plano.
@@ -46,7 +47,7 @@ const fmtTamano = (bytes: number) =>
  * derecha). Así cada archivo abierto —incluso en pantalla dividida— tiene su
  * propio panel, y no existe en la vista de grafo ni cuando no hay archivo.
  */
-export function NotePanel({ notaId }: { notaId: string }) {
+export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }) {
   const router = useRouter();
   const width = usePanelLayoutStore((s) => s.rightWidth);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -138,6 +139,9 @@ export function NotePanel({ notaId }: { notaId: string }) {
     <div className={styles.panel} ref={panelRef} style={{ width }}>
       {resizeHandle}
       <div className={styles.tabs} role="tablist">
+        <TabButton active={tab === "propiedades"} onClick={() => setTab("propiedades")}>
+          PROPIEDADES
+        </TabButton>
         <TabButton active={tab === "grafo"} onClick={() => setTab("grafo")}>
           GRAFO
         </TabButton>
@@ -150,6 +154,8 @@ export function NotePanel({ notaId }: { notaId: string }) {
       </div>
 
       <div className={styles.tabBody}>
+        {tab === "propiedades" && <PropiedadesTab notaId={notaId} paneId={paneId} />}
+
         {tab === "grafo" && (
           <>
             <div className={styles.graphFilters}>
