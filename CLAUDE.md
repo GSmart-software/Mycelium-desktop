@@ -160,6 +160,14 @@ responder y consolidá lo que valga recordar**, ahí.
   de funcionalidad van en `docs/features/<slug>.md`; los procesos en `docs/procesos/`;
   las decisiones en `docs/decisiones/`.
 
+> [!important] Todo defecto se registra apenas se detecta
+> Cuando el usuario reporta un defecto, **antes de arreglarlo** se le asigna un `DEF-NNN`
+> (el siguiente libre) y se escribe **qué sucede** en `docs/Bugs_errores_y_defectos.md`:
+> el síntoma como se observa, sin lenguaje de solución. Se registra **siempre**, esté
+> resuelto, en curso, pendiente o descartado — un defecto que solo vive en un commit o en
+> una spec no está documentado. El **estado** y la trazabilidad van aparte, en
+> [[bugs-progreso]]; las **causas raíz**, en [[Aprendizajes tecnicos]].
+
 > [!warning] Documentos desactualizados a propósito
 > `docs/DESKTOP-LOCAL.md` (empaquetado pre-Tauri), `docs/Roadmap general.md`
 > (brainstorming previo) y el `README.md` de la raíz (describe la estructura de la línea
