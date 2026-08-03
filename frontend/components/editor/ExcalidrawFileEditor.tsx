@@ -3,6 +3,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import {
+  olvidarGuardadoPendiente,
+  registrarGuardadoPendiente,
+} from "@/lib/guardadoPendiente";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import styles from "./ExcalidrawFileEditor.module.css";
@@ -28,6 +32,8 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const apiRef = useRef<ExcalidrawApi | null>(null);
   const [initial, setInitial] = useState<Scene | undefined>(undefined);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ¿Hay cambios sin escribir? Lo consulta el volcado que fuerza el updater.
+  const sucioRef = useRef(false);
   const dark =
     typeof document !== "undefined" && document.documentElement.dataset.dark === "true";
 
@@ -60,7 +66,8 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
 
   const save = () => {
     const api2 = apiRef.current;
-    if (!api2) return;
+    if (!api2) return Promise.resolve();
+    sucioRef.current = false;
     const contenido = JSON.stringify({
       type: "excalidraw",
       version: 2,
@@ -70,7 +77,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
       files: api2.getFiles(),
     });
     useSyncStore.getState().setSyncState(notaId, "syncing");
-    void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
+    return api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
       method: "PUT",
       token: useAuthStore.getState().accessToken,
       body: { contenido },
@@ -80,9 +87,24 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   };
 
   const onChange = () => {
+    sucioRef.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(save, 800); // autoguardado (HU-04)
+    saveTimer.current = setTimeout(() => void save(), 800); // autoguardado (HU-04)
   };
+
+  // Actualizar cierra la app (FUN-L-14): si el debounce de 800 ms todavía no
+  // corrió, el updater fuerza acá la escritura y espera a que termine.
+  useEffect(() => {
+    registrarGuardadoPendiente(`excalidraw:${notaId}`, () => {
+      if (!sucioRef.current) return;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      return save();
+    });
+    return () => olvidarGuardadoPendiente(`excalidraw:${notaId}`);
+    // `save` se redefine en cada render pero siempre lee de refs: la versión
+    // registrada al montar escribe lo mismo que la última.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notaId]);
 
   return (
     <div className={styles.host}>

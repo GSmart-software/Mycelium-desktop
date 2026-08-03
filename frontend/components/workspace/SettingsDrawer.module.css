@@ -71,6 +71,10 @@
   text-align: center;
   font-size: 0.6875rem;
   color: var(--mic-text-muted);
+  /* Siete clics acá activan el modo avanzado (FUN-M-16). No se le da ningún
+     aspecto de botón —la idea es que no se encuentre por accidente—, pero sí se
+     evita que la ráfaga de clics seleccione el texto. */
+  user-select: none;
 }
 
 /* Subtítulo que separa subsecciones agrupadas dentro de una pestaña. */

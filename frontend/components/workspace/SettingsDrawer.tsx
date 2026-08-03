@@ -8,10 +8,20 @@ import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
 import { TerminalSection } from "@/components/settings/TerminalSection";
 import { TypographySection } from "@/components/settings/TypographySection";
+import { UpdaterSection } from "@/components/settings/UpdaterSection";
 import { VaultSection } from "@/components/settings/VaultSection";
 import { APP_VERSION } from "@/lib/version";
 import { useUiStore } from "@/stores/uiStore";
+import { useUpdaterStore } from "@/stores/updaterStore";
 import styles from "./SettingsDrawer.module.css";
+
+/**
+ * Clics seguidos sobre el número de versión que activan el modo avanzado
+ * (`FUN-M-16`). Es el gesto de Android y Chrome para el modo desarrollador:
+ * imposible de encontrar por accidente, trivial de recordar, y no agrega
+ * ninguna superficie visible a la interfaz.
+ */
+const CLICS_MODO_AVANZADO = 7;
 
 type SettingsTab = "apariencia" | "editor" | "vault";
 
@@ -29,6 +39,8 @@ export function SettingsDrawer() {
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const [tab, setTab] = useState<SettingsTab>("apariencia");
+  const avanzado = useUpdaterStore((s) => s.estado?.avanzado ?? false);
+  const [clics, setClics] = useState(0);
   // Se mantiene montado durante la animación de salida para que el panel se
   // repliegue con la misma animación con que aparece (DEF-020).
   const [render, setRender] = useState(false);
@@ -40,6 +52,7 @@ export function SettingsDrawer() {
     if (settingsOpen) {
       setRender(true);
       setClosing(false);
+      setClics(0); // los siete clics tienen que hacerse en una misma apertura
     } else {
       setClosing(true); // dispara la animación de salida (si está montado)
     }
@@ -116,10 +129,34 @@ export function SettingsDrawer() {
               <TerminalSection />
             </>
           )}
-          {tab === "vault" && <VaultSection />}
+          {tab === "vault" && (
+            <>
+              <VaultSection />
+              <h3 className={styles.groupTitle}>Actualizaciones</h3>
+              <UpdaterSection />
+            </>
+          )}
         </div>
 
-        <footer className={styles.footer}>Mycelium v{APP_VERSION}</footer>
+        {/* Siete clics acá activan (o apagan) el modo avanzado: FUN-M-16. El
+            contador se reinicia al cerrar el panel, así que hay que hacerlos
+            seguidos y a propósito. */}
+        <footer
+          className={styles.footer}
+          onClick={() => {
+            const siguiente = clics + 1;
+            if (siguiente < CLICS_MODO_AVANZADO) {
+              setClics(siguiente);
+              return;
+            }
+            setClics(0);
+            setTab("vault");
+            void useUpdaterStore.getState().setAvanzado(!avanzado);
+          }}
+        >
+          Mycelium v{APP_VERSION}
+          {avanzado && " · modo avanzado"}
+        </footer>
       </aside>
     </>
   );

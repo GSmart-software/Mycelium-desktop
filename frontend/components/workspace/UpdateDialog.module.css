@@ -1,0 +1,198 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 55%, transparent);
+  animation: fade-in var(--mic-panel-transition);
+}
+
+.modal {
+  width: min(560px, 94vw);
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 0.6rem;
+  flex-shrink: 0;
+}
+
+.icon {
+  color: var(--mic-accent);
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.versions {
+  padding: 0 1rem 0.7rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  border-bottom: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.versions strong {
+  color: var(--mic-text-primary);
+}
+
+/* Notas de la release, renderizadas con el motor de Mycelium. */
+.notes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+  font-size: 0.875rem;
+}
+
+.sinNotas {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--mic-text-muted);
+}
+
+/* Aviso de bajar de versión: lo que se pierde, ANTES de instalar. */
+.warn {
+  margin: 0 1rem 0.6rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--mic-callout-caution-border);
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.78125rem;
+  line-height: 1.45;
+  color: var(--mic-text-primary);
+  flex-shrink: 0;
+}
+
+.error {
+  margin: 0 1rem 0.6rem;
+  font-size: 0.78125rem;
+  line-height: 1.45;
+  color: var(--mic-callout-error-border);
+  flex-shrink: 0;
+}
+
+.progressWrap {
+  padding: 0 1rem 0.7rem;
+  flex-shrink: 0;
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  margin-bottom: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mic-accent);
+  transition: width 0.15s linear;
+}
+
+/* Indeterminado: el servidor no manda Content-Length. */
+.progressBarIndet {
+  width: 35%;
+  animation: vaiven 1.1s ease-in-out infinite alternate;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1rem 0.9rem;
+  border-top: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+/* "Omitir esta versión" queda a la izquierda y apagado: es la salida menos
+   frecuente y no debe competir con "Actualizar". */
+.skip {
+  margin-right: auto;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78125rem;
+  color: var(--mic-text-muted);
+  border-radius: var(--mic-radius-sm);
+}
+
+.skip:hover {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-hover);
+}
+
+.secondaryBtn {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: transparent;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+.secondaryBtn:hover {
+  background: var(--mic-bg-hover);
+}
+
+.primaryBtn {
+  padding: 0.45rem 0.95rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.primaryBtn:hover {
+  filter: brightness(1.1);
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vaiven {
+  from {
+    transform: translateX(-10%);
+  }
+  to {
+    transform: translateX(200%);
+  }
+}
