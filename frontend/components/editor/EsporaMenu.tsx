@@ -1,6 +1,6 @@
 "use client";
 
-import { Sprout } from "lucide-react";
+import { CircleDot } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { carpetaEsporas, listarEsporas, type Espora } from "@/lib/esporasVault";
@@ -68,7 +68,7 @@ export function EsporaMenu({
             className={styles.item}
             onClick={() => onElegir(espora)}
           >
-            <Sprout size={14} aria-hidden />
+            <CircleDot size={14} aria-hidden />
             <span className={styles.nombre}>{espora.titulo}</span>
           </button>
         ))

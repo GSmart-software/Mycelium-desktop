@@ -1,6 +1,6 @@
 "use client";
 
-import { Files, Search, Sprout, Tag, Terminal, Trash2, type LucideIcon } from "lucide-react";
+import { CircleDot, Files, Search, Tag, Terminal, Trash2, type LucideIcon } from "lucide-react";
 import { EsporasPanel } from "@/components/explorer/EsporasPanel";
 import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
@@ -24,7 +24,7 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
   explorer: Files,
   search: Search,
   tags: Tag,
-  esporas: Sprout,
+  esporas: CircleDot,
   trash: Trash2,
   terminal: Terminal,
 };

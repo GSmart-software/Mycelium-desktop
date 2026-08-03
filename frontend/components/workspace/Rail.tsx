@@ -1,11 +1,11 @@
 "use client";
 
 import {
+  CircleDot,
   Files,
   Search,
   Settings,
   Share2,
-  Sprout,
   Tag,
   Terminal,
   Trash2,
@@ -22,7 +22,7 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   { section: "search", icon: Search, label: "Búsqueda global" },
   { section: "tags", icon: Tag, label: "Tags" },
   // Plantillas de notas (FUN-M-03): un clic en una Espora crea la nota.
-  { section: "esporas", icon: Sprout, label: "Esporas" },
+  { section: "esporas", icon: CircleDot, label: "Esporas" },
 ];
 
 const BOTTOM_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [

@@ -4,6 +4,7 @@ import type { EditorView } from "@codemirror/view";
 import {
   Bold,
   Braces,
+  CircleDot,
   Code,
   Columns2,
   Eye,
@@ -23,7 +24,6 @@ import {
   Quote,
   Search,
   Shapes,
-  Sprout,
   Strikethrough,
   Type,
   type LucideIcon,
@@ -252,7 +252,7 @@ export function EditorToolbar({
     { icon: Link, label: "Link (Ctrl+K)", action: openLinkPopover },
     { icon: Minus, label: "Divisor horizontal", run: insertHorizontalRule },
     // Plantillas (FUN-M-03): la única vía que sirve para notas que YA existen.
-    { icon: Sprout, label: "Insertar Espora", action: abrirEsporas },
+    { icon: CircleDot, label: "Insertar Espora", action: abrirEsporas },
     ...(onInsertDiagram
       ? ([
           { divider: true },

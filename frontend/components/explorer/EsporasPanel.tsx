@@ -1,5 +1,5 @@
 "use client";
-import { FolderPlus, Pencil, Plus, Sprout, Trash2 } from "lucide-react";
+import { CircleDot, FolderPlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
@@ -177,7 +177,7 @@ export function EsporasPanel() {
                       title={`Crear una nota desde «${espora.titulo}»`}
                       onClick={() => usar(espora)}
                     >
-                      <Sprout size={15} className={styles.icono} aria-hidden />
+                      <CircleDot size={15} className={styles.icono} aria-hidden />
                       <span className={styles.nombre}>{espora.titulo}</span>
                     </button>
                     <button
