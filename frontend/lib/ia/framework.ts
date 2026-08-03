@@ -37,8 +37,14 @@ import { invoke } from "@tauri-apps/api/core";
  *   ahora el subconjunto soportado, que `tags:` son etiquetas de la nota y que
  *   los valores se consultan con `clave:valor`. **Minor**: la IA gana
  *   instrucciones sobre una capacidad nueva del vault.
+ * - 1.4.0 — **Esporas** (`FUN-M-03`): el vault puede tener una carpeta cuyas
+ *   notas NO son conocimiento sino MOLDES. La IA debe saberlo para no tratarlas
+ *   como notas normales (no consolidar ahí, no reportarlas como huérfanas) y
+ *   para poder ofrecerlas al crear una nota. Se documenta qué es una Espora,
+ *   dónde vive, que la carpeta es configurable y qué variables admite.
+ *   **Minor**: conocimiento nuevo, no una corrección.
  */
-export const FRAMEWORK_IA_VERSION = "1.3.0";
+export const FRAMEWORK_IA_VERSION = "1.4.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -158,6 +164,12 @@ usar cada uno:
    en la app ni en el grafo**. Por defecto se ignoran los directorios que empiezan
    con \`.\` y las carpetas de dependencias/build (\`node_modules/\`, \`target/\`,
    \`dist/\`, \`out/\`). No escondas ahí documentación que el usuario deba ver.
+10. **Esporas** (carpeta \`Esporas/\` en la raíz, o la que el usuario haya
+    configurado): sus notas **no son conocimiento, son moldes** para crear otras
+    notas. Trátalas aparte: no consolides recuerdos ahí, no las cites como fuente,
+    y no las reportes como huérfanas (una plantilla sin enlaces es normal). Si vas
+    a crear una nota de un tipo que ya tiene Espora, **partí de ella**. Detalle y
+    variables en la skill \`mycelium-vault\`.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -166,7 +178,9 @@ el usuario, porque es el efecto de lo que escribís: editor Markdown con vista e
 vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`caution\`,
 \`info\`, \`success\`, \`error\`, \`danger\`, \`question\`; plegables con \`[!tipo]-\`),
 incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
-como pestaña editable en el panel; **grafo de conexiones** global y mini-grafo por
+como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
+panel del rail, en la barra del editor y en el clic derecho de una carpeta;
+**grafo de conexiones** global y mini-grafo por
 nota (tus enlaces se ven ahí); búsqueda global (\`clave:valor\`, \`tag:x\`); panel
 lateral con pestañas ancladas; **terminal integrada** (es probable que estés corriendo en ella, con cwd en el vault);
 exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (\`\`\`mermaid) y KaTeX
@@ -204,6 +218,7 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 
 - **Notas**: \`.md\`. El título de la nota es su nombre de archivo (sin extensión).
 - **Diagramas**: \`.excalidraw\` (JSON). No editar a mano salvo pedido explícito.
+- **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
 - **\`.mycelium/\`**: índice interno y papelera (\`.mycelium/.trash/\`). No tocar.
 - **\`.claude/\`**: este framework (skills + comandos). Lo regenera Mycelium.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium.
@@ -271,6 +286,36 @@ tags: [proyecto, mycelium]
 relacionada: "[[Mapa del vault]]"
 ---
 \`\`\`
+
+## Esporas: las plantillas del vault
+
+Una **Espora** es una nota normal que vive en una carpeta designada —\`Esporas/\`
+en la raíz por defecto, configurable en Configuración → Vault— y que sirve de
+**molde**: al usarla, Mycelium crea una nota nueva con ese contenido (o lo inserta
+en una nota que ya existe) sustituyendo sus variables.
+
+| Token | Se sustituye por |
+|---|---|
+| \`{{titulo}}\` | Título final de la nota destino |
+| \`{{fecha}}\` | Fecha de hoy (\`AAAA-MM-DD\`) |
+| \`{{hora}}\` | Hora actual (\`hh:mm\`, 24 h) |
+| \`{{fecha:FORMATO}}\` | Fecha/hora con formato propio: \`AAAA\` año · \`MM\` mes · \`DD\` día · \`hh\` hora · \`mm\` minuto · \`ss\` segundo |
+
+- Un token **desconocido se deja escrito tal cual** (\`{{autor}}\` llega así a la
+  nota): no es un error silencioso, es una señal.
+- La sustitución es sobre el texto crudo, así que **también aplica dentro del
+  frontmatter**: una Espora con \`fecha: {{fecha}}\` produce una propiedad de tipo
+  fecha ya rellena. Es la sinergia natural con las propiedades.
+- La lista es **plana**: las subcarpetas de la carpeta de Esporas no se recorren.
+- Al insertar una Espora en una nota que ya existe, su **cuerpo** va al cursor y
+  sus **propiedades** se fusionan con el frontmatter de la nota (gana lo que la
+  nota ya tenía; los \`tags\` se unen).
+
+**Cómo tratarlas vos**: son moldes, no memoria. No consolides conocimiento ahí, no
+las cites como fuente de una respuesta y no las reportes como huérfanas. Si el
+usuario pide una nota de un tipo que ya tiene Espora (reunión, diario, receta…),
+**partí de esa plantilla** en vez de inventar una estructura nueva; y si crea la
+misma estructura una y otra vez a mano, proponé convertirla en Espora.
 
 ## \`.mycignore\`: qué ve Mycelium
 
@@ -473,6 +518,8 @@ Auditá la **salud de la memoria** (ignorando \`.mycelium/\` y \`.claude/\`): un
 desconectada es conocimiento que no se puede evocar.
 
 1. **Huérfanas**: notas sin enlaces entrantes ni salientes. Listalas con su ruta.
+   Excluí la carpeta de **Esporas** (las plantillas son moldes: que no tengan
+   enlaces es lo normal, no un defecto de la memoria).
 2. **Enlaces rotos**: \`[[Objetivo]]\` cuyo archivo \`Objetivo.md\` no existe
    (contemplá alias \`[[Objetivo|...]]\` y embeds \`![[Objetivo]]\`). Indicá en qué
    nota está cada uno.
@@ -496,11 +543,14 @@ Crear la nota: $ARGUMENTS
    avisá y proponé ampliarla en vez de duplicar.
 2. Elegí la carpeta temática adecuada según la estructura actual (si el usuario
    indicó una, usala).
-3. Redactá contenido **autosuficiente** (se entiende sin esta conversación) con la
+3. Mirá si hay una **Espora** (plantilla) para este tipo de nota en \`Esporas/\` —o
+   la carpeta configurada—; si la hay, partí de ella y resolvé sus variables
+   (\`{{titulo}}\`, \`{{fecha}}\`, \`{{hora}}\`, \`{{fecha:FORMATO}}\`).
+4. Redactá contenido **autosuficiente** (se entiende sin esta conversación) con la
    sintaxis de Mycelium: callouts para avisos, \`[[enlaces]]\` en las menciones a
    notas existentes.
-4. Cerrá con \`## Relacionadas\` si hay notas afines, indicando la razón del vínculo.
-5. Agregá un \`[[enlace]]\` hacia la nota nueva desde su índice/mapa o nota madre
+5. Cerrá con \`## Relacionadas\` si hay notas afines, indicando la razón del vínculo.
+6. Agregá un \`[[enlace]]\` hacia la nota nueva desde su índice/mapa o nota madre
    (que no quede huérfana). Informá dónde la creaste y desde dónde la enlazaste.
 `;
 

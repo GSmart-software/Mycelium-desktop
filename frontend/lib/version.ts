@@ -25,8 +25,15 @@
  *   índice y filtro `clave:valor` en el buscador. **Minor** (una funcionalidad,
  *   un minor; el patch vuelve a 0): el usuario puede hacer algo que antes no
  *   podía — dar atributos a sus notas y consultarlos.
+ * - `1.3.0` — solo desktop: **Esporas** (`FUN-M-03`), las plantillas de notas.
+ *   Las notas de una carpeta configurable son moldes: se usan de tres formas
+ *   (panel del rail, "Insertar Espora" en el editor y submenú del clic derecho
+ *   de una carpeta) y sustituyen `{{titulo}}`, `{{fecha}}`, `{{hora}}` y
+ *   `{{fecha:FORMATO}}`. **Minor** (una funcionalidad, un minor; el patch vuelve
+ *   a 0): el usuario puede hacer algo que antes no podía — crear notas ya con su
+ *   estructura, en vez de rehacerla cada vez.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión.
  */
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.3.0";
