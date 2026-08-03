@@ -5,6 +5,7 @@ import {
   Search,
   Settings,
   Share2,
+  Sprout,
   Tag,
   Terminal,
   Trash2,
@@ -20,6 +21,8 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   { section: "explorer", icon: Files, label: "Explorador" },
   { section: "search", icon: Search, label: "Búsqueda global" },
   { section: "tags", icon: Tag, label: "Tags" },
+  // Plantillas de notas (FUN-M-03): un clic en una Espora crea la nota.
+  { section: "esporas", icon: Sprout, label: "Esporas" },
 ];
 
 const BOTTOM_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [

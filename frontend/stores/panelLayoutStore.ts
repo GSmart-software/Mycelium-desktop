@@ -3,8 +3,9 @@ import { persist } from "zustand/middleware";
 
 /** Secciones del panel izquierdo activadas desde el rail (HU-28). El grafo ya
  * no es una sección: se abre como ventana en el área de panes. `terminal` es el
- * panel de consolas (FUN-L-07, solo-desktop). */
-export type RailSection = "explorer" | "search" | "tags" | "trash" | "terminal";
+ * panel de consolas (FUN-L-07, solo-desktop) y `esporas` el de plantillas
+ * (FUN-M-03). */
+export type RailSection = "explorer" | "search" | "tags" | "esporas" | "trash" | "terminal";
 
 export const PANEL_MIN_WIDTH = 160;
 export const PANEL_MAX_WIDTH = 480;

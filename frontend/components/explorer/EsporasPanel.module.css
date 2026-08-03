@@ -1,0 +1,169 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.intro {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+.intro code {
+  font-size: 0.7rem;
+  padding: 0 0.15rem;
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-text-muted) 12%, transparent);
+}
+
+.error {
+  font-size: 0.75rem;
+  color: var(--mic-callout-error-border);
+}
+
+.vacio {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+.vacio code {
+  color: var(--mic-text-primary);
+}
+
+.lista {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.fila:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+.usar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  border-radius: var(--mic-radius-sm);
+}
+
+.icono {
+  flex-shrink: 0;
+  color: var(--mic-accent);
+}
+
+.nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Las acciones por fila solo aparecen al apuntarla, para no competir con el
+   nombre en un panel angosto. Se mantienen visibles al enfocarlas por teclado. */
+.accion {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.6875rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  opacity: 0;
+}
+
+.fila:hover .accion,
+.accion:focus-visible {
+  opacity: 1;
+}
+
+.accion:hover {
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+}
+
+.peligro:hover {
+  color: var(--mic-callout-caution-border);
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 12%, transparent);
+}
+
+.renombrar {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-base);
+  border: 1px solid color-mix(in srgb, var(--mic-glow) 60%, transparent);
+  border-radius: var(--mic-radius-sm);
+}
+
+.renombrar:focus {
+  outline: none;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.primario,
+.secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--mic-radius-sm);
+}
+
+.primario {
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+}
+
+.primario:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-accent) 85%, black);
+}
+
+.secundario {
+  color: var(--mic-text-primary);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+}
+
+.secundario:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.primario:disabled,
+.secundario:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
