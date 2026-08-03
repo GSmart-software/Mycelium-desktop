@@ -131,7 +131,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **1.1.1** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **1.3.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **1.0.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores).
@@ -300,12 +300,15 @@ costado mucho—; si gana funcionalidad, minor; si es rearquitectura, major. Los
 del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 **Si una rama no recibió cambios funcionales, no se le sube la versión.**
 
-> [!important] Una unidad de versión POR funcionalidad
-> Si entran **dos** funcionalidades, la versión sube **dos** minors: desde `1.1.1` se va
-> a **`1.3.0`**, no a `1.2.0`. Nunca se agrupan varias funcionalidades en un solo salto.
-> Lo mismo con las correcciones: cada una suma un patch. **Al subir un dígito, los de la
-> derecha vuelven a `0`** (por eso 1 funcionalidad + 2 correcciones desde `1.1.1` es
-> `1.2.0`: el minor sube y el patch se resetea). Detalle y ejemplos en
+> [!important] Un release = UN incremento (SemVer estándar, desde 2026-08-03)
+> El tamaño del salto lo decide **el cambio más significativo** del release, nunca cuántos
+> cambios lleva. Cuatro correcciones juntas son **un** patch; tres funcionalidades juntas
+> son **un** minor, que además **absorbe** las correcciones que vengan con ellas. **Al
+> subir un dígito, los de la derecha vuelven a `0`.**
+>
+> Antes se contaban unidades (un minor por funcionalidad, un patch por corrección) y por
+> eso de `1.1.1` se saltó a `1.1.5`, dejando huecos que nunca existieron. **Esa regla ya
+> no rige**; no se renumeró nada porque el número de hoy coincide. Ver
 > [[Versionado del sistema]].
 
 > [!important] El framework de IA se versiona aparte
@@ -313,7 +316,10 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > app. Si Mycelium gana una función que la IA deba conocer → subir esa versión y
 > actualizar los templates. Historial: `1.0.0` inicial · `1.1.0` `.mycignore` + política
 > de conflictos · `1.2.0` reenfoque a memoria (**el instalado en este vault**) · `1.2.1`
-> default de `.mycignore` corregido en los templates (disponible, sin regenerar acá).
+> default de `.mycignore` corregido en los templates · `1.3.0` propiedades del frontmatter
+> (`FUN-M-04`) · `1.4.0` Esporas (`FUN-M-03`). **Este vault sigue con la `1.2.0`**: sus
+> instrucciones afirman que el frontmatter no se interpreta, lo cual ya es falso — hay que
+> regenerar desde Configuración → Vault.
 
 Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
 rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
