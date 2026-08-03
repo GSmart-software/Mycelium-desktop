@@ -160,6 +160,15 @@ responder y consolidá lo que valga recordar**, ahí.
   de funcionalidad van en `docs/features/<slug>.md`; los procesos en `docs/procesos/`;
   las decisiones en `docs/decisiones/`.
 
+> [!important] El usuario anota en crudo en la bandeja de entrada
+> `docs/Bandeja de entrada.md` es donde el usuario escribe **sin formato** los defectos que
+> encuentra y las ideas que se le ocurren. **Revisala** cuando te lo pida ("revisá la
+> bandeja") y también al empezar un tema que pueda estar anotado ahí. Procesar una entrada
+> es: definirla bien, documentarla donde corresponde (`DEF-*` al catálogo de defectos,
+> `FUN-*` al [[BACKLOG]], spec en `docs/features/` si no es trivial) y **moverla** de las
+> secciones "sin procesar" a la tabla `Procesado` de esa misma nota. Lo que sigue arriba es
+> lo pendiente: el usuario no marca nada.
+
 > [!important] Todo defecto se registra apenas se detecta
 > Cuando el usuario reporta un defecto, **antes de arreglarlo** se le asigna un `DEF-NNN`
 > (el siguiente libre) y se escribe **qué sucede** en `docs/Bugs_errores_y_defectos.md`:
