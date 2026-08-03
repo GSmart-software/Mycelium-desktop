@@ -280,14 +280,21 @@ function comprobarClavesDeFirma() {
   const clave = process.env.TAURI_SIGNING_PRIVATE_KEY;
   const password = process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD;
 
-  if (!clave) {
+  if (!clave || !password) {
+    const cual = !clave ? "TAURI_SIGNING_PRIVATE_KEY" : "TAURI_SIGNING_PRIVATE_KEY_PASSWORD";
     fallar(
-      "Falta TAURI_SIGNING_PRIVATE_KEY. Sin ella `tauri build` no genera el .sig y la " +
-        "versión no puede instalarse como actualización. Ver [[Publicar una version]] § 1.4.",
+      `Falta ${cual}. Sin las dos, \`tauri build\` no genera el .sig y la versión no ` +
+        "puede instalarse como actualización.\n\n" +
+        "           La causa MÁS habitual no es que no existan, sino que esta terminal se\n" +
+        "           abrió ANTES de definirlas: se guardaron a nivel de usuario y eso solo\n" +
+        "           alcanza a los procesos que arranquen después. Cargalas en esta sesión:\n\n" +
+        "             $env:TAURI_SIGNING_PRIVATE_KEY = [Environment]::GetEnvironmentVariable('TAURI_SIGNING_PRIVATE_KEY','User')\n" +
+        "             $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Environment]::GetEnvironmentVariable('TAURI_SIGNING_PRIVATE_KEY_PASSWORD','User')\n\n" +
+        "           Abrir una terminal nueva también sirve — salvo en la terminal integrada\n" +
+        "           de Mycelium, que hereda el entorno de la app: ahí haría falta reiniciar\n" +
+        "           Mycelium, o usar el bloque de arriba.\n\n" +
+        "           Si de verdad nunca las definiste: [[Publicar una version]] § 1.4.",
     );
-  }
-  if (!password) {
-    fallar("Falta TAURI_SIGNING_PRIVATE_KEY_PASSWORD. Ver [[Publicar una version]] § 1.4.");
   }
 
   // El valor admite dos formas: la ruta del .key o su contenido en base64.
