@@ -69,7 +69,9 @@ type VaultState = {
   renameCarpeta: (id: string, nombre: string) => Promise<void>;
   deleteCarpeta: (id: string) => Promise<void>;
   moveCarpeta: (id: string, destinoId: string | null) => Promise<void>;
-  createNota: (carpetaId: string | null, tipo?: NotaTipo) => Promise<string>;
+  /** `titulo` solo lo usan las Esporas (`FUN-M-03`): la nota nueva se llama como
+   *  la plantilla. Sin él, el nombre por defecto de siempre. */
+  createNota: (carpetaId: string | null, tipo?: NotaTipo, titulo?: string) => Promise<string>;
   renameNota: (id: string, titulo: string) => Promise<void>;
   deleteNota: (id: string) => Promise<void>;
   duplicateNota: (id: string) => Promise<void>;
@@ -253,14 +255,15 @@ export const useVaultStore = create<VaultState>()(
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
       },
 
-      async createNota(carpetaId, tipo = "markdown") {
+      async createNota(carpetaId, tipo = "markdown", titulo) {
         const { vaultId } = get();
         if (!vaultId) throw new Error("Sin vault activo");
+        const porDefecto = tipo === "excalidraw" ? "Dibujo sin título" : "Sin título";
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),
           body: {
-            titulo: tipo === "excalidraw" ? "Dibujo sin título" : "Sin título",
+            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : porDefecto,
             carpetaId,
             tipo,
           },

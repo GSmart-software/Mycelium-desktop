@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
 import { useAuthStore } from "@/stores/authStore";
 
 export type FontOption = { label: string; value: string };
@@ -76,6 +77,11 @@ export type Preferencias = {
    * directorio (excluye también su contenido); `tag` = tiene esa etiqueta.
    */
   graphExcludeRules: { id: string; type: "path" | "tag" | "name"; value: string; enabled?: boolean }[];
+  /**
+   * Esporas (`FUN-M-03`): carpeta del vault cuyas notas son plantillas. Ruta
+   * relativa POSIX; cambiarla NO mueve nada, solo cambia dónde se buscan.
+   */
+  carpetaEsporas: string;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -91,6 +97,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphHoverGlow: 1,
   graphColorGroups: [],
   graphExcludeRules: [],
+  carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
 };
 
 type PreferencesState = {
