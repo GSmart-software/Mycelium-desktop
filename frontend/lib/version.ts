@@ -43,9 +43,15 @@
  *   El usuario puede hacer algo que antes no podía — enterarse de que hay una
  *   versión nueva e instalarla desde la app, sin que se lo digan.
  *
+ * - `1.5.0` — solo desktop: **ancho de tabulación configurable** (`FUN-S-02`).
+ *   Sube minor y no patch porque el usuario puede hacer algo que antes no podía:
+ *   elegir cuánto vale una tabulación. Es también la **primera versión publicada
+ *   con `npm run publicar`** y la que cierra el circuito de `FUN-L-14`, al ser la
+ *   primera que una instalación previa puede detectar y aplicar sola.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambia con
- * la 1.4.0**: actualizar la app no altera nada de lo que la IA debe saber del
+ * la 1.5.0**: un ajuste del editor no altera nada de lo que la IA debe saber del
  * vault.
  */
-export const APP_VERSION = "1.4.0";
+export const APP_VERSION = "1.5.0";

@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { usePreferencesStore } from "@/stores/preferencesStore";
+import { anchoTabValido, TAB_WIDTHS, usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./Settings.module.css";
 
 /** Sección Editor: comportamiento de las pestañas. */
@@ -9,10 +9,31 @@ export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
+  const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
   const setPref = usePreferencesStore((s) => s.setPref);
 
   return (
     <div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="tabWidth">Ancho de tabulación</label>
+        <select
+          id="tabWidth"
+          className={styles.select}
+          value={anchoTabValido(tabWidth)}
+          onChange={(e) => setPref("tabWidth", anchoTabValido(Number(e.target.value)))}
+        >
+          {TAB_WIDTHS.map((n) => (
+            <option key={n} value={n}>{n} espacios</option>
+          ))}
+        </select>
+      </div>
+      <p className={styles.hint}>
+        Cuánto ocupa una tabulación en el editor. Vale para las dos cosas: cuántos
+        espacios inserta la tecla <kbd>Tab</kbd> y cuánto se ve un tabulador que ya
+        estaba en el archivo. Se nota sobre todo en listas anidadas y bloques de
+        código.
+      </p>
+
       <div className={styles.toggleRow}>
         <span className={styles.label}>Pestañas de previsualización</span>
         <button

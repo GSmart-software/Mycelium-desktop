@@ -26,6 +26,15 @@ export const PREVIEW_FONTS: FontOption[] = [
 
 export type Tema = "bioluminiscencia" | "cantarela";
 
+/** Anchos de tabulación admitidos (`FUN-S-02`). */
+export const TAB_WIDTHS = [2, 4, 8] as const;
+export type TabWidth = (typeof TAB_WIDTHS)[number];
+
+/** Normaliza lo que venga de las preferencias guardadas a un ancho válido. */
+export function anchoTabValido(v: unknown): TabWidth {
+  return TAB_WIDTHS.includes(v as TabWidth) ? (v as TabWidth) : 4;
+}
+
 export type Preferencias = {
   editorFont: string;
   editorSize: number;
@@ -54,6 +63,18 @@ export type Preferencias = {
    * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
    */
   showFileTitle: boolean;
+  /**
+   * Cuánto "vale" una tabulación en el editor (`FUN-S-02`). Manda sobre las dos
+   * caras del asunto, que CodeMirror trata por separado y por defecto **no**
+   * coinciden: cuántas columnas ocupa un tabulador ya escrito en el archivo
+   * (`tabSize`) y cuántos espacios inserta la tecla Tab (`indentUnit`).
+   *
+   * Por defecto `4`, que es lo que ya hacía el render de un tabulador literal.
+   * Ojo: antes la tecla Tab insertaba **2** espacios (el defecto de CodeMirror),
+   * así que con este valor pasa a insertar 4 — quien prefiera lo de antes,
+   * elige 2.
+   */
+  tabWidth: TabWidth;
   /**
    * Grafo del vault: indicador de dirección de los enlaces. `animated` = flujo
    * animado a lo largo del enlace (prioridad); `arrow` = flecha hacia el destino;
@@ -93,6 +114,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphContinuousSim: false,
   autoCloseBrackets: true,
   showFileTitle: true,
+  tabWidth: 4,
   graphEdgeDirection: "animated",
   graphHoverGlow: 1,
   graphColorGroups: [],

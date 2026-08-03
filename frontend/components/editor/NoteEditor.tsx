@@ -27,6 +27,7 @@ import {
   wikilinkCompletions,
 } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
+import { extensionesTab } from "@/lib/editor/tabWidth";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
@@ -144,6 +145,9 @@ export function NoteEditor({
   const viewRef = useRef<EditorView | null>(null);
   const liveCompartment = useRef(new Compartment());
   const collabCompartment = useRef(new Compartment());
+  // Ancho de tabulación (FUN-S-02): en compartimento propio para poder
+  // reconfigurarlo al vuelo, sin recrear la vista ni perder cursor y scroll.
+  const tabCompartment = useRef(new Compartment());
   const collabRef = useRef<CollabHandle | null>(null);
   const brokerApplyRef = useRef(false);
   // DEF-039: posición de scroll capturada EN VIVO (ver `instanceCache`).
@@ -336,6 +340,9 @@ export function NoteEditor({
             // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
             // compartidas con relay disponible (cloudflare).
             collabCompartment.current.of([]),
+            tabCompartment.current.of(
+              extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
+            ),
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
@@ -864,8 +871,17 @@ export function NoteEditor({
   );
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
+  const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
   // Panel de metadatos embebido a la derecha de ESTE editor (toggle global).
   const metaPanelOpen = usePanelLayoutStore((s) => s.rightOpen);
+
+  // Cambiar el ancho de tabulación se aplica a los editores ya abiertos
+  // (FUN-S-02): reconfigurar el compartimento, no recrear la vista.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: tabCompartment.current.reconfigure(extensionesTab(tabWidth)),
+    });
+  }, [tabWidth]);
 
   // Mantener el título del bloque del editor al renombrar o togglear la opción.
   useEffect(() => {

@@ -10,6 +10,8 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { type Diagnostic, linter, lintGutter } from "@codemirror/lint";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { tags as t } from "@lezer/highlight";
+import { extensionesTab } from "@/lib/editor/tabWidth";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import {
   Decoration,
   type DecorationSet,
@@ -199,5 +201,9 @@ export function cssEditorExtensions(): Extension {
     // Tab/Shift+Tab aplican sangría en el editor (en vez de mover el foco al
     // siguiente panel). Va al final: menor precedencia que el autocompletado.
     keymap.of([indentWithTab]),
+    // Mismo ancho de tabulación que el editor de notas (FUN-S-02). Acá se lee
+    // al construir y no en un compartimento: el editor de CSS se monta y
+    // desmonta con su panel, así que toma el valor nuevo al reabrirlo.
+    extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
   ];
 }
