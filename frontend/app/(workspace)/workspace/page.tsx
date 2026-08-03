@@ -10,7 +10,9 @@ import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
 import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
+import { UpdateDialog } from "@/components/workspace/UpdateDialog";
 import { useAuthStore } from "@/stores/authStore";
+import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useCssStore } from "@/stores/cssStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -158,6 +160,17 @@ function WorkspaceShell() {
     };
   }, [rutaVault]);
 
+  // Comprobación de actualizaciones (FUN-L-14). Va acá, en el shell ya montado,
+  // y no en el arranque de la app: así el diálogo solo puede aparecer cuando
+  // Mycelium ya es usable, nunca por delante de él. `comprobarAlArrancar` no
+  // bloquea, decide sola si toca hoy y calla si no hay conexión, así que este
+  // efecto es "dispararlo y olvidarse". Un pequeño retardo deja que el vault
+  // termine de cargar antes de competir por la red y por la atención.
+  useEffect(() => {
+    const t = setTimeout(() => void useUpdaterStore.getState().comprobarAlArrancar(), 4000);
+    return () => clearTimeout(t);
+  }, []);
+
   // Cargar el árbol del vault al entrar, aunque el explorador esté colapsado:
   // hace falta para los títulos de las pestañas y para reconciliar el layout
   // restaurado. Idempotente (treeSeq descarta recargas solapadas).
@@ -279,6 +292,7 @@ function WorkspaceShell() {
       <SettingsDrawer />
       <ImportDialogs />
       <ShareModal />
+      <UpdateDialog />
     </div>
   );
 }

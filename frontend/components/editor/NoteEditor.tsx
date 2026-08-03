@@ -28,6 +28,10 @@ import {
 } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
+import {
+  olvidarGuardadoPendiente,
+  registrarGuardadoPendiente,
+} from "@/lib/guardadoPendiente";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { EVENTO_RECARGA } from "@/lib/vaultWatch";
 import { renderNota } from "@/lib/markdown";
@@ -600,6 +604,14 @@ export function NoteEditor({
   }, [notaId, instanceId, applyContent]);
 
   // ── Sync periódico + reconexión + beforeunload ──────────────────
+
+  // Actualizar cierra la app (FUN-L-14): el updater fuerza acá el guardado
+  // pendiente y ESPERA a que termine antes de lanzar el instalador. Sin esto,
+  // lo escrito entre la última tecla y el debounce se perdería al reiniciar.
+  useEffect(() => {
+    registrarGuardadoPendiente(`nota:${instanceId}`, syncNow);
+    return () => olvidarGuardadoPendiente(`nota:${instanceId}`);
+  }, [instanceId, syncNow]);
 
   useEffect(() => {
     const interval = setInterval(() => void syncNow(), SYNC_INTERVAL_MS);
