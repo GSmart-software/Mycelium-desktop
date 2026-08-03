@@ -234,8 +234,17 @@ export function insertarEsporaEnVista(
   const { texto: conProps, aviso } = fusionarPropiedades(doc, sustituida);
 
   const finViejo = inicioDelCuerpo(doc);
-  const prefijoNuevo = conProps.slice(0, inicioDelCuerpo(conProps));
   const prefijoViejo = doc.slice(0, finViejo);
+  // La fusión solo toca el principio del documento, así que el prefijo nuevo es
+  // «todo lo que no es el cuerpo». Se calcula desde el FINAL y no con
+  // `inicioDelCuerpo(conProps)` porque al crear el bloque desde cero
+  // `ponerPropiedad` añade además una línea en blanco de separación, que
+  // pertenece al prefijo aunque el parser la cuente como primera línea del cuerpo.
+  const largoCuerpo = doc.length - finViejo;
+  const prefijoNuevo = conProps.slice(0, conProps.length - largoCuerpo);
+  // Guarda: si el cuerpo no quedó intacto, no se toca el frontmatter (mejor
+  // insertar de menos que reescribir la nota del usuario).
+  const fusionSegura = conProps.slice(conProps.length - largoCuerpo) === doc.slice(finViejo);
 
   // El cursor dentro del frontmatter no es un sitio válido para el cuerpo: se
   // inserta al principio del contenido en vez de partir el bloque en dos.
@@ -243,7 +252,7 @@ export function insertarEsporaEnVista(
 
   const cambios: ChangeSpec[] = [];
   let delta = 0;
-  if (prefijoNuevo !== prefijoViejo) {
+  if (fusionSegura && prefijoNuevo !== prefijoViejo) {
     cambios.push({ from: 0, to: finViejo, insert: prefijoNuevo });
     delta = prefijoNuevo.length - prefijoViejo.length;
   }
