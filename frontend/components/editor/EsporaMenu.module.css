@@ -1,0 +1,53 @@
+.menu {
+  z-index: 70;
+  min-width: 200px;
+  max-width: 300px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.25rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  border-radius: var(--mic-radius-sm);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vacio {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+.aviso {
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--mic-text-primary);
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 15%, transparent);
+}

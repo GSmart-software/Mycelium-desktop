@@ -23,6 +23,7 @@ import {
   Quote,
   Search,
   Shapes,
+  Sprout,
   Strikethrough,
   Type,
   type LucideIcon,
@@ -41,7 +42,9 @@ import {
   wrapSelection,
 } from "@/lib/editor/commands";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { insertarEsporaEnVista, leerEspora, type Espora } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { EsporaMenu } from "./EsporaMenu";
 import { ExportMenu } from "./ExportMenu";
 import styles from "./EditorToolbar.module.css";
 
@@ -95,6 +98,10 @@ export function EditorToolbar({
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [linkPos, setLinkPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  // Menú de Esporas (FUN-M-03): null = cerrado. `aviso` sobrevive a la inserción
+  // cuando algo no se pudo fusionar, para que se pueda leer.
+  const [esporasPos, setEsporasPos] = useState<{ top: number; left: number } | null>(null);
+  const [esporaAviso, setEsporaAviso] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -138,6 +145,30 @@ export function EditorToolbar({
   function confirmLink() {
     run((view) => insertLink(view, linkText, linkUrl));
     setLinkOpen(false);
+  }
+
+  function abrirEsporas() {
+    const rect = toolbarRef.current?.getBoundingClientRect();
+    setEsporaAviso(null);
+    setEsporasPos(rect ? { top: rect.bottom + 4, left: rect.left + 8 } : { top: 0, left: 0 });
+    setFormatMenuOpen(false);
+  }
+
+  /**
+   * Inserta la Espora elegida en la nota abierta. El cuerpo va al cursor y las
+   * propiedades se fusionan con el frontmatter, en UNA transacción (ver
+   * `insertarEsporaEnVista`): `Ctrl+Z` lo deshace en un solo paso.
+   */
+  async function insertarEspora(espora: Espora) {
+    const view = getView();
+    if (!view) return;
+    try {
+      const aviso = insertarEsporaEnVista(view, await leerEspora(espora.id), titulo);
+      setEsporaAviso(aviso);
+      if (!aviso) setEsporasPos(null); // sin avisos, el menú se cierra solo
+    } catch (e) {
+      setEsporaAviso(e instanceof Error ? e.message : String(e));
+    }
   }
 
   // Ctrl+K desde el editor abre el popover (HU-02 CA6)
@@ -220,6 +251,8 @@ export function EditorToolbar({
     { icon: IndentDecrease, label: "Disminuir sangría (Shift+Tab)", run: outdentLine },
     { icon: Link, label: "Link (Ctrl+K)", action: openLinkPopover },
     { icon: Minus, label: "Divisor horizontal", run: insertHorizontalRule },
+    // Plantillas (FUN-M-03): la única vía que sirve para notas que YA existen.
+    { icon: Sprout, label: "Insertar Espora", action: abrirEsporas },
     ...(onInsertDiagram
       ? ([
           { divider: true },
@@ -337,6 +370,16 @@ export function EditorToolbar({
           </div>,
           document.body,
         )}
+
+      {esporasPos && (
+        <EsporaMenu
+          top={esporasPos.top}
+          left={esporasPos.left}
+          aviso={esporaAviso}
+          onElegir={(espora) => void insertarEspora(espora)}
+          onCerrar={() => setEsporasPos(null)}
+        />
+      )}
 
       <div className={styles.spacer} />
 
