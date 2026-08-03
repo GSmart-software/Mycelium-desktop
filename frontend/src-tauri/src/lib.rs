@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod actualizador;
 mod archivos;
 mod mycignore;
 mod terminal;
@@ -111,9 +112,15 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
+        // decisión de si se puede actualizar o no la toma `actualizador.rs`
+        // leyendo la config compilada, así que sin claves la app arranca igual
+        // y solo queda el updater desactivado con su motivo a la vista.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Pending(Mutex::new(pendientes)))
         .manage(vault_watch::WatcherState::default())
         .manage(terminal::TerminalesState::default())
+        .manage(actualizador::DescargaState::default())
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
             alternar_devtools,
@@ -144,7 +151,19 @@ pub fn run() {
             vault_fs::leer_archivo_texto,
             vault_fs::revelar_en_sistema,
             vault_watch::iniciar_watcher,
-            vault_watch::detener_watcher
+            vault_watch::detener_watcher,
+            actualizador::updater_estado,
+            actualizador::updater_set_auto,
+            actualizador::updater_set_avanzado,
+            actualizador::updater_set_endpoint,
+            actualizador::updater_omitir_version,
+            actualizador::updater_fijar_version,
+            actualizador::updater_marcar_comprobacion,
+            actualizador::updater_buscar,
+            actualizador::updater_versiones,
+            actualizador::updater_descargar,
+            actualizador::updater_instalar,
+            actualizador::updater_descartar
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

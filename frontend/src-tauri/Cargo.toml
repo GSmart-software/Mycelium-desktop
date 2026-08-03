@@ -33,6 +33,18 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 notify-debouncer-full = "0.3"
 # Terminal integrada (FUN-L-07): pseudo-terminal multiplataforma (ConPTY en Windows).
 portable-pty = "0.9"
+# Autoactualización (FUN-L-14) y selección de versión (FUN-M-16): descarga,
+# verificación de la firma, instalación y reinicio. Se fija la MINOR porque
+# `version_comparator` —lo que permite instalar una versión anterior— es API
+# suya y no queremos que se mueva sola.
+tauri-plugin-updater = "2.10"
+# Solo para leer `versions.json` (FUN-M-16), que el plugin del updater no
+# conoce. MISMAS features que las que él activa, para que cargo unifique y no
+# se compile reqwest dos veces ni se cuele native-tls.
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
+# Con `rustls-no-provider` el backend criptográfico NO se autoinstala: hay que
+# fijar el proveedor por defecto del proceso antes del primer TLS propio.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

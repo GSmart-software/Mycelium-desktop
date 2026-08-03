@@ -26,9 +26,19 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://actualizaciones.mycelium.invalid/latest.json"],
+      "pubkey": "SIN-CONFIGURAR-generar-con-npx-tauri-signer-generate",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "fileAssociations": [
       {
         "ext": ["md"],
