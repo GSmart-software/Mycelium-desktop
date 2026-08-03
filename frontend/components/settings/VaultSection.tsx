@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
   FRAMEWORK_IA_VERSION,
@@ -11,6 +12,7 @@ import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
@@ -46,8 +48,37 @@ export function VaultSection() {
   // .mycignore por vault (FUN-M-11): null = editor cerrado.
   const [ignoreTexto, setIgnoreTexto] = useState<string | null>(null);
   const [guardandoIgnore, setGuardandoIgnore] = useState(false);
+  // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
+  // de validación, que se confirma al salir del campo.
+  const carpetaEsporasPref = usePreferencesStore((s) => s.prefs.carpetaEsporas);
+  const [esporasBorrador, setEsporasBorrador] = useState(carpetaEsporasPref);
+  const [esporasError, setEsporasError] = useState<string | null>(null);
 
   const ocupado = progreso !== null;
+
+  // La preferencia se hidrata en asíncrono al abrir el vault: el borrador se
+  // resetea DURANTE el render (no en un efecto) para no pintar el valor viejo.
+  const [esporasVisto, setEsporasVisto] = useState(carpetaEsporasPref);
+  if (esporasVisto !== carpetaEsporasPref) {
+    setEsporasVisto(carpetaEsporasPref);
+    setEsporasBorrador(carpetaEsporasPref);
+    setEsporasError(null);
+  }
+
+  /** Confirma la carpeta de Esporas: si la ruta no es válida, no se guarda. */
+  const confirmarCarpetaEsporas = () => {
+    if (esporasBorrador === carpetaEsporasPref) return;
+    const limpia = normalizarCarpetaEsporas(esporasBorrador);
+    if (limpia === null) {
+      setEsporasError(
+        "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».",
+      );
+      return;
+    }
+    setEsporasError(null);
+    setEsporasBorrador(limpia);
+    usePreferencesStore.getState().setPref("carpetaEsporas", limpia);
+  };
 
   useEffect(() => {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
@@ -226,6 +257,45 @@ export function VaultSection() {
           Al abrir Mycelium se reabre automáticamente el último vault que usaste. Si
           está desactivado, se muestra el selector de vaults para elegir.
         </p>
+      </div>
+
+      {/* Esporas (FUN-M-03): dónde viven las plantillas de notas. */}
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="mic-carpeta-esporas">
+          Carpeta de Esporas (plantillas)
+        </label>
+        <input
+          id="mic-carpeta-esporas"
+          className={styles.input}
+          value={esporasBorrador}
+          spellCheck={false}
+          placeholder={CARPETA_ESPORAS_DEFECTO}
+          onChange={(e) => setEsporasBorrador(e.target.value)}
+          onBlur={confirmarCarpetaEsporas}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") {
+              setEsporasBorrador(carpetaEsporasPref);
+              setEsporasError(null);
+            }
+          }}
+        />
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          Las notas de esta carpeta son <strong>Esporas</strong>: plantillas para crear notas
+          ya con su estructura, o para insertar una estructura en una nota que ya existe.
+          Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
+          <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
+          carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
+        </p>
+        {esporasError && (
+          <p
+            className={styles.cssPreviewNote}
+            style={{ color: "var(--mic-callout-error-border)" }}
+            role="alert"
+          >
+            {esporasError}
+          </p>
+        )}
       </div>
 
       <div className={styles.field}>
