@@ -32,8 +32,20 @@
  *   `{{fecha:FORMATO}}`. **Minor** (una funcionalidad, un minor; el patch vuelve
  *   a 0): el usuario puede hacer algo que antes no podía — crear notas ya con su
  *   estructura, en vez de rehacerla cada vez.
+ * - `1.4.0` — solo desktop: **autoactualización** (`FUN-L-14`) y **selección de
+ *   versión** (`FUN-M-16`). Mycelium comprueba una vez al día si hay una versión
+ *   nueva, muestra qué trae (el changelog renderizado con su propio motor de
+ *   Markdown) y ofrece instalarla; nunca obliga y nunca bloquea. En modo
+ *   avanzado —siete clics en este mismo número, en el pie de Configuración— se
+ *   puede además instalar cualquier versión publicada, incluida una anterior.
+ *   **Minor**: un release, un incremento, y el salto lo decide el cambio más
+ *   significativo, no cuántos entran (las dos funcionalidades suman UN minor).
+ *   El usuario puede hacer algo que antes no podía — enterarse de que hay una
+ *   versión nueva e instalarla desde la app, sin que se lo digan.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
- * que se generan en el vault y es INDEPENDIENTE de esta versión.
+ * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambia con
+ * la 1.4.0**: actualizar la app no altera nada de lo que la IA debe saber del
+ * vault.
  */
-export const APP_VERSION = "1.3.0";
+export const APP_VERSION = "1.4.0";
