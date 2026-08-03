@@ -77,6 +77,14 @@ function detalle(texto) {
 /** Error esperado: el script lo reporta con contexto en vez de volcar un stack. */
 class ErrorDePublicacion extends Error {}
 
+/**
+ * Fallo de RED al verificar. Se distingue a propósito de `ErrorDePublicacion`:
+ * llegado ese punto lo publicado ya está subido, así que el problema es no haber
+ * podido comprobarlo — no que la publicación haya fallado. Decir lo segundo
+ * cuando pasa lo primero es la peor forma de enterarse.
+ */
+class ErrorDeRed extends Error {}
+
 function fallar(mensaje) {
   throw new ErrorDePublicacion(mensaje);
 }
@@ -184,9 +192,26 @@ function ejecutar(comando, args, { capturar = false, env } = {}) {
 }
 
 /** GET con anti-caché: el CDN de r2.dev puede servir la versión anterior del JSON. */
-async function pedir(url) {
+/**
+ * GET con reintentos. La red falla de forma intermitente y en la fase de
+ * verificación eso es especialmente molesto: la publicación ya salió bien y un
+ * `fetch failed` suelto haría pensar que no. Tres intentos con espera creciente.
+ */
+async function pedir(url, intentos = 3) {
   const separador = url.includes("?") ? "&" : "?";
-  return fetch(`${url}${separador}_=${Date.now()}`, { cache: "no-store" });
+  let ultimo;
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      return await fetch(`${url}${separador}_=${Date.now()}`, { cache: "no-store" });
+    } catch (e) {
+      ultimo = e;
+      if (i < intentos) {
+        aviso(`fallo de red consultando ${url} (intento ${i}/${intentos}), reintentando…`);
+        await new Promise((r) => setTimeout(r, 1500 * i));
+      }
+    }
+  }
+  throw new ErrorDeRed(`No pude consultar ${url}: ${ultimo?.cause?.message ?? ultimo?.message}`);
 }
 
 // ── 1. Comprobaciones previas ─────────────────────────────────────────────────
@@ -732,7 +757,24 @@ async function principal() {
 }
 
 principal().catch((e) => {
-  console.error(`\nFALLO: ${e instanceof ErrorDePublicacion ? e.message : e.stack}`);
+  // Un fallo de RED al verificar no es un fallo de publicación: si se subió
+  // todo, la versión ESTÁ publicada y lo que faltó fue comprobarla. Se dice así
+  // de claro, con la forma de comprobarla a mano.
+  if (e instanceof ErrorDeRed && hechos.some((h) => h.startsWith("subido latest.json"))) {
+    console.error(`\nLA VERSIÓN SE PUBLICÓ, pero NO se pudo verificar: ${e.message}`);
+    console.error(
+      "\nTodo se subió, incluido el latest.json de la raíz, así que la actualización ya está\n" +
+        "anunciada. Lo que no se pudo hacer es la comprobación posterior — casi seguro es un\n" +
+        "corte de red pasajero y no un problema de lo publicado.\n\n" +
+        "Comprobalo cuando vuelva la red, sin volver a compilar ni subir:\n\n" +
+        "  npm run publicar -- --sin-compilar --forzar\n\n" +
+        "Si prefieres mirarlo a mano, la § 5 de docs/procesos/Publicar una version.md dice qué\n" +
+        "tiene que dar cada comprobación.",
+    );
+    process.exit(1);
+  }
+
+  console.error(`\nFALLO: ${e instanceof ErrorDePublicacion || e instanceof ErrorDeRed ? e.message : e.stack}`);
   if (hechos.length) {
     console.error("\nLo que SÍ quedó hecho (para saber qué hay a medias):");
     for (const h of hechos) console.error(`  - ${h}`);
