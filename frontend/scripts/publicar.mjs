@@ -563,11 +563,18 @@ function subir(wrangler, { clave, archivo, contentType, simulacro }) {
 async function verificarJson(url, comprobar) {
   const r = await pedir(url);
   if (!r.ok) fallar(`${url} respondió ${r.status}.`);
-  const bruto = await r.text();
-  if (bruto.charCodeAt(0) === 0xfeff) fallar(`${url} empieza con BOM: la app no podría leerlo.`);
+  // Se leen los bytes crudos y no `.text()`: el decodificador de fetch se come el BOM
+  // en silencio, y el BOM es justamente lo que hay que detectar (`serde_json` no lo salta).
+  const bytes = Buffer.from(await r.arrayBuffer());
+  if (bytes[0] !== 0x7b) {
+    fallar(
+      `${url} no empieza por '{' (byte 0x${bytes[0].toString(16).toUpperCase()}). ` +
+        "Si es 0xEF lleva BOM y la app fallaría al leerlo.",
+    );
+  }
   let json;
   try {
-    json = JSON.parse(bruto);
+    json = JSON.parse(bytes.toString("utf8"));
   } catch (e) {
     fallar(`${url} no es JSON válido: ${e.message}`);
   }
@@ -659,7 +666,7 @@ async function principal() {
   const rutaVersiones = join(destino, "versions.json");
   escribirJsonSinBom(rutaVersiones, indice);
   ok(`versions.json escrito con ${indice.versions.length} versión/es (la nueva arriba)`);
-  hechos.push("manifiestos escritos en installers/v" + version + "/");
+  hechos.push(`manifiestos escritos en installers/v${version}/`);
 
   // ── 3-4. Subir ──
   paso(opciones.simulacro ? "Subir al bucket (SIMULACRO: solo se imprimen los comandos)" : "Subir al bucket");
