@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
+    "publicar": "node scripts/publicar.mjs",
     "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio"
   },
   "dependencies": {
