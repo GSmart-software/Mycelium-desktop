@@ -26,13 +26,24 @@ export const PREVIEW_FONTS: FontOption[] = [
 
 export type Tema = "bioluminiscencia" | "cantarela";
 
-/** Anchos de tabulación admitidos (`FUN-S-02`). */
-export const TAB_WIDTHS = [2, 4, 8] as const;
-export type TabWidth = (typeof TAB_WIDTHS)[number];
+/**
+ * Ancho de tabulación (`FUN-S-02`). Se escribe libre en vez de elegirse entre unos
+ * pocos valores, pero se acota: por debajo de 1 la sangría desaparece y por encima
+ * de 16 una lista anidada se sale de la pantalla.
+ */
+export const TAB_MIN = 1;
+export const TAB_MAX = 16;
+export const TAB_DEFECTO = 4;
 
-/** Normaliza lo que venga de las preferencias guardadas a un ancho válido. */
-export function anchoTabValido(v: unknown): TabWidth {
-  return TAB_WIDTHS.includes(v as TabWidth) ? (v as TabWidth) : 4;
+/**
+ * Normaliza lo que venga de las preferencias guardadas —o de lo que el usuario esté
+ * tecleando— a un entero dentro del rango. Un valor inválido cae al defecto en vez
+ * de romper el CSS, porque esto alimenta una variable que usa toda la app.
+ */
+export function anchoTabValido(v: unknown): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return TAB_DEFECTO;
+  return Math.min(TAB_MAX, Math.max(TAB_MIN, n));
 }
 
 export type Preferencias = {
@@ -69,12 +80,22 @@ export type Preferencias = {
    * coinciden: cuántas columnas ocupa un tabulador ya escrito en el archivo
    * (`tabSize`) y cuántos espacios inserta la tecla Tab (`indentUnit`).
    *
-   * Por defecto `4`, que es lo que ya hacía el render de un tabulador literal.
-   * Ojo: antes la tecla Tab insertaba **2** espacios (el defecto de CodeMirror),
-   * así que con este valor pasa a insertar 4 — quien prefiera lo de antes,
-   * elige 2.
+   * Por defecto `4`, y ese valor deja la app **exactamente como se veía antes**:
+   * el `padding-left` de las listas está calibrado para que 4 dé los mismos
+   * `1.5rem` de siempre. Cambiar el defecto no debe reacomodar los documentos de
+   * nadie sin que lo pida.
+   *
+   * Manda sobre tres cosas, y conviene saber cuál afecta a qué (`DEF-049`):
+   *   - **Al leer**: cuánto sangran las listas y los tabuladores. Se ve al
+   *     instante en todos los documentos, sin tocar el texto.
+   *   - **Al escribir**: cuántos espacios inserta la tecla Tab.
+   *   - **Tabuladores literales** del archivo, en el editor.
+   *
+   * Lo que NO puede hacer: reescalar en el editor una sangría ya escrita con
+   * espacios — dos espacios ocupan dos espacios. Para eso hace falta reindentar
+   * el documento, que es otra funcionalidad.
    */
-  tabWidth: TabWidth;
+  tabWidth: number;
   /**
    * Grafo del vault: indicador de dirección de los enlaces. `animated` = flujo
    * animado a lo largo del enlace (prioridad); `arrow` = flecha hacia el destino;
@@ -146,6 +167,10 @@ function applyToDom(s: Pick<PreferencesState, "tema" | "modoOscuro" | "prefs">) 
   html.style.setProperty("--mic-editor-font-size", `${s.prefs.editorSize}px`);
   html.style.setProperty("--mic-preview-font-family", s.prefs.previewFont);
   html.style.setProperty("--mic-preview-font-size", `${s.prefs.previewSize}px`);
+  // Ancho de tabulación (FUN-S-02). Va como NÚMERO sin unidad para poder usarlo
+  // en dos sitios que esperan cosas distintas: `tab-size`, que lleva un número
+  // de columnas, y el `padding-left` de las listas, que se calcula multiplicando.
+  html.style.setProperty("--mic-tab-width", String(anchoTabValido(s.prefs.tabWidth)));
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;

@@ -593,8 +593,17 @@
 .mic-preview h1:first-child { margin-top: 0; }
 
 .mic-preview p   { margin-bottom: 0.85rem; }
+/* Sangría de las listas según el ancho de tabulación (FUN-S-02 / DEF-049).
+   `0.375rem` por unidad está calibrado para que el valor por defecto (4) dé los
+   mismos `1.5rem` de siempre: cambiar el ajuste reacomoda TODOS los documentos al
+   instante, pero no tocarlo no cambia nada. */
 .mic-preview ul,
-.mic-preview ol  { padding-left: 1.5rem; margin-bottom: 0.85rem; }
+.mic-preview ol  {
+  padding-left: calc(var(--mic-tab-width, 4) * 0.375rem);
+  margin-bottom: 0.85rem;
+}
+/* Tabuladores literales del documento, en las vistas renderizadas. */
+.mic-preview { tab-size: var(--mic-tab-width, 4); }
 .mic-preview li  { margin-bottom: 0.25rem; }
 
 .mic-preview a       { color: var(--mic-accent); text-decoration: underline; }

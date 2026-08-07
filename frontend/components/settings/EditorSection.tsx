@@ -1,7 +1,13 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { anchoTabValido, TAB_WIDTHS, usePreferencesStore } from "@/stores/preferencesStore";
+import {
+  anchoTabValido,
+  TAB_DEFECTO,
+  TAB_MAX,
+  TAB_MIN,
+  usePreferencesStore,
+} from "@/stores/preferencesStore";
 import styles from "./Settings.module.css";
 
 /** Sección Editor: comportamiento de las pestañas. */
@@ -16,22 +22,34 @@ export function EditorSection() {
     <div>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="tabWidth">Ancho de tabulación</label>
-        <select
-          id="tabWidth"
-          className={styles.select}
-          value={anchoTabValido(tabWidth)}
-          onChange={(e) => setPref("tabWidth", anchoTabValido(Number(e.target.value)))}
-        >
-          {TAB_WIDTHS.map((n) => (
-            <option key={n} value={n}>{n} espacios</option>
-          ))}
-        </select>
+        <div className={styles.rangeRow}>
+          <input
+            id="tabWidth"
+            type="number"
+            min={TAB_MIN}
+            max={TAB_MAX}
+            step={1}
+            className={styles.select}
+            value={tabWidth}
+            // Se guarda lo que se teclea para poder borrar y reescribir; el valor
+            // se acota al salir del campo, no en cada tecla (si no, escribir "12"
+            // se convertiría en "1" en cuanto se pulsa el 1).
+            onChange={(e) => setPref("tabWidth", Number(e.target.value))}
+            onBlur={(e) => setPref("tabWidth", anchoTabValido(e.target.value))}
+          />
+          <span className={styles.rangeValue}>espacios</span>
+        </div>
       </div>
       <p className={styles.hint}>
-        Cuánto ocupa una tabulación en el editor. Vale para las dos cosas: cuántos
-        espacios inserta la tecla <kbd>Tab</kbd> y cuánto se ve un tabulador que ya
-        estaba en el archivo. Se nota sobre todo en listas anidadas y bloques de
-        código.
+        Cuánto sangra un nivel de indentación. <strong>Al leer</strong> cambia la
+        sangría de las listas y los tabuladores de todos tus documentos al instante,
+        sin editarlos. <strong>Al escribir</strong> es lo que inserta la tecla{" "}
+        <kbd>Tab</kbd>. Entre {TAB_MIN} y {TAB_MAX}; por defecto {TAB_DEFECTO}.
+      </p>
+      <p className={styles.hint}>
+        En la vista en vivo, la sangría <em>ya escrita</em> con espacios no se
+        reescala: dos espacios ocupan dos espacios. Para cambiarla de verdad hay que
+        reindentar el documento.
       </p>
 
       <div className={styles.toggleRow}>
