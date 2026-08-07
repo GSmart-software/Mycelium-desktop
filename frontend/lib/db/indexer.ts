@@ -410,9 +410,22 @@ export async function indexarVault(
   }
 
   // 3) Limpieza: borrar del índice lo que ya no existe en disco.
+  //
+  // OJO con la papelera (DEF-046): una nota enviada a la papelera TAMPOCO está en su
+  // ruta —se movió a `.mycelium/.trash`, que `.mycignore` ignora siempre—, así que
+  // caía en esta limpieza y se borraba su fila de `papelera` a los segundos. Como
+  // mover el archivo dispara el watcher, el ciclo era: borrar → reindexar → la
+  // entrada desaparece de la papelera. El archivo seguía en disco pero Mycelium ya no
+  // sabía que existía, así que no había forma de recuperarlo desde la app.
+  //
+  // Su ausencia de la ruta original es INTENCIONAL: no es un archivo desaparecido.
+  const enPapelera = new Set(
+    (await select<{ nota_id: string }>("SELECT nota_id FROM papelera")).map((r) => r.nota_id),
+  );
   const rutasActuales = new Set(archivos.map((a) => a.rutaRelativa));
   for (const { id } of notasExistentes) {
     if (rutasActuales.has(id)) continue;
+    if (enPapelera.has(id)) continue;
     await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
     await execute("DELETE FROM propiedades WHERE nota_id = ?", [id]);
     await execute("DELETE FROM contenidos WHERE nota_id = ?", [id]);
