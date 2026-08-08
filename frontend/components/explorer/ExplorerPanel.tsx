@@ -29,6 +29,8 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
+import { api } from "@/lib/api";
+import { baseInicial } from "@/lib/bases";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { crearTerminal } from "@/lib/terminal";
@@ -348,6 +350,21 @@ export function ExplorerPanel() {
     };
   }
 
+  /**
+   * Crea un `.base` con una vista mínima ya escrita. Una base vacía no mostraría
+   * nada y parecería rota; con esto se abre mostrando el vault entero, que es de
+   * donde el usuario va a partir para filtrar.
+   */
+  async function crearBase(carpetaId: string | null) {
+    const id = await store.createNota(carpetaId, "base");
+    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
+      method: "PUT",
+      token: useAuthStore.getState().accessToken,
+      body: { contenido: baseInicial() },
+    });
+    openNota(id);
+  }
+
   function carpetaMenu(carpeta: TreeCarpeta): MenuItem[] {
     return [
       {
@@ -357,6 +374,12 @@ export function ExplorerPanel() {
       {
         label: "Nuevo dibujo Excalidraw",
         onClick: () => void store.createNota(carpeta.id, "excalidraw").then(openNota),
+      },
+      // Base (FUN-L-03): una tabla que agrega notas por sus propiedades. Se crea
+      // con una vista mínima ya escrita, para que muestre algo desde el principio.
+      {
+        label: "Nueva base",
+        onClick: () => void crearBase(carpeta.id),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
       // Esporas la entrada queda deshabilitada con el motivo, nunca oculta: es

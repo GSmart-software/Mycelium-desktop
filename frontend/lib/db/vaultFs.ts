@@ -88,7 +88,7 @@ export function basenameDe(ruta: string): string {
   return ruta.slice(ruta.lastIndexOf("/") + 1);
 }
 
-/** Extensión con punto (`.md`, `.excalidraw`) de una ruta, o "" si no tiene. */
+/** Extensión con punto (`.md`, `.excalidraw`, `.base`) de una ruta, o "" si no tiene. */
 export function extDe(ruta: string): string {
   const nombre = basenameDe(ruta);
   const i = nombre.lastIndexOf(".");
@@ -97,7 +97,11 @@ export function extDe(ruta: string): string {
 
 /** Extensión de archivo según el tipo de nota. */
 export function extDeTipo(tipo: string): string {
-  return tipo === "excalidraw" ? ".excalidraw" : ".md";
+  if (tipo === "excalidraw") return ".excalidraw";
+  // `.base` es la extensión de Obsidian: se adopta para que las bases sean
+  // intercambiables entre las dos apps (`FUN-L-03`).
+  if (tipo === "base") return ".base";
+  return ".md";
 }
 
 /** Une carpeta (id/ruta POSIX o null=raíz) y nombre en una ruta relativa. */

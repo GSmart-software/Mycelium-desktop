@@ -36,7 +36,7 @@ pub struct ArchivoMeta {
     pub ruta_relativa: String,
     /// Fecha de modificación en milisegundos epoch (de `metadata().modified()`).
     pub mtime: i64,
-    /// `"excalidraw"` para `.excalidraw`, `"markdown"` para el resto (`.md`).
+    /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"markdown"` para el resto.
     pub tipo: String,
 }
 
@@ -44,6 +44,9 @@ pub struct ArchivoMeta {
 fn tipo_de(path: &Path) -> String {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
+        // Bases (`FUN-L-03`): tablas que agregan notas. La extensión es la de
+        // Obsidian, para que el vault siga siendo intercambiable.
+        Some(ext) if ext.eq_ignore_ascii_case("base") => "base".to_string(),
         _ => "markdown".to_string(),
     }
 }
@@ -63,7 +66,7 @@ fn es_importable(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => {
             let ext = ext.to_ascii_lowercase();
-            ext == "md" || ext == "excalidraw"
+            ext == "md" || ext == "excalidraw" || ext == "base"
         }
         None => false,
     }
@@ -156,7 +159,7 @@ fn recorrer(dir: &Path, base: &Path, out: &mut Vec<ArchivoLeido>) -> Result<(), 
     Ok(())
 }
 
-/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw` con su ruta
+/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw`/`.base` con su ruta
 /// relativa (separador `/`) y su contenido UTF-8. Ignora directorios ocultos.
 #[tauri::command]
 pub fn leer_carpeta(origen: String) -> Result<Vec<ArchivoLeido>, String> {
@@ -226,7 +229,7 @@ fn recorrer_meta(
     Ok(())
 }
 
-/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw` con su ruta
+/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw`/`.base` con su ruta
 /// relativa (separador `/`), su `mtime` (ms epoch) y su `tipo` — **sin el
 /// contenido**. Es la fuente del indexador derivado (fase 2 del vault en
 /// carpeta): con esto le alcanza para decidir qué reindexar, y el texto lo pide

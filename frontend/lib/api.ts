@@ -22,6 +22,7 @@ import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/l
 import { putPreferencias } from "@/lib/db/preferencias";
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
 import { compartido, miembros, noop } from "@/lib/db/sharing";
+import { notasParaTabla } from "@/lib/db/tabla";
 import { actualizarSnippet, borrarSnippet, crearSnippet, listarSnippets } from "@/lib/db/snippets";
 import { carpetasCompartidas, tree } from "@/lib/db/tree";
 
@@ -99,6 +100,9 @@ async function dispatch(
     // Propiedades del frontmatter (FUN-M-04): claves del vault (autocompletado
     // del panel) y notas que tienen una propiedad (base de `FUN-L-03`).
     if (c === "propiedades" && d === "claves" && method === "GET") return clavesDelVault(b);
+    // Datos de una base (FUN-L-03): una fila por nota, con propiedades y
+    // etiquetas. El filtrado NO baja acá: lo hace `lib/bases.ts`, compartido.
+    if (c === "tabla" && !d && method === "GET") return notasParaTabla(b);
     if (c === "propiedades" && !d && method === "GET") {
       return notasConPropiedad(b, q.get("clave") ?? "", q.get("valor"));
     }

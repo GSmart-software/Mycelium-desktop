@@ -1,0 +1,215 @@
+/* Vista de un archivo `.base` (FUN-L-03). Usa el mismo lenguaje visual que la
+   tarjeta de propiedades de FUN-M-04: un valor se ve igual acá que en su nota. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mic-bg-canvas);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.titulo {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.vistas {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.vista,
+.vistaActiva {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8rem;
+  color: var(--mic-text-muted);
+}
+
+.vista:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.vistaActiva {
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+.recuento {
+  margin-left: auto;
+  font-size: 0.78rem;
+}
+
+/* La tabla scrollea dentro de su caja: el pane nunca scrollea en horizontal. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.tabla th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 0.45rem 0.9rem;
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 0.4rem 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+  vertical-align: top;
+}
+
+/* Toda la fila abre la nota: se anuncia con el cursor y el resaltado. */
+.tabla tbody tr {
+  cursor: pointer;
+}
+
+.tabla tbody tr:hover,
+.tabla tbody tr:focus-visible {
+  background: color-mix(in srgb, var(--mic-glow) 10%, transparent);
+  outline: none;
+}
+
+/* La primera columna es el nombre: se destaca como el enlace que es. */
+.tabla tbody td:first-child {
+  color: var(--mic-accent);
+  font-weight: 500;
+}
+
+.vacia {
+  color: var(--mic-text-muted);
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+}
+
+.fecha {
+  color: var(--mic-text-muted);
+  white-space: nowrap;
+}
+
+.pildoras {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.pildora {
+  padding: 0.05em 0.45em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-glow);
+  font-size: 0.78rem;
+}
+
+/* ── Estados ─────────────────────────────────────────────────────────────── */
+
+.cargando,
+.vacio,
+.aviso {
+  padding: 0.9rem;
+  color: var(--mic-text-muted);
+  font-size: 0.86rem;
+}
+
+.aviso code {
+  font-family: var(--mic-font-mono);
+}
+
+.avisoFuerte {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 14%, transparent);
+  color: var(--mic-text-primary);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+/* Un filtro que no se pudo evaluar NO produce una tabla a medias: produce esto. */
+.error {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--mic-callout-warning-border);
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 10%, transparent);
+  color: var(--mic-callout-warning-border);
+}
+
+.errorTitulo {
+  margin: 0 0 0.3rem;
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+.errorDetalle {
+  margin: 0 0 0.5rem;
+  color: var(--mic-text-muted);
+  font-size: 0.84rem;
+}
+
+.expresion {
+  margin: 0 0 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-primary);
+  font-family: var(--mic-font-mono);
+  font-size: 0.8rem;
+  overflow-x: auto;
+}
+
+.botonSecundario {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-primary);
+  font-size: 0.82rem;
+}
+
+.botonSecundario:hover {
+  border-color: var(--mic-accent);
+}
+
+.crudo {
+  margin: 0 0.9rem 0.9rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-muted);
+  font-family: var(--mic-font-mono);
+  font-size: 0.8rem;
+  overflow: auto;
+}

@@ -11,7 +11,7 @@
  * Convenciones del índice (decididas en la spec):
  *   - `notas.id` = ruta relativa POSIX del archivo (`Proyectos/2026/plan.md`).
  *   - `titulo`   = nombre del archivo sin extensión.
- *   - `tipo`     = `markdown` | `excalidraw` según la extensión.
+ *   - `tipo`     = `markdown` | `excalidraw` | `base` según la extensión.
  *   - `carpetas.id` = ruta POSIX de la carpeta; `padre_id` = carpeta padre o NULL.
  *   - `vault_id`  = `LOCAL_VAULT_ID` (fase 3): el índice reutiliza el vault
  *     sembrado por `ensureSeed()` para que `tree(LOCAL_VAULT_ID)` y toda la capa
