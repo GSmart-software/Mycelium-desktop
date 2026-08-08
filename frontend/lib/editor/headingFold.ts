@@ -38,10 +38,29 @@ export const headingFoldService = foldService.of((state, lineStart) => {
 const isHeading = (el: Element): boolean => /^H[1-6]$/.test(el.tagName);
 
 /**
+ * Qué secciones están plegadas, POR CONTENEDOR y fuera de la función (DEF-050).
+ *
+ * Antes vivía dentro de `attachHeadingFolds`, así que cada llamada empezaba con un
+ * conjunto vacío: reejecutarla reseteaba el plegado y dejaba a los manejadores de
+ * clic viejos apuntando a un conjunto huérfano. Eso volvía la función insegura de
+ * repetir, justo lo que hace falta para que las flechas se puedan recuperar solas.
+ *
+ * `WeakMap` y no `Map`: la clave es un nodo del DOM y no debe impedir que se libere
+ * cuando la nota se cierra.
+ */
+const plegadasPorContenedor = new WeakMap<HTMLElement, Set<HTMLElement>>();
+
+/**
  * Plegado de títulos en la vista de lectura (DOM del preview ya renderizado).
  * Cada título recibe una flecha; al pulsarla se ocultan los elementos siguientes
- * hasta el próximo título de nivel igual o superior. El estado de plegado se
- * recalcula desde cero respetando el anidamiento.
+ * hasta el próximo título de nivel igual o superior.
+ *
+ * **Es idempotente y se puede llamar tras cada render** (DEF-050): salta los títulos
+ * que ya tienen flecha y conserva qué había plegado. Hace falta que lo sea porque
+ * las flechas se inyectan en el DOM *después* de que React lo pinte, así que
+ * cualquier cosa que reescriba el HTML del preview se las lleva por delante — y el
+ * usuario lo veía al cambiar una preferencia, que re-renderiza el editor sin que
+ * cambie el contenido.
  */
 export function attachHeadingFolds(root: HTMLElement): void {
   // Las cabeceras cuelgan del div de contenido (`.mic-preview-body`), NO del div
@@ -53,7 +72,16 @@ export function attachHeadingFolds(root: HTMLElement): void {
     (root.querySelector(":scope > div:not(.mic-doc-title)") as HTMLElement | null) ??
     root;
   const children = Array.from(container.children) as HTMLElement[];
-  const collapsed = new Set<HTMLElement>();
+  let collapsed = plegadasPorContenedor.get(container);
+  if (!collapsed) {
+    collapsed = new Set<HTMLElement>();
+    plegadasPorContenedor.set(container, collapsed);
+  }
+  // Si el HTML se reescribió, los títulos son nodos NUEVOS y los viejos que
+  // quedaron marcados ya no cuelgan de nada: se descartan para no retenerlos.
+  for (const el of collapsed) {
+    if (!container.contains(el)) collapsed.delete(el);
+  }
 
   const apply = () => {
     let activeLevel = 0; // 0 = fuera de cualquier sección plegada

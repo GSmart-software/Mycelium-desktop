@@ -691,9 +691,23 @@ export function NoteEditor({
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current, notaId);
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
-      attachHeadingFolds(previewRef.current); // plegar secciones por título (lectura)
     }
   }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas]);
+
+  // Las flechas de plegado se inyectan en el DOM DESPUÉS de que React pinte, así
+  // que cualquier re-render que reescriba el HTML del preview se las lleva —
+  // aunque el contenido no haya cambiado. Pasaba al tocar una preferencia
+  // (`DEF-050`): el editor se re-renderizaba, las flechas desaparecían, y el
+  // efecto de arriba no volvía a correr porque sus dependencias seguían iguales.
+  //
+  // Por eso este va **sin lista de dependencias**: se ejecuta tras cada render y
+  // repone lo que falte. `attachHeadingFolds` es idempotente y conserva qué había
+  // plegado, así que repetirlo no cuesta ni pierde estado.
+  useEffect(() => {
+    if ((mode === "split" || mode === "read") && previewRef.current) {
+      attachHeadingFolds(previewRef.current);
+    }
+  });
 
   // Feedback de inexistencia: oscurece los wikilinks a archivos que no existen.
   useEffect(() => {

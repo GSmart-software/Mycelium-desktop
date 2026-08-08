@@ -45,6 +45,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 # Con `rustls-no-provider` el backend criptográfico NO se autoinstala: hay que
 # fijar el proveedor por defecto del proceso antes del primer TLS propio.
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+trash = "5.2.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

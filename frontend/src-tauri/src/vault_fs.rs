@@ -187,10 +187,36 @@ fn podar_ancestros_vacios(desde: &Path, tope: &Path) {
     }
 }
 
-/// Borra definitivamente un elemento de la papelera (archivo o carpeta). En modo
-/// carpeta esto ELIMINA físicamente el `.md`/`.excalidraw` (o la subcarpeta) de
-/// `.mycelium/.trash`, no solo la fila del índice. Tras borrar, poda los
-/// directorios ancestros que queden vacíos dentro de la papelera.
+/// Saca un elemento de la papelera de Mycelium mandándolo a la **papelera del
+/// sistema operativo** (`DEF-046`), para que quede una última red de recuperación
+/// fuera de la app.
+///
+/// Si el sistema no puede aceptarlo —una unidad de red, un sistema de archivos sin
+/// papelera— se borra de forma permanente igualmente: el usuario pidió sacarlo de
+/// ahí y la operación tiene que completarse. Lo que no se hace es fingir que fue a
+/// la papelera del sistema cuando no fue, así que el motivo se registra en el log.
+fn a_papelera_del_sistema(destino: &Path) -> std::io::Result<()> {
+    match trash::delete(destino) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            log::warn!(
+                "No se pudo mandar {} a la papelera del sistema ({e}); se borra permanentemente.",
+                destino.display()
+            );
+            if destino.is_dir() {
+                std::fs::remove_dir_all(destino)
+            } else {
+                std::fs::remove_file(destino)
+            }
+        }
+    }
+}
+
+/// Saca definitivamente un elemento de la papelera de Mycelium (archivo o carpeta).
+/// En modo carpeta esto quita físicamente el `.md`/`.excalidraw` (o la subcarpeta)
+/// de `.mycelium/.trash`, no solo la fila del índice, y lo manda a la **papelera del
+/// sistema**. Tras borrar, poda los directorios ancestros que queden vacíos dentro
+/// de la papelera.
 #[tauri::command]
 pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
@@ -198,12 +224,8 @@ pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Resul
     if !destino.exists() {
         return Ok(()); // ya no está: nada que borrar (idempotente)
     }
-    let res = if destino.is_dir() {
-        std::fs::remove_dir_all(&destino)
-    } else {
-        std::fs::remove_file(&destino)
-    };
-    res.map_err(|e| format!("No se pudo borrar {ruta_papelera_rel}: {e}"))?;
+    a_papelera_del_sistema(&destino)
+        .map_err(|e| format!("No se pudo borrar {ruta_papelera_rel}: {e}"))?;
 
     // Poda de subcarpetas vacías dentro de la papelera (no toca nada fuera de ella).
     let tope = base.join(".mycelium").join(".trash");
