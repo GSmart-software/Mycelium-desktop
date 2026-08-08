@@ -9,6 +9,7 @@ import {
 } from "@/lib/updater";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import styles from "./Settings.module.css";
+import { confirmar } from "@/lib/confirmar";
 
 /** Texto de un error de `invoke` (Rust devuelve strings). */
 const texto = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -74,7 +75,7 @@ export function UpdaterSection() {
     }
   };
 
-  const elegir = (v: VersionPublicada) => {
+  const elegir = async (v: VersionPublicada) => {
     const actual = estado?.versionActual ?? "";
     const anterior = compararVersiones(v.version, actual) < 0;
     const texto1 = anterior
@@ -83,7 +84,7 @@ export function UpdaterSection() {
         "vieja descarta el estado guardado más nuevo: vas a perder las pestañas abiertas " +
         "y parte de las preferencias.\n\n¿Seguir?"
       : `Vas a instalar la ${v.version} en lugar de la ${actual}.\n\n¿Seguir?`;
-    if (!window.confirm(texto1)) return;
+    if (!(await confirmar(texto1))) return;
     useUpdaterStore.getState().ofrecerVersion(v.version, v.manifiesto, v.notas);
   };
 

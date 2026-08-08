@@ -15,6 +15,7 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./EsporasPanel.module.css";
+import { confirmar } from "@/lib/confirmar";
 
 /**
  * Panel de Esporas (`FUN-M-03`): las plantillas de la carpeta configurada.
@@ -73,11 +74,13 @@ export function EsporasPanel() {
   const crearCarpeta = () => void correr(async () => void (await asegurarCarpetaEsporas()));
 
   const borrar = (espora: Espora) => {
-    if (!window.confirm(`¿Mandar la Espora "${espora.titulo}" a la papelera?`)) return;
-    void correr(async () => {
-      useTabsStore.getState().closeNotaEverywhere(espora.id);
-      await useVaultStore.getState().deleteNota(espora.id);
-    });
+    void (async () => {
+      if (!(await confirmar(`¿Mandar la Espora "${espora.titulo}" a la papelera?`))) return;
+      await correr(async () => {
+        useTabsStore.getState().closeNotaEverywhere(espora.id);
+        await useVaultStore.getState().deleteNota(espora.id);
+      });
+    })();
   };
 
   const confirmarRenombre = () => {

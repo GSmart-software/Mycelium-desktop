@@ -47,6 +47,7 @@ import {
 } from "@/stores/vaultStore";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import styles from "./ExplorerPanel.module.css";
+import { confirmar } from "@/lib/confirmar";
 
 /**
  * DEF-023 P2: pane y zona (borde = dividir / centro = abrir) bajo un punto de
@@ -423,7 +424,9 @@ export function ExplorerPanel() {
             count > 0
               ? `Eliminar "${carpeta.nombre}" mandará ${count} nota(s) a la papelera. ¿Continuar?`
               : `¿Eliminar la carpeta "${carpeta.nombre}"?`;
-          if (window.confirm(message)) void store.deleteCarpeta(carpeta.id);
+          void confirmar(message).then((ok) => {
+            if (ok) void store.deleteCarpeta(carpeta.id);
+          });
         },
       },
     ];

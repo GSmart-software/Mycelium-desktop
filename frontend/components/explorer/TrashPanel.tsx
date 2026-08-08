@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./TrashPanel.module.css";
+import { confirmar } from "@/lib/confirmar";
 
 const RETENTION_DAYS = 30;
 
@@ -50,13 +51,11 @@ export function TrashPanel() {
                 type="button"
                 className={styles.deleteForever}
                 onClick={() => {
-                  if (
-                    window.confirm(
-                      `"${item.titulo}" se eliminará permanentemente. ¿Continuar?`,
-                    )
-                  ) {
-                    void deleteNotaForever(item.notaId);
-                  }
+                  void confirmar(
+                    `"${item.titulo}" se eliminará permanentemente. ¿Continuar?`,
+                  ).then((ok) => {
+                    if (ok) void deleteNotaForever(item.notaId);
+                  });
                 }}
               >
                 Eliminar ahora

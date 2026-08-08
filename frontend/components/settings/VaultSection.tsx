@@ -16,6 +16,7 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
+import { confirmar } from "@/lib/confirmar";
 
 // Títulos de progreso (DEF-018): identifican qué exportación corre para etiquetar
 // el botón correcto y la barra global.
@@ -145,10 +146,10 @@ export function VaultSection() {
       const noVacia = await invoke<boolean>("carpeta_no_vacia", { ruta: destino });
       if (
         noVacia &&
-        !window.confirm(
+        !(await confirmar(
           `La carpeta "${destino}" no está vacía.\n\n` +
             "Los archivos con el mismo nombre se sobrescriben. ¿Continuar?",
-        )
+        ))
       ) {
         return;
       }

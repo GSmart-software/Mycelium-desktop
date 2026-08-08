@@ -114,15 +114,15 @@ export function unir(carpeta: string | null, nombre: string): string {
  * mismo basename son imposibles en disco). Excluye notas ya en la papelera.
  */
 async function basenamesOcupados(carpetaId: string | null): Promise<Set<string>> {
+  // Las notas de la PAPELERA cuentan como ocupadas (DEF-046). Su `id` —que es su
+  // ruta original— sigue en la tabla `notas` para poder recuperarlas, así que
+  // reutilizar ese nombre reventaba el `INSERT` de `crearNota` con un choque de
+  // clave y salía como "error desconocido". Además, si el nombre se reutilizara,
+  // recuperar la de la papelera después chocaría contra la nueva.
   const notas =
     carpetaId === null
-      ? await select<{ id: string }>(
-          "SELECT id FROM notas WHERE carpeta_id IS NULL AND id NOT IN (SELECT nota_id FROM papelera)",
-        )
-      : await select<{ id: string }>(
-          "SELECT id FROM notas WHERE carpeta_id = ? AND id NOT IN (SELECT nota_id FROM papelera)",
-          [carpetaId],
-        );
+      ? await select<{ id: string }>("SELECT id FROM notas WHERE carpeta_id IS NULL")
+      : await select<{ id: string }>("SELECT id FROM notas WHERE carpeta_id = ?", [carpetaId]);
   const carpetas =
     carpetaId === null
       ? await select<{ id: string }>("SELECT id FROM carpetas WHERE padre_id IS NULL")
