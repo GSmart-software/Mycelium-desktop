@@ -11,9 +11,11 @@
 }
 
 .cabecera {
+  position: relative; /* ancla los paneles desplegables de filtros y columnas */
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
   padding: 0.5rem 0.9rem;
   border-bottom: 1px solid var(--mic-border);
   color: var(--mic-text-muted);
@@ -212,4 +214,215 @@
   font-family: var(--mic-font-mono);
   font-size: 0.8rem;
   overflow: auto;
+}
+
+/* ── Controles de la cabecera (filtros, columnas, fuente) ─────────────────── */
+
+.controles {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+}
+
+.control,
+.controlActivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid transparent;
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+}
+
+.control:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.controlActivo {
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+  border-color: var(--mic-border);
+  color: var(--mic-text-primary);
+}
+
+/* Control inerte: sin puntero y atenuado (patrón del design system). */
+.control:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.contador {
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* ── Paneles desplegables ─────────────────────────────────────────────────── */
+
+.panel {
+  position: absolute;
+  top: 100%;
+  right: 0.6rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  box-shadow: var(--mic-shadow-lg, 0 8px 24px rgb(0 0 0 / 35%));
+}
+
+.panelCabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.panelTitulo {
+  display: block;
+  margin-top: 0.3rem;
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.panelNota {
+  margin: 0;
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.condicion {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.select,
+.input {
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8rem;
+}
+
+.select {
+  flex: 1 1 auto;
+}
+
+.input {
+  flex: 1 1 6rem;
+}
+
+.quitar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.quitar:hover {
+  background: color-mix(in srgb, var(--mic-callout-error-border) 18%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.opcion {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.18rem 0.2rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.opcion:hover {
+  background: color-mix(in srgb, var(--mic-glow) 10%, transparent);
+}
+
+.opcionRef {
+  margin-left: auto;
+  color: var(--mic-text-muted);
+  font-family: var(--mic-font-mono);
+  font-size: 0.72rem;
+}
+
+/* ── Editor de la fuente YAML ─────────────────────────────────────────────── */
+
+.fuente {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.textarea {
+  flex: 1;
+  min-height: 0;
+  padding: 0.8rem 1rem;
+  border: none;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-family: var(--mic-font-mono);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  tab-size: var(--mic-tab-width, 4);
+  resize: none;
+}
+
+.textarea:focus {
+  outline: none;
+}
+
+.fuenteAcciones {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  border-top: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.fuenteNota {
+  color: var(--mic-text-muted);
+  font-size: 0.78rem;
+}
+
+.fuenteNota code,
+.fuenteNota kbd {
+  font-family: var(--mic-font-mono);
+}
+
+.botonPrimario {
+  margin-left: auto;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.botonPrimario:disabled {
+  opacity: 0.45;
+  cursor: default;
 }

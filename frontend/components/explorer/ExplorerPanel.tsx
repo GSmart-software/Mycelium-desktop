@@ -20,6 +20,7 @@ import {
   ChevronRight,
   FilePlus,
   FileText,
+  Table2,
   Folder,
   FolderPlus,
   Shapes,
@@ -681,6 +682,14 @@ export function ExplorerPanel() {
         <button
           type="button"
           className={styles.actionButton}
+          title="Nueva base (tabla de notas)"
+          onClick={() => void crearBase(store.activeFolderId)}
+        >
+          <Table2 size={16} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.actionButton}
           title="Nueva carpeta"
           onClick={() => {
             const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
@@ -765,6 +774,8 @@ export function ExplorerPanel() {
                 <Folder size={15} className={styles.folderIcon} aria-hidden />
               ) : dragGhost.tipo === "excalidraw" ? (
                 <Shapes size={15} className={styles.noteIcon} aria-hidden />
+              ) : dragGhost.tipo === "base" ? (
+                <Table2 size={15} className={styles.noteIcon} aria-hidden />
               ) : (
                 <FileText size={15} className={styles.noteIcon} aria-hidden />
               )}
@@ -958,7 +969,10 @@ function NoteRow({
   onDoubleClick: () => void;
 } & RowRenameProps) {
   const drag = useDraggable({ id: `nota:${nota.id}` });
-  const Icon = nota.tipo === "excalidraw" ? Shapes : FileText;
+  // Un ícono por tipo de archivo: markdown, dibujo y base se distinguen de un
+  // vistazo en el árbol (antes una base se veía igual que una nota).
+  const Icon =
+    nota.tipo === "excalidraw" ? Shapes : nota.tipo === "base" ? Table2 : FileText;
 
   const className = [
     styles.row,

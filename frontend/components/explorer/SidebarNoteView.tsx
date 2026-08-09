@@ -2,6 +2,7 @@
 
 import { Eye, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BaseView } from "@/components/bases/BaseView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
@@ -31,6 +32,10 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
     esTabTerminal(notaId) ? s.sesiones[termIdDe(notaId)]?.titulo ?? "Terminal" : null,
   );
   const esExcalidraw = nota?.tipo === "excalidraw";
+  // Una base anclada muestra su tabla, no el YAML crudo dentro del editor de
+  // markdown: allá tendría vista en vivo, wikilinks y autoguardado, que no le
+  // corresponden. Su propio botón «Fuente» ya deja editarla (`FUN-L-03`).
+  const esBase = nota?.tipo === "base";
 
   // Una consola también se puede anclar en el visor (FUN-L-07): se muestra la
   // TerminalView real (misma sesión), no un render de nota.
@@ -67,7 +72,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         <span className={styles.viewerTitle} title={nota?.titulo}>
           {nota?.titulo ?? "…"}
         </span>
-        {!esExcalidraw && (
+        {!esExcalidraw && !esBase && (
           <button
             type="button"
             className={styles.viewerToggle}
@@ -82,6 +87,8 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
       <div className={styles.viewerBody}>
         {esExcalidraw ? (
           <ExcalidrawFileEditor key={notaId} notaId={notaId} />
+        ) : esBase ? (
+          <BaseView key={notaId} notaId={notaId} />
         ) : editing ? (
           <NoteEditor
             key={`edit-${notaId}`}

@@ -55,6 +55,8 @@ export type Vista = {
   columnas: string[];
   orden: { propiedad: string; descendente: boolean }[];
   filtros: Filtro | null;
+  /** Claves de la vista que Mycelium no modela (`groupBy`, `summaries`…). */
+  ignoradas: string[];
   /** Motivo por el que la vista entera no se puede mostrar, o null. */
   noSoportada: string | null;
 };
@@ -274,9 +276,13 @@ function leerVista(nodo: Nodo, indice: number): Vista {
     columnas,
     orden,
     filtros: nodo.filters === undefined ? null : leerFiltro(nodo.filters),
+    ignoradas: Object.keys(nodo).filter((k) => !CLAVES_VISTA.has(k)),
     noSoportada: null,
   };
 }
+
+/** Claves de una vista que Mycelium sí modela (el resto se declara y no se toca). */
+const CLAVES_VISTA = new Set(["type", "name", "limit", "order", "sort", "filters"]);
 
 function vistaRota(motivo: string, indice: number): Vista {
   return {
@@ -286,6 +292,7 @@ function vistaRota(motivo: string, indice: number): Vista {
     columnas: [],
     orden: [],
     filtros: null,
+    ignoradas: [],
     noSoportada: motivo,
   };
 }
@@ -679,4 +686,235 @@ export function baseInicial(): string {
     "      - file.mtime",
     "",
   ].join("\n");
+}
+
+// ── Edición: de vuelta a YAML ─────────────────────────────────────────────────
+
+/**
+ * ¿Se puede editar este archivo desde la UI sin perder nada?
+ *
+ * Solo si Mycelium entiende el archivo **entero**. Si trae `formulas`, un
+ * `groupBy` o un filtro fuera del subconjunto, regenerar el YAML desde el modelo
+ * los borraría — y el usuario perdería trabajo por haber pulsado un botón. En ese
+ * caso la UI ofrece editar la fuente, que no pierde nada porque no reescribe nada.
+ *
+ * Devuelve la lista de motivos; vacía = se puede editar.
+ */
+export function motivosNoEditable(base: Base): string[] {
+  const motivos: string[] = [];
+  for (const clave of base.ignoradas) {
+    motivos.push(`el archivo usa \`${clave}\`, que Mycelium todavía no modela`);
+  }
+  for (const vista of base.vistas) {
+    for (const clave of vista.ignoradas) {
+      motivos.push(`la vista «${vista.nombre}» usa \`${clave}\``);
+    }
+  }
+  const opacos = [...opacosDe(base.filtros), ...base.vistas.flatMap((v) => opacosDe(v.filtros))];
+  for (const o of opacos) {
+    motivos.push(`el filtro \`${o.fuente}\` no se entiende (${o.motivo})`);
+  }
+  return motivos;
+}
+
+/** Una condición del constructor de filtros: `propiedad operador valor`. */
+export type Condicion = { ref: string; op: string; valor: string };
+
+/** Operadores que ofrece el constructor, con su etiqueta y si piden valor. */
+export const OPERADORES_UI: { op: string; etiqueta: string; sinValor?: boolean }[] = [
+  { op: "==", etiqueta: "es igual a" },
+  { op: "!=", etiqueta: "no es" },
+  { op: ">", etiqueta: "es mayor que" },
+  { op: "<", etiqueta: "es menor que" },
+  { op: ">=", etiqueta: "es mayor o igual que" },
+  { op: "<=", etiqueta: "es menor o igual que" },
+  { op: "contains", etiqueta: "contiene" },
+  { op: "startsWith", etiqueta: "empieza por" },
+  { op: "endsWith", etiqueta: "termina en" },
+  { op: "isEmpty", etiqueta: "está vacía", sinValor: true },
+  { op: "hasTag", etiqueta: "tiene la etiqueta" },
+  { op: "inFolder", etiqueta: "está en la carpeta" },
+  { op: "hasProperty", etiqueta: "tiene la propiedad" },
+];
+
+/** Operadores que se aplican al ARCHIVO y no a una propiedad concreta. */
+export const OPS_DE_ARCHIVO = new Set(["hasTag", "inFolder", "hasProperty"]);
+const OPS_METODO = new Set(["contains", "startsWith", "endsWith", "isEmpty"]);
+
+const escaparTexto = (s: string): string => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+/** Una condición → el texto de la expresión que se escribe en el YAML. */
+export function expresionDe(c: Condicion): string {
+  if (OPS_DE_ARCHIVO.has(c.op)) return `file.${c.op}("${escaparTexto(c.valor)}")`;
+  if (c.op === "isEmpty") return `${c.ref}.isEmpty()`;
+  if (OPS_METODO.has(c.op)) return `${c.ref}.${c.op}("${escaparTexto(c.valor)}")`;
+  // Un número se escribe SIN comillas, para que se compare como número y no como
+  // texto (`prioridad > 10` tiene que ser falso con prioridad 3, no verdadero).
+  const literal = /^-?\d+(?:\.\d+)?$/.test(c.valor.trim())
+    ? c.valor.trim()
+    : `"${escaparTexto(c.valor)}"`;
+  return `${c.ref} ${c.op} ${literal}`;
+}
+
+/** El texto de una expresión → condición del constructor, o null si no encaja. */
+function condicionDe(fuente: string): Condicion | null {
+  const e = analizar(fuente);
+  if (e === null) return null;
+  if (e.clase === "llamada") {
+    if (e.ref === "file" && OPS_DE_ARCHIVO.has(e.metodo)) {
+      // El constructor maneja UN argumento; `hasTag("a", "b")` no cabe sin perder
+      // el segundo, así que se declara no representable.
+      if (e.args.length !== 1) return null;
+      return { ref: "file", op: e.metodo, valor: e.args[0].texto };
+    }
+    if (OPS_METODO.has(e.metodo)) {
+      return { ref: e.ref, op: e.metodo, valor: e.args[0]?.texto ?? "" };
+    }
+    return null;
+  }
+  return { ref: e.ref, op: e.op, valor: e.literal.texto };
+}
+
+/**
+ * Un árbol de filtros → la lista plana que el constructor sabe representar, o
+ * `null` si no cabe (anidamientos, `not`, o expresiones que no encajan).
+ *
+ * Devolver `null` es lo importante: es lo que hace que la UI se niegue a mostrar
+ * un constructor que no representa lo que hay, en vez de enseñar una versión
+ * simplificada que al guardar destruiría el filtro real.
+ */
+export function condicionesPlanas(
+  filtro: Filtro | null,
+): { combinador: "and" | "or"; condiciones: Condicion[] } | null {
+  if (filtro === null) return { combinador: "and", condiciones: [] };
+  if (filtro.tipo !== "and" && filtro.tipo !== "or") return null;
+
+  const condiciones: Condicion[] = [];
+  for (const hijo of filtro.hijos) {
+    if (hijo.tipo !== "expr") return null;
+    const c = condicionDe(hijo.fuente);
+    if (c === null) return null;
+    condiciones.push(c);
+  }
+  return { combinador: filtro.tipo, condiciones };
+}
+
+/** Lista de condiciones → árbol de filtros (`null` si no queda ninguna útil). */
+export function filtroDeCondiciones(
+  combinador: "and" | "or",
+  condiciones: Condicion[],
+): Filtro | null {
+  const utiles = condiciones.filter(
+    (c) => c.ref !== "" && (c.valor !== "" || c.op === "isEmpty"),
+  );
+  if (utiles.length === 0) return null;
+  return {
+    tipo: combinador,
+    hijos: utiles.map((c) => ({ tipo: "expr", fuente: expresionDe(c) })),
+  };
+}
+
+/** Un escalar → YAML, entrecomillando solo cuando hace falta. */
+function escalarYaml(v: string): string {
+  if (v === "") return '""';
+  if (/^-?\d+(\.\d+)?$/.test(v)) return `"${v}"`;
+  if (/^[\p{L}\p{N}._/ -]+$/u.test(v)) return v;
+  return `"${escaparTexto(v)}"`;
+}
+
+function filtroYaml(filtro: Filtro, sangriaBase: string): string[] {
+  if (filtro.tipo === "expr" || filtro.tipo === "opaco") {
+    return [`${sangriaBase}- ${filtro.fuente}`];
+  }
+  const lineas = [`${sangriaBase}${filtro.tipo}:`];
+  for (const hijo of filtro.hijos) {
+    if (hijo.tipo === "expr" || hijo.tipo === "opaco") {
+      lineas.push(`${sangriaBase}  - ${hijo.fuente}`);
+    } else {
+      const dentro = filtroYaml(hijo, `${sangriaBase}      `);
+      lineas.push(`${sangriaBase}  - ${dentro[0].trimStart()}`);
+      lineas.push(...dentro.slice(1));
+    }
+  }
+  return lineas;
+}
+
+/**
+ * El modelo → texto del `.base`. Solo se llama cuando `motivosNoEditable` está
+ * vacío: no intenta conservar lo que no entiende porque, en ese caso, la UI ni
+ * siquiera deja llegar hasta acá.
+ */
+export function serializarBase(base: Base): string {
+  const lineas: string[] = [];
+
+  if (base.filtros !== null) {
+    lineas.push("filters:");
+    lineas.push(...filtroYaml(base.filtros, "  "));
+    lineas.push("");
+  }
+
+  const nombres = Object.entries(base.nombres);
+  if (nombres.length > 0) {
+    lineas.push("properties:");
+    for (const [clave, display] of nombres) {
+      lineas.push(`  ${clave}:`);
+      lineas.push(`    displayName: ${escalarYaml(display)}`);
+    }
+    lineas.push("");
+  }
+
+  lineas.push("views:");
+  for (const v of base.vistas) {
+    lineas.push(`  - type: ${v.tipo}`);
+    lineas.push(`    name: ${escalarYaml(v.nombre)}`);
+    if (v.limite !== null) lineas.push(`    limit: ${v.limite}`);
+    if (v.filtros !== null) {
+      lineas.push("    filters:");
+      lineas.push(...filtroYaml(v.filtros, "      "));
+    }
+    if (v.columnas.length > 0) {
+      lineas.push("    order:");
+      for (const c of v.columnas) lineas.push(`      - ${c}`);
+    }
+    if (v.orden.length > 0) {
+      lineas.push("    sort:");
+      for (const o of v.orden) {
+        lineas.push(`      - property: ${o.propiedad}`);
+        lineas.push(`        direction: ${o.descendente ? "DESC" : "ASC"}`);
+      }
+    }
+  }
+
+  return `${lineas.join("\n")}\n`;
+}
+
+/**
+ * Columnas y propiedades elegibles: los campos del archivo más todas las claves
+ * que existan en el vault. Se calcula de las notas ya cargadas, así que no hace
+ * falta otra consulta.
+ */
+export function columnasDisponibles(notas: NotaTabla[]): { ref: string; grupo: string }[] {
+  const archivo = [
+    "file.name",
+    "file.folder",
+    "file.path",
+    "file.tags",
+    "file.ext",
+    "file.ctime",
+    "file.mtime",
+    "file.size",
+  ].map((ref) => ({ ref, grupo: "Del archivo" }));
+
+  const claves = new Map<string, string>();
+  for (const n of notas) {
+    for (const p of n.props) {
+      const k = p.clave.toLowerCase();
+      if (!claves.has(k)) claves.set(k, p.clave);
+    }
+  }
+  const propiedades = [...claves.values()]
+    .sort((a, b) => a.localeCompare(b, "es"))
+    .map((ref) => ({ ref, grupo: "Propiedades" }));
+
+  return [...archivo, ...propiedades];
 }

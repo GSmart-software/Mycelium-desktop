@@ -17,7 +17,20 @@ const { outputText } = ts.transpileModule(fuente, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
 });
 const mod = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
-const { parsearBase, evaluar, construirTabla, valoresDe, tituloColumna, ErrorBase } = mod;
+const {
+  parsearBase,
+  evaluar,
+  construirTabla,
+  valoresDe,
+  tituloColumna,
+  ErrorBase,
+  motivosNoEditable,
+  condicionesPlanas,
+  filtroDeCondiciones,
+  expresionDe,
+  serializarBase,
+  columnasDisponibles,
+} = mod;
 
 // ── Notas de prueba ───────────────────────────────────────────────────────────
 
@@ -333,3 +346,164 @@ test("la cabecera usa displayName y si no un nombre legible", () => {
 });
 
 // Ejecutable como `node scripts/test-bases.mjs` (node:test imprime el resumen).
+
+// ── Edición desde la UI ───────────────────────────────────────────────────────
+
+test("un archivo que Mycelium entiende entero se puede editar", () => {
+  const b = parsearBase(`
+filters:
+  and:
+    - file.inFolder("Proyectos")
+    - estado == "activo"
+views:
+  - type: table
+    name: Activos
+    order:
+      - file.name
+`);
+  assert.deepEqual(motivosNoEditable(b), []);
+});
+
+test("`formulas` bloquea la edición por UI en vez de borrarlas al guardar", () => {
+  const b = parsearBase('formulas:\n  x: "1+1"\nviews:\n  - type: table\n');
+  assert.equal(motivosNoEditable(b).length, 1);
+  assert.match(motivosNoEditable(b)[0], /formulas/);
+});
+
+test("una clave de vista no modelada tambien la bloquea", () => {
+  const b = parsearBase("views:\n  - type: table\n    name: X\n    groupBy:\n      property: estado\n");
+  assert.match(motivosNoEditable(b)[0], /groupBy/);
+});
+
+test("un filtro no soportado bloquea la edición por UI", () => {
+  const b = parsearBase('filters:\n  and:\n    - price.toFixed(2) == "1"\n');
+  assert.match(motivosNoEditable(b)[0], /no se entiende/);
+});
+
+test("los filtros planos se leen como condiciones del constructor", () => {
+  const b = parsearBase(`
+filters:
+  and:
+    - file.inFolder("Proyectos")
+    - estado != "archivado"
+    - prioridad > 2
+    - resumen.contains("api")
+    - notas.isEmpty()
+`);
+  const p = condicionesPlanas(b.filtros);
+  assert.equal(p.combinador, "and");
+  assert.deepEqual(p.condiciones, [
+    { ref: "file", op: "inFolder", valor: "Proyectos" },
+    { ref: "estado", op: "!=", valor: "archivado" },
+    { ref: "prioridad", op: ">", valor: "2" },
+    { ref: "resumen", op: "contains", valor: "api" },
+    { ref: "notas", op: "isEmpty", valor: "" },
+  ]);
+});
+
+test("un filtro ANIDADO no se aplana: el constructor se declara incapaz", () => {
+  const b = parsearBase(`
+filters:
+  or:
+    - and:
+        - estado == "activo"
+        - prioridad > 1
+    - file.hasTag("urgente")
+`);
+  assert.equal(
+    condicionesPlanas(b.filtros),
+    null,
+    "aplanarlo destruiría el filtro real al guardar",
+  );
+});
+
+test("un `not` tampoco se aplana", () => {
+  const b = parsearBase('filters:\n  not:\n    - estado == "activo"\n');
+  assert.equal(condicionesPlanas(b.filtros), null);
+});
+
+test("hasTag con varios argumentos no es representable en el constructor", () => {
+  const b = parsearBase('filters:\n  and:\n    - file.hasTag("a", "b")\n');
+  assert.equal(condicionesPlanas(b.filtros), null);
+});
+
+test("sin filtros, el constructor arranca vacío (no null)", () => {
+  const p = condicionesPlanas(null);
+  assert.deepEqual(p, { combinador: "and", condiciones: [] });
+});
+
+test("una condición numérica se escribe SIN comillas, para comparar como número", () => {
+  assert.equal(expresionDe({ ref: "prioridad", op: ">", valor: "10" }), "prioridad > 10");
+  assert.equal(expresionDe({ ref: "estado", op: "==", valor: "activo" }), 'estado == "activo"');
+  assert.equal(expresionDe({ ref: "file", op: "hasTag", valor: "idea" }), 'file.hasTag("idea")');
+  assert.equal(expresionDe({ ref: "notas", op: "isEmpty", valor: "" }), "notas.isEmpty()");
+});
+
+test("las condiciones a medio escribir no llegan al archivo", () => {
+  const f = filtroDeCondiciones("and", [
+    { ref: "estado", op: "==", valor: "activo" },
+    { ref: "prioridad", op: ">", valor: "" },
+    { ref: "", op: "==", valor: "x" },
+  ]);
+  assert.equal(f.hijos.length, 1);
+});
+
+test("ida y vuelta: serializar y volver a parsear conserva el modelo", () => {
+  const fuente = `
+filters:
+  and:
+    - file.inFolder("Proyectos")
+    - estado != "archivado"
+
+properties:
+  estado:
+    displayName: Situación
+
+views:
+  - type: table
+    name: Activos
+    limit: 20
+    order:
+      - file.name
+      - estado
+    sort:
+      - property: estado
+        direction: DESC
+  - type: table
+    name: Todo
+    order:
+      - file.name
+`;
+  const antes = parsearBase(fuente);
+  const despues = parsearBase(serializarBase(antes));
+  assert.deepEqual(despues.filtros, antes.filtros);
+  assert.deepEqual(despues.nombres, antes.nombres);
+  assert.equal(despues.vistas.length, 2);
+  assert.deepEqual(
+    despues.vistas.map((v) => [v.nombre, v.limite, v.columnas, v.orden]),
+    antes.vistas.map((v) => [v.nombre, v.limite, v.columnas, v.orden]),
+  );
+});
+
+test("ida y vuelta con un filtro por vista", () => {
+  const antes = parsearBase(
+    'views:\n  - type: table\n    name: X\n    filters:\n      or:\n        - estado == "activo"\n        - prioridad > 5\n',
+  );
+  const despues = parsearBase(serializarBase(antes));
+  assert.deepEqual(despues.vistas[0].filtros, antes.vistas[0].filtros);
+});
+
+test("un nombre con acentos y espacios sobrevive a la ida y vuelta", () => {
+  const b = parsearBase("views:\n  - type: table\n    name: X\n");
+  b.vistas[0].nombre = "Situación: los «activos»";
+  const despues = parsearBase(serializarBase(b));
+  assert.equal(despues.vistas[0].nombre, "Situación: los «activos»");
+});
+
+test("las columnas elegibles combinan campos de archivo y propiedades del vault", () => {
+  const refs = columnasDisponibles([nota(), otra]).map((c) => c.ref);
+  assert.equal(refs.includes("file.name"), true);
+  assert.equal(refs.includes("estado"), true);
+  assert.equal(refs.includes("prioridad"), true);
+  assert.equal(refs.filter((r) => r === "estado").length, 1, "sin duplicados entre notas");
+});
