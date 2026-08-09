@@ -417,8 +417,47 @@ function PanelFiltros({
     );
   }
 
-  const { combinador, condiciones } = planas;
-  const set = (cs: Condicion[]) => onCambio(combinador, cs);
+  return <FiltrosEditables planas={planas} columnas={columnas} onCambio={onCambio} />;
+}
+
+/**
+ * El constructor propiamente dicho, con estado local.
+ *
+ * Lo escrito se mantiene acá y **solo se guarda al confirmar**: los desplegables
+ * al cambiar, y el campo de texto al salir de él o con Enter. Escribir el archivo
+ * en cada tecla haría un `PUT` por carácter y, peor, reparsearía el YAML a media
+ * palabra: al escribir «activo» la tabla se recalcularía contra «a», «ac», «act»…
+ * Es el mismo patrón de borrador + `onBlur` que ya usan Configuración → Vault y
+ * el ancho de tabulación.
+ */
+function FiltrosEditables({
+  planas,
+  columnas,
+  onCambio,
+}: {
+  planas: { combinador: "and" | "or"; condiciones: Condicion[] };
+  columnas: { ref: string; grupo: string }[];
+  onCambio: (combinador: "and" | "or", condiciones: Condicion[]) => void;
+}) {
+  const [combinador, setCombinador] = useState(planas.combinador);
+  const [condiciones, setCondiciones] = useState(planas.condiciones);
+
+  // El borrador sigue al archivo cuando este cambia por fuera (otra edición, o
+  // el guardado que acabamos de provocar). Se compara DURANTE el render, no en
+  // un efecto, para no pintar un fotograma con el valor viejo.
+  const [visto, setVisto] = useState(planas);
+  if (visto !== planas) {
+    setVisto(planas);
+    setCombinador(planas.combinador);
+    setCondiciones(planas.condiciones);
+  }
+
+  /** Cambia el borrador y confirma (para los controles discretos). */
+  const confirmar = (comb: "and" | "or", cs: Condicion[]) => {
+    setCombinador(comb);
+    setCondiciones(cs);
+    onCambio(comb, cs);
+  };
 
   return (
     <div className={styles.panel}>
@@ -427,7 +466,7 @@ function PanelFiltros({
         <select
           className={styles.select}
           value={combinador}
-          onChange={(e) => onCambio(e.target.value as "and" | "or", condiciones)}
+          onChange={(e) => confirmar(e.target.value as "and" | "or", condiciones)}
         >
           <option value="and">todas las condiciones</option>
           <option value="or">alguna condición</option>
@@ -448,7 +487,10 @@ function PanelFiltros({
               value={deArchivo ? "file" : c.ref}
               disabled={deArchivo}
               onChange={(e) =>
-                set(condiciones.map((x, j) => (j === i ? { ...x, ref: e.target.value } : x)))
+                confirmar(
+                  combinador,
+                  condiciones.map((x, j) => (j === i ? { ...x, ref: e.target.value } : x)),
+                )
               }
             >
               {deArchivo && <option value="file">el archivo</option>}
@@ -463,11 +505,10 @@ function PanelFiltros({
               value={c.op}
               onChange={(e) => {
                 const op = e.target.value;
-                set(
+                confirmar(
+                  combinador,
                   condiciones.map((x, j) =>
-                    j === i
-                      ? { ...x, op, ref: OPS_DE_ARCHIVO.has(op) ? "file" : x.ref }
-                      : x,
+                    j === i ? { ...x, op, ref: OPS_DE_ARCHIVO.has(op) ? "file" : x.ref } : x,
                   ),
                 );
               }}
@@ -483,9 +524,17 @@ function PanelFiltros({
                 className={styles.input}
                 value={c.valor}
                 placeholder="valor"
+                // Solo el borrador mientras se teclea; se guarda al confirmar.
                 onChange={(e) =>
-                  set(condiciones.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)))
+                  setCondiciones(
+                    condiciones.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)),
+                  )
                 }
+                onBlur={() => onCambio(combinador, condiciones)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Escape") setCondiciones(planas.condiciones);
+                }}
               />
             )}
             <button
@@ -493,7 +542,7 @@ function PanelFiltros({
               className={styles.quitar}
               aria-label="Quitar esta condición"
               title="Quitar"
-              onClick={() => set(condiciones.filter((_, j) => j !== i))}
+              onClick={() => confirmar(combinador, condiciones.filter((_, j) => j !== i))}
             >
               <X size={13} aria-hidden />
             </button>
@@ -505,7 +554,12 @@ function PanelFiltros({
         type="button"
         className={styles.botonSecundario}
         onClick={() =>
-          set([...condiciones, { ref: columnas[0]?.ref ?? "file.name", op: "==", valor: "" }])
+          // Añadir NO guarda: una condición sin valor no llega al archivo, y
+          // guardar acá dejaría el filtro a medio escribir en disco.
+          setCondiciones([
+            ...condiciones,
+            { ref: columnas[0]?.ref ?? "file.name", op: "==", valor: "" },
+          ])
         }
       >
         <Plus size={13} aria-hidden /> Añadir condición
