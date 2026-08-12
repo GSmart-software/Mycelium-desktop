@@ -8,6 +8,9 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
  */
 export const GRAPH_TAB_ID = "graph:global";
 
+/** Pestaña de la pantalla de referencias del vault (`FUN-L-17`). */
+export const ENLACES_TAB_ID = "enlaces:global";
+
 /**
  * Pestaña: instancia de una nota abierta en un pane (HU-25). `preview` marca
  * la pestaña efímera (estilo Obsidian/VSCode): si solo se está viendo el
@@ -64,7 +67,7 @@ const newId = () => Math.random().toString(36).slice(2, 10);
  * ni entrar en una línea de historial: reemplazar una terminal mata su sesión.
  */
 const esSentinela = (notaId: string) =>
-  notaId === GRAPH_TAB_ID || notaId.startsWith("terminal:");
+  notaId === GRAPH_TAB_ID || notaId === ENLACES_TAB_ID || notaId.startsWith("terminal:");
 
 // ── Historial por pestaña (DEF-040) ───────────────────────────────
 

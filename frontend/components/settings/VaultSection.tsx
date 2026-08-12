@@ -14,6 +14,8 @@ import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { ENLACES_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
@@ -54,6 +56,7 @@ export function VaultSection() {
   const carpetaEsporasPref = usePreferencesStore((s) => s.prefs.carpetaEsporas);
   const [esporasBorrador, setEsporasBorrador] = useState(carpetaEsporasPref);
   const [esporasError, setEsporasError] = useState<string | null>(null);
+  const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
 
   const ocupado = progreso !== null;
 
@@ -297,6 +300,32 @@ export function VaultSection() {
             {esporasError}
           </p>
         )}
+      </div>
+
+      {/* Auditoría de referencias (FUN-L-17): el caso de entrada de Mycelium
+          sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
+      <div className={styles.field}>
+        <span className={styles.label}>Referencias del vault</span>
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          Si adoptaste Mycelium sobre un proyecto que ya tenías, es probable que tus
+          documentos se referencien entre sí desde siempre —con <code>`HU-009`</code> o
+          con el nombre suelto— pero con una notación que Mycelium no reconoce, así que el
+          grafo se ve vacío. Esta pantalla los <strong>audita</strong> sin tocar nada, y
+          después convierte esas referencias en <code>[[enlaces]]</code>, con respaldo y
+          deshacer.
+        </p>
+        <div className={styles.btnRow}>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            onClick={() => {
+              useTabsStore.getState().openNote(ENLACES_TAB_ID);
+              setSettingsOpen(false);
+            }}
+          >
+            Auditar las referencias
+          </button>
+        </div>
       </div>
 
       <div className={styles.field}>

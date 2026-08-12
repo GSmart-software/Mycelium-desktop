@@ -53,6 +53,16 @@ export async function crearDirectorio(vault: string, rutaRel: string): Promise<v
   await invoke("crear_directorio", { vaultRuta: vault, rutaRel });
 }
 
+/**
+ * Lee un archivo de texto del vault, o `null` si no existe. Sirve también para
+ * lo que está fuera del índice (`.claude/`, `.mycelium/`), que es donde viven el
+ * léxico y los respaldos del re-enlazado (`FUN-M-17`).
+ */
+export async function leerArchivoTexto(vault: string, rutaRel: string): Promise<string | null> {
+  const invoke = await getInvoke();
+  return invoke<string | null>("leer_archivo_texto", { vaultRuta: vault, rutaRel });
+}
+
 /** Copia un archivo dentro del vault (duplicar). */
 export async function copiarArchivo(vault: string, origenRel: string, destinoRel: string): Promise<void> {
   const invoke = await getInvoke();

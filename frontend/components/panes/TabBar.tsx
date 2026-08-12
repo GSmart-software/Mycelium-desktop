@@ -9,6 +9,7 @@ import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import {
   allLeaves,
+  ENLACES_TAB_ID,
   GRAPH_TAB_ID,
   useTabsStore,
   type LeafPane,
@@ -59,6 +60,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
   function tituloDeNotaId(notaId: string) {
     if (notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
+    if (notaId === ENLACES_TAB_ID) return "Referencias del vault";
     if (esTabTerminal(notaId)) {
       return sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal";
     }
@@ -81,6 +83,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
   function tooltipOf(tab: Tab) {
     if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
+    if (tab.notaId === ENLACES_TAB_ID) return "Referencias del vault";
     if (esTabTerminal(tab.notaId)) return titleOf(tab);
     const nota = notas.find((n) => n.id === tab.notaId);
     if (!nota) return "";

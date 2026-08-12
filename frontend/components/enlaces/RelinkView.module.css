@@ -1,0 +1,304 @@
+/* Pantalla de auditoría y re-enlazado (FUN-L-17). Dos secciones con perfiles de
+   riesgo opuestos: arriba se lee, abajo se reescribe. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mic-bg-canvas);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.titulo {
+  margin: 0;
+  color: var(--mic-text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ocupado {
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.seccion {
+  max-width: 72rem;
+  margin: 0 0 1.6rem;
+}
+
+.h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.4rem;
+  color: var(--mic-text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.nota {
+  margin: 0 0 0.6rem;
+  color: var(--mic-text-muted);
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.nota code {
+  font-family: var(--mic-font-mono);
+}
+
+/* ── Diagnóstico ─────────────────────────────────────────────────────────── */
+
+.diagnostico {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+
+.dato {
+  display: flex;
+  flex-direction: column;
+  min-width: 8rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-muted);
+  font-size: 0.76rem;
+}
+
+.datoN {
+  color: var(--mic-text-primary);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Tabla de candidatas ─────────────────────────────────────────────────── */
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.tabla th {
+  position: sticky;
+  top: -1rem; /* compensa el padding del contenedor con scroll */
+  z-index: 1;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  font-weight: 600;
+}
+
+.tabla td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+  vertical-align: top;
+}
+
+.filaDescartada {
+  opacity: 0.45;
+}
+
+.forma {
+  display: block;
+  color: var(--mic-text-primary);
+  font-family: var(--mic-font-mono);
+  font-weight: 600;
+}
+
+.origen {
+  display: block;
+  color: var(--mic-text-muted);
+  font-size: 0.72rem;
+}
+
+.numero {
+  color: var(--mic-text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ejemplo {
+  max-width: 26rem;
+  color: var(--mic-text-muted);
+  font-size: 0.78rem;
+}
+
+.decision {
+  display: flex;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.select {
+  max-width: 16rem;
+  padding: 0.22rem 0.35rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.78rem;
+}
+
+.si,
+.no,
+.deshacerFila {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  font-size: 0.76rem;
+}
+
+.si:hover:not(:disabled) {
+  border-color: var(--mic-accent);
+  color: var(--mic-text-primary);
+}
+
+.no:hover {
+  border-color: var(--mic-callout-error-border);
+  color: var(--mic-text-primary);
+}
+
+/* Control inerte: sin puntero y atenuado (patrón del design system). */
+.si:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Acciones e informes ─────────────────────────────────────────────────── */
+
+.acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+}
+
+.primario,
+.secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.primario {
+  background: var(--mic-accent);
+  color: var(--mic-raw-mist);
+}
+
+.secundario {
+  border: 1px solid var(--mic-border);
+  color: var(--mic-text-primary);
+  font-weight: 500;
+}
+
+.secundario:hover:not(:disabled) {
+  border-color: var(--mic-accent);
+}
+
+.primario:disabled,
+.secundario:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.informe {
+  margin-top: 0.8rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+}
+
+.informeTitulo {
+  margin: 0 0 0.4rem;
+  color: var(--mic-text-primary);
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.informeLista {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--mic-text-muted);
+  font-size: 0.78rem;
+}
+
+.informeLista code {
+  font-family: var(--mic-font-mono);
+}
+
+/* ── Mensajes ────────────────────────────────────────────────────────────── */
+
+.aviso {
+  padding: 1rem;
+  color: var(--mic-text-muted);
+}
+
+.error,
+.ok {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 72rem;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--mic-radius-md);
+  font-size: 0.83rem;
+}
+
+.error {
+  border: 1px solid var(--mic-callout-error-border);
+  background: color-mix(in srgb, var(--mic-callout-error-border) 10%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.ok {
+  border: 1px solid var(--mic-accent);
+  background: color-mix(in srgb, var(--mic-accent) 10%, transparent);
+  color: var(--mic-text-primary);
+}
+
+/* Revelar las candidatas sin destino: escondidas por defecto porque sobre un
+   vault técnico son mayoría y casi ninguna es una referencia. */
+.toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.7rem;
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}

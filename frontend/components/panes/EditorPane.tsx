@@ -3,12 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BaseView } from "@/components/bases/BaseView";
+import { RelinkView } from "@/components/enlaces/RelinkView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { TerminalView } from "@/components/terminal/TerminalView";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
-import { GRAPH_TAB_ID, useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
+import {
+  ENLACES_TAB_ID,
+  GRAPH_TAB_ID,
+  useTabsStore,
+  type LeafPane,
+  type SplitEdge,
+} from "@/stores/tabsStore";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
@@ -47,6 +54,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <LinkedPreviewPane pane={pane} />
         ) : activeTab && activeTab.notaId === GRAPH_TAB_ID ? (
           <GraphView key={activeTab.id} />
+        ) : activeTab && activeTab.notaId === ENLACES_TAB_ID ? (
+          <RelinkView key={activeTab.id} />
         ) : activeTab && esTabTerminal(activeTab.notaId) ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
         ) : activeTab && activeTipo === "excalidraw" ? (
