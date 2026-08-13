@@ -60,9 +60,15 @@ export async function crearNota(
   tipo?: string | null,
 ): Promise<CreatedResponse> {
   const t: NotaTipo =
-    tipo === "excalidraw" || tipo === "base" ? tipo : "markdown";
+    tipo === "excalidraw" || tipo === "base" || tipo === "canvas" ? tipo : "markdown";
   const defecto =
-    t === "excalidraw" ? "Dibujo sin título" : t === "base" ? "Base sin título" : "Sin título";
+    t === "excalidraw"
+      ? "Dibujo sin título"
+      : t === "base"
+        ? "Base sin título"
+        : t === "canvas"
+          ? "Lienzo sin título"
+          : "Sin título";
   const base = titulo && titulo.trim().length > 0 ? titulo.trim() : defecto;
   const unico = tituloUnico(base, await titulosEnCarpeta(vaultId, carpetaId));
   const now = ahoraIso();

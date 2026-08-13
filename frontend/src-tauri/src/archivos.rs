@@ -44,9 +44,10 @@ pub struct ArchivoMeta {
 fn tipo_de(path: &Path) -> String {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
-        // Bases (`FUN-L-03`): tablas que agregan notas. La extensión es la de
+        // Bases (`FUN-L-03`) y canvas (`FUN-L-18`): las extensiones son las de
         // Obsidian, para que el vault siga siendo intercambiable.
         Some(ext) if ext.eq_ignore_ascii_case("base") => "base".to_string(),
+        Some(ext) if ext.eq_ignore_ascii_case("canvas") => "canvas".to_string(),
         _ => "markdown".to_string(),
     }
 }
@@ -66,7 +67,7 @@ fn es_importable(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => {
             let ext = ext.to_ascii_lowercase();
-            ext == "md" || ext == "excalidraw" || ext == "base"
+            ext == "md" || ext == "excalidraw" || ext == "base" || ext == "canvas"
         }
         None => false,
     }

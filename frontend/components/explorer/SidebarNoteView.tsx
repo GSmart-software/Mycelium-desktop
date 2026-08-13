@@ -3,6 +3,7 @@
 import { Eye, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BaseView } from "@/components/bases/BaseView";
+import { CanvasView } from "@/components/canvas/CanvasView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
@@ -36,6 +37,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
   // markdown: allá tendría vista en vivo, wikilinks y autoguardado, que no le
   // corresponden. Su propio botón «Fuente» ya deja editarla (`FUN-L-03`).
   const esBase = nota?.tipo === "base";
+  const esCanvas = nota?.tipo === "canvas";
 
   // Una consola también se puede anclar en el visor (FUN-L-07): se muestra la
   // TerminalView real (misma sesión), no un render de nota.
@@ -72,7 +74,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         <span className={styles.viewerTitle} title={nota?.titulo}>
           {nota?.titulo ?? "…"}
         </span>
-        {!esExcalidraw && !esBase && (
+        {!esExcalidraw && !esBase && !esCanvas && (
           <button
             type="button"
             className={styles.viewerToggle}
@@ -89,6 +91,8 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
           <ExcalidrawFileEditor key={notaId} notaId={notaId} />
         ) : esBase ? (
           <BaseView key={notaId} notaId={notaId} />
+        ) : esCanvas ? (
+          <CanvasView key={notaId} notaId={notaId} />
         ) : editing ? (
           <NoteEditor
             key={`edit-${notaId}`}

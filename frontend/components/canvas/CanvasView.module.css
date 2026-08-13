@@ -1,0 +1,334 @@
+/* Editor de canvas (FUN-L-18): lienzo infinito, tarjetas y flechas. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mic-bg-canvas);
+}
+
+.barra {
+  position: relative; /* ancla el selector de notas */
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+}
+
+.boton:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+}
+
+.selector {
+  position: absolute;
+  top: 100%;
+  left: 0.8rem;
+  z-index: 30;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  box-shadow: var(--mic-shadow-lg, 0 8px 24px rgb(0 0 0 / 35%));
+}
+
+.selectorNota {
+  margin: 0 0 0.4rem;
+  color: var(--mic-text-muted);
+  font-size: 0.76rem;
+}
+
+.selectorLista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selectorLista button {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+  color: var(--mic-text-primary);
+  font-size: 0.82rem;
+}
+
+.selectorLista button:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+/* ── El lienzo ───────────────────────────────────────────────────────────── */
+
+.lienzo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* Retícula sutil que hace visible el desplazamiento y el zoom. */
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mic-text-muted) 22%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.lienzo:active {
+  cursor: grabbing;
+}
+
+/* Capa transformada: todo lo de dentro vive en coordenadas del canvas. */
+.mundo {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+
+.aristas {
+  position: absolute;
+  /* El SVG no acota el dibujo: los nodos pueden estar en coordenadas negativas,
+     así que se le da un plano grande centrado y `overflow: visible`. */
+  left: -50000px;
+  top: -50000px;
+  width: 100000px;
+  height: 100000px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.aristas > * {
+  transform: translate(50000px, 50000px);
+}
+
+.arista {
+  fill: none;
+  stroke: var(--mic-text-muted);
+  stroke-width: 2;
+}
+
+.aristaProvisional {
+  fill: none;
+  stroke: var(--mic-accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+/* ── Tarjetas ────────────────────────────────────────────────────────────── */
+
+.nodo {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  overflow: visible;
+}
+
+.nodoSel {
+  border-color: var(--mic-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--mic-accent) 35%, transparent);
+}
+
+/* Un grupo es un marco: no tapa lo que contiene. */
+.nodoGrupo {
+  background: color-mix(in srgb, var(--mic-bg-surface) 35%, transparent);
+  border-style: dashed;
+}
+
+.asa {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.45rem;
+  border-bottom: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md) var(--mic-radius-md) 0 0;
+  background: color-mix(in srgb, var(--mic-text-muted) 8%, transparent);
+  color: var(--mic-text-muted);
+  font-size: 0.72rem;
+  cursor: move;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.asaTitulo {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.abrir {
+  margin-left: auto;
+  padding: 0 0.35rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-accent);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.cuerpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.45rem 0.6rem;
+}
+
+.render {
+  font-size: 0.82rem;
+}
+
+/* La tarjeta es chica: los títulos de dentro no pueden gritar. */
+.render :global(h1),
+.render :global(h2),
+.render :global(h3) {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.render :global(p) {
+  margin: 0 0 0.4rem;
+}
+
+.editor {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--mic-text-primary);
+  font-family: var(--mic-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: none;
+}
+
+.editor:focus {
+  outline: none;
+}
+
+.roto {
+  margin: 0;
+  color: var(--mic-callout-warning-border);
+  font-size: 0.78rem;
+}
+
+.roto code {
+  font-family: var(--mic-font-mono);
+}
+
+/* ── Anclas y tirador ────────────────────────────────────────────────────── */
+
+.ancla {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--mic-bg-surface);
+  border-radius: 50%;
+  background: var(--mic-accent);
+  opacity: 0;
+  cursor: crosshair;
+  transition: opacity 0.12s;
+}
+
+.nodo:hover .ancla,
+.nodoSel .ancla {
+  opacity: 1;
+}
+
+.ancla_top {
+  left: 50%;
+  top: -5px;
+  margin-left: -5px;
+}
+
+.ancla_bottom {
+  left: 50%;
+  bottom: -5px;
+  margin-left: -5px;
+}
+
+.ancla_left {
+  top: 50%;
+  left: -5px;
+  margin-top: -5px;
+}
+
+.ancla_right {
+  top: 50%;
+  right: -5px;
+  margin-top: -5px;
+}
+
+.tirador {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid var(--mic-text-muted);
+  border-bottom: 2px solid var(--mic-text-muted);
+  border-bottom-right-radius: 3px;
+  opacity: 0;
+  cursor: nwse-resize;
+}
+
+.nodo:hover .tirador,
+.nodoSel .tirador {
+  opacity: 0.7;
+}
+
+/* ── Mensajes ────────────────────────────────────────────────────────────── */
+
+.aviso,
+.vacio {
+  padding: 1rem;
+  color: var(--mic-text-muted);
+  font-size: 0.86rem;
+}
+
+.vacio {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.errorBarra {
+  margin: 0;
+  padding: 0.45rem 0.8rem;
+  background: color-mix(in srgb, var(--mic-callout-error-border) 14%, transparent);
+  color: var(--mic-text-primary);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}

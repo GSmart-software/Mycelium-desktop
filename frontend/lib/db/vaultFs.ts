@@ -108,9 +108,10 @@ export function extDe(ruta: string): string {
 /** Extensión de archivo según el tipo de nota. */
 export function extDeTipo(tipo: string): string {
   if (tipo === "excalidraw") return ".excalidraw";
-  // `.base` es la extensión de Obsidian: se adopta para que las bases sean
-  // intercambiables entre las dos apps (`FUN-L-03`).
+  // `.base` y `.canvas` son las extensiones de Obsidian: se adoptan para que las
+  // bases (`FUN-L-03`) y los canvas (`FUN-L-18`) sean intercambiables.
   if (tipo === "base") return ".base";
+  if (tipo === "canvas") return ".canvas";
   return ".md";
 }
 

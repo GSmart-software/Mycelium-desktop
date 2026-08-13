@@ -16,7 +16,7 @@ const markGraphStale = () => {
 };
 
 export type TreeCarpeta = { id: string; padreId: string | null; nombre: string };
-export type NotaTipo = "markdown" | "excalidraw" | "base";
+export type NotaTipo = "markdown" | "excalidraw" | "base" | "canvas";
 export type TreeNota = {
   id: string;
   carpetaId: string | null;
@@ -130,7 +130,10 @@ export const useVaultStore = create<VaultState>()(
           id: n.id,
           carpetaId: n.carpeta_id,
           titulo: n.titulo,
-          tipo: n.tipo === "excalidraw" || n.tipo === "base" ? n.tipo : "markdown",
+          tipo:
+            n.tipo === "excalidraw" || n.tipo === "base" || n.tipo === "canvas"
+              ? n.tipo
+              : "markdown",
           actualizadoEn: n.actualizado_en,
         }));
 
@@ -263,7 +266,9 @@ export const useVaultStore = create<VaultState>()(
             ? "Dibujo sin título"
             : tipo === "base"
               ? "Base sin título"
-              : "Sin título";
+              : tipo === "canvas"
+                ? "Lienzo sin título"
+                : "Sin título";
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),

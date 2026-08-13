@@ -20,6 +20,7 @@ import {
   ChevronRight,
   FilePlus,
   FileText,
+  LayoutDashboard,
   Table2,
   Folder,
   FolderPlus,
@@ -32,6 +33,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { api } from "@/lib/api";
 import { baseInicial } from "@/lib/bases";
+import { canvasInicial } from "@/lib/canvas";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { crearTerminal } from "@/lib/terminal";
@@ -366,6 +368,17 @@ export function ExplorerPanel() {
     openNota(id);
   }
 
+  /** Crea un `.canvas` vacío pero válido, para que abra sin caso especial. */
+  async function crearCanvas(carpetaId: string | null) {
+    const id = await store.createNota(carpetaId, "canvas");
+    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
+      method: "PUT",
+      token: useAuthStore.getState().accessToken,
+      body: { contenido: canvasInicial() },
+    });
+    openNota(id);
+  }
+
   function carpetaMenu(carpeta: TreeCarpeta): MenuItem[] {
     return [
       {
@@ -381,6 +394,10 @@ export function ExplorerPanel() {
       {
         label: "Nueva base",
         onClick: () => void crearBase(carpeta.id),
+      },
+      {
+        label: "Nuevo canvas",
+        onClick: () => void crearCanvas(carpeta.id),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
       // Esporas la entrada queda deshabilitada con el motivo, nunca oculta: es
@@ -690,6 +707,14 @@ export function ExplorerPanel() {
         <button
           type="button"
           className={styles.actionButton}
+          title="Nuevo canvas (notas en el espacio)"
+          onClick={() => void crearCanvas(store.activeFolderId)}
+        >
+          <LayoutDashboard size={16} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.actionButton}
           title="Nueva carpeta"
           onClick={() => {
             const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
@@ -776,6 +801,8 @@ export function ExplorerPanel() {
                 <Shapes size={15} className={styles.noteIcon} aria-hidden />
               ) : dragGhost.tipo === "base" ? (
                 <Table2 size={15} className={styles.noteIcon} aria-hidden />
+              ) : dragGhost.tipo === "canvas" ? (
+                <LayoutDashboard size={15} className={styles.noteIcon} aria-hidden />
               ) : (
                 <FileText size={15} className={styles.noteIcon} aria-hidden />
               )}
@@ -972,7 +999,13 @@ function NoteRow({
   // Un ícono por tipo de archivo: markdown, dibujo y base se distinguen de un
   // vistazo en el árbol (antes una base se veía igual que una nota).
   const Icon =
-    nota.tipo === "excalidraw" ? Shapes : nota.tipo === "base" ? Table2 : FileText;
+    nota.tipo === "excalidraw"
+      ? Shapes
+      : nota.tipo === "base"
+        ? Table2
+        : nota.tipo === "canvas"
+          ? LayoutDashboard
+          : FileText;
 
   const className = [
     styles.row,
