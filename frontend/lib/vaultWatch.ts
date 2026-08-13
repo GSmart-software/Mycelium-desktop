@@ -17,16 +17,23 @@
  * se limita a avisar con el evento de DOM `micelio:vault-recargar`.
  */
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { EVENTO_RECARGA } from "@/lib/eventos";
+import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { indexarVault } from "@/lib/db/indexer";
 import { useAuthStore } from "@/stores/authStore";
+import { useGraphStore } from "@/stores/graphStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /** Nombre del evento Tauri emitido por el watcher nativo. */
 const EVENTO_TAURI = "vault-cambios";
 
-/** Evento de DOM que los editores abiertos escuchan para recargar su nota. */
-export const EVENTO_RECARGA = "micelio:vault-recargar";
+/**
+ * Evento de DOM que los editores abiertos escuchan para recargar su nota. Se
+ * define en `lib/eventos.ts` —neutral y sin dependencias— y se reexporta acá por
+ * comodidad de quien ya lo importaba de este módulo.
+ */
+export { EVENTO_RECARGA };
 
 /** Debounce propio para agrupar ráfagas de eventos del watcher (ms). */
 const DEBOUNCE_MS = 300;
@@ -50,6 +57,15 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
       const vaultId =
         useVaultStore.getState().vaultId ?? useAuthStore.getState().vaults[0]?.id ?? null;
       if (vaultId) await useVaultStore.getState().loadTree(vaultId);
+      // El grafo también quedó viejo (`DEF-054`). Faltaba: los mutadores de
+      // `vaultStore` lo marcan al crear o borrar desde la UI, pero por acá pasan
+      // los cambios hechos desde FUERA —otro editor, un `git pull`, un agente de
+      // IA escribiendo en la carpeta— y nadie lo avisaba. `GraphView` refresca
+      // solo si está abierto, y si no, al abrirlo.
+      useGraphStore.getState().markStale();
+      // Y las vistas en vivo: un archivo nuevo puede hacer que un `[[enlace]]`
+      // que se mostraba como roto pase a resolver.
+      refreshAllLiveViews();
       // Avisar a los editores abiertos para que recarguen su nota si no tienen
       // cambios locales sin guardar (lo decide cada NoteEditor).
       window.dispatchEvent(new Event(EVENTO_RECARGA));

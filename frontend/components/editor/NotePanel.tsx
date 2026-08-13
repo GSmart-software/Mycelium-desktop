@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { EVENTO_RECARGA } from "@/lib/eventos";
 import { PropiedadesTab } from "./PropiedadesTab";
 import styles from "./NotePanel.module.css";
 
@@ -66,6 +67,23 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
   const [showSalientes, setShowSalientes] = useState(true);
   const [showRetro, setShowRetro] = useState(true);
 
+  /**
+   * Se incrementa para volver a pedir las conexiones sin cambiar de nota. Hace
+   * falta porque el caché es por nota y este panel puede quedarse montado
+   * mientras el vault cambia por fuera (`DEF-054`): un documento nuevo que
+   * enlace a esta nota no aparecería en RETROENLACES hasta cambiar de nota.
+   */
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    function onRecarga() {
+      conexionesCache.delete(notaId);
+      setRevision((r) => r + 1);
+    }
+    window.addEventListener(EVENTO_RECARGA, onRecarga);
+    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
+  }, [notaId]);
+
   useEffect(() => {
     let cancelled = false;
     const cached = conexionesCache.get(notaId);
@@ -83,7 +101,7 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
     return () => {
       cancelled = true;
     };
-  }, [notaId]);
+  }, [notaId, revision]);
 
   // Grafo filtrado por dirección según los dos toggles.
   const grafo = useMemo(() => {
