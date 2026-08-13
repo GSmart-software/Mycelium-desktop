@@ -16,7 +16,9 @@ const { outputText } = ts.transpileModule(await readFile(rutaTs, "utf8"), {
 });
 const {
   anclaDe,
+  buscarPorPrefijo,
   canvasInicial,
+  colorCss,
   ErrorCanvas,
   ladosAutomaticos,
   nodoArchivo,
@@ -287,4 +289,71 @@ test("nodoArchivo y nodoTexto producen nodos válidos", () => {
   assert.equal(vuelta.nodos[0].texto, "hola");
   assert.equal(vuelta.nodos[1].archivo, "x.md");
   assert.equal(vuelta.nodos[1].tipo, "file");
+});
+
+// ── Color ─────────────────────────────────────────────────────────────────────
+
+test("los presets del formato se traducen a un color CSS", () => {
+  assert.equal(colorCss("1"), "#fb464c");
+  assert.equal(colorCss("6"), "#a882ff");
+  assert.equal(colorCss(undefined), null, "sin color = el aspecto de Mycelium");
+  assert.equal(colorCss(""), null);
+});
+
+test("un hex ajeno se respeta aunque la paleta no lo ofrezca", () => {
+  assert.equal(colorCss("#123456"), "#123456");
+});
+
+test("un preset que no existe no rompe: se dibuja sin color", () => {
+  assert.equal(colorCss("99"), null);
+});
+
+test("el color sobrevive a la ida y vuelta", () => {
+  const c = parsearCanvas(OBSIDIAN);
+  c.nodos[0].color = "4";
+  const vuelta = parsearCanvas(serializarCanvas(c));
+  assert.equal(vuelta.nodos[0].color, "4");
+});
+
+test("quitarle el color a una tarjeta lo borra del archivo", () => {
+  const c = parsearCanvas(OBSIDIAN);
+  const antes = JSON.parse(serializarCanvas(c)).nodes.find((n) => n.id === "b");
+  assert.equal(antes.color, "3");
+  c.nodos[1].color = undefined;
+  const despues = JSON.parse(serializarCanvas(c)).nodes.find((n) => n.id === "b");
+  assert.equal("color" in despues, false);
+});
+
+// ── Búsqueda por prefijo ──────────────────────────────────────────────────────
+
+const NOTAS_BUSQUEDA = [
+  { titulo: "Versionado del sistema" },
+  { titulo: "Version 1.4.0" },
+  { titulo: "Conversión de enlaces" },
+  { titulo: "versión corta" },
+  { titulo: "BACKLOG" },
+];
+
+test("busca por PREFIJO, no por «contiene»", () => {
+  const r = buscarPorPrefijo(NOTAS_BUSQUEDA, "vers").map((n) => n.titulo);
+  assert.deepEqual(r, ["Versionado del sistema", "Version 1.4.0", "versión corta"]);
+  assert.equal(
+    r.includes("Conversión de enlaces"),
+    false,
+    "«Conversión» contiene «vers» en el medio: no debe salir",
+  );
+});
+
+test("la búsqueda ignora mayúsculas y acentos", () => {
+  assert.equal(buscarPorPrefijo(NOTAS_BUSQUEDA, "VERSIÓN").length, 3);
+  assert.equal(buscarPorPrefijo(NOTAS_BUSQUEDA, "versio").length, 3);
+});
+
+test("sin consulta se devuelve todo", () => {
+  assert.equal(buscarPorPrefijo(NOTAS_BUSQUEDA, "").length, 5);
+  assert.equal(buscarPorPrefijo(NOTAS_BUSQUEDA, "   ").length, 5);
+});
+
+test("una consulta que no casa con nada devuelve vacío", () => {
+  assert.deepEqual(buscarPorPrefijo(NOTAS_BUSQUEDA, "zzz"), []);
 });

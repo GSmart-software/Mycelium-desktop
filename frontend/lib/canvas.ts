@@ -265,6 +265,56 @@ export function nuevaArista(id: string, desdeNodo: string, hastaNodo: string): A
   return { id, desdeNodo, hastaNodo, crudo: {} };
 }
 
+// ── Color ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Colores del formato. JSON Canvas admite un hex (`"#FF0000"`) o un **preset**
+ * `"1"`–`"6"`. Se usan los presets a propósito: son los mismos seis que muestra
+ * Obsidian, así que una tarjeta pintada acá se ve igual allá — que es todo el
+ * punto de haber adoptado el formato. Un hex ajeno se lee y se conserva, pero la
+ * paleta no lo ofrece.
+ */
+export const COLORES: { preset: string; nombre: string; css: string }[] = [
+  { preset: "1", nombre: "Rojo", css: "#fb464c" },
+  { preset: "2", nombre: "Naranja", css: "#e9973f" },
+  { preset: "3", nombre: "Amarillo", css: "#e0de71" },
+  { preset: "4", nombre: "Verde", css: "#44cf6e" },
+  { preset: "5", nombre: "Cian", css: "#53dfdd" },
+  { preset: "6", nombre: "Morado", css: "#a882ff" },
+];
+
+/**
+ * Color CSS de un nodo, o `null` si no tiene ninguno — en cuyo caso se dibuja con
+ * los colores de Mycelium, que es el aspecto por defecto.
+ */
+export function colorCss(color: string | undefined): string | null {
+  if (color === undefined || color === "") return null;
+  if (color.startsWith("#")) return color;
+  return COLORES.find((c) => c.preset === color)?.css ?? null;
+}
+
+// ── Búsqueda de notas ─────────────────────────────────────────────────────────
+
+/** Sin acentos ni mayúsculas, para que «versión» case con «version». */
+const plano = (s: string): string =>
+  s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+/**
+ * Notas cuyo título **empieza** por la consulta.
+ *
+ * Es prefijo a propósito, no «contiene»: buscando `vers` interesa `Versionado` y
+ * `Version 1.4.0`, no cualquier nota que mencione «vers» en medio de una palabra.
+ * Sin consulta, devuelve todo.
+ */
+export function buscarPorPrefijo<T extends { titulo: string }>(
+  notas: T[],
+  consulta: string,
+): T[] {
+  const q = plano(consulta.trim());
+  if (q === "") return notas;
+  return notas.filter((n) => plano(n.titulo).startsWith(q));
+}
+
 // ── Geometría de las flechas ──────────────────────────────────────────────────
 
 export type Punto = { x: number; y: number };

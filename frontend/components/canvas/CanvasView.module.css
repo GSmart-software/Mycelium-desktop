@@ -332,3 +332,70 @@
   font-size: 0.8rem;
   flex-shrink: 0;
 }
+
+/* Mientras se arrastra el lienzo no debe empezar una selección de texto: el
+   gesto es desplazar, no seleccionar. Solo durante el arrastre, para que se
+   pueda seguir seleccionando el texto de una tarjeta al leerla. */
+.desplazando,
+.desplazando * {
+  user-select: none;
+}
+
+/* ── Buscador del selector de notas ──────────────────────────────────────── */
+
+.buscador {
+  width: 100%;
+  margin-bottom: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.82rem;
+}
+
+.buscador:focus {
+  outline: none;
+  border-color: var(--mic-accent);
+}
+
+/* ── Paleta de color ─────────────────────────────────────────────────────── */
+
+.paleta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0 0.3rem;
+  border-left: 1px solid var(--mic-border);
+  margin-left: 0.2rem;
+}
+
+.muestra,
+.muestraNinguno {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 40%, transparent);
+  cursor: pointer;
+}
+
+.muestra:hover,
+.muestraNinguno:hover {
+  transform: scale(1.15);
+}
+
+.muestraNinguno {
+  display: grid;
+  place-items: center;
+  color: var(--mic-text-muted);
+  background: transparent;
+}
+
+/* ── Tarjeta con color ───────────────────────────────────────────────────── */
+
+/* Solo se tiñen el borde y la cabecera: el cuerpo tiene que seguir siendo
+   legible en los dos temas, así que el fondo apenas se matiza. */
+.asaColor {
+  background: color-mix(in srgb, var(--mic-canvas-color) 30%, transparent);
+  color: var(--mic-text-primary);
+}

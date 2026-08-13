@@ -1,11 +1,14 @@
 "use client";
 
-import { FileText, Maximize2, Save, Trash2, Type } from "lucide-react";
+import { Ban, FileText, Maximize2, Save, Trash2, Type } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   anclaDe,
+  buscarPorPrefijo,
+  colorCss,
+  COLORES,
   ladosAutomaticos,
   nodoArchivo,
   nodoTexto,
@@ -61,6 +64,9 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const [editando, setEditando] = useState<string | null>(null);
   const [sucio, setSucio] = useState(false);
   const [eligiendoNota, setEligiendoNota] = useState(false);
+  /** Solo mientras se arrastra el lienzo: apaga la selección de texto. */
+  const [desplazando, setDesplazando] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const arrastre = useRef<Arrastre | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const guardadoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,6 +188,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     function onUp(e: PointerEvent) {
       const a = arrastre.current;
       arrastre.current = null;
+      setDesplazando(false);
       if (a?.tipo !== "arista") return;
       const destino = (e.target as HTMLElement | null)?.closest("[data-nodo]");
       const id = destino?.getAttribute("data-nodo");
@@ -207,8 +214,17 @@ export function CanvasView({ notaId }: { notaId: string }) {
     };
   }, [cambiar, enLienzo]);
 
-  /** Zoom hacia el cursor: lo que está bajo el puntero no se mueve. */
+  /**
+   * Zoom hacia el cursor: lo que está bajo el puntero no se mueve.
+   *
+   * Salvo que el puntero esté sobre una tarjeta **que tenga scroll**: ahí la
+   * rueda es para leerla. Antes hacía las dos cosas a la vez —la tarjeta bajaba
+   * y el lienzo se alejaba— que no es lo que espera nadie. Sobre una tarjeta que
+   * NO desborda no hay nada que desplazar, así que se sigue haciendo zoom.
+   */
   const onWheel = (e: React.WheelEvent) => {
+    const cuerpo = (e.target as HTMLElement).closest(`.${styles.cuerpo}`);
+    if (cuerpo instanceof HTMLElement && cuerpo.scrollHeight > cuerpo.clientHeight) return;
     const r = hostRef.current?.getBoundingClientRect();
     if (!r) return;
     const factor = Math.exp(-e.deltaY * 0.0015);
@@ -274,6 +290,15 @@ export function CanvasView({ notaId }: { notaId: string }) {
     });
   };
 
+  /** Pinta la tarjeta seleccionada. `undefined` la devuelve al color de Mycelium. */
+  const pintar = (color: string | undefined) => {
+    if (seleccion === null) return;
+    cambiar((c) => ({
+      ...c,
+      nodos: c.nodos.map((n) => (n.id === seleccion ? { ...n, color } : n)),
+    }));
+  };
+
   const abrirPorTitulo = (titulo: string) => {
     const destino = resolveWikilink(titulo, notas, carpetas);
     if (!destino) return;
@@ -285,6 +310,11 @@ export function CanvasView({ notaId }: { notaId: string }) {
     useTabsStore.getState().openNote(id);
     router.replace(`/workspace?note=${encodeURIComponent(id)}`);
   };
+
+  const candidatasNota = useMemo(
+    () => buscarPorPrefijo(notas.filter((n) => n.tipo === "markdown"), busqueda),
+    [notas, busqueda],
+  );
 
   const aristas = useMemo(() => {
     if (canvas === null) return [];
@@ -323,7 +353,10 @@ export function CanvasView({ notaId }: { notaId: string }) {
         <button
           type="button"
           className={styles.boton}
-          onClick={() => setEligiendoNota((v) => !v)}
+          onClick={() => {
+            setBusqueda("");
+            setEligiendoNota((v) => !v);
+          }}
           aria-expanded={eligiendoNota}
         >
           <FileText size={14} aria-hidden /> Tarjeta de nota
@@ -336,6 +369,29 @@ export function CanvasView({ notaId }: { notaId: string }) {
         >
           <Maximize2 size={14} aria-hidden /> {Math.round(vista.escala * 100)}%
         </button>
+        {seleccion !== null && (
+          <span className={styles.paleta} role="group" aria-label="Color de la tarjeta">
+            <button
+              type="button"
+              className={styles.muestraNinguno}
+              title="Sin color (el de Mycelium)"
+              onClick={() => pintar(undefined)}
+            >
+              <Ban size={12} aria-hidden />
+            </button>
+            {COLORES.map((c) => (
+              <button
+                key={c.preset}
+                type="button"
+                className={styles.muestra}
+                style={{ background: c.css }}
+                title={c.nombre}
+                aria-label={c.nombre}
+                onClick={() => pintar(c.preset)}
+              />
+            ))}
+          </span>
+        )}
         {seleccion !== null && (
           <button
             type="button"
@@ -364,19 +420,37 @@ export function CanvasView({ notaId }: { notaId: string }) {
         </span>
         {eligiendoNota && (
           <div className={styles.selector}>
-            <p className={styles.selectorNota}>La tarjeta muestra la nota real, no una copia.</p>
+            <input
+              className={styles.buscador}
+              autoFocus
+              value={busqueda}
+              placeholder="Buscar por el principio del nombre…"
+              spellCheck={false}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setEligiendoNota(false);
+                // Enter con un único resultado: la elección obvia.
+                if (e.key === "Enter" && candidatasNota.length === 1) {
+                  agregarNota(candidatasNota[0].id);
+                }
+              }}
+            />
+            <p className={styles.selectorNota}>
+              La tarjeta muestra la nota real, no una copia. Se busca por el{" "}
+              <strong>principio</strong> del nombre.
+            </p>
             <ul className={styles.selectorLista}>
-              {notas
-                .filter((n) => n.tipo === "markdown")
-                .slice(0, 200)
-                .map((n) => (
-                  <li key={n.id}>
-                    <button type="button" onClick={() => agregarNota(n.id)}>
-                      {n.titulo}
-                    </button>
-                  </li>
-                ))}
+              {candidatasNota.slice(0, 200).map((n) => (
+                <li key={n.id}>
+                  <button type="button" onClick={() => agregarNota(n.id)}>
+                    {n.titulo}
+                  </button>
+                </li>
+              ))}
             </ul>
+            {candidatasNota.length === 0 && (
+              <p className={styles.selectorNota}>Ninguna nota empieza por «{busqueda}».</p>
+            )}
           </div>
         )}
       </header>
@@ -385,12 +459,20 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
       <div
         ref={hostRef}
-        className={styles.lienzo}
+        className={`${styles.lienzo} ${desplazando ? styles.desplazando : ""}`}
         onWheel={onWheel}
         onPointerDown={(e) => {
-          if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset.fondo) return;
+          // El fondo es TODO lo que no sea una tarjeta. Antes se exigía que el
+          // evento cayera en el propio contenedor, pero `.mundo` lo cubre entero,
+          // así que el arrastre no llegaba a empezar nunca: el puntero solo
+          // seleccionaba texto.
+          if ((e.target as HTMLElement).closest("[data-nodo]")) return;
+          // Sin esto el navegador arranca una selección de texto y el lienzo se
+          // "engancha" a mitad del gesto.
+          e.preventDefault();
           setSeleccion(null);
           setEditando(null);
+          setDesplazando(true);
           arrastre.current = {
             tipo: "lienzo",
             x0: e.clientX,
@@ -569,11 +651,22 @@ function NodoVista({
     .filter(Boolean)
     .join(" ");
 
+  // Sin color, la tarjeta usa los tokens del tema (el aspecto por defecto). Con
+  // color, solo se tiñen el borde y la cabecera: el cuerpo tiene que seguir
+  // legible en los dos temas, así que el fondo apenas se matiza.
+  const css = colorCss(nodo.color);
+  const estiloColor = css
+    ? ({
+        borderColor: css,
+        "--mic-canvas-color": css,
+      } as React.CSSProperties)
+    : undefined;
+
   return (
     <div
       data-nodo={nodo.id}
       className={clases}
-      style={{ left: nodo.x, top: nodo.y, width: nodo.ancho, height: nodo.alto }}
+      style={{ left: nodo.x, top: nodo.y, width: nodo.ancho, height: nodo.alto, ...estiloColor }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onSeleccionar();
@@ -582,7 +675,7 @@ function NodoVista({
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
           seleccionar texto ni pulsar un enlace dentro de ella. */}
       <div
-        className={styles.asa}
+        className={css ? `${styles.asa} ${styles.asaColor}` : styles.asa}
         onPointerDown={(e) => {
           e.stopPropagation();
           onSeleccionar();
