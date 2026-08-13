@@ -20,6 +20,7 @@ import {
 } from "@/lib/canvas";
 import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
 import { renderNota } from "@/lib/markdown";
+import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -267,7 +268,9 @@ export function CanvasView({ notaId }: { notaId: string }) {
     cambiar((c) => {
       const id = nuevoId(c.nodos.map((n) => n.id));
       setSeleccion(id);
-      return { ...c, nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, notaDestino)] };
+      // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
+      // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
+      return { ...c, nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))] };
     });
   };
 
@@ -522,14 +525,19 @@ function NodoVista({
   onAbrirNota: (id: string) => void;
 }) {
   const cuerpoRef = useRef<HTMLDivElement>(null);
-  const nota = nodo.tipo === "file" ? notas.find((n) => n.id === nodo.archivo) : undefined;
+  // La tarjeta guarda una ruta; acá se traduce al id para encontrar la nota.
+  const notaId =
+    nodo.tipo === "file" && nodo.archivo !== undefined
+      ? notaDeRuta(nodo.archivo, notas)
+      : null;
+  const nota = notaId !== null ? notas.find((n) => n.id === notaId) : undefined;
   const [contenido, setContenido] = useState<string | null>(null);
 
   // Una tarjeta de nota muestra el archivo REAL: se lee su contenido, no se copia.
   useEffect(() => {
-    if (nodo.tipo !== "file" || nodo.archivo === undefined || nota === undefined) return;
+    if (nodo.tipo !== "file" || nota === undefined) return;
     let cancelado = false;
-    void api<{ contenido: string }>(`/notas/${encodeURIComponent(nodo.archivo)}/contenido`, {
+    void api<{ contenido: string }>(`/notas/${encodeURIComponent(nota.id)}/contenido`, {
       token: useAuthStore.getState().accessToken,
     })
       .then((r) => {
@@ -539,7 +547,7 @@ function NodoVista({
     return () => {
       cancelado = true;
     };
-  }, [nodo.tipo, nodo.archivo, nota]);
+  }, [nodo.tipo, nota]);
 
   const html = useMemo(() => {
     if (nodo.tipo === "text") return renderNota(nodo.texto ?? "");
