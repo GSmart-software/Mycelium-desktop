@@ -10,6 +10,7 @@ mod terminal;
 mod vault_config;
 mod vault_fs;
 mod vault_watch;
+mod ventanas;
 
 /// URL de la base local. `tauri-plugin-sql` la resuelve dentro del app-data dir
 /// del SO. El frontend usa la MISMA URL con `Database.load()` para obtener la DB
@@ -121,6 +122,16 @@ pub fn run() {
         .manage(vault_watch::WatcherState::default())
         .manage(terminal::TerminalesState::default())
         .manage(actualizador::DescargaState::default())
+        .manage(ventanas::VentanasState::default())
+        // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
+        // watcher, sus terminales y el vault que tenía abierto. Sin esto el vault
+        // quedaría marcado como abierto para siempre —no se podría reabrir en
+        // ninguna ventana— y sus shells seguirían vivas sin nadie que las lea.
+        .on_window_event(|ventana, evento| {
+            if matches!(evento, tauri::WindowEvent::Destroyed) {
+                ventanas::al_cerrar(ventana.app_handle(), ventana.label());
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
             alternar_devtools,
@@ -135,6 +146,9 @@ pub fn run() {
             archivos::leer_archivos,
             archivos::listar_directorios,
             archivos::carpeta_no_vacia,
+            ventanas::registrar_vault,
+            ventanas::soltar_vault,
+            ventanas::abrir_vault_en_ventana,
             vault_config::listar_vaults,
             vault_config::vincular_vault,
             vault_config::desvincular_vault,

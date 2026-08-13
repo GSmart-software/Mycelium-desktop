@@ -19,6 +19,7 @@
 //! frontend) lo mitiga. No se ofrece todavía un interruptor para desactivar el
 //! watcher (queda para fase 6/7); ver `docs/features/vault-en-carpeta.md`.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -30,17 +31,23 @@ use notify_debouncer_full::notify::{EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{
     new_debouncer, DebounceEventResult, Debouncer, FileIdCache, FileIdMap,
 };
-use tauri::{AppHandle, Emitter};
+use tauri::Emitter;
 
 /// Debouncer activo (uno por vault). El tipo concreto que devuelve
 /// `new_debouncer`: watcher recomendado del SO + caché de ids de archivo.
 type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, FileIdMap>;
 
-/// Estado gestionado por Tauri con el watcher activo (`None` cuando no hay vault
-/// de carpeta abierto). Se reemplaza al cambiar de vault y se descarta al salir:
-/// dropear el debouncer detiene la observación.
+/// Watchers activos, **uno por ventana** (`FUN-L-16`).
+///
+/// Antes era un `Option` único para toda la app, y con varias ventanas abiertas
+/// la segunda le robaba el watcher a la primera: esa dejaba de enterarse de los
+/// cambios de su propia carpeta sin ningún aviso. La clave es la etiqueta de la
+/// ventana, que es lo que Tauri garantiza único.
+///
+/// Dropear un debouncer detiene su observación, así que quitar la entrada del
+/// mapa es todo lo que hace falta para parar.
 #[derive(Default)]
-pub struct WatcherState(pub Mutex<Option<VaultDebouncer>>);
+pub struct WatcherState(pub Mutex<HashMap<String, VaultDebouncer>>);
 
 // Qué cuenta como nota del vault lo decide `archivos::es_importable`, la MISMA
 // lista que usa el indexador. Antes había acá una copia con `.md` y `.excalidraw`
@@ -66,7 +73,7 @@ fn relativa_posix(base: &Path, path: &Path) -> Option<String> {
 /// incremental igualmente). Reemplaza cualquier watcher previo (cambio de vault).
 #[tauri::command]
 pub fn iniciar_watcher(
-    app: AppHandle,
+    ventana: tauri::Window,
     state: tauri::State<WatcherState>,
     vault_ruta: String,
 ) -> Result<(), String> {
@@ -75,7 +82,10 @@ pub fn iniciar_watcher(
         return Err(format!("La carpeta del vault no existe: {vault_ruta}"));
     }
 
-    let app_handle = app.clone();
+    // El evento va a ESTA ventana, no a todas (`FUN-L-16`): con `app.emit` cada
+    // ventana recibía los cambios de la carpeta de las demás y reindexaba la suya
+    // sin motivo.
+    let destino = ventana.clone();
     let base_evt = base.clone();
     let mut debouncer = new_debouncer(
         Duration::from_millis(400),
@@ -118,7 +128,7 @@ pub fn iniciar_watcher(
             }
 
             if !rutas.is_empty() {
-                let _ = app_handle.emit("vault-cambios", rutas);
+                let _ = destino.emit("vault-cambios", rutas);
             }
         },
     )
@@ -150,22 +160,31 @@ pub fn iniciar_watcher(
         debouncer.cache().add_path(&ruta);
     }
 
-    // Reemplaza el watcher anterior: al asignar el nuevo, el previo se dropea y
-    // deja de observar.
-    *state
+    // Reemplaza el watcher anterior DE ESTA VENTANA: al insertar, el previo se
+    // dropea y deja de observar. Los de las demás ventanas no se tocan.
+    state
         .0
         .lock()
-        .map_err(|_| "Estado del watcher no disponible".to_string())? = Some(debouncer);
+        .map_err(|_| "Estado del watcher no disponible".to_string())?
+        .insert(ventana.label().to_string(), debouncer);
     Ok(())
 }
 
-/// Detiene el watcher activo (al salir del vault). Dropear el debouncer detiene la
-/// observación. Idempotente: si no había watcher, no hace nada.
+/// Detiene el watcher de esta ventana (al salir del vault). Dropear el debouncer
+/// detiene la observación. Idempotente: si no había, no hace nada.
 #[tauri::command]
-pub fn detener_watcher(state: tauri::State<WatcherState>) -> Result<(), String> {
-    *state
-        .0
-        .lock()
-        .map_err(|_| "Estado del watcher no disponible".to_string())? = None;
+pub fn detener_watcher(
+    ventana: tauri::Window,
+    state: tauri::State<WatcherState>,
+) -> Result<(), String> {
+    detener_de(&state, ventana.label());
     Ok(())
+}
+
+/// Detiene el watcher de una ventana por su etiqueta. Lo usa además el cierre de
+/// ventana, donde ya no hay un `Window` del que partir.
+pub fn detener_de(state: &WatcherState, label: &str) {
+    if let Ok(mut mapa) = state.0.lock() {
+        mapa.remove(label);
+    }
 }

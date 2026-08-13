@@ -61,6 +61,14 @@
  *   cuántos hay. Absorbe además las correcciones que se quedaron sin publicar
  *   (`DEF-046` la papelera, `DEF-049`/`DEF-050` la tabulación, `DEF-051` las
  *   confirmaciones), así que la `1.5.1` prevista ya no existe.
+ * - `1.6.1` — solo desktop: **varios vaults abiertos a la vez, uno por ventana**
+ *   (`FUN-L-16`), más la tanda de correcciones que vino con ella (`DEF-042`,
+ *   `DEF-044`, `DEF-047`, `DEF-048`, `DEF-052`, `DEF-053`, `DEF-054`).
+ *
+ *   **Sería minor por la regla** —es capacidad nueva— pero el usuario decidió
+ *   mantener `1.6.x`. Queda anotado para que no parezca un descuido ni siente
+ *   precedente: la regla de `docs/decisiones/Versionado del sistema.md` sigue
+ *   siendo la de siempre.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambió con
@@ -70,4 +78,4 @@
  * de referencias comparte con ella. Subirlo a `1.5.0` es trabajo aparte, ya
  * especificado en `docs/features/auditoria-y-relinkeado.md` § 10.
  */
-export const APP_VERSION = "1.6.0";
+export const APP_VERSION = "1.6.1";

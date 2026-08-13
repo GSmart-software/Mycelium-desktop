@@ -47,3 +47,27 @@ export async function setAbrirUltimo(valor: boolean): Promise<void> {
 export async function marcarAcceso(ruta: string): Promise<void> {
   await invoke("marcar_acceso", { ruta });
 }
+
+// ── Varias ventanas, un vault en cada una (`FUN-L-16`) ───────────────────────
+
+/**
+ * Anota que ESTA ventana abrió ese vault. Lanza si lo tiene otra: cada vault
+ * abre su índice SQLite y lanza su watcher, así que dos ventanas sobre la misma
+ * carpeta serían dos indexadores escribiendo el mismo índice.
+ */
+export async function registrarVaultDeVentana(ruta: string): Promise<void> {
+  await invoke("registrar_vault", { ruta });
+}
+
+/** Suelta el vault de esta ventana (al salir). */
+export async function soltarVaultDeVentana(): Promise<void> {
+  await invoke("soltar_vault");
+}
+
+/**
+ * Abre un vault en una ventana nueva. Si ya está abierto en otra, la levanta en
+ * vez de duplicarlo; devuelve `true` solo cuando creó una ventana.
+ */
+export async function abrirVaultEnVentana(ruta: string): Promise<boolean> {
+  return (await invoke<boolean>("abrir_vault_en_ventana", { ruta })) ?? false;
+}

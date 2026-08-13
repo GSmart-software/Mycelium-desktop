@@ -1,9 +1,10 @@
 "use client";
 
-import { FolderOpen, FolderPlus, X } from "lucide-react";
+import { AppWindow, FolderOpen, FolderPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
+  abrirVaultEnVentana,
   desvincularVault,
   listarVaults,
   vincularVault,
@@ -79,6 +80,21 @@ export default function VaultsPage() {
     }
   }
 
+  /**
+   * Abre el vault en una ventana aparte, sin dejar esta (`FUN-L-16`). Si ya está
+   * abierto en otra, se levanta esa en vez de duplicarlo — dos ventanas sobre la
+   * misma carpeta serían dos indexadores escribiendo el mismo índice.
+   */
+  async function onAbrirEnVentana(ruta: string) {
+    setError(null);
+    try {
+      const creada = await abrirVaultEnVentana(ruta);
+      if (!creada) setError("Ese vault ya estaba abierto: se levantó su ventana.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function onQuitar(ruta: string) {
     try {
       await desvincularVault(ruta);
@@ -141,6 +157,15 @@ export default function VaultsPage() {
                       onClick={() => void onAbrir(v.ruta)}
                     >
                       Abrir
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.removeButton}
+                      aria-label={`Abrir ${v.nombre} en una ventana nueva`}
+                      title="Abrir en una ventana nueva"
+                      onClick={() => void onAbrirEnVentana(v.ruta)}
+                    >
+                      <AppWindow size={16} aria-hidden />
                     </button>
                     <button
                       type="button"

@@ -19,7 +19,11 @@ import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
 import { ensureSeed } from "@/lib/db/auth";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { setVaultActual } from "@/lib/db/vaultContext";
-import { marcarAcceso } from "@/lib/vaultMode";
+import {
+  marcarAcceso,
+  registrarVaultDeVentana,
+  soltarVaultDeVentana,
+} from "@/lib/vaultMode";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -113,6 +117,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // vacío guardado en la clave de este vault.
     useVaultStore.getState().reset();
     try {
+      // Antes de tocar nada: reclamar el vault para esta ventana (`FUN-L-16`).
+      // Si lo tiene otra, se corta acá — abrir su índice desde dos ventanas
+      // dejaría dos indexadores escribiendo el mismo archivo.
+      await registrarVaultDeVentana(ruta);
       await abrirIndiceDeVault(ruta);
       // El índice recién abierto puede estar vacío: hay que crear el esquema
       // ANTES de sembrar, porque `ensureSeed()` consulta la tabla `usuarios`.
@@ -187,6 +195,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // no debe heredarlos (`DEF-044`).
     await useTabsStore.getState().usarAlmacenDeVault(null);
     useVaultStore.getState().reset();
+    // Soltar el vault para que otra ventana pueda abrirlo (`FUN-L-16`).
+    await soltarVaultDeVentana().catch(() => undefined);
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra

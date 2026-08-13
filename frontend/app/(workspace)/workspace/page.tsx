@@ -56,11 +56,17 @@ function WorkspaceGuard() {
     bootstrapRef.current = true;
     let cancelado = false;
     void (async () => {
-      // Reabrir el vault persistido si no hay uno abierto (entrada directa tras
-      // recarga). Debe ocurrir ANTES de restore() para fijar el executor.
+      // Reabrir el vault si no hay uno abierto. Debe ocurrir ANTES de restore()
+      // para fijar el executor.
+      //
+      // Dos orígenes, y el orden importa: `?vault=` lo pone la ventana NUEVA que
+      // abre `FUN-L-16` —arranca con su `sessionStorage` vacío, así que el vault
+      // tiene que viajar en la URL— y manda sobre lo persistido, que es de esta
+      // ventana y de una sesión anterior.
       if (useVaultSessionStore.getState().rutaActual === null) {
-        const persistida = rutaVaultPersistida();
-        if (persistida) await useVaultSessionStore.getState().abrir(persistida);
+        const pedido = new URLSearchParams(window.location.search).get("vault");
+        const ruta = pedido ?? rutaVaultPersistida();
+        if (ruta) await useVaultSessionStore.getState().abrir(ruta);
       }
       if (!cancelado && !useAuthStore.getState().initialized) {
         await useAuthStore.getState().restore();

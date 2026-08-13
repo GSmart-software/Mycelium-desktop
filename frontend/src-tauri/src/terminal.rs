@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::Emitter;
 
 /// Sesión viva: el master (para redimensionar), el writer (input del usuario) y
 /// el proceso hijo (para matarlo al cerrar la pestaña).
@@ -27,6 +27,9 @@ struct Sesion {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
+    /// Ventana dueña de la sesión (`FUN-L-16`): sus procesos mueren con ella, y
+    /// su salida solo se emite ahí.
+    ventana: String,
 }
 
 /// Estado gestionado por Tauri. `Arc` porque el hilo lector de cada sesión
@@ -164,7 +167,7 @@ pub fn terminal_shells() -> Vec<ShellInfo> {
 /// `terminal-salida`.
 #[tauri::command]
 pub fn terminal_abrir(
-    app: AppHandle,
+    ventana: tauri::Window,
     state: tauri::State<TerminalesState>,
     id: String,
     shell: String,
@@ -206,12 +209,16 @@ pub fn terminal_abrir(
         .take_writer()
         .map_err(|e| format!("No se pudo escribir en la terminal: {e}"))?;
 
-    sesiones.insert(id.clone(), Sesion { master: par.master, writer, child });
+    sesiones.insert(
+        id.clone(),
+        Sesion { master: par.master, writer, child, ventana: ventana.label().to_string() },
+    );
     drop(sesiones);
 
     // Hilo lector: PTY → frontend. Al agotarse (proceso terminado) limpia la
     // sesión y avisa para que la pestaña se cierre sola (CA7).
     let mapa = state.0.clone();
+    let destino = ventana.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
         loop {
@@ -219,17 +226,35 @@ pub fn terminal_abrir(
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     let datos = String::from_utf8_lossy(&buf[..n]).into_owned();
-                    let _ = app.emit("terminal-datos", DatosEvento { id: id.clone(), datos });
+                    let _ = destino.emit("terminal-datos", DatosEvento { id: id.clone(), datos });
                 }
             }
         }
         if let Ok(mut sesiones) = mapa.lock() {
             sesiones.remove(&id);
         }
-        let _ = app.emit("terminal-salida", SalidaEvento { id });
+        let _ = destino.emit("terminal-salida", SalidaEvento { id });
     });
 
     Ok(())
+}
+
+/// Mata las sesiones de una ventana (`FUN-L-16`). Se llama al cerrarla: sus
+/// shells son suyas y no deben quedar corriendo sin nadie que las lea.
+pub fn cerrar_de_ventana(state: &TerminalesState, label: &str) {
+    let Ok(mut sesiones) = state.0.lock() else {
+        return;
+    };
+    let suyas: Vec<String> = sesiones
+        .iter()
+        .filter(|(_, s)| s.ventana == label)
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in suyas {
+        if let Some(mut sesion) = sesiones.remove(&id) {
+            let _ = sesion.child.kill();
+        }
+    }
 }
 
 /// Home del usuario (fallback de cwd sin depender de crates extra).
