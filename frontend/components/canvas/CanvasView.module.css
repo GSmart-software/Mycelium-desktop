@@ -222,6 +222,9 @@
 .editor {
   width: 100%;
   height: 100%;
+  /* `auto` y no el `scroll` implícito: así `overflowY` solo es desplazable
+     cuando el texto desborda de verdad, que es lo que mira `hayScroll`. */
+  overflow-y: auto;
   border: none;
   background: transparent;
   color: var(--mic-text-primary);

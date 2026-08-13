@@ -217,14 +217,15 @@ export function CanvasView({ notaId }: { notaId: string }) {
   /**
    * Zoom hacia el cursor: lo que está bajo el puntero no se mueve.
    *
-   * Salvo que el puntero esté sobre una tarjeta **que tenga scroll**: ahí la
-   * rueda es para leerla. Antes hacía las dos cosas a la vez —la tarjeta bajaba
-   * y el lienzo se alejaba— que no es lo que espera nadie. Sobre una tarjeta que
-   * NO desborda no hay nada que desplazar, así que se sigue haciendo zoom.
+   * Sobre una tarjeta con scroll la rueda sirve para leerla, no para alejar el
+   * lienzo — pero esa decisión **no se toma acá**: la toma la propia tarjeta,
+   * que corta la propagación (ver `NodoVista`). El primer intento sí la tomaba
+   * acá, buscando el cuerpo con `closest()` sobre la clase del módulo CSS, y no
+   * funcionaba: si esa búsqueda falla por cualquier motivo, el zoom se dispara
+   * igual. Que decida quien conoce su propio scroll es más simple y no depende
+   * de acertar con un selector.
    */
   const onWheel = (e: React.WheelEvent) => {
-    const cuerpo = (e.target as HTMLElement).closest(`.${styles.cuerpo}`);
-    if (cuerpo instanceof HTMLElement && cuerpo.scrollHeight > cuerpo.clientHeight) return;
     const r = hostRef.current?.getBoundingClientRect();
     if (!r) return;
     const factor = Math.exp(-e.deltaY * 0.0015);
@@ -575,6 +576,27 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
 // ── Un nodo ───────────────────────────────────────────────────────────────────
 
+/**
+ * ¿Hay algo que desplazar entre el punto del evento y la tarjeta?
+ *
+ * Se recorre hacia arriba en vez de mirar un elemento concreto porque el que
+ * desplaza cambia según el caso: el cuerpo de la tarjeta al leerla, y el
+ * `textarea` cuando se está editando. Fijar uno solo dejaba el otro roto.
+ */
+function hayScroll(desde: EventTarget | null, hasta: HTMLElement | null): boolean {
+  let el = desde instanceof HTMLElement ? desde : null;
+  while (el !== null) {
+    const desborda = el.scrollHeight > el.clientHeight;
+    if (desborda) {
+      const overflow = getComputedStyle(el).overflowY;
+      if (overflow === "auto" || overflow === "scroll") return true;
+    }
+    if (el === hasta) return false;
+    el = el.parentElement;
+  }
+  return false;
+}
+
 function NodoVista({
   nodo,
   seleccionado,
@@ -670,6 +692,13 @@ function NodoVista({
       onPointerDown={(e) => {
         e.stopPropagation();
         onSeleccionar();
+      }}
+      // La rueda sobre una tarjeta que desborda es para leerla: se corta acá y
+      // el lienzo ni se entera, así que no hay forma de que además haga zoom.
+      // Si la tarjeta NO desborda no hay nada que desplazar y el evento sigue su
+      // camino, que es lo que se quiere.
+      onWheel={(e) => {
+        if (hayScroll(e.target, e.currentTarget)) e.stopPropagation();
       }}
     >
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
