@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderOpen, FolderPlus, Loader2, X } from "lucide-react";
+import { FolderOpen, FolderPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -9,6 +9,7 @@ import {
   vincularVault,
   type VaultRef,
 } from "@/lib/vaultMode";
+import { AperturaVault } from "@/components/vault/AperturaVault";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./page.module.css";
 
@@ -26,13 +27,6 @@ export default function VaultsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const abriendo = useVaultSessionStore((s) => s.abriendo);
-  // Avance del indexado (FUN-M-12): mientras hay progreso el botón lo muestra en
-  // lugar del spinner mudo. `total === 0` (vault vacío) no aporta nada útil.
-  const progreso = useVaultSessionStore((s) => s.progreso);
-  const etiquetaAbrir =
-    abriendo && progreso && progreso.total > 0
-      ? `Indexando ${progreso.hechas}/${progreso.total}`
-      : "Abrir";
 
   const refrescar = useCallback(async () => {
     setCargando(true);
@@ -82,6 +76,11 @@ export default function VaultsPage() {
     }
   }
 
+  // Mientras se abre uno, el selector desaparece y da paso a la pantalla de carga
+  // (`DEF-042`). Antes seguía a la vista y el progreso del indexado se escribía
+  // en TODOS los botones, incluidos los vaults que nadie había abierto.
+  if (abriendo) return <AperturaVault />;
+
   return (
     <main className={styles.main}>
       <section className={styles.panel}>
@@ -123,18 +122,13 @@ export default function VaultsPage() {
                     <button
                       type="button"
                       className={styles.openButton}
-                      disabled={abriendo}
                       onClick={() => void onAbrir(v.ruta)}
                     >
-                      {abriendo ? (
-                        <Loader2 size={14} aria-hidden className={styles.spin} />
-                      ) : null}
-                      {etiquetaAbrir}
+                      Abrir
                     </button>
                     <button
                       type="button"
                       className={styles.removeButton}
-                      disabled={abriendo}
                       aria-label={`Quitar ${v.nombre} del registro`}
                       title="Quitar del registro (no borra los archivos)"
                       onClick={() => void onQuitar(v.ruta)}
@@ -151,7 +145,6 @@ export default function VaultsPage() {
         <button
           type="button"
           className={styles.linkButton}
-          disabled={abriendo}
           onClick={() => void onVincular()}
         >
           <FolderPlus size={16} aria-hidden />

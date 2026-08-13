@@ -19,6 +19,7 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { AperturaVault } from "@/components/vault/AperturaVault";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
@@ -45,6 +46,10 @@ function WorkspaceGuard() {
   const [retrying, setRetrying] = useState(false);
   const [preparando, setPreparando] = useState(true);
   const bootstrapRef = useRef(false);
+  // Suscrito, no leído con `getState()`: si no, al cambiar `abriendo` este
+  // componente no se volvería a pintar y la pantalla de carga no aparecería (ni
+  // se iría) nunca.
+  const abriendoVault = useVaultSessionStore((s) => s.abriendo);
 
   useEffect(() => {
     if (bootstrapRef.current) return;
@@ -106,6 +111,10 @@ function WorkspaceGuard() {
         </main>
       );
     }
+    // El vault también se abre solo al arrancar (ajuste "abrir el último"), y
+    // ese camino mostraba un «Cargando…» mudo: el defecto pedía la misma
+    // pantalla de carga en los dos (`DEF-042`).
+    if (abriendoVault) return <AperturaVault />;
     return (
       <main className={styles.loading}>
         <p>Cargando…</p>

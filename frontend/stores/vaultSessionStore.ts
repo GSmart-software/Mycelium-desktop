@@ -27,11 +27,44 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
 const CLAVE_VAULT_ABIERTO = "mycelium:vault-abierto";
 
+/**
+ * Etapas de la apertura, en orden. La pantalla de carga (`DEF-042`) las muestra
+ * para que se vea **en qué** está trabajando la app y no solo que "está
+ * cargando": si algo se atasca, saber si fue al indexar o al leer los ajustes es
+ * la diferencia entre poder decir algo y no poder decir nada.
+ */
+export const ETAPAS = [
+  "indice",
+  "identidad",
+  "indexando",
+  "ajustes",
+  "watcher",
+] as const;
+export type EtapaApertura = (typeof ETAPAS)[number];
+
+export const ETIQUETA_ETAPA: Record<EtapaApertura, string> = {
+  indice: "Abriendo el índice del vault",
+  identidad: "Preparando el vault",
+  indexando: "Leyendo los archivos de la carpeta",
+  ajustes: "Cargando tus ajustes",
+  watcher: "Vigilando los cambios de la carpeta",
+};
+
 type VaultSessionState = {
   /** Carpeta del vault abierto, o `null` en modo SQLite clásico. */
   rutaActual: string | null;
   /** true mientras se abre/indexa un vault. */
   abriendo: boolean;
+  /** Carpeta que se está abriendo, para poder nombrarla en la pantalla de carga. */
+  rutaAbriendo: string | null;
+  /** En qué punto de la apertura estamos, o `null` fuera de ella (`DEF-042`). */
+  etapa: EtapaApertura | null;
+  /**
+   * `Date.now()` del último avance real (cambio de etapa o de progreso). La
+   * pantalla lo usa para poder decir «esto está tardando más de lo normal» en
+   * vez de dejar al usuario mirando un spinner sin saber si se colgó.
+   */
+  avanceEn: number;
   /**
    * Avance del indexado mientras `abriendo` es true, o `null` fuera de él
    * (FUN-M-12). Lo alimenta el `onProgress` de `indexarVault`, que hasta ahora
@@ -49,11 +82,24 @@ type VaultSessionState = {
 export const useVaultSessionStore = create<VaultSessionState>((set) => ({
   rutaActual: null,
   abriendo: false,
+  rutaAbriendo: null,
+  etapa: null,
+  avanceEn: 0,
   progreso: null,
   error: null,
 
   async abrir(ruta) {
-    set({ abriendo: true, error: null, progreso: null });
+    /** Marca una etapa y sella el instante: lo que alimenta el aviso de atasco. */
+    const etapa = (e: EtapaApertura) => set({ etapa: e, avanceEn: Date.now() });
+
+    set({
+      abriendo: true,
+      rutaAbriendo: ruta,
+      error: null,
+      progreso: null,
+      etapa: "indice",
+      avanceEn: Date.now(),
+    });
     // Vaciar la caché del grafo del vault anterior: en modo carpeta todos los
     // vaults comparten `LOCAL_VAULT_ID`, así que el grafo no detecta el cambio
     // por sí solo y mostraría el del vault previo.
@@ -65,10 +111,15 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       await crearEsquemaIndice();
       // A partir de aquí los repos escriben también en disco (modo carpeta).
       setVaultActual(ruta);
+      etapa("identidad");
       await ensureSeed();
-      await indexarVault(ruta, (hechas, total) => set({ progreso: { hechas, total } }));
-      set({ progreso: null }); // el indexado terminó: la UI vuelve al spinner
+      etapa("indexando");
+      await indexarVault(ruta, (hechas, total) =>
+        set({ progreso: { hechas, total }, avanceEn: Date.now() }),
+      );
+      set({ progreso: null }); // el indexado terminó
       await marcarAcceso(ruta);
+      etapa("ajustes");
       // Recargar la sesión (usuario/vaults) y las preferencias DESDE ESTE índice:
       // cada vault tiene sus propios ajustes (grafo, tipografía, tema…). Sin esto,
       // al cambiar de vault el WorkspaceGuard no re-ejecuta restore() (initialized
@@ -78,6 +129,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // Watcher nativo (fase 5): observa la carpeta para reflejar en la UI los
       // cambios hechos desde fuera de la app. No es fatal si falla (el vault
       // sigue usable, solo no se auto-refresca ante cambios externos).
+      etapa("watcher");
       try {
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("iniciar_watcher", { vaultRuta: ruta });
@@ -89,12 +141,25 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       } catch {
         // sessionStorage puede no estar disponible: no es fatal, solo no persiste.
       }
-      set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
+      set({
+        rutaActual: ruta,
+        abriendo: false,
+        rutaAbriendo: null,
+        etapa: null,
+        progreso: null,
+        error: null,
+      });
       return true;
     } catch (error) {
       console.error("[vault] fallo al abrir el vault:", error);
       const message = error instanceof Error ? error.message : "Error desconocido";
-      set({ abriendo: false, progreso: null, error: message });
+      set({
+        abriendo: false,
+        rutaAbriendo: null,
+        etapa: null,
+        progreso: null,
+        error: message,
+      });
       return false;
     }
   },
@@ -115,7 +180,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     } catch {
       // sin sessionStorage no hay nada que limpiar
     }
-    set({ rutaActual: null, progreso: null, error: null });
+    set({ rutaActual: null, rutaAbriendo: null, etapa: null, progreso: null, error: null });
   },
 }));
 

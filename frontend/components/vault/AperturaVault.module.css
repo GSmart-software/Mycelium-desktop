@@ -1,0 +1,154 @@
+/* Pantalla de carga de la apertura de un vault (DEF-042). */
+
+.main {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background: var(--mic-bg-canvas);
+}
+
+.panel {
+  width: min(30rem, 100%);
+  padding: 1.5rem 1.6rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-lg, 12px);
+  background: var(--mic-bg-surface);
+}
+
+.titulo {
+  margin: 0 0 0.2rem;
+  color: var(--mic-text-primary);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ruta {
+  margin: 0 0 1.1rem;
+  overflow: hidden;
+  color: var(--mic-text-muted);
+  font-family: var(--mic-font-mono);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Etapas ──────────────────────────────────────────────────────────────── */
+
+.etapas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.etapas li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  font-size: 0.86rem;
+}
+
+.marca {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.punto {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mic-text-muted);
+  opacity: 0.5;
+}
+
+/* Hecha, en curso y pendiente se distinguen por color Y por su marca, no solo
+   por color (el ícono es la señal accesible). */
+.hecha {
+  color: var(--mic-text-muted);
+}
+
+.hecha .marca {
+  color: var(--mic-accent);
+}
+
+.actual {
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+.actual .marca {
+  color: var(--mic-accent);
+}
+
+.pendiente {
+  color: var(--mic-text-muted);
+  opacity: 0.55;
+}
+
+.detalle {
+  margin-left: auto;
+  color: var(--mic-text-muted);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+.gira {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Quien prefiere no ver animaciones tampoco debería ver esto girar. */
+@media (prefers-reduced-motion: reduce) {
+  .gira {
+    animation: none;
+  }
+}
+
+/* ── Progreso ────────────────────────────────────────────────────────────── */
+
+.barra {
+  height: 5px;
+  margin-top: 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-text-muted) 20%, transparent);
+  overflow: hidden;
+}
+
+.barraRelleno {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--mic-accent);
+  transition: width 0.2s linear;
+}
+
+/* ── Aviso de atasco ─────────────────────────────────────────────────────── */
+
+.atasco {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 1rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--mic-callout-warning-border);
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 10%, transparent);
+  color: var(--mic-text-primary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.atasco svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--mic-callout-warning-border);
+}
