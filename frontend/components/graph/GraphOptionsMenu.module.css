@@ -22,10 +22,13 @@
   background: var(--mic-bg-surface);
 }
 
+/* Vive en un portal sobre el body y se posiciona por JS (`DEF-053`): dentro del
+   pane se salía por los lados y por abajo con la pestaña pequeña, y el área de
+   contenido lo recortaba con su `overflow: hidden`. El `max-height` real lo pone
+   el cálculo, según el sitio que quede en la ventana. */
 .menu {
-  position: absolute;
-  top: 38px;
-  right: 0;
+  position: fixed;
+  z-index: 60;
   width: 300px;
   max-height: 70vh;
   overflow-y: auto;

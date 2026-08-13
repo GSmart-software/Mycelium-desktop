@@ -1,7 +1,8 @@
 "use client";
 
 import { GripVertical, Plus, SlidersHorizontal, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./GraphOptionsMenu.module.css";
 
@@ -53,6 +54,9 @@ export function GraphOptionsMenu() {
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  /** Posición fija del panel, ya ajustada para que quepa (`DEF-053`). */
+  const [pos, setPos] = useState({ x: 0, y: 0, alto: 0 });
   // Reordenamiento de reglas: el ORDEN define la prioridad (gana la primera que
   // coincide), así que se puede reacomodar arrastrando el asa de cada fila.
   const [arrastre, setArrastre] = useState<Arrastre | null>(null);
@@ -131,10 +135,52 @@ export function GraphOptionsMenu() {
   useEffect(() => {
     if (!open) return;
     function onDown(e: PointerEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      // El panel vive en un portal, así que NO cuelga de `wrapRef`: hay que
+      // preguntarle también a él o pulsar dentro lo cerraría.
+      const dentro =
+        wrapRef.current?.contains(e.target as Node) ||
+        menuRef.current?.contains(e.target as Node);
+      if (!dentro) setOpen(false);
     }
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  /**
+   * Coloca el panel respecto de la VENTANA, no del pane (`DEF-053`).
+   *
+   * Antes era `position: absolute` dentro del grafo: con la pestaña pequeña el
+   * panel —300 px de ancho y hasta 70vh de alto— se salía por los lados y por
+   * abajo, y encima el área de contenido tiene `overflow: hidden`, así que lo
+   * que sobresalía quedaba recortado y sin forma de alcanzarlo.
+   *
+   * Se mide igual que en el menú contextual (`DEF-047`) y se acota a la ventana;
+   * el alto disponible también, para que un panel alto en una ventana baja
+   * termine desplazándose por dentro en vez de desbordar.
+   */
+  useLayoutEffect(() => {
+    if (!open) return;
+    const calcular = () => {
+      const boton = wrapRef.current?.getBoundingClientRect();
+      const menu = menuRef.current?.getBoundingClientRect();
+      if (!boton) return;
+      const margen = 8;
+      const ancho = menu?.width ?? 300;
+      const arriba = boton.top - margen;
+      const abajo = window.innerHeight - boton.bottom - margen * 2;
+      // Se abre hacia el lado donde haya más sitio.
+      const haciaArriba = abajo < 220 && arriba > abajo;
+      const alto = Math.max(160, Math.min(haciaArriba ? arriba : abajo, window.innerHeight * 0.7));
+      const y = haciaArriba ? Math.max(margen, boton.top - margen - alto) : boton.bottom + margen;
+      const x = Math.min(
+        Math.max(margen, boton.right - ancho),
+        window.innerWidth - ancho - margen,
+      );
+      setPos({ x, y, alto });
+    };
+    calcular();
+    window.addEventListener("resize", calcular);
+    return () => window.removeEventListener("resize", calcular);
   }, [open]);
 
   return (
@@ -151,8 +197,14 @@ export function GraphOptionsMenu() {
         <SlidersHorizontal size={16} aria-hidden />
       </button>
 
-      {open && (
-        <div className={styles.menu} role="menu">
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className={styles.menu}
+            role="menu"
+            style={{ left: pos.x, top: pos.y, maxHeight: pos.alto || undefined }}
+          >
           <div className={styles.group}>
             <span className={styles.label}>Indicador de dirección</span>
             <div className={styles.segmented} role="radiogroup">
@@ -336,8 +388,9 @@ export function GraphOptionsMenu() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

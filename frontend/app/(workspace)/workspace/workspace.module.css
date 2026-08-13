@@ -12,18 +12,23 @@
   min-height: 0;
   overflow: hidden;
   background: var(--mic-bg-canvas);
-  /* Aire abajo (`DEF-048`): el contenido dejaba de existir justo en el borde de
-     la ventana. Con `box-sizing: border-box` (globals) el relleno sale del
-     100vh, así que no aparece scroll. */
-  padding-bottom: var(--mic-gap-inferior);
 }
 
 .editorArea {
   grid-area: editor;
-  background: var(--mic-bg-surface);
+  /* El fondo es el del lienzo, no el de la superficie: lo que se ve del área es
+     el árbol de panes, que trae el suyo. Así la franja de abajo lee como un
+     margen y no como una prolongación del pane. */
+  background: var(--mic-bg-canvas);
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  /* Aire abajo (`DEF-048`), SOLO en el área de contenido —notas, consolas,
+     grafo, bases, canvas—. Se probó en el shell entero y el rail y el panel
+     lateral quedaban despegados también, que no era lo pedido. Con el
+     `box-sizing: border-box` de globals el relleno sale de la fila del grid, así
+     que no aparece scroll. */
+  padding-bottom: var(--mic-gap-inferior);
 }
 
 .loading {
