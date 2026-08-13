@@ -27,6 +27,16 @@ export default function VaultsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const abriendo = useVaultSessionStore((s) => s.abriendo);
+  /**
+   * Se abrió un vault y estamos yendo al workspace.
+   *
+   * Hace falta aparte de `abriendo` porque el store lo pone en `false` en cuanto
+   * termina de abrir, y el `router.replace` corre DESPUÉS: en ese hueco la página
+   * volvía a pintar la lista de vaults y se veía un parpadeo del selector justo
+   * antes de entrar. No se limpia al navegar —la pantalla se va con la página—;
+   * solo si la apertura falla y hay que volver a mostrar la lista.
+   */
+  const [navegando, setNavegando] = useState(false);
 
   const refrescar = useCallback(async () => {
     setCargando(true);
@@ -59,10 +69,12 @@ export default function VaultsPage() {
 
   async function onAbrir(ruta: string) {
     setError(null);
+    setNavegando(true);
     const ok = await useVaultSessionStore.getState().abrir(ruta);
     if (ok) {
       router.replace("/workspace");
     } else {
+      setNavegando(false);
       setError(useVaultSessionStore.getState().error ?? "No se pudo abrir el vault.");
     }
   }
@@ -79,7 +91,11 @@ export default function VaultsPage() {
   // Mientras se abre uno, el selector desaparece y da paso a la pantalla de carga
   // (`DEF-042`). Antes seguía a la vista y el progreso del indexado se escribía
   // en TODOS los botones, incluidos los vaults que nadie había abierto.
-  if (abriendo) return <AperturaVault />;
+  //
+  // Se sostiene hasta que la navegación se lleve la página, no hasta que el store
+  // diga que terminó: entre las dos cosas hay un hueco en el que se veía asomar
+  // el selector otra vez.
+  if (abriendo || navegando) return <AperturaVault />;
 
   return (
     <main className={styles.main}>

@@ -141,14 +141,12 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       } catch {
         // sessionStorage puede no estar disponible: no es fatal, solo no persiste.
       }
-      set({
-        rutaActual: ruta,
-        abriendo: false,
-        rutaAbriendo: null,
-        etapa: null,
-        progreso: null,
-        error: null,
-      });
+      // `etapa` y `rutaAbriendo` NO se limpian acá a propósito: la pantalla de
+      // carga sigue en pantalla unos milisegundos, hasta que la navegación al
+      // workspace se lleve la página. Si se borraran, esos milisegundos se verían
+      // como un salto a una pantalla con todas las etapas otra vez pendientes.
+      // Las limpia el siguiente `abrir()` (que las reinicia) o `salir()`.
+      set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
       return true;
     } catch (error) {
       console.error("[vault] fallo al abrir el vault:", error);
