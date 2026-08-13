@@ -23,6 +23,7 @@ import { marcarAcceso } from "@/lib/vaultMode";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { useVaultStore } from "@/stores/vaultStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
@@ -105,6 +106,12 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // vaults comparten `LOCAL_VAULT_ID`, así que el grafo no detecta el cambio
     // por sí solo y mostraría el del vault previo.
     useGraphStore.getState().reset();
+    // Y el árbol, por el mismo motivo. No es solo cosmético (`DEF-044`): al
+    // montar el workspace, `reconcileNotes` descarta las pestañas cuya nota no
+    // esté en la lista, y si la lista todavía es la del vault ANTERIOR se lleva
+    // por delante las pestañas que se acaban de restaurar — y deja el layout
+    // vacío guardado en la clave de este vault.
+    useVaultStore.getState().reset();
     try {
       await abrirIndiceDeVault(ruta);
       // El índice recién abierto puede estar vacío: hay que crear el esquema
@@ -176,9 +183,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     } catch {
       // si no había watcher o falla el invoke, no impide salir del vault
     }
-    // Soltar también las pestañas de este vault: quien entre después no debe
-    // heredarlas (`DEF-044`).
+    // Soltar también las pestañas y el árbol de este vault: quien entre después
+    // no debe heredarlos (`DEF-044`).
     await useTabsStore.getState().usarAlmacenDeVault(null);
+    useVaultStore.getState().reset();
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra

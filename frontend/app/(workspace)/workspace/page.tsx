@@ -191,11 +191,19 @@ function WorkspaceShell() {
 
   // Una vez cargado el árbol, descartar del layout restaurado las pestañas cuyas
   // notas ya no existen (borradas mientras el sistema estaba cerrado).
+  //
+  // Se exige que el árbol sea el de ESTE vault, no solo que no esté vacío
+  // (`DEF-044`): es una operación destructiva, y corriéndola contra la lista del
+  // vault anterior se llevaba por delante las pestañas recién restauradas.
+  // Hoy `abrir()` ya vacía el árbol al cambiar de vault, así que esto no debería
+  // poder pasar — pero la comprobación es de una línea y lo que hay al otro lado
+  // es perder las pestañas del usuario.
   useEffect(() => {
     if (reconciledRef.current || notas.length === 0) return;
+    if (useVaultStore.getState().vaultId !== vaultId) return;
     reconciledRef.current = true;
     useTabsStore.getState().reconcileNotes(new Set(notas.map((n) => n.id)));
-  }, [notas]);
+  }, [notas, vaultId]);
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {

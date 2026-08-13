@@ -83,6 +83,13 @@ type VaultState = {
   setActiveFolder: (id: string | null) => void;
   /** Carpetas descendientes de una carpeta (incluida ella) — para validar D&D. */
   subtreeIds: (id: string) => Set<string>;
+  /**
+   * Vacía el árbol al cambiar de vault (`DEF-044`). Mismo motivo que el `reset()`
+   * del grafo: en modo carpeta todos los vaults comparten `LOCAL_VAULT_ID`, así
+   * que el store no detecta el cambio por sí solo y se queda con las notas del
+   * vault anterior hasta que `loadTree` termine.
+   */
+  reset: () => void;
 };
 
 const token = () => useAuthStore.getState().accessToken;
@@ -385,6 +392,20 @@ export const useVaultStore = create<VaultState>()(
 
       toggleExpanded(id) {
         set((s) => ({ expanded: { ...s.expanded, [id]: !s.expanded[id] } }));
+      },
+
+      reset() {
+        // `expanded` NO se toca: está persistido y es una preferencia de
+        // visualización, no datos del vault.
+        set({
+          vaultId: null,
+          carpetas: [],
+          notas: [],
+          papelera: [],
+          sharedCarpetaIds: [],
+          activeFolderId: null,
+          lastMove: null,
+        });
       },
 
       setActiveFolder(id) {
