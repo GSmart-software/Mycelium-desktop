@@ -102,10 +102,19 @@ pub fn abrir_vault_en_ventana(
     // `capabilities/default.json` la lista como `vault-*`, y sin eso la ventana
     // nueva nacería sin permisos —ni SQL, ni diálogos— y no podría abrir nada.
     let label = format!("vault-{}", sufijo_unico());
-    // `workspace.html` y no `/workspace`: la exportación estática de Next genera
-    // el archivo suelto, no un `workspace/index.html`, así que la ruta con barra
-    // no resuelve y la ventana abriría en blanco.
-    let destino = format!("workspace.html?vault={}", urlencode(&ruta));
+    // La ruta del workspace NO es la misma en desarrollo que empaquetada, y hay
+    // que distinguirlas o la ventana abre en blanco justo en uno de los dos:
+    //
+    //   - **Empaquetado**: `next build --output export` genera `out/workspace.html`
+    //     suelto, no `out/workspace/index.html`, así que la ruta con barra no
+    //     resuelve contra los assets.
+    //   - **Desarrollo**: el servidor de Next sirve la RUTA `/workspace` y no
+    //     conoce ningún `.html`, así que ahí pasa lo contrario.
+    //
+    // Nunca se había notado porque la ventana principal llega al workspace
+    // navegando por el cliente, sin pedirle el archivo a nadie.
+    let pagina = if tauri::is_dev() { "/workspace" } else { "workspace.html" };
+    let destino = format!("{pagina}?vault={}", urlencode(&ruta));
     WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(destino.into()))
         .title("Mycelium")
         .inner_size(1280.0, 800.0)
