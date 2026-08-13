@@ -48,10 +48,26 @@
  *   elegir cuánto vale una tabulación. Es también la **primera versión publicada
  *   con `npm run publicar`** y la que cierra el circuito de `FUN-L-14`, al ser la
  *   primera que una instalación previa puede detectar y aplicar sola.
+ * - `1.6.0` — solo desktop: **tres superficies nuevas para mirar el vault**. Las
+ *   **bases** (`FUN-L-03`), archivos `.base` que agregan notas por sus propiedades
+ *   en una tabla filtrable; el **canvas** (`FUN-L-18`), archivos `.canvas` con
+ *   notas y textos dispuestos en el espacio y unidos por flechas; y la pantalla de
+ *   **referencias del vault** (`FUN-L-17`, sobre el núcleo de `FUN-M-17`), que
+ *   encuentra las referencias sin estructura de un proyecto adoptado y las
+ *   convierte en enlaces. Las tres adoptan un formato de Obsidian, por el mismo
+ *   motivo de siempre: que el vault siga siendo intercambiable.
+ *
+ *   **Minor, y uno solo**: el tamaño lo decide el cambio más significativo, no
+ *   cuántos hay. Absorbe además las correcciones que se quedaron sin publicar
+ *   (`DEF-046` la papelera, `DEF-049`/`DEF-050` la tabulación, `DEF-051` las
+ *   confirmaciones), así que la `1.5.1` prevista ya no existe.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
- * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambia con
- * la 1.5.0**: un ajuste del editor no altera nada de lo que la IA debe saber del
- * vault.
+ * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambió con
+ * la 1.5.0** —un ajuste del editor no altera lo que la IA debe saber— pero con la
+ * **1.6.0 SÍ debería cambiar y todavía no lo hizo**: la IA no conoce los `.base`,
+ * ni los `.canvas`, ni el léxico de `.claude/enlaces-lexico.json` que la pantalla
+ * de referencias comparte con ella. Subirlo a `1.5.0` es trabajo aparte, ya
+ * especificado en `docs/features/auditoria-y-relinkeado.md` § 10.
  */
-export const APP_VERSION = "1.5.0";
+export const APP_VERSION = "1.6.0";
