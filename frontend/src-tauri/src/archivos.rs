@@ -63,7 +63,7 @@ fn mtime_ms(metadata: &std::fs::Metadata) -> i64 {
 }
 
 /// Extensiones que se importan como notas del vault.
-fn es_importable(path: &Path) -> bool {
+pub(crate) fn es_importable(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => {
             let ext = ext.to_ascii_lowercase();
@@ -230,6 +230,51 @@ fn recorrer_meta(
     Ok(())
 }
 
+/// Rutas ABSOLUTAS que el vault mira de verdad: las carpetas no ignoradas y los
+/// archivos importables que hay dentro.
+///
+/// Existe para el watcher (`DEF-052`): su caché de ids de archivo se poblaba
+/// recorriendo el árbol ENTERO —`node_modules/`, `target/`, `.git/`— porque el
+/// recorrido del crate no conoce el `.mycignore`. Lo que el vault ignora no debe
+/// costar nada en ningún sitio, así que el poblado usa este listado.
+///
+/// Best-effort a propósito: un directorio ilegible se salta en vez de abortar. El
+/// watcher es best-effort y quedarse sin caché de ids solo degrada el seguimiento
+/// de renombrados, mientras que fallar impediría abrir el vault.
+pub(crate) fn rutas_observables(base: &Path) -> Vec<PathBuf> {
+    let patrones = crate::mycignore::cargar(base);
+    let mut out = Vec::new();
+    recorrer_observables(base, base, &patrones, &mut out);
+    out
+}
+
+fn recorrer_observables(
+    dir: &Path,
+    base: &Path,
+    patrones: &[crate::mycignore::Patron],
+    out: &mut Vec<PathBuf>,
+) {
+    let Ok(entradas) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entrada in entradas.flatten() {
+        let ruta = entrada.path();
+        let es_dir = entrada.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let Ok(relativa) = rel_posix(base, &ruta) else {
+            continue;
+        };
+        if crate::mycignore::ignorada(&relativa, es_dir, patrones) {
+            continue;
+        }
+        if es_dir {
+            out.push(ruta.clone());
+            recorrer_observables(&ruta, base, patrones, out);
+        } else if es_importable(&ruta) {
+            out.push(ruta);
+        }
+    }
+}
+
 /// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw`/`.base` con su ruta
 /// relativa (separador `/`), su `mtime` (ms epoch) y su `tipo` — **sin el
 /// contenido**. Es la fuente del indexador derivado (fase 2 del vault en
@@ -391,6 +436,46 @@ mod tests {
         );
         assert_eq!(leidos[2].contenido, "# Raíz con acentos ñ");
         assert_eq!(leidos[1].contenido, "contenido anidado");
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// Lo que `.mycignore` excluye no se recorre para NADA: es lo que hace que
+    /// poblar la caché del watcher deje de costar lo que costaba (`DEF-052`).
+    #[test]
+    fn rutas_observables_respeta_mycignore() {
+        let base = std::env::temp_dir().join(format!("mycelium-obs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("notas")).unwrap();
+        std::fs::create_dir_all(base.join("node_modules/paquete")).unwrap();
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        // OJO: un `.mycignore` presente REEMPLAZA al default, no lo amplía (ver
+        // `mycignore::DEFAULT`). Por eso hay que repetir acá el `.*/` que oculta
+        // los directorios ocultos: sin él, `.git/` se recorrería.
+        std::fs::write(base.join(".mycignore"), "node_modules/
+.*/
+").unwrap();
+        std::fs::write(base.join("notas/uno.md"), "#").unwrap();
+        std::fs::write(base.join("tabla.base"), "views:").unwrap();
+        std::fs::write(base.join("lienzo.canvas"), "{}").unwrap();
+        std::fs::write(base.join("imagen.png"), "x").unwrap();
+        std::fs::write(base.join("node_modules/paquete/index.md"), "#").unwrap();
+        std::fs::write(base.join(".git/HEAD"), "x").unwrap();
+
+        let rutas = rutas_observables(&base);
+        let rel: Vec<String> = rutas
+            .iter()
+            .map(|r| rel_posix(&base, r).unwrap())
+            .collect();
+
+        assert!(rel.contains(&"notas".to_string()), "las carpetas también entran");
+        assert!(rel.contains(&"notas/uno.md".to_string()));
+        // Los tipos nuevos cuentan: si no, editarlos desde fuera no reindexaría.
+        assert!(rel.contains(&"tabla.base".to_string()));
+        assert!(rel.contains(&"lienzo.canvas".to_string()));
+        assert!(!rel.iter().any(|r| r.starts_with("node_modules")), "lo ignorado no se toca");
+        assert!(!rel.iter().any(|r| r.starts_with(".git")), "los ocultos tampoco");
+        assert!(!rel.contains(&"imagen.png".to_string()), "no es una nota del vault");
 
         std::fs::remove_dir_all(&base).unwrap();
     }

@@ -27,7 +27,9 @@ use std::time::Duration;
 // para garantizar que los tipos coinciden con los del debouncer. `Watcher` (trait)
 // hace falta en scope para el método `.watch()`.
 use notify_debouncer_full::notify::{EventKind, RecursiveMode, Watcher};
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, FileIdMap};
+use notify_debouncer_full::{
+    new_debouncer, DebounceEventResult, Debouncer, FileIdCache, FileIdMap,
+};
 use tauri::{AppHandle, Emitter};
 
 /// Debouncer activo (uno por vault). El tipo concreto que devuelve
@@ -40,16 +42,11 @@ type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatche
 #[derive(Default)]
 pub struct WatcherState(pub Mutex<Option<VaultDebouncer>>);
 
-/// ¿La ruta es una nota del vault por extensión (`.md`/`.excalidraw`)?
-fn es_nota(path: &Path) -> bool {
-    matches!(
-        path.extension()
-            .and_then(|e| e.to_str())
-            .map(|e| e.to_ascii_lowercase())
-            .as_deref(),
-        Some("md") | Some("excalidraw")
-    )
-}
+// Qué cuenta como nota del vault lo decide `archivos::es_importable`, la MISMA
+// lista que usa el indexador. Antes había acá una copia con `.md` y `.excalidraw`
+// que se quedó atrás al aparecer las bases (`FUN-L-03`) y los canvas
+// (`FUN-L-18`): editarlos desde fuera no disparaba reindexado. Dos listas de
+// extensiones separadas por medio archivo se desincronizan siempre.
 
 /// Ruta relativa POSIX de `path` respecto a `base`, o `None` si no cuelga de la
 /// base. El filtrado de ignorados lo hace el llamador con el `.mycignore`.
@@ -107,7 +104,7 @@ pub fn iniciar_watcher(
                     };
                     let es_mycignore = rel == crate::mycignore::ARCHIVO;
                     if !es_mycignore {
-                        if !es_borrado && !es_nota(path) {
+                        if !es_borrado && !crate::archivos::es_importable(path) {
                             continue;
                         }
                         if crate::mycignore::ignorada(&rel, path.is_dir(), &patrones) {
@@ -131,11 +128,27 @@ pub fn iniciar_watcher(
         .watcher()
         .watch(&base, RecursiveMode::Recursive)
         .map_err(|e| format!("No se pudo observar {vault_ruta}: {e}"))?;
-    // Alimenta la caché de ids de archivo del debouncer (mejora el seguimiento de
-    // renombrados). No es crítico si el SO no expone ids.
+    // Caché de ids de archivo del debouncer: mejora el seguimiento de renombrados
+    // cuando el SO no emite pares de eventos.
+    //
+    // El root se registra como NO recursivo a propósito (`DEF-052`). Con
+    // `Recursive`, el crate recorre el árbol ENTERO con `WalkDir` y llama a
+    // `get_file_id()` en cada entrada —una llamada al sistema por archivo y por
+    // carpeta— **sin mirar el `.mycignore`**: entraba en `node_modules/`,
+    // `target/` y `.git/`. Era, con diferencia, lo más lento de abrir un vault:
+    // el indexador miraba 63 entradas y esto 1830.
+    //
+    // Se conserva el root (aunque sea a un nivel) porque `rescan()` —que el
+    // debouncer llama cuando el SO pierde eventos— solo recorre lo registrado;
+    // sin ningún root, tras un desbordamiento la caché quedaría muerta.
     debouncer
         .cache()
-        .add_root(base.clone(), RecursiveMode::Recursive);
+        .add_root(base.clone(), RecursiveMode::NonRecursive);
+    // Y se puebla con lo que el vault mira de verdad: si `.mycignore` lo excluye,
+    // no debe costar nada en ningún sitio.
+    for ruta in crate::archivos::rutas_observables(&base) {
+        debouncer.cache().add_path(&ruta);
+    }
 
     // Reemplaza el watcher anterior: al asignar el nuevo, el previo se dropea y
     // deja de observar.
