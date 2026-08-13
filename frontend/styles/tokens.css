@@ -162,6 +162,11 @@
   --mic-toolbar-height: 40px;   /* barra de herramientas del editor */
   --mic-rail-width:     56px;
   --mic-icon-size:      20px;   /* íconos Lucide dentro del rail */
+  /* Aire bajo el contenido (`DEF-048`). Sin esto todo queda pegado al límite de
+     la ventana y parece que sigue por detrás de la pantalla. Es un token y no un
+     valor suelto porque el defecto era GENERAL: cualquier pantalla a altura
+     completa tiene que respetarlo. */
+  --mic-gap-inferior:   6px;
 
   /* Paneles laterales (los valores de runtime se inyectan como inline style) */
   --mic-panel-left-width:   240px;  /* fallback; sobreescrito por panelLayoutStore */

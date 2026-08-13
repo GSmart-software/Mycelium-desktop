@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import styles from "./ContextMenu.module.css";
 
 export type MenuItem = {
@@ -19,6 +19,9 @@ export type MenuItem = {
 /** Ancho mínimo del menú (ver `.menu` en el CSS), para decidir de qué lado abrir. */
 const ANCHO_MENU = 180;
 
+/** Aire que se le deja al borde de la ventana al reubicar el menú. */
+const MARGEN = 8;
+
 /** Menú contextual del explorer (clic derecho en carpetas y notas). */
 export function ContextMenu({
   x,
@@ -34,6 +37,35 @@ export function ContextMenu({
   const ref = useRef<HTMLDivElement>(null);
   /** Etiqueta del submenú abierto (solo uno a la vez). */
   const [abierto, setAbierto] = useState<string | null>(null);
+  /** Posición final, ya ajustada para que quepa en pantalla (`DEF-047`). */
+  const [pos, setPos] = useState({ x, y });
+
+  /**
+   * Reubica el menú si no entra en la ventana.
+   *
+   * Se **mide** el menú ya montado en vez de estimar su alto: la altura depende
+   * de cuántas entradas tenga cada menú —el de una carpeta y el de una nota no
+   * son iguales— y cualquier número fijo se queda corto en cuanto se agrega una
+   * opción. `useLayoutEffect` corre antes de pintar, así que no se ve saltar.
+   *
+   * Primero se intenta volcar hacia el otro lado del cursor, que es lo que
+   * espera cualquiera; si tampoco entra (menú más alto que la ventana), se
+   * arrima al borde.
+   */
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const maxX = window.innerWidth - MARGEN;
+    const maxY = window.innerHeight - MARGEN;
+
+    let nx = x;
+    if (x + width > maxX) nx = x - width >= MARGEN ? x - width : Math.max(MARGEN, maxX - width);
+    let ny = y;
+    if (y + height > maxY) ny = y - height >= MARGEN ? y - height : Math.max(MARGEN, maxY - height);
+
+    setPos({ x: nx, y: ny });
+  }, [x, y, items]);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -61,7 +93,7 @@ export function ContextMenu({
       .join(" ");
 
   return (
-    <div ref={ref} className={styles.menu} style={{ left: x, top: y }} role="menu">
+    <div ref={ref} className={styles.menu} style={{ left: pos.x, top: pos.y }} role="menu">
       {items.map((item) =>
         item.submenu ? (
           <div

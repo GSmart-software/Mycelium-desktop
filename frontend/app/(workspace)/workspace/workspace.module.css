@@ -12,6 +12,10 @@
   min-height: 0;
   overflow: hidden;
   background: var(--mic-bg-canvas);
+  /* Aire abajo (`DEF-048`): el contenido dejaba de existir justo en el borde de
+     la ventana. Con `box-sizing: border-box` (globals) el relleno sale del
+     100vh, así que no aparece scroll. */
+  padding-bottom: var(--mic-gap-inferior);
 }
 
 .editorArea {

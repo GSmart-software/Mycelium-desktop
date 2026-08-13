@@ -56,6 +56,10 @@
 .submenu {
   position: absolute;
   z-index: 61;
+  /* Un submenú puede ser largo (las Esporas del vault): se acota y se desplaza
+     dentro, para que tampoco pueda salirse de la pantalla (`DEF-047`). */
+  max-height: min(60vh, 22rem);
+  overflow-y: auto;
   top: -0.25rem;
   left: 100%;
   min-width: 180px;
