@@ -22,6 +22,7 @@ import { setVaultActual } from "@/lib/db/vaultContext";
 import { marcarAcceso } from "@/lib/vaultMode";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { useTabsStore } from "@/stores/tabsStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
@@ -126,6 +127,11 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // ya es true) y quedarían los ajustes del vault anterior.
       await useAuthStore.getState().restore();
       usePreferencesStore.getState().hydrateFromUser();
+      // Las pestañas también son de ESTE vault (`DEF-044`): antes seguían
+      // abiertas las del anterior, apuntando a archivos que acá son otros o no
+      // existen. En modo carpeta el id interno es común a todos los vaults, así
+      // que las distingue la ruta.
+      await useTabsStore.getState().usarAlmacenDeVault(ruta);
       // Watcher nativo (fase 5): observa la carpeta para reflejar en la UI los
       // cambios hechos desde fuera de la app. No es fatal si falla (el vault
       // sigue usable, solo no se auto-refresca ante cambios externos).
@@ -170,6 +176,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     } catch {
       // si no había watcher o falla el invoke, no impide salir del vault
     }
+    // Soltar también las pestañas de este vault: quien entre después no debe
+    // heredarlas (`DEF-044`).
+    await useTabsStore.getState().usarAlmacenDeVault(null);
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra

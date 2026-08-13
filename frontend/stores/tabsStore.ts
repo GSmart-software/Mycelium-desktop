@@ -213,6 +213,11 @@ type TabsState = {
    * no existen en el vault (borradas mientras estaba cerrado). Se llama una vez
    * cuando el árbol del vault termina de cargar.
    */
+  /**
+   * Cambia el almacén de pestañas al del vault indicado (`DEF-044`). Ver
+   * `usarAlmacenDeVault`.
+   */
+  usarAlmacenDeVault: (clave: string | null) => Promise<void>;
   reconcileNotes: (validIds: Set<string>) => void;
 };
 
@@ -273,6 +278,17 @@ function cleanLinks(node: PaneNode): PaneNode {
 }
 
 const initialRoot = makeLeaf();
+
+/**
+ * Clave de `localStorage` donde viven las pestañas. Cada vault usa la suya
+ * (`DEF-044`): antes había una sola y al cambiar de vault seguían abiertas las
+ * pestañas del anterior, que en el vault nuevo apuntan a archivos distintos —o a
+ * ninguno—. En modo carpeta el id interno es el mismo para todos los vaults, así
+ * que lo que los distingue es su RUTA.
+ */
+const CLAVE_BASE = "micelio-tabs";
+const claveDe = (vault: string | null): string =>
+  vault === null ? CLAVE_BASE : `${CLAVE_BASE}:${vault}`;
 
 export const useTabsStore = create<TabsState>()(
   persist(
@@ -724,6 +740,41 @@ export const useTabsStore = create<TabsState>()(
       })),
       closedHistory: get().closedHistory.map(map),
     });
+  },
+
+  /**
+   * Apunta el `persist` al almacén del vault indicado y carga sus pestañas.
+   *
+   * El orden es lo delicado y no es intercambiable:
+   *
+   * 1. **Leer primero** lo guardado para la clave nueva.
+   * 2. Reapuntar el `persist` a esa clave.
+   * 3. Rehidratar si había algo; si no, dejar un layout limpio.
+   *
+   * Resetear antes de reapuntar escribiría el layout vacío **en la clave del
+   * vault que se está cerrando**, y le borraría sus pestañas. Y rehidratar
+   * después de un reset escribiría el vacío en la clave nueva antes de poder
+   * leerla, con el mismo resultado sobre el vault al que se entra.
+   */
+  async usarAlmacenDeVault(clave) {
+    const nombre = claveDe(clave);
+    const persist = useTabsStore.persist;
+    if (persist.getOptions().name === nombre) return;
+
+    let guardado: unknown = null;
+    try {
+      guardado = (await persist.getOptions().storage?.getItem(nombre)) ?? null;
+    } catch {
+      // Un almacén ilegible no puede impedir abrir el vault: se arranca limpio.
+    }
+
+    persist.setOptions({ name: nombre });
+    if (guardado !== null) {
+      await persist.rehydrate();
+      return;
+    }
+    const root = makeLeaf();
+    set({ root, activePaneId: root.id, closedHistory: [], dragging: null });
   },
 
   reconcileNotes(validIds) {
