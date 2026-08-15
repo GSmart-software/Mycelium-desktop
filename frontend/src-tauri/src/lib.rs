@@ -63,6 +63,25 @@ fn take_opened_files(state: tauri::State<Pending>) -> Vec<OpenedFile> {
     paths.iter().filter_map(|p| leer_archivo(p)).collect()
 }
 
+/// A qué ventana entregarle un archivo abierto desde el SO: la que tiene el foco,
+/// y si ninguna lo tiene, la principal o cualquiera que quede.
+///
+/// Importa **una** y no todas: el receptor del evento (`FileOpenBridge`) importa
+/// el archivo al vault de su ventana, así que emitirlo a todas metería una copia
+/// en cada vault abierto (`FUN-L-16`).
+#[cfg(desktop)]
+fn ventana_para_abrir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Option<tauri::WebviewWindow<R>> {
+    let ventanas = app.webview_windows();
+    ventanas
+        .values()
+        .find(|w| w.is_focused().unwrap_or(false))
+        .or_else(|| ventanas.get("main"))
+        .or_else(|| ventanas.values().next())
+        .cloned()
+}
+
 /// Abre/cierra las herramientas de desarrollador del webview. Disponible también
 /// en las builds de producción gracias a la feature `devtools` del crate `tauri`
 /// (sin ella, estas APIs solo existen con `debug_assertions`). El frontend lo
@@ -89,18 +108,30 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
-    // Instancia única (solo escritorio): un segundo lanzamiento (p. ej. doble clic
-    // en otro archivo) reenvía su argv a la instancia viva y enfoca la ventana.
+    // Instancia única: un segundo lanzamiento (p. ej. doble clic en otro archivo)
+    // reenvía su argv a la instancia viva y le enfoca la ventana, en vez de abrir
+    // otro Mycelium. Es lo que hace que las asociaciones de archivo abran la nota
+    // donde ya estás, y desde `FUN-L-16` además sostiene la garantía de «un vault
+    // en una sola ventana»: `VentanasState` vive en el proceso, así que con dos
+    // procesos habría dos indexadores escribiendo el mismo índice.
+    //
+    // **En desarrollo no se registra**, y a propósito: el mutex del plugin se
+    // nombra solo con el `identifier`, así que el binario de desarrollo y el
+    // instalado se excluirían entre sí y no se podría tener Mycelium abierto
+    // mientras se lo desarrolla. Perder la instancia única ahí no cuesta nada:
+    // las asociaciones de archivo apuntan al ejecutable instalado, no a este.
     #[cfg(desktop)]
-    {
+    if !tauri::is_dev() {
         use tauri::Emitter;
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let destino = ventana_para_abrir(app);
             let archivos: Vec<OpenedFile> =
                 args_de_nota(&argv).iter().filter_map(|p| leer_archivo(p)).collect();
-            if !archivos.is_empty() {
-                let _ = app.emit("open-files", archivos);
-            }
-            if let Some(win) = app.get_webview_window("main") {
+            if let Some(win) = destino {
+                if !archivos.is_empty() {
+                    let _ = win.emit("open-files", archivos);
+                }
+                let _ = win.unminimize();
                 let _ = win.set_focus();
             }
         }));

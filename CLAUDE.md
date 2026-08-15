@@ -176,6 +176,11 @@ responder y consolidá lo que valga recordar**, ahí.
 > resuelto, en curso, pendiente o descartado — un defecto que solo vive en un commit o en
 > una spec no está documentado. El **estado** y la trazabilidad van aparte, en
 > [[bugs-progreso]]; las **causas raíz**, en [[Aprendizajes tecnicos]].
+>
+> **Salvo que la funcionalidad todavía no esté consolidada.** Un `DEF-*` presupone algo ya
+> terminado y entregado. Lo que falla mientras se implementa una funcionalidad abierta —y
+> es lo que le impide funcionar— **no lleva número**: se corrige como parte de esa
+> implementación y se documenta en su spec.
 
 > [!warning] Documentos desactualizados a propósito
 > `docs/DESKTOP-LOCAL.md` (empaquetado pre-Tauri), `docs/Roadmap general.md`
