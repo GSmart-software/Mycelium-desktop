@@ -78,4 +78,4 @@
  * de referencias comparte con ella. Subirlo a `1.5.0` es trabajo aparte, ya
  * especificado en `docs/features/auditoria-y-relinkeado.md` § 10.
  */
-export const APP_VERSION = "1.6.1";
+export const APP_VERSION = "1.6.2";
