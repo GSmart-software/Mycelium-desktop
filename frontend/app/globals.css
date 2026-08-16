@@ -38,6 +38,35 @@ button {
   outline-offset: 2px;
 }
 
+/* ── Controles nativos: la lista de un <select> y los popups ─────
+   Un <select> tiene DOS partes y solo una está en el documento. La cerrada se
+   estila como cualquier caja; la lista desplegada la dibuja el navegador fuera
+   del DOM, y ninguna regla de un `.module.css` la alcanza. De ahí el defecto que
+   se repetía en cada desplegable nuevo: el control se veía bien y la lista salía
+   en blanco, ilegible en modo oscuro.
+
+   Se arregla en dos pasos, y hacen falta los dos:
+   1. `color-scheme` siguiendo a `data-dark` (en tokens.css) — es lo que le dice
+      al navegador con qué luz dibujar SUS cosas: esta lista, el calendario de un
+      `input[type=date]`, los spinners de un `number`.
+   2. Estas reglas, para que la lista use la paleta de Mycelium y no el gris
+      genérico del sistema.
+   Ver docs/DESIGN_SYSTEM.md § Controles nativos. */
+select {
+  font: inherit;
+  color: var(--mic-text-primary);
+}
+
+select option {
+  color: var(--mic-text-primary);
+  background: var(--mic-bg-surface);
+}
+
+/* Las opciones deshabilitadas se atenúan, no desaparecen. */
+select option:disabled {
+  color: var(--mic-text-muted);
+}
+
 /* ── Scrollbars temáticas (no las del navegador) ────────────────── */
 * {
   scrollbar-width: thin;

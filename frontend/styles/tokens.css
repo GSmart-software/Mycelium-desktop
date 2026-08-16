@@ -20,6 +20,13 @@
   --mic-bg-base:   var(--mic-raw-canvas);       /* fondo recedido: inputs, canvas */
   --mic-bg-hover:  color-mix(in srgb, var(--mic-glow) 14%, transparent);
   --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
+
+  /* Lo que el NAVEGADOR dibuja por su cuenta y el CSS no alcanza: la lista
+     desplegada de un <select>, el calendario de un <input type="date">, los
+     controles nativos. Sin esto los pinta siempre en claro —texto casi blanco
+     sobre fondo blanco en modo oscuro— y no hay regla que lo corrija, porque ese
+     popup no vive en el documento. Ver docs/DESIGN_SYSTEM.md § Controles nativos. */
+  color-scheme: light;
 }
 
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
@@ -53,6 +60,14 @@
 }
 
 /* ── Dark mode (modifier ortogonal al tema) ───────────────────── */
+
+/* Va SIN tema en el selector: el modo oscuro es ortogonal, y lo que aquí se
+   declara vale para todos. Sin esta línea, cualquier desplegable abierto en modo
+   oscuro sale con la lista en blanco. */
+[data-dark='true'] {
+  color-scheme: dark;
+}
+
 /* Bioluminiscencia oscuro = paleta abisal del prototipo legacy:
    azul-negro profundo + glows verde-cian + bordes teal. */
 [data-theme='bioluminiscencia'][data-dark='true'] {
