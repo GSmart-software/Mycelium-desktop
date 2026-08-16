@@ -1174,3 +1174,225 @@
 .mic-props-edit .mic-props-nosop {
   padding: 0 0 0.35rem;
 }
+
+/* ── Tabla EDITABLE del widget (FUN-L-19) ────────────────────────────────────
+   Todo el espaciado de acá abajo es PADDING o `gap`: un `margin` volvería a
+   desincronizar el height-map (DEF-031/037), que es el defecto que nació justo
+   en este widget. Y los tiradores NO cambian el alto al aparecer: ocupan su
+   lugar siempre (`visibility`) y el menú es absoluto, así que pasar el puntero
+   por la tabla nunca obliga a medir de nuevo. */
+
+.mic-tab {
+  position: relative;
+}
+
+.mic-tab-caja {
+  overflow-x: auto;
+}
+
+/* Tabla dentro de una cita/callout: se sigue viendo dentro de su cita. */
+.mic-tab-caja-cita {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--mic-border);
+}
+
+.mic-tab-tabla {
+  margin: 0;
+  border-collapse: collapse;
+}
+
+.mic-tab-tabla th,
+.mic-tab-tabla td {
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--mic-border);
+  vertical-align: top;
+}
+
+/* Alineación de la columna. Van calificadas con `.mic-tab-tabla` a propósito:
+   `.mic-preview td` fija `text-align: left` con la misma especificidad que una
+   clase suelta, y ganaría. */
+.mic-tab-tabla .mic-tab-al-izquierda {
+  text-align: left;
+}
+.mic-tab-tabla .mic-tab-al-centro {
+  text-align: center;
+}
+.mic-tab-tabla .mic-tab-al-derecha {
+  text-align: right;
+}
+
+/* Carril de los tiradores de fila: ancho fijo, sin borde (no es contenido). */
+.mic-tab-tabla .mic-tab-lat {
+  width: 1.4rem;
+  padding: 0 0.1rem;
+  border: none;
+  text-align: center;
+}
+
+.mic-tab-celda {
+  position: relative;
+}
+
+/* Celda renderizada: pasa a `<input>` al recibir el foco. */
+.mic-tab-render {
+  display: inline-block;
+  min-width: 2.5rem;
+  min-height: 1.4em;
+  padding: 0.05rem 0.15rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  cursor: text;
+}
+
+.mic-tab-render:hover {
+  border-color: var(--mic-border);
+}
+
+.mic-tab-render:focus,
+.mic-tab-input:focus {
+  outline: none;
+  border-color: var(--mic-accent);
+}
+
+.mic-tab-render p {
+  margin: 0;
+}
+
+.mic-tab-input {
+  width: 100%;
+  min-width: 4rem;
+  padding: 0.05rem 0.15rem;
+  border: 1px solid var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  color: inherit;
+  font: inherit;
+}
+
+/* Tirador de fila/columna: reserva su lugar SIEMPRE y solo se ve al pasar el
+   puntero o al enfocar, para no cambiar el alto del bloque. */
+.mic-tab-tirador {
+  padding: 0 0.15rem;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.mic-tab-tirador-col {
+  float: right;
+}
+
+.mic-tab-tabla tr:hover .mic-tab-tirador,
+.mic-tab-tabla tr:focus-within .mic-tab-tirador,
+.mic-tab-tirador:focus {
+  visibility: visible;
+}
+
+.mic-tab-tirador:hover,
+.mic-tab-tirador:focus {
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+/* Menú de un tirador: ABSOLUTO, así abrirlo no cambia el alto del bloque. */
+.mic-tab-menu {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 12rem;
+  padding: 0.25rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  box-shadow: var(--mic-shadow-md, 0 4px 14px rgb(0 0 0 / 25%));
+  font-family: var(--mic-font-sans);
+  font-size: 0.8125rem;
+}
+
+.mic-tab-menu-item {
+  padding: 0.2rem 0.4rem;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mic-tab-menu-item:hover:not(:disabled),
+.mic-tab-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+.mic-tab-menu-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mic-tab-menu-item[aria-current='true'] {
+  color: var(--mic-accent);
+  font-weight: 600;
+}
+
+.mic-tab-menu-grupo {
+  display: flex;
+  flex-direction: column;
+  padding: 0.2rem 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+}
+
+.mic-tab-menu-titulo {
+  padding: 0.1rem 0.4rem;
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+/* Pie: agregar fila/columna + salida a «editar como texto». */
+.mic-tab-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0 0;
+}
+
+.mic-tab-btn {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  font-family: var(--mic-font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.mic-tab-btn:hover {
+  border-color: var(--mic-border);
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-text-muted) 12%, transparent);
+}
+
+.mic-tab-texto {
+  /* Horizontal: no entra en el alto del bloque, así que no toca el height-map. */
+  margin-left: auto;
+}
+
+.mic-tab-aviso {
+  margin: 0;
+  padding: 0.25rem 0 0;
+  color: var(--mic-text-muted);
+  font-family: var(--mic-font-sans);
+  font-size: 0.8125rem;
+  font-style: italic;
+}

@@ -158,6 +158,32 @@ export function aplicarEdicionFrontmatter(
   });
 }
 
+/**
+ * Aplica una edición de `lib/tablas.ts` reemplazando SOLO el bloque de la tabla
+ * (`FUN-L-19`). El rango llega ya calculado desde el widget, que es quien sabe
+ * qué tabla se está tocando.
+ *
+ * El cambio va al rango mínimo —las líneas de esa tabla— y con `userEvent`
+ * propio: `history` solo agrupa `input.type` y `delete`, así que «eliminar
+ * columna» es UN paso de `Ctrl+Z` y no se mezcla con lo que se tecleó antes.
+ * Sigue empezando por `input.` para que el editor lo trate como una edición del
+ * usuario (marcar la nota sucia, fijar la pestaña).
+ */
+export function aplicarEdicionTabla(
+  view: EditorView,
+  desde: number,
+  hasta: number,
+  transformar: (md: string) => string,
+): void {
+  const md = view.state.doc.sliceString(desde, hasta);
+  const nuevo = transformar(md);
+  if (nuevo === md) return;
+  view.dispatch({
+    changes: { from: desde, to: hasta, insert: nuevo },
+    userEvent: "input.tabla",
+  });
+}
+
 /** Posición del inicio de la línea `n` (0-based) dentro de `texto`. */
 function inicioDeLinea(texto: string, n: number): number {
   let pos = 0;

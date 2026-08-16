@@ -19,20 +19,29 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { renderMarkdown } from "@/lib/markdown";
 import {
   ponerPropiedad,
   quitarPropiedad,
   renombrarPropiedad,
   separarFrontmatter,
 } from "@/lib/frontmatter";
-import { aplicarEdicionFrontmatter } from "@/lib/editor/commands";
+import {
+  parsear as parsearTabla,
+  serializar as serializarTabla,
+  type Tabla,
+} from "@/lib/tablas";
+import { aplicarEdicionFrontmatter, aplicarEdicionTabla } from "@/lib/editor/commands";
 import {
   TarjetaPropiedades,
   controlPropiedadesDe,
   esControlDePropiedades,
   type AccionesPropiedades,
 } from "@/lib/editor/propiedadesWidget";
+import {
+  TablaEnSitio,
+  controlTablaDe,
+  esControlDeTabla,
+} from "@/lib/editor/tablaWidget";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
@@ -88,64 +97,144 @@ export function refreshAllLiveViews() {
   }
 }
 
-/** Widget de bloque que renderiza una tabla markdown como HTML (HU-01). */
+/**
+ * Pide ver UNA tabla como texto: lleva la posición donde arranca, o `null` para
+ * volver al render. Es el «editar como texto» de `FUN-L-19`: dura hasta que el
+ * cursor sale de esa tabla.
+ */
+const crudoTablaEffect = StateEffect.define<number | null>();
+
+/**
+ * Widget de bloque que renderiza una tabla markdown (HU-01), **editable en
+ * sitio** desde `FUN-L-19`: escribir en una celda, insertar/eliminar/mover
+ * filas y columnas y alinear, sin abrir el markdown en crudo.
+ *
+ * El DOM y sus controles viven en `lib/editor/tablaWidget.ts`; acá está lo que
+ * CodeMirror necesita para que un widget interactivo no reviva
+ * `DEF-031`/`DEF-037`: `updateDOM()` parchea en sitio (nunca se reconstruye
+ * mientras se escribe), `ignoreEvent()` devuelve `true` para los controles y
+ * `estimatedHeight` cuenta las filas. Ver `docs/features/edicion-en-el-render.md`.
+ */
 class TableWidget extends WidgetType {
   constructor(readonly md: string) {
     super();
   }
+
   eq(other: TableWidget) {
     return other.md === this.md;
   }
-  toDOM() {
-    const wrap = document.createElement("div");
-    wrap.className = "mic-preview mic-live-table";
-    wrap.innerHTML = renderMarkdown(this.md);
-    return wrap;
+
+  toDOM(view: EditorView) {
+    // La tabla necesita SU dom para resolver su posición en el documento, y el
+    // dom lo crea ella: las acciones lo miran cuando se las llama, que es
+    // siempre después de que el constructor haya devuelto.
+    const tabla: TablaEnSitio = new TablaEnSitio({
+      editar: (transformar) => editarTabla(view, tabla.dom, transformar),
+      verComoTexto: () => verTablaComoTexto(view, tabla.dom),
+      salirAlEditor: () => view.focus(),
+      // Abrir el editor de una celda o desplegar un menú cambia el alto FUERA
+      // del ciclo de actualización de CodeMirror: sin esto su height-map se
+      // queda con el alto anterior, que es el desfase de `DEF-031`/`DEF-037`.
+      medir: () => view.requestMeasure(),
+    });
+    tabla.sincronizar(this.md);
+    return tabla.dom;
   }
+
+  /**
+   * OBLIGATORIO: sin esto CodeMirror tiraría el DOM y lo volvería a construir en
+   * cada pulsación, y la celda que se está editando perdería el foco a la
+   * primera tecla.
+   */
+  updateDOM(dom: HTMLElement) {
+    const tabla = controlTablaDe(dom);
+    if (!tabla) return false;
+    tabla.sincronizar(this.md);
+    return true;
+  }
+
   /**
    * Altura estimada del widget para el height-map de CodeMirror. Es CLAVE: sin
    * ella (por defecto -1 = desconocida) CM estima mal la altura de las tablas
    * FUERA de pantalla, y el height-map (que posiciona el gutter y el scroll del
    * buscador) diverge del contenido real medido, acumulando desfase cuanto más
    * contenido hay. Estimación: nº de filas (líneas con `|`) × alto de fila
-   * (~36px: fuente 0.875rem·1.7 + padding + borde) + márgenes de tabla/widget.
+   * (~36px: fuente 0.875rem·1.7 + padding + borde) + el pie de controles, que
+   * desde `FUN-L-19` va siempre debajo de la tabla.
    */
   get estimatedHeight() {
     const filas = this.md.split("\n").filter((l) => l.includes("|")).length;
-    return Math.max(1, filas) * 36 + 26;
+    return Math.max(1, filas) * 36 + 26 + 30;
   }
-  ignoreEvent() {
-    return false;
+
+  /**
+   * Invertido respecto de HU-01: lo que nace en un control es NUESTRO (si
+   * CodeMirror se quedara el evento, la celda no recibiría ni el clic ni las
+   * teclas). El resto del bloque sigue siendo del editor.
+   */
+  ignoreEvent(event: Event) {
+    return esControlDeTabla(event.target);
+  }
+
+  /** El widget sale del viewport: la tabla suelta lo que tenga colgado. */
+  destroy(dom: HTMLElement) {
+    controlTablaDe(dom)?.destruir();
   }
 }
 
-type TableState = { decorations: DecorationSet; ranges: [number, number][] };
+type TableState = {
+  decorations: DecorationSet;
+  ranges: [number, number][];
+  /** Posición de la tabla que se está viendo como texto, o null. */
+  crudo: number | null;
+};
+
+/**
+ * Límites (líneas completas) de la tabla que toca `pos`, o null si ahí no hay
+ * ninguna. Se busca por la LÍNEA y no por la posición exacta: dentro de una
+ * cita el nodo `Table` empieza después del `> `, así que resolver la posición
+ * del inicio de la línea caería en el blockquote y no en la tabla.
+ */
+function limitesTabla(state: EditorState, pos: number): [number, number] | null {
+  if (pos > state.doc.length) return null;
+  const linea = state.doc.lineAt(pos);
+  const hallados: [number, number][] = [];
+  syntaxTree(state).iterate({
+    from: linea.from,
+    to: linea.to,
+    enter(node) {
+      if (node.name !== "Table") return undefined;
+      hallados.push([state.doc.lineAt(node.from).from, state.doc.lineAt(node.to).to]);
+      return false;
+    },
+  });
+  return hallados[0] ?? null;
+}
 
 /**
  * Calcula las tablas a renderizar como bloque. Las decoraciones de bloque DEBEN
  * venir de un StateField (un ViewPlugin rompe el layout de CodeMirror).
+ *
+ * A diferencia de HU-01, el cursor dentro de una tabla ya NO la abre en crudo:
+ * se edita renderizada (`FUN-L-19`). La fuente se ve solo a pedido, con «editar
+ * como texto», y solo para ESA tabla.
  */
-function computeTables(state: EditorState): TableState {
+function computeTables(state: EditorState, crudo: number | null): TableState {
   const builder = new RangeSetBuilder<Decoration>();
   const ranges: [number, number][] = [];
-  if (!useUiStore.getState().liveTables) return { decorations: builder.finish(), ranges };
-
-  const doc = state.doc;
-  const active = new Set<number>();
-  for (const r of state.selection.ranges) {
-    const a = doc.lineAt(r.from).number;
-    const b = doc.lineAt(r.to).number;
-    for (let l = a; l <= b; l++) active.add(l);
+  if (!useUiStore.getState().liveTables) {
+    return { decorations: builder.finish(), ranges, crudo: null };
   }
 
+  const doc = state.doc;
   syntaxTree(state).iterate({
     enter(node) {
       if (node.name !== "Table") return undefined;
       const startLine = doc.lineAt(node.from);
       const endLine = doc.lineAt(node.to);
-      for (let l = startLine.number; l <= endLine.number; l++) {
-        if (active.has(l)) return false; // cursor dentro → editar en crudo
-      }
+      // La que se edita como texto no se decora NI se reserva: ahí el resto del
+      // live preview tiene que hacer su trabajo (wikilinks, etiquetas…).
+      if (crudo !== null && crudo >= startLine.from && crudo <= endLine.to) return false;
       const md = doc.sliceString(startLine.from, endLine.to);
       builder.add(
         startLine.from,
@@ -156,24 +245,102 @@ function computeTables(state: EditorState): TableState {
       return false;
     },
   });
-  return { decorations: builder.finish(), ranges };
+  return { decorations: builder.finish(), ranges, crudo };
 }
 
 /** Tablas renderizadas (decoraciones de bloque) — vía StateField. */
 const tableField = StateField.define<TableState>({
-  create: (state) => computeTables(state),
+  create: (state) => computeTables(state, null),
   update(value, tr) {
+    let crudo = value.crudo;
+    if (crudo !== null && tr.docChanged) crudo = tr.changes.mapPos(crudo);
+    let puesto = false;
+    for (const e of tr.effects) {
+      if (e.is(crudoTablaEffect)) {
+        crudo = e.value;
+        puesto = true;
+      }
+    }
+    // Una tabla que se está TECLEANDO se queda en crudo hasta que el cursor
+    // salga. Sin esto, al terminar de escribir la fila de guiones el bloque se
+    // volvería widget con el cursor adentro, y como el rango es atómico la
+    // tecla siguiente caería FUERA de la tabla. No contradice «el render no
+    // desaparece»: ahí el cursor ya estaba en el texto: no entró a un render.
+    // Solo cuenta lo que escribe el usuario a mano — las ediciones del widget
+    // (`input.tabla`) y el deshacer quedan afuera.
     if (
+      crudo === null &&
+      (tr.isUserEvent("input") || tr.isUserEvent("delete")) &&
+      !tr.isUserEvent("input.tabla") &&
+      !tr.isUserEvent("input.propiedad")
+    ) {
+      const lim = limitesTabla(tr.state, tr.state.selection.main.head);
+      if (lim) crudo = lim[0];
+    }
+    // El crudo dura mientras el cursor siga dentro de ESA tabla (spec § 3.4).
+    // En la transacción que lo abre no se comprueba: la selección que la
+    // acompaña es justamente la que lo mantiene abierto.
+    if (crudo !== null && tr.selection && !puesto) {
+      const lim = limitesTabla(tr.state, crudo);
+      if (!lim || tr.state.selection.ranges.every((r) => r.to < lim[0] || r.from > lim[1])) {
+        crudo = null;
+      }
+    }
+    if (
+      crudo !== value.crudo ||
       tr.docChanged ||
-      tr.selection ||
       tr.effects.some((e) => e.is(refreshLiveEffect))
     ) {
-      return computeTables(tr.state);
+      return computeTables(tr.state, crudo);
     }
     return value;
   },
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
 });
+
+/**
+ * El rango de la tabla que dibuja `dom`, resuelto CONTRA EL DOCUMENTO de ahora.
+ * No se puede guardar en el widget: mientras la tabla no cambie, CodeMirror
+ * reusa el mismo widget aunque el texto de más arriba se mueva.
+ */
+function rangoDeTabla(view: EditorView, dom: HTMLElement): [number, number] | null {
+  let pos: number;
+  try {
+    pos = view.posAtDOM(dom);
+  } catch {
+    return null;
+  }
+  const rangos = view.state.field(tableField, false)?.ranges ?? [];
+  // La holgura de 1 es por el borde: `posAtDOM` puede devolver la posición de
+  // antes del bloque, y una tabla arranca siempre en el inicio de su línea.
+  return rangos.find(([f, t]) => pos >= f - 1 && pos <= t + 1) ?? null;
+}
+
+/** Aplica una operación de `lib/tablas.ts` a la tabla que dibuja `dom`. */
+function editarTabla(view: EditorView, dom: HTMLElement, transformar: (t: Tabla) => Tabla) {
+  const rango = rangoDeTabla(view, dom);
+  if (!rango) return;
+  aplicarEdicionTabla(view, rango[0], rango[1], (md) => {
+    // El documento manda: la tabla se lee de nuevo acá, no se usa la que el
+    // widget tenía pintada (pudo cambiar desde otra vista de la misma nota).
+    const t = parsearTabla(md);
+    return t ? serializarTabla(transformar(t)) : md;
+  });
+}
+
+/** Revela el markdown de esa tabla hasta que el cursor salga de ella. */
+function verTablaComoTexto(view: EditorView, dom: HTMLElement) {
+  const rango = rangoDeTabla(view, dom);
+  if (!rango) return;
+  view.dispatch({
+    effects: crudoTablaEffect.of(rango[0]),
+    // El cursor entra en la tabla: es lo que mantiene el crudo abierto (y lo
+    // que lo cierra al salir).
+    selection: { anchor: rango[0] },
+    scrollIntoView: true,
+  });
+  view.focus();
+}
 
 /**
  * Pide ver el bloque de propiedades como texto (`true`) o volver a la tarjeta
@@ -406,6 +573,13 @@ export function liveExtensions(
       (view) => view.state.field(frontmatterField, false)?.decorations ?? Decoration.none,
     ),
     tableField,
+    // Misma razón que arriba, y el mismo defecto que evita: una tabla que ya no
+    // se abre en crudo deja un rango donde el cursor puede entrar sin verse, y
+    // la tecla siguiente corrompería el markdown a ciegas. La que se está
+    // editando como texto no tiene decoración y por tanto tampoco es átomo.
+    EditorView.atomicRanges.of(
+      (view) => view.state.field(tableField, false)?.decorations ?? Decoration.none,
+    ),
     livePreview(onWikilinkClick, noteExists, notaId),
   ];
 }

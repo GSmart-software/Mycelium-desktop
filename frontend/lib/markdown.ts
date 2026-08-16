@@ -272,9 +272,14 @@ const escapar = (s: string): string => s.replace(/[&<>"]/g, (c) => HTML_ESCAPES[
 
 /**
  * Renderiza un valor como markdown EN LÍNEA (sin el `<p>` envolvente): así un
- * `[[enlace]]` dentro de una propiedad se ve y navega como cualquier wikilink.
- * El pipeline escapa el HTML, así que el valor del usuario no puede inyectar.
+ * `[[enlace]]` dentro de una propiedad —o de una celda de tabla (`FUN-L-19`)—
+ * se ve y navega como cualquier wikilink. El pipeline escapa el HTML, así que
+ * el valor del usuario no puede inyectar.
  */
+export function renderMarkdownEnLinea(md: string): string {
+  return renderEnLinea(md);
+}
+
 function renderEnLinea(md: string): string {
   return renderMarkdown(md)
     .replace(/^\s*<p>/, "")
