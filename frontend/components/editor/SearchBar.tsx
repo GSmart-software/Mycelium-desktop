@@ -10,7 +10,7 @@ import {
   SearchQuery,
   setSearchQuery,
 } from "@codemirror/search";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { CaseSensitive, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUiStore } from "@/stores/uiStore";
@@ -88,6 +88,14 @@ export function SearchBar({ getView }: { getView: () => EditorView | null }) {
       if (!view) return;
       if (forward) findNext(view);
       else findPrevious(view);
+      // DEF-056: `findNext` desplaza con el `scrollIntoView` por defecto, que
+      // deja la coincidencia pegada al borde SUPERIOR del scroller — justo
+      // debajo de la barra de herramientas, que la tapa. Se vuelve a desplazar
+      // centrando: es una segunda transacción a propósito, porque la posición a
+      // centrar es la selección que acaba de dejar la búsqueda.
+      view.dispatch({
+        effects: EditorView.scrollIntoView(view.state.selection.main, { y: "center" }),
+      });
       const sq = new SearchQuery({
         search: query,
         caseSensitive,

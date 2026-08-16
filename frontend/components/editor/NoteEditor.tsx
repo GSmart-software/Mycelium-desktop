@@ -84,6 +84,20 @@ const instanceCache = new Map<
   }
 >();
 
+/**
+ * Fracción [0,1] de lo ya desplazado en un scroller (DEF-055).
+ *
+ * Es la moneda común entre el scroller de CodeMirror y el del panel de lectura,
+ * que miden alturas distintas del MISMO documento. No es exacto —una tabla ocupa
+ * distinto renderizada que en markdown— pero es la misma aproximación que ya usa
+ * el scroll sincronizado del modo dividido, y deja al lector cerca de donde
+ * estaba en vez de mandarlo al principio.
+ */
+function ratioDe(el: HTMLElement): number {
+  const recorrido = el.scrollHeight - el.clientHeight;
+  return recorrido > 0 ? el.scrollTop / recorrido : 0;
+}
+
 /** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
 const TASK_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/gm;
 
@@ -155,6 +169,12 @@ export function NoteEditor({
   const previewScrollRef = useRef(0);
   /** Scroll del preview pendiente de restaurar (null = nada que restaurar). */
   const previewScrollPendienteRef = useRef<number | null>(null);
+  // DEF-055: ratio pendiente de aplicar tras un cambio de modo. Va aparte del
+  // pendiente en píxeles de arriba, que es el de volver a una pestaña (DEF-039):
+  // aquel restaura una posición exacta ya conocida, este traduce entre dos
+  // scrollers de altura distinta.
+  const previewRatioPendienteRef = useRef<number | null>(null);
+  const editorRatioPendienteRef = useRef<number | null>(null);
   const soltarScrollRef = useRef<(() => void) | null>(null);
 
   const [mode, setModeState] = useState<EditorMode>(() => {
@@ -647,6 +667,21 @@ export function NoteEditor({
 
   const setMode = useCallback(
     (next: EditorMode) => {
+      // DEF-055: cada modo tiene SU scroller —CodeMirror en edición, el panel en
+      // lectura—, así que al cambiar hay que traspasar la posición de uno a otro
+      // o el documento aparece en el principio. Se lee ANTES de cambiar, mientras
+      // el que sale todavía está visible: un elemento con `display: none` informa
+      // `scrollTop` 0.
+      const anterior = modeRef.current;
+      if (next !== anterior) {
+        const sale =
+          anterior === "read" ? previewRef.current : (viewRef.current?.scrollDOM ?? null);
+        if (sale) {
+          const ratio = ratioDe(sale);
+          if (next === "read" || next === "split") previewRatioPendienteRef.current = ratio;
+          else editorRatioPendienteRef.current = ratio;
+        }
+      }
       setModeState(next);
       modeRef.current = next;
       window.localStorage.setItem(`micelio-mode-${notaId}`, next);
@@ -746,6 +781,7 @@ export function NoteEditor({
     if (!preview) return;
     const onScroll = () => {
       if (previewScrollPendienteRef.current !== null) return;
+      if (previewRatioPendienteRef.current !== null) return;
       previewScrollRef.current = preview.scrollTop;
     };
     preview.addEventListener("scroll", onScroll, { passive: true });
@@ -775,6 +811,62 @@ export function NoteEditor({
     raf = requestAnimationFrame(aplicar);
     return () => cancelAnimationFrame(raf);
   }, [previewHtml, mode, previewTick]);
+
+  // DEF-055: aplicar al panel de lectura el ratio traído del otro modo. Se
+  // reintenta mientras el alto siga cambiando (Mermaid, Excalidraw e imágenes
+  // llegan tarde) y se corta en cuanto se estabiliza, para no pelear con el
+  // usuario si vuelve a desplazar. Cede ante el pendiente en píxeles de DEF-039,
+  // que es una posición exacta y por tanto mejor.
+  useEffect(() => {
+    if (previewRatioPendienteRef.current === null) return;
+    if (previewScrollPendienteRef.current !== null) return;
+    if (mode !== "read" && mode !== "split") return;
+    let raf = 0;
+    let intentos = 0;
+    let altoPrevio = -1;
+    const aplicar = () => {
+      const preview = previewRef.current;
+      const ratio = previewRatioPendienteRef.current;
+      if (!preview || ratio === null) return;
+      if (preview.scrollHeight !== altoPrevio && intentos++ < 30) {
+        altoPrevio = preview.scrollHeight;
+        preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+        raf = requestAnimationFrame(aplicar);
+      } else {
+        previewScrollRef.current = preview.scrollTop;
+        previewRatioPendienteRef.current = null;
+      }
+    };
+    raf = requestAnimationFrame(aplicar);
+    return () => cancelAnimationFrame(raf);
+  }, [previewHtml, mode, previewTick]);
+
+  // DEF-055: lo mismo al volver a un modo de edición. Acá sí se asigna
+  // `scrollTop` a mano —lo que DEF-039 desaconseja al CREAR la vista— porque el
+  // editor no se desmonta nunca: en lectura solo queda oculto, así que ya está
+  // medido y solo hay que reposicionarlo.
+  useEffect(() => {
+    if (editorRatioPendienteRef.current === null) return;
+    if (mode !== "live" && mode !== "raw") return;
+    const scroller = viewRef.current?.scrollDOM;
+    if (!scroller) return;
+    let raf = 0;
+    let intentos = 0;
+    let altoPrevio = -1;
+    const aplicar = () => {
+      const ratio = editorRatioPendienteRef.current;
+      if (ratio === null) return;
+      if (scroller.scrollHeight !== altoPrevio && intentos++ < 30) {
+        altoPrevio = scroller.scrollHeight;
+        scroller.scrollTop = ratio * (scroller.scrollHeight - scroller.clientHeight);
+        raf = requestAnimationFrame(aplicar);
+      } else {
+        editorRatioPendienteRef.current = null;
+      }
+    };
+    raf = requestAnimationFrame(aplicar);
+    return () => cancelAnimationFrame(raf);
+  }, [mode]);
 
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {
