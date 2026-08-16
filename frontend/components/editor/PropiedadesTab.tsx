@@ -223,7 +223,7 @@ function FilaPropiedad({
   onRenombrar: (clave: string, nueva: string) => void;
   onQuitar: (clave: string) => void;
 }) {
-  const serializado = `${p.clave} ${p.tipo} ${JSON.stringify(p.valor)}`;
+  const serializado = `${p.clave}\u0000${p.tipo}\u0000${JSON.stringify(p.valor)}`;
   const [clave, setClave] = useState(p.clave);
   const [borrador, setBorrador] = useState(() => valorComoTexto(p));
   const [nuevoItem, setNuevoItem] = useState("");
