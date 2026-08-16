@@ -25,6 +25,7 @@ import {
   Search,
   Shapes,
   Strikethrough,
+  TableProperties,
   Type,
   type LucideIcon,
 } from "lucide-react";
@@ -34,6 +35,7 @@ import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
 import {
   indentLine,
+  insertarBloquePropiedades,
   insertHorizontalRule,
   insertLink,
   outdentLine,
@@ -251,6 +253,9 @@ export function EditorToolbar({
     { icon: IndentDecrease, label: "Disminuir sangría (Shift+Tab)", run: outdentLine },
     { icon: Link, label: "Link (Ctrl+K)", action: openLinkPopover },
     { icon: Minus, label: "Divisor horizontal", run: insertHorizontalRule },
+    // Propiedades (FUN-M-19): la vía para una nota SIN frontmatter, donde no hay
+    // tarjeta en la que pulsar «+ Agregar propiedad».
+    { icon: TableProperties, label: "Propiedades de la nota", run: insertarBloquePropiedades },
     // Plantillas (FUN-M-03): la única vía que sirve para notas que YA existen.
     { icon: CircleDot, label: "Insertar Espora", action: abrirEsporas },
     ...(onInsertDiagram

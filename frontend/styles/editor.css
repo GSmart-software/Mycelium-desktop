@@ -1022,3 +1022,155 @@
 .mic-live-props .mic-props {
   margin: 0;
 }
+
+/* ── Tarjeta EDITABLE del widget (FUN-M-19) ──────────────────────────────────
+   Todo el espaciado de acá abajo es PADDING o `gap`: un `margin` volvería a
+   desincronizar el height-map (DEF-031/037) y esta vez con controles dentro.
+   Los campos se ven planos hasta que se los toca: la tarjeta tiene que seguir
+   leyéndose como una tarjeta, no como un formulario. */
+
+.mic-props-edit .mic-prop {
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.15rem 0;
+}
+
+/* Clave: input plano, del mismo ancho que la columna de la vista de lectura. */
+.mic-prop-clave-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+}
+
+/* Valor renderizado: es el que pasa a `<input>` al recibir el foco. */
+.mic-prop-render {
+  display: inline-block;
+  min-width: 4rem;
+  min-height: 1.4em;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  cursor: text;
+}
+
+.mic-prop-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  color: inherit;
+  font: inherit;
+}
+
+.mic-prop-clave-input:hover,
+.mic-prop-render:hover {
+  border-color: var(--mic-border);
+}
+
+.mic-prop-clave-input:focus,
+.mic-prop-render:focus,
+.mic-prop-input:focus {
+  outline: none;
+  border-color: var(--mic-accent);
+}
+
+/* Elemento de lista: la pastilla que ya existe + su × */
+.mic-prop-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0 0.15rem 0 0;
+}
+
+.mic-prop-item-input {
+  width: 8rem;
+}
+
+.mic-props-edit .mic-prop-valor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Botones de la tarjeta (quitar, +, pie). Sin margin, con padding. */
+.mic-prop-btn,
+.mic-props-btn {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.mic-prop-btn-mini {
+  padding: 0 0.2rem;
+  font-size: 0.75rem;
+}
+
+.mic-prop-btn:hover,
+.mic-props-btn:hover {
+  border-color: var(--mic-border);
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-text-muted) 12%, transparent);
+}
+
+/* Pie: agregar propiedad + salida a «editar como texto». */
+.mic-props-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+}
+
+.mic-props-agregar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mic-props-nueva,
+.mic-props-tipo {
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.mic-props-nueva {
+  width: 9rem;
+}
+
+.mic-props-texto {
+  /* Horizontal: no entra en el alto del bloque, así que no toca el height-map. */
+  margin-left: auto;
+}
+
+.mic-props-error {
+  margin: 0;
+  padding: 0.25rem 0 0;
+  color: var(--mic-callout-error-border);
+  font-size: 0.8125rem;
+}
+
+.mic-props-edit .mic-props-nosop {
+  padding: 0 0 0.35rem;
+}

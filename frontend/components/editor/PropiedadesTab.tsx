@@ -3,14 +3,19 @@
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { ICONO_TIPO } from "@/lib/markdown";
 import { aplicarTextoMinimo } from "@/lib/editor/commands";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import {
+  NOMBRE_TIPO,
+  TIPOS_PROPIEDAD,
   ponerPropiedad,
   quitarPropiedad,
   renombrarPropiedad,
   separarFrontmatter,
+  valorComoTexto,
+  valorInicialDe,
   type Propiedad,
   type TipoPropiedad,
   type ValorPropiedad,
@@ -19,42 +24,11 @@ import { useAuthStore } from "@/stores/authStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./NotePanel.module.css";
 
-/** Nombre visible y glifo de cada tipo (el mismo glifo que la tarjeta). */
-const TIPOS: { tipo: TipoPropiedad; etiqueta: string; icono: string }[] = [
-  { tipo: "texto", etiqueta: "Texto", icono: "T" },
-  { tipo: "numero", etiqueta: "Número", icono: "#" },
-  { tipo: "casilla", etiqueta: "Casilla", icono: "☑" },
-  { tipo: "fecha", etiqueta: "Fecha", icono: "▤" },
-  { tipo: "fechaHora", etiqueta: "Fecha y hora", icono: "◷" },
-  { tipo: "lista", etiqueta: "Lista", icono: "≡" },
-];
-
-const ICONO: Record<TipoPropiedad, string> = Object.fromEntries(
-  TIPOS.map((t) => [t.tipo, t.icono]),
-) as Record<TipoPropiedad, string>;
-
-/** Valor inicial de una propiedad recién añadida, según su tipo. */
-function valorInicial(tipo: TipoPropiedad): ValorPropiedad {
-  const ahora = new Date();
-  const dosDigitos = (n: number) => String(n).padStart(2, "0");
-  const fecha = `${ahora.getFullYear()}-${dosDigitos(ahora.getMonth() + 1)}-${dosDigitos(ahora.getDate())}`;
-  if (tipo === "lista") return [];
-  if (tipo === "casilla") return false;
-  if (tipo === "numero") return 0;
-  if (tipo === "fecha") return fecha;
-  if (tipo === "fechaHora") {
-    return `${fecha}T${dosDigitos(ahora.getHours())}:${dosDigitos(ahora.getMinutes())}`;
-  }
-  return "";
-}
-
-/** El valor de una propiedad tal como se edita en un `<input>`. */
-function comoTexto(p: Propiedad): string {
-  if (Array.isArray(p.valor)) return p.valor.join(", ");
-  // `datetime-local` exige la `T` (el frontmatter admite también un espacio).
-  if (p.tipo === "fechaHora") return String(p.valor).replace(" ", "T");
-  return String(p.valor);
-}
+/**
+ * Glifo de cada tipo. Es el MISMO que usa la tarjeta de propiedades (vista de
+ * lectura y widget del editor), así que sale de `lib/markdown.ts`.
+ */
+const ICONO = ICONO_TIPO;
 
 /**
  * Pestaña PROPIEDADES del panel de la nota (`FUN-M-04`): lista las propiedades
@@ -149,7 +123,7 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
   const añadir = () => {
     const clave = nuevaClave.trim();
     if (clave === "") return;
-    cambiar(clave, valorInicial(nuevoTipo), nuevoTipo);
+    cambiar(clave, valorInicialDe(nuevoTipo), nuevoTipo);
     setNuevaClave("");
   };
 
@@ -212,9 +186,9 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
             aria-label="Tipo de la propiedad nueva"
             onChange={(e) => setNuevoTipo(e.target.value as TipoPropiedad)}
           >
-            {TIPOS.map((t) => (
-              <option key={t.tipo} value={t.tipo}>
-                {t.icono} {t.etiqueta}
+            {TIPOS_PROPIEDAD.map((t) => (
+              <option key={t} value={t}>
+                {ICONO[t]} {NOMBRE_TIPO[t]}
               </option>
             ))}
           </select>
@@ -249,9 +223,9 @@ function FilaPropiedad({
   onRenombrar: (clave: string, nueva: string) => void;
   onQuitar: (clave: string) => void;
 }) {
-  const serializado = `${p.clave} ${p.tipo} ${JSON.stringify(p.valor)}`;
+  const serializado = `${p.clave} ${p.tipo} ${JSON.stringify(p.valor)}`;
   const [clave, setClave] = useState(p.clave);
-  const [borrador, setBorrador] = useState(() => comoTexto(p));
+  const [borrador, setBorrador] = useState(() => valorComoTexto(p));
   const [nuevoItem, setNuevoItem] = useState("");
   const itemRef = useRef<HTMLInputElement>(null);
 
@@ -262,13 +236,13 @@ function FilaPropiedad({
   if (vistoDe !== serializado) {
     setVistoDe(serializado);
     setClave(p.clave);
-    setBorrador(comoTexto(p));
+    setBorrador(valorComoTexto(p));
   }
 
   const lista = Array.isArray(p.valor) ? p.valor : [];
 
   const confirmarValor = () => {
-    if (borrador === comoTexto(p)) return;
+    if (borrador === valorComoTexto(p)) return;
     if (borrador === "") {
       onCambiar(p.clave, "", "texto");
       return;
@@ -372,7 +346,7 @@ function FilaPropiedad({
             onBlur={confirmarValor}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
-              if (e.key === "Escape") setBorrador(comoTexto(p));
+              if (e.key === "Escape") setBorrador(valorComoTexto(p));
             }}
           />
         )}

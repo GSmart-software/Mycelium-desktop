@@ -282,7 +282,7 @@ function renderEnLinea(md: string): string {
 }
 
 /** Glifo del tipo, para reconocer la propiedad de un vistazo. */
-const ICONO_TIPO: Record<TipoPropiedad, string> = {
+export const ICONO_TIPO: Record<TipoPropiedad, string> = {
   texto: "T",
   numero: "#",
   casilla: "☑",
@@ -312,8 +312,12 @@ export function formatearFecha(valor: string): string {
     : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-/** El valor de una propiedad como HTML, según su tipo. */
-function valorHtml(p: Propiedad): string {
+/**
+ * El valor de una propiedad como HTML, según su tipo. Lo usan la tarjeta de
+ * lectura y el widget editable de la vista en vivo (`FUN-M-19`): el valor se ve
+ * IGUAL en los dos sitios mientras no se lo está editando.
+ */
+export function valorPropiedadHtml(p: Propiedad): string {
   if (p.tipo === "casilla") {
     const marcado = p.valor === true ? " checked" : "";
     return `<input type="checkbox" class="mic-prop-check" disabled${marcado} aria-label="${escapar(p.clave)}">`;
@@ -375,7 +379,7 @@ export function tarjetaPropiedadesHtml(texto: string): string {
         "</span>" +
         escapar(p.clave) +
         '</span><span class="mic-prop-valor">' +
-        valorHtml(p) +
+        valorPropiedadHtml(p) +
         "</span></div>",
     )
     .join("");
