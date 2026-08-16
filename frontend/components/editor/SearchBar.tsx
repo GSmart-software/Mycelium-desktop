@@ -93,9 +93,20 @@ export function SearchBar({ getView }: { getView: () => EditorView | null }) {
       // debajo de la barra de herramientas, que la tapa. Se vuelve a desplazar
       // centrando: es una segunda transacción a propósito, porque la posición a
       // centrar es la selección que acaba de dejar la búsqueda.
-      view.dispatch({
-        effects: EditorView.scrollIntoView(view.state.selection.main, { y: "center" }),
-      });
+      const centrar = () => {
+        const v = getView();
+        if (v) {
+          v.dispatch({
+            effects: EditorView.scrollIntoView(v.state.selection.main, { y: "center" }),
+          });
+        }
+      };
+      centrar();
+      // Y otra vez en el frame siguiente. El primer intento se calcula con el
+      // height-map que haya en ese momento, y desde que hay widgets de alto
+      // variable (tablas y propiedades) puede estar desactualizado: apuntaría a
+      // un píxel viejo. Para el frame siguiente CodeMirror ya volvió a medir.
+      requestAnimationFrame(centrar);
       const sq = new SearchQuery({
         search: query,
         caseSensitive,

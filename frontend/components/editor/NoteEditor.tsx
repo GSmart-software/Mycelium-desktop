@@ -131,7 +131,10 @@ function gotoMatch(view: EditorView, term: string) {
   if (idx < 0) return;
   view.dispatch({
     selection: { anchor: idx, head: idx + term.length },
-    scrollIntoView: true,
+    // DEF-056: el comentario decía "centra" pero `scrollIntoView: true` usa la
+    // estrategia "nearest", que pega la coincidencia al borde superior. Acá se
+    // centra de verdad, igual que en la barra de búsqueda.
+    effects: EditorView.scrollIntoView(idx, { y: "center" }),
   });
   view.focus();
 }
@@ -331,6 +334,13 @@ export function NoteEditor({
               }
             : undefined,
           extensions: [
+            // DEF-056: CodeMirror no sabe que ARRIBA del scroller hay una barra
+            // de herramientas encima. Sin este margen, cualquier desplazamiento
+            // suyo —el del buscador, pero también el del cursor o el del
+            // autocompletado— puede dejar el objetivo pegado al borde superior,
+            // que es justo la franja tapada. `scrollMargins` es la forma nativa
+            // de decirle "esta parte no cuenta como visible".
+            EditorView.scrollMargins.of(() => ({ top: 56, bottom: 24 })),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
             keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
