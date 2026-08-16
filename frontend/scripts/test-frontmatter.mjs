@@ -26,6 +26,10 @@ const {
   ponerPropiedad,
   quitarPropiedad,
   renombrarPropiedad,
+  valorComoTexto,
+  valorInicialDe,
+  NOMBRE_TIPO,
+  TIPOS_PROPIEDAD,
 } = mod;
 
 /** Frontmatter mínimo de referencia, con los seis tipos soportados. */
@@ -277,6 +281,66 @@ test("renombrar conserva valor, espaciado y comentario de la línea", () => {
     () => renombrarPropiedad("---\na: 1\nb: 2\n---\n", "a", "b"),
     /Ya existe/,
   );
+});
+
+// ── Metadatos de los tipos, compartidos por el panel y el widget (FUN-M-19) ───
+
+test("los seis tipos tienen nombre visible", () => {
+  assert.deepEqual(TIPOS_PROPIEDAD, ["texto", "numero", "casilla", "fecha", "fechaHora", "lista"]);
+  for (const tipo of TIPOS_PROPIEDAD) {
+    assert.equal(typeof NOMBRE_TIPO[tipo], "string", `falta el nombre de ${tipo}`);
+  }
+});
+
+test("el valor inicial de cada tipo se relee como ese mismo tipo", () => {
+  for (const tipo of TIPOS_PROPIEDAD) {
+    const texto = ponerPropiedad("---\n---\n", "campo", valorInicialDe(tipo), tipo);
+    assert.equal(propiedadDe(texto, "campo").tipo, tipo, `el tipo ${tipo} no sobrevive`);
+  }
+});
+
+test("valorComoTexto da lo que se edita en un input", () => {
+  const fm = separarFrontmatter(SEIS_TIPOS);
+  const como = Object.fromEntries(fm.props.map((p) => [p.clave, valorComoTexto(p)]));
+  assert.equal(como.estado, "activo");
+  assert.equal(como.prioridad, "3");
+  assert.equal(como.publicado, "false");
+  assert.equal(como.vence, "2026-08-30");
+  assert.equal(como.tags, "proyecto, activo");
+  // `datetime-local` exige la `T`, aunque el YAML admita también el espacio.
+  assert.equal(como.reunion, "2026-08-30T15:00");
+  const conEspacio = propiedadDe("---\nreunion: 2026-08-30 15:00\n---\n", "reunion");
+  assert.equal(valorComoTexto(conEspacio), "2026-08-30T15:00");
+});
+
+// ── El cuerpo NO se toca ──────────────────────────────────────────────────────
+//
+// Es lo que hace posible el dispatch al rango mínimo de `FUN-M-19`:
+// `aplicarEdicionFrontmatter` (lib/editor/commands.ts) reemplaza SOLO el bloque
+// y usa el cuerpo de ancla. Si alguna de estas funciones tocara el cuerpo, el
+// widget escribiría un rango equivocado y `Ctrl+Z` dejaría de revertir la
+// operación para revertir medio documento.
+
+test("ninguna edición modifica el cuerpo de la nota", () => {
+  const cuerpo = "\n# Mi nota\n\nTexto con --- y con `tags:` adentro.\n";
+  const doc = "---\nestado: activo\ntags: [a, b]\n---" + cuerpo;
+  const ediciones = [
+    (t) => ponerPropiedad(t, "estado", "cerrado"),
+    (t) => ponerPropiedad(t, "nueva", 3, "numero"),
+    (t) => ponerPropiedad(t, "tags", ["a", "b", "c"], "lista"),
+    (t) => quitarPropiedad(t, "estado"),
+    (t) => renombrarPropiedad(t, "estado", "situacion"),
+  ];
+  for (const editar of ediciones) {
+    const nuevo = editar(doc);
+    assert.ok(nuevo.endsWith(cuerpo), `una edición tocó el cuerpo: ${JSON.stringify(nuevo)}`);
+    assert.equal(cuerpoDe(nuevo), cuerpoDe(doc));
+  }
+});
+
+test("crear el bloque en una nota sin frontmatter conserva el texto entero", () => {
+  const doc = "# Mi nota\n\nTexto.\n";
+  assert.ok(ponerPropiedad(doc, "estado", "activo").endsWith(doc));
 });
 
 // ── Fin de línea ──────────────────────────────────────────────────────────────

@@ -19,8 +19,20 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { renderMarkdown, tarjetaPropiedadesHtml } from "@/lib/markdown";
-import { separarFrontmatter } from "@/lib/frontmatter";
+import { renderMarkdown } from "@/lib/markdown";
+import {
+  ponerPropiedad,
+  quitarPropiedad,
+  renombrarPropiedad,
+  separarFrontmatter,
+} from "@/lib/frontmatter";
+import { aplicarEdicionFrontmatter } from "@/lib/editor/commands";
+import {
+  TarjetaPropiedades,
+  controlPropiedadesDe,
+  esControlDePropiedades,
+  type AccionesPropiedades,
+} from "@/lib/editor/propiedadesWidget";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
@@ -164,11 +176,22 @@ const tableField = StateField.define<TableState>({
 });
 
 /**
+ * Pide ver el bloque de propiedades como texto (`true`) o volver a la tarjeta
+ * (`false`). Es el «editar como texto» de `FUN-M-19`: dura hasta que el cursor
+ * sale del bloque.
+ */
+const crudoFrontmatterEffect = StateEffect.define<boolean>();
+
+/**
  * Widget de bloque que reemplaza el frontmatter YAML por la tarjeta de
- * propiedades (`FUN-M-04`). Es de **solo lectura** a propósito: no lleva
- * controles ni edita el documento. Las propiedades se editan en la pestaña
- * PROPIEDADES del panel de la nota o escribiendo el YAML a mano — los widgets
- * interactivos dentro de CodeMirror son de donde salieron `DEF-031`/`DEF-037`.
+ * propiedades (`FUN-M-04`), **editable en sitio** desde `FUN-M-19`: cambiar un
+ * valor, renombrar una clave, agregar y quitar propiedades sin abrir el YAML.
+ *
+ * Lo que sostiene que un widget interactivo no reviva `DEF-031`/`DEF-037` está
+ * repartido entre esta clase y `propiedadesWidget.ts`: `updateDOM()` parchea en
+ * sitio (nunca se reconstruye mientras se escribe), `ignoreEvent()` devuelve
+ * `true` para los controles, el espaciado es `padding` y `estimatedHeight` se
+ * recalcula con las filas. Ver `docs/features/edicion-en-el-render.md` § 2.
  */
 class FrontmatterWidget extends WidgetType {
   /** Filas de la tarjeta, para estimar el alto del bloque (ver abajo). */
@@ -188,18 +211,23 @@ class FrontmatterWidget extends WidgetType {
     return other.texto === this.texto;
   }
 
-  toDOM() {
-    const wrap = document.createElement("div");
-    wrap.className = "mic-preview mic-live-props";
-    wrap.innerHTML = tarjetaPropiedadesHtml(this.texto);
-    // Los enlaces de la tarjeta (wikilinks, `#tag:`) navegan en la vista de
-    // lectura, no acá: dentro del editor un href `#…` cambiaría la URL del
-    // workspace. El clic queda para CodeMirror, que coloca el cursor dentro del
-    // bloque y así revela la fuente.
-    wrap.addEventListener("click", (event) => {
-      if ((event.target as HTMLElement).closest("a")) event.preventDefault();
-    });
-    return wrap;
+  toDOM(view: EditorView) {
+    const tarjeta = new TarjetaPropiedades(accionesPropiedades(view));
+    tarjeta.sincronizar(this.texto);
+    return tarjeta.dom;
+  }
+
+  /**
+   * OBLIGATORIO: sin esto CodeMirror tiraría el DOM y lo volvería a construir en
+   * cada pulsación, y el campo que se está editando perdería el foco a la
+   * primera tecla. Devuelve `false` solo si el DOM no es de esta tarjeta (no
+   * debería pasar) para que CodeMirror lo rehaga.
+   */
+  updateDOM(dom: HTMLElement) {
+    const tarjeta = controlPropiedadesDe(dom);
+    if (!tarjeta) return false;
+    tarjeta.sincronizar(this.texto);
+    return true;
   }
 
   /**
@@ -207,37 +235,81 @@ class FrontmatterWidget extends WidgetType {
    * altura del widget fuera de pantalla y su height-map diverge del layout real,
    * que es exactamente la causa raíz de `DEF-031`/`DEF-037` (gutter corrido,
    * clic que selecciona de más, scroll del buscador roto). Estimación: una fila
-   * por propiedad (~28px) + el padding de la tarjeta y del envoltorio.
+   * por propiedad (~30px) + el pie de «agregar propiedad» y los padding. Se
+   * recalcula sola al cambiar el nº de filas porque el widget se reconstruye en
+   * cada cambio del documento (lo que se conserva es su DOM, no la instancia).
    */
   get estimatedHeight() {
-    return Math.max(1, this.filas) * 28 + 30;
+    return Math.max(1, this.filas) * 30 + 64;
   }
 
-  ignoreEvent() {
-    return false; // el clic lo gestiona CodeMirror (coloca el cursor → revela)
+  /**
+   * Invertido respecto de `FUN-M-04`: lo que nace en un control es NUESTRO (si
+   * CodeMirror se quedara el evento, el campo no recibiría ni el clic ni las
+   * teclas). El resto de la tarjeta sigue siendo del editor, que coloca el
+   * cursor como con cualquier otro bloque.
+   */
+  ignoreEvent(event: Event) {
+    return esControlDePropiedades(event.target);
   }
 }
 
-type FrontmatterState = { decorations: DecorationSet; ranges: [number, number][] };
+/** Las operaciones de la tarjeta, atadas a la vista que la dibuja. */
+function accionesPropiedades(view: EditorView): AccionesPropiedades {
+  const editar = (transformar: (texto: string) => string) =>
+    aplicarEdicionFrontmatter(view, transformar);
+  return {
+    poner: (clave, valor, tipo) => editar((t) => ponerPropiedad(t, clave, valor, tipo)),
+    quitar: (clave) => editar((t) => quitarPropiedad(t, clave)),
+    renombrar: (clave, nueva) => editar((t) => renombrarPropiedad(t, clave, nueva)),
+    verComoTexto: () => {
+      const lim = limitesFrontmatter(view.state);
+      view.dispatch({
+        effects: crudoFrontmatterEffect.of(true),
+        // El cursor entra al bloque: es lo que mantiene el crudo abierto (y lo
+        // que cierra al salir). En un bloque vacío no hay línea de contenido,
+        // así que va al final del `---` de apertura.
+        selection: { anchor: lim ? lim.primeraLinea : 0 },
+        scrollIntoView: true,
+      });
+      view.focus();
+    },
+    // Abrir el editor de un valor cambia el alto del bloque FUERA del ciclo de
+    // actualización de CodeMirror: sin esto su height-map se quedaría con el
+    // alto anterior, que es el desfase de `DEF-031`/`DEF-037`.
+    medir: () => view.requestMeasure(),
+  };
+}
+
+type FrontmatterState = {
+  decorations: DecorationSet;
+  ranges: [number, number][];
+  /** ¿Se está mostrando el bloque como texto («editar como texto»)? */
+  crudo: boolean;
+};
+
+const SIN_FRONTMATTER: FrontmatterState = {
+  decorations: Decoration.none,
+  ranges: [],
+  crudo: false,
+};
+
+type LimitesFrontmatter = {
+  desde: number;
+  hasta: number;
+  /** Posición donde dejar el cursor al abrir el bloque como texto. */
+  primeraLinea: number;
+};
 
 /**
- * Calcula el bloque de frontmatter a renderizar. Igual que las tablas, es una
- * decoración de BLOQUE y por eso vive en un StateField (un ViewPlugin rompe el
- * layout de CodeMirror).
+ * Límites del bloque de frontmatter en el documento, o null si no hay.
  *
- * El rango se devuelve SIEMPRE, esté plegado o no: aunque el cursor esté dentro
- * y se vea el YAML crudo, el resto del live preview debe ignorar esas líneas
- * (el `---` no es una regla horizontal, y los `#` del YAML no son etiquetas).
+ * Mismas reglas de detección que `separarFrontmatter`, pero sobre las líneas del
+ * documento: así no hay que serializar la nota entera en cada pulsación.
  */
-function computeFrontmatter(state: EditorState): FrontmatterState {
-  const builder = new RangeSetBuilder<Decoration>();
-  const ranges: [number, number][] = [];
+function limitesFrontmatter(state: EditorState): LimitesFrontmatter | null {
   const doc = state.doc;
-  const vacio = () => ({ decorations: builder.finish(), ranges });
-
-  // Mismas reglas de detección que `separarFrontmatter`, pero sobre las líneas
-  // del documento: así no hay que serializar la nota entera en cada pulsación.
-  if (doc.lines < 2 || sinCr(doc.line(1).text) !== "---") return vacio();
+  if (doc.lines < 2 || sinCr(doc.line(1).text) !== "---") return null;
   let cierre = 0;
   // El tope acota el coste en el caso patológico: una nota que EMPIEZA con una
   // regla horizontal `---` y no cierra nunca haría recorrer el documento entero
@@ -250,36 +322,66 @@ function computeFrontmatter(state: EditorState): FrontmatterState {
       break;
     }
   }
-  if (cierre === 0) return vacio();
+  if (cierre === 0) return null;
+  return {
+    desde: doc.line(1).from,
+    hasta: doc.line(cierre).to,
+    primeraLinea: cierre > 2 ? doc.line(2).from : doc.line(1).to,
+  };
+}
 
-  const desde = doc.line(1).from;
-  const hasta = doc.line(cierre).to;
-  ranges.push([desde, hasta]);
+/**
+ * Calcula el bloque de frontmatter a renderizar. Igual que las tablas, es una
+ * decoración de BLOQUE y por eso vive en un StateField (un ViewPlugin rompe el
+ * layout de CodeMirror).
+ *
+ * El rango se devuelve SIEMPRE, se dibuje la tarjeta o no: aunque se esté viendo
+ * el YAML crudo, el resto del live preview debe ignorar esas líneas (el `---` no
+ * es una regla horizontal, y los `#` del YAML no son etiquetas).
+ *
+ * A diferencia de `FUN-M-04`, el cursor dentro del bloque ya NO lo abre en
+ * crudo: se edita renderizado (`FUN-M-19`). La fuente se ve solo a pedido, con
+ * «editar como texto».
+ */
+function computeFrontmatter(state: EditorState, crudo: boolean): FrontmatterState {
+  const lim = limitesFrontmatter(state);
+  if (!lim) return SIN_FRONTMATTER;
 
-  // Cursor dentro del bloque → se muestra la fuente (como tablas y callouts).
-  for (const r of state.selection.ranges) {
-    if (doc.lineAt(r.from).number <= cierre) return vacio();
-  }
+  const ranges: [number, number][] = [[lim.desde, lim.hasta]];
+  if (crudo) return { decorations: Decoration.none, ranges, crudo };
 
+  const builder = new RangeSetBuilder<Decoration>();
   builder.add(
-    desde,
-    hasta,
+    lim.desde,
+    lim.hasta,
     Decoration.replace({
-      widget: new FrontmatterWidget(doc.sliceString(desde, hasta)),
+      widget: new FrontmatterWidget(state.doc.sliceString(lim.desde, lim.hasta)),
       block: true,
     }),
   );
-  return { decorations: builder.finish(), ranges };
+  return { decorations: builder.finish(), ranges, crudo };
 }
 
 const sinCr = (linea: string): string => (linea.endsWith("\r") ? linea.slice(0, -1) : linea);
 
 /** Frontmatter renderizado como tarjeta (decoración de bloque) — vía StateField. */
 const frontmatterField = StateField.define<FrontmatterState>({
-  create: (state) => computeFrontmatter(state),
+  create: (state) => computeFrontmatter(state, false),
   update(value, tr) {
-    if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(refreshLiveEffect))) {
-      return computeFrontmatter(tr.state);
+    let crudo = value.crudo;
+    for (const e of tr.effects) if (e.is(crudoFrontmatterEffect)) crudo = e.value;
+    if (crudo && tr.selection) {
+      // El crudo dura mientras el cursor siga dentro del bloque (spec § 3.4).
+      const lim = limitesFrontmatter(tr.state);
+      if (!lim || tr.state.selection.ranges.every((r) => r.from > lim.hasta)) crudo = false;
+    }
+    if (
+      crudo !== value.crudo ||
+      tr.docChanged ||
+      tr.selection ||
+      tr.effects.some((e) => e.is(refreshLiveEffect))
+    ) {
+      return computeFrontmatter(tr.state, crudo);
     }
     return value;
   },
@@ -295,6 +397,14 @@ export function liveExtensions(
   return [
     syntaxHighlighting(micelioHighlight),
     frontmatterField,
+    // El bloque de propiedades ya NO se abre en crudo con el cursor dentro
+    // (`FUN-M-19`), así que el cursor no puede quedarse DENTRO del YAML
+    // invisible: se lo declara átomo y el clic y las flechas caen en sus bordes
+    // en vez de escribir a ciegas dentro del frontmatter. Mientras se lo edita
+    // como texto no hay decoración, así que tampoco hay átomo.
+    EditorView.atomicRanges.of(
+      (view) => view.state.field(frontmatterField, false)?.decorations ?? Decoration.none,
+    ),
     tableField,
     livePreview(onWikilinkClick, noteExists, notaId),
   ];

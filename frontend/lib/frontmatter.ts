@@ -46,6 +46,49 @@ export type Frontmatter =
 /** Clave con comportamiento propio: sus valores SON las etiquetas de la nota. */
 const CLAVE_TAGS = "tags";
 
+/** Los seis tipos, en el orden en que se ofrecen al crear una propiedad. */
+export const TIPOS_PROPIEDAD: TipoPropiedad[] = [
+  "texto",
+  "numero",
+  "casilla",
+  "fecha",
+  "fechaHora",
+  "lista",
+];
+
+/**
+ * Nombre visible de cada tipo. Vive acá —y no en la UI— porque lo comparten la
+ * pestaña PROPIEDADES y el widget del editor (`FUN-M-19`): dos listas de
+ * etiquetas terminarían diciendo cosas distintas del mismo tipo.
+ */
+export const NOMBRE_TIPO: Record<TipoPropiedad, string> = {
+  texto: "Texto",
+  numero: "Número",
+  casilla: "Casilla",
+  fecha: "Fecha",
+  fechaHora: "Fecha y hora",
+  lista: "Lista",
+};
+
+/**
+ * Valor inicial de una propiedad recién creada, según su tipo. Las fechas
+ * arrancan en HOY: es lo que se quiere el 90% de las veces y evita escribir un
+ * valor inválido que el parser tendría que leer como texto.
+ */
+export function valorInicialDe(tipo: TipoPropiedad): ValorPropiedad {
+  const ahora = new Date();
+  const dosDigitos = (n: number) => String(n).padStart(2, "0");
+  const fecha = `${ahora.getFullYear()}-${dosDigitos(ahora.getMonth() + 1)}-${dosDigitos(ahora.getDate())}`;
+  if (tipo === "lista") return [];
+  if (tipo === "casilla") return false;
+  if (tipo === "numero") return 0;
+  if (tipo === "fecha") return fecha;
+  if (tipo === "fechaHora") {
+    return `${fecha}T${dosDigitos(ahora.getHours())}:${dosDigitos(ahora.getMinutes())}`;
+  }
+  return "";
+}
+
 /**
  * `clave: valor` en una línea. La clave es perezosa (`[^:]*?`) para cortar en el
  * PRIMER `:`, así `url: https://x` deja `https://x` entero como valor. El espacio
@@ -170,6 +213,18 @@ function normalizarTags(valor: ValorPropiedad): string[] {
 }
 
 const esTags = (clave: string): boolean => clave.toLowerCase() === CLAVE_TAGS;
+
+/**
+ * El valor de una propiedad tal como se edita en un `<input>`. Lo comparten la
+ * pestaña PROPIEDADES y el widget del editor: si cada uno escribiera el suyo,
+ * un mismo valor se vería distinto en el panel y en la nota.
+ */
+export function valorComoTexto(p: Propiedad): string {
+  if (Array.isArray(p.valor)) return p.valor.join(", ");
+  // `datetime-local` exige la `T` (el frontmatter admite también un espacio).
+  if (p.tipo === "fechaHora") return String(p.valor).replace(" ", "T");
+  return String(p.valor);
+}
 
 /**
  * Separa el frontmatter del cuerpo. Reglas de detección (spec § 1):
