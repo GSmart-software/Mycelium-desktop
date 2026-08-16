@@ -1300,13 +1300,26 @@
   background: color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
 }
 
-/* Menú de un tirador: ABSOLUTO, así abrirlo no cambia el alto del bloque. */
+/* Menú de un tirador: FIJO a la ventana, no absoluto dentro del bloque.
+   `.mic-tab-caja` lleva `overflow-x: auto` para las tablas anchas, y un
+   `position: absolute` dentro de ese contenedor queda RECORTADO por él: el menú
+   se veía a medias y con el scroll de la tabla en vez de flotar por encima.
+   Fijo a la ventana escapa del recorte —ningún ancestro tiene `transform`, que
+   sería lo único capaz de volver a atraparlo— y es lo mismo que hacen el menú
+   contextual del explorador y el de opciones del grafo (`DEF-047`/`DEF-053`).
+   Sigue estando fuera del flujo, que era el motivo original: abrirlo no cambia
+   el alto del bloque y por tanto no obliga a medir (quinta regla del widget
+   interactivo, ver docs/aprendizajes/CodeMirror y la vista en vivo.md). */
 .mic-tab-menu {
-  position: absolute;
-  z-index: 5;
+  position: fixed;
+  z-index: 60; /* mismo estrato que ContextMenu y GraphOptionsMenu */
   display: flex;
   flex-direction: column;
   min-width: 12rem;
+  /* El menú de columna es largo (insertar, eliminar, mover, 4 alineaciones):
+     si no entra en la ventana, se desplaza ÉL, no la tabla. */
+  max-height: min(22rem, 70vh);
+  overflow-y: auto;
   padding: 0.25rem;
   border: 1px solid var(--mic-border);
   border-radius: var(--mic-radius-md);
@@ -1314,6 +1327,13 @@
   box-shadow: var(--mic-shadow-md, 0 4px 14px rgb(0 0 0 / 25%));
   font-family: var(--mic-font-sans);
   font-size: 0.8125rem;
+}
+
+/* `hidden` es solo un `display: none` de la hoja del navegador, y CUALQUIER
+   `display` de autor le gana. Con el `display: flex` de arriba, el menú cerrado
+   seguía dibujándose vacío —borde, fondo y padding— encima de la tabla. */
+.mic-tab-menu[hidden] {
+  display: none;
 }
 
 .mic-tab-menu-item {

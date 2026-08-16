@@ -530,6 +530,33 @@ export class TablaEnSitio {
     if (!(destino instanceof Node) || !this.menuEl.contains(destino)) this.cerrarMenu(false);
   };
 
+  /**
+   * El menú está fijo a la ventana (ver el CSS), así que no acompaña al scroll
+   * de la tabla ni del editor: si algo se desplaza, se cierra. Cerrar y no
+   * recolocar es lo que hacen el menú contextual y el del grafo, y evita un
+   * menú que persigue a su tirador por la pantalla.
+   */
+  private readonly cerrarAlDesplazar = () => this.cerrarMenu(false);
+
+  /**
+   * Lo pega al tirador y lo mantiene DENTRO de la ventana: si no entra abajo,
+   * se abre hacia arriba; si se sale por un lado, se recuesta contra el borde.
+   * Se mide con el menú ya visible y con la posición reseteada, porque
+   * `getBoundingClientRect` de un elemento oculto devuelve ceros.
+   */
+  private situarMenu(origen: HTMLElement) {
+    const MARGEN = 8;
+    this.menuEl.style.left = "0px";
+    this.menuEl.style.top = "0px";
+    const menu = this.menuEl.getBoundingClientRect();
+    const r = origen.getBoundingClientRect();
+    const maxX = window.innerWidth - menu.width - MARGEN;
+    const maxY = window.innerHeight - menu.height - MARGEN;
+    const y = r.bottom > maxY ? r.top - menu.height : r.bottom;
+    this.menuEl.style.left = `${Math.max(MARGEN, Math.min(r.left, maxX))}px`;
+    this.menuEl.style.top = `${Math.max(MARGEN, Math.min(y, maxY))}px`;
+  }
+
   private mostrarMenu(origen: HTMLElement, items: HTMLElement[], volverA: Coord) {
     this.menuEl.replaceChildren(...items);
     if (this.menuEl.hidden) {
@@ -538,16 +565,21 @@ export class TablaEnSitio {
     this.menuEl.hidden = false;
     this.menuEl.dataset.fila = String(volverA.fila);
     this.menuEl.dataset.columna = String(volverA.columna);
-    const caja = this.dom.getBoundingClientRect();
-    const r = origen.getBoundingClientRect();
-    this.menuEl.style.left = `${Math.max(0, r.left - caja.left)}px`;
-    this.menuEl.style.top = `${r.bottom - caja.top}px`;
-    this.menuEl.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    this.situarMenu(origen);
+    // `preventScroll` y el orden importan: enfocar puede desplazar el contenedor,
+    // y ese scroll dispararía el cierre que se registra justo después.
+    this.menuEl
+      .querySelector<HTMLButtonElement>("button:not([disabled])")
+      ?.focus({ preventScroll: true });
+    window.addEventListener("scroll", this.cerrarAlDesplazar, true);
+    window.addEventListener("resize", this.cerrarAlDesplazar);
   }
 
   private cerrarMenu(devolverFoco: boolean) {
     if (this.menuEl.hidden) return;
     document.removeEventListener("mousedown", this.cerrarAlClicFuera, true);
+    window.removeEventListener("scroll", this.cerrarAlDesplazar, true);
+    window.removeEventListener("resize", this.cerrarAlDesplazar);
     this.menuEl.hidden = true;
     const fila = Number(this.menuEl.dataset.fila);
     const columna = Number(this.menuEl.dataset.columna);
