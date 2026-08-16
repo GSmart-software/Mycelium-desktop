@@ -129,7 +129,7 @@ export class TablaEnSitio {
   /** El markdown ya pintado, para no repintar de más. */
   private pintado: string | null = null;
   /** `<input>` abierto sobre una celda, o null. */
-  private editor: HTMLInputElement | null = null;
+  private editor: HTMLTextAreaElement | null = null;
   private editando: Coord | null = null;
 
   constructor(private readonly acciones: AccionesTabla) {
@@ -346,9 +346,15 @@ export class TablaEnSitio {
   private abrirEditor(celda: HTMLTableCellElement) {
     if (this.editor) return;
     const { fila, columna } = coordDe(celda);
-    const input = document.createElement("input");
+    // Un `<textarea>`, no un `<input>`: una celda con una frase larga se escribía
+    // en UNA sola línea que se iba desplazando sola, y no se veía lo escrito
+    // antes. El textarea reparte el texto en varias líneas —como se va a ver
+    // después— y crece con el contenido. Sigue siendo UNA línea en el documento:
+    // el markdown de una tabla no admite saltos dentro de una celda, así que
+    // `Enter` confirma (no inserta) y lo que se pegue con saltos se aplana.
+    const input = document.createElement("textarea");
     input.className = "mic-tab-input";
-    input.type = "text";
+    input.rows = 1;
     input.value = celda.dataset.md ?? "";
     input.setAttribute("aria-label", nombreDeCelda(fila, columna));
     this.editor = input;
@@ -357,8 +363,19 @@ export class TablaEnSitio {
     const tirador = celda.querySelector(".mic-tab-tirador");
     celda.replaceChildren(input);
     if (tirador) celda.append(tirador);
+    this.ajustarAlto(input);
     input.focus();
     input.select();
+
+    input.addEventListener("input", () => {
+      const plano = input.value.replace(/\r?\n/g, " ");
+      if (plano !== input.value) {
+        const fin = input.selectionStart;
+        input.value = plano;
+        input.setSelectionRange(fin, fin);
+      }
+      this.ajustarAlto(input);
+    });
 
     // Perder el foco confirma (spec § 3.3): es la salida más común, y el
     // `blur` llega también cuando el clic se va a otra celda o al menú.
@@ -389,6 +406,20 @@ export class TablaEnSitio {
       }
     });
     this.acciones.medir();
+  }
+
+  /**
+   * El textarea crece con lo que se escribe. Hay que medir DESPUÉS de cambiar
+   * el alto (quinta regla del widget interactivo): el bloque cambia de tamaño
+   * fuera del ciclo de actualización de CodeMirror y su height-map no se entera
+   * solo. Se mide solo cuando el alto cambió de verdad, para no pedir una medida
+   * por cada tecla.
+   */
+  private ajustarAlto(input: HTMLTextAreaElement) {
+    const antes = input.style.height;
+    input.style.height = "auto";
+    input.style.height = `${input.scrollHeight}px`;
+    if (input.style.height !== antes) this.acciones.medir();
   }
 
   /** Escribe la celda en el documento y vuelve al render. */

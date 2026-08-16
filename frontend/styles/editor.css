@@ -1258,7 +1258,13 @@
   margin: 0;
 }
 
+/* Es un `<textarea>` (no un `<input>`) para que el texto de la celda se reparta
+   en varias líneas mientras se escribe, en vez de irse por una sola línea que se
+   desplaza y esconde lo anterior. El alto lo ajusta el widget con `scrollHeight`,
+   así que acá no se fija ninguno: `overflow: hidden` evita la barra propia y
+   `resize: none` quita el tirador, que dentro de una celda no tiene sentido. */
 .mic-tab-input {
+  display: block;
   width: 100%;
   min-width: 4rem;
   padding: 0.05rem 0.15rem;
@@ -1267,6 +1273,10 @@
   background: var(--mic-bg-surface);
   color: inherit;
   font: inherit;
+  line-height: inherit;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  resize: none;
 }
 
 /* Tirador de fila/columna: reserva su lugar SIEMPRE y solo se ve al pasar el
