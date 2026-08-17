@@ -1426,3 +1426,17 @@
   font-size: 0.8125rem;
   font-style: italic;
 }
+
+/* ── Buscador en la vista de lectura (DEF-057) ─────────────────────────────
+   Se pinta con la CSS Custom Highlight API en vez de insertar marcas, porque
+   el HTML del preview se regenera entero en cada cambio del documento y
+   cualquier <mark> insertado se perdería (o se quedaría pegado). Los mismos
+   colores que los del buscador del editor, para que no parezcan dos cosas. */
+::highlight(mic-buscar) {
+  background-color: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+::highlight(mic-buscar-actual) {
+  background-color: color-mix(in srgb, var(--mic-glow) 65%, transparent);
+  color: var(--mic-text-primary);
+}

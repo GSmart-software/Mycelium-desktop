@@ -1044,7 +1044,13 @@ export function NoteEditor({
         titulo={notaTitulo}
       />
 
-      {isActivePane && <SearchBar getView={() => viewRef.current} />}
+      {isActivePane && (
+        <SearchBar
+          getView={() => viewRef.current}
+          getPreview={() => previewRef.current}
+          modoLectura={mode === "read"}
+        />
+      )}
 
       {conflict !== null && (
         <div className={styles.conflictBar}>
