@@ -102,6 +102,32 @@ export function SearchBar({ getView }: { getView: () => EditorView | null }) {
         }
       };
       centrar();
+      // DIAGNÓSTICO TEMPORAL (DEF-056) — quitar cuando se identifique la causa.
+      // Mide dónde CREE CodeMirror que quedó la coincidencia y dónde está de
+      // verdad el scroller, para saber quién se desplaza mal.
+      const medir = (cuando: string) => {
+        const v = getView();
+        if (!v) return;
+        const pos = v.state.selection.main.head;
+        const c = v.coordsAtPos(pos);
+        const sc = v.scrollDOM;
+        const r = sc.getBoundingClientRect();
+        const host = sc.closest(".mic-editor-host") as HTMLElement | null;
+        console.log(`[DEF-056 ${cuando}]`, {
+          pos,
+          coincidenciaTop: c ? Math.round(c.top) : null,
+          scrollerTop: Math.round(r.top),
+          scrollerAlto: Math.round(r.height),
+          scrollTop: Math.round(sc.scrollTop),
+          scrollHeight: Math.round(sc.scrollHeight),
+          clientHeight: Math.round(sc.clientHeight),
+          hostScrollTop: host ? Math.round(host.scrollTop) : null,
+          visible: c ? Math.round(c.top - r.top) : null,
+        });
+      };
+      medir("inmediato");
+      requestAnimationFrame(() => medir("frame+1"));
+      setTimeout(() => medir("300ms"), 300);
       // Y otra vez en el frame siguiente. El primer intento se calcula con el
       // height-map que haya en ese momento, y desde que hay widgets de alto
       // variable (tablas y propiedades) puede estar desactualizado: apuntaría a
