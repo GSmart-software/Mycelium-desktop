@@ -103,27 +103,32 @@ export function SearchBar({ getView }: { getView: () => EditorView | null }) {
       };
       centrar();
       // DIAGNÓSTICO TEMPORAL (DEF-056) — quitar cuando se identifique la causa.
-      // Mide dónde CREE CodeMirror que quedó la coincidencia y dónde está de
-      // verdad el scroller, para saber quién se desplaza mal.
+      // Compara DÓNDE CREE CodeMirror que está la coincidencia (su height-map)
+      // con dónde está de verdad (el DOM). Si difieren, el height-map está
+      // desincronizado; si coinciden, el que decide mal es el desplazamiento.
+      // Se emite como UNA cadena para que la consola no la recorte.
       const medir = (cuando: string) => {
         const v = getView();
         if (!v) return;
         const pos = v.state.selection.main.head;
-        const c = v.coordsAtPos(pos);
+        const real = v.coordsAtPos(pos);
         const sc = v.scrollDOM;
         const r = sc.getBoundingClientRect();
+        const bloque = v.lineBlockAt(pos);
         const host = sc.closest(".mic-editor-host") as HTMLElement | null;
-        console.log(`[DEF-056 ${cuando}]`, {
-          pos,
-          coincidenciaTop: c ? Math.round(c.top) : null,
-          scrollerTop: Math.round(r.top),
-          scrollerAlto: Math.round(r.height),
-          scrollTop: Math.round(sc.scrollTop),
-          scrollHeight: Math.round(sc.scrollHeight),
-          clientHeight: Math.round(sc.clientHeight),
-          hostScrollTop: host ? Math.round(host.scrollTop) : null,
-          visible: c ? Math.round(c.top - r.top) : null,
-        });
+        // Dónde cree CM que está: origen del documento + altura acumulada.
+        const creeTop = v.documentTop + bloque.top;
+        const realTop = real ? real.top : NaN;
+        console.log(
+          `[DEF-056 ${cuando}] pos=${pos}` +
+            ` | real=${Math.round(realTop)} cree=${Math.round(creeTop)}` +
+            ` desfase=${Math.round(realTop - creeTop)}` +
+            ` | scrollerTop=${Math.round(r.top)} alto=${Math.round(r.height)}` +
+            ` visible=${Math.round(realTop - r.top)}` +
+            ` | scrollTop=${Math.round(sc.scrollTop)}/${Math.round(sc.scrollHeight - sc.clientHeight)}` +
+            ` | docTop=${Math.round(v.documentTop)} contentH=${Math.round(v.contentHeight)}` +
+            ` | hostScroll=${host ? Math.round(host.scrollTop) : "n/a"}`,
+        );
       };
       medir("inmediato");
       requestAnimationFrame(() => medir("frame+1"));
