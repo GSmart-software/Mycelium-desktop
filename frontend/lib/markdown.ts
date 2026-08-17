@@ -240,19 +240,67 @@ function rehypeTaskCheckbox() {
   };
 }
 
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .use(remarkMath)
-  .use(remarkMicelio)
-  .use(remarkCallouts)
-  .use(remarkEmphasisStyle)
-  .use(remarkRehype)
-  .use(rehypeTaskCheckbox)
-  // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos
-  .use(rehypeHighlight, { plainText: ["mermaid", "excalidraw"] })
-  .use(rehypeKatex)
-  .use(rehypeStringify);
+/**
+ * Línea del documento a la que corresponde el HTML que se está generando
+ * (`DEF-055`). El cuerpo se renderiza SIN el frontmatter, así que hay que
+ * sumarle dónde empieza; se guarda acá porque `processSync` es síncrono y no se
+ * puede intercalar otra llamada en el medio.
+ */
+let offsetDeLineas = 0;
+
+/**
+ * Marca cada bloque de primer nivel con su **línea de origen** (`DEF-055`).
+ *
+ * Es lo que permite mantener la posición de lectura al cambiar de modo con
+ * exactitud: sin esto solo se puede mapear por proporción entre dos alturas, y
+ * eso nunca coincide —una tabla de diez filas ocupa diez líneas en markdown y
+ * una caja compacta renderizada—. Con la línea a la vista, «estabas en la 214»
+ * se resuelve buscando el bloque que nació en la 214.
+ *
+ * Solo el primer nivel: es el grano al que se desplaza, y marcar cada `<em>`
+ * engordaría el HTML sin que nadie lo use.
+ */
+function rehypeLineas(opciones: { activo: boolean }) {
+  return (tree: Parent) => {
+    if (!opciones.activo) return;
+    for (const hijo of tree.children as MdNode[]) {
+      const el = hijo as MdNode & {
+        tagName?: string;
+        properties?: Record<string, unknown>;
+        position?: { start?: { line?: number } };
+      };
+      const linea = el.position?.start?.line;
+      if (el.tagName === undefined || linea === undefined) continue;
+      el.properties = el.properties ?? {};
+      el.properties.dataLinea = String(linea + offsetDeLineas);
+    }
+  };
+}
+
+/**
+ * La cadena de plugins, en UNA sola definición. Se instancia dos veces porque
+ * el marcado de líneas solo lo quiere la vista de lectura: en una exportación a
+ * PDF o en una tarjeta de canvas esos atributos serían ruido.
+ */
+function crearProcesador(conLineas: boolean) {
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath)
+    .use(remarkMicelio)
+    .use(remarkCallouts)
+    .use(remarkEmphasisStyle)
+    .use(remarkRehype)
+    .use(rehypeTaskCheckbox)
+    .use(rehypeLineas, { activo: conLineas })
+    // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos
+    .use(rehypeHighlight, { plainText: ["mermaid", "excalidraw"] })
+    .use(rehypeKatex)
+    .use(rehypeStringify);
+}
+
+const processor = crearProcesador(false);
+const processorConLineas = crearProcesador(true);
 
 /** Markdown → HTML. 100% en cliente, sin llamadas al servidor (HU-01 CA10). */
 export function renderMarkdown(markdown: string): string {
@@ -400,6 +448,17 @@ export function tarjetaPropiedadesHtml(texto: string): string {
  * Pasarle el cuerpo y no el texto completo es lo que hace desaparecer la regla
  * horizontal del primer `---` y el `<h2>` fantasma que generaba el segundo.
  */
-export function renderNota(texto: string): string {
-  return tarjetaPropiedadesHtml(texto) + renderMarkdown(cuerpoDe(texto));
+export function renderNota(texto: string, conLineas = false): string {
+  const fm = separarFrontmatter(texto);
+  const cuerpo = cuerpoDe(texto, fm);
+  if (!conLineas) return tarjetaPropiedadesHtml(texto) + renderMarkdown(cuerpo);
+
+  // `DEF-055`: los bloques salen marcados con su línea del DOCUMENTO, no del
+  // cuerpo, para que el editor pueda buscarlas tal como las numera él.
+  offsetDeLineas = fm.cuerpoDesde;
+  try {
+    return tarjetaPropiedadesHtml(texto) + String(processorConLineas.processSync(cuerpo));
+  } finally {
+    offsetDeLineas = 0;
+  }
 }

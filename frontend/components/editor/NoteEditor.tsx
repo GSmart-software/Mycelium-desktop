@@ -85,32 +85,66 @@ const instanceCache = new Map<
 >();
 
 /**
- * Fracción [0,1] del DOCUMENTO que queda por encima del borde superior
- * (DEF-055).
+ * Traspaso de la posición de lectura entre modos (`DEF-055`), **por línea**.
  *
- * Es la moneda común entre el scroller de CodeMirror y el del panel de lectura,
- * que miden alturas distintas del MISMO documento.
+ * Cada modo tiene su propio scroller y miden alturas distintas del mismo texto,
+ * así que no se puede pasar un `scrollTop` ni una proporción: una tabla de diez
+ * filas ocupa diez líneas en markdown y una caja compacta renderizada, y el
+ * error de una regla de tres crece justo en el medio del documento.
  *
- * Se divide por `scrollHeight` (el alto del contenido) y **no** por
- * `scrollHeight - clientHeight` (el recorrido posible), que es lo que hace el
- * scroll sincronizado del modo dividido. La diferencia importa cuando las dos
- * alturas no coinciden —y nunca coinciden: una tabla o una imagen ocupan
- * distinto renderizadas que en markdown—. Lo que hay que conservar es *qué parte
- * del texto queda arriba*, que es una fracción del contenido; usar el recorrido
- * mete un sesgo que crece hacia el medio del documento y hacía que la vista de
- * edición quedara un poco más abajo que la de lectura.
- *
- * Sigue siendo una aproximación: exacto exigiría que el HTML del preview
- * conservara la línea de origen de cada bloque, que hoy no la lleva.
+ * La moneda común es la **línea del documento**. El editor la conoce por
+ * definición; el panel de lectura, porque su HTML sale marcado con
+ * `data-linea` en cada bloque de primer nivel (ver `renderNota`). Así
+ * «estabas en la 214» se resuelve buscando la 214, no estimándola.
  */
-function fraccionDe(el: HTMLElement): number {
-  return el.scrollHeight > 0 ? el.scrollTop / el.scrollHeight : 0;
+function lineaVisibleDelEditor(view: EditorView): number {
+  const sc = view.scrollDOM;
+  const origen = view.documentTop - sc.getBoundingClientRect().top + sc.scrollTop;
+  const bloque = view.lineBlockAtHeight(sc.scrollTop - origen);
+  return view.state.doc.lineAt(bloque.from).number;
 }
 
-/** Aplica una fracción de documento a un scroller, acotada a sus extremos. */
-function aplicarFraccion(el: HTMLElement, fraccion: number): void {
-  const objetivo = fraccion * el.scrollHeight;
-  el.scrollTop = Math.max(0, Math.min(objetivo, el.scrollHeight - el.clientHeight));
+function llevarEditorALinea(view: EditorView, linea: number): void {
+  const doc = view.state.doc;
+  const n = Math.min(Math.max(1, linea), doc.lines);
+  const sc = view.scrollDOM;
+  const origen = view.documentTop - sc.getBoundingClientRect().top + sc.scrollTop;
+  const y = origen + view.lineBlockAt(doc.line(n).from).top;
+  sc.scrollTop = Math.max(0, Math.min(y, sc.scrollHeight - sc.clientHeight));
+}
+
+/** Bloques del panel de lectura que llevan su línea de origen, en orden. */
+function bloquesConLinea(panel: HTMLElement): { el: HTMLElement; linea: number }[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>("[data-linea]")).map((el) => ({
+    el,
+    linea: Number(el.dataset.linea),
+  }));
+}
+
+function lineaVisibleDelPreview(panel: HTMLElement): number {
+  const arriba = panel.getBoundingClientRect().top;
+  let linea = 1;
+  for (const b of bloquesConLinea(panel)) {
+    // El último bloque que empieza en o por encima del borde: el que se está
+    // leyendo. Los siguientes ya están más abajo, así que se corta.
+    if (b.el.getBoundingClientRect().top - arriba <= 1) linea = b.linea;
+    else break;
+  }
+  return linea;
+}
+
+function llevarPreviewALinea(panel: HTMLElement, linea: number): void {
+  let destino: HTMLElement | null = null;
+  for (const b of bloquesConLinea(panel)) {
+    if (b.linea <= linea) destino = b.el;
+    else break;
+  }
+  if (destino === null) {
+    panel.scrollTop = 0;
+    return;
+  }
+  const y = panel.scrollTop + (destino.getBoundingClientRect().top - panel.getBoundingClientRect().top);
+  panel.scrollTop = Math.max(0, Math.min(y, panel.scrollHeight - panel.clientHeight));
 }
 
 /** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
@@ -187,12 +221,12 @@ export function NoteEditor({
   const previewScrollRef = useRef(0);
   /** Scroll del preview pendiente de restaurar (null = nada que restaurar). */
   const previewScrollPendienteRef = useRef<number | null>(null);
-  // DEF-055: ratio pendiente de aplicar tras un cambio de modo. Va aparte del
+  // DEF-055: línea pendiente de aplicar tras un cambio de modo. Va aparte del
   // pendiente en píxeles de arriba, que es el de volver a una pestaña (DEF-039):
   // aquel restaura una posición exacta ya conocida, este traduce entre dos
-  // scrollers de altura distinta.
-  const previewRatioPendienteRef = useRef<number | null>(null);
-  const editorRatioPendienteRef = useRef<number | null>(null);
+  // vistas del mismo documento.
+  const previewLineaPendienteRef = useRef<number | null>(null);
+  const editorLineaPendienteRef = useRef<number | null>(null);
   const soltarScrollRef = useRef<(() => void) | null>(null);
 
   const [mode, setModeState] = useState<EditorMode>(() => {
@@ -294,7 +328,7 @@ export function NoteEditor({
       if (previewTimer.current) clearTimeout(previewTimer.current);
       previewTimer.current = setTimeout(() => {
         if (modeRef.current === "split" || modeRef.current === "read") {
-          setPreviewHtml(renderNota(contentRef.current));
+          setPreviewHtml(renderNota(contentRef.current, true));
         }
       }, PREVIEW_DEBOUNCE_MS);
     },
@@ -395,7 +429,7 @@ export function NoteEditor({
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
                 if (modeRef.current === "split" || modeRef.current === "read") {
-                  setPreviewHtml(renderNota(doc));
+                  setPreviewHtml(renderNota(doc, true));
                 }
                 return;
               }
@@ -468,7 +502,7 @@ export function NoteEditor({
         };
       }
 
-      setPreviewHtml(renderNota(content));
+      setPreviewHtml(renderNota(content, true));
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendingTerm = takePendingMatch(notaId);
@@ -699,12 +733,17 @@ export function NoteEditor({
       // `scrollTop` 0.
       const anterior = modeRef.current;
       if (next !== anterior) {
-        const sale =
-          anterior === "read" ? previewRef.current : (viewRef.current?.scrollDOM ?? null);
-        if (sale) {
-          const fraccion = fraccionDe(sale);
-          if (next === "read" || next === "split") previewRatioPendienteRef.current = fraccion;
-          else editorRatioPendienteRef.current = fraccion;
+        const linea =
+          anterior === "read"
+            ? previewRef.current
+              ? lineaVisibleDelPreview(previewRef.current)
+              : null
+            : viewRef.current
+              ? lineaVisibleDelEditor(viewRef.current)
+              : null;
+        if (linea !== null) {
+          if (next === "read" || next === "split") previewLineaPendienteRef.current = linea;
+          else editorLineaPendienteRef.current = linea;
         }
       }
       setModeState(next);
@@ -716,7 +755,7 @@ export function NoteEditor({
         ),
       });
       if (next === "split" || next === "read") {
-        setPreviewHtml(renderNota(contentRef.current));
+        setPreviewHtml(renderNota(contentRef.current, true));
       }
     },
     [notaId, openByTitle, noteExists],
@@ -806,7 +845,7 @@ export function NoteEditor({
     if (!preview) return;
     const onScroll = () => {
       if (previewScrollPendienteRef.current !== null) return;
-      if (previewRatioPendienteRef.current !== null) return;
+      if (previewLineaPendienteRef.current !== null) return;
       previewScrollRef.current = preview.scrollTop;
     };
     preview.addEventListener("scroll", onScroll, { passive: true });
@@ -843,7 +882,7 @@ export function NoteEditor({
   // usuario si vuelve a desplazar. Cede ante el pendiente en píxeles de DEF-039,
   // que es una posición exacta y por tanto mejor.
   useEffect(() => {
-    if (previewRatioPendienteRef.current === null) return;
+    if (previewLineaPendienteRef.current === null) return;
     if (previewScrollPendienteRef.current !== null) return;
     if (mode !== "read" && mode !== "split") return;
     let raf = 0;
@@ -851,15 +890,15 @@ export function NoteEditor({
     let altoPrevio = -1;
     const aplicar = () => {
       const preview = previewRef.current;
-      const ratio = previewRatioPendienteRef.current;
-      if (!preview || ratio === null) return;
+      const linea = previewLineaPendienteRef.current;
+      if (!preview || linea === null) return;
       if (preview.scrollHeight !== altoPrevio && intentos++ < 30) {
         altoPrevio = preview.scrollHeight;
-        aplicarFraccion(preview, ratio);
+        llevarPreviewALinea(preview, linea);
         raf = requestAnimationFrame(aplicar);
       } else {
         previewScrollRef.current = preview.scrollTop;
-        previewRatioPendienteRef.current = null;
+        previewLineaPendienteRef.current = null;
       }
     };
     raf = requestAnimationFrame(aplicar);
@@ -871,7 +910,7 @@ export function NoteEditor({
   // editor no se desmonta nunca: en lectura solo queda oculto, así que ya está
   // medido y solo hay que reposicionarlo.
   useEffect(() => {
-    if (editorRatioPendienteRef.current === null) return;
+    if (editorLineaPendienteRef.current === null) return;
     if (mode !== "live" && mode !== "raw") return;
     const scroller = viewRef.current?.scrollDOM;
     if (!scroller) return;
@@ -879,14 +918,16 @@ export function NoteEditor({
     let intentos = 0;
     let altoPrevio = -1;
     const aplicar = () => {
-      const ratio = editorRatioPendienteRef.current;
-      if (ratio === null) return;
+      const linea = editorLineaPendienteRef.current;
+      if (linea === null) return;
+      const vista = viewRef.current;
+      if (!vista) return;
       if (scroller.scrollHeight !== altoPrevio && intentos++ < 30) {
         altoPrevio = scroller.scrollHeight;
-        aplicarFraccion(scroller, ratio);
+        llevarEditorALinea(vista, linea);
         raf = requestAnimationFrame(aplicar);
       } else {
-        editorRatioPendienteRef.current = null;
+        editorLineaPendienteRef.current = null;
       }
     };
     raf = requestAnimationFrame(aplicar);
