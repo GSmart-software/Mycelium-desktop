@@ -878,6 +878,32 @@ export function NoteEditor({
     return () => cancelAnimationFrame(raf);
   }, [mode]);
 
+  // DEF-056: el contenedor del editor NO debe desplazarse nunca, y hay que
+  // obligarlo.
+  //
+  // Los contenedores con `overflow: hidden` no tienen barra, pero **sí se pueden
+  // desplazar**: el navegador los desplaza por su cuenta para "revelar" lo que
+  // acaba de recibir el foco o la selección, y como no hay barra, nada los
+  // devuelve. El efecto visible es que todo el contenido del editor queda
+  // corrido hacia arriba, por debajo de la barra de herramientas — que es
+  // exactamente el sintoma: la coincidencia del buscador aparece más arriba de
+  // lo visible aunque CodeMirror haya desplazado bien SU scroller.
+  //
+  // Por eso los arreglos del lado de CodeMirror no cambiaban nada: el que se
+  // movía era el contenedor, no el scroller. Se lo devuelve a cero en cuanto se
+  // detecta el desplazamiento (el evento `scroll` se emite igual, aunque no haya
+  // barra).
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const anclar = () => {
+      if (host.scrollTop !== 0) host.scrollTop = 0;
+      if (host.scrollLeft !== 0) host.scrollLeft = 0;
+    };
+    host.addEventListener("scroll", anclar);
+    return () => host.removeEventListener("scroll", anclar);
+  }, []);
+
   // Scroll sincronizado en split (HU-01 CA11)
   useEffect(() => {
     if (mode !== "split") return;
