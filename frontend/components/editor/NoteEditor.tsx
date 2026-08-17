@@ -85,17 +85,32 @@ const instanceCache = new Map<
 >();
 
 /**
- * Fracción [0,1] de lo ya desplazado en un scroller (DEF-055).
+ * Fracción [0,1] del DOCUMENTO que queda por encima del borde superior
+ * (DEF-055).
  *
  * Es la moneda común entre el scroller de CodeMirror y el del panel de lectura,
- * que miden alturas distintas del MISMO documento. No es exacto —una tabla ocupa
- * distinto renderizada que en markdown— pero es la misma aproximación que ya usa
- * el scroll sincronizado del modo dividido, y deja al lector cerca de donde
- * estaba en vez de mandarlo al principio.
+ * que miden alturas distintas del MISMO documento.
+ *
+ * Se divide por `scrollHeight` (el alto del contenido) y **no** por
+ * `scrollHeight - clientHeight` (el recorrido posible), que es lo que hace el
+ * scroll sincronizado del modo dividido. La diferencia importa cuando las dos
+ * alturas no coinciden —y nunca coinciden: una tabla o una imagen ocupan
+ * distinto renderizadas que en markdown—. Lo que hay que conservar es *qué parte
+ * del texto queda arriba*, que es una fracción del contenido; usar el recorrido
+ * mete un sesgo que crece hacia el medio del documento y hacía que la vista de
+ * edición quedara un poco más abajo que la de lectura.
+ *
+ * Sigue siendo una aproximación: exacto exigiría que el HTML del preview
+ * conservara la línea de origen de cada bloque, que hoy no la lleva.
  */
-function ratioDe(el: HTMLElement): number {
-  const recorrido = el.scrollHeight - el.clientHeight;
-  return recorrido > 0 ? el.scrollTop / recorrido : 0;
+function fraccionDe(el: HTMLElement): number {
+  return el.scrollHeight > 0 ? el.scrollTop / el.scrollHeight : 0;
+}
+
+/** Aplica una fracción de documento a un scroller, acotada a sus extremos. */
+function aplicarFraccion(el: HTMLElement, fraccion: number): void {
+  const objetivo = fraccion * el.scrollHeight;
+  el.scrollTop = Math.max(0, Math.min(objetivo, el.scrollHeight - el.clientHeight));
 }
 
 /** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
@@ -687,9 +702,9 @@ export function NoteEditor({
         const sale =
           anterior === "read" ? previewRef.current : (viewRef.current?.scrollDOM ?? null);
         if (sale) {
-          const ratio = ratioDe(sale);
-          if (next === "read" || next === "split") previewRatioPendienteRef.current = ratio;
-          else editorRatioPendienteRef.current = ratio;
+          const fraccion = fraccionDe(sale);
+          if (next === "read" || next === "split") previewRatioPendienteRef.current = fraccion;
+          else editorRatioPendienteRef.current = fraccion;
         }
       }
       setModeState(next);
@@ -840,7 +855,7 @@ export function NoteEditor({
       if (!preview || ratio === null) return;
       if (preview.scrollHeight !== altoPrevio && intentos++ < 30) {
         altoPrevio = preview.scrollHeight;
-        preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+        aplicarFraccion(preview, ratio);
         raf = requestAnimationFrame(aplicar);
       } else {
         previewScrollRef.current = preview.scrollTop;
@@ -868,7 +883,7 @@ export function NoteEditor({
       if (ratio === null) return;
       if (scroller.scrollHeight !== altoPrevio && intentos++ < 30) {
         altoPrevio = scroller.scrollHeight;
-        scroller.scrollTop = ratio * (scroller.scrollHeight - scroller.clientHeight);
+        aplicarFraccion(scroller, ratio);
         raf = requestAnimationFrame(aplicar);
       } else {
         editorRatioPendienteRef.current = null;
