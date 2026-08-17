@@ -10,7 +10,7 @@ import {
   SearchQuery,
   setSearchQuery,
 } from "@codemirror/search";
-import { EditorView } from "@codemirror/view";
+import type { EditorView } from "@codemirror/view";
 import { CaseSensitive, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUiStore } from "@/stores/uiStore";
@@ -88,56 +88,30 @@ export function SearchBar({ getView }: { getView: () => EditorView | null }) {
       if (!view) return;
       if (forward) findNext(view);
       else findPrevious(view);
-      // DEF-056: `findNext` desplaza con el `scrollIntoView` por defecto, que
-      // deja la coincidencia pegada al borde SUPERIOR del scroller — justo
-      // debajo de la barra de herramientas, que la tapa. Se vuelve a desplazar
-      // centrando: es una segunda transacción a propósito, porque la posición a
-      // centrar es la selección que acaba de dejar la búsqueda.
-      const centrar = () => {
-        const v = getView();
-        if (v) {
-          v.dispatch({
-            effects: EditorView.scrollIntoView(v.state.selection.main, { y: "center" }),
-          });
-        }
-      };
-      centrar();
-      // DIAGNÓSTICO TEMPORAL (DEF-056) — quitar cuando se identifique la causa.
-      // Compara DÓNDE CREE CodeMirror que está la coincidencia (su height-map)
-      // con dónde está de verdad (el DOM). Si difieren, el height-map está
-      // desincronizado; si coinciden, el que decide mal es el desplazamiento.
-      // Se emite como UNA cadena para que la consola no la recorte.
-      const medir = (cuando: string) => {
+      // DEF-056: el desplazamiento se calcula y se aplica a mano.
+      //
+      // Pedírselo a CodeMirror no funciona: medido en la app, tras `findNext` la
+      // coincidencia quedaba 149 px POR ENCIMA del área visible y ahí se
+      // quedaba, sin corregirse ni en el frame siguiente ni a los 300 ms. No es
+      // que calcule mal dónde está —su height-map coincide con el DOM salvo 2
+      // px— es que da por cumplido un `scrollIntoView` que no cumplió, así que ni
+      // `y: "center"` ni `scrollMargins` cambiaban nada.
+      //
+      // Como las medidas SÍ son fiables, se usan directamente: el bloque de la
+      // coincidencia se lleva al centro del scroller asignando `scrollTop`. Va en
+      // el frame siguiente para no pelear con el desplazamiento que `findNext`
+      // deja pendiente, y acotado a los extremos del documento.
+      requestAnimationFrame(() => {
         const v = getView();
         if (!v) return;
-        const pos = v.state.selection.main.head;
-        const real = v.coordsAtPos(pos);
         const sc = v.scrollDOM;
-        const r = sc.getBoundingClientRect();
-        const bloque = v.lineBlockAt(pos);
-        const host = sc.closest(".mic-editor-host") as HTMLElement | null;
-        // Dónde cree CM que está: origen del documento + altura acumulada.
-        const creeTop = v.documentTop + bloque.top;
-        const realTop = real ? real.top : NaN;
-        console.log(
-          `[DEF-056 ${cuando}] pos=${pos}` +
-            ` | real=${Math.round(realTop)} cree=${Math.round(creeTop)}` +
-            ` desfase=${Math.round(realTop - creeTop)}` +
-            ` | scrollerTop=${Math.round(r.top)} alto=${Math.round(r.height)}` +
-            ` visible=${Math.round(realTop - r.top)}` +
-            ` | scrollTop=${Math.round(sc.scrollTop)}/${Math.round(sc.scrollHeight - sc.clientHeight)}` +
-            ` | docTop=${Math.round(v.documentTop)} contentH=${Math.round(v.contentHeight)}` +
-            ` | hostScroll=${host ? Math.round(host.scrollTop) : "n/a"}`,
-        );
-      };
-      medir("inmediato");
-      requestAnimationFrame(() => medir("frame+1"));
-      setTimeout(() => medir("300ms"), 300);
-      // Y otra vez en el frame siguiente. El primer intento se calcula con el
-      // height-map que haya en ese momento, y desde que hay widgets de alto
-      // variable (tablas y propiedades) puede estar desactualizado: apuntaría a
-      // un píxel viejo. Para el frame siguiente CodeMirror ya volvió a medir.
-      requestAnimationFrame(centrar);
+        const bloque = v.lineBlockAt(v.state.selection.main.head);
+        // Offset del inicio del documento dentro del contenido del scroller
+        // (el padding del editor), deducido de lo ya medido en vez de fijarlo.
+        const origen = v.documentTop - sc.getBoundingClientRect().top + sc.scrollTop;
+        const centrado = origen + bloque.top - (sc.clientHeight - bloque.height) / 2;
+        sc.scrollTop = Math.max(0, Math.min(centrado, sc.scrollHeight - sc.clientHeight));
+      });
       const sq = new SearchQuery({
         search: query,
         caseSensitive,
