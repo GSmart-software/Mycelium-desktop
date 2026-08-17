@@ -384,26 +384,27 @@ export function NoteEditor({
             : undefined,
           extensions: [
             // DIAGNÓSTICO TEMPORAL (DEF-031) — quitar al identificar la causa.
-            // Al hacer clic compara TRES cosas: dónde clicaste, dónde cae el
-            // cursor según CodeMirror, y dónde está de verdad esa posición en
-            // el DOM. Si `caida` no es ~0, el clic aterriza mal; si `mapa` no
-            // es ~0, el height-map no coincide con el layout real.
+            // `dentro` es la medida que importa: dice si el punto donde clicaste
+            // cae DENTRO de la línea a la que fue a parar el cursor. Si es `si`,
+            // el clic aterrizó bien por más que los píxeles no coincidan (el
+            // borde superior de una línea está por encima del clic por
+            // definición). `mapa` compara el height-map con el DOM.
             EditorView.domEventHandlers({
               mousedown(evento, vista) {
                 const pos = vista.posAtCoords({ x: evento.clientX, y: evento.clientY });
                 if (pos === null) return false;
                 const real = vista.coordsAtPos(pos);
                 const sc = vista.scrollDOM;
-                const caja = sc.getBoundingClientRect();
                 const cree = vista.documentTop + vista.lineBlockAt(pos).top;
+                const dentro =
+                  real && evento.clientY >= real.top - 1 && evento.clientY <= real.bottom + 1;
                 console.log(
-                  `[DEF-031] clicY=${Math.round(evento.clientY)}` +
-                    ` posY=${real ? Math.round(real.top) : "?"}` +
-                    ` caida=${real ? Math.round(real.top - evento.clientY) : "?"}` +
+                  `[DEF-031] dentro=${dentro ? "si" : "NO"}` +
+                    ` clicY=${Math.round(evento.clientY)}` +
+                    ` linea=[${real ? Math.round(real.top) : "?"},${real ? Math.round(real.bottom) : "?"}]` +
                     ` | mapa=${real ? Math.round(real.top - cree) : "?"}` +
-                    ` | linea=${vista.state.doc.lineAt(pos).number}` +
-                    ` scrollerTop=${Math.round(caja.top)}` +
-                    ` scrollTop=${Math.round(sc.scrollTop)}` +
+                    ` | nLinea=${vista.state.doc.lineAt(pos).number}/${vista.state.doc.lines}` +
+                    ` scrollTop=${Math.round(sc.scrollTop)}/${Math.round(sc.scrollHeight - sc.clientHeight)}` +
                     ` | zoom=${window.devicePixelRatio}`,
                 );
                 return false;
