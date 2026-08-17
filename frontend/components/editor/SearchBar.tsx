@@ -10,7 +10,7 @@ import {
   SearchQuery,
   setSearchQuery,
 } from "@codemirror/search";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { CaseSensitive, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -138,29 +138,14 @@ export function SearchBar({
       if (!view) return;
       if (forward) findNext(view);
       else findPrevious(view);
-      // DEF-056: el desplazamiento se calcula y se aplica a mano.
+      // DEF-056: la coincidencia se centra, que es lo que se pidio — con la
+      // estrategia por defecto de `findNext` queda pegada al borde superior.
       //
-      // Pedírselo a CodeMirror no funciona: medido en la app, tras `findNext` la
-      // coincidencia quedaba 149 px POR ENCIMA del área visible y ahí se
-      // quedaba, sin corregirse ni en el frame siguiente ni a los 300 ms. No es
-      // que calcule mal dónde está —su height-map coincide con el DOM salvo 2
-      // px— es que da por cumplido un `scrollIntoView` que no cumplió, así que ni
-      // `y: "center"` ni `scrollMargins` cambiaban nada.
-      //
-      // Como las medidas SÍ son fiables, se usan directamente: el bloque de la
-      // coincidencia se lleva al centro del scroller asignando `scrollTop`. Va en
-      // el frame siguiente para no pelear con el desplazamiento que `findNext`
-      // deja pendiente, y acotado a los extremos del documento.
-      requestAnimationFrame(() => {
-        const v = getView();
-        if (!v) return;
-        const sc = v.scrollDOM;
-        const bloque = v.lineBlockAt(v.state.selection.main.head);
-        // Offset del inicio del documento dentro del contenido del scroller
-        // (el padding del editor), deducido de lo ya medido en vez de fijarlo.
-        const origen = v.documentTop - sc.getBoundingClientRect().top + sc.scrollTop;
-        const centrado = origen + bloque.top - (sc.clientHeight - bloque.height) / 2;
-        sc.scrollTop = Math.max(0, Math.min(centrado, sc.scrollHeight - sc.clientHeight));
+      // Esto se calculaba a mano porque pedirselo a CodeMirror no surtia efecto.
+      // La causa era el DEF-059 —el panel oculto envenenaba el margen de scroll—
+      // y esta corregida, asi que vuelve a bastar su propia API.
+      view.dispatch({
+        effects: EditorView.scrollIntoView(view.state.selection.main, { y: "center" }),
       });
       const sq = new SearchQuery({
         search: query,
