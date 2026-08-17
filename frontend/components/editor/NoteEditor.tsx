@@ -383,6 +383,32 @@ export function NoteEditor({
               }
             : undefined,
           extensions: [
+            // DIAGNÓSTICO TEMPORAL (DEF-031) — quitar al identificar la causa.
+            // Al hacer clic compara TRES cosas: dónde clicaste, dónde cae el
+            // cursor según CodeMirror, y dónde está de verdad esa posición en
+            // el DOM. Si `caida` no es ~0, el clic aterriza mal; si `mapa` no
+            // es ~0, el height-map no coincide con el layout real.
+            EditorView.domEventHandlers({
+              mousedown(evento, vista) {
+                const pos = vista.posAtCoords({ x: evento.clientX, y: evento.clientY });
+                if (pos === null) return false;
+                const real = vista.coordsAtPos(pos);
+                const sc = vista.scrollDOM;
+                const caja = sc.getBoundingClientRect();
+                const cree = vista.documentTop + vista.lineBlockAt(pos).top;
+                console.log(
+                  `[DEF-031] clicY=${Math.round(evento.clientY)}` +
+                    ` posY=${real ? Math.round(real.top) : "?"}` +
+                    ` caida=${real ? Math.round(real.top - evento.clientY) : "?"}` +
+                    ` | mapa=${real ? Math.round(real.top - cree) : "?"}` +
+                    ` | linea=${vista.state.doc.lineAt(pos).number}` +
+                    ` scrollerTop=${Math.round(caja.top)}` +
+                    ` scrollTop=${Math.round(sc.scrollTop)}` +
+                    ` | zoom=${window.devicePixelRatio}`,
+                );
+                return false;
+              },
+            }),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
             keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
