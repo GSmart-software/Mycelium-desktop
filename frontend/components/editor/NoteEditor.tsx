@@ -790,6 +790,12 @@ export function NoteEditor({
       if (next === "split" || next === "read") {
         setPreviewHtml(renderNota(contentRef.current, true));
       }
+      // El foco se queda en el boton del modo que se acaba de pulsar, asi que
+      // las flechas mueven el foco entre botones en vez de mover el cursor y
+      // hay que volver a hacer clic en el texto. Se devuelve al editor en
+      // cuanto vuelve a estar visible; en lectura no, porque ahi esta oculto y
+      // enfocarlo desplazaria el contenedor.
+      if (next !== "read") requestAnimationFrame(() => viewRef.current?.focus());
     },
     [notaId, openByTitle, noteExists],
   );
