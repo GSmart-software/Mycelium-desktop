@@ -415,6 +415,8 @@ export function NoteEditor({
                 console.log(
                   `[DEF-031] visible=${porArriba >= 0 && porAbajo <= 0 ? "si" : "NO"}` +
                     ` fuera=${porArriba < 0 ? porArriba : porAbajo > 0 ? porAbajo : 0}` +
+                    ` | mapa=${Math.round(c.top - (vista.documentTop + vista.lineBlockAt(cabeza).top))}` +
+                    ` altoBloque=${Math.round(vista.lineBlockAt(cabeza).height)}` +
                     ` | nLinea=${vista.state.doc.lineAt(cabeza).number}` +
                     ` scrollTop=${Math.round(sc.scrollTop)}` +
                     ` | userEvent=${actualizacion.transactions.map((t) => t.annotation(Transaction.userEvent) ?? "-").join(",")}`,
