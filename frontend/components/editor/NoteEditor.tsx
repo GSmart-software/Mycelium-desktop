@@ -384,29 +384,39 @@ export function NoteEditor({
             : undefined,
           extensions: [
             // DIAGNÓSTICO TEMPORAL (DEF-031) — quitar al identificar la causa.
-            // El clic funciona; lo que falla es MOVERSE. Así que se mide en el
-            // cambio de selección: tras dejar que CodeMirror haga su
-            // desplazamiento, ¿el cursor quedó dentro de lo visible?
-            //   visible=NO  → el editor no lo siguió, o se pasó de largo
-            //   fuera=<px>  → cuánto quedó por encima (negativo) o por debajo
+            // Lo medido hasta acá: el cursor YA era visible y aun así el scroll
+            // saltó 562 px, o sea que el desplazamiento no lo pidió CodeMirror.
+            // Esto delata QUIÉN lo movió: ante un salto grande imprime la pila
+            // de llamadas, que en un scroll programático nombra al culpable.
             EditorView.updateListener.of((actualizacion) => {
-              if (!actualizacion.selectionSet) return;
               const vista = actualizacion.view;
+              const sc = vista.scrollDOM;
+              const marca = sc as HTMLElement & { __micUltimo?: number; __micEspia?: boolean };
+              if (!marca.__micEspia) {
+                marca.__micEspia = true;
+                marca.__micUltimo = sc.scrollTop;
+                sc.addEventListener("scroll", () => {
+                  const antes = marca.__micUltimo ?? 0;
+                  const ahora = sc.scrollTop;
+                  marca.__micUltimo = ahora;
+                  if (Math.abs(ahora - antes) < 60) return;
+                  console.log(`[DEF-031 salto] ${Math.round(antes)} -> ${Math.round(ahora)}`);
+                  console.trace("[DEF-031] quién movió el scroll");
+                });
+              }
+              if (!actualizacion.selectionSet) return;
               requestAnimationFrame(() => {
                 const cabeza = vista.state.selection.main.head;
                 const c = vista.coordsAtPos(cabeza);
-                const caja = vista.scrollDOM.getBoundingClientRect();
+                const caja = sc.getBoundingClientRect();
                 if (!c) return;
                 const porArriba = Math.round(c.top - caja.top);
                 const porAbajo = Math.round(c.bottom - caja.bottom);
-                const visible = porArriba >= 0 && porAbajo <= 0;
                 console.log(
-                  `[DEF-031] visible=${visible ? "si" : "NO"}` +
+                  `[DEF-031] visible=${porArriba >= 0 && porAbajo <= 0 ? "si" : "NO"}` +
                     ` fuera=${porArriba < 0 ? porArriba : porAbajo > 0 ? porAbajo : 0}` +
-                    ` | cursorY=[${Math.round(c.top)},${Math.round(c.bottom)}]` +
-                    ` viewport=[${Math.round(caja.top)},${Math.round(caja.bottom)}]` +
-                    ` | nLinea=${vista.state.doc.lineAt(cabeza).number}/${vista.state.doc.lines}` +
-                    ` scrollTop=${Math.round(vista.scrollDOM.scrollTop)}` +
+                    ` | nLinea=${vista.state.doc.lineAt(cabeza).number}` +
+                    ` scrollTop=${Math.round(sc.scrollTop)}` +
                     ` | userEvent=${actualizacion.transactions.map((t) => t.annotation(Transaction.userEvent) ?? "-").join(",")}`,
                 );
               });
