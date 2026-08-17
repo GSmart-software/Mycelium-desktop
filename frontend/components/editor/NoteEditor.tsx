@@ -7,7 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
-import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
+import { Compartment, EditorState, Transaction, type StateEffect } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -384,31 +384,32 @@ export function NoteEditor({
             : undefined,
           extensions: [
             // DIAGNÓSTICO TEMPORAL (DEF-031) — quitar al identificar la causa.
-            // `dentro` es la medida que importa: dice si el punto donde clicaste
-            // cae DENTRO de la línea a la que fue a parar el cursor. Si es `si`,
-            // el clic aterrizó bien por más que los píxeles no coincidan (el
-            // borde superior de una línea está por encima del clic por
-            // definición). `mapa` compara el height-map con el DOM.
-            EditorView.domEventHandlers({
-              mousedown(evento, vista) {
-                const pos = vista.posAtCoords({ x: evento.clientX, y: evento.clientY });
-                if (pos === null) return false;
-                const real = vista.coordsAtPos(pos);
-                const sc = vista.scrollDOM;
-                const cree = vista.documentTop + vista.lineBlockAt(pos).top;
-                const dentro =
-                  real && evento.clientY >= real.top - 1 && evento.clientY <= real.bottom + 1;
+            // El clic funciona; lo que falla es MOVERSE. Así que se mide en el
+            // cambio de selección: tras dejar que CodeMirror haga su
+            // desplazamiento, ¿el cursor quedó dentro de lo visible?
+            //   visible=NO  → el editor no lo siguió, o se pasó de largo
+            //   fuera=<px>  → cuánto quedó por encima (negativo) o por debajo
+            EditorView.updateListener.of((actualizacion) => {
+              if (!actualizacion.selectionSet) return;
+              const vista = actualizacion.view;
+              requestAnimationFrame(() => {
+                const cabeza = vista.state.selection.main.head;
+                const c = vista.coordsAtPos(cabeza);
+                const caja = vista.scrollDOM.getBoundingClientRect();
+                if (!c) return;
+                const porArriba = Math.round(c.top - caja.top);
+                const porAbajo = Math.round(c.bottom - caja.bottom);
+                const visible = porArriba >= 0 && porAbajo <= 0;
                 console.log(
-                  `[DEF-031] dentro=${dentro ? "si" : "NO"}` +
-                    ` clicY=${Math.round(evento.clientY)}` +
-                    ` linea=[${real ? Math.round(real.top) : "?"},${real ? Math.round(real.bottom) : "?"}]` +
-                    ` | mapa=${real ? Math.round(real.top - cree) : "?"}` +
-                    ` | nLinea=${vista.state.doc.lineAt(pos).number}/${vista.state.doc.lines}` +
-                    ` scrollTop=${Math.round(sc.scrollTop)}/${Math.round(sc.scrollHeight - sc.clientHeight)}` +
-                    ` | zoom=${window.devicePixelRatio}`,
+                  `[DEF-031] visible=${visible ? "si" : "NO"}` +
+                    ` fuera=${porArriba < 0 ? porArriba : porAbajo > 0 ? porAbajo : 0}` +
+                    ` | cursorY=[${Math.round(c.top)},${Math.round(c.bottom)}]` +
+                    ` viewport=[${Math.round(caja.top)},${Math.round(caja.bottom)}]` +
+                    ` | nLinea=${vista.state.doc.lineAt(cabeza).number}/${vista.state.doc.lines}` +
+                    ` scrollTop=${Math.round(vista.scrollDOM.scrollTop)}` +
+                    ` | userEvent=${actualizacion.transactions.map((t) => t.annotation(Transaction.userEvent) ?? "-").join(",")}`,
                 );
-                return false;
-              },
+              });
             }),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
