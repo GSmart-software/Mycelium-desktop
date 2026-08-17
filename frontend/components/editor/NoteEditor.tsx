@@ -392,7 +392,17 @@ export function NoteEditor({
             autoPairs(() => usePreferencesStore.getState().prefs.autoCloseBrackets),
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.
-            search({ createPanel: () => ({ dom: document.createElement("div") }) }),
+            // `top: true` NO es cosmetico: sin el, CodeMirror clasifica el panel
+            // como INFERIOR, y PanelGroup.scrollMargin() calcula la rama de abajo
+            // como min(innerHeight, scrollDOM.bottom) - panel.top. Con el panel
+            // oculto por CSS su rect es todo ceros, asi que ese margen pasa a
+            // valer la altura de la VENTANA en vez de 0: el editor cree que hay
+            // 700 px tapandolo por abajo, infla el rectangulo objetivo y aparca
+            // el cursor por encima del borde al moverse con las flechas
+            // (DEF-059, y la misma causa del DEF-056 y del DEF-031 al arrastrar).
+            // La rama superior si tolera el rect en ceros: termina en un
+            // Math.max(0, ...) sobre un negativo.
+            search({ createPanel: () => ({ dom: document.createElement("div"), top: true }) }),
             markdown({ extensions: GFM, codeLanguages: languages }),
             // Autocompletado de wikilinks al escribir dentro de `[[` (estilo
             // Obsidian); inserta la ruta de carpeta si el nombre es ambiguo.
