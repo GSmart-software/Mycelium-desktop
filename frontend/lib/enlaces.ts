@@ -609,3 +609,79 @@ export function conDescartes(
   const nuevas = descartes.filter((d) => !vistas.has(d.forma.toLowerCase()));
   return { ...lexico, descartadas: [...lexico.descartadas, ...nuevas] };
 }
+
+// ── Reescritura de enlaces al renombrar (`FUN-M-08`) ─────────────────────────
+
+/**
+ * Bloques de código cercados, donde NO se reescribe nada: ahí un `[[x]]` está
+ * mostrando la sintaxis, no enlazando.
+ *
+ * Es un juego de zonas distinto del de `zonasProtegidas`: aquella protege los
+ * wikilinks existentes porque su trabajo es CREARLOS; acá los wikilinks
+ * existentes son justamente el objetivo.
+ */
+function zonasDeCodigo(texto: string): Rango[] {
+  const zonas: Rango[] = [];
+  const cercado = /^[ \t]*(```|~~~)[^\n]*\n[\s\S]*?^[ \t]*\1[^\n]*$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = cercado.exec(texto)) !== null) {
+    zonas.push({ desde: m.index, hasta: m.index + m[0].length });
+  }
+  return zonas;
+}
+
+/** `[[destino]]`, `[[destino|alias]]`, `![[destino]]`, con ancla `#` o `^`. */
+const RE_ENLACE_PARTIDO = /(!?)\[\[([^\[\]\n]+)\]\]/g;
+
+/**
+ * Cambia el destino de los `[[enlaces]]` que apuntaban a `viejo` para que
+ * apunten a `nuevo` (`FUN-M-08`).
+ *
+ * Conserva **todo** lo demás del enlace: el `!` de un embed, el alias tras la
+ * barra, y el ancla de sección (`#`) o de bloque (`^`). Solo se toca el tramo
+ * del destino, que es lo único que el renombrado invalida.
+ *
+ * La comparación **no distingue mayúsculas**, igual que la resolución de
+ * wikilinks: `[[mi nota]]` y `[[Mi Nota]]` apuntan a la misma.
+ *
+ * El frontmatter **sí** se reescribe: un wikilink en una propiedad es una
+ * referencia de verdad, y romperlo sería tan malo como romper uno del cuerpo.
+ *
+ * Puro y sin imports, como el resto del módulo.
+ */
+export function reescribirEnlaces(
+  texto: string,
+  viejo: string,
+  nuevo: string,
+): { texto: string; cambios: number } {
+  const buscado = viejo.trim().toLowerCase();
+  if (buscado === "" || viejo.trim() === nuevo.trim()) return { texto, cambios: 0 };
+
+  const codigo = zonasDeCodigo(texto);
+  const enCodigo = (i: number) => codigo.some((z) => i >= z.desde && i < z.hasta);
+
+  let cambios = 0;
+  RE_ENLACE_PARTIDO.lastIndex = 0;
+  const salida = texto.replace(RE_ENLACE_PARTIDO, (todo, embed: string, dentro: string, pos: number) => {
+    if (enCodigo(pos)) return todo;
+
+    // `destino#seccion|alias`: el alias corta primero, después el ancla.
+    const barra = dentro.indexOf("|");
+    const destinoYAncla = barra === -1 ? dentro : dentro.slice(0, barra);
+    const alias = barra === -1 ? "" : dentro.slice(barra);
+
+    const corte = destinoYAncla.search(/[#^]/);
+    const destino = corte === -1 ? destinoYAncla : destinoYAncla.slice(0, corte);
+    const ancla = corte === -1 ? "" : destinoYAncla.slice(corte);
+
+    if (destino.trim().toLowerCase() !== buscado) return todo;
+
+    cambios++;
+    // Se respeta el espaciado que hubiera alrededor del destino.
+    const izq = /^\s*/.exec(destino)?.[0] ?? "";
+    const der = /\s*$/.exec(destino)?.[0] ?? "";
+    return embed + "[[" + izq + nuevo.trim() + der + ancla + alias + "]]";
+  });
+
+  return { texto: salida, cambios };
+}

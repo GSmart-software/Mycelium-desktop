@@ -24,6 +24,7 @@ const {
   diagnosticar,
   escribirLexico,
   leerLexico,
+  reescribirEnlaces,
   zonasProtegidas,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
@@ -389,4 +390,69 @@ test("conDescartes no duplica", () => {
     { forma: "Nuevo", motivo: "x" },
   ]);
   assert.equal(nuevo.descartadas.length, 2);
+});
+
+// ── Reescritura al renombrar (FUN-M-08) ───────────────────────────────────────
+
+test("reescribe el enlace simple", () => {
+  const r = reescribirEnlaces("ver [[Nota vieja]] acá", "Nota vieja", "Nota nueva");
+  assert.equal(r.texto, "ver [[Nota nueva]] acá");
+  assert.equal(r.cambios, 1);
+});
+
+test("conserva el alias, el embed y el ancla", () => {
+  const t = "[[Vieja|como la llamo]] y ![[Vieja]] y [[Vieja#Sección]] y [[Vieja^bloque]]";
+  const r = reescribirEnlaces(t, "Vieja", "Nueva");
+  assert.equal(
+    r.texto,
+    "[[Nueva|como la llamo]] y ![[Nueva]] y [[Nueva#Sección]] y [[Nueva^bloque]]",
+  );
+  assert.equal(r.cambios, 4);
+});
+
+test("el ancla y el alias juntos se conservan en orden", () => {
+  const r = reescribirEnlaces("[[Vieja#Uno|alias]]", "Vieja", "Nueva");
+  assert.equal(r.texto, "[[Nueva#Uno|alias]]");
+});
+
+test("no distingue mayúsculas, como la resolución de wikilinks", () => {
+  const r = reescribirEnlaces("[[mi NOTA]]", "Mi Nota", "Otra");
+  assert.equal(r.texto, "[[Otra]]");
+});
+
+test("no toca enlaces a otras notas", () => {
+  const t = "[[Vieja]] y [[Viejaza]] y [[Otra]]";
+  const r = reescribirEnlaces(t, "Vieja", "Nueva");
+  assert.equal(r.texto, "[[Nueva]] y [[Viejaza]] y [[Otra]]");
+  assert.equal(r.cambios, 1);
+});
+
+test("no toca lo que está dentro de un bloque de código", () => {
+  const t = "[[Vieja]]\n\n```md\n[[Vieja]]\n```\n\n[[Vieja]]";
+  const r = reescribirEnlaces(t, "Vieja", "Nueva");
+  assert.equal(r.cambios, 2);
+  assert.ok(r.texto.includes("```md\n[[Vieja]]\n```"));
+});
+
+test("sí reescribe dentro del frontmatter: una propiedad puede enlazar", () => {
+  const t = "---\nrelacionada: [[Vieja]]\n---\n\ncuerpo";
+  const r = reescribirEnlaces(t, "Vieja", "Nueva");
+  assert.equal(r.texto, "---\nrelacionada: [[Nueva]]\n---\n\ncuerpo");
+});
+
+test("respeta el espaciado interno del destino", () => {
+  const r = reescribirEnlaces("[[ Vieja ]]", "Vieja", "Nueva");
+  assert.equal(r.texto, "[[ Nueva ]]");
+});
+
+test("renombrar al mismo nombre no cambia nada", () => {
+  const r = reescribirEnlaces("[[Vieja]]", "Vieja", "Vieja");
+  assert.equal(r.cambios, 0);
+});
+
+test("es idempotente: aplicarlo dos veces no cambia más", () => {
+  const uno = reescribirEnlaces("[[Vieja]] [[Vieja]]", "Vieja", "Nueva");
+  const dos = reescribirEnlaces(uno.texto, "Vieja", "Nueva");
+  assert.equal(dos.cambios, 0);
+  assert.equal(dos.texto, uno.texto);
 });
