@@ -124,13 +124,22 @@ pub fn run() {
     if !tauri::is_dev() {
         use tauri::Emitter;
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            let destino = ventana_para_abrir(app);
             let archivos: Vec<OpenedFile> =
                 args_de_nota(&argv).iter().filter_map(|p| leer_archivo(p)).collect();
-            if let Some(win) = destino {
-                if !archivos.is_empty() {
-                    let _ = win.emit("open-files", archivos);
-                }
+
+            if archivos.is_empty() {
+                // Doble clic en el acceso directo con Mycelium ya abierto: se
+                // abre una ventana NUEVA (`DEF-073`). Levantar la que ya estaba
+                // era lo que hacia antes, y contradecia lo que `FUN-L-16`
+                // promete: varios vaults a la vez, uno por ventana.
+                ventanas::abrir_ventana_de_seleccion(app);
+                return;
+            }
+
+            // Con archivos en el argv es una asociacion de archivo: la nota va a
+            // la ventana que este mirando el usuario, no a una ventana nueva.
+            if let Some(win) = ventana_para_abrir(app) {
+                let _ = win.emit("open-files", archivos);
                 let _ = win.unminimize();
                 let _ = win.set_focus();
             }
