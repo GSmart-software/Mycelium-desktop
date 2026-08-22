@@ -208,12 +208,3 @@
 .rowOtro:hover {
   opacity: 0.85;
 }
-
-/* La extensión, también en las notas que no son markdown */
-.ext {
-  flex-shrink: 0;
-  margin-left: 0.3rem;
-  color: var(--mic-text-muted);
-  font-size: 0.72rem;
-  font-family: var(--mic-font-mono);
-}
