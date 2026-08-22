@@ -176,7 +176,15 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       return true;
     } catch (error) {
       console.error("[vault] fallo al abrir el vault:", error);
-      const message = error instanceof Error ? error.message : "Error desconocido";
+      // `invoke` de Tauri rechaza con un STRING, no con un `Error`: sin esta
+      // rama, el motivo real —«Ese vault ya está abierto en otra ventana»— se
+      // perdía y el usuario veía «Error desconocido».
+      const message =
+        typeof error === "string"
+          ? error
+          : error instanceof Error
+            ? error.message
+            : "Error desconocido";
       set({
         abriendo: false,
         rutaAbriendo: null,

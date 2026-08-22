@@ -97,7 +97,11 @@ export async function ponerTituloDeVentana(ruta: string | null): Promise<void> {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const titulo = ruta === null ? "Mycelium" : `Mycelium - ${nombreDeVault(ruta)}`;
     await getCurrentWindow().setTitle(titulo);
-  } catch {
+  } catch (error) {
     // El título es cosmético: si falla, no se arrastra el fallo al arranque.
+    // Pero se avisa, porque el modo de fallo real fue silencioso: faltaba
+    // `core:window:allow-set-title` en la capability y no pasaba nada, sin
+    // ninguna pista de por qué.
+    console.warn("[ventana] no se pudo poner el título:", error);
   }
 }
