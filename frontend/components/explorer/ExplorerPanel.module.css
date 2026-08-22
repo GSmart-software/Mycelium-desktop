@@ -198,23 +198,13 @@
 }
 
 /* ── Archivos que Mycelium lista pero no indexa (FUN-S-03) ───────────────
-   Atenuados y con la extensión a la vista: la diferencia con una nota tiene
-   que verse sin leer el nombre. El cursor no es de puntero porque todavía no
-   se abren (FUN-L-11). */
+   Atenuados: la diferencia con una nota tiene que verse sin leer el nombre.
+   Desde `FUN-L-11` sí se abren —en un visor de solo lectura—, así que el
+   cursor vuelve a ser el de una fila que responde al clic. */
 .rowOtro {
   opacity: 0.62;
-  cursor: default;
 }
 
 .rowOtro:hover {
   opacity: 0.85;
-}
-
-/* La extensión, también en las notas que no son markdown */
-.ext {
-  flex-shrink: 0;
-  margin-left: 0.3rem;
-  color: var(--mic-text-muted);
-  font-size: 0.72rem;
-  font-family: var(--mic-font-mono);
 }

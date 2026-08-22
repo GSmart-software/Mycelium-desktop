@@ -9,6 +9,8 @@ import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { TerminalView } from "@/components/terminal/TerminalView";
+import { VisorArchivo } from "@/components/visor/VisorArchivo";
+import { esTabArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import {
   ENLACES_TAB_ID,
@@ -59,6 +61,12 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <RelinkView key={activeTab.id} />
         ) : activeTab && esTabTerminal(activeTab.notaId) ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
+        ) : activeTab && esTabArchivo(activeTab.notaId) ? (
+          <VisorArchivo
+            key={activeTab.notaId}
+            ruta={rutaDeTabArchivo(activeTab.notaId)}
+            isActivePane={isActive}
+          />
         ) : activeTab && activeTipo === "excalidraw" ? (
           <ExcalidrawFileEditor key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab && activeTipo === "base" ? (

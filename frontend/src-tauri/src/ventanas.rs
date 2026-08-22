@@ -42,6 +42,20 @@ fn ventana_con(state: &VentanasState, ruta: &str) -> Option<String> {
 /// Anota que esta ventana abrió ese vault. Falla si lo tiene **otra**, para que
 /// el frontend pueda decirlo en vez de terminar con dos índices sobre la misma
 /// carpeta.
+///
+/// Además **abre el protocolo `asset:` sobre esa carpeta** (`FUN-L-11`): es lo
+/// que deja que el visor pinte un PDF o una imagen del vault con una URL, en vez
+/// de traerse los bytes por IPC. El ámbito se declara acá y no en
+/// `tauri.conf.json` porque la carpeta la elige el usuario en tiempo de
+/// ejecución; y se acota a **esa** carpeta a propósito: abrirlo entero
+/// equivaldría a dejar que cualquier página del webview lea el disco.
+///
+/// > [!info] El ámbito es de la app, no de la ventana
+/// > Con varios vaults abiertos (`FUN-L-16`) quedan permitidas todas sus
+/// > carpetas, no solo la de esta ventana. Es aceptable —siguen siendo carpetas
+/// > que el usuario abrió— y la alternativa (revocar al cerrar) no existe: el
+/// > `forbid` del scope tiene prioridad sobre el `allow`, así que prohibir una
+/// > carpeta al cerrarla impediría volver a abrirla en toda la corrida.
 #[tauri::command]
 pub fn registrar_vault(
     ventana: tauri::Window,
@@ -54,6 +68,11 @@ pub fn registrar_vault(
             return Err("Ese vault ya está abierto en otra ventana.".to_string());
         }
     }
+    ventana
+        .app_handle()
+        .asset_protocol_scope()
+        .allow_directory(&ruta, true)
+        .map_err(|e| format!("No se pudo habilitar el acceso a la carpeta del vault: {e}"))?;
     state
         .0
         .lock()

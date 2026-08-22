@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -64,6 +65,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     if (esTabTerminal(notaId)) {
       return sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal";
     }
+    // Un archivo que no es nota (`FUN-L-11`): su nombre viene de la ruta, no
+    // del índice — no tiene fila en `notas` y nunca la va a tener.
+    if (esTabArchivo(notaId)) return nombreDeRuta(rutaDeTabArchivo(notaId));
     return notas.find((n) => n.id === notaId)?.titulo ?? "…";
   }
 
@@ -85,6 +89,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
     if (tab.notaId === ENLACES_TAB_ID) return "Referencias del vault";
     if (esTabTerminal(tab.notaId)) return titleOf(tab);
+    // La ruta relativa completa: es lo único que ubica al archivo, porque no
+    // está en el árbol de carpetas del índice.
+    if (esTabArchivo(tab.notaId)) return rutaDeTabArchivo(tab.notaId);
     const nota = notas.find((n) => n.id === tab.notaId);
     if (!nota) return "";
     const parts: string[] = [];

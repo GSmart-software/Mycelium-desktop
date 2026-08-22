@@ -30,11 +30,14 @@ export function SearchBar({
   getView,
   getPreview,
   modoLectura,
+  placeholder = "Buscar en la nota…",
 }: {
   getView: () => EditorView | null;
   /** Panel de la vista de lectura, donde se busca cuando el editor no se ve. */
   getPreview: () => HTMLElement | null;
   modoLectura: boolean;
+  /** Texto del campo. Lo cambia el visor de archivos (`FUN-L-11`), que no abre notas. */
+  placeholder?: string;
 }) {
   const open = useUiStore((s) => s.searchInNoteOpen);
   const setOpen = useUiStore((s) => s.setSearchInNoteOpen);
@@ -182,7 +185,7 @@ export function SearchBar({
         <input
           ref={inputRef}
           className={styles.input}
-          placeholder="Buscar en la nota…"
+          placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
