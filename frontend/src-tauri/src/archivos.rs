@@ -202,6 +202,8 @@ fn recorrer_meta(
     dir: &Path,
     base: &Path,
     patrones: &[crate::mycignore::Patron],
+    incluir: &dyn Fn(&Path) -> bool,
+    etiqueta: &dyn Fn(&Path) -> String,
     out: &mut Vec<ArchivoMeta>,
 ) -> Result<(), String> {
     let entradas =
@@ -217,14 +219,14 @@ fn recorrer_meta(
             if crate::mycignore::ignorada(&relativa, true, patrones) {
                 continue;
             }
-            recorrer_meta(&ruta, base, patrones, out)?;
-        } else if es_importable(&ruta) {
+            recorrer_meta(&ruta, base, patrones, incluir, etiqueta, out)?;
+        } else if incluir(&ruta) {
             let relativa = rel_posix(base, &ruta)?;
             if crate::mycignore::ignorada(&relativa, false, patrones) {
                 continue;
             }
             let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
-            out.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta) });
+            out.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: etiqueta(&ruta) });
         }
     }
     Ok(())
@@ -289,7 +291,38 @@ pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> 
     }
     let patrones = crate::mycignore::cargar(&base);
     let mut out = Vec::new();
-    recorrer_meta(&base, &base, &patrones, &mut out)?;
+    recorrer_meta(&base, &base, &patrones, &es_importable, &tipo_de, &mut out)?;
+    Ok(out)
+}
+
+/// Extensión en minúsculas, sin el punto. Cadena vacía si no tiene.
+fn extension_de(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+/// Los archivos del vault que Mycelium **no** indexa: un PDF, una imagen, un
+/// `.txt`, código.
+///
+/// Hasta ahora no existían para la app —no se indexaban y tampoco se listaban—,
+/// así que en el explorador el vault se veía más vacío de lo que está
+/// (`FUN-S-03`). Esto los hace **visibles**; abrirlos es otra cosa (`FUN-L-11`).
+///
+/// Comparte el recorrido con `listar_archivos_meta` a propósito: con dos
+/// walkers, el `.mycignore` y las carpetas ocultas se aplicarían distinto en
+/// cada uno en cuanto alguien tocara solo uno. El `tipo` de cada entrada es su
+/// extensión, que es justo lo que el explorador necesita mostrar.
+#[tauri::command]
+pub fn listar_otros_archivos(origen: String) -> Result<Vec<ArchivoMeta>, String> {
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let patrones = crate::mycignore::cargar(&base);
+    let mut out = Vec::new();
+    recorrer_meta(&base, &base, &patrones, &|p| !es_importable(p), &extension_de, &mut out)?;
     Ok(out)
 }
 

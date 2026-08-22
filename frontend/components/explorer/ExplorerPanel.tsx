@@ -27,6 +27,7 @@ import {
   Shapes,
   Upload,
   Users,
+  FileQuestion,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +37,7 @@ import { baseInicial } from "@/lib/bases";
 import { canvasInicial } from "@/lib/canvas";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { listarOtrosArchivos, type OtroArchivo } from "@/lib/otrosArchivos";
 import { crearTerminal } from "@/lib/terminal";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
@@ -190,6 +192,34 @@ export function ExplorerPanel() {
     }
     return map;
   }, [store.carpetas]);
+
+  // FUN-S-03: los archivos que Mycelium no indexa (PDF, imágenes, código…).
+  // Se piden aparte y NO se mezclan con `store.notas`: meterlos ahí los metería
+  // también en el autocompletado de `[[`, en la búsqueda y en el grafo, que es
+  // justo lo que no son. Se recargan cuando cambia el árbol.
+  const [otros, setOtros] = useState<OtroArchivo[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    void listarOtrosArchivos(rutaVault ?? "").then((lista) => {
+      if (vivo) setOtros(lista);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [rutaVault, store.notas, store.carpetas]);
+
+  const otrosPorCarpeta = useMemo(() => {
+    const map = new Map<string | null, OtroArchivo[]>();
+    for (const otro of otros) {
+      const list = map.get(otro.carpetaId) ?? [];
+      list.push(otro);
+      map.set(otro.carpetaId, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.nombre.localeCompare(b.nombre, undefined, { sensitivity: "base" }));
+    }
+    return map;
+  }, [otros]);
 
   const notasPorCarpeta = useMemo(() => {
     const map = new Map<string | null, TreeNota[]>();
@@ -566,6 +596,9 @@ export function ExplorerPanel() {
             {(notasPorCarpeta.get(carpeta.id) ?? []).map((nota) =>
               renderNota(nota, depth + 1),
             )}
+            {(otrosPorCarpeta.get(carpeta.id) ?? []).map((otro) => (
+              <OtroRow key={otro.ruta} otro={otro} depth={depth + 1} />
+            ))}
           </div>
         )}
           </>
@@ -758,6 +791,9 @@ export function ExplorerPanel() {
             <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
               {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 0))}
               {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 0))}
+              {(otrosPorCarpeta.get(null) ?? []).map((otro) => (
+                <OtroRow key={otro.ruta} otro={otro} depth={0} />
+              ))}
               {store.carpetas.length === 0 && store.notas.length === 0 && (
                 <p className={styles.empty}>
                   Vault vacío. Creá tu primera nota con el botón de arriba.
@@ -1038,7 +1074,14 @@ function NoteRow({
       {rename.renaming ? (
         <RenameInput {...rename} />
       ) : (
-        <span className={styles.name}>{nota.titulo}</span>
+        <>
+          <span className={styles.name}>{nota.titulo}</span>
+          {/* FUN-S-03: un `.excalidraw`, un `.base` y un `.canvas` se veian
+              iguales que un markdown, porque el titulo va sin extension. */}
+          {EXTENSION_POR_TIPO[nota.tipo] !== undefined && (
+            <span className={styles.ext}>.{EXTENSION_POR_TIPO[nota.tipo]}</span>
+          )}
+        </>
       )}
       {shared && !rename.renaming && (
         <Users size={12} className={styles.sharedIcon} aria-label="Compartido" />
@@ -1046,6 +1089,47 @@ function NoteRow({
     </div>
   );
 }
+
+/**
+ * Un archivo que Mycelium lista pero todavía no sabe abrir (`FUN-S-03`).
+ *
+ * Se muestra atenuado y con su extensión a la vista, para que se distinga de
+ * una nota de un vistazo. Al hacer clic **no se queda callado**: dice que ese
+ * tipo todavía no se puede abrir, en vez de no hacer nada — que es lo que
+ * confunde. Abrirlos es `FUN-L-11`.
+ */
+function OtroRow({ otro, depth }: { otro: OtroArchivo; depth: number }) {
+  const [aviso, setAviso] = useState(false);
+  const nombre = otro.extension === "" ? otro.nombre : otro.nombre.slice(0, -(otro.extension.length + 1));
+  return (
+    <div
+      className={`${styles.row} ${styles.rowOtro}`}
+      style={{ paddingLeft: `${depth * 14 + 22}px` }}
+      title={
+        aviso
+          ? `Mycelium todavía no puede abrir archivos .${otro.extension}`
+          : otro.ruta
+      }
+      onClick={() => setAviso(true)}
+    >
+      <FileQuestion size={15} className={styles.noteIcon} aria-hidden />
+      <span className={styles.name}>{nombre}</span>
+      {otro.extension !== "" && <span className={styles.ext}>.{otro.extension}</span>}
+    </div>
+  );
+}
+
+/**
+ * Extensión que se muestra junto al nombre, por tipo de nota (`FUN-S-03`).
+ *
+ * El markdown no lleva ninguna: es el caso corriente y ponérsela a todo sería
+ * ruido. Lo que hay que poder distinguir es lo demás.
+ */
+const EXTENSION_POR_TIPO: Record<string, string | undefined> = {
+  excalidraw: "excalidraw",
+  base: "base",
+  canvas: "canvas",
+};
 
 /** Zona raíz: soltar aquí mueve a la raíz del vault; clic limpia la carpeta activa. */
 function RootDropZone({
