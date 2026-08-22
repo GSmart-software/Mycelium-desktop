@@ -21,6 +21,7 @@ import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import {
   marcarAcceso,
+  ponerTituloDeVentana,
   registrarVaultDeVentana,
   soltarVaultDeVentana,
 } from "@/lib/vaultMode";
@@ -121,6 +122,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // Si lo tiene otra, se corta acá — abrir su índice desde dos ventanas
       // dejaría dos indexadores escribiendo el mismo archivo.
       await registrarVaultDeVentana(ruta);
+      // Ya es nuestro: se pone el nombre en la barra de la ventana. Con varias
+      // abiertas todas se llamaban "Mycelium" y no habia forma de distinguirlas
+      // en la barra de tareas ni con Alt+Tab.
+      void ponerTituloDeVentana(ruta);
       await abrirIndiceDeVault(ruta);
       // El índice recién abierto puede estar vacío: hay que crear el esquema
       // ANTES de sembrar, porque `ensureSeed()` consulta la tabla `usuarios`.
@@ -197,6 +202,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     useVaultStore.getState().reset();
     // Soltar el vault para que otra ventana pueda abrirlo (`FUN-L-16`).
     await soltarVaultDeVentana().catch(() => undefined);
+    void ponerTituloDeVentana(null);
     setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
     setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
     useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra

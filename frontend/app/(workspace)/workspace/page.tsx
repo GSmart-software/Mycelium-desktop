@@ -66,7 +66,17 @@ function WorkspaceGuard() {
       if (useVaultSessionStore.getState().rutaActual === null) {
         const pedido = new URLSearchParams(window.location.search).get("vault");
         const ruta = pedido ?? rutaVaultPersistida();
-        if (ruta) await useVaultSessionStore.getState().abrir(ruta);
+        if (ruta) {
+          const ok = await useVaultSessionStore.getState().abrir(ruta);
+          // Si no se pudo abrir, lo mas probable es que ya lo tenga otra
+          // ventana (`FUN-L-16`): reclamarlo falla a proposito. En vez de
+          // quedarse en un workspace sin vault, se va al selector para elegir
+          // otro — que es lo unico util que se puede hacer desde aca.
+          if (!ok && !cancelado) {
+            router.replace("/vaults");
+            return;
+          }
+        }
       }
       if (!cancelado && !useAuthStore.getState().initialized) {
         await useAuthStore.getState().restore();

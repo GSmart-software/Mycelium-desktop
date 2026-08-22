@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
-    "tauri:otra": "tauri dev --config src-tauri/tauri.otra-instancia.conf.json",
+    "tauri:otra": "src-tauri/target/debug/app.exe",
     "versionar": "node scripts/versionar.mjs",
     "publicar": "node scripts/publicar.mjs",
     "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio"

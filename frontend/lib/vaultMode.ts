@@ -71,3 +71,33 @@ export async function soltarVaultDeVentana(): Promise<void> {
 export async function abrirVaultEnVentana(ruta: string): Promise<boolean> {
   return (await invoke<boolean>("abrir_vault_en_ventana", { ruta })) ?? false;
 }
+
+/**
+ * Nombre legible de un vault: el último tramo de su ruta.
+ *
+ * Tolera las dos barras porque la ruta puede venir del diálogo del sistema
+ * (`C:\Notas\Trabajo`) o de la URL de una ventana nueva (`C:/Notas/Trabajo`).
+ */
+export function nombreDeVault(ruta: string): string {
+  const tramos = ruta.replace(/[\/]+$/, "").split(/[\/]/);
+  return tramos[tramos.length - 1] || ruta;
+}
+
+/**
+ * Pone el título de ESTA ventana como «Mycelium - <vault>», o solo «Mycelium»
+ * si no hay ninguno abierto.
+ *
+ * Con varias ventanas a la vez (`FUN-L-16`) todas se llamaban igual, así que en
+ * la barra de tareas y al alternar con Alt+Tab no había forma de saber cuál era
+ * cuál. El nombre del vault es lo único que las distingue.
+ */
+export async function ponerTituloDeVentana(ruta: string | null): Promise<void> {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    const titulo = ruta === null ? "Mycelium" : `Mycelium - ${nombreDeVault(ruta)}`;
+    await getCurrentWindow().setTitle(titulo);
+  } catch {
+    // El título es cosmético: si falla, no se arrastra el fallo al arranque.
+  }
+}
