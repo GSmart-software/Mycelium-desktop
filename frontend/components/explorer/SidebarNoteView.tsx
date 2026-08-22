@@ -8,6 +8,8 @@ import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { TerminalView } from "@/components/terminal/TerminalView";
+import { VisorArchivo } from "@/components/visor/VisorArchivo";
+import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
@@ -49,6 +51,22 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         </div>
         <div className={styles.viewerGraph}>
           <TerminalView termId={termIdDe(notaId)} />
+        </div>
+      </div>
+    );
+  }
+
+  // Un archivo que Mycelium no indexa (FUN-L-11) también se puede anclar: se
+  // muestra su visor, que ya es de solo lectura, sin el botón de editar.
+  if (esTabArchivo(notaId)) {
+    const ruta = rutaDeTabArchivo(notaId);
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{nombreDeRuta(ruta)}</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <VisorArchivo ruta={ruta} isActivePane={false} />
         </div>
       </div>
     );

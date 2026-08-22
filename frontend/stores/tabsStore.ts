@@ -62,12 +62,21 @@ export type SplitEdge = "top" | "bottom" | "left" | "right";
 const newId = () => Math.random().toString(36).slice(2, 10);
 
 /**
- * Ids que no son notas del vault: el grafo y las terminales (ver "ids sentinela"
- * en docs/aprendizajes/Estado con Zustand.md). No pueden ser pestaña de preview
- * ni entrar en una línea de historial: reemplazar una terminal mata su sesión.
+ * Ids que no son notas del vault: el grafo, las terminales y los visores de
+ * archivos que Mycelium no indexa (`FUN-L-11`) — ver "ids sentinela" en
+ * docs/aprendizajes/Estado con Zustand.md. No pueden ser pestaña de preview ni
+ * entrar en una línea de historial: reemplazar una terminal mata su sesión, y
+ * un archivo suelto no es un destino de navegación del vault.
+ *
+ * El prefijo va literal y no importado de `lib/otrosArchivos` a propósito: es el
+ * mismo criterio que con `terminal:`, para que el store no dependa de módulos
+ * que a su vez dependen de él.
  */
 const esSentinela = (notaId: string) =>
-  notaId === GRAPH_TAB_ID || notaId === ENLACES_TAB_ID || notaId.startsWith("terminal:");
+  notaId === GRAPH_TAB_ID ||
+  notaId === ENLACES_TAB_ID ||
+  notaId.startsWith("terminal:") ||
+  notaId.startsWith("archivo:");
 
 // ── Historial por pestaña (DEF-040) ───────────────────────────────
 
@@ -219,6 +228,16 @@ type TabsState = {
    */
   usarAlmacenDeVault: (clave: string | null) => Promise<void>;
   reconcileNotes: (validIds: Set<string>) => void;
+  /**
+   * Lo mismo que `reconcileNotes`, para las pestañas de visor (`FUN-L-11`).
+   *
+   * Va aparte porque su lista de rutas válidas no está en el índice —estos
+   * archivos no se indexan— y llega por un comando aparte y asíncrono. Sin
+   * esto quedarían pestañas fantasma: `reconcileNotes` conserva todos los
+   * sentinelas, así que una pestaña de un archivo borrado desde fuera
+   * sobreviviría a su archivo y fallaría al pintarse.
+   */
+  reconcileArchivos: (rutasValidas: Set<string>) => void;
 };
 
 // ── Helpers de árbol ──────────────────────────────────────────────
@@ -796,6 +815,32 @@ export const useTabsStore = create<TabsState>()(
       return { ...leaf, tabs, activeTabId: activeStill ? leaf.activeTabId : tabs[0]?.id ?? null };
     });
     const closedHistory = get().closedHistory.filter((id) => validIds.has(id));
+    if (!changed && closedHistory.length === get().closedHistory.length) return;
+    root = cleanLinks(pruneEmpty(root));
+    const activeStillExists = findLeaf(root, get().activePaneId) !== null;
+    set({
+      root,
+      activePaneId: activeStillExists ? get().activePaneId : firstLeaf(root).id,
+      closedHistory,
+    });
+  },
+
+  reconcileArchivos(rutasValidas) {
+    // Solo se juzgan las pestañas de visor: cualquier otro id —notas, grafo,
+    // terminales— ya lo resolvió (o lo resuelve) quien corresponda.
+    const keep = (notaId: string) =>
+      !notaId.startsWith("archivo:") || rutasValidas.has(notaId.slice("archivo:".length));
+    let changed = false;
+    let root = mapTree(get().root, (leaf) => {
+      const tabs = leaf.tabs.filter((t) => keep(t.notaId)).map((t) => filtrarLinea(t, keep));
+      const igual =
+        tabs.length === leaf.tabs.length && tabs.every((t, i) => t === leaf.tabs[i]);
+      if (igual) return leaf;
+      changed = true;
+      const activeStill = tabs.some((t) => t.id === leaf.activeTabId);
+      return { ...leaf, tabs, activeTabId: activeStill ? leaf.activeTabId : tabs[0]?.id ?? null };
+    });
+    const closedHistory = get().closedHistory.filter(keep);
     if (!changed && closedHistory.length === get().closedHistory.length) return;
     root = cleanLinks(pruneEmpty(root));
     const activeStillExists = findLeaf(root, get().activePaneId) !== null;

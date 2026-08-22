@@ -248,6 +248,58 @@ pub fn leer_archivo_texto(vault_ruta: String, ruta_rel: String) -> Result<Option
         .map_err(|e| format!("No se pudo leer {ruta_rel}: {e}"))
 }
 
+/// Abre `ruta_rel` con la aplicación que el SO tenga asociada a su tipo.
+///
+/// Es la salida de emergencia del visor de solo lectura (`FUN-L-11`): lo que
+/// Mycelium no puede mostrar —un binario, un archivo de 500 MB, un tipo sin
+/// visor propio— se le pasa a quien sí sabe. Pariente de `revelar_en_sistema`,
+/// que en cambio **muestra** el archivo en el explorador sin abrirlo.
+#[tauri::command]
+pub fn abrir_con_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    use std::process::Command;
+    let base = base_vault(&vault_ruta)?;
+    let destino = ruta_segura(&base, &ruta_rel)?;
+    if !destino.exists() {
+        return Err(format!("No existe en disco: {ruta_rel}"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // `explorer.exe <archivo>` delega en el handler por defecto del tipo, sin
+        // pasar por `cmd /c start` —que interpretaría la ruta como línea de
+        // comandos—. Mismo detalle que en `revelar_en_sistema`: la ruta va entre
+        // comillas con `raw_arg`, y explorer devuelve códigos != 0 aun con éxito,
+        // así que no se comprueba el estado.
+        use std::os::windows::process::CommandExt;
+        Command::new("explorer")
+            .raw_arg(format!("\"{}\"", destino.display()))
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el archivo: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(destino.as_os_str())
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el archivo: {e}"))?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(destino.as_os_str())
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el archivo: {e}"))?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Plataforma no soportada.".to_string())
+}
+
 /// Abre el explorador de archivos del SO mostrando (y seleccionando, donde se
 /// pueda) el archivo/carpeta `ruta_rel` del vault. Solo tiene sentido en modo
 /// carpeta (los archivos existen en disco).

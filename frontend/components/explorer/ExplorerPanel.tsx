@@ -37,7 +37,7 @@ import { baseInicial } from "@/lib/bases";
 import { canvasInicial } from "@/lib/canvas";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
-import { listarOtrosArchivos, type OtroArchivo } from "@/lib/otrosArchivos";
+import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
 import { crearTerminal } from "@/lib/terminal";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
@@ -1091,30 +1091,41 @@ function NoteRow({
 }
 
 /**
- * Un archivo que Mycelium lista pero todavía no sabe abrir (`FUN-S-03`).
+ * Un archivo del vault que Mycelium lista (`FUN-S-03`) y sabe abrir en un visor
+ * de solo lectura (`FUN-L-11`).
  *
- * Se muestra atenuado y con su extensión a la vista, para que se distinga de
- * una nota de un vistazo. Al hacer clic **no se queda callado**: dice que ese
- * tipo todavía no se puede abrir, en vez de no hacer nada — que es lo que
- * confunde. Abrirlos es `FUN-L-11`.
+ * Se muestra atenuado para que se distinga de una nota de un vistazo. Al hacer
+ * clic abre una **pestaña del workspace** con el visor que le corresponda a su
+ * tipo; no se abre una nota, porque esto no es una nota: no está en el índice,
+ * no aparece en la búsqueda del vault, ni en el autocompletado de `[[`, ni en
+ * el grafo.
  */
 function OtroRow({ otro, depth }: { otro: OtroArchivo; depth: number }) {
-  const [aviso, setAviso] = useState(false);
-  const nombre = otro.extension === "" ? otro.nombre : otro.nombre.slice(0, -(otro.extension.length + 1));
+  const router = useRouter();
+  const abrir = () => {
+    const tabId = tabIdDeArchivo(otro.ruta);
+    useTabsStore.getState().openNote(tabId);
+    router.replace(`/workspace?note=${tabId}`);
+  };
   return (
     <div
       className={`${styles.row} ${styles.rowOtro}`}
       style={{ paddingLeft: `${depth * 14 + 22}px` }}
-      title={
-        aviso
-          ? `Mycelium todavía no puede abrir archivos .${otro.extension}`
-          : otro.ruta
-      }
-      onClick={() => setAviso(true)}
+      title={otro.ruta}
+      onClick={abrir}
+      // Evita el auto-scroll del navegador al pulsar la rueda sobre la fila.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+      onAuxClick={(e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          useTabsStore.getState().openNoteBackground(tabIdDeArchivo(otro.ruta));
+        }
+      }}
     >
       <FileQuestion size={15} className={styles.noteIcon} aria-hidden />
-      <span className={styles.name}>{nombre}</span>
-      {otro.extension !== "" && <span className={styles.ext}>.{otro.extension}</span>}
+      {/* `otro.nombre` ya viene con la extensión: se lee `captura.png` de una
+          pieza, igual que las notas. */}
+      <span className={styles.name}>{otro.nombre}</span>
     </div>
   );
 }

@@ -354,6 +354,112 @@ pub fn leer_archivos(origen: String, rutas: Vec<String>) -> Result<Vec<ArchivoLe
     Ok(out)
 }
 
+/// Lo que el visor de solo lectura (`FUN-L-11`) necesita saber de un archivo de
+/// texto: su contenido —o el principio, si es enorme—, cuánto ocupa de verdad y
+/// si se pudo decodificar.
+///
+/// Los tres campos existen porque el visor tiene que **decir** lo que pasa. Sin
+/// `binario` volcaría caracteres de reemplazo, que es peor que no abrirlo; sin
+/// `truncado`/`bytes` mostraría un fragmento haciéndolo pasar por el archivo
+/// entero.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivoVisor {
+    /// Texto decodificado. Vacío si `binario`.
+    pub contenido: String,
+    /// Tamaño real del archivo en disco, en bytes.
+    pub bytes: u64,
+    /// `true` si `contenido` es solo el principio del archivo.
+    pub truncado: bool,
+    /// `true` si no es texto UTF-8 (binario, o texto en otra codificación).
+    pub binario: bool,
+}
+
+/// Tope absoluto de lo que este comando llega a leer, pida lo que pida el
+/// frontend. El corte por tamaño es la razón de ser del comando: un log de
+/// 500 MB no se pinta, y sin tope la lectura sola ya reventaría la memoria.
+const TOPE_VISOR: u64 = 8 * 1024 * 1024;
+
+/// Lee un archivo del vault **para mostrarlo**, no para indexarlo (`FUN-L-11`).
+///
+/// No se reutiliza `leer_archivos` aunque también lea texto por ruta relativa:
+/// aquel omite **en silencio** lo que no es UTF-8 —lo correcto para el
+/// indexador, que solo quiere lo que sí puede indexar— y no tiene noción de
+/// tamaño. El visor necesita justo lo contrario: distinguir «no existe» de «no
+/// es texto» de «es demasiado grande», porque cada caso se le cuenta al usuario
+/// de una forma distinta.
+///
+/// `max_bytes` se recorta a `TOPE_VISOR`. Si el archivo lo supera, se devuelve
+/// el principio con `truncado = true`, cortado en el último salto de línea para
+/// no dejar media línea a la vista.
+#[tauri::command]
+pub fn leer_archivo_visor(
+    origen: String,
+    ruta: String,
+    max_bytes: u64,
+) -> Result<ArchivoVisor, String> {
+    use std::io::Read;
+
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let destino = ruta_segura(&base, &ruta)?;
+    let meta = std::fs::metadata(&destino)
+        .map_err(|e| format!("No se pudo leer {ruta}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("No es un archivo: {ruta}"));
+    }
+
+    let bytes = meta.len();
+    let tope = max_bytes.clamp(1, TOPE_VISOR);
+    let truncado = bytes > tope;
+
+    let archivo = std::fs::File::open(&destino)
+        .map_err(|e| format!("No se pudo abrir {ruta}: {e}"))?;
+    let mut buf = Vec::new();
+    archivo
+        .take(tope)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("No se pudo leer {ruta}: {e}"))?;
+
+    let ilegible = |bytes: u64, truncado: bool| ArchivoVisor {
+        contenido: String::new(),
+        bytes,
+        truncado,
+        binario: true,
+    };
+
+    // Un byte NUL es la señal más fiable de binario y la más barata: ningún
+    // texto UTF-8 válido lo lleva, y se detecta antes de intentar decodificar.
+    if buf.contains(&0) {
+        return Ok(ilegible(bytes, truncado));
+    }
+
+    let texto = match std::str::from_utf8(&buf) {
+        Ok(s) => s.to_string(),
+        // Cortar por tamaño puede partir un carácter multibyte al final: eso no
+        // es "no es UTF-8", es el borde del fragmento. `error_len() == None`
+        // señala exactamente ese caso (secuencia incompleta, no inválida).
+        Err(e) if truncado && e.error_len().is_none() => {
+            String::from_utf8_lossy(&buf[..e.valid_up_to()]).into_owned()
+        }
+        Err(_) => return Ok(ilegible(bytes, truncado)),
+    };
+
+    // BOM: invisible para el usuario pero un carácter real en la primera línea.
+    let texto = texto.strip_prefix('\u{feff}').map(str::to_string).unwrap_or(texto);
+
+    // Cortar en el último salto de línea del fragmento, para no mostrar media
+    // línea como si el archivo terminara ahí.
+    let contenido = match texto.rfind('\n') {
+        Some(i) if truncado => texto[..=i].to_string(),
+        _ => texto,
+    };
+
+    Ok(ArchivoVisor { contenido, bytes, truncado, binario: false })
+}
+
 /// Recorre `dir` recursivamente acumulando las rutas relativas (separador `/`) de
 /// TODOS los subdirectorios reales no ignorados por el `.mycignore`. A diferencia
 /// del listado de archivos, aquí importan también los directorios VACÍOS: son la
@@ -582,6 +688,59 @@ mod tests {
 
         // Lista vacía: no falla y no devuelve nada.
         assert!(leer_archivos(origen, vec![]).unwrap().is_empty());
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// El visor tiene que distinguir tres cosas que el indexador confunde a
+    /// propósito: texto legible, texto **cortado** por tamaño y algo que no es
+    /// texto. Cada una se le cuenta al usuario distinto (FUN-L-11 § 4).
+    #[test]
+    fn leer_archivo_visor_distingue_texto_binario_y_fragmento() {
+        let base = std::env::temp_dir().join(format!("mycelium-visor-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let origen = base.to_string_lossy().to_string();
+
+        // Texto normal: entero, sin avisos.
+        std::fs::write(base.join("notas.txt"), "línea uno\nlínea dos ñ\n").unwrap();
+        let v = leer_archivo_visor(origen.clone(), "notas.txt".into(), 1024).unwrap();
+        assert_eq!(v.contenido, "línea uno\nlínea dos ñ\n");
+        assert!(!v.truncado && !v.binario);
+        assert_eq!(v.bytes, std::fs::metadata(base.join("notas.txt")).unwrap().len());
+
+        // Binario con extensión de texto: no se decodifica a la fuerza.
+        std::fs::write(base.join("mentiroso.txt"), [0x50u8, 0x00, 0x4b, 0x03]).unwrap();
+        let v = leer_archivo_visor(origen.clone(), "mentiroso.txt".into(), 1024).unwrap();
+        assert!(v.binario, "un NUL delata al binario");
+        assert!(v.contenido.is_empty());
+
+        // Texto en otra codificación (latin-1): tampoco se vuelca con basura.
+        std::fs::write(base.join("latin.txt"), [b'a', 0xF1, b'o']).unwrap();
+        let v = leer_archivo_visor(origen.clone(), "latin.txt".into(), 1024).unwrap();
+        assert!(v.binario, "0xF1 suelto no es UTF-8 válido");
+
+        // Archivo grande: fragmento cortado en un salto de línea, con el
+        // tamaño REAL para que el aviso pueda decir cuánto se está omitiendo.
+        let grande = "0123456789\n".repeat(200); // 2200 bytes
+        std::fs::write(base.join("log.txt"), &grande).unwrap();
+        let v = leer_archivo_visor(origen.clone(), "log.txt".into(), 100).unwrap();
+        assert!(v.truncado && !v.binario);
+        assert_eq!(v.bytes, 2200);
+        assert!(v.contenido.len() <= 100);
+        assert!(v.contenido.ends_with('\n'), "se corta en línea entera");
+
+        // Cortar en mitad de un carácter multibyte NO es "no es UTF-8".
+        std::fs::write(base.join("acentos.txt"), "ñ".repeat(50)).unwrap();
+        let v = leer_archivo_visor(origen.clone(), "acentos.txt".into(), 9).unwrap();
+        assert!(!v.binario, "una secuencia incompleta al final es el borde del fragmento");
+        assert!(v.truncado);
+        assert_eq!(v.contenido, "ññññ", "9 bytes = 4 caracteres y medio → 4 enteros");
+
+        // Lo que no existe y lo que intenta salirse: error, no un resultado vacío.
+        assert!(leer_archivo_visor(origen.clone(), "fantasma.txt".into(), 1024).is_err());
+        assert!(leer_archivo_visor(origen.clone(), "../fuera.txt".into(), 1024).is_err());
+        assert!(leer_archivo_visor(origen, "/etc/passwd".into(), 1024).is_err());
 
         std::fs::remove_dir_all(&base).unwrap();
     }

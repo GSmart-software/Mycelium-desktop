@@ -3,6 +3,7 @@
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
+import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
@@ -56,7 +57,9 @@ export function SidebarDock({
       ? "Grafo de conexiones"
       : esTabTerminal(notaId)
         ? sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal"
-        : notas.find((n) => n.id === notaId)?.titulo ?? "…";
+        : esTabArchivo(notaId)
+          ? nombreDeRuta(rutaDeTabArchivo(notaId))
+          : notas.find((n) => n.id === notaId)?.titulo ?? "…";
 
   const hayDocs = tabs.length > 0;
   const activeEsDoc = tabs.includes(activeTab);

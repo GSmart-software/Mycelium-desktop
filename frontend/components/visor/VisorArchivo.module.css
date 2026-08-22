@@ -1,0 +1,242 @@
+/* Visor de archivos que no son notas (`FUN-L-11`): texto/código, PDF e imagen. */
+
+.visor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+  flex: 0 0 auto;
+}
+
+.nombre {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* No es decoración: es la promesa de que nada de lo que se vea se va a guardar. */
+.soloLectura {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  flex: 0 0 auto;
+}
+
+.espacio {
+  flex: 1 1 auto;
+}
+
+.accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--mic-border);
+  background: transparent;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.accion:hover {
+  background: var(--mic-bg-hover);
+}
+
+/* ── Texto y código ──────────────────────────────────────────────── */
+
+.panelTexto {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Los números no se seleccionan: copiar el archivo no debe traérselos. El
+   scroll lo mueve el texto (ver `VisorArchivo.tsx`), por eso `overflow:hidden`
+   y no `auto`: dos barras verticales para el mismo contenido. */
+.numeros {
+  margin: 0;
+  padding: 10px 10px 10px 12px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-align: right;
+  color: var(--mic-text-muted);
+  background: var(--mic-bg-surface);
+  border-right: 1px solid var(--mic-border);
+  user-select: none;
+  font: inherit;
+  white-space: pre;
+}
+
+.texto {
+  margin: 0;
+  padding: 10px 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  font: inherit;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.fragmento {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  border-bottom: 1px solid var(--mic-border);
+  flex: 0 0 auto;
+}
+
+.enlace {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--mic-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cargando {
+  margin: 0;
+  padding: 24px;
+  color: var(--mic-text-muted);
+  font-size: 13px;
+}
+
+/* ── Avisos (binario, desaparecido, sin visor) ───────────────────── */
+
+.aviso {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+}
+
+.avisoIcono {
+  color: var(--mic-text-muted);
+}
+
+.avisoTitulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.avisoDetalle {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 12.5px;
+  color: var(--mic-text-muted);
+  line-height: 1.5;
+}
+
+/* ── PDF ─────────────────────────────────────────────────────────── */
+
+.pdf {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: var(--mic-bg-code);
+}
+
+/* ── Imagen ──────────────────────────────────────────────────────── */
+
+.barraZoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--mic-border);
+  flex: 0 0 auto;
+}
+
+.iconoZoom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--mic-border);
+  background: transparent;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.iconoZoom:hover {
+  background: var(--mic-bg-hover);
+}
+
+.nivelZoom {
+  font-size: 12px;
+  color: var(--mic-text-muted);
+  min-width: 8ch;
+  text-align: center;
+}
+
+.panelImagen {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12px;
+  /* Tablero de ajedrez: sin esto, un PNG con transparencia se lee mal sobre
+     cualquiera de los dos fondos (el blanco desaparece en claro, el negro en
+     oscuro). */
+  background-image:
+    linear-gradient(45deg, var(--mic-bg-surface) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--mic-bg-surface) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--mic-bg-surface) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--mic-bg-surface) 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+}
+
+.panelImagen[data-arrastrable] {
+  cursor: grab;
+}
+
+.imagen {
+  flex: 0 0 auto;
+  max-width: none;
+  height: auto;
+  image-rendering: auto;
+}
+
+.imagenAjustada {
+  flex: 0 1 auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

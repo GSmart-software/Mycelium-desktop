@@ -24,7 +24,11 @@ log = "0.4"
 # `devtools`: habilita las herramientas de desarrollador TAMBIÉN en las builds de
 # producción (por defecto solo existen en debug). Son útiles para que el usuario
 # escriba su propio CSS o depure el uso diario; se abren con F12 / Ctrl+Shift+I.
-tauri = { version = "2.11.3", features = ["devtools"] }
+# `protocol-asset`: sirve archivos del disco al webview por el esquema `asset:`
+# (FUN-L-11). Sin esta feature el protocolo no se registra y `convertFileSrc`
+# devuelve una URL que no responde. El ámbito NO es global: se abre en runtime,
+# carpeta por carpeta, al registrar un vault (ver `ventanas::registrar_vault`).
+tauri = { version = "2.11.3", features = ["devtools", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }

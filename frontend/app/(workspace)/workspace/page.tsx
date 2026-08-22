@@ -21,6 +21,7 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { listarOtrosArchivos } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
 
@@ -164,6 +165,7 @@ function WorkspaceShell() {
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
+  const archivosReconciliadosRef = useRef(false);
   // Solo en modo carpeta (fase 5) hay watcher; en SQLite clásico `rutaActual` es null.
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
@@ -220,6 +222,22 @@ function WorkspaceShell() {
     reconciledRef.current = true;
     useTabsStore.getState().reconcileNotes(new Set(notas.map((n) => n.id)));
   }, [notas, vaultId]);
+
+  // Lo mismo para las pestañas de visor (`FUN-L-11`), que apuntan a archivos que
+  // NO están en el índice: su lista válida hay que pedirla aparte, al mismo
+  // comando que las lista en el explorador. Sin esto, un archivo borrado o
+  // renombrado desde fuera dejaría una pestaña fantasma que falla al pintarse.
+  //
+  // Corre después del árbol y no en paralelo por lo mismo que arriba: es
+  // destructivo, y con el vault todavía cambiando se llevaría por delante
+  // pestañas recién restauradas.
+  useEffect(() => {
+    if (archivosReconciliadosRef.current || !rutaVault) return;
+    archivosReconciliadosRef.current = true;
+    void listarOtrosArchivos(rutaVault).then((lista) => {
+      useTabsStore.getState().reconcileArchivos(new Set(lista.map((a) => a.ruta)));
+    });
+  }, [rutaVault]);
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {
