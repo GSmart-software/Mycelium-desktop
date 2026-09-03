@@ -44,15 +44,15 @@ fn sufijo_timestamp() -> String {
         .unwrap_or_else(|_| "0".to_string())
 }
 
-/// Escritura **atómica** de una nota: escribe a un temporal y hace `rename` sobre
-/// el destino, de modo que un corte de luz nunca deja un archivo a medias. Crea
-/// los subdirectorios necesarios. Sobrescribe el destino si ya existe.
-#[tauri::command]
-pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<(), String> {
-    let base = base_vault(&vault_ruta)?;
-    let destino = ruta_segura(&base, &ruta_rel)?;
-    asegurar_padre(&destino)?;
-
+/// Escritura **atómica** sobre `destino`: escribe a un temporal hermano y hace
+/// `rename`, de modo que un corte a mitad de escritura nunca deja el archivo a
+/// medias — o está el contenido viejo entero, o el nuevo entero.
+///
+/// `pub(crate)` porque no la usa solo el guardado de notas: el editor de los
+/// archivos que no son notas (`FUN-M-26`) escribe por el mismo camino, y ahí la
+/// garantía pesa **más** todavía —esos archivos no van a la papelera ni tienen
+/// historial, así que dejar uno truncado no se deshace desde la app—.
+pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), String> {
     // Temporal hermano del destino (mismo directorio → el rename es atómico y no
     // cruza sistemas de archivos). En Windows `rename` reemplaza el destino.
     let tmp = destino.with_extension(format!(
@@ -66,11 +66,21 @@ pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) ->
     ));
     std::fs::write(&tmp, contenido.as_bytes())
         .map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, &destino).map_err(|e| {
+    std::fs::rename(&tmp, destino).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
         format!("No se pudo renombrar a {}: {e}", destino.display())
     })?;
     Ok(())
+}
+
+/// Escritura **atómica** de una nota. Crea los subdirectorios necesarios y
+/// sobrescribe el destino si ya existe.
+#[tauri::command]
+pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<(), String> {
+    let base = base_vault(&vault_ruta)?;
+    let destino = ruta_segura(&base, &ruta_rel)?;
+    asegurar_padre(&destino)?;
+    escribir_atomico(&destino, &contenido)
 }
 
 /// Renombra o mueve un archivo O carpeta dentro del vault. Sirve tanto para
