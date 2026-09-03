@@ -240,3 +240,27 @@
   max-height: 100%;
   object-fit: contain;
 }
+
+/* ── Barra del visor de texto: editar, guardar, abrir fuera (FUN-M-26) ──── */
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+}
+
+/* «sin guardar» es un aviso, no un adorno: usa el ámbar de advertencia y no
+   solo un gris, para que se note sin tener que leerlo. */
+.sucio {
+  color: var(--mic-callout-warning-border);
+  font-size: 0.76rem;
+}
+
+/* El editor ocupa lo que queda; el scroll lo lleva CodeMirror por dentro. */
+.editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

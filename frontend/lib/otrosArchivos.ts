@@ -129,6 +129,14 @@ export type ArchivoVisor = {
   bytes: number;
   truncado: boolean;
   binario: boolean;
+  /**
+   * `mtime` del archivo al leerlo, en ms epoch (0 si el SO no lo expone).
+   *
+   * Es la foto contra la que se compara al guardar (`FUN-M-26`): estos archivos
+   * no se vigilan ni se respaldan, así que la única defensa contra pisar lo que
+   * otro programa escribió mientras tanto es haber anotado cómo estaban.
+   */
+  mtime: number;
 };
 
 /**
@@ -195,4 +203,47 @@ export function formatearBytes(bytes: number): string {
     i += 1;
   }
   return `${valor.toFixed(valor >= 10 ? 0 : 1)} ${unidades[i]}`;
+}
+
+/**
+ * Si un archivo del visor se puede editar (`FUN-M-26`).
+ *
+ * > [!danger] Un archivo truncado NO se edita jamás
+ * > El visor corta a `MAX_BYTES_VISOR` y muestra el principio. Guardar ese
+ * > fragmento **borraría todo el resto del archivo**, en silencio y sin vuelta
+ * > atrás. Tampoco se edita lo que no decodificó como UTF-8: si Mycelium no
+ * > pudo leerlo, no puede reescribirlo sin destruirlo.
+ */
+export function sePuedeEditar(archivo: ArchivoVisor): boolean {
+  return !archivo.truncado && !archivo.binario;
+}
+
+/** Lo que devuelve `escribir_archivo_visor`. */
+export type EscrituraVisor = {
+  /** `false` si NO se escribió nada porque el archivo cambió desde fuera. */
+  guardado: boolean;
+  /** `mtime` en disco al terminar: el nuevo, o el actual si hubo conflicto. */
+  mtime: number;
+};
+
+/**
+ * Guarda un archivo de texto editado en el visor.
+ *
+ * Un conflicto —el archivo cambió en disco desde que se abrió— **no es un
+ * error**: vuelve como `guardado: false` para que lo decida el usuario. Tratarlo
+ * como excepción obligaría a distinguirlo leyendo el texto del mensaje.
+ */
+export async function escribirArchivoVisor(
+  origen: string,
+  ruta: string,
+  contenido: string,
+  mtimeEsperado: number | null,
+): Promise<EscrituraVisor> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<EscrituraVisor>("escribir_archivo_visor", {
+    origen,
+    ruta,
+    contenido,
+    mtimeEsperado,
+  });
 }

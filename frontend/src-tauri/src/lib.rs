@@ -186,6 +186,7 @@ pub fn run() {
             archivos::listar_otros_archivos,
             archivos::leer_archivos,
             archivos::leer_archivo_visor,
+            archivos::escribir_archivo_visor,
             archivos::listar_directorios,
             archivos::carpeta_no_vacia,
             ventanas::registrar_vault,

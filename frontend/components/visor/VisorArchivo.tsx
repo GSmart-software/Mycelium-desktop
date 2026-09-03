@@ -2,6 +2,9 @@
 
 import { ExternalLink, FileWarning, Maximize2, Minus, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { SearchBar } from "@/components/editor/SearchBar";
 import {
   abrirConSistema,
@@ -11,6 +14,8 @@ import {
   nombreDeRuta,
   tipoDeVisor,
   urlDeArchivo,
+  escribirArchivoVisor,
+  sePuedeEditar,
   type ArchivoVisor,
 } from "@/lib/otrosArchivos";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -121,6 +126,14 @@ function VisorTexto({
 }) {
   const [datos, setDatos] = useState<ArchivoVisor | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // FUN-M-26: editar es un modo al que se ENTRA, no el estado por defecto.
+  // Estos archivos no se indexan, no van a la papelera y no tienen historial:
+  // un guardado equivocado no se deshace desde la app.
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState("");
+  const [sucio, setSucio] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [conflicto, setConflicto] = useState<number | null>(null);
   const numerosRef = useRef<HTMLPreElement>(null);
   const textoRef = useRef<HTMLPreElement>(null);
 
@@ -129,6 +142,10 @@ function VisorTexto({
     let vivo = true;
     setDatos(null);
     setError(null);
+    setEditando(false);
+    setSucio(false);
+    setAviso(null);
+    setConflicto(null);
     void leerArchivoVisor(vault, ruta)
       .then((d) => {
         if (vivo) setDatos(d);
@@ -140,6 +157,38 @@ function VisorTexto({
       vivo = false;
     };
   }, [vault, ruta]);
+
+  async function guardar(forzar: boolean) {
+    if (!vault || datos === null) return;
+    setAviso(null);
+    try {
+      const res = await escribirArchivoVisor(
+        vault,
+        ruta,
+        borrador,
+        forzar ? null : (conflicto ?? datos.mtime),
+      );
+      if (!res.guardado) {
+        // No es un error: el archivo cambió en disco y la decisión es del
+        // usuario. Se guarda el mtime nuevo para poder reintentar contra él.
+        setConflicto(res.mtime);
+        return;
+      }
+      setDatos({ ...datos, contenido: borrador, mtime: res.mtime });
+      setSucio(false);
+      setConflicto(null);
+    } catch (e) {
+      setAviso(typeof e === "string" ? e : "No se pudo guardar el archivo.");
+    }
+  }
+
+  function salirDeEdicion() {
+    if (sucio && !window.confirm("Hay cambios sin guardar. ¿Salir y descartarlos?")) return;
+    setEditando(false);
+    setSucio(false);
+    setConflicto(null);
+    setAviso(null);
+  }
 
   // Los números se derivan del contenido y no cambian mientras no cambie: se
   // memorizan para no reconstruir la cadena entera en cada render de la barra
@@ -176,7 +225,7 @@ function VisorTexto({
 
   return (
     <>
-      {isActivePane && (
+      {isActivePane && !editando && (
         <SearchBar
           getView={() => null}
           getPreview={() => textoRef.current}
@@ -184,6 +233,67 @@ function VisorTexto({
           placeholder="Buscar en el archivo…"
         />
       )}
+      <div className={styles.barra}>
+        {/* El botón NO EXISTE si el archivo está truncado o no es texto: no
+            basta con deshabilitarlo. Guardar un fragmento de 2 MB borraría el
+            resto del archivo en silencio (`FUN-M-26`). */}
+        {!editando && sePuedeEditar(datos) && (
+          <button
+            type="button"
+            className={styles.accion}
+            onClick={() => {
+              setBorrador(datos.contenido);
+              setSucio(false);
+              setEditando(true);
+            }}
+          >
+            Editar
+          </button>
+        )}
+        {editando && (
+          <>
+            <button
+              type="button"
+              className={styles.accion}
+              onClick={() => void guardar(false)}
+              disabled={!sucio}
+            >
+              {sucio ? "Guardar (Ctrl+S)" : "Guardado"}
+            </button>
+            <button type="button" className={styles.accion} onClick={salirDeEdicion}>
+              Salir de edición
+            </button>
+            {sucio && <span className={styles.sucio}>· sin guardar</span>}
+          </>
+        )}
+        <button type="button" className={styles.accion} onClick={onAbrirFuera}>
+          Abrir con el sistema
+        </button>
+      </div>
+      {conflicto !== null && (
+        <p className={styles.fragmento}>
+          El archivo cambió fuera de Mycelium desde que lo abriste. No se guardó nada.{" "}
+          <button type="button" className={styles.enlace} onClick={() => void guardar(true)}>
+            sobrescribir igual
+          </button>{" "}
+          o{" "}
+          <button
+            type="button"
+            className={styles.enlace}
+            onClick={() => {
+              setConflicto(null);
+              setEditando(false);
+              setSucio(false);
+              setDatos(null);
+              void leerArchivoVisor(vault!, ruta).then(setDatos).catch((e) => setError(String(e)));
+            }}
+          >
+            descartar lo mío y recargar
+          </button>
+          .
+        </p>
+      )}
+      {aviso !== null && <p className={styles.fragmento}>{aviso}</p>}
       {datos.truncado && (
         <p className={styles.fragmento}>
           Se muestra el principio del archivo ({formatearBytes(datos.bytes)} en total). Para verlo
@@ -194,6 +304,16 @@ function VisorTexto({
           .
         </p>
       )}
+      {editando ? (
+        <EditorTexto
+          inicial={datos.contenido}
+          onCambio={(t) => {
+            setBorrador(t);
+            setSucio(t !== datos.contenido);
+          }}
+          onGuardar={() => void guardar(false)}
+        />
+      ) : (
       <div className={styles.panelTexto}>
         {/* La columna de números NO scrollea sola: se la lleva de la mano el
             texto. Si estuviera dentro del mismo contenedor desplazable,
@@ -215,8 +335,72 @@ function VisorTexto({
           {lineas}
         </pre>
       </div>
+      )}
     </>
   );
+}
+
+/**
+ * El archivo abierto para editarlo (`FUN-M-26`).
+ *
+ * CodeMirror en configuración **mínima** —números de línea, deshacer y las
+ * teclas por defecto— y nada más: ni vista en vivo, ni markdown, ni widgets.
+ * Es el mismo motor que el editor de notas, así que no suma nada al bundle,
+ * pero **no comparte sus extensiones**: acá un `[[` es texto y un `#` es una
+ * almohadilla.
+ */
+function EditorTexto({
+  inicial,
+  onCambio,
+  onGuardar,
+}: {
+  inicial: string;
+  onCambio: (texto: string) => void;
+  onGuardar: () => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  // El guardado se dispara desde un keymap que se registra UNA vez, así que
+  // tiene que leer siempre la última función y no la que había al montar.
+  const guardarRef = useRef(onGuardar);
+  guardarRef.current = onGuardar;
+  const cambioRef = useRef(onCambio);
+  cambioRef.current = onCambio;
+
+  useEffect(() => {
+    if (!host.current) return;
+    const vista = new EditorView({
+      state: EditorState.create({
+        doc: inicial,
+        extensions: [
+          lineNumbers(),
+          history(),
+          keymap.of([
+            {
+              key: "Mod-s",
+              run: () => {
+                guardarRef.current();
+                return true; // consumido: si no, el webview abre su "guardar como"
+              },
+            },
+            ...defaultKeymap,
+            ...historyKeymap,
+          ]),
+          EditorView.lineWrapping,
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged) cambioRef.current(u.state.doc.toString());
+          }),
+        ],
+      }),
+      parent: host.current,
+    });
+    vista.focus();
+    return () => vista.destroy();
+    // `inicial` a propósito fuera: recrear la vista al teclear perdería el
+    // cursor y el historial de deshacer en cada pulsación.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <div className={`mic-editor-host ${styles.editor}`} ref={host} />;
 }
 
 /**

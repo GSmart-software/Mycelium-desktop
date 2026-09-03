@@ -373,6 +373,13 @@ pub struct ArchivoVisor {
     pub truncado: bool,
     /// `true` si no es texto UTF-8 (binario, o texto en otra codificación).
     pub binario: bool,
+    /// `mtime` al leerlo, en ms epoch (0 si el SO no lo expone).
+    ///
+    /// Es la foto contra la que se compara al guardar (`FUN-M-26`): estos
+    /// archivos no se vigilan ni se respaldan, así que la única defensa contra
+    /// pisar lo que otro programa escribió mientras tanto es haber anotado
+    /// cómo estaban al abrirlos.
+    pub mtime: i64,
 }
 
 /// Tope absoluto de lo que este comando llega a leer, pida lo que pida el
@@ -423,11 +430,13 @@ pub fn leer_archivo_visor(
         .read_to_end(&mut buf)
         .map_err(|e| format!("No se pudo leer {ruta}: {e}"))?;
 
+    let mtime = mtime_ms(&meta);
     let ilegible = |bytes: u64, truncado: bool| ArchivoVisor {
         contenido: String::new(),
         bytes,
         truncado,
         binario: true,
+        mtime,
     };
 
     // Un byte NUL es la señal más fiable de binario y la más barata: ningún
@@ -457,7 +466,71 @@ pub fn leer_archivo_visor(
         _ => texto,
     };
 
-    Ok(ArchivoVisor { contenido, bytes, truncado, binario: false })
+    Ok(ArchivoVisor { contenido, bytes, truncado, binario: false, mtime })
+}
+
+/// Resultado de guardar desde el visor. No es un `bool` disfrazado: el caso
+/// interesante —el archivo cambió desde fuera— **no es un error**, es una
+/// decisión que tiene que tomar el usuario, así que viaja como dato y no como
+/// `Err` (un `Err` obligaría al frontend a distinguir conflictos leyendo el
+/// texto del mensaje).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EscrituraVisor {
+    /// `false` si NO se escribió nada porque el archivo cambió desde fuera.
+    pub guardado: bool,
+    /// `mtime` del archivo en disco al terminar: el nuevo si se guardó, el que
+    /// tiene ahora si hubo conflicto (para poder reintentar contra él).
+    pub mtime: i64,
+}
+
+/// Guarda un archivo de texto editado en el visor (`FUN-M-26`).
+///
+/// Tres cosas que este comando **no** hace, y son deliberadas:
+///
+/// - **No crea archivos.** Si `ruta` no existe, falla. El visor solo edita lo
+///   que abrió; crear notas es de `escribir_nota`.
+/// - **No pisa un archivo que cambió desde fuera.** Estos archivos no se
+///   indexan, no se vigilan y no van a la papelera: si otro programa los tocó
+///   mientras estaban abiertos, sobrescribirlos borraría ese trabajo sin vuelta
+///   atrás. Con `mtime_esperado` se compara contra la foto que tomó
+///   `leer_archivo_visor`; si no coincide se devuelve `guardado: false` y decide
+///   el usuario. Con `None` se fuerza (es lo que manda el frontend cuando el
+///   usuario ya eligió sobrescribir).
+/// - **No escribe en el sitio.** Va por `vault_fs::escribir_atomico`: temporal y
+///   `rename`, para que un corte no deje el archivo a medias.
+///
+/// Un `mtime` de 0 significa "el SO no lo expone": ahí no hay nada que comparar
+/// y se guarda igual, porque negarse dejaría el archivo inguardable para siempre.
+#[tauri::command]
+pub fn escribir_archivo_visor(
+    origen: String,
+    ruta: String,
+    contenido: String,
+    mtime_esperado: Option<i64>,
+) -> Result<EscrituraVisor, String> {
+    let base = PathBuf::from(&origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let destino = ruta_segura(&base, &ruta)?;
+    let meta = std::fs::metadata(&destino)
+        .map_err(|e| format!("No se pudo leer {ruta}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("No es un archivo: {ruta}"));
+    }
+
+    let actual = mtime_ms(&meta);
+    if let Some(esperado) = mtime_esperado {
+        if esperado != 0 && actual != 0 && actual != esperado {
+            return Ok(EscrituraVisor { guardado: false, mtime: actual });
+        }
+    }
+
+    crate::vault_fs::escribir_atomico(&destino, &contenido)?;
+
+    let mtime = std::fs::metadata(&destino).map(|m| mtime_ms(&m)).unwrap_or(0);
+    Ok(EscrituraVisor { guardado: true, mtime })
 }
 
 /// Recorre `dir` recursivamente acumulando las rutas relativas (separador `/`) de
