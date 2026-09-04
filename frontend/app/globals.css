@@ -60,6 +60,12 @@ select {
 select option {
   color: var(--mic-text-primary);
   background: var(--mic-bg-surface);
+  /* Aire alrededor del texto (DEF-078). Sin esto las opciones van pegadas al
+     borde de la lista, y con seis seguidas se lee como un bloque. Es la tercera
+     cosa que hay que nombrarle al navegador para esta misma lista —después del
+     color de fondo y del de la opción marcada—: lo que no se le dice, lo decide
+     él, y su default acá es cero. */
+  padding: 0.2rem 0.5rem;
 }
 
 /* La opción marcada, con la lista abierta (DEF-068). Sin esto la pinta el
