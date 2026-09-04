@@ -161,7 +161,7 @@ function WorkspaceShell() {
       }
     : null;
 
-  const { activeSection, leftWidth, toggleLeft, toggleRight } = usePanelLayoutStore();
+  const { activeSection, leftWidth, toggleLeft } = usePanelLayoutStore();
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
@@ -255,8 +255,14 @@ function WorkspaceShell() {
       }
       if (event.ctrlKey && event.code === "Backslash") {
         event.preventDefault();
-        if (event.shiftKey) toggleRight();
-        else toggleLeft();
+        // El panel derecho es de cada pane (`DEF-060`), así que el atajo actúa
+        // sobre el que tiene el foco, no sobre todos.
+        if (event.shiftKey) {
+          const { activePaneId, togglePanelMeta } = useTabsStore.getState();
+          togglePanelMeta(activePaneId);
+        } else {
+          toggleLeft();
+        }
         return;
       }
       if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "w") {
@@ -286,7 +292,7 @@ function WorkspaceShell() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toggleLeft, toggleRight]);
+  }, [toggleLeft]);
 
   /**
    * Botones auxiliares del ratón (DEF-040): 3 = atrás, 4 = adelante. Hasta

@@ -44,6 +44,21 @@ export type LeafPane = {
   linkedTo: string | null;
   /** HU-27 CA4: scroll sincronizado con el origen. */
   linkedScrollSync: boolean;
+  /**
+   * Si este pane muestra su panel de metadatos/conexiones a la derecha
+   * (`DEF-060`). Antes era **un** booleano global, así que abrirlo en un pane lo
+   * abría en todos y estorbaba en los que no hacían falta.
+   *
+   * Vive acá y no en `panelLayoutStore` porque es estado **del pane**: así se
+   * persiste con el layout, muere con el pane y `pruneEmpty` lo limpia solo, sin
+   * que nadie tenga que recordar borrar entradas de un mapa.
+   *
+   * Es **opcional** a propósito, igual que `historial`/`indice` de una pestaña:
+   * los layouts persistidos antes de esto no lo traen y se leen como cerrado,
+   * así que NO hace falta subir la versión del `persist` —subirla sin `migrate`
+   * haría que zustand descartara el estado y el usuario perdiera sus pestañas.
+   */
+  panelAbierto?: boolean;
 };
 
 export type SplitPane = {
@@ -193,6 +208,8 @@ type TabsState = {
   setActivePane: (paneId: string) => void;
   linkPane: (paneId: string, sourcePaneId: string | null) => void;
   toggleLinkedScrollSync: (paneId: string) => void;
+  /** Abre/cierra el panel de metadatos de UN pane (`DEF-060`). */
+  togglePanelMeta: (paneId: string) => void;
   setDragging: (dragging: TabsState["dragging"]) => void;
   setDraggingNota: (notaId: string | null) => void;
   setNotaDropTarget: (target: TabsState["notaDropTarget"]) => void;
@@ -284,6 +301,17 @@ function pruneEmpty(node: PaneNode): PaneNode {
   if (kept.length === 1) return kept[0];
   const total = sizes.reduce((a, b) => a + b, 0);
   return { ...node, children: kept, sizes: sizes.map((s) => s / total) };
+}
+
+/**
+ * ¿El pane tiene abierto su panel de metadatos? (`DEF-060`)
+ *
+ * Se exporta como función y no como acción porque los componentes la usan de
+ * selector: `useTabsStore((s) => panelMetaAbierto(s.root, paneId))` solo
+ * redibuja el pane cuyo panel cambió.
+ */
+export function panelMetaAbierto(root: PaneNode, paneId: string): boolean {
+  return findLeaf(root, paneId)?.panelAbierto === true;
 }
 
 /** Rompe vínculos de preview hacia panes que ya no existen (HU-27 CA5). */
@@ -629,6 +657,14 @@ export const useTabsStore = create<TabsState>()(
         leaf.id === paneId
           ? { ...leaf, linkedScrollSync: !leaf.linkedScrollSync }
           : leaf,
+      ),
+    });
+  },
+
+  togglePanelMeta(paneId) {
+    set({
+      root: mapTree(get().root, (leaf) =>
+        leaf.id === paneId ? { ...leaf, panelAbierto: !leaf.panelAbierto } : leaf,
       ),
     });
   },

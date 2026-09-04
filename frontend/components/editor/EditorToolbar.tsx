@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import {
   indentLine,
@@ -87,6 +87,7 @@ export function EditorToolbar({
   onInsertDiagram,
   notaId,
   titulo,
+  paneId,
 }: {
   getView: () => EditorView | null;
   mode: EditorMode;
@@ -95,6 +96,8 @@ export function EditorToolbar({
   onInsertDiagram?: () => void;
   notaId: string;
   titulo: string;
+  /** Pane al que pertenece esta barra: su panel de metadatos es propio (`DEF-060`). */
+  paneId: string;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -185,8 +188,8 @@ export function EditorToolbar({
 
   const showFormatTools = mode !== "read";
   // Panel de metadatos/conexiones a la derecha (toggle desde la toolbar).
-  const metaPanelOpen = usePanelLayoutStore((s) => s.rightOpen);
-  const toggleMetaPanel = () => usePanelLayoutStore.getState().toggleRight();
+  const metaPanelOpen = useTabsStore((s) => panelMetaAbierto(s.root, paneId));
+  const toggleMetaPanel = () => useTabsStore.getState().togglePanelMeta(paneId);
 
   // Colapso responsive en dos etapas según el ancho disponible, medido con
   // medidores ocultos (anchos naturales, sin feedback al colapsar):

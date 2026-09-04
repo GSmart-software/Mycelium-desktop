@@ -43,13 +43,12 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
-import { useTabsStore } from "@/stores/tabsStore";
+import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
 import { NotePanel } from "./NotePanel";
 import { SearchBar } from "./SearchBar";
-import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
@@ -1054,7 +1053,9 @@ export function NoteEditor({
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
   // Panel de metadatos embebido a la derecha de ESTE editor (toggle global).
-  const metaPanelOpen = usePanelLayoutStore((s) => s.rightOpen);
+  // El panel de metadatos es de ESTE pane (`DEF-060`): leerlo como selector
+  // hace que abrirlo en un pane no redibuje los demás.
+  const metaPanelOpen = useTabsStore((s) => panelMetaAbierto(s.root, paneId));
 
   // Cambiar el ancho de tabulación se aplica a los editores ya abiertos
   // (FUN-S-02): reconfigurar el compartimento, no recrear la vista.
@@ -1081,6 +1082,7 @@ export function NoteEditor({
         onInsertDiagram={insertDiagram}
         notaId={notaId}
         titulo={notaTitulo}
+        paneId={paneId}
       />
 
       {isActivePane && (

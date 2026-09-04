@@ -16,14 +16,20 @@ type PanelLayoutState = {
   /** Última sección activa, para restaurar con Ctrl+\ . */
   lastSection: RailSection;
   leftWidth: number;
+  /**
+   * Ancho del panel derecho. Es global a propósito: si el panel se abre en dos
+   * panes, tenerlos de anchos distintos no aporta nada y obligaría a
+   * redimensionar uno por uno.
+   *
+   * Que esté **abierto** o no, en cambio, es de cada pane: vive en el propio
+   * pane (`LeafPane.panelAbierto`, `DEF-060`). Antes era un booleano acá, y por
+   * eso abrirlo en un pane lo abría en todos.
+   */
   rightWidth: number;
-  rightOpen: boolean;
   /** Toggle desde el rail: clic en ícono activo colapsa el panel (HU-28 CA8). */
   toggleSection: (section: RailSection) => void;
   /** Ctrl+\ : colapsa/restaura el panel izquierdo (HU-29 CA2). */
   toggleLeft: () => void;
-  /** Ctrl+Shift+\ : colapsa/expande el panel derecho (HU-29 CA3). */
-  toggleRight: () => void;
   setLeftWidth: (width: number) => void;
   setRightWidth: (width: number) => void;
 };
@@ -45,7 +51,6 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
       lastSection: "explorer",
       leftWidth: 240,
       rightWidth: 340,
-      rightOpen: false,
 
       toggleSection(section) {
         const { activeSection } = get();
@@ -61,10 +66,6 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
         set({ activeSection: activeSection === null ? lastSection : null });
       },
 
-      toggleRight() {
-        set((state) => ({ rightOpen: !state.rightOpen }));
-      },
-
       setLeftWidth(width) {
         set({ leftWidth: clamp(width) });
       },
@@ -75,11 +76,14 @@ export const usePanelLayoutStore = create<PanelLayoutState>()(
     }),
     {
       name: "micelio-panel-layout",
-      version: 1,
+      version: 2,
       // v1: el panel derecho se embebió en el editor y se agrandó; descartar el
       // ancho viejo (280, muy chico) para que tome el nuevo default cómodo.
+      // v2: `rightOpen` se fue a cada pane (`DEF-060`); se descarta la clave
+      // vieja para no dejarla suelta en el almacenamiento.
       migrate: (persisted, version) => {
-        const s = (persisted ?? {}) as Partial<PanelLayoutState>;
+        const s = { ...((persisted ?? {}) as Partial<PanelLayoutState>) };
+        delete (s as { rightOpen?: boolean }).rightOpen;
         if (version < 1) return { ...s, rightWidth: 340 } as PanelLayoutState;
         return s as PanelLayoutState;
       },
