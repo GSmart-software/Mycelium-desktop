@@ -1264,8 +1264,21 @@
 }
 
 /* Celda renderizada: pasa a `<input>` al recibir el foco. */
+/* DEF-061 hermano: el texto de la celda vive acá, y era `inline-block`, así que
+   ocupaba solo lo que medía su contenido. El hueco que quedaba a los lados era
+   celda pero no era esto, y al pulsarlo no se abría la edición: había que
+   apuntarle al texto.
+
+   `block` y no `inline-block` + `width: 100%`: un bloque sin ancho declarado ya
+   llena su contenedor, y así el `padding` y el borde entran solos sin depender
+   de `box-sizing`. La alineación de la columna la sigue dando el `text-align`
+   de la celda, que se hereda.
+
+   En el encabezado el tirador de la columna es un `float: right` que reserva su
+   sitio siempre (`visibility`), así que las líneas de texto lo esquivan igual
+   que antes. */
 .mic-tab-render {
-  display: inline-block;
+  display: block;
   min-width: 2.5rem;
   min-height: 1.4em;
   padding: 0.05rem 0.15rem;
