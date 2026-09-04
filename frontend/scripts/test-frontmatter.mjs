@@ -28,6 +28,7 @@ const {
   renombrarPropiedad,
   valorComoTexto,
   valorInicialDe,
+  convertirValor,
   NOMBRE_TIPO,
   TIPOS_PROPIEDAD,
 } = mod;
@@ -366,4 +367,88 @@ test("un archivo con CRLF no se convierte a LF al editar", () => {
 
   const creado = ponerPropiedad("# Nota\r\n\r\nTexto.\r\n", "estado", "activo");
   assert.equal(creado, "---\r\nestado: activo\r\n---\r\n\r\n# Nota\r\n\r\nTexto.\r\n");
+});
+
+// ── DEF-070: cambiar el tipo de una propiedad sin perder su valor ────────────
+// La regla es conservar todo lo que se pueda, y caer al valor inicial del tipo
+// destino solo cuando lo que hay no significa nada ahí.
+
+test("a texto: todo se puede leer como texto", () => {
+  assert.equal(convertirValor(3, "texto"), "3");
+  assert.equal(convertirValor(true, "texto"), "true");
+  assert.equal(convertirValor("2026-01-02", "texto"), "2026-01-02");
+});
+
+test("a numero: se conserva el numero, y la coma decimal tambien", () => {
+  assert.equal(convertirValor("42", "numero"), 42);
+  assert.equal(convertirValor("3,5", "numero"), 3.5);
+  assert.equal(convertirValor(true, "numero"), 1);
+  assert.equal(convertirValor(false, "numero"), 0);
+});
+
+test("a numero: lo que no es un numero da 0, no un invento", () => {
+  assert.equal(convertirValor("hola", "numero"), 0);
+  assert.equal(convertirValor("", "numero"), 0);
+});
+
+test("a casilla: solo lo que el texto dice que es verdadero", () => {
+  for (const v of ["true", "sí", "si", "1", "yes", "on", "VERDADERO"]) {
+    assert.equal(convertirValor(v, "casilla"), true, `${v} deberia ser verdadero`);
+  }
+  for (const v of ["false", "no", "0", "cualquier cosa", ""]) {
+    assert.equal(convertirValor(v, "casilla"), false, `${v} deberia ser falso`);
+  }
+  assert.equal(convertirValor(7, "casilla"), true);
+  assert.equal(convertirValor(0, "casilla"), false);
+});
+
+test("fechaHora a fecha: se corta la hora, NO se tira la fecha", () => {
+  assert.equal(convertirValor("2026-03-04T15:30", "fecha"), "2026-03-04");
+  assert.equal(convertirValor("2026-03-04 15:30", "fecha"), "2026-03-04");
+});
+
+test("fecha a fechaHora: se agrega la medianoche", () => {
+  assert.equal(convertirValor("2026-03-04", "fechaHora"), "2026-03-04T00:00");
+});
+
+test("a fecha: sin una fecha dentro, se cae a hoy (igual que al crearla)", () => {
+  assert.equal(convertirValor("hola", "fecha"), valorInicialDe("fecha"));
+  assert.equal(convertirValor("", "fechaHora"), valorInicialDe("fechaHora"));
+});
+
+test("a lista: un escalar queda como UN elemento", () => {
+  assert.deepEqual(convertirValor("uno", "lista"), ["uno"]);
+  assert.deepEqual(convertirValor(3, "lista"), ["3"]);
+});
+
+test("a lista: lo vacio da lista vacia, no un elemento vacio", () => {
+  assert.deepEqual(convertirValor("", "lista"), []);
+  assert.deepEqual(convertirValor(false, "lista"), []);
+});
+
+test("a lista: una lista se queda como esta", () => {
+  assert.deepEqual(convertirValor(["a", "b"], "lista"), ["a", "b"]);
+});
+
+test("de lista a escalar: se unen los elementos y se releen en el destino", () => {
+  assert.equal(convertirValor(["a", "b"], "texto"), "a, b");
+  assert.equal(convertirValor(["7"], "numero"), 7);
+  // Lo que importa: una lista con UNA fecha conserva la fecha en vez de tirarla.
+  assert.equal(convertirValor(["2026-03-04"], "fecha"), "2026-03-04");
+});
+
+test("convertir al MISMO tipo no cambia nada", () => {
+  assert.equal(convertirValor("hola", "texto"), "hola");
+  assert.equal(convertirValor(5, "numero"), 5);
+  assert.equal(convertirValor(true, "casilla"), true);
+  assert.deepEqual(convertirValor(["a"], "lista"), ["a"]);
+  assert.equal(convertirValor("2026-03-04", "fecha"), "2026-03-04");
+});
+
+test("el valor convertido se puede escribir y releer con el tipo nuevo", () => {
+  const texto = ["---", "cuando: 2026-03-04T15:30", "---", "", "cuerpo"].join(String.fromCharCode(10));
+  const nuevo = ponerPropiedad(texto, "cuando", convertirValor("2026-03-04T15:30", "fecha"), "fecha");
+  const p = propiedadDe(nuevo, "cuando");
+  assert.equal(p.tipo, "fecha");
+  assert.equal(p.valor, "2026-03-04");
 });

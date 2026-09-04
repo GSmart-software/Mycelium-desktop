@@ -228,12 +228,30 @@
   gap: 0.35rem;
 }
 
+/* El ícono del tipo es un `<select>` (DEF-070), disfrazado de ícono: sin
+   flecha, sin caja y del mismo ancho de antes, para que la fila se lea igual.
+   El `<option>` dice «📝 Texto»: en la caja cerrada entra solo el ícono, y el
+   nombre queda para la lista abierta y para el `title`. */
 .propIcono {
   flex: 0 0 auto;
   width: 1.1em;
   text-align: center;
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
+  appearance: none;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.propIcono:hover,
+.propIcono:focus-visible {
+  color: var(--mic-text-primary);
+  outline: none;
 }
 
 .propClave {

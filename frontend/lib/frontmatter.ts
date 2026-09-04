@@ -227,6 +227,68 @@ export function valorComoTexto(p: Propiedad): string {
 }
 
 /**
+ * Convierte el valor de una propiedad al cambiarle el tipo (`DEF-070`).
+ *
+ * El defecto era que el tipo no se podía cambiar: había que **borrar la
+ * propiedad y rehacerla**, perdiendo el valor. Así que la regla acá es una
+ * sola: **conservar todo lo que se pueda conservar**, y caer al valor inicial
+ * del tipo destino solo cuando lo que hay no significa nada ahí.
+ *
+ * Ninguna conversión inventa datos. Un texto que no es un número da `0`, no un
+ * número sacado de la nada; una fecha inválida da la de hoy, que es el mismo
+ * criterio de `valorInicialDe`. Lo que se pierde, se pierde a la vista: el
+ * valor nuevo queda escrito en el documento y se puede deshacer con `Ctrl+Z`.
+ *
+ * Casos que importan y no son obvios:
+ *
+ * | De → a | Qué pasa |
+ * |---|---|
+ * | `lista` → escalar | se unen con `, ` y el resultado se interpreta como el destino |
+ * | escalar → `lista` | queda un elemento, salvo que esté vacío: entonces, lista vacía |
+ * | `fechaHora` → `fecha` | se corta la hora, no se descarta la fecha |
+ * | `fecha` → `fechaHora` | se agrega `T00:00` |
+ * | cualquiera → `casilla` | verdadero solo si el texto lo dice (`true`, `sí`, `1`…) |
+ *
+ * Puro y sin imports, como el resto del módulo.
+ */
+export function convertirValor(valor: ValorPropiedad, hacia: TipoPropiedad): ValorPropiedad {
+  // Una lista se aplana a texto para poder releerla con las reglas del destino;
+  // así `["2026-01-02"]` → `fecha` conserva la fecha en vez de tirarla.
+  const texto = (Array.isArray(valor) ? valor.join(", ") : String(valor)).trim();
+
+  if (hacia === "lista") {
+    if (Array.isArray(valor)) return valor;
+    // Una casilla no aporta un elemento útil: `false` como texto sería ruido.
+    if (typeof valor === "boolean") return valor ? ["true"] : [];
+    return texto === "" ? [] : [texto];
+  }
+
+  if (hacia === "texto") return texto;
+
+  if (hacia === "numero") {
+    if (typeof valor === "boolean") return valor ? 1 : 0;
+    // Coma decimal incluida: en el vault se escribe en español.
+    const n = Number(texto.replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  if (hacia === "casilla") {
+    if (typeof valor === "boolean") return valor;
+    if (typeof valor === "number") return valor !== 0;
+    return VERDADEROS.has(texto.toLowerCase());
+  }
+
+  // `fecha` y `fechaHora`: se busca una fecha dentro de lo que haya. Si no la
+  // hay, el valor inicial del tipo —hoy—, que es lo mismo que hace crear una.
+  const m = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(texto);
+  if (!m) return valorInicialDe(hacia);
+  return hacia === "fecha" ? m[1] : `${m[1]}T${m[2] ?? "00:00"}`;
+}
+
+/** Lo que cuenta como «marcado» al pasar un texto a casilla (`DEF-070`). */
+const VERDADEROS = new Set(["true", "yes", "y", "sí", "si", "s", "1", "on", "verdadero"]);
+
+/**
  * Separa el frontmatter del cuerpo. Reglas de detección (spec § 1):
  * el archivo debe EMPEZAR con una línea que sea exactamente `---`; el bloque se
  * cierra en la primera línea posterior que sea `---` o `...`; sin cierre no hay

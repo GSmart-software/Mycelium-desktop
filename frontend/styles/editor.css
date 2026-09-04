@@ -991,11 +991,36 @@
   overflow-wrap: anywhere;
 }
 
+/* En LECTURA el ícono del tipo es un `<span>` y solo informa. En edición es un
+   `<select>` (DEF-070), y se lo disfraza de ícono: sin flecha, sin caja y del
+   mismo ancho, para que la fila se siga leyendo igual. Lo que cambia es que se
+   puede pulsar — de ahí el cursor y el realce al pasar por encima. */
 .mic-prop-icono {
   display: inline-block;
   width: 1.25em;
   opacity: 0.7;
   font-weight: 400;
+}
+
+select.mic-prop-icono {
+  appearance: none;
+  /* El `<option>` dice «📝 Texto»: en la caja cerrada solo entra el ícono, y el
+     nombre completo queda para la lista abierta y para el `title`. */
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+select.mic-prop-icono:hover,
+select.mic-prop-icono:focus-visible {
+  opacity: 1;
+  outline: none;
 }
 
 .mic-prop-valor {

@@ -10,6 +10,7 @@ import { getView } from "@/lib/editor/viewRegistry";
 import {
   NOMBRE_TIPO,
   TIPOS_PROPIEDAD,
+  convertirValor,
   ponerPropiedad,
   quitarPropiedad,
   renombrarPropiedad,
@@ -394,9 +395,27 @@ function FilaPropiedad({
   return (
     <div className={styles.prop}>
       <div className={styles.propCabecera}>
-        <span className={styles.propIcono} title={p.tipo} aria-hidden>
-          {ICONO[p.tipo]}
-        </span>
+        {/* El tipo se CAMBIA acá (`DEF-070`). Era un ícono decorativo, y para
+            pasar de texto a fecha había que borrar la propiedad y rehacerla,
+            perdiendo el valor. El `<select>` va con la pinta del ícono —sin
+            flecha ni caja— para que la fila se lea igual que antes. */}
+        <select
+          className={styles.propIcono}
+          value={p.tipo}
+          title={`Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`}
+          aria-label={`Tipo de la propiedad ${p.clave}`}
+          onChange={(e) => {
+            const tipo = e.target.value as TipoPropiedad;
+            // El valor se convierte, no se descarta: es el defecto entero.
+            if (tipo !== p.tipo) onCambiar(p.clave, convertirValor(p.valor, tipo), tipo);
+          }}
+        >
+          {TIPOS_PROPIEDAD.map((t) => (
+            <option key={t} value={t}>
+              {ICONO[t]} {NOMBRE_TIPO[t]}
+            </option>
+          ))}
+        </select>
         <input
           className={styles.propClave}
           value={clave}

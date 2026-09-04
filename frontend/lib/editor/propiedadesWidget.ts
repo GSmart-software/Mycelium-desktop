@@ -31,6 +31,7 @@
 import {
   NOMBRE_TIPO,
   TIPOS_PROPIEDAD,
+  convertirValor,
   separarFrontmatter,
   valorComoTexto,
   valorInicialDe,
@@ -101,7 +102,7 @@ function boton(clase: string, texto: string, titulo: string): HTMLButtonElement 
  */
 class Fila {
   readonly el: HTMLElement;
-  private readonly iconoEl: HTMLElement;
+  private readonly iconoEl: HTMLSelectElement;
   private readonly claveEl: HTMLInputElement;
   private readonly valorEl: HTMLElement;
   private readonly quitarEl: HTMLButtonElement;
@@ -123,9 +124,27 @@ class Fila {
 
     const claveWrap = document.createElement("span");
     claveWrap.className = "mic-prop-clave";
-    this.iconoEl = document.createElement("span");
+    // El tipo se puede CAMBIAR, no solo mirar (`DEF-070`). Antes era un `<span>`
+    // decorativo, y para pasar de texto a fecha había que borrar la propiedad y
+    // rehacerla, perdiendo el valor. Es un `<select>` con la pinta del ícono:
+    // sin flecha ni caja, para que la fila se siga leyendo igual, pero
+    // enfocable y con su lista —que ya toma los estilos del tema—.
+    this.iconoEl = document.createElement("select");
     this.iconoEl.className = "mic-prop-icono";
-    this.iconoEl.setAttribute("aria-hidden", "true");
+    for (const tipo of TIPOS_PROPIEDAD) {
+      const opcion = document.createElement("option");
+      opcion.value = tipo;
+      opcion.textContent = `${ICONO_TIPO[tipo]} ${NOMBRE_TIPO[tipo]}`;
+      this.iconoEl.append(opcion);
+    }
+    this.iconoEl.addEventListener("change", () => {
+      const nuevo = this.iconoEl.value as TipoPropiedad;
+      if (nuevo === this.p.tipo) return;
+      // El valor se convierte, no se descarta: es el defecto entero.
+      this.intentar(() =>
+        this.acciones.poner(this.p.clave, convertirValor(this.p.valor, nuevo), nuevo),
+      );
+    });
     this.claveEl = document.createElement("input");
     this.claveEl.className = "mic-prop-clave-input";
     this.claveEl.type = "text";
@@ -173,7 +192,11 @@ class Fila {
     this.pintada = huella;
 
     this.el.dataset.tipo = p.tipo;
-    this.iconoEl.textContent = ICONO_TIPO[p.tipo];
+    // Igual que la clave: si lo tiene el foco no se toca, para no cerrarle la
+    // lista al usuario mientras la está mirando.
+    if (document.activeElement !== this.iconoEl) this.iconoEl.value = p.tipo;
+    this.iconoEl.title = `Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`;
+    this.iconoEl.setAttribute("aria-label", `Tipo de la propiedad ${p.clave}`);
     this.quitarEl.title = `Quitar «${p.clave}»`;
     this.quitarEl.setAttribute("aria-label", `Quitar la propiedad ${p.clave}`);
     this.claveEl.setAttribute("aria-label", `Nombre de la propiedad ${p.clave}`);
