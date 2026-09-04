@@ -9,6 +9,7 @@ import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
+import { partirWikilink } from "@/lib/wikilinks";
 
 type MdNode = {
   type: string;
@@ -59,9 +60,10 @@ function remarkMicelio() {
 
       for (const match of value.matchAll(WIKILINK)) {
         // [[destino|alias]]: el destino navega; el alias es lo que se muestra.
-        const pipe = match[1].indexOf("|");
-        const target = (pipe === -1 ? match[1] : match[1].slice(0, pipe)).trim();
-        const label = pipe === -1 ? target : match[1].slice(pipe + 1).trim() || target;
+        // Acá el escape de la tabla (`\|`) ya lo resolvió el pipeline de
+        // Markdown, así que llega como `|`. Se usa el mismo partidor igual, para
+        // que las cuatro vistas del mismo enlace no puedan divergir (`DEF-045`).
+        const { destino: target, etiqueta: label } = partirWikilink(match[1]);
         matches.push({
           start: match.index,
           end: match.index + match[0].length,

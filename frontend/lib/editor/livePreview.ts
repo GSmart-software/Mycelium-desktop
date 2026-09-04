@@ -46,6 +46,7 @@ import {
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
+import { partirWikilink } from "@/lib/wikilinks";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -1155,13 +1156,14 @@ function buildDecorations(
         if (exRanges.some(([f, t]) => start >= f && start < t)) continue;
         const innerFrom = start + 2;
         const innerTo = innerFrom + match[1].length;
-        // [[destino|alias]]: el destino navega, el alias es lo visible.
-        const pipe = match[1].indexOf("|");
-        const target = (pipe === -1 ? match[1] : match[1].slice(0, pipe)).trim();
+        // [[destino|alias]]: el destino navega, el alias es lo visible. La
+        // barra puede venir escapada (`\|`) si el enlace vive en una tabla
+        // (`DEF-045`); ahí son DOS caracteres los que hay que saltar.
+        const { destino: target, desdeEtiqueta } = partirWikilink(match[1]);
         // Tramo que se muestra estilizado (alias si lo hay; si no, el destino).
-        const labelFrom = pipe === -1 ? innerFrom : innerFrom + pipe + 1;
+        const labelFrom = innerFrom + desdeEtiqueta;
         if (!isActive) {
-          // Oculta `[[` y, si hay alias, también `destino|`.
+          // Oculta `[[` y, si hay alias, también `destino|` (o `destino\|`).
           decos.push({ from: start, to: labelFrom, deco: hide });
         }
         // Feedback de inexistencia: mismo color, más oscuro (CA8 mejora).

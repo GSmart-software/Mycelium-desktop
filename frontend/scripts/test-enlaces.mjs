@@ -456,3 +456,35 @@ test("es idempotente: aplicarlo dos veces no cambia más", () => {
   assert.equal(dos.cambios, 0);
   assert.equal(dos.texto, uno.texto);
 });
+
+// ── DEF-045: el alias de una tabla lleva la barra escapada ────────────────────
+// La regla canonica vive en `lib/wikilinks.ts`; `lib/enlaces.ts` la lleva
+// copiada porque es puro y sin imports, asi que estos tests son lo que impide
+// que diverjan.
+
+const ESC_ALIAS = String.fromCharCode(92) + "|";
+
+test("renombrar alcanza a un enlace con la barra escapada (DEF-045)", () => {
+  const r = reescribirEnlaces("ver [[Vieja" + ESC_ALIAS + "el alias]]", "Vieja", "Nueva");
+  assert.equal(r.cambios, 1);
+  assert.equal(r.texto, "ver [[Nueva" + ESC_ALIAS + "el alias]]");
+});
+
+test("al renombrar se CONSERVA el escape: quitarlo rompe la tabla", () => {
+  const r = reescribirEnlaces("| [[Vieja" + ESC_ALIAS + "alias]] |", "Vieja", "Nueva");
+  assert.ok(
+    r.texto.includes(ESC_ALIAS),
+    "sin la barra invertida la fila se partiria donde no debe",
+  );
+});
+
+test("con la barra escapada tambien se conserva el ancla de seccion", () => {
+  const r = reescribirEnlaces("[[Vieja#Parte" + ESC_ALIAS + "alias]]", "Vieja", "Nueva");
+  assert.equal(r.texto, "[[Nueva#Parte" + ESC_ALIAS + "alias]]");
+});
+
+test("las dos formas del alias se renombran igual", () => {
+  const normal = reescribirEnlaces("[[Vieja|a]]", "Vieja", "Nueva");
+  const escapado = reescribirEnlaces("[[Vieja" + ESC_ALIAS + "a]]", "Vieja", "Nueva");
+  assert.equal(normal.cambios, escapado.cambios);
+});

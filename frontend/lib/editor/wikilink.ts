@@ -6,6 +6,7 @@ import type {
 import type { EditorView } from "@codemirror/view";
 import type { TreeCarpeta, TreeNota } from "@/stores/vaultStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { partirWikilink } from "@/lib/wikilinks";
 
 /**
  * Wikilinks estilo Obsidian: `[[archivo]]`, `[[archivo|alias]]` y
@@ -34,16 +35,16 @@ export function folderSegments(
   return segs;
 }
 
-/** Separa `destino|alias` → `{ target, label }` (alias opcional). */
+/**
+ * Separa `destino|alias` → `{ target, label }` (alias opcional).
+ *
+ * Delega en `lib/wikilinks.ts` para que la barra escapada de las tablas
+ * (`[[Destino\|alias]]`, `DEF-045`) se entienda igual acá que en el grafo, la
+ * vista en vivo y la de lectura.
+ */
 export function parseWikilinkTarget(inner: string): { target: string; label: string } {
-  const pipe = inner.indexOf("|");
-  if (pipe === -1) {
-    const target = inner.trim();
-    return { target, label: target };
-  }
-  const target = inner.slice(0, pipe).trim();
-  const alias = inner.slice(pipe + 1).trim();
-  return { target, label: alias || target };
+  const { destino, etiqueta } = partirWikilink(inner);
+  return { target: destino, label: etiqueta };
 }
 
 /**

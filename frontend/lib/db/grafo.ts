@@ -7,6 +7,7 @@
  */
 import { referenciasDe } from "@/lib/canvas";
 import { etiquetasDe } from "@/lib/frontmatter";
+import { destinoDeWikilink } from "@/lib/wikilinks";
 import { select } from "./client";
 import { DbError } from "./errors";
 
@@ -101,12 +102,9 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
   for (const [notaId, contenido] of contenidos) {
     for (let m = WIKILINK_RE.exec(contenido); m !== null; m = WIKILINK_RE.exec(contenido)) {
       // [[destino|alias]] y [[Carpeta/destino]] → apunta al título (antes del `|`,
-      // último segmento de la ruta).
-      let inner = m[1];
-      const pipe = inner.indexOf("|");
-      if (pipe >= 0) inner = inner.slice(0, pipe);
-      const slash = inner.lastIndexOf("/");
-      const destino = (slash >= 0 ? inner.slice(slash + 1) : inner).trim();
+      // último segmento de la ruta). La barra puede venir escapada si el enlace
+      // está dentro de una tabla (`DEF-045`), y ahí también es un alias.
+      const destino = destinoDeWikilink(m[1]);
       const destinoId = porTitulo.get(destino.toLowerCase());
       if (destinoId && destinoId !== notaId) {
         const clave = `${notaId}\u0000${destinoId}`;

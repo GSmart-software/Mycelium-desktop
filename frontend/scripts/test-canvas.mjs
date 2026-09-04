@@ -260,6 +260,23 @@ test("un alias o una ruta dentro del wikilink se resuelven al destino", () => {
   assert.deepEqual(referenciasDe(json).titulos, ["Nota", "Otra"]);
 });
 
+test("la barra del alias tambien vale escapada (DEF-045)", () => {
+  // `\|` es como se escribe un alias dentro de una tabla. La regla canonica
+  // vive en `lib/wikilinks.ts`; `lib/canvas.ts` la lleva copiada porque es puro
+  // y sin imports, asi que este test es lo que impide que diverjan.
+  const ESC = String.fromCharCode(92) + "|";
+  const json = JSON.stringify({
+    nodes: [
+      {
+        id: "a", type: "text", x: 0, y: 0, width: 9, height: 9,
+        text: "[[Carpeta/Nota" + ESC + "alias]] y [[Otra" + ESC + "x]]",
+      },
+    ],
+    edges: [],
+  });
+  assert.deepEqual(referenciasDe(json).titulos, ["Nota", "Otra"]);
+});
+
 test("una flecha entre dos tarjetas no aporta ninguna referencia", () => {
   const json = JSON.stringify({
     nodes: [

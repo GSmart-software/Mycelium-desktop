@@ -665,10 +665,17 @@ export function reescribirEnlaces(
   const salida = texto.replace(RE_ENLACE_PARTIDO, (todo, embed: string, dentro: string, pos: number) => {
     if (enCodigo(pos)) return todo;
 
-    // `destino#seccion|alias`: el alias corta primero, después el ancla.
-    const barra = dentro.indexOf("|");
-    const destinoYAncla = barra === -1 ? dentro : dentro.slice(0, barra);
-    const alias = barra === -1 ? "" : dentro.slice(barra);
+    // `destino#seccion|alias`: el alias corta primero, después el ancla. La
+    // barra puede venir escapada (`\|`) si el enlace está dentro de una tabla
+    // (`DEF-045`); el alias se conserva **con** su escape, porque quitarlo
+    // rompería la tabla al renombrar.
+    //
+    // La regla canónica vive en `lib/wikilinks.ts`; acá va copiada porque este
+    // módulo es puro y sin imports a propósito. `scripts/test-enlaces.mjs`
+    // cubre el caso para que las dos no puedan divergir en silencio.
+    const sep = /\\?\|/.exec(dentro);
+    const destinoYAncla = sep === null ? dentro : dentro.slice(0, sep.index);
+    const alias = sep === null ? "" : dentro.slice(sep.index);
 
     const corte = destinoYAncla.search(/[#^]/);
     const destino = corte === -1 ? destinoYAncla : destinoYAncla.slice(0, corte);

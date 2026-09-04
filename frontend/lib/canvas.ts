@@ -426,8 +426,15 @@ export function referenciasDe(json: string): { titulos: string[]; rutas: string[
     if (n.tipo === "text" && n.texto) {
       RE_WIKILINK.lastIndex = 0;
       for (let m = RE_WIKILINK.exec(n.texto); m !== null; m = RE_WIKILINK.exec(n.texto)) {
-        // `[[destino|alias]]` y `[[Carpeta/destino]]`: interesa el destino.
-        const interior = m[1].split("|")[0];
+        // `[[destino|alias]]` y `[[Carpeta/destino]]`: interesa el destino. El
+        // separador puede venir escapado (`\|`), que es como se escribe un
+        // alias dentro de una tabla (`DEF-045`).
+        //
+        // La regla canónica vive en `lib/wikilinks.ts`; acá va copiada porque
+        // este módulo es puro y sin imports a propósito, y un solo `import` lo
+        // rompería. `scripts/test-canvas.mjs` cubre el caso para que las dos no
+        // puedan divergir en silencio.
+        const interior = m[1].split(/\\?\|/)[0];
         const destino = interior.slice(interior.lastIndexOf("/") + 1).trim();
         if (destino !== "") titulos.push(destino);
       }
