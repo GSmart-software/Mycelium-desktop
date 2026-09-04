@@ -9,6 +9,7 @@ import {
   StateEffect,
   StateField,
   type Extension,
+  type Transaction,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -102,6 +103,32 @@ export function refreshAllLiveViews() {
  * volver al render. Es el «editar como texto» de `FUN-L-19`: dura hasta que el
  * cursor sale de esa tabla.
  */
+/**
+ * ¿Esta transacción trae un árbol de sintaxis distinto? (`DEF-062`/`DEF-064`/`DEF-074`)
+ *
+ * CodeMirror **no** parsea el documento entero al abrirlo: gasta unos 20 ms y
+ * sigue en segundo plano, por trozos y priorizando el viewport. Cada vez que
+ * avanza despacha una transacción con el efecto `Language.setState`, que no
+ * cambia el documento ni la selección ni el viewport.
+ *
+ * Todo lo que se decora leyendo `syntaxTree` tiene que recalcularse ahí. Si no,
+ * lo que el parser todavía no había visto se queda **crudo para siempre**: los
+ * `#` de un título a la vista, una tabla en markdown pelado, el `_texto_` sin su
+ * color. Y no se arregla solo, porque nada vuelve a disparar el cálculo — de ahí
+ * que hubiera que teclear, cambiar de vista o apagar y encender el renderizado
+ * para verlo aparecer.
+ *
+ * Es exactamente lo que hace el resaltador del propio CodeMirror
+ * (`TreeHighlighter.update`: `tree != this.tree`), y por eso el estilo de
+ * sintaxis sí se recuperaba solo y estas decoraciones no.
+ *
+ * La comparación es por **identidad**: el árbol es inmutable y el campo de
+ * lenguaje entrega uno nuevo en cada avance, así que cuesta lo que una igualdad
+ * de referencias.
+ */
+const arbolCambio = (tr: Transaction): boolean =>
+  syntaxTree(tr.startState) !== syntaxTree(tr.state);
+
 const crudoTablaEffect = StateEffect.define<number | null>();
 
 /**
@@ -289,6 +316,7 @@ const tableField = StateField.define<TableState>({
     if (
       crudo !== value.crudo ||
       tr.docChanged ||
+      arbolCambio(tr) ||
       tr.effects.some((e) => e.is(refreshLiveEffect))
     ) {
       return computeTables(tr.state, crudo);
@@ -712,7 +740,17 @@ export function livePreview(
         const refreshed = update.transactions.some((tr) =>
           tr.effects.some((e) => e.is(refreshLiveEffect)),
         );
-        if (update.docChanged || update.selectionSet || update.viewportChanged || refreshed) {
+        // `syntaxTree` distinto = el parser avanzó en segundo plano y hay nodos
+        // que antes no existían (`DEF-062`/`DEF-064`/`DEF-074`). Acá se compara
+        // sobre el `ViewUpdate`, que ya agrega las transacciones del lote.
+        const arbolNuevo = syntaxTree(update.startState) !== syntaxTree(update.state);
+        if (
+          update.docChanged ||
+          update.selectionSet ||
+          update.viewportChanged ||
+          arbolNuevo ||
+          refreshed
+        ) {
           this.decorations = buildDecorations(update.view, noteExists, notaId);
         }
       }
