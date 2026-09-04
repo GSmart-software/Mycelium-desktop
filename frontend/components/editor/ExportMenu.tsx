@@ -8,9 +8,21 @@ import { useUiStore } from "@/stores/uiStore";
 import styles from "./ExportMenu.module.css";
 
 /**
- * Menú "…" de exportación para la barra de herramientas del editor: exportar
- * la nota como .md o PDF (A4/Letter). El dropdown usa position:fixed para no
- * quedar recortado por contenedores con overflow.
+ * Menú "…" de la barra de herramientas del editor: exportar la nota como .md o
+ * PDF (A4/Letter), y el interruptor del renderizado de tablas en vivo.
+ *
+ * **Se llama «Más opciones» y no «Exportar nota»** (`DEF-066`): ya hace más de
+ * una cosa —y una de ellas, el renderizado de tablas, ni siquiera es exportar—,
+ * así que el nombre viejo describía solo una parte. El `aria-label` ya decía
+ * «Más opciones»; el que se había quedado atrás era el `title`, o sea que el
+ * texto del tooltip y el que anuncia un lector de pantalla no coincidían.
+ *
+ * No choca con el «Más acciones» del `⋮` de la barra: ese es el colapso de todo
+ * el grupo derecho cuando la pantalla es angosta, y los dos son ramas del mismo
+ * ternario — nunca se ven a la vez.
+ *
+ * El dropdown usa position:fixed para no quedar recortado por contenedores con
+ * overflow.
  */
 export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string }) {
   const [open, setOpen] = useState(false);
@@ -42,7 +54,7 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
         type="button"
         className={styles.button}
         aria-label="Más opciones"
-        title="Exportar nota"
+        title="Más opciones"
         onClick={toggle}
       >
         <MoreHorizontal size={16} aria-hidden />
