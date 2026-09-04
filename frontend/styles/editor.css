@@ -991,10 +991,8 @@
   overflow-wrap: anywhere;
 }
 
-/* En LECTURA el ícono del tipo es un `<span>` y solo informa. En edición es un
-   `<select>` (DEF-070), y se lo disfraza de ícono: sin flecha, sin caja y del
-   mismo ancho, para que la fila se siga leyendo igual. Lo que cambia es que se
-   puede pulsar — de ahí el cursor y el realce al pasar por encima. */
+/* El ícono del tipo. En LECTURA solo informa; en edición lo acompaña un
+   `<select>` invisible que lo vuelve pulsable (ver `.mic-prop-tipo`). */
 .mic-prop-icono {
   display: inline-block;
   width: 1.25em;
@@ -1002,25 +1000,35 @@
   font-weight: 400;
 }
 
-select.mic-prop-icono {
+/* El selector de tipo va INVISIBLE encima del ícono (DEF-070). Cerrado, un
+   `<select>` muestra el texto de su `<option>`, y esos dicen «T Texto» porque
+   la lista abierta necesita el nombre: recortarlo al ancho del ícono dejaba
+   «T T» a la vista. No hay forma de que muestre una cosa cerrado y otra
+   abierto, así que se separan las dos mitades. */
+.mic-prop-tipo {
+  position: relative;
+  display: inline-block;
+  width: 1.25em;
+  flex: 0 0 auto; /* conserva su ancho: es lo que alinea la columna (DEF-061) */
+}
+
+.mic-prop-tipo-sel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   appearance: none;
-  /* El `<option>` dice «📝 Texto»: en la caja cerrada solo entra el ícono, y el
-     nombre completo queda para la lista abierta y para el `title`. */
-  overflow: hidden;
-  padding: 0;
   border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  line-height: inherit;
-  text-align: center;
+  padding: 0;
   cursor: pointer;
 }
 
-select.mic-prop-icono:hover,
-select.mic-prop-icono:focus-visible {
+/* El realce lo lleva el ícono, porque el select no se ve. */
+.mic-prop-tipo:hover .mic-prop-icono,
+.mic-prop-tipo:focus-within .mic-prop-icono {
   opacity: 1;
-  outline: none;
+  color: var(--mic-accent);
 }
 
 .mic-prop-valor {
@@ -1117,9 +1125,8 @@ select.mic-prop-icono:focus-visible {
   align-items: center;
 }
 
-.mic-props-edit .mic-prop-icono {
-  flex: 0 0 auto; /* conserva su 1.25em: es lo que alinea la columna */
-}
+/* En edición el hijo directo de la clave es `.mic-prop-tipo`, que ya reserva su
+   ancho arriba; el ícono va dentro y no necesita ser ítem flex. */
 
 /* Clave: input plano, del mismo ancho que la columna de la vista de lectura. */
 .mic-prop-clave-input {

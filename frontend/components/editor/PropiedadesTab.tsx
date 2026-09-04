@@ -397,25 +397,35 @@ function FilaPropiedad({
       <div className={styles.propCabecera}>
         {/* El tipo se CAMBIA acá (`DEF-070`). Era un ícono decorativo, y para
             pasar de texto a fecha había que borrar la propiedad y rehacerla,
-            perdiendo el valor. El `<select>` va con la pinta del ícono —sin
-            flecha ni caja— para que la fila se lea igual que antes. */}
-        <select
-          className={styles.propIcono}
-          value={p.tipo}
-          title={`Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`}
-          aria-label={`Tipo de la propiedad ${p.clave}`}
-          onChange={(e) => {
-            const tipo = e.target.value as TipoPropiedad;
-            // El valor se convierte, no se descarta: es el defecto entero.
-            if (tipo !== p.tipo) onCambiar(p.clave, convertirValor(p.valor, tipo), tipo);
-          }}
-        >
-          {TIPOS_PROPIEDAD.map((t) => (
-            <option key={t} value={t}>
-              {ICONO[t]} {NOMBRE_TIPO[t]}
-            </option>
-          ))}
-        </select>
+            perdiendo el valor.
+
+            El `<select>` va INVISIBLE encima del ícono, no disfrazado de ícono:
+            cerrado, un select muestra el texto de su `<option>`, y esos dicen
+            «T Texto» porque la lista abierta necesita el nombre — recortarlo a
+            lo ancho del ícono dejaba «T T» a la vista. Se separan: el `<span>`
+            pinta el ícono y el select se lleva el clic, el foco y el teclado. */}
+        <span className={styles.propTipo}>
+          <span className={styles.propIcono} aria-hidden>
+            {ICONO[p.tipo]}
+          </span>
+          <select
+            className={styles.propTipoSel}
+            value={p.tipo}
+            title={`Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`}
+            aria-label={`Tipo de la propiedad ${p.clave}`}
+            onChange={(e) => {
+              const tipo = e.target.value as TipoPropiedad;
+              // El valor se convierte, no se descarta: es el defecto entero.
+              if (tipo !== p.tipo) onCambiar(p.clave, convertirValor(p.valor, tipo), tipo);
+            }}
+          >
+            {TIPOS_PROPIEDAD.map((t) => (
+              <option key={t} value={t}>
+                {ICONO[t]} {NOMBRE_TIPO[t]}
+              </option>
+            ))}
+          </select>
+        </span>
         <input
           className={styles.propClave}
           value={clave}

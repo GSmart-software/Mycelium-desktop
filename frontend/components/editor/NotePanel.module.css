@@ -228,30 +228,41 @@
   gap: 0.35rem;
 }
 
-/* El ícono del tipo es un `<select>` (DEF-070), disfrazado de ícono: sin
-   flecha, sin caja y del mismo ancho de antes, para que la fila se lea igual.
-   El `<option>` dice «📝 Texto»: en la caja cerrada entra solo el ícono, y el
-   nombre queda para la lista abierta y para el `title`. */
-.propIcono {
+/* El selector de tipo va INVISIBLE encima del ícono (DEF-070). Cerrado, un
+   `<select>` muestra el texto de su `<option>`, y esos dicen «T Texto» porque
+   la lista abierta necesita el nombre: recortarlo al ancho del ícono dejaba
+   «T T» a la vista. Se separan las dos mitades. */
+.propTipo {
+  position: relative;
+  display: inline-block;
   flex: 0 0 auto;
   width: 1.1em;
+}
+
+.propIcono {
+  display: block;
+  width: 100%;
   text-align: center;
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
+}
+
+.propTipoSel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   appearance: none;
-  overflow: hidden;
-  padding: 0;
   border: none;
-  background: transparent;
-  font-family: inherit;
-  line-height: inherit;
+  padding: 0;
   cursor: pointer;
 }
 
-.propIcono:hover,
-.propIcono:focus-visible {
-  color: var(--mic-text-primary);
-  outline: none;
+/* El realce lo lleva el ícono, porque el select no se ve. */
+.propTipo:hover .propIcono,
+.propTipo:focus-within .propIcono {
+  color: var(--mic-accent);
 }
 
 .propClave {

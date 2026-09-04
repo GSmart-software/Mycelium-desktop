@@ -102,7 +102,9 @@ function boton(clase: string, texto: string, titulo: string): HTMLButtonElement 
  */
 class Fila {
   readonly el: HTMLElement;
-  private readonly iconoEl: HTMLSelectElement;
+  private readonly iconoEl: HTMLElement;
+  /** El `<select>` invisible que cambia el tipo (`DEF-070`). */
+  private readonly tipoEl2: HTMLSelectElement;
   private readonly claveEl: HTMLInputElement;
   private readonly valorEl: HTMLElement;
   private readonly quitarEl: HTMLButtonElement;
@@ -126,29 +128,41 @@ class Fila {
     claveWrap.className = "mic-prop-clave";
     // El tipo se puede CAMBIAR, no solo mirar (`DEF-070`). Antes era un `<span>`
     // decorativo, y para pasar de texto a fecha había que borrar la propiedad y
-    // rehacerla, perdiendo el valor. Es un `<select>` con la pinta del ícono:
-    // sin flecha ni caja, para que la fila se siga leyendo igual, pero
-    // enfocable y con su lista —que ya toma los estilos del tema—.
-    this.iconoEl = document.createElement("select");
+    // rehacerla, perdiendo el valor.
+    //
+    // El `<select>` va INVISIBLE encima del ícono, no disfrazado de ícono. Un
+    // select cerrado muestra el texto de su `<option>`, y esos dicen «T Texto»
+    // porque la lista abierta necesita el nombre: recortarlo a lo ancho del
+    // ícono dejaba «T T» a la vista. No hay forma de que un select muestre una
+    // cosa cerrado y otra abierto, así que se separan: el `<span>` pinta el
+    // ícono y el select —transparente, del mismo tamaño— se lleva el clic, el
+    // foco y el teclado.
+    const tipoWrap = document.createElement("span");
+    tipoWrap.className = "mic-prop-tipo";
+    this.iconoEl = document.createElement("span");
     this.iconoEl.className = "mic-prop-icono";
+    this.iconoEl.setAttribute("aria-hidden", "true");
+    this.tipoEl2 = document.createElement("select");
+    this.tipoEl2.className = "mic-prop-tipo-sel";
     for (const tipo of TIPOS_PROPIEDAD) {
       const opcion = document.createElement("option");
       opcion.value = tipo;
       opcion.textContent = `${ICONO_TIPO[tipo]} ${NOMBRE_TIPO[tipo]}`;
-      this.iconoEl.append(opcion);
+      this.tipoEl2.append(opcion);
     }
-    this.iconoEl.addEventListener("change", () => {
-      const nuevo = this.iconoEl.value as TipoPropiedad;
+    this.tipoEl2.addEventListener("change", () => {
+      const nuevo = this.tipoEl2.value as TipoPropiedad;
       if (nuevo === this.p.tipo) return;
       // El valor se convierte, no se descarta: es el defecto entero.
       this.intentar(() =>
         this.acciones.poner(this.p.clave, convertirValor(this.p.valor, nuevo), nuevo),
       );
     });
+    tipoWrap.append(this.iconoEl, this.tipoEl2);
     this.claveEl = document.createElement("input");
     this.claveEl.className = "mic-prop-clave-input";
     this.claveEl.type = "text";
-    claveWrap.append(this.iconoEl, this.claveEl);
+    claveWrap.append(tipoWrap, this.claveEl);
 
     this.valorEl = document.createElement("span");
     this.valorEl.className = "mic-prop-valor";
@@ -192,11 +206,12 @@ class Fila {
     this.pintada = huella;
 
     this.el.dataset.tipo = p.tipo;
+    this.iconoEl.textContent = ICONO_TIPO[p.tipo];
     // Igual que la clave: si lo tiene el foco no se toca, para no cerrarle la
     // lista al usuario mientras la está mirando.
-    if (document.activeElement !== this.iconoEl) this.iconoEl.value = p.tipo;
-    this.iconoEl.title = `Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`;
-    this.iconoEl.setAttribute("aria-label", `Tipo de la propiedad ${p.clave}`);
+    if (document.activeElement !== this.tipoEl2) this.tipoEl2.value = p.tipo;
+    this.tipoEl2.title = `Tipo de «${p.clave}»: ${NOMBRE_TIPO[p.tipo]}`;
+    this.tipoEl2.setAttribute("aria-label", `Tipo de la propiedad ${p.clave}`);
     this.quitarEl.title = `Quitar «${p.clave}»`;
     this.quitarEl.setAttribute("aria-label", `Quitar la propiedad ${p.clave}`);
     this.claveEl.setAttribute("aria-label", `Nombre de la propiedad ${p.clave}`);
