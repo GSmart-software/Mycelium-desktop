@@ -51,6 +51,8 @@ export type AccionesTabla = {
   verComoTexto(): void;
   /** Devuelve el foco al editor (lo que hace `Escape` desde una celda). */
   salirAlEditor(): void;
+  /** Abre la nota de un `[[wikilink]]` pulsado dentro de una celda (`DEF-076`). */
+  navegar(titulo: string): void;
   /** Avisa que el alto del bloque cambió (`view.requestMeasure()`). */
   medir(): void;
 };
@@ -171,9 +173,35 @@ export class TablaEnSitio {
 
     this.dom.append(this.caja, this.avisoEl, this.pieEl, this.menuEl);
 
-    // Los enlaces de las celdas (wikilinks, `#tag:`) navegan en la vista de
-    // lectura, no acá: dentro del editor un href `#…` cambiaría la URL del
-    // workspace.
+    // Un `[[wikilink]]` de una celda navega igual que fuera de la tabla
+    // (`DEF-076`). Antes solo se le anulaba el `href` y no pasaba nada más: se
+    // veía como enlace y no llevaba a ninguna parte.
+    //
+    // Va en **mousedown** y no en `click`, por dos motivos encadenados:
+    //
+    // 1. El `.mic-tab-render` de la celda es enfocable y abre el editor al
+    //    recibir el foco. El foco se mueve en el mousedown, así que para cuando
+    //    llegaría el `click` el enlace ya fue reemplazado por el `<input>` y el
+    //    evento no tiene sobre qué dispararse.
+    // 2. `preventDefault()` acá impide justamente ese foco, así que pulsar un
+    //    enlace navega en vez de abrir la celda a editar. Para editar una celda
+    //    que es solo un enlace queda el resto de la celda, el teclado y
+    //    «Editar como texto».
+    //
+    // También corta el evento para CodeMirror (`eventBelongsToEditor` descarta
+    // lo que ya trae `defaultPrevented`), que es lo que queremos: el clic es del
+    // widget, no del documento.
+    this.dom.addEventListener("mousedown", (event) => {
+      const a = (event.target as HTMLElement).closest("a");
+      const href = a?.getAttribute("href") ?? "";
+      if (!href.startsWith("#wikilink:")) return;
+      event.preventDefault();
+      this.acciones.navegar(decodeURIComponent(href.slice("#wikilink:".length)));
+    });
+
+    // El resto de los `href` internos (`#tag:`, y cualquier ancla) se anulan:
+    // dentro del editor cambiarían la URL del workspace. La vista de tags llega
+    // en una versión futura.
     this.dom.addEventListener("click", (event) => {
       if ((event.target as HTMLElement).closest("a")) event.preventDefault();
     });

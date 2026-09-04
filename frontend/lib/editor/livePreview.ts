@@ -5,6 +5,7 @@ import {
 } from "@codemirror/language";
 import {
   type EditorState,
+  Facet,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -130,6 +131,17 @@ export function refreshAllLiveViews() {
 const arbolCambio = (tr: Transaction): boolean =>
   syntaxTree(tr.startState) !== syntaxTree(tr.state);
 
+/**
+ * Cómo abrir una nota por su título, para los widgets (`DEF-076`).
+ *
+ * Va por un `Facet` y no por un parámetro porque los widgets de bloque los
+ * construye un `StateField`, que no ve el closure de `livePreview()`: lo único
+ * que tiene a mano es el `EditorView`, y desde él el estado.
+ */
+const navegarPorTitulo = Facet.define<(titulo: string) => void, ((titulo: string) => void) | null>({
+  combine: (valores) => valores[0] ?? null,
+});
+
 const crudoTablaEffect = StateEffect.define<number | null>();
 
 /**
@@ -160,6 +172,7 @@ class TableWidget extends WidgetType {
       editar: (transformar) => editarTabla(view, tabla.dom, transformar),
       verComoTexto: () => verTablaComoTexto(view, tabla.dom),
       salirAlEditor: () => view.focus(),
+      navegar: (titulo) => view.state.facet(navegarPorTitulo)?.(titulo),
       // Abrir el editor de una celda o desplegar un menú cambia el alto FUERA
       // del ciclo de actualización de CodeMirror: sin esto su height-map se
       // queda con el alto anterior, que es el desfase de `DEF-031`/`DEF-037`.
@@ -609,6 +622,7 @@ export function liveExtensions(
     EditorView.atomicRanges.of(
       (view) => view.state.field(tableField, false)?.decorations ?? Decoration.none,
     ),
+    navegarPorTitulo.of(onWikilinkClick),
     livePreview(onWikilinkClick, noteExists, notaId),
   ];
 }
