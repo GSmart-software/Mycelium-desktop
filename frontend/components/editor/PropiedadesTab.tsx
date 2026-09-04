@@ -42,6 +42,72 @@ const ICONO = ICONO_TIPO;
  * Tampoco lleva estado propio del frontmatter: las propiedades se derivan del
  * texto actual del editor, así que editar el YAML a mano actualiza el panel.
  */
+/** Tope de sugerencias visibles: la lista es una ayuda, no un catálogo. */
+const MAX_SUGERENCIAS = 8;
+
+/** Para comparar claves sin que estorben las mayúsculas ni los acentos. */
+function normalizarClave(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+/**
+ * Lista de claves sugeridas al escribir una propiedad nueva (`DEF-067`).
+ *
+ * Antes esto era un `<datalist>`, y su desplegable **lo dibuja el navegador
+ * fuera del documento**: ningún CSS lo alcanza, así que aparecía con la pinta
+ * del sistema en medio de un panel con los estilos de Mycelium. Es la misma
+ * familia de problema que la lista de un `<select>` —ver
+ * `docs/DESIGN_SYSTEM.md` § Controles nativos— pero un escalón peor: al
+ * `<select>` se le puede estilar el `option`, y al `<datalist>` no se le puede
+ * estilar nada. La única salida es dibujar la lista uno mismo.
+ *
+ * Va en `position: fixed` calculado desde el input, como el menú de la tabla y
+ * el de exportación: el panel lateral tiene scroll y overflow, y una lista
+ * absoluta quedaría recortada por su contenedor.
+ */
+function SugerenciasClave({
+  ancla,
+  claves,
+  activa,
+  onElegir,
+}: {
+  ancla: React.RefObject<HTMLInputElement | null>;
+  claves: string[];
+  activa: number;
+  onElegir: (clave: string) => void;
+}) {
+  const r = ancla.current?.getBoundingClientRect();
+  if (!r) return null;
+  return (
+    <ul
+      id="mic-claves-sugerencias"
+      role="listbox"
+      className={styles.sugerencias}
+      style={{ position: "fixed", top: r.bottom + 2, left: r.left, width: r.width }}
+    >
+      {claves.map((c, i) => (
+        <li key={c} role="option" aria-selected={i === activa}>
+          <button
+            type="button"
+            className={`${styles.sugerencia} ${i === activa ? styles.sugerenciaActiva : ""}`}
+            // En `mousedown` y no en `click`: el `blur` del input cierra la
+            // lista, y para cuando llegaría el clic el botón ya no existe.
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onElegir(c);
+            }}
+          >
+            {c}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: string }) {
   const vaultId = useVaultStore((s) => s.vaultId);
   const [texto, setTexto] = useState("");
@@ -49,6 +115,10 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
   const [claves, setClaves] = useState<string[]>([]);
   const [nuevaClave, setNuevaClave] = useState("");
   const [nuevoTipo, setNuevoTipo] = useState<TipoPropiedad>("texto");
+  // Sugerencias de clave (`DEF-067`). Ver `SugerenciasClave` más abajo.
+  const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+  const [sugerenciaActiva, setSugerenciaActiva] = useState(-1);
+  const nuevaClaveRef = useRef<HTMLInputElement>(null);
 
   // Texto del editor: lectura inicial (la vista puede tardar en existir, el
   // contenido se carga en asíncrono) + espejo de los cambios vía docBroker.
@@ -120,11 +190,60 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
     [aplicar],
   );
 
+  const cerrarSugerencias = () => {
+    setSugerenciasAbiertas(false);
+    setSugerenciaActiva(-1);
+  };
+
   const añadir = () => {
     const clave = nuevaClave.trim();
     if (clave === "") return;
     cambiar(clave, valorInicialDe(nuevoTipo), nuevoTipo);
     setNuevaClave("");
+    cerrarSugerencias();
+  };
+
+  // Las claves del vault que casan con lo tecleado. Coincidencia por
+  // CONTENIDO y no por prefijo, que es lo que hacía el `<datalist>`: se
+  // conserva el comportamiento aunque cambie quién dibuja la lista.
+  const sugerencias = useMemo(() => {
+    const q = normalizarClave(nuevaClave.trim());
+    const lista = q === "" ? claves : claves.filter((c) => normalizarClave(c).includes(q));
+    return lista.slice(0, MAX_SUGERENCIAS);
+  }, [claves, nuevaClave]);
+
+  const elegirSugerencia = (clave: string) => {
+    setNuevaClave(clave);
+    cerrarSugerencias();
+    nuevaClaveRef.current?.focus();
+  };
+
+  const teclaEnClave = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown" && sugerencias.length > 0) {
+      e.preventDefault();
+      setSugerenciasAbiertas(true);
+      setSugerenciaActiva((i) => (i + 1) % sugerencias.length);
+      return;
+    }
+    if (e.key === "ArrowUp" && sugerencias.length > 0) {
+      e.preventDefault();
+      setSugerenciasAbiertas(true);
+      setSugerenciaActiva((i) => (i <= 0 ? sugerencias.length - 1 : i - 1));
+      return;
+    }
+    if (e.key === "Escape" && sugerenciasAbiertas) {
+      e.preventDefault();
+      cerrarSugerencias();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // Con una sugerencia marcada, Enter la ELIGE; sin ninguna, añade. Es lo
+      // que hacía el `<datalist>`, y evita añadir de más al aceptar una.
+      const elegida = sugerenciasAbiertas ? sugerencias[sugerenciaActiva] : undefined;
+      if (elegida !== undefined) elegirSugerencia(elegida);
+      else añadir();
+    }
   };
 
   const props = fm.hay && fm.soportado ? fm.props : [];
@@ -162,24 +281,33 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
       {!soloLectura && (
         <div className={styles.propAdd}>
           <input
+            ref={nuevaClaveRef}
             className={styles.propInput}
-            list="mic-claves-vault"
             value={nuevaClave}
             placeholder="Nueva propiedad"
             aria-label="Nombre de la propiedad nueva"
-            onChange={(e) => setNuevaClave(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                añadir();
-              }
+            role="combobox"
+            aria-expanded={sugerenciasAbiertas && sugerencias.length > 0}
+            aria-autocomplete="list"
+            aria-controls="mic-claves-sugerencias"
+            autoComplete="off"
+            onChange={(e) => {
+              setNuevaClave(e.target.value);
+              setSugerenciasAbiertas(true);
+              setSugerenciaActiva(-1);
             }}
+            onFocus={() => setSugerenciasAbiertas(true)}
+            onBlur={cerrarSugerencias}
+            onKeyDown={teclaEnClave}
           />
-          <datalist id="mic-claves-vault">
-            {claves.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          {sugerenciasAbiertas && sugerencias.length > 0 && (
+            <SugerenciasClave
+              ancla={nuevaClaveRef}
+              claves={sugerencias}
+              activa={sugerenciaActiva}
+              onElegir={elegirSugerencia}
+            />
+          )}
           <select
             className={styles.propTipo}
             value={nuevoTipo}

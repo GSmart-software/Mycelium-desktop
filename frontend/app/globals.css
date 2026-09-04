@@ -62,6 +62,16 @@ select option {
   background: var(--mic-bg-surface);
 }
 
+/* La opción marcada, con la lista abierta (DEF-068). Sin esto la pinta el
+   navegador con SU resaltado: en modo oscuro salía casi blanca, que se leía
+   como el color del texto y no como el de un elemento seleccionado. Es la misma
+   familia que la lista desplegada —cosas que dibuja el navegador y hay que
+   decírselas una por una—, y por eso no bastó con `select option`. */
+select option:checked {
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+}
+
 /* Las opciones deshabilitadas se atenúan, no desaparecen. */
 select option:disabled {
   color: var(--mic-text-muted);

@@ -352,6 +352,49 @@
   max-width: 7.5rem;
 }
 
+/* Sugerencias de clave al añadir una propiedad (DEF-067). Reemplazan al
+   desplegable del `<datalist>`, que lo dibujaba el navegador fuera del
+   documento y no había CSS que lo alcanzara. `position: fixed` la pone el
+   componente: el panel tiene scroll, y una lista absoluta quedaría recortada
+   por su contenedor. */
+.sugerencias {
+  z-index: 60;
+  margin: 0;
+  padding: 0.15rem;
+  list-style: none;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  box-shadow: var(--mic-shadow-md, 0 4px 14px rgba(0, 0, 0, 0.25));
+}
+
+.sugerencia {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: transparent;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+}
+
+.sugerencia:hover {
+  background: color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+/* La marcada con las flechas: mismo resaltado que el autocompletado del editor. */
+.sugerenciaActiva,
+.sugerenciaActiva:hover {
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+}
+
 /* Frontmatter que Mycelium no interpreta: solo lectura, con el motivo a la vista. */
 .propsAviso {
   font-size: 0.75rem;
