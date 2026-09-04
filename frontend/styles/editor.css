@@ -1043,9 +1043,31 @@
   padding: 0.15rem 0;
 }
 
+/* DEF-061: el ícono del tipo y el input de la clave son hermanos dentro de
+   `.mic-prop-clave`, que NO era un contenedor flex. Con `width: 100%` el input
+   pedía todo el ancho de la clave, así que el ícono no le entraba al lado y
+   caía a una segunda línea, como si la propiedad ocupara dos filas.
+
+   Se resuelve haciendo flex el contenedor y dándole al input lo que sobra, en
+   vez de recortarlo a un porcentaje: un ancho fijo tipo `90%` funciona con el
+   ícono de hoy y se rompe si el ícono cambia de tamaño o si la fuente crece.
+
+   **Solo en edición**: en lectura la clave es un nodo de texto suelto al lado
+   del ícono, y volverlo un ítem flex anónimo cambiaría cómo parte las claves
+   largas (`overflow-wrap: anywhere` necesita un `min-width: 0` que a un ítem
+   anónimo no se le puede poner). Ahí funciona bien y no se toca. */
+.mic-props-edit .mic-prop-clave {
+  display: flex;
+  align-items: center;
+}
+
+.mic-props-edit .mic-prop-icono {
+  flex: 0 0 auto; /* conserva su 1.25em: es lo que alinea la columna */
+}
+
 /* Clave: input plano, del mismo ancho que la columna de la vista de lectura. */
 .mic-prop-clave-input {
-  width: 100%;
+  flex: 1 1 auto;
   min-width: 0;
   padding: 0.1rem 0.25rem;
   border: 1px solid transparent;
