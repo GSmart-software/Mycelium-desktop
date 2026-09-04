@@ -49,7 +49,25 @@
 }
 
 /* ── Tooltips de CodeMirror (autocompletado / lint) temáticos ─────── */
-.cm-tooltip {
+
+/* DEF-067: estas reglas ya existían y NO se aplicaban, por especificidad.
+   CodeMirror declara las suyas con el prefijo del tema —`&light` es
+   `.cm-editor.cm-light`—, así que su `.cm-editor.cm-light .cm-tooltip`
+   (3 clases) le ganaba a un `.cm-tooltip` pelado (1 clase), y el menú de `[[`
+   salía con el gris de CodeMirror en vez de la paleta de Mycelium. Peor todavía
+   en oscuro: como el editor no declara su tema como oscuro, siempre es
+   `cm-light` y el popup salía CLARO.
+
+   El empate alcanza para ganar: `style-mod` inserta la hoja de CodeMirror con
+   `insertBefore(styleTag, head.firstChild)`, o sea SIEMPRE primera, así que a
+   igual especificidad manda la nuestra. Por eso se replica su forma en vez de
+   inventar una más específica o tirar de `!important`.
+
+   El selector pelado se conserva al lado: si algún día el tooltip se monta
+   fuera del editor (`tooltips({ parent })`), el prefijo del tema no casaría. */
+.cm-tooltip,
+.cm-editor.cm-light .cm-tooltip,
+.cm-editor.cm-dark .cm-tooltip {
   background: var(--mic-bg-surface);
   border: 1px solid var(--mic-border);
   color: var(--mic-text-primary);
@@ -67,7 +85,13 @@
   padding: 0.15em 0.5em;
 }
 
-.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+/* La fila marcada. CodeMirror la declara como
+   `.cm-editor.cm-light .cm-tooltip-autocomplete ul li[aria-selected]`
+   (3 clases + atributo + 2 elementos), que también le ganaba a la nuestra: se
+   veía su azul `#17c` y no el acento del tema. */
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected],
+.cm-editor.cm-light .cm-tooltip-autocomplete ul li[aria-selected],
+.cm-editor.cm-dark .cm-tooltip-autocomplete ul li[aria-selected] {
   background: var(--mic-accent);
   color: var(--mic-raw-canvas);
 }
