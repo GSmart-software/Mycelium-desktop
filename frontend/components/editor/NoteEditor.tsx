@@ -1052,9 +1052,9 @@ export function NoteEditor({
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
-  // Panel de metadatos embebido a la derecha de ESTE editor (toggle global).
-  // El panel de metadatos es de ESTE pane (`DEF-060`): leerlo como selector
-  // hace que abrirlo en un pane no redibuje los demás.
+  // Panel de metadatos embebido a la derecha de ESTE editor, y su toggle es de
+  // ESTE pane (`DEF-060`). Leerlo como selector hace que abrirlo en un pane no
+  // redibuje los demás.
   const metaPanelOpen = useTabsStore((s) => panelMetaAbierto(s.root, paneId));
 
   // Cambiar el ancho de tabulación se aplica a los editores ya abiertos
