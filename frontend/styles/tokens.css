@@ -29,6 +29,30 @@
   color-scheme: light;
 }
 
+/* ── Color de los títulos ─────────────────────────────────────────
+   Los seis niveles se distinguen por color además de por tamaño (los H4-H6
+   comparten cuerpo, así que sin esto solo se diferenciaban por el número de #).
+
+   La rampa alterna los dos colores de marca —H1 acento, H2 glow, H3 acento…— y
+   baja de intensidad en cada escalón, así que dos niveles contiguos difieren en
+   el tono Y en la fuerza. El último se apaga del todo: un H6 es lo más chico que
+   hay y se lee mejor atenuado que teñido.
+
+   Cada nivel se mezcla con el color del TEXTO, y no es decoración: es lo que
+   mantiene el contraste en los cuatro combos tema × claro/oscuro. En claro la
+   tinta es oscura y empuja el color hacia abajo (el glow de Bioluminiscencia,
+   #16B8C9, queda en 2.1:1 sobre el fondo claro — ilegible; mezclado con la
+   tinta sube a 3.6:1). En oscuro la tinta es clara y no lo apaga. Un color de
+   marca puesto en crudo se vería bien en un modo y mal en el otro. */
+:root {
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 88%, var(--mic-text-primary));
+  --mic-h2: color-mix(in srgb, var(--mic-glow)   70%, var(--mic-text-primary));
+  --mic-h3: color-mix(in srgb, var(--mic-accent) 58%, var(--mic-text-primary));
+  --mic-h4: color-mix(in srgb, var(--mic-glow)   44%, var(--mic-text-primary));
+  --mic-h5: color-mix(in srgb, var(--mic-accent) 30%, var(--mic-text-primary));
+  --mic-h6: var(--mic-text-muted);
+}
+
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
    Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {

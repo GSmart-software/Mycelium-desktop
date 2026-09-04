@@ -117,11 +117,16 @@
   border: 1px solid color-mix(in srgb, var(--mic-text-muted) 45%, transparent);
 }
 
-/* Headings del live preview (HU-01 CA5) */
-.mic-live-h1 { font-size: 1.75rem;  font-weight: 700; }
-.mic-live-h2 { font-size: 1.375rem; font-weight: 600; }
-.mic-live-h3 { font-size: 1.125rem; font-weight: 600; }
+/* Headings del live preview (HU-01 CA5). El color va en la LÍNEA, así que tiñe
+   también los `#` cuando el cursor está encima y se ven. Lo de dentro que tenga
+   color propio —un wikilink, código— lo conserva: gana el descendiente. */
+.mic-live-h1 { font-size: 1.75rem;  font-weight: 700; color: var(--mic-h1); }
+.mic-live-h2 { font-size: 1.375rem; font-weight: 600; color: var(--mic-h2); }
+.mic-live-h3 { font-size: 1.125rem; font-weight: 600; color: var(--mic-h3); }
 .mic-live-h4, .mic-live-h5, .mic-live-h6 { font-size: 1rem; font-weight: 600; }
+.mic-live-h4 { color: var(--mic-h4); }
+.mic-live-h5 { color: var(--mic-h5); }
+.mic-live-h6 { color: var(--mic-h6); }
 
 /* Citas en vivo (HU-03) */
 .mic-live-quote {
@@ -583,12 +588,15 @@
   margin: 0 auto;
 }
 
-.mic-preview h1 { font-size: 1.75rem;  font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; }
-.mic-preview h2 { font-size: 1.375rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; }
-.mic-preview h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem;    margin-bottom: 0.3rem; }
+.mic-preview h1 { font-size: 1.75rem;  font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--mic-h1); }
+.mic-preview h2 { font-size: 1.375rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; color: var(--mic-h2); }
+.mic-preview h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem;    margin-bottom: 0.3rem; color: var(--mic-h3); }
 .mic-preview h4,
 .mic-preview h5,
 .mic-preview h6 { font-size: 1rem;     font-weight: 600; margin-top: 0.75rem; }
+.mic-preview h4 { color: var(--mic-h4); }
+.mic-preview h5 { color: var(--mic-h5); }
+.mic-preview h6 { color: var(--mic-h6); }
 
 .mic-preview h1:first-child { margin-top: 0; }
 
