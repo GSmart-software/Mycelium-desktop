@@ -260,29 +260,6 @@ export function ExplorerPanel() {
     return cadena;
   }, [carpetaDelActivo, carpetasById]);
 
-  /**
-   * Abrir un archivo mueve la carpeta seleccionada a la suya (`DEF-069`).
-   *
-   * `activeFolderId` era «la última carpeta que se pulsó», y su sombreado se
-   * quedaba ahí aunque el usuario estuviera mirando un archivo de otro lado.
-   * Se podía marcar la rama del archivo aparte, pero entonces quedaban DOS
-   * marcas compitiendo y ninguna era «dónde estoy».
-   *
-   * Uniéndolas hay una sola idea: **la carpeta marcada es dónde estás**. Y como
-   * `activeFolderId` es además el destino de «nota nueva», «carpeta nueva» e
-   * importar, eso deja de ser un dato invisible: el sombreado dice a la vez
-   * dónde estás y dónde va a caer lo que crees.
-   *
-   * Un clic en una carpeta la sigue seleccionando; esto solo corre cuando
-   * **cambia el archivo abierto**.
-   */
-  useEffect(() => {
-    if (activeNoteId === null) return;
-    if (store.activeFolderId !== carpetaDelActivo) store.setActiveFolder(carpetaDelActivo);
-    // Solo al cambiar de archivo: incluir `activeFolderId` desharía el clic del
-    // usuario en cuanto seleccionara otra carpeta sin cambiar de documento.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeNoteId, carpetaDelActivo]);
 
   const isCarpetaShared = useCallback(
     (id: string | null): boolean => {
@@ -596,7 +573,16 @@ export function ExplorerPanel() {
 
   function renderCarpeta(carpeta: TreeCarpeta, depth: number) {
     const isExpanded = store.expanded[carpeta.id] ?? false;
-    const isActive = store.activeFolderId === carpeta.id;
+    // El fondo marca DÓNDE ESTÁS, y eso se deriva del archivo abierto: no es un
+    // estado que alguien prenda y apague (`DEF-069`). Antes era
+    // `activeFolderId`, o sea «la última carpeta pulsada», que se quedaba
+    // marcada aunque estuvieras leyendo un archivo de otro lado y no volvía
+    // sola al recuperar el foco en él.
+    const isActive = carpetaDelActivo === carpeta.id;
+    // La carpeta pulsada, que es OTRA cosa: el destino de «nota nueva»,
+    // «carpeta nueva» e importar. Lleva una marca discreta y distinta, y solo
+    // cuando no coincide con la de arriba, para no marcar dos veces lo mismo.
+    const isSeleccionada = store.activeFolderId === carpeta.id && !isActive;
 
     return (
       <FolderDropZone
@@ -615,6 +601,7 @@ export function ExplorerPanel() {
           depth={depth}
           expanded={isExpanded}
           active={isActive}
+          seleccionada={isSeleccionada}
           contieneActivo={carpetasDelActivo.has(carpeta.id)}
           dropOver={dropOver || osDropTarget === carpeta.id}
           shared={isCarpetaShared(carpeta.id)}
@@ -1000,6 +987,7 @@ function FolderRow({
   depth,
   expanded,
   active,
+  seleccionada,
   contieneActivo,
   shared,
   dropOver,
@@ -1011,9 +999,11 @@ function FolderRow({
   carpeta: TreeCarpeta;
   depth: number;
   expanded: boolean;
-  /** Carpeta seleccionada: es el destino de «nota nueva» y de importar. */
+  /** Es la carpeta del archivo abierto: dónde estás (`DEF-069`). */
   active: boolean;
-  /** Está en la rama del archivo abierto (`DEF-069`). Es otra cosa que `active`. */
+  /** Es la carpeta pulsada, destino de «nota nueva» e importar. Marca discreta. */
+  seleccionada: boolean;
+  /** Está en la rama que lleva al archivo abierto (`DEF-069`). */
   contieneActivo: boolean;
   shared: boolean;
   /** Resaltado de destino: arrastre interno sobre la zona de la carpeta o
@@ -1028,6 +1018,7 @@ function FolderRow({
   const className = [
     styles.row,
     active ? styles.rowActive : "",
+    seleccionada ? styles.rowSeleccionada : "",
     contieneActivo ? styles.rowEnRuta : "",
     dropOver ? styles.rowDropTarget : "",
     drag.isDragging ? styles.rowDragging : "",

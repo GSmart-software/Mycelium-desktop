@@ -125,8 +125,21 @@
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
+/* Dónde estás: la carpeta del archivo abierto (DEF-069). Se DERIVA de qué
+   archivo se está mirando, así que no puede quedar marcada una carpeta que no
+   tiene nada que ver ni hace falta refrescarla a mano. */
 .rowActive {
   background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+/* La carpeta pulsada, que es otra cosa: el destino de «nota nueva», «carpeta
+   nueva» e importar. Antes se llevaba el fondo y por eso mentía sobre dónde
+   estabas; ahora lleva una marca aparte y a propósito discreta —el destino solo
+   importa en el momento de crear—. El `outline` no ocupa espacio, así que no
+   mueve la fila ni desalinea el árbol. */
+.rowSeleccionada {
+  outline: 1px dashed color-mix(in srgb, var(--mic-text-muted) 55%, transparent);
+  outline-offset: -2px;
 }
 
 /* El rastro hasta el archivo abierto (DEF-069).
