@@ -38,17 +38,26 @@ export const headingFoldService = foldService.of((state, lineStart) => {
 const isHeading = (el: Element): boolean => /^H[1-6]$/.test(el.tagName);
 
 /**
- * Qué secciones están plegadas, POR CONTENEDOR y fuera de la función (DEF-050).
+ * Identidad ESTABLE de un título dentro del documento (`DEF-065`/`DEF-075`).
  *
- * Antes vivía dentro de `attachHeadingFolds`, así que cada llamada empezaba con un
- * conjunto vacío: reejecutarla reseteaba el plegado y dejaba a los manejadores de
- * clic viejos apuntando a un conjunto huérfano. Eso volvía la función insegura de
- * repetir, justo lo que hace falta para que las flechas se puedan recuperar solas.
+ * Antes el conjunto de plegados guardaba los propios elementos `<h1>`…`<h6>`, y
+ * eso los ataba a la vida del DOM. Cualquier cosa que reescribiera el HTML del
+ * preview —un re-render por autoguardado, un cambio de pestaña— creaba nodos
+ * NUEVOS, así que los guardados dejaban de estar en el contenedor y se
+ * descartaban: el plegado se deshacía solo.
  *
- * `WeakMap` y no `Map`: la clave es un nodo del DOM y no debe impedir que se libere
- * cuando la nota se cierra.
+ * La identidad es el nivel + el texto, y un contador para los títulos repetidos.
+ * Sobrevive al re-render (el texto es el mismo), al cambio de pestaña, y también
+ * a editar OTRA parte del documento —cosa que un índice posicional no aguanta,
+ * porque agregar un título arriba correría todos los de abajo—. Si se renombra
+ * el título, esa sección se despliega: es el precio, y es el caso raro.
  */
-const plegadasPorContenedor = new WeakMap<HTMLElement, Set<HTMLElement>>();
+function claveDeTitulo(el: Element, vistos: Map<string, number>): string {
+  const base = `${el.tagName}:${(el.textContent ?? "").trim()}`;
+  const n = (vistos.get(base) ?? 0) + 1;
+  vistos.set(base, n);
+  return `${base}#${n}`;
+}
 
 /**
  * Plegado de títulos en la vista de lectura (DOM del preview ya renderizado).
@@ -61,8 +70,13 @@ const plegadasPorContenedor = new WeakMap<HTMLElement, Set<HTMLElement>>();
  * cualquier cosa que reescriba el HTML del preview se las lleva por delante — y el
  * usuario lo veía al cambiar una preferencia, que re-renderiza el editor sin que
  * cambie el contenido.
+ *
+ * **El conjunto de plegados lo pone quien llama** (`DEF-065`): así este módulo no
+ * guarda estado propio y la vida de ese estado la decide el que la conoce. En el
+ * editor es la pestaña —sobrevive a cambiar de pestaña y muere al cerrarla—, que
+ * es justo lo que el defecto pedía.
  */
-export function attachHeadingFolds(root: HTMLElement): void {
+export function attachHeadingFolds(root: HTMLElement, plegados: Set<string>): void {
   // Las cabeceras cuelgan del div de contenido (`.mic-preview-body`), NO del div
   // opcional del título del documento (`.mic-doc-title`), que es el primer hijo
   // cuando "mostrar título" está activo. Apuntar al `:scope > div` genérico
@@ -72,16 +86,16 @@ export function attachHeadingFolds(root: HTMLElement): void {
     (root.querySelector(":scope > div:not(.mic-doc-title)") as HTMLElement | null) ??
     root;
   const children = Array.from(container.children) as HTMLElement[];
-  let collapsed = plegadasPorContenedor.get(container);
-  if (!collapsed) {
-    collapsed = new Set<HTMLElement>();
-    plegadasPorContenedor.set(container, collapsed);
+
+  // La clave de cada título del render de AHORA. Se calcula una vez y se reusa,
+  // porque el contador de repetidos depende del orden de recorrido.
+  const claves = new Map<HTMLElement, string>();
+  const vistos = new Map<string, number>();
+  for (const el of children) {
+    if (isHeading(el)) claves.set(el, claveDeTitulo(el, vistos));
   }
-  // Si el HTML se reescribió, los títulos son nodos NUEVOS y los viejos que
-  // quedaron marcados ya no cuelgan de nada: se descartan para no retenerlos.
-  for (const el of collapsed) {
-    if (!container.contains(el)) collapsed.delete(el);
-  }
+
+  const estaPlegado = (el: HTMLElement) => plegados.has(claves.get(el) ?? "");
 
   const apply = () => {
     let activeLevel = 0; // 0 = fuera de cualquier sección plegada
@@ -93,8 +107,8 @@ export function attachHeadingFolds(root: HTMLElement): void {
           el.classList.add("mic-fold-hidden");
         } else {
           el.classList.remove("mic-fold-hidden");
-          el.classList.toggle("mic-collapsed", collapsed.has(el));
-          if (collapsed.has(el)) activeLevel = lvl; // empieza una región plegada
+          el.classList.toggle("mic-collapsed", estaPlegado(el));
+          if (estaPlegado(el)) activeLevel = lvl; // empieza una región plegada
         }
       } else {
         el.classList.toggle("mic-fold-hidden", activeLevel > 0);
@@ -111,8 +125,10 @@ export function attachHeadingFolds(root: HTMLElement): void {
     arrow.setAttribute("aria-hidden", "true");
     arrow.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (collapsed.has(el)) collapsed.delete(el);
-      else collapsed.add(el);
+      const clave = claves.get(el);
+      if (clave === undefined) return;
+      if (plegados.has(clave)) plegados.delete(clave);
+      else plegados.add(clave);
       apply();
     });
     el.prepend(arrow);

@@ -2,7 +2,13 @@
 
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
+import {
+  codeFolding,
+  foldEffect,
+  foldGutter,
+  foldKeymap,
+  foldedRanges,
+} from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
@@ -80,6 +86,20 @@ const instanceCache = new Map<
     scroll: StateEffect<unknown> | null;
     /** Scroll del panel de lectura/dividido, que NO es el scroller de CodeMirror. */
     previewScrollTop: number;
+    /**
+     * Secciones plegadas, que también son de la pestaña (`DEF-065`).
+     *
+     * Van acá y no en un almacén propio del plegado porque acá está la vida que
+     * el defecto pide: **sobrevive a cambiar de pestaña y muere al cerrarla**
+     * —al reabrir la nota, la pestaña es otra y su `instanceId` también, así que
+     * arranca con todo desplegado, como se especificó—.
+     *
+     * Son dos porque el plegado de cada vista es cosa distinta: en edición son
+     * rangos del documento que maneja CodeMirror, y en lectura son títulos del
+     * DOM identificados por su texto.
+     */
+    plegadosEdicion: { from: number; to: number }[];
+    plegadosLectura: Set<string>;
   }
 >();
 
@@ -220,6 +240,13 @@ export function NoteEditor({
   const previewScrollRef = useRef(0);
   /** Scroll del preview pendiente de restaurar (null = nada que restaurar). */
   const previewScrollPendienteRef = useRef<number | null>(null);
+  /**
+   * Títulos plegados en la vista de lectura (`DEF-065`/`DEF-075`). El conjunto
+   * lo tiene el editor y no el módulo de plegado: así su vida es la de la
+   * pestaña, y no la del nodo del DOM —que se reemplaza en cada re-render del
+   * preview, y era lo que deshacía el plegado solo—.
+   */
+  const plegadosLecturaRef = useRef<Set<string>>(new Set());
   // DEF-055: línea pendiente de aplicar tras un cambio de modo. Va aparte del
   // pendiente en píxeles de arriba, que es el de volver a una pestaña (DEF-039):
   // aquel restaura una posición exacta ya conocida, este traduce entre dos
@@ -481,6 +508,18 @@ export function NoteEditor({
         previewScrollRef.current = cached.previewScrollTop;
         previewScrollPendienteRef.current =
           cached.previewScrollTop > 0 ? cached.previewScrollTop : null;
+        plegadosLecturaRef.current = cached.plegadosLectura;
+        // El plegado de CodeMirror vive en el estado, y la vista se destruye al
+        // cambiar de pestaña (`DEF-065`), así que se repone con los efectos que
+        // lo producen. Solo si el documento es el mismo: un rango viejo sobre
+        // otro texto plegaría cualquier cosa.
+        if (cached.plegadosEdicion.length > 0) {
+          viewRef.current.dispatch({
+            effects: cached.plegadosEdicion
+              .filter((r) => r.to <= content.length)
+              .map((r) => foldEffect.of(r)),
+          });
+        }
       }
 
       // Capturar la posición MIENTRAS se hace scroll: al desmontar ya no se
@@ -641,12 +680,18 @@ export function NoteEditor({
         // OJO (DEF-039): acá NO se puede leer el scroll del DOM — React ya
         // desmontó el nodo y `scrollTop` valdría 0. Se usa lo capturado en vivo.
         const { anchor, head } = view.state.selection.main;
+        const plegadosEdicion: { from: number; to: number }[] = [];
+        foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+          plegadosEdicion.push({ from, to });
+        });
         instanceCache.set(instanceId, {
           doc: contentRef.current,
           anchor,
           head,
           scroll: scrollSnapshotRef.current,
           previewScrollTop: previewScrollRef.current,
+          plegadosEdicion,
+          plegadosLectura: plegadosLecturaRef.current,
         });
         unregisterView(paneId, view);
         view.destroy();
@@ -812,7 +857,7 @@ export function NoteEditor({
   // plegado, así que repetirlo no cuesta ni pierde estado.
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
-      attachHeadingFolds(previewRef.current);
+      attachHeadingFolds(previewRef.current, plegadosLecturaRef.current);
     }
   });
 
