@@ -129,6 +129,27 @@
   background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
 }
 
+/* Carpeta que contiene el archivo abierto, hasta la raíz (DEF-069).
+
+   Una barra al costado y no un fondo: el fondo ya lo usa `.rowActive` para la
+   carpeta SELECCIONADA —el destino de «nota nueva»—, y son dos cosas distintas
+   que pueden coincidir o no en la misma fila. Con señales distintas se
+   distinguen, y las dos juntas se leen sin pelearse.
+
+   El `inset` va dentro de la caja para no correr el texto ni cambiar el alto de
+   la fila, que es lo que haría un `border-left`. */
+.rowEnRuta {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--mic-glow) 70%, transparent);
+}
+
+/* El nombre en seminegrita: la barra sola es discreta a propósito, y en un
+   árbol hondo conviene poder seguir la rama de un vistazo. El color NO se toca
+   —`.row` ya usa `--mic-text-primary`— para no competir con el resaltado de la
+   nota abierta, que es el que tiene que llevarse la vista. */
+.rowEnRuta .name {
+  font-weight: 600;
+}
+
 /* Carpeta destino resaltada durante el drag (HU-24 CA2 / HU-07) */
 .rowDropTarget {
   background-color: color-mix(in srgb, var(--mic-glow) 20%, transparent);

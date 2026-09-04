@@ -237,6 +237,32 @@ export function ExplorerPanel() {
     () => new Map(store.carpetas.map((c) => [c.id, c])),
     [store.carpetas],
   );
+  /**
+   * Las carpetas que CONTIENEN el archivo abierto, de la suya hasta la raíz
+   * (`DEF-069`).
+   *
+   * No se mezcla con `activeFolderId`, que es otra cosa: esa es la carpeta que
+   * el usuario seleccionó, y sirve de destino para «nota nueva», «carpeta
+   * nueva» e importar. Puede no tener nada que ver con lo que se está mirando
+   * —de hecho ese era el defecto: la única carpeta marcada era esa—.
+   *
+   * Se marca la rama entera y no solo la carpeta madre: así se lee como un
+   * rastro desde la raíz, y una carpeta plegada avisa igual de que el archivo
+   * abierto está adentro.
+   */
+  const carpetasDelActivo = useMemo(() => {
+    const cadena = new Set<string>();
+    const nota = store.notas.find((n) => n.id === activeNoteId);
+    let actual = nota?.carpetaId ?? null;
+    // El `seen` corta un ciclo si el árbol llegara corrupto: recorrer padres a
+    // ciegas colgaría el panel, igual que en `folderPath`.
+    while (actual !== null && !cadena.has(actual)) {
+      cadena.add(actual);
+      actual = carpetasById.get(actual)?.padreId ?? null;
+    }
+    return cadena;
+  }, [activeNoteId, store.notas, carpetasById]);
+
   const isCarpetaShared = useCallback(
     (id: string | null): boolean => {
       let current = id;
@@ -568,6 +594,7 @@ export function ExplorerPanel() {
           depth={depth}
           expanded={isExpanded}
           active={isActive}
+          contieneActivo={carpetasDelActivo.has(carpeta.id)}
           dropOver={dropOver || osDropTarget === carpeta.id}
           shared={isCarpetaShared(carpeta.id)}
           renaming={renaming?.type === "carpeta" && renaming.id === carpeta.id}
@@ -952,6 +979,7 @@ function FolderRow({
   depth,
   expanded,
   active,
+  contieneActivo,
   shared,
   dropOver,
   onToggle,
@@ -962,7 +990,10 @@ function FolderRow({
   carpeta: TreeCarpeta;
   depth: number;
   expanded: boolean;
+  /** Carpeta seleccionada: es el destino de «nota nueva» y de importar. */
   active: boolean;
+  /** Está en la rama del archivo abierto (`DEF-069`). Es otra cosa que `active`. */
+  contieneActivo: boolean;
   shared: boolean;
   /** Resaltado de destino: arrastre interno sobre la zona de la carpeta o
    *  archivos del SO sobre ella (DEF-036b). Lo decide `FolderDropZone`. */
@@ -976,6 +1007,7 @@ function FolderRow({
   const className = [
     styles.row,
     active ? styles.rowActive : "",
+    contieneActivo ? styles.rowEnRuta : "",
     dropOver ? styles.rowDropTarget : "",
     drag.isDragging ? styles.rowDragging : "",
   ]
