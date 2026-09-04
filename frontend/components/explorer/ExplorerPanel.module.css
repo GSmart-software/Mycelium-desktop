@@ -129,12 +129,13 @@
   background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
 }
 
-/* Carpeta que contiene el archivo abierto, hasta la raíz (DEF-069).
+/* El rastro hasta el archivo abierto (DEF-069).
 
-   Una barra al costado y no un fondo: el fondo ya lo usa `.rowActive` para la
-   carpeta SELECCIONADA —el destino de «nota nueva»—, y son dos cosas distintas
-   que pueden coincidir o no en la misma fila. Con señales distintas se
-   distinguen, y las dos juntas se leen sin pelearse.
+   El fondo (`.rowActive`) marca la carpeta donde estás —que desde el arreglo es
+   siempre la del archivo abierto—; esta barra marca el CAMINO hasta ella, para
+   que en un árbol hondo se vea de dónde cuelga y para que una carpeta plegada
+   avise de que el archivo está adentro. La carpeta madre lleva las dos, y así
+   se lee: el rastro termina donde está el fondo.
 
    El `inset` va dentro de la caja para no correr el texto ni cambiar el alto de
    la fila, que es lo que haría un `border-left`. */

@@ -237,31 +237,52 @@ export function ExplorerPanel() {
     () => new Map(store.carpetas.map((c) => [c.id, c])),
     [store.carpetas],
   );
+  /** Carpeta que contiene el archivo abierto (null si está en la raíz). */
+  const carpetaDelActivo = useMemo(
+    () => store.notas.find((n) => n.id === activeNoteId)?.carpetaId ?? null,
+    [activeNoteId, store.notas],
+  );
+
   /**
-   * Las carpetas que CONTIENEN el archivo abierto, de la suya hasta la raíz
-   * (`DEF-069`).
-   *
-   * No se mezcla con `activeFolderId`, que es otra cosa: esa es la carpeta que
-   * el usuario seleccionó, y sirve de destino para «nota nueva», «carpeta
-   * nueva» e importar. Puede no tener nada que ver con lo que se está mirando
-   * —de hecho ese era el defecto: la única carpeta marcada era esa—.
-   *
-   * Se marca la rama entera y no solo la carpeta madre: así se lee como un
-   * rastro desde la raíz, y una carpeta plegada avisa igual de que el archivo
-   * abierto está adentro.
+   * La rama que lleva al archivo abierto, de su carpeta hasta la raíz
+   * (`DEF-069`). Se marca entera y no solo la carpeta madre: se lee como un
+   * rastro, y una carpeta plegada avisa igual de que el archivo está adentro.
    */
   const carpetasDelActivo = useMemo(() => {
     const cadena = new Set<string>();
-    const nota = store.notas.find((n) => n.id === activeNoteId);
-    let actual = nota?.carpetaId ?? null;
-    // El `seen` corta un ciclo si el árbol llegara corrupto: recorrer padres a
-    // ciegas colgaría el panel, igual que en `folderPath`.
+    let actual = carpetaDelActivo;
+    // Corta si vuelve a pasar por una carpeta ya vista: el árbol no debería
+    // tener ciclos, pero recorrerlo a ciegas colgaría el panel.
     while (actual !== null && !cadena.has(actual)) {
       cadena.add(actual);
       actual = carpetasById.get(actual)?.padreId ?? null;
     }
     return cadena;
-  }, [activeNoteId, store.notas, carpetasById]);
+  }, [carpetaDelActivo, carpetasById]);
+
+  /**
+   * Abrir un archivo mueve la carpeta seleccionada a la suya (`DEF-069`).
+   *
+   * `activeFolderId` era «la última carpeta que se pulsó», y su sombreado se
+   * quedaba ahí aunque el usuario estuviera mirando un archivo de otro lado.
+   * Se podía marcar la rama del archivo aparte, pero entonces quedaban DOS
+   * marcas compitiendo y ninguna era «dónde estoy».
+   *
+   * Uniéndolas hay una sola idea: **la carpeta marcada es dónde estás**. Y como
+   * `activeFolderId` es además el destino de «nota nueva», «carpeta nueva» e
+   * importar, eso deja de ser un dato invisible: el sombreado dice a la vez
+   * dónde estás y dónde va a caer lo que crees.
+   *
+   * Un clic en una carpeta la sigue seleccionando; esto solo corre cuando
+   * **cambia el archivo abierto**.
+   */
+  useEffect(() => {
+    if (activeNoteId === null) return;
+    if (store.activeFolderId !== carpetaDelActivo) store.setActiveFolder(carpetaDelActivo);
+    // Solo al cambiar de archivo: incluir `activeFolderId` desharía el clic del
+    // usuario en cuanto seleccionara otra carpeta sin cambiar de documento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNoteId, carpetaDelActivo]);
 
   const isCarpetaShared = useCallback(
     (id: string | null): boolean => {
