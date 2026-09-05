@@ -41,16 +41,47 @@ export function separarFiltrosPropiedad(raw: string): {
   return { filtros, resto: resto.join(" ") };
 }
 
-export function buildFtsQuery(raw: string, prefix = false): string {
+/**
+ * Dónde busca la consulta (`FUN-M-20`).
+ *
+ * `ambos` es el comportamiento de siempre y el valor por defecto: no restringe
+ * nada y deja que FTS mire el título y el cuerpo.
+ */
+export type CampoBusqueda = "nombre" | "contenido" | "ambos";
+
+/** La columna de `notas_fts` que le toca a cada modo. */
+const COLUMNA: Record<CampoBusqueda, string | null> = {
+  nombre: "titulo",
+  contenido: "contenido",
+  ambos: null,
+};
+
+/**
+ * Texto del usuario → consulta FTS5.
+ *
+ * `campo` restringe la búsqueda a una columna (`FUN-M-20`). El filtro se aplica
+ * **a cada término** y no a la consulta entera: `titulo : "a"* "b"*` limitaría
+ * solo el primero —el operador de columna alcanza a la frase que le sigue, no a
+ * lo que venga después— y el segundo se buscaría en todo el documento. Un
+ * resultado que casi cumple el filtro es peor que ninguno: nadie lo mira dos
+ * veces.
+ */
+export function buildFtsQuery(
+  raw: string,
+  prefix = false,
+  campo: CampoBusqueda = "ambos",
+): string {
   const parts: string[] = [];
   const star = prefix ? "*" : "";
+  const col = COLUMNA[campo];
+  const en = col === null ? "" : `${col} : `;
   const re = /"[^"]+"|\S+/g;
 
   for (let m = re.exec(raw); m !== null; m = re.exec(raw)) {
     let text = m[0];
 
     if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
-      parts.push(`"${text.slice(1, -1).replaceAll('"', '""')}"${star}`);
+      parts.push(`${en}"${text.slice(1, -1).replaceAll('"', '""')}"${star}`);
       continue;
     }
 
@@ -59,7 +90,7 @@ export function buildFtsQuery(raw: string, prefix = false): string {
     }
 
     const sanitized = text.replaceAll('"', '""');
-    if (sanitized.length > 0) parts.push(`"${sanitized}"${star}`);
+    if (sanitized.length > 0) parts.push(`${en}"${sanitized}"${star}`);
   }
 
   return parts.join(" ");

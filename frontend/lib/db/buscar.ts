@@ -6,9 +6,20 @@
  * Acepta además filtros `clave:valor` sobre las propiedades del frontmatter
  * (`FUN-M-04`): restringen por la tabla `propiedades` y se pueden combinar con
  * términos de texto o usarse solos.
+ *
+ * `campo` elige dónde mirar —nombre, contenido o los dos (`FUN-M-20`)— y se
+ * resuelve en la propia consulta FTS, no filtrando después: `notas_fts` tiene el
+ * título y el cuerpo en columnas separadas, así que restringir es gratis y el
+ * `LIMIT 50` sigue devolviendo 50 resultados útiles en vez de 50 candidatos de
+ * los que sobrevivan tres.
  */
 import { select } from "./client";
-import { buildFtsQuery, separarFiltrosPropiedad, type FiltroPropiedad } from "./fts";
+import {
+  buildFtsQuery,
+  separarFiltrosPropiedad,
+  type CampoBusqueda,
+  type FiltroPropiedad,
+} from "./fts";
 import type { SearchResponse } from "./types";
 
 /** `EXISTS (…)` por filtro, para encadenarlos con AND. */
@@ -30,9 +41,10 @@ export async function buscar(
   vaultId: string,
   q: string,
   exacto = false,
+  campo: CampoBusqueda = "ambos",
 ): Promise<SearchResponse> {
   const { filtros, resto } = separarFiltrosPropiedad(q ?? "");
-  const match = buildFtsQuery(resto, !exacto);
+  const match = buildFtsQuery(resto, !exacto, campo);
   if (match.length === 0 && filtros.length === 0) return { resultados: [] };
 
   const { sql: filtroSql, params: filtroParams } = condicionFiltros(filtros);
@@ -60,6 +72,13 @@ export async function buscar(
     return { resultados };
   }
 
+  // Buscando SOLO por nombre no se devuelve fragmento: la coincidencia es el
+  // título, que ya se ve encima. Un `snippet` del cuerpo ahí sería el principio
+  // del documento sin nada marcado — ruido que se lee como si el resaltado se
+  // hubiera roto.
+  const fragmento =
+    campo === "nombre" ? "'' AS fragmento" : "snippet(notas_fts, 2, '«', '»', '…', 10) AS fragmento";
+
   const resultados = await select<{
     nota_id: string;
     titulo: string;
@@ -67,7 +86,7 @@ export async function buscar(
     fragmento: string;
   }>(
     `SELECT f.nota_id, n.titulo, n.carpeta_id,
-            snippet(notas_fts, 2, '«', '»', '…', 10) AS fragmento
+            ${fragmento}
      FROM notas_fts f
      JOIN notas n ON n.id = f.nota_id
      WHERE notas_fts MATCH ?

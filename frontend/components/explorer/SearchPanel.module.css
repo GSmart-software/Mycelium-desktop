@@ -6,38 +6,49 @@
   flex: 1;
 }
 
+/* El recuadro es la FILA, no el `<input>`. Antes lo era el input y la «x» de
+   limpiar se le superponía con `position: absolute`; con dos controles más
+   (`FUN-M-20`) eso deja de escalar — habría que reservarles sitio a mano en el
+   `padding` del input y recalcularlo cada vez que se agrega uno. Con la fila
+   como caja, los controles se acomodan solos. Es el mismo patrón que el
+   buscador de campos de las tablas. */
 .field {
-  position: relative;
   display: flex;
   align-items: center;
-}
-
-.fieldIcon {
-  position: absolute;
-  left: 0.5rem;
-  color: var(--mic-text-muted);
-  pointer-events: none;
-}
-
-.input {
-  width: 100%;
-  padding: 0.4rem 1.75rem 0.4rem 1.75rem;
-  font-size: 0.8125rem;
-  color: var(--mic-text-primary);
+  gap: 0.15rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.45rem;
   background: var(--mic-bg-base);
   border: 1px solid var(--mic-border);
   border-radius: 6px;
 }
 
-.input:focus {
-  outline: none;
+.field:focus-within {
   border-color: color-mix(in srgb, var(--mic-glow) 60%, transparent);
 }
 
+.fieldIcon {
+  flex: 0 0 auto;
+  color: var(--mic-text-muted);
+  pointer-events: none;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.25rem 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  background: none;
+  border: none;
+}
+
+.input:focus {
+  outline: none;
+}
+
 .clear {
-  position: absolute;
-  right: 0.4rem;
   display: flex;
+  flex: 0 0 auto;
   padding: 0.15rem;
   color: var(--mic-text-muted);
   border-radius: 4px;
@@ -46,6 +57,87 @@
 .clear:hover {
   color: var(--mic-text-primary);
   background: var(--mic-bg-hover);
+}
+
+/* ── Dónde busca y cómo se ve (FUN-M-20) ──────────────────────────────────── */
+
+/* Los dos controles viven DENTRO del campo, a su derecha: se tocan mientras se
+   busca, así que están donde está la vista. Del mismo tamaño que la «x» de
+   limpiar, para que la fila no crezca. */
+.opcion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--mic-text-muted);
+}
+
+.opcion:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.opcion[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+  color: var(--mic-text-primary);
+}
+
+/* ── El árbol de resultados (FUN-M-20) ────────────────────────────────────── */
+
+/* La guía vertical de cada carpeta. La sangría sale de anidar contenedores y no
+   de un padding calculado por nivel: así la línea llega EXACTAMENTE hasta donde
+   llega el contenido de esa carpeta, que es lo único que la hace útil.
+   El margen la deja alineada con la flecha de la carpeta que la abre. */
+.rama {
+  margin-left: 10px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--mic-text-muted) 28%, transparent);
+}
+
+.carpeta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.2rem 0.35rem 0.2rem 0.15rem;
+  border-radius: 4px;
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.carpeta:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.carpetaFlecha,
+.carpetaIcono {
+  flex: 0 0 auto;
+}
+
+/* El mismo color que la carpeta del explorador: es la misma carpeta. */
+.carpetaIcono {
+  color: var(--mic-accent);
+}
+
+.carpetaNombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* La cuenta va al final y no pegada al nombre: así las cifras quedan alineadas
+   entre carpetas y se comparan de un vistazo, que es para lo que están. */
+.carpetaCuenta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
 }
 
 .exactToggle {
@@ -139,7 +231,7 @@
   flex-direction: column;
   gap: 0.15rem;
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.35rem 0.4rem;
   text-align: left;
   border-radius: 6px;
 }
@@ -148,7 +240,22 @@
   background: var(--mic-bg-hover);
 }
 
+.resultHead {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.resultIcon {
+  flex: 0 0 auto;
+  color: var(--mic-text-muted);
+}
+
 .resultTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--mic-text-primary);

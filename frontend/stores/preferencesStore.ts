@@ -84,6 +84,28 @@ export type Preferencias = {
    */
   iconosEnPestanas: boolean;
   /**
+   * Dónde busca el panel del vault (`FUN-M-20`): en el **nombre** del archivo,
+   * en su **contenido**, o en los dos.
+   *
+   * `ambos` por defecto, que es lo que hacía antes de que se pudiera elegir.
+   */
+  busquedaCampo: "nombre" | "contenido" | "ambos";
+  /**
+   * Ver los resultados agrupados por carpeta en vez de como lista plana
+   * (`FUN-M-20`). Apagado por defecto: la lista viene ordenada por relevancia, y
+   * el árbol la reordena por ubicación — mejor para «dónde estaba aquello», peor
+   * para «qué es lo más parecido a lo que escribí».
+   */
+  busquedaArbol: boolean;
+  /**
+   * Buscar solo la palabra completa en vez de por coincidencia (`DEF-035`).
+   *
+   * Vive acá y no en el componente porque es **una decisión sobre cómo se
+   * busca**, igual que las otras dos, y el panel se desmonta al cambiar de
+   * sección del rail: como estado local se perdía sin que nadie lo pidiera.
+   */
+  busquedaExacta: boolean;
+  /**
    * Cuánto "vale" una tabulación en el editor (`FUN-S-02`). Manda sobre las dos
    * caras del asunto, que CodeMirror trata por separado y por defecto **no**
    * coinciden: cuántas columnas ocupa un tabulador ya escrito en el archivo
@@ -145,6 +167,9 @@ const DEFAULT_PREFS: Preferencias = {
   autoCloseBrackets: true,
   showFileTitle: true,
   iconosEnPestanas: true,
+  busquedaCampo: "ambos",
+  busquedaArbol: false,
+  busquedaExacta: false,
   tabWidth: 4,
   graphEdgeDirection: "animated",
   graphHoverGlow: 1,

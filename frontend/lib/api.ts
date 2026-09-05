@@ -95,7 +95,15 @@ async function dispatch(
     if (c === "papelera" && method === "GET") return listarPapelera(b);
     if (c === "grafo" && method === "GET") return grafo(b);
     if (c === "buscar" && method === "GET") {
-      return buscar(b, q.get("q") ?? "", q.get("exacto") === "true");
+      // `campo` (`FUN-M-20`) es opcional: una petición vieja o sin él busca en
+      // los dos, que es lo que hacía antes de existir.
+      const campo = q.get("campo");
+      return buscar(
+        b,
+        q.get("q") ?? "",
+        q.get("exacto") === "true",
+        campo === "nombre" || campo === "contenido" ? campo : "ambos",
+      );
     }
     // Propiedades del frontmatter (FUN-M-04): claves del vault (autocompletado
     // del panel) y notas que tienen una propiedad (base de `FUN-L-03`).
