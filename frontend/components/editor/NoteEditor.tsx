@@ -14,7 +14,7 @@ import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
 import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, placeholder } from "@codemirror/view";
+import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -51,6 +51,7 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
+import { numerosDeLineaExt } from "@/lib/editor/numerosDeLinea";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
@@ -439,6 +440,11 @@ export function NoteEditor({
             // Plegar secciones por título (raw + edición en vivo): flecha en el
             // gutter sobre cada título; pliega hasta el próximo título <= nivel.
             codeFolding(),
+            // El orden de los márgenes es el orden en que se declaran, y el
+            // de números va PRIMERO: así queda a la izquierda y la flecha de
+            // plegar pegada al texto, como en VS Code. Al revés —que es como
+            // estaba— el número quedaba lejos de la línea que numera.
+            numerosCompartment.current.of(numerosDeLinea ? numerosDeLineaExt() : []),
             foldGutter({ openText: "⌄", closedText: "›" }),
             headingFoldService,
             // Título (nombre del archivo) como bloque al inicio del documento.
@@ -451,7 +457,6 @@ export function NoteEditor({
             // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
             // compartidas con relay disponible (cloudflare).
             collabCompartment.current.of([]),
-            numerosCompartment.current.of(numerosDeLinea ? lineNumbers() : []),
             tabCompartment.current.of(
               extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
             ),
@@ -1123,7 +1128,7 @@ export function NoteEditor({
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: numerosCompartment.current.reconfigure(
-        numerosDeLinea ? lineNumbers() : [],
+        numerosDeLinea ? numerosDeLineaExt() : [],
       ),
     });
   }, [numerosDeLinea]);
@@ -1204,7 +1209,12 @@ export function NoteEditor({
         {(mode === "split" || mode === "read") && (
           <div
             ref={previewRef}
-            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
+            // `mic-preview-numeros` prende los números de línea de la vista de
+            // lectura (`FUN-M-28`). Ahí no hay margen de CodeMirror: los números
+            // salen del `data-linea` que `renderNota` deja en cada bloque.
+            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${
+              numerosDeLinea ? "mic-preview-numeros" : ""
+            } ${styles.previewPane}`}
             onClick={onPreviewClick}
             onContextMenu={onPreviewContextMenu}
           >

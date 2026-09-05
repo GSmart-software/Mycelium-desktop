@@ -631,6 +631,39 @@
 
 .mic-preview h1:first-child { margin-top: 0; }
 
+/* ── Números de línea en la vista de lectura (FUN-M-28) ─────────────────────
+   Acá no hay margen de CodeMirror: el número sale del `data-linea` que
+   `renderNota` deja en cada bloque de primer nivel (el mismo que usa el
+   traspaso de scroll entre modos del DEF-055).
+
+   Por eso hay UN número por bloque y no uno por línea del archivo: un párrafo
+   de tres líneas se renderiza como un solo bloque, y no hay a qué asignarle las
+   otras dos. El número que se muestra es el de la línea donde ese bloque
+   EMPIEZA, que es lo mismo que hace el margen del editor con una tabla.
+
+   El pseudo-elemento va absoluto pero SIN `top`: así cae en su posición
+   estática —el arranque del bloque— y queda alineado con su primera línea sin
+   tener que calcular nada. */
+.mic-preview-numeros .mic-preview-body {
+  position: relative;
+  padding-left: 3.25rem;
+}
+
+.mic-preview-numeros .mic-preview-body > [data-linea]::before {
+  content: attr(data-linea);
+  position: absolute;
+  left: 0;
+  width: 2.5rem;
+  text-align: right;
+  font-family: var(--mic-font-mono);
+  font-size: 0.78rem;
+  line-height: inherit;
+  color: var(--mic-text-muted);
+  opacity: 0.65;
+  user-select: none;
+  pointer-events: none;
+}
+
 .mic-preview p   { margin-bottom: 0.85rem; }
 /* Sangría de las listas según el ancho de tabulación (FUN-S-02 / DEF-049).
    `0.375rem` por unidad está calibrado para que el valor por defecto (4) dé los
