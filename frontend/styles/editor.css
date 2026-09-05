@@ -685,11 +685,20 @@
    `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
    bloque, no con su caja entera: en un título grande o en un párrafo que
    envuelve quedaba flotando arriba. */
+/* SIN `top`. Es lo único que hace que cada número quede a la altura de su
+   bloque: sin `top` la caja se queda en su **posición estática** —donde estaría
+   si no fuera absoluta, o sea el arranque de su bloque— y solo se mueve en
+   horizontal. Poniendo `top: 0` se anclaban todos al borde superior del cuerpo
+   y se apilaban ahí, uno encima de otro, mientras el resto de las líneas
+   quedaba sin número.
+
+   `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
+   bloque y no con su caja entera: en un título grande o en un párrafo que
+   envuelve, si no, quedaría pegado arriba. */
 .mic-preview-numeros .mic-preview-body [data-linea]::before {
   content: attr(data-linea);
   position: absolute;
   left: 0;
-  top: 0;
   width: 2.5rem;
   height: 1lh;
   display: flex;

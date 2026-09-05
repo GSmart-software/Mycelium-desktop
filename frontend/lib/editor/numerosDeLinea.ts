@@ -92,9 +92,21 @@ export function numerosDeLineaExt(): Extension {
       // El rango va ARRIBA del bloque, no centrado en él: es donde empieza la
       // tabla en el archivo, y centrado en una tabla alta quedaba flotando lejos
       // de todo.
+      //
+      // El fondo marca CUÁNTO ocupa el bloque: la casilla del margen mide
+      // exactamente lo que mide el bloque, así que teñirla dibuja de un vistazo
+      // qué tramo del archivo cubren esas líneas. Sin él, un rango arriba de una
+      // tabla alta no dice dónde termina.
+      //
+      // El tinte se saca del color del TEXTO, no de un valor fijo: en modo
+      // oscuro la tinta es clara y aclara el fondo, en modo claro es oscura y lo
+      // oscurece. Una sola declaración cubre los dos casos y sigue a cualquier
+      // tema que se agregue.
       ".cm-lineNumbers .cm-gutterElement:has(.mic-num-rango)": {
         alignItems: "flex-start",
         paddingTop: "0.15em",
+        background: "color-mix(in srgb, var(--mic-text-primary) 9%, transparent)",
+        borderRadius: "var(--mic-radius-sm)",
       },
       ".cm-lineNumbers .mic-num-rango": {
         whiteSpace: "nowrap",
