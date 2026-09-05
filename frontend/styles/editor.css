@@ -17,6 +17,35 @@
   padding: 1rem 1.25rem;
 }
 
+/* ── Sitio para los números de línea (FUN-M-28) ──────────────────────────────
+   Con los números activos, el relleno izquierdo del scroller **pasa al
+   margen**: el texto termina donde estaba y el margen gana ese espacio.
+
+   El ancho es un MÍNIMO fijo, no el que resulte del contenido, y eso es lo que
+   hace que el margen no cambie de tamaño. CodeMirror lo dimensiona con lo más
+   largo que haya A LA VISTA, así que sin este mínimo entrar o salir de una
+   tabla —cuyo número es un rango, `34-40`— ensancharía y angostaría el margen,
+   y el texto saltaría de lado mientras se hace scroll. Con el mínimo por encima
+   de un rango corriente, no se mueve nunca.
+
+   `ch` y no `rem`: la medida que importa es cuántos dígitos entran, y el margen
+   usa la tipografía del editor. */
+.mic-editor-host {
+  --mic-ancho-numeros: 8ch;
+}
+
+.mic-editor-host.mic-con-numeros .cm-scroller {
+  padding-left: 0;
+}
+
+.mic-editor-host.mic-con-numeros .cm-gutters {
+  padding-left: 1.25rem; /* el que le sacamos al scroller */
+}
+
+.mic-editor-host.mic-con-numeros .cm-lineNumbers {
+  min-width: var(--mic-ancho-numeros);
+}
+
 .mic-editor-host .cm-content {
   caret-color: var(--mic-glow);
   color: var(--mic-text-primary);
@@ -656,10 +685,6 @@
    `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
    bloque, no con su caja entera: en un título grande o en un párrafo que
    envuelve quedaba flotando arriba. */
-.mic-preview-numeros .mic-preview-body {
-  counter-reset: none; /* nada que contar: el número viene del atributo */
-}
-
 .mic-preview-numeros .mic-preview-body [data-linea]::before {
   content: attr(data-linea);
   position: absolute;

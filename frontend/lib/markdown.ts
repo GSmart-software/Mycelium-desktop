@@ -306,8 +306,24 @@ function rehypeLineas(opciones: { activo: boolean }) {
         linea !== yaMarcada &&
         ETIQUETAS_DE_LINEA.has(el.tagName)
       ) {
-        el.properties = el.properties ?? {};
-        el.properties.dataLinea = String(linea + offsetDeLineas);
+        // En una fila, la marca va a su PRIMERA CELDA y no a la fila.
+        //
+        // El número se dibuja con un `::before`, y un `::before` sobre un `<tr>`
+        // no puede ser lo que parece: dentro de una fila solo caben celdas, así
+        // que el navegador lo envuelve en una **celda anónima** y corre todas
+        // las reales una columna a la derecha. La tabla se veía descuadrada.
+        // Dentro de una celda es un pseudo-elemento normal y no descoloca nada.
+        const destino =
+          el.tagName === "tr"
+            ? ((el.children ?? []).find(
+                (h) => (h as { tagName?: string }).tagName === "td" ||
+                  (h as { tagName?: string }).tagName === "th",
+              ) as typeof el | undefined)
+            : el;
+        if (destino !== undefined) {
+          destino.properties = destino.properties ?? {};
+          destino.properties.dataLinea = String(linea + offsetDeLineas);
+        }
         heredada = linea;
       }
       for (const hijo of el.children ?? []) marcar(hijo, heredada);

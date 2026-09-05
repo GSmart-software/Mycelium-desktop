@@ -12,17 +12,19 @@ import type { Extension } from "@codemirror/state";
  * volvía más abajo, contando bien pero sin nada a la vista en el medio.
  *
  * `lineNumberWidgetMarker` existe justo para eso, y acá se le dan **las dos
- * líneas que el bloque abarca**: la primera arriba y la última abajo, pegadas a
- * los bordes del bloque. Así se lee de un vistazo desde dónde hasta dónde va la
- * tabla en el archivo.
+ * líneas que el bloque abarca**, como `34–40`, arriba del bloque.
  *
- * > [!important] Por qué NO va como «34–40» en una línea
- * > El ancho del margen lo fija el número más largo de lo que hay **a la
- * > vista**. Un rango en una sola línea es más ancho que cualquier número, así
- * > que el margen se ensancharía al entrar una tabla en pantalla y se angostaría
- * > al salir: el texto saltaría de lado mientras se hace scroll. Repartidos en
- * > los dos extremos ocupan el ancho de un número normal y el margen no se
- * > mueve nunca.
+ * > [!important] El margen necesita sitio para el rango, y se lo damos
+ * > El ancho del margen lo fija lo más largo que haya **a la vista**, así que un
+ * > rango ensancharía el margen al entrar una tabla en pantalla y lo angostaría
+ * > al salir: el texto saltaría de lado al hacer scroll.
+ * >
+ * > La solución no es achicar el rango sino **reservar el sitio de antemano**:
+ * > con los números activos, `.cm-scroller` cede su relleno izquierdo y el
+ * > margen se lleva ese espacio con un ancho MÍNIMO fijo (`--mic-ancho-numeros`,
+ * > en `styles/editor.css`). Como el mínimo ya es más ancho que un rango
+ * > corriente, el margen no cambia de tamaño con lo que entre o salga de la
+ * > pantalla, y el texto no se mueve.
  *
  * Alinear un número por FILA es otra cosa y no se puede desde acá: el margen
  * admite **una sola marca por bloque**, y además las filas no se corresponden
@@ -31,8 +33,8 @@ import type { Extension } from "@codemirror/state";
  */
 
 /**
- * Las líneas que abarca un bloque renderizado: la primera arriba y la última
- * abajo. Si el bloque cubre una sola línea, se muestra una sola.
+ * Las líneas que abarca un bloque renderizado, como `34–40`. Si cubre una sola,
+ * se muestra el número a secas.
  */
 class MarcaRango extends GutterMarker {
   constructor(
@@ -48,16 +50,12 @@ class MarcaRango extends GutterMarker {
   }
 
   toDOM() {
-    const caja = document.createElement("div");
+    const caja = document.createElement("span");
     caja.className = "mic-num-rango";
-    const primera = document.createElement("span");
-    primera.textContent = String(this.desde);
-    caja.append(primera);
-    if (this.hasta > this.desde) {
-      const ultima = document.createElement("span");
-      ultima.textContent = String(this.hasta);
-      caja.append(ultima);
-    }
+    // Guion corto y sin espacios: es lo más angosto que se sigue leyendo como
+    // «de acá hasta acá».
+    caja.textContent =
+      this.hasta > this.desde ? `${this.desde}-${this.hasta}` : String(this.desde);
     return caja;
   }
 }
@@ -91,20 +89,15 @@ export function numerosDeLineaExt(): Extension {
         justifyContent: "flex-end",
         padding: "0 0.55em 0 0.6em",
       },
-      // El rango de un bloque ocupa su alto entero y manda cada número a un
-      // borde. `align-items: center` de arriba lo centraría como si fuera un
-      // número suelto, que es justo lo que se veía mal.
+      // El rango va ARRIBA del bloque, no centrado en él: es donde empieza la
+      // tabla en el archivo, y centrado en una tabla alta quedaba flotando lejos
+      // de todo.
       ".cm-lineNumbers .cm-gutterElement:has(.mic-num-rango)": {
-        alignItems: "stretch",
+        alignItems: "flex-start",
+        paddingTop: "0.15em",
       },
       ".cm-lineNumbers .mic-num-rango": {
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        alignItems: "flex-end",
-        width: "100%",
-        height: "100%",
-        padding: "0.15em 0",
+        whiteSpace: "nowrap",
       },
     }),
   ];

@@ -1177,7 +1177,10 @@ export function NoteEditor({
       <div className={`${styles.content} ${styles[`layout_${mode}`]}`}>
         <div
           ref={hostRef}
-          className={`mic-editor-host ${styles.editorPane}`}
+          // `mic-con-numeros` le cede al margen el relleno izquierdo del
+          // scroller, para que un rango como `34-40` entre sin que el margen
+          // cambie de ancho al hacer scroll (`FUN-M-28`).
+          className={`mic-editor-host ${numerosDeLinea ? "mic-con-numeros" : ""} ${styles.editorPane}`}
           onDragOver={(e) => {
             if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
               e.preventDefault();
