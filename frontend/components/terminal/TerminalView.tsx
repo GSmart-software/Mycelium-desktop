@@ -58,10 +58,35 @@ export function TerminalView({ termId }: { termId: string }) {
     observer.observe(cont);
     ajustar();
 
+    // Pegado (`DEF-079`). El botón derecho pegaba el texto DOS veces: el
+    // WebView lo insertaba en el textarea oculto de xterm —que lo manda al PTY
+    // como si se hubiera tecleado— y además disparaba el evento `paste`, que
+    // xterm también atiende. Dos caminos, un solo pegado del usuario.
+    //
+    // Se atiende acá, en CAPTURA sobre el contenedor: así corre antes que el
+    // manejador de xterm y `stopPropagation` le impide llegar. Con
+    // `preventDefault` tampoco se inserta en el textarea, o sea que queda un
+    // único camino y se escribe una sola vez.
+    //
+    // Va en el contenedor de React y no en `term.element`, que sobrevive a los
+    // remounts: ahí el manejador se acumularía uno por montaje, que es el mismo
+    // pegado múltiple por otra puerta.
+    const alPegar = (ev: ClipboardEvent) => {
+      const texto = ev.clipboardData?.getData("text");
+      if (texto === undefined || texto === "") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      inst.term.paste(texto);
+    };
+    cont.addEventListener("paste", alPegar, true);
+
     void abrirPty(termId).then(() => ajustar());
     inst.term.focus();
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      cont.removeEventListener("paste", alPegar, true);
+    };
   }, [termId]);
 
   return <div ref={contRef} className={styles.terminal} />;

@@ -221,11 +221,17 @@ pub fn terminal_abrir(
     let destino = ventana.clone();
     std::thread::spawn(move || {
         let mut buf = [0u8; 8192];
+        // Cola de bytes que no llegaron a formar un carácter completo
+        // (`DEF-083`). Ver `decodificar`: nunca pasa de 3.
+        let mut pendiente: Vec<u8> = Vec::new();
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let datos = String::from_utf8_lossy(&buf[..n]).into_owned();
+                    let datos = decodificar(&mut pendiente, &buf[..n]);
+                    if datos.is_empty() {
+                        continue;
+                    }
                     let _ = destino.emit("terminal-datos", DatosEvento { id: id.clone(), datos });
                 }
             }
@@ -237,6 +243,56 @@ pub fn terminal_abrir(
     });
 
     Ok(())
+}
+
+/// Decodifica lo leído del PTY arrastrando el carácter que quedó a medias
+/// (`DEF-083`).
+///
+/// El PTY se lee en trozos de 8 KB, y un carácter UTF-8 ocupa hasta 4 bytes: si
+/// uno queda partido entre dos lecturas, decodificar cada trozo por separado
+/// —que es lo que se hacía— convierte **las dos mitades** en el carácter de
+/// reemplazo. No es solo que se vea un `<?>`: si esos bytes eran parte de una
+/// secuencia de escape, la secuencia llega rota y el emulador la interpreta
+/// mal, así que aparece texto en el lugar equivocado, repetido, o texto que ya
+/// no debería estar.
+///
+/// Por eso el defecto saltaba con una TUI a pantalla completa —marcos, flechas,
+/// emoji, todo multibyte, y escapes de posición todo el tiempo— y casi nunca
+/// con una shell normal, que imprime ASCII y avanza hacia abajo.
+///
+/// La cola solo guarda un carácter **truncado al final**. Los bytes que son
+/// inválidos de verdad (no una secuencia a medio llegar) se reemplazan acá
+/// mismo y no se arrastran: si no, un byte suelto trabaría el flujo para
+/// siempre esperando un carácter que nunca va a completarse.
+fn decodificar(pendiente: &mut Vec<u8>, leido: &[u8]) -> String {
+    pendiente.extend_from_slice(leido);
+    let mut salida = String::new();
+    loop {
+        match std::str::from_utf8(pendiente) {
+            Ok(texto) => {
+                salida.push_str(texto);
+                pendiente.clear();
+                return salida;
+            }
+            Err(e) => {
+                let hasta = e.valid_up_to();
+                // `valid_up_to` garantiza que este tramo es UTF-8 válido.
+                salida.push_str(std::str::from_utf8(&pendiente[..hasta]).unwrap_or(""));
+                match e.error_len() {
+                    // Carácter truncado al final: se espera al próximo trozo.
+                    None => {
+                        pendiente.drain(..hasta);
+                        return salida;
+                    }
+                    // Bytes inválidos: se reemplazan y se sigue con el resto.
+                    Some(largo) => {
+                        salida.push(char::REPLACEMENT_CHARACTER);
+                        pendiente.drain(..hasta + largo);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Mata las sesiones de una ventana (`FUN-L-16`). Se llama al cerrarla: sus
@@ -305,4 +361,79 @@ pub fn terminal_cerrar(state: tauri::State<TerminalesState>, id: String) -> Resu
         let _ = sesion.child.kill();
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decodificar;
+
+    /// Lo que el defecto rompía: un carácter partido entre dos lecturas.
+    /// `─` (U+2500, el marco de una TUI) son tres bytes.
+    #[test]
+    fn caracter_partido_entre_dos_lecturas() {
+        let bytes = "─".as_bytes().to_vec();
+        let mut pendiente = Vec::new();
+        let a = decodificar(&mut pendiente, &bytes[..2]);
+        assert_eq!(a, "", "con el carácter a medias no se emite nada todavía");
+        let b = decodificar(&mut pendiente, &bytes[2..]);
+        assert_eq!(b, "─", "al completarse sale entero, no dos reemplazos");
+        assert!(pendiente.is_empty());
+    }
+
+    #[test]
+    fn lo_valido_sale_y_solo_la_cola_espera() {
+        let mut datos = b"hola ".to_vec();
+        datos.extend_from_slice(&"ñ".as_bytes()[..1]); // primera mitad de `ñ`
+        let mut pendiente = Vec::new();
+        assert_eq!(decodificar(&mut pendiente, &datos), "hola ");
+        assert_eq!(pendiente.len(), 1, "solo espera el byte que falta completar");
+        assert_eq!(decodificar(&mut pendiente, &"ñ".as_bytes()[1..]), "ñ");
+    }
+
+    /// Una secuencia de escape partida tiene que llegar ENTERA al emulador: si
+    /// se corrompe, el texto termina dibujado donde no va (`DEF-083`).
+    #[test]
+    fn secuencia_de_escape_partida_se_recompone() {
+        let esc = "\x1b[2J\x1b[H┌─┐";
+        let bytes = esc.as_bytes();
+        let mut pendiente = Vec::new();
+        let mut salida = String::new();
+        // Se parte en trozos de 2 bytes, que corta caracteres y escapes.
+        for trozo in bytes.chunks(2) {
+            salida.push_str(&decodificar(&mut pendiente, trozo));
+        }
+        assert_eq!(salida, esc);
+        assert!(pendiente.is_empty());
+    }
+
+    /// Un byte inválido de verdad no puede trabar el flujo esperando un
+    /// carácter que nunca va a completarse.
+    #[test]
+    fn byte_invalido_no_traba_el_flujo() {
+        let mut pendiente = Vec::new();
+        let salida = decodificar(&mut pendiente, &[b'a', 0xFF, b'b']);
+        assert_eq!(salida, "a\u{FFFD}b");
+        assert!(pendiente.is_empty());
+    }
+
+    #[test]
+    fn ascii_puro_pasa_tal_cual() {
+        let mut pendiente = Vec::new();
+        assert_eq!(decodificar(&mut pendiente, b"$ ls -la\r\n"), "$ ls -la\r\n");
+        assert!(pendiente.is_empty());
+    }
+
+    /// La cola nunca crece: un carácter UTF-8 ocupa a lo sumo cuatro bytes.
+    #[test]
+    fn la_cola_nunca_pasa_de_tres_bytes() {
+        let texto = "árbol ─ ┌ ┐ 😀 fin";
+        let bytes = texto.as_bytes();
+        let mut pendiente = Vec::new();
+        let mut salida = String::new();
+        for trozo in bytes.chunks(1) {
+            salida.push_str(&decodificar(&mut pendiente, trozo));
+            assert!(pendiente.len() <= 3, "la cola creció a {}", pendiente.len());
+        }
+        assert_eq!(salida, texto);
+    }
 }

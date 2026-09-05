@@ -91,6 +91,32 @@ export function getInstancia(termId: string): Instancia {
     void invoke("terminal_escribir", { id: termId, datos }).catch(() => {});
   });
 
+  // Copiar y pegar (`DEF-079`). No había nada: `Ctrl+C` viajaba al PTY como
+  // SIGINT y `Ctrl+V` como el byte 0x16, que es el comportamiento clásico de
+  // una terminal pero no lo que espera quien viene de cualquier app.
+  //
+  // Se sigue la convención de Windows Terminal y VS Code, que es la que hace
+  // que las dos cosas convivan: **`Ctrl+C` copia solo si hay algo seleccionado**
+  // y si no, interrumpe como siempre. Perder el `Ctrl+C` de interrumpir sería
+  // mucho peor que no poder copiar con él.
+  term.attachCustomKeyEventHandler((ev) => {
+    if (ev.type !== "keydown" || !(ev.ctrlKey || ev.metaKey)) return true;
+    const tecla = ev.key.toLowerCase();
+
+    if (tecla === "c" && (term.hasSelection() || ev.shiftKey)) {
+      void navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+      return false; // no se manda al PTY: no habría que interrumpir nada
+    }
+    if (tecla === "v") {
+      // Devolver `false` es lo único que hace falta: xterm no lo procesa, el
+      // navegador hace su pegado normal y el evento `paste` —que se atiende en
+      // `TerminalView`— lo escribe UNA vez. Leer el portapapeles acá a mano
+      // sería el segundo camino, o sea el pegado doble otra vez.
+      return false;
+    }
+    return true;
+  });
+
   inst = { term, fit, serialize, ptyAbierto: false };
   instancias.set(termId, inst);
   ensureInfra();
