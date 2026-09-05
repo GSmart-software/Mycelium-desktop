@@ -1,22 +1,36 @@
 "use client";
 
-import { AlertTriangle, Code2, Columns3, Filter, Plus, Table2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  Code2,
+  Columns3,
+  Filter,
+  Plus,
+  Search,
+  Table2,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { api } from "@/lib/api";
 import {
+  alternarOrden,
   columnasDisponibles,
   arbolDeFiltro,
   condicionAplicable,
   construirTabla,
   filtroDeArbol,
   motivosNoEditable,
+  ordenDeColumna,
   OPERADORES_UI,
   OPS_DE_ARCHIVO,
   parsearBase,
   serializarBase,
   tituloColumna,
   type Base,
+  type Busqueda,
   type NodoFiltro,
   type NotaTabla,
   type Vista,
@@ -25,6 +39,7 @@ import { formatearFecha } from "@/lib/markdown";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { ANCHO_MIN, usePrefsVaultStore, usePrefVault } from "@/stores/prefsVaultStore";
 import { resolveWikilink } from "@/lib/editor/wikilink";
 import { partirWikilink } from "@/lib/wikilinks";
 import { GrupoFiltro } from "./FiltrosBuilder";
@@ -57,6 +72,17 @@ export function BaseView({ notaId }: { notaId: string }) {
   const [borrador, setBorrador] = useState("");
   /** Vistas en las que el usuario pidió ver las filas pese al filtro roto. */
   const [sinFiltrar, setSinFiltrar] = useState<Record<number, boolean>>({});
+  // Lo que se busca DENTRO de la tabla (`FUN-S-14`). No se guarda en el archivo
+  // ni sobrevive a cerrar la pestaña: no define la consulta, solo mira lo que
+  // esta ya devolvió.
+  const [busqueda, setBusqueda] = useState<Busqueda>({ texto: "", exacta: false });
+  // Anchos de columna (`FUN-M-25`). Se leen del vault y se escriben ahí; durante
+  // el arrastre NO pasan por React —se tocan los `<col>` directamente— para no
+  // rehacer la tabla entera en cada píxel.
+  const anchosTodos = usePrefVault("anchosTabla");
+  const anchos = anchosTodos[notaId];
+  const tablaRef = useRef<HTMLTableElement>(null);
+  const filaCabeceraRef = useRef<HTMLTableRowElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
 
@@ -165,7 +191,10 @@ export function BaseView({ notaId }: { notaId: string }) {
   const totalCondiciones = arbolFiltros === null ? 0 : contarCondiciones(arbolFiltros);
   const columnas = columnasDisponibles(notas);
   const ignorar = sinFiltrar[iVista] === true;
-  const tabla = construirTabla(base, vista, notas, { ignorarFiltros: ignorar });
+  const tabla = construirTabla(base, vista, notas, {
+    ignorarFiltros: ignorar,
+    busqueda: busqueda.texto.trim() === "" ? undefined : busqueda,
+  });
 
   /** Sustituye la vista activa y guarda el archivo entero. */
   const cambiarVista = (cambio: Partial<Vista>) => {
@@ -174,6 +203,81 @@ export function BaseView({ notaId }: { notaId: string }) {
       vistas: base.vistas.map((v, i) => (i === iVista ? { ...v, ...cambio } : v)),
     };
     void guardar(serializarBase(nueva));
+  };
+
+  // Las columnas que se están dibujando; vacío si la tabla no se pudo construir.
+  const refsColumnas = tabla.ok ? tabla.columnas : [];
+
+  /** Guarda (o borra, con `null`) los anchos de ESTA base, sin tocar los demás. */
+  const guardarAnchos = (nuevos: Record<string, number> | null) => {
+    const copia = { ...anchosTodos };
+    if (nuevos === null) delete copia[notaId];
+    else copia[notaId] = nuevos;
+    usePrefsVaultStore.getState().set("anchosTabla", copia);
+  };
+
+  /**
+   * Mide los `th` tal como se ven ahora.
+   *
+   * Es lo que permite que el primer arrastre no dé un salto: la tabla venía con
+   * el reparto automático del navegador y hay que congelarla **en ese** reparto
+   * antes de empezar a mover un borde.
+   */
+  const medirAnchos = (): Record<string, number> => {
+    const celdas = filaCabeceraRef.current?.children;
+    const medidos: Record<string, number> = {};
+    refsColumnas.forEach((c, i) => {
+      const el = celdas?.[i] as HTMLElement | undefined;
+      if (el) medidos[c] = Math.max(ANCHO_MIN, Math.round(el.getBoundingClientRect().width));
+    });
+    return medidos;
+  };
+
+  /**
+   * Arrastrar el borde derecho de una columna (`FUN-M-25`).
+   *
+   * Mientras dura el arrastre se escribe **directamente en el `<col>`**: pasar
+   * cada píxel por el estado volvería a dibujar todas las filas de la tabla en
+   * cada movimiento del puntero. Al soltar se guarda una sola vez, y ahí sí
+   * React vuelve a mandar.
+   */
+  const empezarRedimension = (e: ReactPointerEvent, ref: string) => {
+    const cols = tablaRef.current?.querySelectorAll("col");
+    const i = refsColumnas.indexOf(ref);
+    if (!cols || i === -1) return;
+
+    // Lo medido rellena los huecos; lo guardado manda donde exista.
+    const partida = { ...medirAnchos(), ...(anchos ?? {}) };
+    // Congelar el reparto actual antes de mover nada.
+    if (tablaRef.current) {
+      tablaRef.current.style.tableLayout = "fixed";
+      tablaRef.current.style.width = "max-content";
+    }
+    refsColumnas.forEach((c, j) => {
+      const col = cols[j] as HTMLElement | undefined;
+      if (col && partida[c]) col.style.width = `${partida[c]}px`;
+    });
+
+    const inicial = partida[ref] ?? ANCHO_MIN;
+    const x0 = e.clientX;
+    let ultimo = inicial;
+    const objetivo = cols[i] as HTMLElement;
+
+    const mover = (ev: PointerEvent) => {
+      ultimo = Math.max(ANCHO_MIN, Math.round(inicial + ev.clientX - x0));
+      objetivo.style.width = `${ultimo}px`;
+    };
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      document.body.classList.remove("mic-redimensionando");
+      guardarAnchos({ ...partida, [ref]: ultimo });
+    };
+    // El cursor va en el `body`: durante el arrastre el puntero se sale del
+    // tirador constantemente, y sin esto parpadearía entre flecha y col-resize.
+    document.body.classList.add("mic-redimensionando");
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
   };
 
   const abrir = (id: string) => {
@@ -202,6 +306,10 @@ export function BaseView({ notaId }: { notaId: string }) {
           </div>
         ) : (
           <span className={styles.titulo}>{vista.nombre}</span>
+        )}
+
+        {modo === "tabla" && tabla.ok && (
+          <BuscadorTabla valor={busqueda} onCambio={setBusqueda} />
         )}
 
         <div className={styles.controles}>
@@ -245,6 +353,8 @@ export function BaseView({ notaId }: { notaId: string }) {
           <span className={styles.recuento}>
             {tabla.total} {tabla.total === 1 ? "nota" : "notas"}
             {tabla.recortadas > 0 && ` · ${tabla.recortadas} ocultas por el límite`}
+            {tabla.ocultasPorBusqueda > 0 &&
+              ` · ${tabla.ocultasPorBusqueda} no coinciden con la búsqueda`}
           </span>
         )}
 
@@ -314,14 +424,54 @@ export function BaseView({ notaId }: { notaId: string }) {
             </p>
           )}
           <div className={styles.scroll}>
-            <table className={styles.tabla}>
+            {/* Con anchos guardados la tabla pasa a `fixed` y su ancho lo deciden
+                las columnas; sin ellos se deja el reparto automático de siempre,
+                para que una base que nadie ajustó se vea igual que antes. */}
+            <table
+              ref={tablaRef}
+              className={styles.tabla}
+              style={
+                anchos ? { tableLayout: "fixed", width: "max-content", minWidth: "100%" } : undefined
+              }
+            >
+              <colgroup>
+                {tabla.columnas.map((c) => (
+                  // En `fixed`, una columna sin ancho se reparte el sobrante y
+                  // el resultado depende de cuántas haya. Si la tabla está
+                  // ajustada, TODAS llevan ancho: las que nadie tocó —una
+                  // columna agregada después— caen en el de partida.
+                  <col
+                    key={c}
+                    style={anchos ? { width: anchos[c] ?? ANCHO_NUEVA_COLUMNA } : undefined}
+                  />
+                ))}
+                {/* La columna de relleno. En `fixed`, una columna SIN ancho se
+                    queda con el sobrante, así que es ella la que absorbe el
+                    hueco cuando las demás no llenan el ancho disponible. Sin
+                    esto habría que estirar las reales, y el ancho que el
+                    usuario eligió dejaría de ser el que se ve. */}
+                {anchos && <col />}
+              </colgroup>
               <thead>
-                <tr>
+                <tr ref={filaCabeceraRef}>
                   {tabla.columnas.map((c) => (
-                    <th key={c} scope="col">
-                      {tituloColumna(base, c)}
-                    </th>
+                    <CabeceraColumna
+                      key={c}
+                      titulo={tituloColumna(base, c)}
+                      orden={ordenDeColumna(vista.orden, c)}
+                      criterios={vista.orden.length}
+                      // Ordenar reescribe el `sort` del archivo, así que sigue
+                      // la misma regla que los filtros y las columnas: si el
+                      // archivo no se entiende entero, no se toca.
+                      motivoBloqueo={editable ? null : bloqueos[0]}
+                      onOrdenar={(acumular) =>
+                        cambiarVista({ orden: alternarOrden(vista.orden, c, acumular) })
+                      }
+                      onRedimensionar={(e) => empezarRedimension(e, c)}
+                      onRestablecer={() => guardarAnchos(null)}
+                    />
                   ))}
+                  {anchos && <th aria-hidden className={styles.relleno} />}
                 </tr>
               </thead>
               <tbody>
@@ -344,17 +494,173 @@ export function BaseView({ notaId }: { notaId: string }) {
                         />
                       </td>
                     ))}
+                    {anchos && <td aria-hidden className={styles.relleno} />}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {tabla.filas.length === 0 && (
-            <p className={styles.vacio}>Ninguna nota cumple los filtros de esta vista.</p>
-          )}
+          {tabla.filas.length === 0 &&
+            (tabla.ocultasPorBusqueda > 0 ? (
+              // Decir «ninguna cumple los filtros» acá seria mentir: los filtros
+              // sí devolvieron notas, es la búsqueda la que no encuentra. Con el
+              // botón para vaciarla al lado, que es lo que hay que hacer.
+              <p className={styles.vacio}>
+                Ninguna de las {tabla.ocultasPorBusqueda} filas coincide con{" "}
+                <strong>«{busqueda.texto.trim()}»</strong>.{" "}
+                <button
+                  type="button"
+                  className={styles.enlaceAccion}
+                  onClick={() => setBusqueda((b) => ({ ...b, texto: "" }))}
+                >
+                  Vaciar la búsqueda
+                </button>
+              </p>
+            ) : (
+              <p className={styles.vacio}>Ninguna nota cumple los filtros de esta vista.</p>
+            ))}
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Buscar una fila dentro de la tabla (`FUN-S-14`).
+ *
+ * No es un filtro y no se comporta como uno: los filtros deciden **qué notas
+ * entran** y viven en el archivo; esto solo mira lo que ya entró y se va con la
+ * pestaña. Por eso está fuera del panel de filtros y no escribe nada.
+ *
+ * > [!note] Parcial y exacta se eligen con un interruptor, no con `*`
+ * > El enunciado hablaba de `*XYZ*`. Un interruptor se ve —la sintaxis con
+ * > comodines hay que saberla— y además deja buscar un asterisco literal, que
+ * > con la otra forma sería imposible.
+ */
+function BuscadorTabla({
+  valor,
+  onCambio,
+}: {
+  valor: Busqueda;
+  onCambio: (b: Busqueda) => void;
+}) {
+  return (
+    <div className={styles.buscarFila}>
+      <Search size={13} aria-hidden />
+      <input
+        className={styles.buscarInput}
+        value={valor.texto}
+        placeholder="Buscar en la tabla…"
+        aria-label="Buscar dentro de la tabla"
+        spellCheck={false}
+        onChange={(e) => onCambio({ ...valor, texto: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && valor.texto !== "") {
+            e.preventDefault();
+            onCambio({ ...valor, texto: "" });
+          }
+        }}
+      />
+      {valor.texto !== "" && (
+        <button
+          type="button"
+          className={styles.buscarLimpiar}
+          aria-label="Vaciar la búsqueda"
+          title="Vaciar"
+          onClick={() => onCambio({ ...valor, texto: "" })}
+        >
+          <X size={12} aria-hidden />
+        </button>
+      )}
+      <button
+        type="button"
+        className={valor.exacta ? styles.buscarModoActivo : styles.buscarModo}
+        aria-pressed={valor.exacta}
+        title={
+          valor.exacta
+            ? "Coincidencia exacta: el valor de la celda es exactamente esto"
+            : "Coincidencia parcial: el valor de la celda contiene esto"
+        }
+        onClick={() => onCambio({ ...valor, exacta: !valor.exacta })}
+      >
+        exacta
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Cabecera de una columna, que además ordena por ella (`FUN-S-15`).
+ *
+ * El clic recorre `ascendente → descendente → sin orden`; <kbd>Shift</kbd>+clic
+ * **suma** la columna a las que ya ordenan en vez de reemplazarlas, porque el
+ * formato admite varios criterios y un clic que siempre los borra dejaría un
+ * `sort` de dos columnas imposible de rehacer desde acá.
+ *
+ * Cuando hay más de un criterio, cada flecha lleva su número de orden: sin él,
+ * dos flechas parecen dos órdenes compitiendo en vez de uno detrás del otro.
+ */
+function CabeceraColumna({
+  titulo,
+  orden,
+  criterios,
+  motivoBloqueo,
+  onOrdenar,
+  onRedimensionar,
+  onRestablecer,
+}: {
+  titulo: string;
+  orden: { descendente: boolean; posicion: number } | null;
+  criterios: number;
+  motivoBloqueo: string | null;
+  onOrdenar: (acumular: boolean) => void;
+  onRedimensionar: (e: ReactPointerEvent) => void;
+  onRestablecer: () => void;
+}) {
+  const sentido = orden === null ? "none" : orden.descendente ? "descending" : "ascending";
+  const Flecha = orden?.descendente ? ArrowDown : ArrowUp;
+
+  return (
+    <th scope="col" aria-sort={sentido} className={styles.thOrdenable}>
+      <button
+        type="button"
+        className={orden === null ? styles.cabeceraBoton : styles.cabeceraBotonActiva}
+        disabled={motivoBloqueo !== null}
+        title={
+          motivoBloqueo !== null
+            ? `No se puede ordenar: ${motivoBloqueo}`
+            : "Ordenar por esta columna · Shift+clic para ordenar también por ella"
+        }
+        onClick={(e) => onOrdenar(e.shiftKey)}
+      >
+        <span className={styles.cabeceraTexto}>{titulo}</span>
+        {orden !== null && (
+          <span className={styles.ordenMarca} aria-hidden>
+            <Flecha size={12} />
+            {criterios > 1 && <span className={styles.ordenPos}>{orden.posicion}</span>}
+          </span>
+        )}
+      </button>
+      {/* El tirador del ancho (`FUN-M-25`). Va fuera del botón y frena el evento
+          para que arrastrar un borde no ordene la tabla de paso. No es
+          focusable: no aporta nada que el teclado pueda usar, y el ancho de una
+          columna no es información — se restablece con doble clic. */}
+      <span
+        className={styles.tirador}
+        role="presentation"
+        title="Arrastrar para cambiar el ancho · Doble clic para volver a los automáticos"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onRedimensionar(e);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onRestablecer();
+        }}
+      />
+    </th>
   );
 }
 
@@ -403,6 +709,15 @@ function EditorFuente({
     </div>
   );
 }
+
+/**
+ * Ancho de una columna que aparece en una tabla ya ajustada (`FUN-M-25`).
+ *
+ * No se mide: cuando se dibuja por primera vez la tabla ya está en `fixed`, así
+ * que no hay un ancho natural que medir. Es un punto de partida razonable, y
+ * arrastrarla una vez lo reemplaza.
+ */
+const ANCHO_NUEVA_COLUMNA = 180;
 
 /** Cuántas condiciones tiene el árbol, incluidas las de los grupos anidados. */
 function contarCondiciones(nodo: NodoFiltro): number {

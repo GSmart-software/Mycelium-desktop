@@ -7,6 +7,7 @@ import {
   OPERADORES_UI,
   OPS_DE_ARCHIVO,
   condicionAplicable,
+  normalizarTexto,
   type Condicion,
   type NodoFiltro,
 } from "@/lib/bases";
@@ -31,9 +32,6 @@ import styles from "./BaseView.module.css";
 
 /** Cuántos campos se listan a la vez en el buscador (`FUN-S-16`). */
 const MAX_CAMPOS = 60;
-
-const norm = (s: string): string =>
-  s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
 /**
  * Elige por qué campo filtra una condición, con buscador (`FUN-S-16`).
@@ -65,8 +63,9 @@ function SelectorCampo({
   const [pos, setPos] = useState({ top: 0, left: 0, ancho: 0 });
 
   const visibles = useMemo(() => {
-    const q = norm(consulta.trim());
-    const lista = q === "" ? campos : campos.filter((c) => norm(c.ref).includes(q));
+    const q = normalizarTexto(consulta.trim());
+    const lista =
+      q === "" ? campos : campos.filter((c) => normalizarTexto(c.ref).includes(q));
     return lista.slice(0, MAX_CAMPOS);
   }, [campos, consulta]);
 

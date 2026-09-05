@@ -86,6 +86,8 @@
   padding: 0.4rem 0.9rem;
   border-bottom: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
   vertical-align: top;
+  /* Con anchos fijos, una ruta larga sin espacios se saldría de su columna. */
+  overflow-wrap: anywhere;
 }
 
 /* Toda la fila abre la nota: se anuncia con el cursor y el resaltado. */
@@ -287,6 +289,180 @@
   color: var(--mic-raw-mist);
   font-size: 0.7rem;
   font-weight: 600;
+}
+
+/* ── Buscar dentro de la tabla (FUN-S-14) ─────────────────────────────────── */
+
+/* Va en la cabecera y no en el panel de filtros a propósito: no define la
+   consulta, así que no se esconde detrás de un botón como los que sí. */
+.buscarFila {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  color: var(--mic-text-muted);
+}
+
+.buscarFila:focus-within {
+  border-color: var(--mic-accent);
+}
+
+.buscarInput {
+  width: 11rem;
+  min-width: 0;
+  padding: 0.15rem 0;
+  border: none;
+  background: none;
+  color: var(--mic-text-primary);
+  font-size: 0.8rem;
+}
+
+.buscarInput:focus {
+  outline: none;
+}
+
+.buscarLimpiar {
+  display: inline-flex;
+  padding: 0.1rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.buscarLimpiar:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.buscarModo,
+.buscarModoActivo {
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  font-size: 0.7rem;
+}
+
+.buscarModo:hover {
+  color: var(--mic-text-primary);
+}
+
+.buscarModoActivo {
+  background: color-mix(in srgb, var(--mic-glow) 20%, transparent);
+  border-color: var(--mic-accent);
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+/* Acción escrita dentro de un párrafo (vaciar la búsqueda): se lee como enlace,
+   que es lo que hace un botón que no es el asunto principal del bloque. */
+.enlaceAccion {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  font: inherit;
+}
+
+/* ── Ordenar por una columna (FUN-S-15) ───────────────────────────────────── */
+
+/* El padding pasa del `th` al botón para que toda la celda de cabecera sea el
+   área clicable, y no solo el texto. */
+.thOrdenable {
+  padding: 0;
+}
+
+.cabeceraBoton,
+.cabeceraBotonActiva {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.45rem 0.9rem;
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+/* Con la tabla en `fixed` una cabecera estrecha desbordaría sobre la vecina: se
+   recorta con puntos suspensivos, y el `title` del botón sigue diciendo todo. */
+.cabeceraTexto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cabeceraBoton:hover:not(:disabled),
+.cabeceraBotonActiva:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.cabeceraBotonActiva {
+  color: var(--mic-text-primary);
+}
+
+.cabeceraBoton:disabled,
+.cabeceraBotonActiva:disabled {
+  cursor: default;
+}
+
+.ordenMarca {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  color: var(--mic-accent);
+}
+
+/* El número solo aparece con más de un criterio, y por eso puede ser diminuto:
+   no informa de nada cuando la flecha está sola. */
+.ordenPos {
+  font-size: 0.62rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Ancho de columna (FUN-M-25) ──────────────────────────────────────────── */
+
+/* Se apoya en que el `th` es `sticky`, que ya es un elemento posicionado. La
+   zona sensible es más ancha que la línea que se ve: acertarle a 1 px de borde
+   es incómodo, y estos tiradores son de los pocos controles que se usan sin
+   mirar. */
+.tirador {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 2;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.tirador::after {
+  content: "";
+  position: absolute;
+  top: 20%;
+  left: 3px;
+  width: 1px;
+  height: 60%;
+  background: var(--mic-border);
+}
+
+.tirador:hover::after {
+  top: 0;
+  height: 100%;
+  width: 2px;
+  background: var(--mic-accent);
+}
+
+/* Celda de relleno: no tiene contenido ni tirador, solo continúa las líneas de
+   la tabla hasta el borde. Conserva los bordes de `th`/`td` a propósito — una
+   fila que se cortara a media pantalla se leería como un error de dibujo. */
+.tabla th.relleno,
+.tabla td.relleno {
+  padding: 0;
 }
 
 /* ── Paneles desplegables ─────────────────────────────────────────────────── */

@@ -23,11 +23,30 @@ import { invoke } from "@tauri-apps/api/core";
 /** Modos de nombres del grafo (`FUN-M-21`). */
 export type ModoNombresGrafo = "todos" | "vecinos" | "apuntado";
 
+/**
+ * Anchos de columna de los archivos tabla (`FUN-M-25`).
+ *
+ * `id del .base` → `referencia de la columna` → ancho en píxeles.
+ *
+ * Está acá y no dentro del `.base` porque ese archivo es **formato de
+ * Obsidian**: meterle una clave nuestra rompería la promesa de que los dos
+ * programas abren el mismo archivo. Y está en las preferencias **del vault** y
+ * no en las del usuario porque acompaña a la base, que vive en el vault.
+ *
+ * Las vistas de una misma base **comparten** el ancho de una columna: la clave
+ * es la referencia (`estado`, `file.name`), no el par vista+referencia. Es lo
+ * que la mayoría espera —una columna se llama igual y se lee igual en las dos
+ * vistas— y evita tener que reajustarla en cada una.
+ */
+export type AnchosTabla = Record<string, Record<string, number>>;
+
 export type PrefsVault = {
   /** Números de línea al costado de una nota markdown (`FUN-M-28`). */
   numerosDeLinea: boolean;
   /** Qué nombres se dibujan en el grafo (`FUN-M-21`). */
   nombresGrafo: ModoNombresGrafo;
+  /** Ancho de las columnas de cada archivo tabla (`FUN-M-25`). */
+  anchosTabla: AnchosTabla;
 };
 
 /**
@@ -39,6 +58,7 @@ export type PrefsVault = {
 export const POR_DEFECTO: PrefsVault = {
   numerosDeLinea: false,
   nombresGrafo: "todos",
+  anchosTabla: {},
 };
 
 /**
@@ -62,7 +82,35 @@ export function normalizar(crudo: unknown): PrefsVault {
       o.nombresGrafo === "todos" || o.nombresGrafo === "vecinos" || o.nombresGrafo === "apuntado"
         ? o.nombresGrafo
         : POR_DEFECTO.nombresGrafo,
+    anchosTabla: normalizarAnchos(o.anchosTabla),
   };
+}
+
+/** Ancho mínimo de una columna, en píxeles. Por debajo no se lee nada. */
+export const ANCHO_MIN = 60;
+
+/**
+ * Se queda solo con los anchos que son números usables.
+ *
+ * Este valor es el único de las preferencias con forma de diccionario anidado,
+ * así que es el único donde un archivo editado a mano puede colar un `NaN`, un
+ * `0` o un objeto donde va un número — y un `0` que llegara hasta el `<col>`
+ * dejaría una columna invisible sin forma evidente de recuperarla.
+ */
+function normalizarAnchos(crudo: unknown): AnchosTabla {
+  if (crudo === null || typeof crudo !== "object") return {};
+  const salida: AnchosTabla = {};
+  for (const [tabla, cols] of Object.entries(crudo as Record<string, unknown>)) {
+    if (cols === null || typeof cols !== "object") continue;
+    const limpias: Record<string, number> = {};
+    for (const [ref, ancho] of Object.entries(cols as Record<string, unknown>)) {
+      if (typeof ancho === "number" && Number.isFinite(ancho) && ancho >= ANCHO_MIN) {
+        limpias[ref] = Math.round(ancho);
+      }
+    }
+    if (Object.keys(limpias).length > 0) salida[tabla] = limpias;
+  }
+  return salida;
 }
 
 type EstadoPrefsVault = {

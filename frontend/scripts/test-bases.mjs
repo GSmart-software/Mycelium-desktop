@@ -28,6 +28,10 @@ const {
   condicionAplicable,
   arbolDeFiltro,
   filtroDeArbol,
+  alternarOrden,
+  ordenDeColumna,
+  filaCoincide,
+  normalizarTexto,
   expresionDe,
   serializarBase,
   columnasDisponibles,
@@ -627,4 +631,168 @@ test("el filtro generado se EVALUA como se espera: «no empieza por X»", () => 
   const conNombre = (valor) => nota({ props: [{ clave: "nombre", valor, tipo: "texto" }] });
   assert.equal(evaluar(f, conNombre("Xilofono")), false, "empieza por X: queda fuera");
   assert.equal(evaluar(f, conNombre("Arbol")), true, "no empieza por X: entra");
+});
+
+
+// ── FUN-S-15: ordenar por una columna ────────────────────────────────────────
+// El motor ya ordenaba por lo que dijera `sort`; lo que faltaba era poder
+// cambiarlo desde la cabecera sin destruir un `sort` de varias columnas.
+
+test("el ciclo del clic normal: ascendente, descendente, sin orden", () => {
+  let o = [];
+  o = alternarOrden(o, "estado");
+  assert.deepEqual(o, [{ propiedad: "estado", descendente: false }]);
+  o = alternarOrden(o, "estado");
+  assert.deepEqual(o, [{ propiedad: "estado", descendente: true }]);
+  o = alternarOrden(o, "estado");
+  assert.deepEqual(o, [], "volver al orden de la agregacion tiene que estar en el ciclo");
+});
+
+test("el clic normal en OTRA columna reemplaza el criterio y empieza en ascendente", () => {
+  const o = alternarOrden([{ propiedad: "estado", descendente: true }], "prioridad");
+  assert.deepEqual(o, [{ propiedad: "prioridad", descendente: false }]);
+});
+
+test("con varios criterios, el clic normal se queda con uno solo", () => {
+  const previo = [
+    { propiedad: "estado", descendente: false },
+    { propiedad: "prioridad", descendente: true },
+  ];
+  // Aunque la columna ya estuviera en la lista: si no era la unica, el clic
+  // empieza de cero en vez de continuar un ciclo que no se ve.
+  assert.deepEqual(alternarOrden(previo, "prioridad"), [
+    { propiedad: "prioridad", descendente: false },
+  ]);
+});
+
+test("shift+clic SUMA un criterio en vez de reemplazar", () => {
+  let o = [{ propiedad: "estado", descendente: false }];
+  o = alternarOrden(o, "prioridad", true);
+  assert.deepEqual(o, [
+    { propiedad: "estado", descendente: false },
+    { propiedad: "prioridad", descendente: false },
+  ]);
+  o = alternarOrden(o, "estado", true);
+  assert.equal(o[0].descendente, true, "el primero cambia de sentido sin moverse de sitio");
+  assert.equal(o.length, 2);
+  o = alternarOrden(o, "estado", true);
+  assert.deepEqual(o, [{ propiedad: "prioridad", descendente: false }], "el tercer paso lo quita");
+});
+
+test("ordenDeColumna dice el sentido y la posicion, en base 1", () => {
+  const o = [
+    { propiedad: "estado", descendente: false },
+    { propiedad: "prioridad", descendente: true },
+  ];
+  assert.deepEqual(ordenDeColumna(o, "estado"), { descendente: false, posicion: 1 });
+  assert.deepEqual(ordenDeColumna(o, "prioridad"), { descendente: true, posicion: 2 });
+  assert.equal(ordenDeColumna(o, "otra"), null);
+});
+
+test("ordenar de verdad: por numero, no por texto", () => {
+  const b = parsearBase(`filters:
+  and:
+    - file.hasProperty("n")
+views:
+  - type: table
+    name: t
+    order:
+      - file.name
+      - n
+    sort:
+      - property: n
+        direction: ASC
+`);
+  const conN = (id, n) => nota({ id, props: [{ clave: "n", valor: n, tipo: "numero" }] });
+  const t = construirTabla(b, b.vistas[0], [conN("a", "10"), conN("b", "9"), conN("c", "100")]);
+  assert.deepEqual(
+    t.filas.map((f) => f.nota.id),
+    ["b", "a", "c"],
+    "9 < 10 < 100; como texto seria 10, 100, 9",
+  );
+});
+
+test("lo que no tiene valor va al final en LAS DOS direcciones", () => {
+  const fuente = (dir) =>
+    `views:
+  - type: table
+    name: t
+    order:
+      - file.name
+      - n
+    sort:
+      - property: n
+        direction: ${dir}
+`;
+  const conN = (id, n) =>
+    nota({ id, props: n === null ? [] : [{ clave: "n", valor: n, tipo: "numero" }] });
+  const notas = [conN("sin", null), conN("a", "2"), conN("b", "1")];
+
+  const asc = parsearBase(fuente("ASC"));
+  assert.deepEqual(
+    construirTabla(asc, asc.vistas[0], notas).filas.map((f) => f.nota.id),
+    ["b", "a", "sin"],
+  );
+  const desc = parsearBase(fuente("DESC"));
+  assert.deepEqual(
+    construirTabla(desc, desc.vistas[0], notas).filas.map((f) => f.nota.id),
+    ["a", "b", "sin"],
+    "si las vacias siguieran el orden natural, en una direccion taparian la tabla",
+  );
+});
+
+// ── FUN-S-14: buscar dentro de la tabla ──────────────────────────────────────
+
+test("la busqueda ignora tildes y mayusculas", () => {
+  assert.equal(normalizarTexto("Diseño Ágil"), "diseno agil");
+  assert.equal(filaCoincide([["Rediseño del API"]], { texto: "diseno", exacta: false }), true);
+});
+
+test("exacta compara el valor ENTERO de una celda, no un trozo", () => {
+  const celdas = [["idea", "ideario"]];
+  assert.equal(filaCoincide(celdas, { texto: "idea", exacta: true }), true);
+  assert.equal(filaCoincide(celdas, { texto: "ide", exacta: true }), false);
+  assert.equal(filaCoincide(celdas, { texto: "ide", exacta: false }), true);
+});
+
+test("una busqueda vacia no esconde nada", () => {
+  assert.equal(filaCoincide([undefined, ["x"]], { texto: "   ", exacta: true }), true);
+});
+
+test("una columna sin valor no rompe la busqueda", () => {
+  assert.equal(filaCoincide([undefined], { texto: "x", exacta: false }), false);
+});
+
+test("la busqueda se aplica DESPUES del limite, y se dice cuantas escondio", () => {
+  const b = parsearBase(
+    `views:
+  - type: table
+    name: t
+    limit: 2
+    order:
+      - file.name
+`,
+  );
+  const notas = [
+    nota({ id: "a", nombre: "Alfa" }),
+    nota({ id: "b", nombre: "Beta" }),
+    nota({ id: "c", nombre: "Alfa tambien" }),
+  ];
+  const t = construirTabla(b, b.vistas[0], notas, { busqueda: { texto: "alfa", exacta: false } });
+  assert.equal(t.total, 3, "el total sigue contando lo que pasa los filtros");
+  assert.equal(t.recortadas, 1, "el limite dejo fuera una");
+  assert.deepEqual(t.filas.map((f) => f.nota.id), ["a"]);
+  assert.equal(t.ocultasPorBusqueda, 1, "de las dos que quedaban, «Beta» no coincide");
+});
+
+test("la busqueda mira solo las columnas MOSTRADAS", () => {
+  const b = parsearBase(`views:
+  - type: table
+    name: t
+    order:
+      - file.name
+`);
+  const n = nota({ id: "a", nombre: "Alfa", props: [{ clave: "estado", valor: "activo", tipo: "texto" }] });
+  const t = construirTabla(b, b.vistas[0], [n], { busqueda: { texto: "activo", exacta: false } });
+  assert.equal(t.filas.length, 0, "«estado» no es una columna de esta vista");
 });

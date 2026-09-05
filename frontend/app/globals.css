@@ -11,6 +11,16 @@ body {
   overflow-x: hidden;
 }
 
+/* Mientras se arrastra el borde de una columna de tabla (`FUN-M-25`). Va en el
+   `body` porque el puntero se sale del tirador constantemente: si el cursor
+   dependiera del elemento debajo, parpadearía todo el arrastre. Y sin bloquear
+   la selección, el gesto va dejando texto seleccionado a su paso. */
+body.mic-redimensionando,
+body.mic-redimensionando * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 body {
   font-family: var(--mic-font-sans);
   font-size: 0.875rem;

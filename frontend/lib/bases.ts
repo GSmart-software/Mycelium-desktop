@@ -48,12 +48,15 @@ export type NotaTabla = {
 
 // ── El archivo `.base`, ya parseado ───────────────────────────────────────────
 
+/** Un criterio de ordenación: por qué propiedad, y en qué sentido. */
+export type Orden = { propiedad: string; descendente: boolean };
+
 export type Vista = {
   tipo: string;
   nombre: string;
   limite: number | null;
   columnas: string[];
-  orden: { propiedad: string; descendente: boolean }[];
+  orden: Orden[];
   filtros: Filtro | null;
   /** Claves de la vista que Mycelium no modela (`groupBy`, `summaries`…). */
   ignoradas: string[];
@@ -584,7 +587,17 @@ const enMinus = (s: string): string => s.toLowerCase();
 export type Fila = { nota: NotaTabla; celdas: (string[] | undefined)[] };
 
 export type Tabla =
-  | { ok: true; columnas: string[]; filas: Fila[]; total: number; recortadas: number }
+  | {
+      ok: true;
+      columnas: string[];
+      filas: Fila[];
+      /** Notas que pasan los filtros, antes del límite y de la búsqueda. */
+      total: number;
+      /** Cuántas dejó fuera el `limit` de la vista. */
+      recortadas: number;
+      /** Cuántas de las que quedaban no casan con la búsqueda (`FUN-S-14`). */
+      ocultasPorBusqueda: number;
+    }
   | { ok: false; motivo: string; expresion: string | null };
 
 /** Todas las expresiones opacas de un árbol de filtros, para poder explicarlas. */
@@ -604,7 +617,7 @@ export function construirTabla(
   base: Base,
   vista: Vista,
   notas: NotaTabla[],
-  opciones: { ignorarFiltros?: boolean } = {},
+  opciones: { ignorarFiltros?: boolean; busqueda?: Busqueda } = {},
 ): Tabla {
   if (vista.noSoportada !== null) {
     return { ok: false, motivo: vista.noSoportada, expresion: null };
@@ -636,11 +649,18 @@ export function construirTabla(
     }
   }
 
+  // Varias pasadas estables, del criterio menos importante al más: es la forma
+  // corta de un orden lexicográfico por N claves, y `Array.sort` es estable
+  // desde ES2019.
   const ordenadas = [...elegidas];
   for (const criterio of [...vista.orden].reverse()) {
     ordenadas.sort((a, b) => {
       const va = valoresDe(a, criterio.propiedad)?.[0] ?? "";
       const vb = valoresDe(b, criterio.propiedad)?.[0] ?? "";
+      // Lo que no tiene valor va **siempre al final**, en las dos direcciones.
+      // Si siguiera el orden natural, ascendente empezaría por un bloque de
+      // celdas vacías: justo lo que no se estaba buscando, tapando lo que sí.
+      if (va === "" || vb === "") return va === vb ? 0 : va === "" ? 1 : -1;
       const cmp = comparar(va, literal(vb));
       return criterio.descendente ? -cmp : cmp;
     });
@@ -649,16 +669,112 @@ export function construirTabla(
   const total = ordenadas.length;
   const visibles = vista.limite !== null ? ordenadas.slice(0, vista.limite) : ordenadas;
 
+  // La búsqueda va **después** del límite y no se guarda en el archivo: no
+  // decide qué entra en la tabla —eso son los filtros— sino qué se ve de lo que
+  // ya entró (`FUN-S-14`).
+  const conCeldas = visibles.map((nota) => ({
+    nota,
+    celdas: columnas.map((c) => valoresDe(nota, c)),
+  }));
+  const filas = opciones.busqueda
+    ? conCeldas.filter((f) => filaCoincide(f.celdas, opciones.busqueda as Busqueda))
+    : conCeldas;
+
   return {
     ok: true,
     columnas,
-    filas: visibles.map((nota) => ({
-      nota,
-      celdas: columnas.map((c) => valoresDe(nota, c)),
-    })),
+    filas,
     total,
     recortadas: total - visibles.length,
+    ocultasPorBusqueda: conCeldas.length - filas.length,
   };
+}
+
+// ── Buscar dentro de la tabla (`FUN-S-14`) ────────────────────────────────────
+
+/** Qué se busca dentro de la tabla, y con qué criterio de coincidencia. */
+export type Busqueda = { texto: string; exacta: boolean };
+
+/**
+ * Texto comparable: sin mayúsculas y sin tildes.
+ *
+ * Buscar «diseno» tiene que encontrar «Diseño»: quien escribe en el buscador no
+ * está citando el valor, está tratando de llegar a él.
+ */
+export function normalizarTexto(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+/**
+ * ¿Alguna celda **visible** de la fila casa con la búsqueda?
+ *
+ * Se miran solo las columnas que la vista muestra, y a propósito: buscar contra
+ * propiedades que no están en pantalla haría aparecer filas sin nada resaltado,
+ * y el usuario no tendría cómo saber por qué están ahí.
+ *
+ * `exacta` compara el **valor entero** de una celda, no la fila entera: en una
+ * columna de etiquetas, `idea` encuentra la nota etiquetada `idea` sin traer
+ * también las de `ideario`.
+ */
+export function filaCoincide(celdas: (string[] | undefined)[], busqueda: Busqueda): boolean {
+  const q = normalizarTexto(busqueda.texto.trim());
+  if (q === "") return true;
+  for (const valores of celdas) {
+    if (valores === undefined) continue;
+    for (const v of valores) {
+      const n = normalizarTexto(v);
+      if (busqueda.exacta ? n === q : n.includes(q)) return true;
+    }
+  }
+  return false;
+}
+
+// ── Ordenar por una columna (`FUN-S-15`) ──────────────────────────────────────
+
+/**
+ * Cómo está ordenada una columna hoy, o `null` si no participa del orden.
+ *
+ * `posicion` empieza en 1 y solo interesa cuando hay más de un criterio: es lo
+ * que deja ver que la tabla se ordena primero por una columna y después por
+ * otra, en vez de dar a entender que las dos flechas compiten.
+ */
+export function ordenDeColumna(
+  orden: Orden[],
+  propiedad: string,
+): { descendente: boolean; posicion: number } | null {
+  const i = orden.findIndex((o) => o.propiedad === propiedad);
+  return i === -1 ? null : { descendente: orden[i].descendente, posicion: i + 1 };
+}
+
+/**
+ * Alterna el orden de una columna, y devuelve el criterio completo resultante.
+ *
+ * Con `acumular` en falso —el clic normal— la columna pasa a ser el **único**
+ * criterio y recorre el ciclo `ascendente → descendente → sin orden`. Volver a
+ * «sin orden» tiene que estar en el ciclo: si no, una vez ordenada la tabla no
+ * habría forma de recuperar el orden que trae la agregación.
+ *
+ * Con `acumular` —<kbd>Shift</kbd>+clic— la columna se **suma** a las que ya
+ * ordenan en vez de reemplazarlas. El formato `.base` admite varios criterios y
+ * un clic que siempre los borra dejaría un `sort` de dos columnas imposible de
+ * reconstruir desde la interfaz.
+ */
+export function alternarOrden(orden: Orden[], propiedad: string, acumular = false): Orden[] {
+  const actual = ordenDeColumna(orden, propiedad);
+
+  if (!acumular) {
+    // Solo se sigue el ciclo si esta columna YA era el único criterio; si había
+    // otras, el clic empieza de cero en ascendente.
+    const sola = orden.length === 1 && actual !== null;
+    if (!sola) return [{ propiedad, descendente: false }];
+    return actual.descendente ? [] : [{ propiedad, descendente: true }];
+  }
+
+  if (actual === null) return [...orden, { propiedad, descendente: false }];
+  if (!actual.descendente) {
+    return orden.map((o) => (o.propiedad === propiedad ? { ...o, descendente: true } : o));
+  }
+  return orden.filter((o) => o.propiedad !== propiedad);
 }
 
 /** Cabecera de una columna: el `displayName` si lo hay, si no la clave a secas. */
