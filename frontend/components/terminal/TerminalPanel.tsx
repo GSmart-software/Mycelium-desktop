@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, Pencil, Plus, X } from "lucide-react";
+import { ChevronDown, Palette, Pencil, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import {
   abrirConsola,
@@ -17,7 +18,12 @@ import {
 } from "@/lib/terminal";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { allLeaves, useTabsStore } from "@/stores/tabsStore";
-import { useTerminalStore } from "@/stores/terminalStore";
+import {
+  COLORES_CONSOLA,
+  useTerminalStore,
+  varColorConsola,
+  type ColorConsola,
+} from "@/stores/terminalStore";
 import styles from "./TerminalPanel.module.css";
 
 /**
@@ -30,16 +36,28 @@ export function TerminalPanel() {
   const router = useRouter();
   const sesiones = useTerminalStore((s) => s.sesiones);
   const renombrar = useTerminalStore((s) => s.renombrar);
+  const colorear = useTerminalStore((s) => s.colorear);
   const root = useTabsStore((s) => s.root);
   const dockTabs = useSidebarViewerStore((s) => s.tabs);
   const [shells, setShells] = useState<ShellInfo[]>([]);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [renombrando, setRenombrando] = useState<{ id: string; valor: string } | null>(null);
+  /** Consola cuya paleta está abierta, y dónde dibujarla (`FUN-S-12`). */
+  const [paleta, setPaleta] = useState<{ id: string; top: number; left: number } | null>(null);
   const elegirRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     void listarShells().then(setShells);
   }, []);
+
+  // Cerrar la paleta al pulsar fuera. La propia paleta frena el `pointerdown`,
+  // así que elegir un color no la cierra dos veces.
+  useEffect(() => {
+    if (paleta === null) return;
+    const fuera = () => setPaleta(null);
+    window.addEventListener("pointerdown", fuera);
+    return () => window.removeEventListener("pointerdown", fuera);
+  }, [paleta]);
 
   // Consolas con pestaña visible (workspace o visor del explorador).
   const conPestana = new Set<string>();
@@ -134,8 +152,17 @@ export function TerminalPanel() {
                   onClick={() => !enRename && abrir(termId)}
                   onKeyDown={(e) => e.key === "Enter" && !enRename && abrir(termId)}
                 >
+                  {/* El punto dice si CORRE; su color, cuál es (`FUN-S-12`).
+                      Dos datos en un solo elemento porque son de la misma cosa,
+                      y porque la fila ya tiene bastantes controles. Sin color
+                      elegido, el punto sigue siendo el de siempre. */}
                   <span
                     className={`${styles.dot} ${corriendo ? styles.dotOn : ""}`}
+                    style={
+                      corriendo && sesion.color
+                        ? { background: varColorConsola(sesion.color) ?? undefined }
+                        : undefined
+                    }
                     title={corriendo ? "En ejecución" : "Detenida (se recrea al abrirla)"}
                     aria-hidden
                   />
@@ -160,6 +187,27 @@ export function TerminalPanel() {
                     )}
                     <span className={styles.shell}>{nombreShell(sesion.shellId)}</span>
                   </span>
+                  <button
+                    type="button"
+                    className={styles.accionFila}
+                    aria-label={`Color de ${sesion.titulo}`}
+                    title="Color con el que se marca su pestaña"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setPaleta((p) =>
+                        p?.id === termId
+                          ? null
+                          : { id: termId, top: r.bottom + 4, left: r.left - 96 },
+                      );
+                    }}
+                  >
+                    <Palette
+                      size={12}
+                      aria-hidden
+                      style={{ color: varColorConsola(sesion.color) ?? undefined }}
+                    />
+                  </button>
                   <button
                     type="button"
                     className={styles.accionFila}
@@ -190,6 +238,49 @@ export function TerminalPanel() {
           })}
         </ul>
       )}
+
+      {paleta &&
+        createPortal(
+          // En portal y con `position: fixed`, como el resto de los menús: el
+          // panel scrollea y una lista absoluta la recortaría su contenedor.
+          <div
+            className={styles.paleta}
+            style={{ position: "fixed", top: paleta.top, left: paleta.left }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {COLORES_CONSOLA.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={
+                  sesiones[paleta.id]?.color === c
+                    ? `${styles.muestra} ${styles.muestraActiva}`
+                    : styles.muestra
+                }
+                style={{ background: varColorConsola(c as ColorConsola) ?? undefined }}
+                aria-label={c}
+                title={c}
+                onClick={() => {
+                  colorear(paleta.id, c);
+                  setPaleta(null);
+                }}
+              />
+            ))}
+            <button
+              type="button"
+              className={`${styles.muestra} ${styles.muestraSinColor}`}
+              aria-label="Sin color"
+              title="Sin color"
+              onClick={() => {
+                colorear(paleta.id, null);
+                setPaleta(null);
+              }}
+            >
+              <X size={11} aria-hidden />
+            </button>
+          </div>,
+          document.body,
+        )}
 
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
     </div>

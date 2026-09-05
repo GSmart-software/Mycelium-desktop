@@ -16,6 +16,7 @@ export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
+  const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
   const setPref = usePreferencesStore((s) => s.setPref);
   // Números de línea: preferencia DEL VAULT (`FUN-M-28`), no del usuario. Sin un
@@ -79,6 +80,24 @@ export function EditorSection() {
         Al abrir un archivo que solo estás viendo (sin editarlo), reemplaza esa
         pestaña en vez de abrir una nueva. La pestaña se fija al editarla o con
         doble clic. Desactivá esta opción para abrir siempre una pestaña nueva.
+      </p>
+
+      <div className={styles.toggleRow}>
+        <span className={styles.label}>Ícono del tipo en las pestañas</span>
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={() => setPref("iconosEnPestanas", !iconosEnPestanas)}
+          aria-pressed={iconosEnPestanas}
+        >
+          {iconosEnPestanas ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
+          {iconosEnPestanas ? "Activado" : "Desactivado"}
+        </button>
+      </div>
+      <p className={styles.hint}>
+        Junto al nombre, el ícono del tipo de documento: nota, dibujo, lienzo,
+        tabla, consola o un archivo que Mycelium no indexa. Apagalo si preferís
+        que el título ocupe todo el ancho de la pestaña.
       </p>
 
       <div className={styles.toggleRow}>

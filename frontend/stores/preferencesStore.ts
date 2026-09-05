@@ -75,6 +75,15 @@ export type Preferencias = {
    */
   showFileTitle: boolean;
   /**
+   * Mostrar el **ícono del tipo** junto al nombre en cada pestaña (`FUN-S-11`):
+   * markdown, dibujo, lienzo, tabla, consola, o un archivo que no se indexa.
+   *
+   * Por defecto `true` — es información que antes había que deducir del nombre —
+   * pero se puede apagar: con muchas pestañas abiertas cada ícono resta ancho al
+   * título, que es lo que de verdad las distingue entre sí.
+   */
+  iconosEnPestanas: boolean;
+  /**
    * Cuánto "vale" una tabulación en el editor (`FUN-S-02`). Manda sobre las dos
    * caras del asunto, que CodeMirror trata por separado y por defecto **no**
    * coinciden: cuántas columnas ocupa un tabulador ya escrito en el archivo
@@ -135,6 +144,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphContinuousSim: false,
   autoCloseBrackets: true,
   showFileTitle: true,
+  iconosEnPestanas: true,
   tabWidth: 4,
   graphEdgeDirection: "animated",
   graphHoverGlow: 1,

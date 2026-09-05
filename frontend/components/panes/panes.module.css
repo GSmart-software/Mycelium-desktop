@@ -161,6 +161,44 @@
   max-width: 120px;
 }
 
+/* Ícono del tipo de documento (FUN-S-11). No se encoge: cuando el tab bar va
+   apretado, lo que cede es el título —que se recorta con puntos suspensivos— y
+   no el ícono, que a medio dibujar no dice nada. */
+.tabIcono {
+  flex: 0 0 auto;
+  color: var(--mic-text-muted);
+}
+
+.tabActive .tabIcono {
+  color: var(--mic-text-primary);
+}
+
+/* ── Color por consola (FUN-S-12) ─────────────────────────────────────────── */
+
+/* La marca es una barra a la izquierda de la pestaña, y no solo el ícono: el
+   ícono se puede apagar desde Configuración (FUN-S-11) y el color no puede
+   depender de otra preferencia para existir. Cuando el ícono está, toma el
+   mismo color y las dos marcas se refuerzan. */
+.tabConColor::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--mic-tab-color);
+}
+
+.tabConColor .tabIcono,
+.tabActive.tabConColor .tabIcono {
+  color: var(--mic-tab-color);
+}
+
+/* La atenuación de las pestañas sin foco la calcula el componente mezclando el
+   color con el fondo, no un `opacity` acá: la marca vive DENTRO de la pestaña, y
+   apagar el elemento apagaría de paso su título. */
+
 /* Dot de sync de la pestaña (HU-04 CA3): 6px, esquina superior derecha */
 .tabDot {
   width: 6px;

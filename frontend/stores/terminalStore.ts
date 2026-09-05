@@ -7,6 +7,26 @@ import { persist } from "zustand/middleware";
  * Se persiste para poder RESTAURAR las terminales al reabrir la app (CA6): el
  * proceso no sobrevive, pero la pestaña se recrea con la misma shell y cwd.
  */
+/**
+ * Colores con los que se puede marcar una consola (`FUN-S-12`).
+ *
+ * Es una lista cerrada y no un color libre a propósito: son **marcas de
+ * identidad**, no de estado, y su único trabajo es distinguirse entre sí de un
+ * vistazo. Un selector libre deja elegir el gris del fondo o el celeste de la
+ * marca, y con eso la consola queda peor identificada que sin color.
+ *
+ * Cada uno se resuelve contra `--mic-consola-<id>` en `tokens.css`, donde se
+ * eligieron para leerse igual sobre el claro y sobre el oscuro.
+ */
+export const COLORES_CONSOLA = ["cian", "verde", "ambar", "rosa", "violeta", "azul"] as const;
+
+export type ColorConsola = (typeof COLORES_CONSOLA)[number];
+
+/** La variable CSS de un color de consola, o `null` si no tiene. */
+export function varColorConsola(color: ColorConsola | null | undefined): string | null {
+  return color ? `var(--mic-consola-${color})` : null;
+}
+
 export type SesionTerminal = {
   /** Id de la shell elegida para esta terminal (o null = la por defecto). */
   shellId: string | null;
@@ -16,6 +36,8 @@ export type SesionTerminal = {
   titulo: string;
   /** Última salida serializada (para restaurar el historial si se configura). */
   scrollback?: string;
+  /** Color con el que se marca su pestaña (`FUN-S-12`); ausente = sin color. */
+  color?: ColorConsola | null;
 };
 
 type TerminalPrefs = {
@@ -64,6 +86,8 @@ type TerminalState = {
   cerrar: (id: string) => void;
   /** Renombra una consola (título de la pestaña y del panel). */
   renombrar: (id: string, titulo: string) => void;
+  /** Marca una consola con un color, o se lo quita con `null` (`FUN-S-12`). */
+  colorear: (id: string, color: ColorConsola | null) => void;
   guardarScrollback: (id: string, texto: string) => void;
   setPref: <K extends keyof TerminalPrefs>(key: K, value: TerminalPrefs[K]) => void;
 };
@@ -96,6 +120,12 @@ export const useTerminalStore = create<TerminalState>()(
         const limpio = titulo.trim();
         if (!sesion || !limpio) return;
         set({ sesiones: { ...get().sesiones, [id]: { ...sesion, titulo: limpio } } });
+      },
+
+      colorear(id, color) {
+        const sesion = get().sesiones[id];
+        if (!sesion) return;
+        set({ sesiones: { ...get().sesiones, [id]: { ...sesion, color } } });
       },
 
       guardarScrollback(id, texto) {

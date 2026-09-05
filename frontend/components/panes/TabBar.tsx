@@ -2,12 +2,20 @@
 
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import {
+  ICONO_CONSOLA,
+  ICONO_GRAFO,
+  ICONO_OTRO_ARCHIVO,
+  ICONO_POR_TIPO,
+  ICONO_REFERENCIAS,
+} from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
-import { useTerminalStore } from "@/stores/terminalStore";
+import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import {
   allLeaves,
   ENLACES_TAB_ID,
@@ -28,6 +36,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const carpetas = useVaultStore((s) => s.carpetas);
   const sesionesTerminal = useTerminalStore((s) => s.sesiones);
   const syncByNota = useSyncStore((s) => s.byNota);
+  const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -73,6 +82,38 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
   function titleOf(tab: Tab) {
     return tituloDeNotaId(tab.notaId);
+  }
+
+  /**
+   * El ícono del tipo de documento de una pestaña (`FUN-S-11`).
+   *
+   * El orden importa: los ids especiales —grafo, referencias, consola, archivo
+   * no indexado— se resuelven **antes** de mirar `notas`, porque ninguno tiene
+   * fila ahí. Lo que no cae en ninguno es una nota del vault y toma el ícono de
+   * su tipo; si todavía no llegó el índice, el de markdown, que es lo que casi
+   * siempre resulta ser.
+   */
+  function iconoDeTab(notaId: string) {
+    if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
+    if (notaId === ENLACES_TAB_ID) return ICONO_REFERENCIAS;
+    if (esTabTerminal(notaId)) return ICONO_CONSOLA;
+    if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
+    const tipo = notas.find((n) => n.id === notaId)?.tipo;
+    return ICONO_POR_TIPO[tipo ?? "markdown"];
+  }
+
+  /**
+   * El color con el que está marcada una consola (`FUN-S-12`), o `null`.
+   *
+   * Se atenúa en las pestañas que no tienen el foco. La atenuación es una
+   * **mezcla con el fondo** y no un `opacity`: la marca vive dentro de la
+   * pestaña, y apagar el elemento apagaría de paso el título.
+   */
+  function colorDeTab(notaId: string, activa: boolean): string | null {
+    if (!esTabTerminal(notaId)) return null;
+    const color = varColorConsola(sesionesTerminal[termIdDe(notaId)]?.color);
+    if (color === null) return null;
+    return activa ? color : `color-mix(in srgb, ${color} 60%, transparent)`;
   }
 
   // Historial de la pestaña activa de ESTE pane (DEF-040).
@@ -144,6 +185,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
       {pane.tabs.map((tab, index) => {
         const sync = syncByNota[tab.notaId] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;
+        const Icono = iconoDeTab(tab.notaId);
+        const color = colorDeTab(tab.notaId, isActiveTab);
         return (
           <div
             key={tab.id}
@@ -151,10 +194,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             aria-selected={isActiveTab}
             draggable
             title={tooltipOf(tab)}
+            // El color de la consola entra como variable y no como clase: son
+            // seis, y seis clases que solo cambian un valor es exactamente lo
+            // que las variables existen para no tener que escribir.
+            style={color ? ({ "--mic-tab-color": color } as CSSProperties) : undefined}
             className={[
               styles.tab,
               isActiveTab ? styles.tabActive : "",
               tab.preview ? styles.tabPreview : "",
+              color ? styles.tabConColor : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -188,6 +236,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               store.setDragging(null);
             }}
           >
+            {iconosEnPestanas && (
+              <Icono size={13} className={styles.tabIcono} aria-hidden />
+            )}
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
             {tab.notaId !== GRAPH_TAB_ID && sync !== "synced" && (
               <span

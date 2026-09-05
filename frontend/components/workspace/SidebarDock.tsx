@@ -1,13 +1,20 @@
 "use client";
 
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
+import {
+  ICONO_CONSOLA,
+  ICONO_GRAFO,
+  ICONO_OTRO_ARCHIVO,
+  ICONO_POR_TIPO,
+} from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminal";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
-import { useTerminalStore } from "@/stores/terminalStore";
+import { usePreferencesStore } from "@/stores/preferencesStore";
+import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./SidebarDock.module.css";
 
@@ -52,6 +59,7 @@ export function SidebarDock({
   }, [notas]);
 
   const sesionesTerminal = useTerminalStore((s) => s.sesiones);
+  const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const tituloDe = (notaId: string) =>
     notaId === GRAPH_TAB_ID
       ? "Grafo de conexiones"
@@ -60,6 +68,28 @@ export function SidebarDock({
         : esTabArchivo(notaId)
           ? nombreDeRuta(rutaDeTabArchivo(notaId))
           : notas.find((n) => n.id === notaId)?.titulo ?? "…";
+
+  /**
+   * El ícono del tipo, igual que en las pestañas del área de trabajo
+   * (`FUN-S-11`). El mapa por tipo es compartido; el reparto de ids especiales
+   * está duplicado a propósito, del mismo modo que `tituloDe`: acá el dock no
+   * conoce panes ni historial, y compartir el reparto obligaría a pasarle a un
+   * módulo común cosas que solo existen en uno de los dos.
+   */
+  const iconoDe = (notaId: string) => {
+    if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
+    if (esTabTerminal(notaId)) return ICONO_CONSOLA;
+    if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
+    return ICONO_POR_TIPO[notas.find((n) => n.id === notaId)?.tipo ?? "markdown"];
+  };
+
+  /** El color de la consola, atenuado si esta pestaña no es la que se ve. */
+  const colorDe = (notaId: string, activa: boolean) => {
+    if (!esTabTerminal(notaId)) return null;
+    const color = varColorConsola(sesionesTerminal[termIdDe(notaId)]?.color);
+    if (color === null) return null;
+    return activa ? color : `color-mix(in srgb, ${color} 60%, transparent)`;
+  };
 
   const hayDocs = tabs.length > 0;
   const activeEsDoc = tabs.includes(activeTab);
@@ -112,13 +142,23 @@ export function SidebarDock({
     </button>
   );
 
-  const pestañaDoc = (notaId: string) => (
+  const pestañaDoc = (notaId: string) => {
+    const Icono = iconoDe(notaId);
+    const color = colorDe(notaId, docMostrado === notaId);
+    return (
     <div
       key={notaId}
       role="tab"
       aria-selected={docMostrado === notaId}
       draggable
-      className={`${styles.tab} ${docMostrado === notaId ? styles.tabActive : ""}`}
+      style={color ? ({ "--mic-tab-color": color } as CSSProperties) : undefined}
+      className={[
+        styles.tab,
+        docMostrado === notaId ? styles.tabActive : "",
+        color ? styles.tabConColor : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       title={tituloDe(notaId)}
       onClick={() => activar(notaId)}
       // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
@@ -129,6 +169,7 @@ export function SidebarDock({
       }}
       onDragEnd={() => useTabsStore.getState().setDraggingSidebarNota(null)}
     >
+      {iconosEnPestanas && <Icono size={12} className={styles.tabIcono} aria-hidden />}
       <span className={styles.tabTitulo}>{tituloDe(notaId)}</span>
       <button
         type="button"
@@ -142,7 +183,8 @@ export function SidebarDock({
         <X size={12} aria-hidden />
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <div

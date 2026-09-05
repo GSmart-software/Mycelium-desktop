@@ -147,3 +147,52 @@
   color: var(--mic-text-primary);
   font-size: 0.8125rem;
 }
+
+/* ── Color por consola (FUN-S-12) ─────────────────────────────────────────── */
+
+/* La paleta va colgada del `body` (portal) y por eso no puede heredar nada del
+   panel: se pinta entera con tokens. */
+.paleta {
+  z-index: 60;
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  box-shadow: var(--mic-shadow-md, 0 4px 14px rgb(0 0 0 / 25%));
+}
+
+.muestra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.muestra:hover {
+  transform: scale(1.15);
+}
+
+/* El elegido se marca con un anillo del color del panel, no con un tilde
+   encima: un tilde sobre seis colores distintos se vuelve ilegible en la mitad
+   de ellos, y el anillo se lee igual en todos. */
+.muestraActiva {
+  border-color: var(--mic-text-primary);
+  box-shadow: 0 0 0 1px var(--mic-bg-surface) inset;
+}
+
+.muestraSinColor {
+  background: transparent;
+  border: 1px dashed var(--mic-border);
+  color: var(--mic-text-muted);
+}
+
+.muestraSinColor:hover {
+  color: var(--mic-text-primary);
+  border-color: var(--mic-text-muted);
+}

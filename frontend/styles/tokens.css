@@ -21,6 +21,28 @@
   --mic-bg-hover:  color-mix(in srgb, var(--mic-glow) 14%, transparent);
   --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
 
+  /* Colores de consola (`FUN-S-12`): la marca con la que se distingue una
+     terminal de otra en su pestaña.
+
+     Van en la capa semántica y NO en la de temas, a propósito: son marcas de
+     identidad, no del lenguaje visual de Mycelium. Si siguieran al tema, la
+     consola «verde» sería otra en Cantarela y el usuario perdería justo lo que
+     eligió.
+
+     Un solo valor por color tiene que servir para los OCHO fondos posibles
+     (2 temas × claro/oscuro × canvas/mist). Se midieron: el peor caso de cada
+     uno queda en 3.79:1, por encima del 3:1 que pide WCAG 1.4.11 para un objeto
+     gráfico. Por eso el ámbar tira a oliva y no a dorado — un ámbar brillante
+     desaparece sobre el fondo claro, y ahí el color deja de identificar nada.
+     El par más parecido (cian/verde) queda a 74 de distancia en RGB, que es lo
+     que de verdad se les pide: distinguirse ENTRE SÍ de un vistazo. */
+  --mic-consola-cian:    #1A8391;
+  --mic-consola-verde:   #188847;
+  --mic-consola-ambar:   #98701B;
+  --mic-consola-rosa:    #DA2F76;
+  --mic-consola-violeta: #855DE2;
+  --mic-consola-azul:    #2975D9;
+
   /* Lo que el NAVEGADOR dibuja por su cuenta y el CSS no alcanza: la lista
      desplegada de un <select>, el calendario de un <input type="date">, los
      controles nativos. Sin esto los pinta siempre en claro —texto casi blanco

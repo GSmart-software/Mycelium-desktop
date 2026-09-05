@@ -55,6 +55,7 @@
 }
 
 .tab {
+  position: relative; /* ancla la barra de color de FUN-S-12 */
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -76,6 +77,33 @@
 .tabActive {
   color: var(--mic-text-primary);
   background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+}
+
+/* Ícono del tipo (FUN-S-11) y color de consola (FUN-S-12), igual que en las
+   pestañas del área de trabajo — es la misma tira, en otro sitio. */
+.tabIcono {
+  flex: 0 0 auto;
+  color: var(--mic-text-muted);
+}
+
+.tabActive .tabIcono {
+  color: var(--mic-text-primary);
+}
+
+.tabConColor::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--mic-tab-color);
+}
+
+.tabConColor .tabIcono,
+.tabActive.tabConColor .tabIcono {
+  color: var(--mic-tab-color);
 }
 
 /* Pestaña de la sección activa (solo ícono) en modo full. */
