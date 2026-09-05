@@ -132,6 +132,33 @@
   font-size: 0.78rem;
 }
 
+/* Un `[[wikilink]]` dentro del valor de una propiedad (DEF-071). Mismo color
+   que en el editor y en lectura, para que un enlace se vea igual en los tres
+   sitios. */
+.enlace {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.enlace:hover {
+  color: var(--mic-glow);
+}
+
+/* Un destino que no existe: se ve que la referencia está y que no llega a
+   nada, con el mismo criterio que el editor. No es un enlace, así que no se
+   subraya ni cambia el cursor. */
+.enlaceRoto {
+  color: color-mix(in srgb, var(--mic-accent) 40%, #000);
+}
+
+/* En una píldora el fondo ya lleva el color del tema, así que el enlace hereda
+   y solo se subraya: pintarlo de acento encima se leería mal. */
+.pildora .enlace,
+.pildora .enlace:hover {
+  color: inherit;
+}
+
 /* ── Estados ─────────────────────────────────────────────────────────────── */
 
 .cargando,

@@ -23,6 +23,9 @@ import {
 import { formatearFecha } from "@/lib/markdown";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { useVaultStore } from "@/stores/vaultStore";
+import { resolveWikilink } from "@/lib/editor/wikilink";
+import { partirWikilink } from "@/lib/wikilinks";
 import styles from "./BaseView.module.css";
 
 /**
@@ -328,7 +331,12 @@ export function BaseView({ notaId }: { notaId: string }) {
                   >
                     {celdas.map((valores, i) => (
                       <td key={tabla.columnas[i]}>
-                        <Celda columna={tabla.columnas[i]} valores={valores} nota={nota} />
+                        <Celda
+                          columna={tabla.columnas[i]}
+                          valores={valores}
+                          nota={nota}
+                          onAbrir={abrir}
+                        />
                       </td>
                     ))}
                   </tr>
@@ -618,6 +626,64 @@ function PanelColumnas({
   );
 }
 
+/** `[[destino]]` o `![[destino]]` dentro del valor de una propiedad. */
+const RE_WIKILINK_CELDA = /!?\[\[([^[\]]+)\]\]/g;
+
+/**
+ * El texto de una celda, con sus `[[wikilinks]]` como enlaces (`DEF-071`).
+ *
+ * Antes salían como texto plano —corchetes incluidos— así que desde una tabla
+ * no se podía navegar, aunque el enlace fuera perfectamente válido y el grafo
+ * lo contara.
+ *
+ * El clic **no puede burbujear**: la fila entera abre su nota, así que sin
+ * `stopPropagation` pulsar un enlace abriría la nota de la FILA en vez de la
+ * enlazada — que es justo la confusión que este arreglo viene a quitar.
+ *
+ * Un destino que no existe se muestra atenuado y sin enlazar, con el mismo
+ * criterio que el editor: se ve que la referencia está, y que no llega a nada.
+ */
+function TextoDeCelda({ texto, onAbrir }: { texto: string; onAbrir: (id: string) => void }) {
+  const notas = useVaultStore((s) => s.notas);
+  const carpetas = useVaultStore((s) => s.carpetas);
+
+  const partes: React.ReactNode[] = [];
+  let desde = 0;
+  RE_WIKILINK_CELDA.lastIndex = 0;
+  for (let m = RE_WIKILINK_CELDA.exec(texto); m !== null; m = RE_WIKILINK_CELDA.exec(texto)) {
+    if (m.index > desde) partes.push(texto.slice(desde, m.index));
+    // El mismo partidor que el resto de la app: la barra del alias puede venir
+    // escapada si el enlace vive en una tabla markdown (`DEF-045`).
+    const { destino, etiqueta } = partirWikilink(m[1]);
+    const nota = resolveWikilink(destino, notas, carpetas);
+    partes.push(
+      nota === undefined ? (
+        <span key={m.index} className={styles.enlaceRoto} title={`No existe «${destino}»`}>
+          {etiqueta}
+        </span>
+      ) : (
+        <a
+          key={m.index}
+          className={styles.enlace}
+          href={`/workspace?note=${encodeURIComponent(nota.id)}`}
+          title={destino}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onAbrir(nota.id);
+          }}
+        >
+          {etiqueta}
+        </a>
+      ),
+    );
+    desde = m.index + m[0].length;
+  }
+  if (partes.length === 0) return <>{texto}</>;
+  if (desde < texto.length) partes.push(texto.slice(desde));
+  return <>{partes}</>;
+}
+
 /**
  * Una celda. Usa el mismo lenguaje visual que la tarjeta de propiedades de
  * `FUN-M-04` —píldoras para las listas, fechas en formato local— para que un
@@ -627,10 +693,12 @@ function Celda({
   columna,
   valores,
   nota,
+  onAbrir,
 }: {
   columna: string;
   valores: string[] | undefined;
   nota: NotaTabla;
+  onAbrir: (id: string) => void;
 }) {
   if (valores === undefined || valores.length === 0) {
     return <span className={styles.vacia}>—</span>;
@@ -646,7 +714,8 @@ function Celda({
       <span className={styles.pildoras}>
         {valores.map((v) => (
           <span key={v} className={styles.pildora}>
-            {v}
+            {/* También en las píldoras: una propiedad de lista puede enlazar. */}
+            <TextoDeCelda texto={v} onAbrir={onAbrir} />
           </span>
         ))}
       </span>
@@ -659,5 +728,5 @@ function Celda({
   if (/^-?\d+(\.\d+)?$/.test(unico)) {
     return <span className={styles.numero}>{unico}</span>;
   }
-  return <>{unico}</>;
+  return <TextoDeCelda texto={unico} onAbrir={onAbrir} />;
 }
