@@ -98,14 +98,14 @@ export function numerosDeLineaExt(): Extension {
       // qué tramo del archivo cubren esas líneas. Sin él, un rango arriba de una
       // tabla alta no dice dónde termina.
       //
-      // El tinte se saca del color del TEXTO, no de un valor fijo: en modo
-      // oscuro la tinta es clara y aclara el fondo, en modo claro es oscura y lo
-      // oscurece. Una sola declaración cubre los dos casos y sigue a cualquier
-      // tema que se agregue.
+      // El tinte sale de `--mic-num-rango-fondo` (`styles/editor.css`) y no de
+      // un valor escrito acá: se calcula del color del texto —así se aclara en
+      // oscuro y se oscurece en claro— pero además lleva una proporción DISTINTA
+      // por modo, porque la misma proporción no se nota lo mismo en los dos.
       ".cm-lineNumbers .cm-gutterElement:has(.mic-num-rango)": {
         alignItems: "flex-start",
         paddingTop: "0.15em",
-        background: "color-mix(in srgb, var(--mic-text-primary) 9%, transparent)",
+        background: "var(--mic-num-rango-fondo)",
         borderRadius: "var(--mic-radius-sm)",
       },
       ".cm-lineNumbers .mic-num-rango": {

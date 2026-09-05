@@ -117,6 +117,13 @@ export function EditorSection() {
         de su carpeta, así que viaja con él y cada vault puede tener el suyo.
         {!hayVault && " Abrí un vault para poder cambiarlo."}
       </p>
+      <p className={styles.hint}>
+        Solo en las vistas de <strong>edición</strong>, donde cada línea del
+        archivo es una línea en pantalla. En la de <strong>lectura</strong> no
+        aparecen: ahí un párrafo de varias líneas se reajusta al ancho y se
+        convierte en un solo bloque, así que no hay dónde poner el número de
+        cada una sin inventarlo.
+      </p>
 
       <div className={styles.toggleRow}>
         <span className={styles.label}>Mostrar título del archivo</span>

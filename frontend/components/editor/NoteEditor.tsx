@@ -1212,12 +1212,7 @@ export function NoteEditor({
         {(mode === "split" || mode === "read") && (
           <div
             ref={previewRef}
-            // `mic-preview-numeros` prende los números de línea de la vista de
-            // lectura (`FUN-M-28`). Ahí no hay margen de CodeMirror: los números
-            // salen del `data-linea` que `renderNota` deja en cada bloque.
-            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${
-              numerosDeLinea ? "mic-preview-numeros" : ""
-            } ${styles.previewPane}`}
+            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
             onClick={onPreviewClick}
             onContextMenu={onPreviewContextMenu}
           >

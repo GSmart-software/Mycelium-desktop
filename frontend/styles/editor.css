@@ -32,6 +32,20 @@
    usa la tipografía del editor. */
 .mic-editor-host {
   --mic-ancho-numeros: 8ch;
+
+  /* Fondo del grupo de líneas de un bloque renderizado (la tabla, el callout).
+     Sale del color del texto, así que se aclara en oscuro y se oscurece en
+     claro con una sola fórmula. */
+  --mic-num-rango-fondo: color-mix(in srgb, var(--mic-text-primary) 9%, transparent);
+}
+
+/* En oscuro la misma proporción pesa MÁS: la tinta es casi blanca y el fondo
+   casi negro, así que un 9% ya se lee como un bloque marcado en vez de como un
+   matiz. En claro la tinta es oscura sobre fondo claro y el mismo 9% queda
+   justo. Por eso el valor no es uno solo con una fórmula que se adapte: la
+   fórmula se adapta al color, no a cuánto se nota. */
+[data-dark="true"] .mic-editor-host {
+  --mic-num-rango-fondo: color-mix(in srgb, var(--mic-text-primary) 4%, transparent);
 }
 
 .mic-editor-host.mic-con-numeros .cm-scroller {
@@ -659,67 +673,6 @@
 .mic-preview h6 { color: var(--mic-h6); }
 
 .mic-preview h1:first-child { margin-top: 0; }
-
-/* ── Números de línea en la vista de lectura (FUN-M-28) ─────────────────────
-   Acá no hay margen de CodeMirror: el número sale del `data-linea` que
-   `renderNota` deja en cada bloque de primer nivel (el mismo que usa el
-   traspaso de scroll entre modos del DEF-055).
-
-   Por eso hay UN número por bloque y no uno por línea del archivo: un párrafo
-   de tres líneas se renderiza como un solo bloque, y no hay a qué asignarle las
-   otras dos. El número que se muestra es el de la línea donde ese bloque
-   EMPIEZA, que es lo mismo que hace el margen del editor con una tabla.
-
-   El pseudo-elemento va absoluto pero SIN `top`: así cae en su posición
-   estática —el arranque del bloque— y queda alineado con su primera línea sin
-   tener que calcular nada. */
-.mic-preview-numeros .mic-preview-body {
-  position: relative;
-  padding-left: 3.25rem;
-}
-
-/* El número se ancla al CUERPO, para que todos caigan en la misma columna por
-   hondo que esté el bloque: un ítem de lista anidado tiene su número donde los
-   demás, no escalonado con su sangría.
-
-   `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
-   bloque, no con su caja entera: en un título grande o en un párrafo que
-   envuelve quedaba flotando arriba. */
-/* SIN `top`. Es lo único que hace que cada número quede a la altura de su
-   bloque: sin `top` la caja se queda en su **posición estática** —donde estaría
-   si no fuera absoluta, o sea el arranque de su bloque— y solo se mueve en
-   horizontal. Poniendo `top: 0` se anclaban todos al borde superior del cuerpo
-   y se apilaban ahí, uno encima de otro, mientras el resto de las líneas
-   quedaba sin número.
-
-   `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
-   bloque y no con su caja entera: en un título grande o en un párrafo que
-   envuelve, si no, quedaría pegado arriba. */
-.mic-preview-numeros .mic-preview-body [data-linea]::before {
-  content: attr(data-linea);
-  position: absolute;
-  left: 0;
-  width: 2.5rem;
-  height: 1lh;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-family: var(--mic-font-mono);
-  font-size: 0.78rem;
-  color: var(--mic-text-muted);
-  opacity: 0.65;
-  user-select: none;
-  pointer-events: none;
-}
-
-/* Un título ES su propio contenedor: el plegado de la vista de lectura le pone
-   `position: relative` para colgarle la flecha. Ahí `left: 0` caería sobre el
-   texto —era el número encima del título—, así que se lo saca hacia afuera el
-   ancho del margen. Es la única excepción, y es exactamente la que la clase
-   `.mic-foldable` identifica. */
-.mic-preview-numeros .mic-preview-body .mic-foldable[data-linea]::before {
-  left: -3.25rem;
-}
 
 .mic-preview p   { margin-bottom: 0.85rem; }
 /* Sangría de las listas según el ancho de tabulación (FUN-S-02 / DEF-049).

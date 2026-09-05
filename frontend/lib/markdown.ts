@@ -262,73 +262,20 @@ let offsetDeLineas = 0;
  * Solo el primer nivel: es el grano al que se desplaza, y marcar cada `<em>`
  * engordaría el HTML sin que nadie lo use.
  */
-/**
- * Elementos que llevan su línea de origen. Son los de BLOQUE: los que ocupan una
- * línea propia y se pueden numerar sin que el número caiga en medio de un
- * párrafo.
- *
- * Incluye `li` y `tr` a propósito (`FUN-M-28`): sin ellos una lista de diez
- * ítems o una tabla de diez filas mostraban **un solo número**, el de su primera
- * línea, y el resto quedaba sin numerar. El AST sabe la línea exacta de cada uno
- * —y en una tabla **salta la del separador** `|---|`, que no dibuja ninguna
- * fila—, así que los números salen correctos sin tener que contar nada.
- */
-const ETIQUETAS_DE_LINEA = new Set([
-  "p", "h1", "h2", "h3", "h4", "h5", "h6",
-  "ul", "ol", "li", "table", "tr",
-  "blockquote", "pre", "hr", "div", "details",
-]);
-
 function rehypeLineas(opciones: { activo: boolean }) {
   return (tree: Parent) => {
     if (!opciones.activo) return;
-    // Recorrido completo y no solo los hijos directos: un `li` cuelga de un
-    // `ul`, y una `tr` de un `tbody` dentro de una `table`.
-    //
-    // `yaMarcada` evita el número duplicado: un `ul` y su primer `li` empiezan
-    // en la MISMA línea del archivo, igual que una `table` y su primera `tr`, o
-    // un `li` y el `p` que remark le pone dentro cuando la lista es «suelta».
-    // Marcando solo cuando la línea cambia respecto del ancestro más cercano ya
-    // marcado, queda **un número por línea** sin tener que listar a mano qué
-    // etiqueta anida a cuál.
-    const marcar = (nodo: MdNode, yaMarcada: number | null) => {
-      const el = nodo as MdNode & {
+    for (const hijo of tree.children as MdNode[]) {
+      const el = hijo as MdNode & {
         tagName?: string;
         properties?: Record<string, unknown>;
         position?: { start?: { line?: number } };
-        children?: MdNode[];
       };
       const linea = el.position?.start?.line;
-      let heredada = yaMarcada;
-      if (
-        el.tagName !== undefined &&
-        linea !== undefined &&
-        linea !== yaMarcada &&
-        ETIQUETAS_DE_LINEA.has(el.tagName)
-      ) {
-        // En una fila, la marca va a su PRIMERA CELDA y no a la fila.
-        //
-        // El número se dibuja con un `::before`, y un `::before` sobre un `<tr>`
-        // no puede ser lo que parece: dentro de una fila solo caben celdas, así
-        // que el navegador lo envuelve en una **celda anónima** y corre todas
-        // las reales una columna a la derecha. La tabla se veía descuadrada.
-        // Dentro de una celda es un pseudo-elemento normal y no descoloca nada.
-        const destino =
-          el.tagName === "tr"
-            ? ((el.children ?? []).find(
-                (h) => (h as { tagName?: string }).tagName === "td" ||
-                  (h as { tagName?: string }).tagName === "th",
-              ) as typeof el | undefined)
-            : el;
-        if (destino !== undefined) {
-          destino.properties = destino.properties ?? {};
-          destino.properties.dataLinea = String(linea + offsetDeLineas);
-        }
-        heredada = linea;
-      }
-      for (const hijo of el.children ?? []) marcar(hijo, heredada);
-    };
-    for (const hijo of tree.children as MdNode[]) marcar(hijo, null);
+      if (el.tagName === undefined || linea === undefined) continue;
+      el.properties = el.properties ?? {};
+      el.properties.dataLinea = String(linea + offsetDeLineas);
+    }
   };
 }
 
