@@ -25,6 +25,7 @@ const {
   tituloColumna,
   ErrorBase,
   motivosNoEditable,
+  condicionAplicable,
   condicionesPlanas,
   filtroDeCondiciones,
   expresionDe,
@@ -506,4 +507,38 @@ test("las columnas elegibles combinan campos de archivo y propiedades del vault"
   assert.equal(refs.includes("estado"), true);
   assert.equal(refs.includes("prioridad"), true);
   assert.equal(refs.filter((r) => r === "estado").length, 1, "sin duplicados entre notas");
+});
+
+// ── DEF-080: una condición a medias no filtra, pero tampoco se borra ─────────
+// La regla vive en `condicionAplicable` y la usan los DOS lados: el que escribe
+// el archivo y el constructor, que conserva en pantalla lo que el archivo
+// descarta. Si dejaran de coincidir, volvería el defecto.
+
+test("una condicion completa es aplicable", () => {
+  assert.equal(condicionAplicable({ ref: "estado", op: "==", valor: "activo" }), true);
+});
+
+test("sin campo no es aplicable", () => {
+  assert.equal(condicionAplicable({ ref: "", op: "==", valor: "activo" }), false);
+});
+
+test("sin valor no es aplicable", () => {
+  assert.equal(condicionAplicable({ ref: "estado", op: "==", valor: "" }), false);
+});
+
+test("isEmpty no necesita valor: es aplicable igual", () => {
+  assert.equal(condicionAplicable({ ref: "estado", op: "isEmpty", valor: "" }), true);
+});
+
+test("filtroDeCondiciones descarta las que no son aplicables", () => {
+  const f = filtroDeCondiciones("and", [
+    { ref: "estado", op: "==", valor: "activo" },
+    { ref: "prioridad", op: ">", valor: "" },
+  ]);
+  assert.equal(f.hijos.length, 1);
+  assert.ok(f.hijos[0].fuente.includes("estado"));
+});
+
+test("solo condiciones a medias: no hay filtro, y eso NO es un error", () => {
+  assert.equal(filtroDeCondiciones("and", [{ ref: "estado", op: "==", valor: "" }]), null);
 });

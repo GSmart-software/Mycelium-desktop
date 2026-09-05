@@ -799,14 +799,26 @@ export function condicionesPlanas(
   return { combinador: filtro.tipo, condiciones };
 }
 
+/**
+ * ¿Esta condición está completa y por lo tanto filtra?
+ *
+ * Una a medias —sin campo, o sin valor cuando el operador lo pide— **no se
+ * escribe en el archivo**: un filtro incompleto en disco cambiaría lo que la
+ * tabla muestra y lo que otra app lee. Pero tampoco debe desaparecer de la
+ * pantalla mientras se la termina de armar (`DEF-080`), y por eso la regla está
+ * acá y no repetida en la UI: los dos lados tienen que coincidir en qué cuenta
+ * como completa, o el constructor perdería justo lo que el archivo descarta.
+ */
+export function condicionAplicable(c: Condicion): boolean {
+  return c.ref !== "" && (c.valor !== "" || c.op === "isEmpty");
+}
+
 /** Lista de condiciones → árbol de filtros (`null` si no queda ninguna útil). */
 export function filtroDeCondiciones(
   combinador: "and" | "or",
   condiciones: Condicion[],
 ): Filtro | null {
-  const utiles = condiciones.filter(
-    (c) => c.ref !== "" && (c.valor !== "" || c.op === "isEmpty"),
-  );
+  const utiles = condiciones.filter(condicionAplicable);
   if (utiles.length === 0) return null;
   return {
     tipo: combinador,

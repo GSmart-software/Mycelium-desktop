@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   columnasDisponibles,
+  condicionAplicable,
   condicionesPlanas,
   construirTabla,
   filtroDeCondiciones,
@@ -438,6 +439,14 @@ function PanelFiltros({
  * Es el mismo patrón de borrador + `onBlur` que ya usan Configuración → Vault y
  * el ancho de tabulación.
  */
+/** ¿Dos listas de condiciones dicen lo mismo? (`DEF-080`) */
+function mismasCondiciones(a: Condicion[], b: Condicion[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((c, i) => c.ref === b[i].ref && c.op === b[i].op && c.valor === b[i].valor)
+  );
+}
+
 function FiltrosEditables({
   planas,
   columnas,
@@ -450,14 +459,27 @@ function FiltrosEditables({
   const [combinador, setCombinador] = useState(planas.combinador);
   const [condiciones, setCondiciones] = useState(planas.condiciones);
 
-  // El borrador sigue al archivo cuando este cambia por fuera (otra edición, o
-  // el guardado que acabamos de provocar). Se compara DURANTE el render, no en
-  // un efecto, para no pintar un fotograma con el valor viejo.
+  // El borrador sigue al archivo cuando este cambia POR FUERA (otra edición, o
+  // el watcher). Se compara DURANTE el render, no en un efecto, para no pintar
+  // un fotograma con el valor viejo.
+  //
+  // Pero NO cuando el archivo solo devuelve el eco de nuestro propio guardado
+  // (`DEF-080`). Una condición a medias no se escribe —no filtra—, así que
+  // volvía del archivo sin ella y el reset se la llevaba puesta: agregar una
+  // condición y elegirle el campo la hacía desaparecer antes de poder ponerle
+  // valor. Si lo que trae el archivo es exactamente la parte COMPLETA de lo que
+  // hay en pantalla, no hay novedad que incorporar y el borrador se queda como
+  // está, con lo incompleto incluido.
   const [visto, setVisto] = useState(planas);
   if (visto !== planas) {
     setVisto(planas);
-    setCombinador(planas.combinador);
-    setCondiciones(planas.condiciones);
+    const eco =
+      planas.combinador === combinador &&
+      mismasCondiciones(condiciones.filter(condicionAplicable), planas.condiciones);
+    if (!eco) {
+      setCombinador(planas.combinador);
+      setCondiciones(planas.condiciones);
+    }
   }
 
   /** Cambia el borrador y confirma (para los controles discretos). */
@@ -541,7 +563,15 @@ function FiltrosEditables({
                 onBlur={() => onCambio(combinador, condiciones)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") e.currentTarget.blur();
-                  if (e.key === "Escape") setCondiciones(planas.condiciones);
+                  // Escape descarta lo tecleado en ESTA condición, no el
+                  // borrador entero: restaurar toda la lista desde el archivo
+                  // se llevaría por delante las que están a medias (`DEF-080`).
+                  if (e.key === "Escape") {
+                    const previo = planas.condiciones[i]?.valor ?? "";
+                    setCondiciones(
+                      condiciones.map((x, j) => (j === i ? { ...x, valor: previo } : x)),
+                    );
+                  }
                 }}
               />
             )}
