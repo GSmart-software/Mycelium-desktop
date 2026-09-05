@@ -28,8 +28,6 @@ const {
   condicionAplicable,
   arbolDeFiltro,
   filtroDeArbol,
-  condicionesPlanas,
-  filtroDeCondiciones,
   expresionDe,
   serializarBase,
   columnasDisponibles,
@@ -383,72 +381,11 @@ test("un filtro no soportado bloquea la edición por UI", () => {
   assert.match(motivosNoEditable(b)[0], /no se entiende/);
 });
 
-test("los filtros planos se leen como condiciones del constructor", () => {
-  const b = parsearBase(`
-filters:
-  and:
-    - file.inFolder("Proyectos")
-    - estado != "archivado"
-    - prioridad > 2
-    - resumen.contains("api")
-    - notas.isEmpty()
-`);
-  const p = condicionesPlanas(b.filtros);
-  assert.equal(p.combinador, "and");
-  assert.deepEqual(p.condiciones, [
-    { ref: "file", op: "inFolder", valor: "Proyectos" },
-    { ref: "estado", op: "!=", valor: "archivado" },
-    { ref: "prioridad", op: ">", valor: "2" },
-    { ref: "resumen", op: "contains", valor: "api" },
-    { ref: "notas", op: "isEmpty", valor: "" },
-  ]);
-});
-
-test("un filtro ANIDADO no se aplana: el constructor se declara incapaz", () => {
-  const b = parsearBase(`
-filters:
-  or:
-    - and:
-        - estado == "activo"
-        - prioridad > 1
-    - file.hasTag("urgente")
-`);
-  assert.equal(
-    condicionesPlanas(b.filtros),
-    null,
-    "aplanarlo destruiría el filtro real al guardar",
-  );
-});
-
-test("un `not` tampoco se aplana", () => {
-  const b = parsearBase(`filters:\n  not:\n    - estado == "activo"\n`);
-  assert.equal(condicionesPlanas(b.filtros), null);
-});
-
-test("hasTag con varios argumentos no es representable en el constructor", () => {
-  const b = parsearBase(`filters:\n  and:\n    - file.hasTag("a", "b")\n`);
-  assert.equal(condicionesPlanas(b.filtros), null);
-});
-
-test("sin filtros, el constructor arranca vacío (no null)", () => {
-  const p = condicionesPlanas(null);
-  assert.deepEqual(p, { combinador: "and", condiciones: [] });
-});
-
 test("una condición numérica se escribe SIN comillas, para comparar como número", () => {
   assert.equal(expresionDe({ ref: "prioridad", op: ">", valor: "10" }), "prioridad > 10");
   assert.equal(expresionDe({ ref: "estado", op: "==", valor: "activo" }), 'estado == "activo"');
   assert.equal(expresionDe({ ref: "file", op: "hasTag", valor: "idea" }), 'file.hasTag("idea")');
   assert.equal(expresionDe({ ref: "notas", op: "isEmpty", valor: "" }), "notas.isEmpty()");
-});
-
-test("las condiciones a medio escribir no llegan al archivo", () => {
-  const f = filtroDeCondiciones("and", [
-    { ref: "estado", op: "==", valor: "activo" },
-    { ref: "prioridad", op: ">", valor: "" },
-    { ref: "", op: "==", valor: "x" },
-  ]);
-  assert.equal(f.hijos.length, 1);
 });
 
 test("ida y vuelta: serializar y volver a parsear conserva el modelo", () => {
@@ -530,19 +467,6 @@ test("sin valor no es aplicable", () => {
 
 test("isEmpty no necesita valor: es aplicable igual", () => {
   assert.equal(condicionAplicable({ ref: "estado", op: "isEmpty", valor: "" }), true);
-});
-
-test("filtroDeCondiciones descarta las que no son aplicables", () => {
-  const f = filtroDeCondiciones("and", [
-    { ref: "estado", op: "==", valor: "activo" },
-    { ref: "prioridad", op: ">", valor: "" },
-  ]);
-  assert.equal(f.hijos.length, 1);
-  assert.ok(f.hijos[0].fuente.includes("estado"));
-});
-
-test("solo condiciones a medias: no hay filtro, y eso NO es un error", () => {
-  assert.equal(filtroDeCondiciones("and", [{ ref: "estado", op: "==", valor: "" }]), null);
 });
 
 // ── FUN-M-27: el constructor de filtros con negacion y grupos ────────────────

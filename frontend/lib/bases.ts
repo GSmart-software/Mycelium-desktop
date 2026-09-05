@@ -888,30 +888,6 @@ export function filtroDeArbol(nodo: NodoFiltro): Filtro | null {
 }
 
 /**
- * Un árbol de filtros → la lista plana que el constructor sabe representar, o
- * `null` si no cabe (anidamientos, `not`, o expresiones que no encajan).
- *
- * Devolver `null` es lo importante: es lo que hace que la UI se niegue a mostrar
- * un constructor que no representa lo que hay, en vez de enseñar una versión
- * simplificada que al guardar destruiría el filtro real.
- */
-export function condicionesPlanas(
-  filtro: Filtro | null,
-): { combinador: "and" | "or"; condiciones: Condicion[] } | null {
-  if (filtro === null) return { combinador: "and", condiciones: [] };
-  if (filtro.tipo !== "and" && filtro.tipo !== "or") return null;
-
-  const condiciones: Condicion[] = [];
-  for (const hijo of filtro.hijos) {
-    if (hijo.tipo !== "expr") return null;
-    const c = condicionDe(hijo.fuente);
-    if (c === null) return null;
-    condiciones.push(c);
-  }
-  return { combinador: filtro.tipo, condiciones };
-}
-
-/**
  * ¿Esta condición está completa y por lo tanto filtra?
  *
  * Una a medias —sin campo, o sin valor cuando el operador lo pide— **no se
@@ -923,19 +899,6 @@ export function condicionesPlanas(
  */
 export function condicionAplicable(c: Condicion): boolean {
   return c.ref !== "" && (c.valor !== "" || c.op === "isEmpty");
-}
-
-/** Lista de condiciones → árbol de filtros (`null` si no queda ninguna útil). */
-export function filtroDeCondiciones(
-  combinador: "and" | "or",
-  condiciones: Condicion[],
-): Filtro | null {
-  const utiles = condiciones.filter(condicionAplicable);
-  if (utiles.length === 0) return null;
-  return {
-    tipo: combinador,
-    hijos: utiles.map((c) => ({ tipo: "expr", fuente: expresionDe(c) })),
-  };
 }
 
 /** Un escalar → YAML, entrecomillando solo cuando hace falta. */
