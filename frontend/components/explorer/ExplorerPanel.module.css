@@ -121,6 +121,32 @@
   color: var(--mic-text-primary);
 }
 
+/* ── Sangría y guías de indentación (FUN-S-17) ────────────────────────────── */
+
+/* La sangría la da el ANIDAMIENTO, no un `padding` por nivel en cada fila. Con
+   padding se veía igual, pero no había ningún elemento que abarcara la rama, y
+   sin él no hay dónde colgar la línea — que es lo que dice hasta dónde llega el
+   contenido de una carpeta cuando hay tres o cuatro niveles abiertos.
+
+   Los 14 px de cada nivel son los mismos de antes: 11 de margen + 2 de relleno
+   + 1 de línea. El margen deja la línea centrada bajo la flecha de la carpeta
+   que abre la rama. */
+.rama {
+  margin-left: 11px;
+  padding-left: 2px;
+  border-left: 1px solid color-mix(in srgb, var(--mic-text-muted) 26%, transparent);
+}
+
+/* Una carpeta arranca donde su flecha; una hoja va corrida el ancho de esa
+   flecha, para que los NOMBRES queden en la misma columna. */
+.rowCarpeta {
+  padding-left: 4px;
+}
+
+.rowHoja {
+  padding-left: 22px;
+}
+
 .row:hover {
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
