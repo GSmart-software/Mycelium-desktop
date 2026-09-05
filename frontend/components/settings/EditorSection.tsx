@@ -8,6 +8,8 @@ import {
   TAB_MIN,
   usePreferencesStore,
 } from "@/stores/preferencesStore";
+import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./Settings.module.css";
 
 /** Sección Editor: comportamiento de las pestañas. */
@@ -17,6 +19,12 @@ export function EditorSection() {
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
   const setPref = usePreferencesStore((s) => s.setPref);
+  // Números de línea: preferencia DEL VAULT (`FUN-M-28`), no del usuario. Sin un
+  // vault abierto no hay dónde guardarla, así que el control se desactiva en vez
+  // de aceptar un cambio que se perdería.
+  const numerosDeLinea = usePrefVault("numerosDeLinea");
+  const setPrefVault = usePrefsVaultStore((s) => s.set);
+  const hayVault = useVaultSessionStore((s) => s.rutaActual) !== null;
 
   return (
     <div>
@@ -87,6 +95,27 @@ export function EditorSection() {
         <code>&apos;</code>, <code>`</code>, <code>*</code> o <code>_</code> se inserta también
         el símbolo de cierre. Con texto seleccionado, lo envuelve en vez de
         reemplazarlo. Desactivá esta opción para escribir los símbolos tal cual.
+      </p>
+
+      <div className={styles.toggleRow}>
+        <span className={styles.label}>Números de línea</span>
+        <button
+          type="button"
+          className={styles.toggle}
+          disabled={!hayVault}
+          onClick={() => setPrefVault("numerosDeLinea", !numerosDeLinea)}
+          aria-pressed={numerosDeLinea}
+        >
+          {numerosDeLinea ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
+          {numerosDeLinea ? "Activado" : "Desactivado"}
+        </button>
+      </div>
+      <p className={styles.hint}>
+        Muestra el número de cada línea al costado del texto, como en el visor de
+        archivos de código. Desactivado por defecto.{" "}
+        <strong>Este ajuste es de este vault</strong>, no tuyo: se guarda dentro
+        de su carpeta, así que viaja con él y cada vault puede tener el suyo.
+        {!hayVault && " Abrí un vault para poder cambiarlo."}
       </p>
 
       <div className={styles.toggleRow}>

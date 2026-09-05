@@ -14,7 +14,7 @@ import { languages } from "@codemirror/language-data";
 import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
 import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { EditorView, keymap, lineNumbers, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -50,6 +50,7 @@ import { useGraphStore } from "@/stores/graphStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
+import { usePrefVault } from "@/stores/prefsVaultStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
@@ -233,6 +234,8 @@ export function NoteEditor({
   // Ancho de tabulación (FUN-S-02): en compartimento propio para poder
   // reconfigurarlo al vuelo, sin recrear la vista ni perder cursor y scroll.
   const tabCompartment = useRef(new Compartment());
+  /** Números de línea (`FUN-M-28`): se prende y apaga sin recrear la vista. */
+  const numerosCompartment = useRef(new Compartment());
   const collabRef = useRef<CollabHandle | null>(null);
   const brokerApplyRef = useRef(false);
   // DEF-039: posición de scroll capturada EN VIVO (ver `instanceCache`).
@@ -448,6 +451,7 @@ export function NoteEditor({
             // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
             // compartidas con relay disponible (cloudflare).
             collabCompartment.current.of([]),
+            numerosCompartment.current.of(numerosDeLinea ? lineNumbers() : []),
             tabCompartment.current.of(
               extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
             ),
@@ -1097,6 +1101,9 @@ export function NoteEditor({
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
+  // Números de línea (`FUN-M-28`). Es una preferencia DEL VAULT, no del
+  // usuario: abrir otro vault trae la suya.
+  const numerosDeLinea = usePrefVault("numerosDeLinea");
   // Panel de metadatos embebido a la derecha de ESTE editor, y su toggle es de
   // ESTE pane (`DEF-060`). Leerlo como selector hace que abrirlo en un pane no
   // redibuje los demás.
@@ -1109,6 +1116,17 @@ export function NoteEditor({
       effects: tabCompartment.current.reconfigure(extensionesTab(tabWidth)),
     });
   }, [tabWidth]);
+
+  // Igual con los números de línea (`FUN-M-28`): reconfigurar, no recrear. Si se
+  // recreara la vista, prender el interruptor perdería el cursor, el scroll y el
+  // deshacer de cada editor abierto.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: numerosCompartment.current.reconfigure(
+        numerosDeLinea ? lineNumbers() : [],
+      ),
+    });
+  }, [numerosDeLinea]);
 
   // Mantener el título del bloque del editor al renombrar o togglear la opción.
   useEffect(() => {

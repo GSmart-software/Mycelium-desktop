@@ -6,6 +6,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 mod actualizador;
 mod archivos;
 mod mycignore;
+mod prefs_vault;
 mod terminal;
 mod vault_config;
 mod vault_fs;
@@ -192,6 +193,8 @@ pub fn run() {
             ventanas::registrar_vault,
             ventanas::soltar_vault,
             ventanas::abrir_vault_en_ventana,
+            prefs_vault::leer_prefs_vault,
+            prefs_vault::escribir_prefs_vault,
             vault_config::listar_vaults,
             vault_config::vincular_vault,
             vault_config::desvincular_vault,

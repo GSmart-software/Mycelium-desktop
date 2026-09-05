@@ -27,6 +27,7 @@ import {
 } from "@/lib/vaultMode";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
+import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -172,6 +173,11 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // workspace se lleve la página. Si se borraran, esos milisegundos se verían
       // como un salto a una pantalla con todas las etapas otra vez pendientes.
       // Las limpia el siguiente `abrir()` (que las reinicia) o `salir()`.
+      // Preferencias del vault (`FUN-M-28`/`FUN-M-21`): viven dentro de él, así
+      // que se cargan acá y no al arrancar la app. No se espera el resultado: si
+      // tardan o fallan, el vault se abre igual con los valores por defecto —un
+      // ajuste de aspecto no puede demorar la apertura.
+      void usePrefsVaultStore.getState().cargar(ruta);
       set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
       return true;
     } catch (error) {
@@ -219,6 +225,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     } catch {
       // sin sessionStorage no hay nada que limpiar
     }
+    // Las preferencias del vault que se cierra no deben quedar puestas: el
+    // siguiente vault trae las suyas, y mientras tanto valen las por defecto.
+    void usePrefsVaultStore.getState().cargar(null);
     set({ rutaActual: null, rutaAbriendo: null, etapa: null, progreso: null, error: null });
   },
 }));
