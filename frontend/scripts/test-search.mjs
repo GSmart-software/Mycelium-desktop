@@ -6,6 +6,11 @@
 // borra— así que se transpilan en el momento y se importan vía data: URL, igual
 // que `scripts/test-bases.mjs`.
 //
+// `lib/db/` es solo-desktop: en `web-cloud` la consulta FTS la arma el backend
+// .NET (`SearchEndpoints.BuildFtsQuery`). Los tests de esa mitad se SALTAN allá
+// en vez de vivir en otro archivo — así este es el mismo en las dos ramas, y el
+// motivo queda dicho en la salida del test en lugar de en la cabeza de alguien.
+//
 //   node --test scripts/test-search.mjs
 //   node scripts/test-search.mjs
 import assert from "node:assert/strict";
@@ -14,8 +19,14 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import ts from "typescript";
 
-async function cargar(ruta) {
-  const fuente = await readFile(fileURLToPath(new URL(ruta, import.meta.url)), "utf8");
+async function cargar(ruta, opcional = false) {
+  let fuente;
+  try {
+    fuente = await readFile(fileURLToPath(new URL(ruta, import.meta.url)), "utf8");
+  } catch (e) {
+    if (opcional && e.code === "ENOENT") return null;
+    throw e;
+  }
   const { outputText } = ts.transpileModule(fuente, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
   });
@@ -25,7 +36,10 @@ async function cargar(ruta) {
 const { agruparEnArbol, folderPath, firstSearchTerm, fragmentToHtml } = await cargar(
   "../lib/search.ts",
 );
-const { buildFtsQuery, separarFiltrosPropiedad } = await cargar("../lib/db/fts.ts");
+const fts = await cargar("../lib/db/fts.ts", true);
+const soloDesktop = fts === null ? { skip: "lib/db es solo-desktop; acá lo arma el backend .NET" } : {};
+const buildFtsQuery = fts?.buildFtsQuery ?? (() => "");
+const separarFiltrosPropiedad = fts?.separarFiltrosPropiedad ?? (() => ({ filtros: [], resto: "" }));
 
 // ── Carpetas de prueba ───────────────────────────────────────────────────────
 //
@@ -119,12 +133,12 @@ test("sin resultados, el arbol esta vacio y no rompe", () => {
 
 // ── FUN-M-20: buscar solo por nombre o solo por contenido ────────────────────
 
-test("por defecto no se restringe ninguna columna", () => {
+test("por defecto no se restringe ninguna columna", soloDesktop, () => {
   assert.equal(buildFtsQuery("api rest", true), '"api"* "rest"*');
   assert.equal(buildFtsQuery("api rest", true, "ambos"), '"api"* "rest"*');
 });
 
-test("el filtro de columna se aplica a CADA termino, no solo al primero", () => {
+test("el filtro de columna se aplica a CADA termino, no solo al primero", soloDesktop, () => {
   // `titulo : "api"* "rest"*` restringiria solo el primero: el operador alcanza
   // a la frase que le sigue, y `rest` se buscaria en todo el documento.
   assert.equal(buildFtsQuery("api rest", true, "nombre"), 'titulo : "api"* titulo : "rest"*');
@@ -134,27 +148,27 @@ test("el filtro de columna se aplica a CADA termino, no solo al primero", () => 
   );
 });
 
-test("una frase entrecomillada tambien se restringe", () => {
+test("una frase entrecomillada tambien se restringe", soloDesktop, () => {
   assert.equal(buildFtsQuery('"rediseno del api"', false, "nombre"), 'titulo : "rediseno del api"');
 });
 
-test("el modo exacto sigue mandando sobre el prefijo", () => {
+test("el modo exacto sigue mandando sobre el prefijo", soloDesktop, () => {
   assert.equal(buildFtsQuery("api", false, "nombre"), 'titulo : "api"');
 });
 
-test("`tag:` se traduce a `#tag` antes de restringir", () => {
+test("`tag:` se traduce a `#tag` antes de restringir", soloDesktop, () => {
   assert.equal(buildFtsQuery("tag:idea", true, "contenido"), 'contenido : "#idea"*');
 });
 
 // ── HU-21 / FUN-M-04: lo que ya habia, para no romperlo al tocar el mismo modulo
 
-test("los filtros de propiedad se separan del texto", () => {
+test("los filtros de propiedad se separan del texto", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad('estado:activo "frase exacta" api');
   assert.deepEqual(filtros, [{ clave: "estado", valor: "activo" }]);
   assert.equal(resto, '"frase exacta" api');
 });
 
-test("una URL pegada no es un filtro de propiedad", () => {
+test("una URL pegada no es un filtro de propiedad", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad("https://ejemplo.com/x");
   assert.deepEqual(filtros, []);
   assert.equal(resto, "https://ejemplo.com/x");
