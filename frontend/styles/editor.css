@@ -649,19 +649,42 @@
   padding-left: 3.25rem;
 }
 
-.mic-preview-numeros .mic-preview-body > [data-linea]::before {
+/* El número se ancla al CUERPO, para que todos caigan en la misma columna por
+   hondo que esté el bloque: un ítem de lista anidado tiene su número donde los
+   demás, no escalonado con su sangría.
+
+   `height: 1lh` con centrado vertical lo alinea con la PRIMERA línea del
+   bloque, no con su caja entera: en un título grande o en un párrafo que
+   envuelve quedaba flotando arriba. */
+.mic-preview-numeros .mic-preview-body {
+  counter-reset: none; /* nada que contar: el número viene del atributo */
+}
+
+.mic-preview-numeros .mic-preview-body [data-linea]::before {
   content: attr(data-linea);
   position: absolute;
   left: 0;
+  top: 0;
   width: 2.5rem;
-  text-align: right;
+  height: 1lh;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   font-family: var(--mic-font-mono);
   font-size: 0.78rem;
-  line-height: inherit;
   color: var(--mic-text-muted);
   opacity: 0.65;
   user-select: none;
   pointer-events: none;
+}
+
+/* Un título ES su propio contenedor: el plegado de la vista de lectura le pone
+   `position: relative` para colgarle la flecha. Ahí `left: 0` caería sobre el
+   texto —era el número encima del título—, así que se lo saca hacia afuera el
+   ancho del margen. Es la única excepción, y es exactamente la que la clase
+   `.mic-foldable` identifica. */
+.mic-preview-numeros .mic-preview-body .mic-foldable[data-linea]::before {
+  left: -3.25rem;
 }
 
 .mic-preview p   { margin-bottom: 0.85rem; }
