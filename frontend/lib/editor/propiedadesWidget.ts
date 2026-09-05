@@ -49,6 +49,8 @@ export type AccionesPropiedades = {
   renombrar(clave: string, nueva: string): void;
   /** «Editar como texto»: revela el markdown del bloque hasta que salga el cursor. */
   verComoTexto(): void;
+  /** Abre la nota de un `[[wikilink]]` pulsado en un valor (`DEF-082`). */
+  navegar(titulo: string): void;
   /** Avisa que el alto del bloque cambió (`view.requestMeasure()`). */
   medir(): void;
 };
@@ -488,9 +490,28 @@ export class TarjetaPropiedades {
     this.tarjetaEl.append(this.avisoEl, this.filasEl, this.errorEl, pie);
     this.dom.append(this.tarjetaEl);
 
-    // Los enlaces de la tarjeta (wikilinks, `#tag:`) navegan en la vista de
-    // lectura, no acá: dentro del editor un href `#…` cambiaría la URL del
-    // workspace.
+    // Un `[[wikilink]]` de un valor navega igual que en el cuerpo de la nota
+    // (`DEF-082`). Antes solo se le anulaba el `href` y no pasaba nada más: el
+    // enlace se veía y no llevaba a ninguna parte. Es el mismo defecto que el
+    // `DEF-076` tenía en las tablas, y el mismo arreglo.
+    //
+    // Va en **mousedown** y no en `click` por dos motivos encadenados: el
+    // `.mic-prop-render` del valor es enfocable y abre el editor al recibir el
+    // foco, que se mueve en el mousedown —así que para cuando llegaría el clic
+    // el enlace ya fue reemplazado por el `<input>`—, y `preventDefault()` acá
+    // impide justamente ese foco. Para editar un valor que es solo un enlace
+    // quedan el resto de la celda y el teclado.
+    this.dom.addEventListener("mousedown", (event) => {
+      const a = (event.target as HTMLElement).closest("a");
+      const href = a?.getAttribute("href") ?? "";
+      if (!href.startsWith("#wikilink:")) return;
+      event.preventDefault();
+      this.acciones.navegar(decodeURIComponent(href.slice("#wikilink:".length)));
+    });
+
+    // El resto de los `href` internos (`#tag:` de las etiquetas, y cualquier
+    // ancla) se anulan: dentro del editor cambiarían la URL del workspace. La
+    // vista de tags llega en una versión futura.
     this.dom.addEventListener("click", (event) => {
       if ((event.target as HTMLElement).closest("a")) event.preventDefault();
     });

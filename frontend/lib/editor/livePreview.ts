@@ -471,6 +471,7 @@ function accionesPropiedades(view: EditorView): AccionesPropiedades {
     poner: (clave, valor, tipo) => editar((t) => ponerPropiedad(t, clave, valor, tipo)),
     quitar: (clave) => editar((t) => quitarPropiedad(t, clave)),
     renombrar: (clave, nueva) => editar((t) => renombrarPropiedad(t, clave, nueva)),
+    navegar: (titulo) => view.state.facet(navegarPorTitulo)?.(titulo),
     verComoTexto: () => {
       const lim = limitesFrontmatter(view.state);
       view.dispatch({
