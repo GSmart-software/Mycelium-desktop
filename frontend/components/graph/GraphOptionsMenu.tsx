@@ -4,7 +4,26 @@ import { GripVertical, Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import {
+  usePrefVault,
+  usePrefsVaultStore,
+  type ModoNombresGrafo,
+} from "@/stores/prefsVaultStore";
 import styles from "./GraphOptionsMenu.module.css";
+
+/**
+ * Cuánto nombre se dibuja en el grafo (`FUN-M-21`). Con muchos nodos, todos los
+ * nombres a la vez tapan las conexiones, que es lo que el grafo viene a mostrar.
+ */
+const NOMBRES: { value: ModoNombresGrafo; label: string; ayuda: string }[] = [
+  { value: "todos", label: "Todos", ayuda: "El nombre de cada nodo visible" },
+  {
+    value: "vecinos",
+    label: "Vecinos",
+    ayuda: "Solo el nodo apuntado y aquellos con los que conecta",
+  },
+  { value: "apuntado", label: "Apuntado", ayuda: "Solo el nodo bajo el cursor" },
+];
 
 const DIRECTIONS: { value: "none" | "animated" | "arrow" | "both"; label: string }[] = [
   { value: "none", label: "Ninguno" },
@@ -51,6 +70,10 @@ export function GraphOptionsMenu() {
   const colorGroups = usePreferencesStore((s) => s.prefs.graphColorGroups);
   const excludeRules = usePreferencesStore((s) => s.prefs.graphExcludeRules);
   const setPref = usePreferencesStore((s) => s.setPref);
+  // Los nombres son preferencia DEL VAULT (`FUN-M-21`): un vault de cien notas y
+  // uno de cinco mil no quieren lo mismo, y quien los abre es la misma persona.
+  const nombresGrafo = usePrefVault("nombresGrafo");
+  const setPrefVault = usePrefsVaultStore((s) => s.set);
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -205,6 +228,29 @@ export function GraphOptionsMenu() {
             role="menu"
             style={{ left: pos.x, top: pos.y, maxHeight: pos.alto || undefined }}
           >
+          <div className={styles.group}>
+            <span className={styles.label}>Nombres</span>
+            <div className={styles.segmented} role="radiogroup">
+              {NOMBRES.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={nombresGrafo === m.value}
+                  title={m.ayuda}
+                  className={
+                    nombresGrafo === m.value
+                      ? `${styles.segment} ${styles.segmentActive}`
+                      : styles.segment
+                  }
+                  onClick={() => setPrefVault("nombresGrafo", m.value)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className={styles.group}>
             <span className={styles.label}>Indicador de dirección</span>
             <div className={styles.segmented} role="radiogroup">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { usePrefVault } from "@/stores/prefsVaultStore";
 
 export type GraphNode = {
   id: string;
@@ -117,6 +118,12 @@ export function MiniGraph({
   edgeDirectionRef.current = edgeDirection;
   const hoverGlowRef = useRef(hoverGlow);
   hoverGlowRef.current = hoverGlow;
+  // Cuántos nombres se dibujan (`FUN-M-21`). Va por ref y no por dependencia del
+  // efecto: cambiarlo tiene que repintar, no reconstruir la simulación —eso
+  // reacomodaría todos los nodos y perdería el zoom y el desplazamiento—.
+  const modoNombres = usePrefVault("nombresGrafo");
+  const modoNombresRef = useRef(modoNombres);
+  modoNombresRef.current = modoNombres;
   const nodeColorsRef = useRef(nodeColors);
   nodeColorsRef.current = nodeColors;
   const revealCountRef = useRef(revealCount);
@@ -124,7 +131,7 @@ export function MiniGraph({
   const wakeRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     wakeRef.current?.();
-  }, [edgeDirection, hoverGlow, nodeColors, revealCount]);
+  }, [edgeDirection, hoverGlow, nodeColors, revealCount, modoNombres]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
@@ -257,10 +264,25 @@ export function MiniGraph({
     // con --mic-accent. Se recalcula solo al cambiar el foco (no por frame).
     const centerNode = centerId ? byId.get(centerId) ?? null : null;
     let focusRefs = new Set<string>();
+    // Los vecinos del foco, en las DOS direcciones (`FUN-M-21`). `focusRefs` no
+    // sirve para esto: guarda solo quién apunta al foco, porque su trabajo es
+    // colorear las entrantes. «Vecino» acá es cualquiera con el que conecte.
+    let vecinos = new Set<string>();
     const computeRefs = (focus: SimNode | null) => {
       const next = new Set<string>();
-      if (focus) for (const e of simEdges) if (e.t === focus) next.add(e.s.id);
+      const cerca = new Set<string>();
+      if (focus) {
+        for (const e of simEdges) {
+          if (e.t === focus) {
+            next.add(e.s.id);
+            cerca.add(e.s.id);
+          } else if (e.s === focus) {
+            cerca.add(e.t.id);
+          }
+        }
+      }
       focusRefs = next;
+      vecinos = cerca;
     };
     computeRefs(centerNode);
 
@@ -574,12 +596,26 @@ export function MiniGraph({
         ctx.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
       }
 
+      // Qué nombres se dibujan (`FUN-M-21`). El foco es el nodo apuntado y, si
+      // no hay ninguno, el centro del panel — el mismo criterio que usa el
+      // resaltado, para que el nombre acompañe a lo que ya está destacado.
+      const modo = modoNombresRef.current;
+      const foco = hover ?? centerNode;
+      // En «todos» sigue mandando el zoom: alejado, los nombres se amontonan
+      // hasta ser ilegibles y solo se deja el del apuntado. Los otros dos modos
+      // ya muestran pocos, así que no necesitan ese recorte.
       const showAll = scale > 0.5;
       ctx.textAlign = "center";
       ctx.font = `${12 / scale}px ${fontFamily}`;
       for (const n of sim) {
         if (!revealed(n)) continue;
-        if (!showAll && n !== hover && n.id !== centerId) continue;
+        if (modo === "apuntado") {
+          if (n !== foco) continue;
+        } else if (modo === "vecinos") {
+          if (n !== foco && !vecinos.has(n.id)) continue;
+        } else if (!showAll && n !== hover && n.id !== centerId) {
+          continue;
+        }
         if (!dentro(n.x, n.y)) continue; // culling
         ctx.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
         ctx.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
