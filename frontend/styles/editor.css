@@ -39,13 +39,15 @@
   --mic-num-rango-fondo: color-mix(in srgb, var(--mic-text-primary) 9%, transparent);
 }
 
-/* En oscuro la misma proporción pesa MÁS: la tinta es casi blanca y el fondo
-   casi negro, así que un 9% ya se lee como un bloque marcado en vez de como un
-   matiz. En claro la tinta es oscura sobre fondo claro y el mismo 9% queda
-   justo. Por eso el valor no es uno solo con una fórmula que se adapte: la
-   fórmula se adapta al color, no a cuánto se nota. */
+/* En oscuro NO sirve la misma fórmula. La proporción se adapta al color pero no
+   a cuánto se NOTA: con la tinta casi blanca sobre un fondo casi negro, un 9% ya
+   se lee como un bloque marcado en vez de como un matiz.
+
+   Va `--mic-raw-mist`, que es el color de los paneles del tema: apenas por
+   encima del lienzo del editor, así que el tramo se distingue sin gritar. Y por
+   ser un color del tema y no una mezcla, cualquier tema nuevo trae el suyo. */
 [data-dark="true"] .mic-editor-host {
-  --mic-num-rango-fondo: color-mix(in srgb, var(--mic-text-primary) 4%, transparent);
+  --mic-num-rango-fondo: var(--mic-raw-mist);
 }
 
 .mic-editor-host.mic-con-numeros .cm-scroller {
