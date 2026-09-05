@@ -9,7 +9,6 @@ import {
   usePreferencesStore,
 } from "@/stores/preferencesStore";
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
-import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./Settings.module.css";
 
 /** Sección Editor: comportamiento de las pestañas. */
@@ -24,7 +23,11 @@ export function EditorSection() {
   // de aceptar un cambio que se perdería.
   const numerosDeLinea = usePrefVault("numerosDeLinea");
   const setPrefVault = usePrefsVaultStore((s) => s.set);
-  const hayVault = useVaultSessionStore((s) => s.rutaActual) !== null;
+  // «Hay vault» se le pregunta al propio almacén de preferencias y no a la
+  // sesión: lo que decide si el interruptor sirve no es que haya un vault
+  // abierto, sino que ya haya **dónde escribir**. Además es lo único que las dos
+  // versiones responden igual — en web no existe `vaultSessionStore`.
+  const hayVault = usePrefsVaultStore((s) => s.ruta) !== null;
 
   return (
     <div>
