@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { search, searchKeymap } from "@codemirror/search";
+import { resaltadoDeCodigo } from "@/lib/editor/resaltadoCodigo";
 import { SearchBar } from "@/components/editor/SearchBar";
 import {
   abrirConSistema,
@@ -104,14 +106,23 @@ function Aviso({
 }
 
 /**
- * Texto y código: monoespaciado con números de línea. **Sin resaltado de
- * sintaxis** — eso es `FUN-S-09` y va aparte.
+ * Texto y código: monoespaciado, con números de línea y **resaltado de sintaxis**
+ * según el lenguaje (`FUN-S-09`).
  *
- * Las líneas se pintan en dos `<pre>` (números y contenido) y no en un elemento
- * por línea: un archivo de 2 MB son decenas de miles de líneas, y decenas de
- * miles de nodos serían un panel que tarda segundos en aparecer y se arrastra al
- * desplazarse. Con dos nodos de texto, además, `buscarEnDom` recorre el
- * contenido de un tirón.
+ * Lo dibuja CodeMirror en modo solo lectura, el mismo motor que el editor. Antes
+ * eran dos `<pre>` —números y contenido— con el scroll sincronizado a mano, y se
+ * habían elegido por rendimiento: un archivo de 2 MB son decenas de miles de
+ * líneas, y un elemento por línea era un panel que tardaba segundos en aparecer.
+ *
+ * > [!important] CodeMirror resolvió el motivo por el que NO se usaba
+ * > Solo dibuja las líneas visibles, así que el archivo grande le cuesta menos
+ * > que a los dos `<pre>`, que obligaban al navegador a maquetar el texto
+ * > entero. Y siendo el mismo motor que el modo edición, leer y editar el mismo
+ * > archivo dejan de verse distinto — que con dos implementaciones era cuestión
+ * > de tiempo.
+ *
+ * A cambio, la búsqueda pasa a ser la de CodeMirror (`getView`) y no la del DOM:
+ * `buscarEnDom` recorre nodos, y acá los de fuera del viewport no existen.
  */
 function VisorTexto({
   ruta,
@@ -134,8 +145,8 @@ function VisorTexto({
   const [sucio, setSucio] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [conflicto, setConflicto] = useState<number | null>(null);
-  const numerosRef = useRef<HTMLPreElement>(null);
-  const textoRef = useRef<HTMLPreElement>(null);
+  // La vista de solo lectura, para que la barra de búsqueda le pregunte a ella.
+  const vistaRef = useRef<EditorView | null>(null);
 
   useEffect(() => {
     if (!vault) return;
@@ -190,19 +201,6 @@ function VisorTexto({
     setAviso(null);
   }
 
-  // Los números se derivan del contenido y no cambian mientras no cambie: se
-  // memorizan para no reconstruir la cadena entera en cada render de la barra
-  // de búsqueda.
-  const { lineas, numeros } = useMemo(() => {
-    const texto = datos?.contenido ?? "";
-    // Un `\n` final no es una línea más: es el cierre de la última.
-    const cuerpo = texto.endsWith("\n") ? texto.slice(0, -1) : texto;
-    const total = cuerpo === "" ? 0 : cuerpo.split("\n").length;
-    let nums = "";
-    for (let i = 1; i <= total; i += 1) nums += `${i}\n`;
-    return { lineas: cuerpo, numeros: nums };
-  }, [datos]);
-
   if (error !== null) {
     return (
       <Aviso
@@ -225,11 +223,15 @@ function VisorTexto({
 
   return (
     <>
+      {/* Busca en la vista de CodeMirror, no en el DOM: fuera del viewport no
+          hay nodos que recorrer. Sin reemplazo, que es lo único que `modoLectura`
+          aportaba acá — el archivo se lee, y para escribirlo está «Editar». */}
       {isActivePane && !editando && (
         <SearchBar
-          getView={() => null}
-          getPreview={() => textoRef.current}
-          modoLectura
+          getView={() => vistaRef.current}
+          getPreview={() => null}
+          modoLectura={false}
+          sinReemplazo
           placeholder="Buscar en el archivo…"
         />
       )}
@@ -307,6 +309,7 @@ function VisorTexto({
       {editando ? (
         <EditorTexto
           inicial={datos.contenido}
+          nombre={nombreDeRuta(ruta)}
           onCambio={(t) => {
             setBorrador(t);
             setSucio(t !== datos.contenido);
@@ -314,30 +317,76 @@ function VisorTexto({
           onGuardar={() => void guardar(false)}
         />
       ) : (
-      <div className={styles.panelTexto}>
-        {/* La columna de números NO scrollea sola: se la lleva de la mano el
-            texto. Si estuviera dentro del mismo contenedor desplazable,
-            `buscarEnDom` la recorrería como contenido y buscar "12" resaltaría
-            números de línea. */}
-        <pre className={styles.numeros} ref={numerosRef} aria-hidden>
-          {numeros}
-        </pre>
-        {/* Este `<pre>` es a la vez la raíz de la búsqueda y el panel que
-            desplaza: `centrarRango` mueve el `scrollTop` del elemento que se le
-            pasa, así que tienen que ser el mismo. */}
-        <pre
-          className={styles.texto}
-          ref={textoRef}
-          onScroll={(e) => {
-            if (numerosRef.current) numerosRef.current.scrollTop = e.currentTarget.scrollTop;
+        <LectorTexto
+          key={ruta}
+          contenido={datos.contenido}
+          nombre={nombreDeRuta(ruta)}
+          onVista={(v) => {
+            vistaRef.current = v;
           }}
-        >
-          {lineas}
-        </pre>
-      </div>
+        />
       )}
     </>
   );
+}
+
+/**
+ * El archivo en modo lectura: CodeMirror de solo lectura con números de línea y
+ * resaltado de sintaxis (`FUN-S-09`).
+ *
+ * `readOnly` **y** `editable: false` no son lo mismo y hacen falta los dos: el
+ * primero rechaza los cambios, el segundo quita el cursor y saca el panel del
+ * orden de tabulación. Con solo el primero, el archivo parece editable y no lo
+ * es, que es la peor de las tres opciones.
+ */
+function LectorTexto({
+  contenido,
+  nombre,
+  onVista,
+}: {
+  contenido: string;
+  nombre: string;
+  onVista: (v: EditorView | null) => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const { extension, cargar } = resaltadoDeCodigo(nombre);
+    const vista = new EditorView({
+      state: EditorState.create({
+        doc: contenido,
+        extensions: [
+          lineNumbers(),
+          extension,
+          EditorState.readOnly.of(true),
+          EditorView.editable.of(false),
+          // El código NO se ajusta al ancho: una línea partida cambia dónde
+          // empieza el bloque siguiente, y la sangría es la mitad de cómo se lee
+          // el código. Se desplaza en horizontal, como en cualquier editor.
+          // La barra de búsqueda de Mycelium habla con este estado; sin la
+          // extensión, `findNext` no tendría dónde guardar la consulta. El panel
+          // propio de CodeMirror se sustituye por uno vacío, igual que en el
+          // editor de notas: la barra la dibuja la app.
+          search({ createPanel: () => ({ dom: document.createElement("div"), top: true }) }),
+          keymap.of([...defaultKeymap, ...searchKeymap]),
+        ],
+      }),
+      parent: host.current,
+    });
+    onVista(vista);
+    const cancelar = cargar(vista);
+    return () => {
+      cancelar();
+      onVista(null);
+      vista.destroy();
+    };
+    // `onVista` fuera: es una lambda nueva en cada render del padre y volvería a
+    // crear la vista en cada pulsación de la barra de búsqueda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contenido, nombre]);
+
+  return <div className={`mic-editor-host ${styles.panelTexto}`} ref={host} />;
 }
 
 /**
@@ -351,10 +400,12 @@ function VisorTexto({
  */
 function EditorTexto({
   inicial,
+  nombre,
   onCambio,
   onGuardar,
 }: {
   inicial: string;
+  nombre: string;
   onCambio: (texto: string) => void;
   onGuardar: () => void;
 }) {
@@ -368,11 +419,15 @@ function EditorTexto({
 
   useEffect(() => {
     if (!host.current) return;
+    // El mismo resaltado que en lectura (`FUN-S-09`): entrar a editar no puede
+    // cambiar de aspecto el archivo que se estaba leyendo.
+    const { extension: resaltado, cargar } = resaltadoDeCodigo(nombre);
     const vista = new EditorView({
       state: EditorState.create({
         doc: inicial,
         extensions: [
           lineNumbers(),
+          resaltado,
           history(),
           keymap.of([
             {
@@ -394,7 +449,11 @@ function EditorTexto({
       parent: host.current,
     });
     vista.focus();
-    return () => vista.destroy();
+    const cancelar = cargar(vista);
+    return () => {
+      cancelar();
+      vista.destroy();
+    };
     // `inicial` a propósito fuera: recrear la vista al teclear perdería el
     // cursor y el historial de deshacer en cada pulsación.
     // eslint-disable-next-line react-hooks/exhaustive-deps

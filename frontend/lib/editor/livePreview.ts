@@ -48,6 +48,7 @@ import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 import { partirWikilink } from "@/lib/wikilinks";
+import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -69,20 +70,11 @@ const micelioHighlight = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "700" },
   { tag: tags.quote, color: "var(--mic-text-muted)", fontStyle: "italic" },
   { tag: tags.link, color: "var(--mic-accent)" },
-  // Tokens de código embebido en bloques cercados (HU-03), con la misma
-  // paleta de sintaxis del editor de CSS (--mic-syntax-*).
-  {
-    tag: [tags.comment, tags.lineComment, tags.blockComment],
-    color: "var(--mic-syntax-comment)",
-    fontStyle: "italic",
-  },
-  { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.definitionKeyword], color: "var(--mic-syntax-keyword)" },
-  { tag: [tags.string, tags.special(tags.string)], color: "var(--mic-syntax-string)" },
-  { tag: [tags.number, tags.bool, tags.atom], color: "var(--mic-syntax-number)" },
-  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "var(--mic-syntax-keyword)" },
-  { tag: [tags.variableName, tags.propertyName], color: "var(--mic-syntax-variable)" },
-  { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--mic-syntax-tag)" },
-  { tag: [tags.operator, tags.punctuation, tags.separator], color: "var(--mic-text-muted)" },
+  // Tokens de código embebido en bloques cercados (HU-03). La lista vive en
+  // `paletaSintaxis` porque el visor de archivos (`FUN-S-09`) y el editor de CSS
+  // colorean lo mismo: un fragmento pegado en una nota y el archivo del que
+  // salió tienen que verse igual.
+  ...REGLAS_CODIGO,
 ]);
 
 /** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */

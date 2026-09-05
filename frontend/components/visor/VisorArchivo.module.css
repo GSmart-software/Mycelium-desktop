@@ -61,42 +61,24 @@
 
 /* ── Texto y código ──────────────────────────────────────────────── */
 
+/* El lector es un CodeMirror de solo lectura (FUN-S-09). Antes eran dos `<pre>`
+   —números y contenido— con el scroll sincronizado a mano; CodeMirror dibuja
+   solo las líneas visibles, así que el archivo grande le cuesta menos, y de paso
+   leer y editar dejan de ser dos implementaciones que se pueden separar. */
 .panelTexto {
-  display: flex;
-  align-items: stretch;
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+}
+
+/* El código NO se ajusta al ancho: una línea partida cambia dónde empieza la
+   siguiente, y la sangría es la mitad de cómo se lee el código. Se desplaza en
+   horizontal, como en cualquier editor. */
+.panelTexto :global(.cm-content),
+.editor :global(.cm-content) {
   font-family: "JetBrains Mono", Consolas, monospace;
   font-size: 13px;
   line-height: 1.55;
-}
-
-/* Los números no se seleccionan: copiar el archivo no debe traérselos. El
-   scroll lo mueve el texto (ver `VisorArchivo.tsx`), por eso `overflow:hidden`
-   y no `auto`: dos barras verticales para el mismo contenido. */
-.numeros {
-  margin: 0;
-  padding: 10px 10px 10px 12px;
-  flex: 0 0 auto;
-  overflow: hidden;
-  text-align: right;
-  color: var(--mic-text-muted);
-  background: var(--mic-bg-surface);
-  border-right: 1px solid var(--mic-border);
-  user-select: none;
-  font: inherit;
-  white-space: pre;
-}
-
-.texto {
-  margin: 0;
-  padding: 10px 14px;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: auto;
-  font: inherit;
-  white-space: pre;
   tab-size: 4;
 }
 
