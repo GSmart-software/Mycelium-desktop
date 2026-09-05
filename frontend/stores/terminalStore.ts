@@ -27,10 +27,35 @@ type TerminalPrefs = {
   restaurarScrollback: boolean;
 };
 
+/**
+ * El título de la consola nueva: «Terminal N» con el **menor N libre**
+ * (`DEF-072`).
+ *
+ * Antes había un correlativo que solo subía, así que los números no se
+ * reutilizaban —cerrar la 3 de tres y abrir otra daba «Terminal 4»— y podían
+ * repetirse, porque el contador se reiniciaba a cero al quedar el mapa vacío
+ * pero los títulos podían sobrevivir por otro lado.
+ *
+ * Se deriva de los títulos EN USO en vez de llevar la cuenta aparte, y con eso
+ * las dos mitades del defecto desaparecen por construcción: un hueco se vuelve
+ * a ocupar, y no se puede repetir un número que ya está a la vista.
+ *
+ * Mira también los **renombrados**: si alguien llamó «Terminal 7» a una consola
+ * a mano, ese número está ocupado. Un contador no podía saberlo.
+ */
+export function siguienteTitulo(sesiones: Record<string, SesionTerminal>): string {
+  const usados = new Set<number>();
+  for (const s of Object.values(sesiones)) {
+    const m = /^Terminal (\d+)$/.exec(s.titulo);
+    if (m) usados.add(Number(m[1]));
+  }
+  let n = 1;
+  while (usados.has(n)) n++;
+  return `Terminal ${n}`;
+}
+
 type TerminalState = {
   sesiones: Record<string, SesionTerminal>;
-  /** Correlativo para los títulos "Terminal N". */
-  contador: number;
   prefs: TerminalPrefs;
 
   /** Registra una sesión nueva y devuelve su título. */
@@ -47,7 +72,6 @@ export const useTerminalStore = create<TerminalState>()(
   persist(
     (set, get) => ({
       sesiones: {},
-      contador: 0,
       prefs: {
         shellPorDefecto: null,
         restaurarSesiones: true,
@@ -55,20 +79,16 @@ export const useTerminalStore = create<TerminalState>()(
       },
 
       registrar(id, datos) {
-        const n = get().contador + 1;
-        const titulo = `Terminal ${n}`;
-        set({
-          contador: n,
-          sesiones: { ...get().sesiones, [id]: { ...datos, titulo } },
-        });
+        const titulo = siguienteTitulo(get().sesiones);
+        set({ sesiones: { ...get().sesiones, [id]: { ...datos, titulo } } });
         return titulo;
       },
 
       cerrar(id) {
         const sesiones = { ...get().sesiones };
         delete sesiones[id];
-        // Sin sesiones, el correlativo vuelve a empezar (la próxima es "Terminal 1").
-        set({ sesiones, contador: Object.keys(sesiones).length === 0 ? 0 : get().contador });
+        // Ya no hay contador que reiniciar: el número libre se calcula al abrir.
+        set({ sesiones });
       },
 
       renombrar(id, titulo) {
@@ -90,7 +110,14 @@ export const useTerminalStore = create<TerminalState>()(
     }),
     {
       name: "mic-terminales",
-      version: 1,
+      version: 2,
+      // v2: se fue el `contador` (`DEF-072`), que ahora se deriva de los
+      // títulos en uso. Se descarta la clave vieja para no dejarla suelta.
+      migrate: (persisted) => {
+        const s = { ...((persisted ?? {}) as Partial<TerminalState>) };
+        delete (s as { contador?: number }).contador;
+        return s as TerminalState;
+      },
     },
   ),
 );
