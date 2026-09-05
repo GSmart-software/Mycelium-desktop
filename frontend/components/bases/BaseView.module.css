@@ -421,10 +421,22 @@
   color: var(--mic-text-primary);
 }
 
-/* Una condición a medias se ve, atenuada: no filtra, pero tampoco desaparece
-   mientras se la termina de armar (DEF-080). */
+/* Una condición a medias se distingue de una completa: no filtra, pero tampoco
+   desaparece mientras se la termina de armar (DEF-080).
+
+   > [!warning] Acá NO va `opacity`
+   > Era lo primero que se probó y trajo dos problemas. Uno: `opacity` compone
+   > todo el subárbol, y el buscador de campos vive DENTRO de la fila —su
+   > `position: fixed` no esquiva la opacidad de un ancestro—, así que se veía
+   > translúcido justo cuando se lo está usando. Dos: atenuaba el campo de valor
+   > que el usuario está tecleando, que es lo último que conviene apagar.
+   >
+   > Un fondo y un borde punteado dicen lo mismo sin tocar la legibilidad de
+   > nada. */
 .condicionAMedias {
-  opacity: 0.65;
+  border-left: 2px dashed color-mix(in srgb, var(--mic-text-muted) 55%, transparent);
+  padding-left: 0.3rem;
+  margin-left: -0.5rem;
 }
 
 /* Buscador de campos (FUN-S-16). `position: fixed` la pone el componente: el

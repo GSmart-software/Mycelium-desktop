@@ -2,6 +2,7 @@
 
 import { Plus, Search, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   OPERADORES_UI,
   OPS_DE_ARCHIVO,
@@ -21,8 +22,11 @@ import styles from "./BaseView.module.css";
  *
  * > [!important] Lo incompleto se conserva en pantalla (`DEF-080`)
  * > Una condición sin valor no se escribe en el archivo —no filtra— pero **no se
- * > borra**: se la sigue viendo, atenuada, mientras se la termina de armar. Los
- * > dos lados usan la misma regla, `condicionAplicable`.
+ * > borra**: se la sigue viendo mientras se la termina de armar, marcada con un
+ * > borde punteado. Los dos lados usan la misma regla, `condicionAplicable`.
+ * >
+ * > La marca **no** es una atenuación: apagar la fila apagaría también el campo
+ * > que se está tecleando, que es lo último que conviene volver ilegible.
  */
 
 /** Cuántos campos se listan a la vez en el buscador (`FUN-S-16`). */
@@ -94,7 +98,13 @@ function SelectorCampo({
       >
         {valor || "elegir campo"}
       </button>
-      {abierto && (
+      {/* En un PORTAL, no dentro de la fila. Un `position: fixed` sale del flujo
+          pero NO de la composición: la opacidad, un `transform` o un `filter` en
+          cualquier ancestro se le aplican igual, y el panel de filtros tiene
+          scroll y overflow. Colgado del `body` no depende de nada de eso. Es el
+          mismo motivo por el que `GraphOptionsMenu` usa portal (`DEF-053`). */}
+      {abierto &&
+        createPortal(
         <div
           className={styles.buscadorCampo}
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.ancho }}
@@ -153,8 +163,9 @@ function SelectorCampo({
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
