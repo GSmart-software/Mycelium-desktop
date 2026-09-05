@@ -776,6 +776,118 @@ function condicionDe(fuente: string): Condicion | null {
 }
 
 /**
+ * El filtro tal como lo edita el constructor (`FUN-M-27`).
+ *
+ * Es un **árbol** y no una lista plana porque el motor ya sabía combinar: `Filtro`
+ * tiene `and`, `or` y `not`, y `evaluar` los resuelve desde siempre. Lo que
+ * faltaba era una interfaz capaz de expresarlos, así que este tipo es un espejo
+ * de aquel — con dos diferencias, las dos deliberadas:
+ *
+ * 1. **La negación es una marca, no un nivel.** En `Filtro`, negar algo lo
+ *    envuelve en un `not`. Acá es un `negado` sobre el propio nodo: para el
+ *    usuario «no empieza por X» es *una* condición, no dos anidadas, y una
+ *    interfaz que le muestre un nivel extra por cada negación se vuelve un árbol
+ *    de cajas por algo que él lee como una palabra.
+ * 2. **No hay `opaco`.** Lo que el constructor no sabe representar no se
+ *    convierte a medias: `arbolDeFiltro` devuelve `null` y la UI se declara
+ *    incapaz. Ver la advertencia de esa función.
+ */
+export type NodoFiltro =
+  | { tipo: "grupo"; combinador: "and" | "or"; negado: boolean; hijos: NodoFiltro[] }
+  | { tipo: "cond"; negado: boolean; cond: Condicion };
+
+/** Un grupo vacío, que es con lo que arranca un archivo sin filtros. */
+export const GRUPO_VACIO: NodoFiltro = {
+  tipo: "grupo",
+  combinador: "and",
+  negado: false,
+  hijos: [],
+};
+
+/**
+ * Filtro → árbol del constructor, o **`null` si no se puede representar**.
+ *
+ * > [!important] Devolver `null` es la garantía, no una limitación
+ * > Es lo que impide que abrir un filtro que el constructor no entiende y
+ * > guardarlo lo **destruya**. Con la lista plana ese `null` aparecía ante
+ * > cualquier anidamiento o `not`; ahora esos se representan, así que solo queda
+ * > para lo que de verdad no cabe: una expresión fuera del subconjunto
+ * > (`opaco`) o una que no encaja en `propiedad operador valor` —un
+ * > `hasTag("a", "b")`, por ejemplo—.
+ * >
+ * > Si algún día el constructor gana más formas, esta guarda tiene que seguir
+ * > siendo igual de estricta: lo que no se sabe mostrar, no se muestra.
+ */
+export function arbolDeFiltro(filtro: Filtro | null): NodoFiltro | null {
+  if (filtro === null) return { ...GRUPO_VACIO };
+  return aNodo(filtro, false);
+}
+
+function aNodo(filtro: Filtro, negado: boolean): NodoFiltro | null {
+  switch (filtro.tipo) {
+    case "opaco":
+      return null;
+
+    case "expr": {
+      const cond = condicionDe(filtro.fuente);
+      return cond === null ? null : { tipo: "cond", negado, cond };
+    }
+
+    case "and":
+    case "or": {
+      const hijos: NodoFiltro[] = [];
+      for (const h of filtro.hijos) {
+        const nodo = aNodo(h, false);
+        if (nodo === null) return null;
+        hijos.push(nodo);
+      }
+      return { tipo: "grupo", combinador: filtro.tipo, negado, hijos };
+    }
+
+    case "not": {
+      // Un `not` de UN hijo es la negación de ese hijo, y así se muestra: la
+      // marca viaja al nodo en vez de gastar un nivel de anidamiento.
+      if (filtro.hijos.length === 1) {
+        const nodo = aNodo(filtro.hijos[0], !negado);
+        return nodo;
+      }
+      // Con varios hijos niega su conjunción, que es como lo escribe Obsidian.
+      const hijos: NodoFiltro[] = [];
+      for (const h of filtro.hijos) {
+        const nodo = aNodo(h, false);
+        if (nodo === null) return null;
+        hijos.push(nodo);
+      }
+      return { tipo: "grupo", combinador: "and", negado: !negado, hijos };
+    }
+  }
+}
+
+/**
+ * Árbol del constructor → filtro, o `null` si no queda nada que filtrar.
+ *
+ * Descarta lo que está **a medias** con la misma regla que usa la UI para
+ * conservarlo en pantalla (`condicionAplicable`, ver `DEF-080`): una condición
+ * sin valor no se escribe en el archivo, y un grupo que se queda sin hijos
+ * desaparece en vez de escribir un `and: []` que no filtra nada pero ensucia.
+ */
+export function filtroDeArbol(nodo: NodoFiltro): Filtro | null {
+  if (nodo.tipo === "cond") {
+    if (!condicionAplicable(nodo.cond)) return null;
+    const expr: Filtro = { tipo: "expr", fuente: expresionDe(nodo.cond) };
+    return nodo.negado ? { tipo: "not", hijos: [expr] } : expr;
+  }
+  const hijos: Filtro[] = [];
+  for (const h of nodo.hijos) {
+    const f = filtroDeArbol(h);
+    if (f !== null) hijos.push(f);
+  }
+  if (hijos.length === 0) return null;
+  const grupo: Filtro = { tipo: nodo.combinador, hijos };
+  return nodo.negado ? { tipo: "not", hijos: [grupo] } : grupo;
+}
+
+/**
  * Un árbol de filtros → la lista plana que el constructor sabe representar, o
  * `null` si no cabe (anidamientos, `not`, o expresiones que no encajan).
  *

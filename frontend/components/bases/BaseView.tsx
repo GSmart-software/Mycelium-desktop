@@ -6,10 +6,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   columnasDisponibles,
+  arbolDeFiltro,
   condicionAplicable,
-  condicionesPlanas,
   construirTabla,
-  filtroDeCondiciones,
+  filtroDeArbol,
   motivosNoEditable,
   OPERADORES_UI,
   OPS_DE_ARCHIVO,
@@ -17,7 +17,7 @@ import {
   serializarBase,
   tituloColumna,
   type Base,
-  type Condicion,
+  type NodoFiltro,
   type NotaTabla,
   type Vista,
 } from "@/lib/bases";
@@ -27,6 +27,7 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { resolveWikilink } from "@/lib/editor/wikilink";
 import { partirWikilink } from "@/lib/wikilinks";
+import { GrupoFiltro } from "./FiltrosBuilder";
 import styles from "./BaseView.module.css";
 
 /**
@@ -156,7 +157,12 @@ export function BaseView({ notaId }: { notaId: string }) {
   const iVista = Math.min(vistaActiva, base.vistas.length - 1);
   const bloqueos = motivosNoEditable(base);
   const editable = bloqueos.length === 0;
-  const planas = condicionesPlanas(vista.filtros);
+  // El filtro como ÁRBOL (`FUN-M-27`): un grupo con condiciones y otros grupos,
+  // que es la forma que el motor ya manejaba y la UI no sabía mostrar.
+  const arbolFiltros = arbolDeFiltro(vista.filtros);
+  // Cuántas condiciones hay en total, para el contador del botón: cuenta las de
+  // los grupos anidados, no solo las del primer nivel.
+  const totalCondiciones = arbolFiltros === null ? 0 : contarCondiciones(arbolFiltros);
   const columnas = columnasDisponibles(notas);
   const ignorar = sinFiltrar[iVista] === true;
   const tabla = construirTabla(base, vista, notas, { ignorarFiltros: ignorar });
@@ -208,8 +214,8 @@ export function BaseView({ notaId }: { notaId: string }) {
             onClick={() => setPanel((p) => (p === "filtros" ? null : "filtros"))}
           >
             <Filter size={14} aria-hidden /> Filtros
-            {planas !== null && planas.condiciones.length > 0 && (
-              <span className={styles.contador}>{planas.condiciones.length}</span>
+            {totalCondiciones > 0 && (
+              <span className={styles.contador}>{totalCondiciones}</span>
             )}
           </button>
           <button
@@ -244,11 +250,9 @@ export function BaseView({ notaId }: { notaId: string }) {
 
         {panel === "filtros" && (
           <PanelFiltros
-            planas={planas}
+            arbol={arbolFiltros}
             columnas={columnas}
-            onCambio={(combinador, condiciones) =>
-              cambiarVista({ filtros: filtroDeCondiciones(combinador, condiciones) })
-            }
+            onCambio={(siguiente) => cambiarVista({ filtros: filtroDeArbol(siguiente) })}
           />
         )}
         {panel === "columnas" && (
@@ -400,210 +404,90 @@ function EditorFuente({
   );
 }
 
+/** Cuántas condiciones tiene el árbol, incluidas las de los grupos anidados. */
+function contarCondiciones(nodo: NodoFiltro): number {
+  return nodo.tipo === "cond" ? 1 : nodo.hijos.reduce((t: number, h: NodoFiltro) => t + contarCondiciones(h), 0);
+}
+
 /**
- * Constructor de filtros. Solo aparece si el filtro actual se puede representar
- * como una lista plana: si es anidado, mostrar una versión simplificada haría que
- * guardar destruyera el filtro real, así que se dice y se manda a la fuente.
+ * El panel de filtros. Si el archivo trae algo que el constructor no sabe
+ * representar, se dice y se manda a **Fuente** en vez de mostrar una version
+ * simplificada que al guardar destruiria el filtro real.
  */
 function PanelFiltros({
-  planas,
+  arbol,
   columnas,
   onCambio,
 }: {
-  planas: { combinador: "and" | "or"; condiciones: Condicion[] } | null;
+  arbol: NodoFiltro | null;
   columnas: { ref: string; grupo: string }[];
-  onCambio: (combinador: "and" | "or", condiciones: Condicion[]) => void;
+  onCambio: (siguiente: NodoFiltro) => void;
 }) {
-  if (planas === null) {
+  if (arbol === null || arbol.tipo !== "grupo") {
     return (
       <div className={styles.panel}>
         <p className={styles.panelNota}>
-          Este filtro combina grupos anidados, y el constructor solo sabe mostrar una lista
-          de condiciones. Enseñarlo simplificado haría que guardar <strong>destruyera</strong>{" "}
-          el filtro real, así que se edita desde <strong>Fuente</strong>.
+          Este filtro usa expresiones que el constructor no sabe representar.
+          Mostrarlo simplificado haría que guardar <strong>destruyera</strong> el
+          filtro real, así que se edita desde <strong>Fuente</strong>.
         </p>
       </div>
     );
   }
-
-  return <FiltrosEditables planas={planas} columnas={columnas} onCambio={onCambio} />;
+  return <FiltrosEditables arbol={arbol} columnas={columnas} onCambio={onCambio} />;
 }
 
 /**
- * El constructor propiamente dicho, con estado local.
+ * El constructor con estado local.
  *
- * Lo escrito se mantiene acá y **solo se guarda al confirmar**: los desplegables
- * al cambiar, y el campo de texto al salir de él o con Enter. Escribir el archivo
- * en cada tecla haría un `PUT` por carácter y, peor, reparsearía el YAML a media
- * palabra: al escribir «activo» la tabla se recalcularía contra «a», «ac», «act»…
- * Es el mismo patrón de borrador + `onBlur` que ya usan Configuración → Vault y
- * el ancho de tabulación.
+ * El borrador sigue al archivo cuando este cambia POR FUERA, pero NO cuando solo
+ * devuelve el eco de nuestro propio guardado (`DEF-080`): lo que está a medias
+ * no se escribe, así que volvería sin ello y el reset se lo llevaría puesto. Se
+ * compara durante el render y no en un efecto, para no pintar un fotograma con
+ * el valor viejo.
  */
-/** ¿Dos listas de condiciones dicen lo mismo? (`DEF-080`) */
-function mismasCondiciones(a: Condicion[], b: Condicion[]): boolean {
-  return (
-    a.length === b.length &&
-    a.every((c, i) => c.ref === b[i].ref && c.op === b[i].op && c.valor === b[i].valor)
-  );
-}
-
 function FiltrosEditables({
-  planas,
+  arbol,
   columnas,
   onCambio,
 }: {
-  planas: { combinador: "and" | "or"; condiciones: Condicion[] };
+  arbol: Extract<NodoFiltro, { tipo: "grupo" }>;
   columnas: { ref: string; grupo: string }[];
-  onCambio: (combinador: "and" | "or", condiciones: Condicion[]) => void;
+  onCambio: (siguiente: NodoFiltro) => void;
 }) {
-  const [combinador, setCombinador] = useState(planas.combinador);
-  const [condiciones, setCondiciones] = useState(planas.condiciones);
-
-  // El borrador sigue al archivo cuando este cambia POR FUERA (otra edición, o
-  // el watcher). Se compara DURANTE el render, no en un efecto, para no pintar
-  // un fotograma con el valor viejo.
-  //
-  // Pero NO cuando el archivo solo devuelve el eco de nuestro propio guardado
-  // (`DEF-080`). Una condición a medias no se escribe —no filtra—, así que
-  // volvía del archivo sin ella y el reset se la llevaba puesta: agregar una
-  // condición y elegirle el campo la hacía desaparecer antes de poder ponerle
-  // valor. Si lo que trae el archivo es exactamente la parte COMPLETA de lo que
-  // hay en pantalla, no hay novedad que incorporar y el borrador se queda como
-  // está, con lo incompleto incluido.
-  const [visto, setVisto] = useState(planas);
-  if (visto !== planas) {
-    setVisto(planas);
-    const eco =
-      planas.combinador === combinador &&
-      mismasCondiciones(condiciones.filter(condicionAplicable), planas.condiciones);
-    if (!eco) {
-      setCombinador(planas.combinador);
-      setCondiciones(planas.condiciones);
-    }
+  const [borrador, setBorrador] = useState<NodoFiltro>(arbol);
+  const [visto, setVisto] = useState<NodoFiltro>(arbol);
+  if (visto !== arbol) {
+    setVisto(arbol);
+    if (!mismoFiltro(borrador, arbol)) setBorrador(arbol);
   }
 
-  /** Cambia el borrador y confirma (para los controles discretos). */
-  const confirmar = (comb: "and" | "or", cs: Condicion[]) => {
-    setCombinador(comb);
-    setCondiciones(cs);
-    onCambio(comb, cs);
+  const cambiar = (siguiente: NodoFiltro) => {
+    setBorrador(siguiente);
+    onCambio(siguiente);
   };
 
   return (
     <div className={styles.panel}>
-      <div className={styles.panelCabecera}>
-        <span className={styles.panelTitulo}>Mostrar las notas que cumplen</span>
-        <select
-          className={styles.select}
-          value={combinador}
-          onChange={(e) => confirmar(e.target.value as "and" | "or", condiciones)}
-        >
-          <option value="and">todas las condiciones</option>
-          <option value="or">alguna condición</option>
-        </select>
-      </div>
-
-      {condiciones.length === 0 && (
-        <p className={styles.panelNota}>Sin filtros: entran todas las notas del vault.</p>
-      )}
-
-      {condiciones.map((c, i) => {
-        const meta = OPERADORES_UI.find((o) => o.op === c.op);
-        const deArchivo = OPS_DE_ARCHIVO.has(c.op);
-        return (
-          <div key={i} className={styles.condicion}>
-            <select
-              className={styles.select}
-              value={deArchivo ? "file" : c.ref}
-              disabled={deArchivo}
-              onChange={(e) =>
-                confirmar(
-                  combinador,
-                  condiciones.map((x, j) => (j === i ? { ...x, ref: e.target.value } : x)),
-                )
-              }
-            >
-              {deArchivo && <option value="file">el archivo</option>}
-              {columnas.map((col) => (
-                <option key={col.ref} value={col.ref}>
-                  {col.ref}
-                </option>
-              ))}
-            </select>
-            <select
-              className={styles.select}
-              value={c.op}
-              onChange={(e) => {
-                const op = e.target.value;
-                confirmar(
-                  combinador,
-                  condiciones.map((x, j) =>
-                    j === i ? { ...x, op, ref: OPS_DE_ARCHIVO.has(op) ? "file" : x.ref } : x,
-                  ),
-                );
-              }}
-            >
-              {OPERADORES_UI.map((o) => (
-                <option key={o.op} value={o.op}>
-                  {o.etiqueta}
-                </option>
-              ))}
-            </select>
-            {meta?.sinValor !== true && (
-              <input
-                className={styles.input}
-                value={c.valor}
-                placeholder="valor"
-                // Solo el borrador mientras se teclea; se guarda al confirmar.
-                onChange={(e) =>
-                  setCondiciones(
-                    condiciones.map((x, j) => (j === i ? { ...x, valor: e.target.value } : x)),
-                  )
-                }
-                onBlur={() => onCambio(combinador, condiciones)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                  // Escape descarta lo tecleado en ESTA condición, no el
-                  // borrador entero: restaurar toda la lista desde el archivo
-                  // se llevaría por delante las que están a medias (`DEF-080`).
-                  if (e.key === "Escape") {
-                    const previo = planas.condiciones[i]?.valor ?? "";
-                    setCondiciones(
-                      condiciones.map((x, j) => (j === i ? { ...x, valor: previo } : x)),
-                    );
-                  }
-                }}
-              />
-            )}
-            <button
-              type="button"
-              className={styles.quitar}
-              aria-label="Quitar esta condición"
-              title="Quitar"
-              onClick={() => confirmar(combinador, condiciones.filter((_, j) => j !== i))}
-            >
-              <X size={13} aria-hidden />
-            </button>
-          </div>
-        );
-      })}
-
-      <button
-        type="button"
-        className={styles.botonSecundario}
-        onClick={() =>
-          // Añadir NO guarda: una condición sin valor no llega al archivo, y
-          // guardar acá dejaría el filtro a medio escribir en disco.
-          setCondiciones([
-            ...condiciones,
-            { ref: columnas[0]?.ref ?? "file.name", op: "==", valor: "" },
-          ])
-        }
-      >
-        <Plus size={13} aria-hidden /> Añadir condición
-      </button>
+      <GrupoFiltro
+        nodo={borrador as Extract<NodoFiltro, { tipo: "grupo" }>}
+        campos={columnas}
+        raiz
+        onCambio={cambiar}
+      />
     </div>
   );
+}
+
+/**
+ * ¿El archivo dice lo mismo que la parte COMPLETA del borrador? (`DEF-080`)
+ *
+ * Se compara lo que el borrador PRODUCIRÍA con lo que el archivo trajo: si
+ * coinciden, lo que llegó es el eco del propio guardado y no hay novedad que
+ * incorporar.
+ */
+function mismoFiltro(borrador: NodoFiltro, delArchivo: NodoFiltro): boolean {
+  return JSON.stringify(filtroDeArbol(borrador)) === JSON.stringify(filtroDeArbol(delArchivo));
 }
 
 /** Selector de columnas: el orden de la lista es el orden de la tabla. */

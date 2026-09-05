@@ -26,6 +26,8 @@ const {
   ErrorBase,
   motivosNoEditable,
   condicionAplicable,
+  arbolDeFiltro,
+  filtroDeArbol,
   condicionesPlanas,
   filtroDeCondiciones,
   expresionDe,
@@ -206,7 +208,7 @@ test("métodos de texto", () => {
 // ── Lógica de tres valores: LO IMPORTANTE ─────────────────────────────────────
 
 test("una expresión desconocida NO se ignora: queda indecidible", () => {
-  const b = parsearBase('filters:\n  and:\n    - price.toFixed(2) == "1"\n');
+  const b = parsearBase(`filters:\n  and:\n    - price.toFixed(2) == "1"\n`);
   assert.equal(b.filtros.hijos[0].tipo, "opaco");
   assert.equal(evaluar(b.filtros, nota()), null);
 });
@@ -244,7 +246,7 @@ test("dentro de un `or`, un falso NO alcanza si hay algo indecidible", () => {
 });
 
 test("`not` propaga lo indecidible en vez de convertirlo en verdadero", () => {
-  const b = parsearBase('filters:\n  not:\n    - price.toFixed(2) == "1"\n');
+  const b = parsearBase(`filters:\n  not:\n    - price.toFixed(2) == "1"\n`);
   assert.equal(evaluar(b.filtros, nota()), null);
 });
 
@@ -366,7 +368,7 @@ views:
 });
 
 test("`formulas` bloquea la edición por UI en vez de borrarlas al guardar", () => {
-  const b = parsearBase('formulas:\n  x: "1+1"\nviews:\n  - type: table\n');
+  const b = parsearBase(`formulas:\n  x: "1+1"\nviews:\n  - type: table\n`);
   assert.equal(motivosNoEditable(b).length, 1);
   assert.match(motivosNoEditable(b)[0], /formulas/);
 });
@@ -377,7 +379,7 @@ test("una clave de vista no modelada tambien la bloquea", () => {
 });
 
 test("un filtro no soportado bloquea la edición por UI", () => {
-  const b = parsearBase('filters:\n  and:\n    - price.toFixed(2) == "1"\n');
+  const b = parsearBase(`filters:\n  and:\n    - price.toFixed(2) == "1"\n`);
   assert.match(motivosNoEditable(b)[0], /no se entiende/);
 });
 
@@ -419,12 +421,12 @@ filters:
 });
 
 test("un `not` tampoco se aplana", () => {
-  const b = parsearBase('filters:\n  not:\n    - estado == "activo"\n');
+  const b = parsearBase(`filters:\n  not:\n    - estado == "activo"\n`);
   assert.equal(condicionesPlanas(b.filtros), null);
 });
 
 test("hasTag con varios argumentos no es representable en el constructor", () => {
-  const b = parsearBase('filters:\n  and:\n    - file.hasTag("a", "b")\n');
+  const b = parsearBase(`filters:\n  and:\n    - file.hasTag("a", "b")\n`);
   assert.equal(condicionesPlanas(b.filtros), null);
 });
 
@@ -541,4 +543,164 @@ test("filtroDeCondiciones descarta las que no son aplicables", () => {
 
 test("solo condiciones a medias: no hay filtro, y eso NO es un error", () => {
   assert.equal(filtroDeCondiciones("and", [{ ref: "estado", op: "==", valor: "" }]), null);
+});
+
+// ── FUN-M-27: el constructor de filtros con negacion y grupos ────────────────
+// El motor ya sabia combinar (`Filtro` tiene and/or/not y `evaluar` los
+// resuelve); lo que faltaba era poder representarlos en la UI. Estos tests
+// cuidan las dos direcciones y, sobre todo, la GUARDA: lo que no se sabe
+// mostrar sigue devolviendo null en vez de convertirse a medias.
+
+const cond = (ref, op, valor) => ({ tipo: "cond", negado: false, cond: { ref, op, valor } });
+
+test("sin filtros arranca con un grupo vacio, no con null", () => {
+  assert.deepEqual(arbolDeFiltro(null), {
+    tipo: "grupo",
+    combinador: "and",
+    negado: false,
+    hijos: [],
+  });
+});
+
+test("una lista plana se lee como un grupo con sus condiciones", () => {
+  const b = parsearBase(`filters:
+  and:
+    - estado == "activo"
+    - prioridad > 2
+`);
+  const a = arbolDeFiltro(b.filtros);
+  assert.equal(a.tipo, "grupo");
+  assert.equal(a.combinador, "and");
+  assert.equal(a.hijos.length, 2);
+  assert.deepEqual(a.hijos[0].cond, { ref: "estado", op: "==", valor: "activo" });
+});
+
+test("un filtro ANIDADO ahora SI se representa (antes daba null)", () => {
+  const b = parsearBase(`
+filters:
+  or:
+    - and:
+        - estado == "activo"
+        - prioridad > 1
+    - file.hasTag("urgente")
+`);
+  const a = arbolDeFiltro(b.filtros);
+  assert.equal(a.combinador, "or");
+  assert.equal(a.hijos[0].tipo, "grupo", "el grupo anidado se conserva como grupo");
+  assert.equal(a.hijos[0].combinador, "and");
+  assert.equal(a.hijos[1].tipo, "cond");
+});
+
+test("un `not` de un solo hijo es una MARCA, no un nivel mas", () => {
+  const b = parsearBase(`filters:
+  not:
+    - estado == "activo"
+`);
+  const a = arbolDeFiltro(b.filtros);
+  // Para el usuario «no es activo» es UNA condicion, no dos anidadas.
+  assert.equal(a.tipo, "cond");
+  assert.equal(a.negado, true);
+  assert.deepEqual(a.cond, { ref: "estado", op: "==", valor: "activo" });
+});
+
+test("un `not` de varios hijos niega su conjuncion", () => {
+  const b = parsearBase(`filters:
+  not:
+    - estado == "activo"
+    - prioridad > 1
+`);
+  const a = arbolDeFiltro(b.filtros);
+  assert.equal(a.tipo, "grupo");
+  assert.equal(a.combinador, "and");
+  assert.equal(a.negado, true);
+  assert.equal(a.hijos.length, 2);
+});
+
+test("LA GUARDA: una expresion fuera del subconjunto sigue dando null", () => {
+  const b = parsearBase(`filters:
+  and:
+    - file.hasTag("a", "b")
+`);
+  assert.equal(
+    arbolDeFiltro(b.filtros),
+    null,
+    "mostrarlo simplificado destruiria el filtro al guardar",
+  );
+});
+
+test("volver al filtro: una condicion negada se envuelve en `not`", () => {
+  const f = filtroDeArbol({
+    tipo: "grupo",
+    combinador: "and",
+    negado: false,
+    hijos: [{ tipo: "cond", negado: true, cond: { ref: "nombre", op: "startsWith", valor: "X" } }],
+  });
+  assert.equal(f.tipo, "and");
+  assert.equal(f.hijos[0].tipo, "not");
+  assert.ok(f.hijos[0].hijos[0].fuente.includes("startsWith"));
+});
+
+test("ida y vuelta: lo que se lee y se vuelve a escribir se puede releer igual", () => {
+  const b = parsearBase(`
+filters:
+  or:
+    - and:
+        - estado == "activo"
+        - prioridad > 1
+    - file.hasTag("urgente")
+`);
+  const a = arbolDeFiltro(b.filtros);
+  const f = filtroDeArbol(a);
+  assert.deepEqual(arbolDeFiltro(f), a, "el arbol sobrevive al viaje al filtro y de vuelta");
+});
+
+test("ida y vuelta con negacion", () => {
+  const b = parsearBase(`filters:
+  not:
+    - estado == "activo"
+`);
+  const a = arbolDeFiltro(b.filtros);
+  assert.deepEqual(arbolDeFiltro(filtroDeArbol(a)), a);
+});
+
+test("una condicion a medias no llega al archivo, pero no rompe el resto", () => {
+  const f = filtroDeArbol({
+    tipo: "grupo",
+    combinador: "and",
+    negado: false,
+    hijos: [cond("estado", "==", "activo"), cond("prioridad", ">", "")],
+  });
+  assert.equal(f.hijos.length, 1);
+});
+
+test("un grupo que se queda sin hijos utiles desaparece", () => {
+  const f = filtroDeArbol({
+    tipo: "grupo",
+    combinador: "and",
+    negado: false,
+    hijos: [
+      cond("estado", "==", "activo"),
+      { tipo: "grupo", combinador: "or", negado: false, hijos: [cond("x", "==", "")] },
+    ],
+  });
+  assert.equal(f.hijos.length, 1, "no se escribe un `or: []` que no filtra nada");
+});
+
+test("un arbol entero a medias no produce filtro", () => {
+  assert.equal(
+    filtroDeArbol({ tipo: "grupo", combinador: "and", negado: false, hijos: [cond("a", "==", "")] }),
+    null,
+  );
+});
+
+test("el filtro generado se EVALUA como se espera: «no empieza por X»", () => {
+  const f = filtroDeArbol({
+    tipo: "grupo",
+    combinador: "and",
+    negado: false,
+    hijos: [{ tipo: "cond", negado: true, cond: { ref: "nombre", op: "startsWith", valor: "X" } }],
+  });
+  const conNombre = (valor) => nota({ props: [{ clave: "nombre", valor, tipo: "texto" }] });
+  assert.equal(evaluar(f, conNombre("Xilofono")), false, "empieza por X: queda fuera");
+  assert.equal(evaluar(f, conNombre("Arbol")), true, "no empieza por X: entra");
 });

@@ -357,6 +357,146 @@
   flex: 1 1 6rem;
 }
 
+/* ── Constructor de filtros: grupos, negación y buscador (FUN-M-27 · FUN-S-16) ─ */
+
+/* El grupo raíz no lleva caja: ES el panel. Los anidados sí, con una barra a la
+   izquierda que dibuja hasta dónde llega el grupo — que es lo único que hace
+   legible un filtro con paréntesis. */
+.grupoRaiz {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-left: 2px solid color-mix(in srgb, var(--mic-glow) 45%, transparent);
+  border-radius: 0 var(--mic-radius-sm) var(--mic-radius-sm) 0;
+  background: color-mix(in srgb, var(--mic-text-primary) 4%, transparent);
+}
+
+.grupoCabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.grupoAcciones {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.selectCorto {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8rem;
+}
+
+/* El «no» de una condición o de un grupo. Es un interruptor y no un operador
+   más de la lista: negar «empieza por» no es otro operador, es lo mismo al
+   revés, y mezclarlos duplicaría la lista entera. */
+.negar {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.negarActivo {
+  border-color: var(--mic-callout-error-border);
+  background: color-mix(in srgb, var(--mic-callout-error-border) 20%, transparent);
+  color: var(--mic-text-primary);
+}
+
+/* Una condición a medias se ve, atenuada: no filtra, pero tampoco desaparece
+   mientras se la termina de armar (DEF-080). */
+.condicionAMedias {
+  opacity: 0.65;
+}
+
+/* Buscador de campos (FUN-S-16). `position: fixed` la pone el componente: el
+   panel tiene scroll y una lista absoluta la recortaría su contenedor. */
+.buscadorCampo {
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  max-height: 16rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  box-shadow: var(--mic-shadow-md, 0 4px 14px rgb(0 0 0 / 25%));
+}
+
+.buscadorFila {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+}
+
+.buscadorInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--mic-text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.buscadorLista {
+  margin: 0;
+  padding: 0.15rem;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.buscadorOpcion {
+  display: block;
+  width: 100%;
+  padding: 0.15rem 0.35rem;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.buscadorOpcion:hover {
+  background: color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+.buscadorOpcionActiva,
+.buscadorOpcionActiva:hover {
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+}
+
+.buscadorVacio {
+  padding: 0.25rem 0.35rem;
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+}
+
 .quitar {
   display: grid;
   place-items: center;
