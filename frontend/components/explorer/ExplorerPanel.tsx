@@ -1046,7 +1046,14 @@ function FolderRow({
       {rename.renaming ? (
         <RenameInput {...rename} />
       ) : (
-        <span className={styles.name}>{carpeta.nombre}</span>
+        // `title` para poder leer el nombre entero (`DEF-081`): la fila lo
+        // corta con puntos suspensivos y, sin esto, no había forma de ver el
+        // resto sin ensanchar el panel. El globo del sistema es lo único que
+        // funciona acá sin código de posicionamiento: el panel tiene scroll, y
+        // cualquier cosa nuestra habría que acotarla a la pantalla.
+        <span className={styles.name} title={carpeta.nombre}>
+          {carpeta.nombre}
+        </span>
       )}
       {shared && !rename.renaming && (
         <Users size={12} className={styles.sharedIcon} aria-label="Compartida" />
@@ -1087,6 +1094,11 @@ function NoteRow({
           ? LayoutDashboard
           : FileText;
 
+  // Lo que se lee en la fila, extensión incluida (`FUN-S-03`). Se calcula una
+  // vez para que el texto y su `title` no puedan decir cosas distintas.
+  const ext = EXTENSION_POR_TIPO[nota.tipo];
+  const nombreVisible = ext !== undefined ? `${nota.titulo}.${ext}` : nota.titulo;
+
   const className = [
     styles.row,
     active ? styles.rowActive : "",
@@ -1124,10 +1136,11 @@ function NoteRow({
         // texto, y no dos cosas separadas. El renombrado sigue editando solo el
         // titulo —la extension la decide el tipo de archivo, no el usuario— y
         // este texto no identifica nada: los ids y las rutas salen del indice.
-        <span className={styles.name}>
-          {EXTENSION_POR_TIPO[nota.tipo] !== undefined
-            ? `${nota.titulo}.${EXTENSION_POR_TIPO[nota.tipo]}`
-            : nota.titulo}
+        // `title` con el MISMO texto que se muestra, extensión incluida
+        // (`DEF-081`): un globo que dijera otra cosa que la fila confundiría
+        // más de lo que ayuda.
+        <span className={styles.name} title={nombreVisible}>
+          {nombreVisible}
         </span>
       )}
       {shared && !rename.renaming && (
@@ -1171,8 +1184,10 @@ function OtroRow({ otro, depth }: { otro: OtroArchivo; depth: number }) {
     >
       <FileQuestion size={15} className={styles.noteIcon} aria-hidden />
       {/* `otro.nombre` ya viene con la extensión: se lee `captura.png` de una
-          pieza, igual que las notas. */}
-      <span className={styles.name}>{otro.nombre}</span>
+          pieza, igual que las notas. El `title` deja leerlo entero (`DEF-081`). */}
+      <span className={styles.name} title={otro.nombre}>
+        {otro.nombre}
+      </span>
     </div>
   );
 }
