@@ -736,6 +736,24 @@
   margin: 0 auto;
 }
 
+/* > [!warning] Los encabezados del DOCUMENTO no son los de la interfaz
+   > `globals.css` le pone la cara de display a `h1`–`h4` para que los títulos de
+   > paneles y diálogos la usen sin tocar dieciséis módulos. Pero una regla de
+   > elemento gana a la herencia, así que ahí se llevaba por delante la fuente que
+   > el usuario eligió para la vista de lectura — que es una preferencia suya
+   > (HU-14), no una decisión del rediseño.
+   >
+   > `font-family: inherit` la devuelve: el encabezado vuelve a heredar del
+   > contenedor, que es quien sabe qué fuente pidió el usuario. */
+.mic-preview h1,
+.mic-preview h2,
+.mic-preview h3,
+.mic-preview h4,
+.mic-preview h5,
+.mic-preview h6 {
+  font-family: inherit;
+}
+
 .mic-preview h1 { font-size: 1.75rem;  font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.5rem; color: var(--mic-h1); }
 .mic-preview h2 { font-size: 1.375rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; color: var(--mic-h2); }
 .mic-preview h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1rem;    margin-bottom: 0.3rem; color: var(--mic-h3); }

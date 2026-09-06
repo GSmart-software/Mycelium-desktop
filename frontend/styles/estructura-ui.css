@@ -1,0 +1,125 @@
+/*
+ * Estructura de la interfaz — el rediseño, compartido por los tres temas.
+ *
+ * Salió del experimento con el tema Sofka: primero se escribió ahí entero, y al
+ * llevarlo a Bioluminiscencia y Cantarela quedó claro que **no era del brand**,
+ * era estructura. El brand aportaba los colores; lo que aportaba la forma era
+ * esto: chrome con degradado en claro, panel con degradado, tinta que se
+ * redefine dentro de esas zonas, y el activo con placa.
+ *
+ * > [!important] Acá NO hay ni un color
+ * > Todo sale de cuatro variables que cada tema define. Copiar el archivo tres
+ * > veces cambiando los valores habría dejado tres copias que se separan al
+ * > primer ajuste — y en este experimento ya hubo tres ajustes seguidos sobre
+ * > las mismas reglas.
+ *
+ * | Variable | Qué es |
+ * |---|---|
+ * | `--mic-grad-chrome` | Fondo del rail y la topbar en modo CLARO |
+ * | `--mic-grad-panel` | Fondo del panel del explorador |
+ * | `--mic-chrome-ink` | Tinta dentro del chrome, cuando lleva degradado |
+ * | `--mic-panel-ink` | Tinta dentro del panel |
+ *
+ * Un tema que no las defina se queda con su aspecto de siempre: las reglas de
+ * abajo solo se activan si la variable existe.
+ */
+
+/* ══ El chrome ═══════════════════════════════════════════════════
+   En OSCURO no lleva degradado: la superficie profunda del tema ya separa el
+   chrome del contenido, y un degradado encima sería adorno. En CLARO sí, porque
+   ahí el chrome tiene que distinguirse de un lienzo claro y además es donde el
+   color del tema hace de identidad. */
+:root:not([data-dark='true']) [class*='rail'],
+:root:not([data-dark='true']) [class*='topbar'] {
+  background: var(--mic-grad-chrome, var(--mic-bg-sidebar));
+}
+
+/* > [!warning] Dentro de una zona con degradado, la tinta se redefine ENTERA
+   > No basta con poner `color`: el rail y la topbar contienen íconos, botones,
+   > campos y bordes que leen los tokens del tema, y el tema los eligió pensando
+   > en el fondo de siempre. Redefinir las variables acá hace que todo lo que
+   > vive dentro se adapte sin enumerarlo.
+   >
+   > La que más importa es `--mic-accent`: si el chrome es del color del acento,
+   > el elemento activo marcado en acento **desaparece**. Pasa a ser la tinta. */
+:root:not([data-dark='true']) [class*='rail'],
+:root:not([data-dark='true']) [class*='topbar'] {
+  color: var(--mic-chrome-ink, inherit);
+}
+
+:root:not([data-dark='true']) [class*='rail'],
+:root:not([data-dark='true']) [class*='topbar'] {
+  --mic-text-primary: var(--mic-chrome-ink, var(--mic-raw-ink));
+  --mic-text-muted: color-mix(in srgb, var(--mic-chrome-ink, var(--mic-raw-ink)) 72%, transparent);
+  --mic-accent: var(--mic-chrome-ink, var(--mic-raw-accent));
+  --mic-glow: var(--mic-chrome-ink, var(--mic-raw-glow));
+  --mic-border: color-mix(in srgb, var(--mic-chrome-ink, var(--mic-raw-ink)) 22%, transparent);
+  --mic-bg-hover: color-mix(in srgb, var(--mic-chrome-ink, var(--mic-raw-ink)) 12%, transparent);
+  /* El buscador de la topbar se hunde con un velo claro, no con un color. */
+  --mic-bg-canvas: rgb(255 255 255 / 55%);
+  --mic-bg-surface: rgb(255 255 255 / 55%);
+  --mic-bg-base: rgb(255 255 255 / 55%);
+}
+
+/* El activo, con PLACA. Sobre un fondo de color, el ícono activo y el inactivo
+   solo se separaban por opacidad — y una diferencia de opacidad no se percibe
+   sin comparar dos íconos entre sí, que es justo lo que no se hace de un
+   vistazo. La placa oscura sí. */
+:root:not([data-dark='true']) [class*='rail'] [aria-pressed='true'],
+:root:not([data-dark='true']) [class*='rail'] [aria-selected='true'],
+:root:not([data-dark='true']) [class*='topbar'] [aria-pressed='true'],
+:root:not([data-dark='true']) [class*='topbar'] [aria-selected='true'] {
+  color: var(--mic-chrome-ink, var(--mic-accent));
+  background-color: color-mix(in srgb, var(--mic-chrome-ink, var(--mic-raw-ink)) 16%, transparent);
+}
+
+:root:not([data-dark='true']) [class*='rail'] [aria-pressed='false'] {
+  color: color-mix(in srgb, var(--mic-chrome-ink, var(--mic-raw-ink)) 62%, transparent);
+  opacity: 1;
+}
+
+/* ══ El panel del explorador ══════════════════════════════════════
+   El contenedor del explorador, las consolas, la búsqueda y las etiquetas.
+
+   > [!warning] `[class*='panel']` a secas NO sirve
+   > Los CSS Modules cifran la clase pero conservan su nombre dentro del hash, así
+   > que ese selector matchea también a `SearchPanel`, `TerminalPanel`,
+   > `ExplorerPanel` y a `panelContent` — todos anidados dentro de este. El
+   > degradado se repintaría en cada uno desde SU borde superior, y en vez de un
+   > degradado se verían cuatro escalones. `panelLeft` es el contenedor y nadie
+   > más. */
+/* > [!warning] El `:root` de delante NO es decorativo
+   > Sin él esto es `[class*='panelLeft']`, que vale (0,1,0) y **empata** con
+   > `.panel` de `Panels.module.css` — y con empate gana el orden, que entre un
+   > CSS global y un CSS Module no está garantizado. El degradado se perdía.
+   >
+   > Cuando esto vivía dentro del tema, el prefijo `[data-theme='sofka']` le daba
+   > (0,2,0) y ganaba solo. Al generalizarlo se fue ese prefijo y con él la
+   > especificidad: `:root` la devuelve sin volver a atar la regla a un tema. */
+:root [class*='panelLeft'] {
+  background: var(--mic-grad-panel, var(--mic-bg-surface));
+  color: var(--mic-panel-ink, inherit);
+}
+
+:root [class*='panelLeft'] {
+  --mic-text-primary: var(--mic-panel-ink, var(--mic-raw-ink));
+  --mic-text-muted: color-mix(in srgb, var(--mic-panel-ink, var(--mic-raw-ink-muted)) 72%, transparent);
+  /* Los hijos pintan su propio fondo con estos dos tokens. En transparente, el
+     degradado del contenedor se ve a través de todos ellos en vez de quedar
+     tapado por parches opacos. `canvas` conserva un velo: los campos lo usan
+     para recederse, y sin nada de cuerpo dejarían de distinguirse del panel. */
+  --mic-bg-surface: transparent;
+  --mic-bg-canvas: var(--mic-panel-hueco, rgb(0 0 0 / 18%));
+  --mic-bg-base: var(--mic-panel-hueco, rgb(0 0 0 / 18%));
+  --mic-border: color-mix(in srgb, var(--mic-panel-ink, var(--mic-raw-ink)) 20%, transparent);
+}
+
+/* ══ El lienzo del grafo ══════════════════════════════════════════
+   Lo pinta `--mic-raw-base-deep`, el mismo token que da el fondo de los BLOQUES
+   DE CÓDIGO — y ésos van oscuros siempre, en los dos modos, porque el resaltado
+   de sintaxis está pensado para fondo oscuro. O sea que no se puede aclarar el
+   token: hay que aclarar el grafo, que es el único otro sitio que lo usa como
+   superficie. */
+:root:not([data-dark='true']) [class*='GraphView_view'] {
+  background: var(--mic-grafo-claro, var(--mic-raw-base-deep));
+}

@@ -22,8 +22,8 @@ body.mic-redimensionando * {
 }
 
 body {
-  font-family: var(--mic-font-sans);
-  font-size: 0.875rem;
+  font-family: var(--mic-font-body);
+  font-size: var(--mic-fs-cuerpo);
   color: var(--mic-text-primary);
   background: var(--mic-bg-canvas);
   -webkit-font-smoothing: antialiased;
@@ -43,9 +43,260 @@ button {
   cursor: pointer;
 }
 
+/* Los controles hablan con la cara de UI; el cuerpo, con la de cuerpo. Ahí se
+   nota la jerarquía por familia sin que nadie tenga que declararla en cada
+   componente.
+
+   Va DESPUÉS del reset de `button`, y no antes: `font: inherit` es una
+   abreviatura y reescribe la familia junto con todo lo demás, así que puesta
+   arriba esta regla no llegaba a aplicarse a un solo botón. */
+button,
+input,
+select,
+textarea {
+  font-family: var(--mic-font-ui);
+}
+
 :focus-visible {
   outline: 2px solid var(--mic-glow);
   outline-offset: 2px;
+}
+
+/* > [!important] Una superficie de EDICIÓN no lleva anillo de foco
+   > El cursor ya dice dónde está el foco. Un anillo alrededor del documento
+   > entero, además, no señala nada: encierra la pantalla completa.
+   >
+   > `editor.css` apagaba el anillo de `.cm-editor`, pero el elemento que recibe
+   > el foco es `.cm-content` —el `contenteditable`— y CodeMirror no lo resetea
+   > por su cuenta. El defecto estaba desde siempre; con el cian de
+   > Bioluminiscencia se confundía con el resto y solo se hizo evidente al probar
+   > un tema de acento naranja.
+   >
+   > No es una pérdida de accesibilidad: para un campo de texto el cursor ES el
+   > indicador de foco, y es lo que la app ya hacía en el título del documento,
+   > en las propiedades y en las celdas de tabla. */
+.cm-content:focus-visible,
+.cm-editor:focus-visible,
+[contenteditable]:focus-visible {
+  outline: none;
+}
+
+/* ── Firma del estilo: eyebrows y labels ────────────────────────
+   Mayúsculas con tracking, peso medio y el tamaño más chico de la escala. Es lo
+   que separa un LABEL de un texto corto: sin el tracking, una palabra en
+   mayúsculas se lee como un grito; con él, como una etiqueta.
+
+   Va en global y como clase utilitaria y no en cada módulo porque es una regla
+   del lenguaje, no de un componente: en el momento en que cada panel la escriba
+   a mano, habrá cinco tamaños y cuatro trackings. */
+.mic-label {
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
+  letter-spacing: var(--mic-tracking-label);
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+/* Encabezados de la interfaz (no los del documento, que los pinta `editor.css`).
+   La cara de display y el tracking negativo: en tamaños grandes el espaciado por
+   defecto se ve suelto.
+
+   Las etiquetas `h1`–`h4` entran solas. Es donde el estilo se nota sin que haya
+   que tocar dieciséis módulos: los diálogos, los paneles y las secciones de
+   Configuración ya las usan, y `editor.css` pinta las del DOCUMENTO por su
+   cuenta —con su rampa de color por nivel— así que no se pisan. */
+h1,
+h2,
+h3,
+h4,
+.mic-display,
+.mic-titulo {
+  font-family: var(--mic-font-display);
+  letter-spacing: var(--mic-tracking-display);
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.mic-display {
+  font-size: var(--mic-fs-display);
+}
+
+.mic-titulo,
+h2 {
+  font-size: var(--mic-fs-titulo);
+}
+
+h1 {
+  font-size: var(--mic-fs-display);
+}
+
+h3,
+h4 {
+  font-size: var(--mic-fs-seccion);
+}
+
+/* ══ Capa de marca ═══════════════════════════════════════════════
+   Acá vive el rediseño, y no en los 38 módulos. Los CSS Modules solo cifran los
+   nombres de CLASE: los selectores de elemento y de atributo entran igual. Así
+   que todo lo que el estilo dice sobre CONTROLES, CAMPOS y ETIQUETAS se declara
+   una vez y alcanza a la aplicación entera.
+
+   La regla de convivencia: acá se ponen las propiedades que los módulos NO
+   suelen declarar —cara, peso, tracking, mayúsculas, transición—. Las que sí
+   declaran (color, fondo, tamaño) las siguen decidiendo ellos, porque su clase
+   gana por especificidad. Es lo que permite reescribir el lenguaje sin pelear
+   con cada componente. */
+
+/* Todo control habla con la cara de UI y con peso medio. El estilo no usa
+   negritas en la interfaz: la jerarquía la hace la familia, no el grosor. */
+button,
+input,
+select,
+textarea {
+  font-family: var(--mic-font-ui);
+  font-weight: 500;
+}
+
+button {
+  letter-spacing: 0.01em;
+  transition:
+    background-color var(--mic-t-rapido),
+    border-color var(--mic-t-rapido),
+    color var(--mic-t-rapido);
+}
+
+/* Campos: caja de un solo trazo, esquina corta y el foco por ANILLO, no por
+   sombra difusa. El anillo no ocupa espacio, así que abrir el foco no mueve el
+   formulario. */
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
+select,
+textarea {
+  border-radius: var(--mic-radius-sm);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--mic-accent);
+  box-shadow: var(--mic-shadow-foco);
+}
+
+/* ── La firma: mayúsculas con tracking ──────────────────────────
+   Etiquetas de campo y cabeceras de tabla. Es lo que más cambia el carácter de
+   una interfaz por línea escrita: sin el tracking una palabra en mayúsculas se
+   lee como un grito, con él como una etiqueta.
+
+   No se extiende a TODOS los botones a propósito. «EXPORTAR COMO .MD» en un
+   menú no es una etiqueta, es una frase, y en mayúsculas se lee peor. La firma
+   es para lo que nombra un campo o una columna, no para lo que describe una
+   acción. */
+label,
+th {
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
+  letter-spacing: var(--mic-tracking-label);
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+/* El elemento activo se marca con el ACENTO del tema. Dentro del chrome esta
+   regla no llega —`estructura-ui.css` la sobreescribe con más especificidad—
+   porque ahí el fondo ya es del color del acento y el activo desaparecería. */
+[aria-selected='true'],
+[aria-pressed='true'] {
+  color: var(--mic-accent);
+}
+
+/* ── Listas con viñeta de acento ────────────────────────────────
+   La viñeta en el color de acento es una de las señas más repetidas del estilo,
+   y la única forma en que el acento aparece dentro de un bloque de texto. */
+.mic-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mic-sp-2, 8px);
+}
+
+.mic-lista > li {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+.mic-lista > li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--mic-accent);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+/* ── Botones de marca ───────────────────────────────────────────
+   Dos, y solo dos. El primario es el acento relleno; el secundario es un trazo
+   que al pasar el puntero SE INVIERTE —el trazo se vuelve relleno y el texto se
+   vuelve el fondo—. Esa inversión es la del estilo, y dice «acción» sin gritar
+   con color. */
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.5rem;
+  border: 1px solid var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-accent);
+  color: var(--mic-bg-canvas);
+  font-size: var(--mic-fs-ui);
+  font-weight: 500;
+}
+
+.mic-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-accent) 82%, var(--mic-text-primary));
+  border-color: color-mix(in srgb, var(--mic-accent) 82%, var(--mic-text-primary));
+}
+
+.mic-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1.5px solid var(--mic-text-muted);
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-primary);
+  font-size: var(--mic-fs-ui);
+  font-weight: 500;
+}
+
+.mic-btn-outline:hover:not(:disabled) {
+  background: var(--mic-text-primary);
+  border-color: var(--mic-text-primary);
+  color: var(--mic-bg-canvas);
+}
+
+.mic-btn:disabled,
+.mic-btn-outline:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Movimiento reducido ────────────────────────────────────────
+   Obligatorio, y no es una cortesía: para quien tiene sensibilidad vestibular,
+   una interfaz que se desplaza sola produce mareo real. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Controles nativos: la lista de un <select> y los popups ─────
