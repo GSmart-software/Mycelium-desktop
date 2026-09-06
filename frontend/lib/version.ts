@@ -70,12 +70,25 @@
  *   precedente: la regla de `docs/decisiones/Versionado del sistema.md` sigue
  *   siendo la de siempre.
  *
+ * - `1.7.0` — **trece funcionalidades en una tanda**, elegidas por el usuario.
+ *   Las tablas `.base` dejan de ser de mirar y pasan a ser de trabajar
+ *   (`FUN-M-27` negar y agrupar filtros, `FUN-S-16` buscador de campos,
+ *   `FUN-S-15` ordenar por columna, `FUN-S-14` buscar dentro, `FUN-M-25` ancho
+ *   de columna); las preferencias dejan de ser solo del usuario y pasan a poder
+ *   ser **del vault** (`FUN-M-28` números de línea, `FUN-M-21` nombres del
+ *   grafo, `FUN-M-29` el porte a web); las pestañas ganan marcas (`FUN-S-11`
+ *   ícono del tipo, `FUN-S-12` color por consola); el código del vault se ve
+ *   **coloreado** (`FUN-S-09`); la búsqueda deja elegir dónde busca y agrupa por
+ *   carpeta (`FUN-M-20`, con las guías de indentación de `FUN-S-17`); y el
+ *   **título renombra el archivo** (`FUN-M-24`).
+ *
+ *   **Minor, y uno solo**: el tamaño lo decide el cambio más significativo, no
+ *   cuántos entran. Absorbe además `DEF-080`, `DEF-081` y `DEF-084` —este
+ *   último salió de implementar `FUN-M-24`—, así que no hay patch aparte.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
- * que se generan en el vault y es INDEPENDIENTE de esta versión. **No cambió con
- * la 1.5.0** —un ajuste del editor no altera lo que la IA debe saber— pero con la
- * **1.6.0 SÍ debería cambiar y todavía no lo hizo**: la IA no conoce los `.base`,
- * ni los `.canvas`, ni el léxico de `.claude/enlaces-lexico.json` que la pantalla
- * de referencias comparte con ella. Subirlo a `1.5.0` es trabajo aparte, ya
- * especificado en `docs/features/auditoria-y-relinkeado.md` § 10.
+ * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
+ * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
+ * `.canvas`— se saldó con la **1.5.0 del framework**, que sube con esta versión.
  */
-export const APP_VERSION = "1.6.2";
+export const APP_VERSION = "1.7.0";

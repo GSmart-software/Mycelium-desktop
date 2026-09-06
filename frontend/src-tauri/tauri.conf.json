@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Mycelium",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "identifier": "com.mycelium.desktop",
   "build": {
     "frontendDist": "../out",
