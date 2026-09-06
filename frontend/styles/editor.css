@@ -474,16 +474,88 @@
   line-height: 1.25;
   padding: 0.2rem 1rem 0.9rem;
   word-break: break-word;
-  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 .mic-doc-title-editor {
   font-family: var(--mic-editor-font-family);
 }
 .mic-doc-title-preview {
   font-family: var(--mic-preview-font-family);
+}
+
+/* ── El título renombra el archivo (FUN-M-24) ─────────────────────── */
+
+/* El degradado se pinta con `background-clip: text` y ahora vive en el TEXTO, no
+   en el contenedor. Desde que el título puede llevar además un campo y un cartel
+   de error, un recorte en el contenedor los teñiría a ellos también — y un error
+   en degradado no se lee. El contenedor se queda con la caja: centrado, tamaño,
+   relleno. */
+.mic-doc-title-texto,
+.mic-doc-title-campo {
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* El texto en reposo lleva el MISMO relleno y el mismo borde —transparente— que
+   la caja de edición. Así, al entrar a escribir, lo único que aparece es el
+   marco: el título no se mueve ni un píxel. */
+.mic-doc-title-texto {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid transparent;
+}
+
+/* La señal de «esto se puede escribir» va aparte del degradado y SOLO la lleva
+   el título del editor: en la vista de lectura el mismo texto no se toca, y un
+   cursor de escritura ahí prometería algo que no pasa. Se avisa sin poner un
+   botón, con el fondo al pasar el puntero, como en cualquier campo editable en
+   sitio. */
+.mic-doc-title-editable {
+  cursor: text;
+  border-radius: var(--mic-radius-sm);
+}
+
+.mic-doc-title-editable:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 10%, transparent);
+}
+
+/* La caja de edición: el marco que dice «esto ahora es un campo». Va en un
+   contenedor y no en el `<input>` porque el degradado del título se pinta con
+   `background-clip: text`, y ese recorte alcanza a todas las capas de fondo — un
+   `background-color` en el propio campo se recortaría contra las letras. */
+.mic-doc-title-caja {
+  display: flex;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--mic-accent);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-base);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mic-glow) 18%, transparent);
+}
+
+/* El campo hereda todo del título —familia, tamaño, peso, centrado— para que lo
+   único que cambie al entrar a editar sea el marco de arriba. */
+.mic-doc-title-campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  font: inherit;
+  text-align: inherit;
+  caret-color: var(--mic-accent);
+}
+
+.mic-doc-title-campo:focus {
+  outline: none;
+}
+
+/* Fuera del degradado a propósito: en él sería ilegible, y un error tiene que
+   leerse antes que verse bonito. */
+.mic-doc-title-error {
+  margin: 0.15rem 0 0;
+  font-family: var(--mic-font-sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--mic-callout-error-border, #d9534f);
 }
 
 /* Enlaces internos en el editor (HU-01 CA8) */

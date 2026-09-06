@@ -25,7 +25,7 @@ import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { autoPairs } from "@/lib/editor/autoPairs";
-import { docTitleField, setDocTitle } from "@/lib/editor/docTitle";
+import { docTitleField, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
   markMissingWikilinks,
@@ -281,6 +281,11 @@ export function NoteEditor({
   const [previewTick, setPreviewTick] = useState(0);
 
   const modeRef = useRef(mode);
+  // El id de la nota, por referencia. Renombrar en modo carpeta CAMBIA el id
+  // —la identidad es la ruta—, y quien lo necesita vive en la vista de
+  // CodeMirror, que se crea una sola vez (`FUN-M-24`).
+  const notaIdRef = useRef(notaId);
+  notaIdRef.current = notaId;
   const contentRef = useRef("");
   const dirtyRef = useRef(false);
   const remoteUpdatedAtRef = useRef<string | null>(null);
@@ -449,6 +454,13 @@ export function NoteEditor({
             headingFoldService,
             // Título (nombre del archivo) como bloque al inicio del documento.
             docTitleField,
+            // Quién renombra cuando se escribe en el título (`FUN-M-24`). Es una
+            // función estable que lee el id por referencia: la vista se crea una
+            // vez y el facet no se reconfigura, así que no puede capturar el
+            // `notaId` de este render — al renombrar, el id cambia.
+            renombrarPorTitulo.of((titulo) =>
+              useVaultStore.getState().renameNota(notaIdRef.current, titulo),
+            ),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -1218,8 +1230,14 @@ export function NoteEditor({
           >
             {/* Título dentro del documento, al inicio (se desplaza con el
                 contenido); tipografía del preview. */}
+            {/* En lectura el título NO se edita, aunque el widget del editor sí
+                (`FUN-M-24`): esta vista es de solo lectura de punta a punta, y
+                un solo elemento que sí se pueda tocar la vuelve mentira. El
+                `<div>` de dentro lleva el degradado; el de fuera, la caja. */}
             {showFileTitle && (
-              <div className="mic-doc-title mic-doc-title-preview">{notaTitulo}</div>
+              <div className="mic-doc-title mic-doc-title-preview">
+                <div className="mic-doc-title-texto">{notaTitulo}</div>
+              </div>
             )}
             <div className="mic-preview-body" dangerouslySetInnerHTML={{ __html: previewHtml }} />
           </div>
