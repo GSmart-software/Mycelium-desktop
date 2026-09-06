@@ -4,7 +4,7 @@
   z-index: 70;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+  background: var(--mic-velo);
 }
 
 .modal {
@@ -17,7 +17,7 @@
   padding: 1.1rem;
   background: var(--mic-bg-surface);
   border-radius: var(--mic-radius-lg);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  box-shadow: var(--mic-shadow-modal);
 }
 
 .header {
@@ -88,7 +88,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
   margin-top: 0.3rem;
 }

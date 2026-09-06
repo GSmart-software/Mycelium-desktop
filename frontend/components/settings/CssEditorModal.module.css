@@ -4,7 +4,7 @@
   z-index: 80;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--mic-raw-base-deep) 55%, transparent);
+  background: var(--mic-velo);
   padding: 1.5rem;
 }
 
@@ -17,7 +17,7 @@
   border: 1px solid var(--mic-border);
   border-radius: var(--mic-radius-lg);
   overflow: hidden;
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  box-shadow: var(--mic-shadow-modal);
 }
 
 .header {
@@ -93,7 +93,7 @@
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
   background: var(--mic-bg-base);
   border-bottom: 1px solid var(--mic-border);

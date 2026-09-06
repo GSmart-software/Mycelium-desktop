@@ -98,9 +98,8 @@
 }
 
 .chipActive {
-  color: var(--mic-text-primary);
-  border-color: var(--mic-glow);
-  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+  color: var(--mic-accent);
+  border-color: var(--mic-accent);
 }
 
 /* El grafo ocupa una altura fija reducida; el resto del panel queda para las

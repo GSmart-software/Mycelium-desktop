@@ -5,9 +5,15 @@
   margin-bottom: 0.75rem;
 }
 
+/* La etiqueta de un campo es una ETIQUETA, no un título: mayúsculas, tracking y
+   el tamaño más chico de la escala. Al perder el peso 600 deja además de
+   competir con el valor que nombra, que es lo que el usuario viene a leer. */
 .label {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
+  letter-spacing: var(--mic-tracking-label);
+  text-transform: uppercase;
   color: var(--mic-text-muted);
 }
 
@@ -47,10 +53,14 @@
   text-align: right;
 }
 
+/* Los dos botones del estilo: el primario es el acento relleno; el secundario un
+   trazo que al pasar el puntero SE INVIERTE. Ninguno de los dos usa negrita —la
+   jerarquía la hace la familia— y los dos crecen: un botón de 0.45rem de alto es
+   un control de formulario web, no una acción de una herramienta. */
 .primaryBtn {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
+  padding: 0.6rem 1.4rem;
+  font-size: var(--mic-fs-ui);
+  font-weight: 500;
   color: var(--mic-raw-canvas);
   background: var(--mic-accent);
   border-radius: var(--mic-radius-sm);
@@ -66,16 +76,20 @@
 }
 
 .secondaryBtn {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.8125rem;
+  padding: 0.55rem 1.1rem;
+  font-size: var(--mic-fs-ui);
   color: var(--mic-text-primary);
   background: transparent;
   border: 1px solid var(--mic-border);
   border-radius: var(--mic-radius-sm);
 }
 
+/* La inversión del estilo: el trazo se vuelve relleno y el texto se vuelve el
+   fondo. Dice «acción» sin gastar color. */
 .secondaryBtn:hover {
-  background: var(--mic-bg-hover);
+  background: var(--mic-text-primary);
+  border-color: var(--mic-text-primary);
+  color: var(--mic-bg-canvas);
 }
 
 .btnRow {
@@ -106,13 +120,20 @@
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.5rem;
-  border: 2px solid var(--mic-border);
+  border: 1px solid var(--mic-border);
+  /* El borde inferior existe siempre, transparente: si solo lo llevara la
+     activa, elegir un tema movería las tarjetas 3px. */
+  border-bottom: 3px solid transparent;
   border-radius: var(--mic-radius-md);
   cursor: pointer;
+  transition: border-color var(--mic-t-rapido);
 }
 
+/* La tarjeta activa se marca con el borde INFERIOR, que es el patrón del estilo
+   —y no con un contorno entero, que en una fila de tres compite con las otras
+   dos y hay que comparar para saber cuál está elegida. */
 .swatchActive {
-  border-color: var(--mic-glow);
+  border-bottom-color: var(--mic-accent);
 }
 
 .swatchPreview {
@@ -131,8 +152,11 @@
 }
 
 .swatchName {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
+  letter-spacing: var(--mic-tracking-label);
+  text-transform: uppercase;
   color: var(--mic-text-primary);
 }
 

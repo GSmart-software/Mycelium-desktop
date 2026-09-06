@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  background: var(--mic-velo);
   z-index: 40;
   animation: fade-in var(--mic-panel-transition);
 }
@@ -23,7 +23,7 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1rem;
-  box-shadow: -8px 0 24px color-mix(in srgb, var(--mic-raw-base-deep) 25%, transparent);
+  box-shadow: var(--mic-shadow-modal);
   animation: slide-in var(--mic-panel-transition);
 }
 
@@ -38,23 +38,30 @@
   border-bottom: 1px solid var(--mic-border);
 }
 
+/* Navegación del estilo: el indicador es un borde de 3px, el texto va en
+   mayúsculas con tracking, y NO hay relleno en ninguno de los estados. */
 .tab {
   flex: 1;
-  padding: 0.45rem 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
+  padding: 0.9rem 0.25rem;
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
+  letter-spacing: var(--mic-tracking-label);
+  text-transform: uppercase;
   color: var(--mic-text-muted);
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   margin-bottom: -1px;
+  transition: color var(--mic-t-medio), border-color var(--mic-t-medio);
 }
 
 .tab:hover {
   color: var(--mic-text-primary);
+  border-bottom-color: var(--mic-border);
 }
 
 .tabActive {
   color: var(--mic-text-primary);
-  border-bottom-color: var(--mic-glow);
+  border-bottom-color: var(--mic-accent);
 }
 
 .body {
@@ -85,7 +92,7 @@
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
 }
 
@@ -137,9 +144,13 @@
   justify-content: space-between;
 }
 
+/* El título del panel, en la cara de display. Es lo primero que se lee al abrir
+   Configuración y ahora dice de qué familia es la interfaz. */
 .title {
-  font-size: 1rem;
+  font-family: var(--mic-font-display);
+  font-size: var(--mic-fs-titulo);
   font-weight: 600;
+  letter-spacing: var(--mic-tracking-display);
 }
 
 .close {
@@ -162,11 +173,15 @@
   gap: 0.5rem;
 }
 
+/* Eyebrow de sección: ya estaba en mayúsculas, pero con el tracking del estilo
+   —más del doble— y el tamaño de label. Es la diferencia entre una palabra en
+   mayúsculas y una etiqueta. */
 .sectionTitle {
-  font-size: 0.8125rem;
-  font-weight: 600;
+  font-family: var(--mic-font-ui);
+  font-size: var(--mic-fs-label);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
 }
 

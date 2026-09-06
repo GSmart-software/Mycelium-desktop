@@ -9,6 +9,7 @@
 :root {
   --mic-bg-canvas:     var(--mic-raw-canvas);
   --mic-bg-surface:    var(--mic-raw-mist);
+
   --mic-bg-sidebar:    var(--mic-raw-base);
   --mic-bg-code:       var(--mic-raw-base-deep);
   --mic-text-primary:  var(--mic-raw-ink);
@@ -88,6 +89,18 @@
   --mic-raw-ink-muted:  #59696C;
 
   --mic-amber-icon:     #C9821E;
+
+  /* Estructura (ver `estructura-ui.css`). El chrome claro lleva el cian del tema
+     en degradado, y el tope profundo NO baja hasta el acento: medido, la tinta
+     oscura aguanta hasta `#13a0b1` (4.53:1) y con el acento entero caería a
+     2.90. Un degradado que va de claro a oscuro no tiene ninguna tinta que se
+     lea en los dos extremos. */
+  --mic-grad-chrome: linear-gradient(180deg, #16B8C9 0%, #13A0B1 100%);
+  --mic-chrome-ink:  #10262B;
+  --mic-grad-panel:  linear-gradient(180deg, #EDF7F9 0%, #DCEBEF 45%, #C3DBE1 100%);
+  --mic-panel-ink:   #1F2D30;
+  --mic-panel-hueco: rgb(255 255 255 / 55%);
+  --mic-grafo-claro: #DCEBEF;
 }
 
 /* ── Tema secundario: Cantarela — modo claro (amarillo + marrón) ──
@@ -103,6 +116,15 @@
   --mic-raw-ink-muted:  #6B5E4C;
 
   --mic-amber-icon:     #C9821E;
+
+  /* Mismo criterio que Bioluminiscencia: el tope profundo es `#BD8119`, lo más
+     abajo que llega el dorado conservando 4.51:1 con la tinta. */
+  --mic-grad-chrome: linear-gradient(180deg, #D99A1F 0%, #BD8119 100%);
+  --mic-chrome-ink:  #2A1F0C;
+  --mic-grad-panel:  linear-gradient(180deg, #FDF7EA 0%, #F7EAD0 45%, #E8D6B4 100%);
+  --mic-panel-ink:   #2C2620;
+  --mic-panel-hueco: rgb(255 255 255 / 55%);
+  --mic-grafo-claro: #F0E4CC;
 }
 
 /* ── Dark mode (modifier ortogonal al tema) ───────────────────── */
@@ -128,6 +150,12 @@
   /* Bordes y hover con el teal bioluminiscente del legacy */
   --mic-border:         #16343f;
   --mic-bg-hover:       rgba(25, 230, 255, 0.10);
+
+  /* En oscuro el chrome NO lleva degradado: la superficie profunda del tema ya
+     lo separa del contenido. El panel sí, en la rama abisal del tema. */
+  --mic-grad-panel:  linear-gradient(180deg, #0f2b36 0%, #0a1a24 45%, #04090e 100%);
+  --mic-panel-ink:   #c6e7e1;
+  --mic-panel-hueco: rgb(0 0 0 / 22%);
 }
 
 /* Cantarela oscuro = misma estética abisal pero en ámbar dorado + marrón. */
@@ -142,6 +170,10 @@
   --mic-raw-ink-muted:  #ac9468;
   --mic-border:         #40300f;
   --mic-bg-hover:       rgba(255, 194, 71, 0.10);
+
+  --mic-grad-panel:  linear-gradient(180deg, #33260c 0%, #241a08 45%, #130d02 100%);
+  --mic-panel-ink:   #f6e8c8;
+  --mic-panel-hueco: rgb(0 0 0 / 22%);
 }
 
 /* ── Estados de sync (HU-04) ──────────────────────────────────── */
@@ -199,10 +231,46 @@
 }
 
 /* ── Tipografía ───────────────────────────────────────────────── */
+
+/* > [!important] La jerarquía la hace la FAMILIA, no solo el tamaño
+   > Tres roles con tres caras distintas. En una interfaz densa, subir dos puntos
+   > un título no lo separa de su párrafo; cambiarle la cara, sí — y sigue
+   > funcionando cuando el usuario cambia el tamaño de fuente desde Configuración.
+   >
+   > Las tres son **del sistema o de Mycelium**: nada que descargar y nada
+   > propietario. `--mic-font-ui` es la de siempre (Geist), que es la que ya tenía
+   > la app; las otras dos salen del sistema operativo. */
 :root {
-  --mic-font-sans:  var(--font-geist-sans), system-ui, sans-serif;        /* interfaz, labels, UI */
-  --mic-font-serif: var(--font-source-serif), Georgia, serif;             /* modo lectura del preview */
-  --mic-font-mono:  var(--font-jetbrains-mono), 'Fira Code', monospace;   /* editor, código, hints */
+  /* Display: títulos de sección, encabezados, el número de una métrica. Las
+     caras «Display» de Windows y macOS están dibujadas para tamaños grandes:
+     tienen menos espacio entre letras y los remates más secos. */
+  --mic-font-display: 'Segoe UI Variable Display', 'SF Pro Display', 'Inter Tight',
+                      system-ui, -apple-system, sans-serif;
+  /* UI: labels, navegación, botones, controles. La de Mycelium. */
+  --mic-font-ui:    var(--font-geist-sans), system-ui, sans-serif;
+  /* Cuerpo: prosa de la interfaz, ayudas, descripciones. */
+  --mic-font-body:  -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --mic-font-sans:  var(--mic-font-ui);                                  /* alias histórico */
+  --mic-font-serif: var(--font-source-serif), Georgia, serif;            /* modo lectura del preview */
+  --mic-font-mono:  var(--font-jetbrains-mono), 'Fira Code', monospace;  /* editor, código, hints */
+
+  /* Escala fluida. Los saltos son de APLICACIÓN, no de sitio web: el techo está
+     en 30px y no en 70, porque acá el texto grande convive con un editor y no
+     con una portada. Cada nivel crece con la ventana, así que en una ventana
+     angosta —dos vaults en paralelo— los títulos no se comen el contenido. */
+  --mic-fs-display: clamp(1.5rem, 1.35rem + 0.75vw, 1.875rem);  /* 24→30px */
+  --mic-fs-titulo:  clamp(1.125rem, 1.05rem + 0.38vw, 1.3125rem); /* 18→21px */
+  --mic-fs-seccion: clamp(0.9375rem, 0.9rem + 0.19vw, 1rem);    /* 15→16px */
+  --mic-fs-cuerpo:  0.875rem;    /* 14px — la medida de la interfaz */
+  --mic-fs-ui:      0.8125rem;   /* 13px — controles, pestañas, filas */
+  --mic-fs-label:   0.6875rem;   /* 11px — eyebrows y labels en mayúsculas */
+
+  /* Firma del estilo: los labels van en mayúsculas y con tracking. Sin el
+     tracking, una palabra en mayúsculas se lee como un grito; con él, como una
+     etiqueta. El valor va en `em` para que acompañe al tamaño. */
+  --mic-tracking-label: 0.09em;
+  --mic-tracking-display: -0.01em;
 
   /* Contextuales (HU-14) — sobreescritos por preferencesStore */
   --mic-editor-font-family:  var(--mic-font-mono);
@@ -213,10 +281,34 @@
 
 /* ── Métricas ─────────────────────────────────────────────────── */
 :root {
-  /* Radio de esquinas */
-  --mic-radius-sm: 4px;
-  --mic-radius-md: 8px;
-  --mic-radius-lg: 16px;
+  /* > [!important] Radios pequeños: el aspecto es técnico, no amigable
+     > Se bajan de 4/8/16 a 3/4/6/8. Una esquina de 16px dice «app de consumo»;
+     > una de 6px dice «herramienta». Es de los cambios que menos se ven de a uno
+     > y más cambian el conjunto, y sale de tocar tres valores porque toda la app
+     > los consume desde acá (55 usos de `--mic-radius-md` en 24 archivos). */
+  --mic-radius-xs:   3px;   /* marcas, píldoras chicas, tiradores */
+  --mic-radius-sm:   4px;   /* botones, campos, filas */
+  --mic-radius-md:   6px;   /* tarjetas, paneles, menús */
+  --mic-radius-lg:   8px;   /* diálogos, modales */
+  --mic-radius-pill: 999px; /* contadores y píldoras de verdad */
+
+  /* Sombras. Iban escritas a mano en cada menú y cada modal —`0 8px 24px
+     color-mix(…)` repetido en once archivos, con cuatro opacidades distintas—,
+     así que no había una escala: había once decisiones sueltas. */
+  --mic-shadow-sm:   0 1px 2px color-mix(in srgb, var(--mic-raw-base-deep) 12%, transparent);
+  --mic-shadow-md:   0 4px 12px color-mix(in srgb, var(--mic-raw-base-deep) 18%, transparent);
+  --mic-shadow-menu: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 24%, transparent);
+  --mic-shadow-modal: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 38%, transparent);
+  /* El halo del acento. Se usa para el foco, no para decorar. */
+  --mic-shadow-foco: 0 0 0 3px color-mix(in srgb, var(--mic-glow) 22%, transparent);
+  /* El velo de los modales, que también estaba suelto y con cinco valores. */
+  --mic-velo: color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+
+  /* Movimiento. El estilo pide 0.2–0.35s: por debajo no se lee como transición
+     y por encima estorba en una herramienta que se usa a diario. */
+  --mic-t-rapido: 0.2s ease;
+  --mic-t-medio:  0.25s ease;
+  --mic-t-lento:  0.35s ease;
 
   /* Shell del workspace */
   --mic-topbar-height:  52px;

@@ -46,9 +46,9 @@
 }
 
 .vistaActiva {
-  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
   color: var(--mic-text-primary);
   font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--mic-accent);
 }
 
 .recuento {
@@ -271,9 +271,8 @@
 }
 
 .controlActivo {
-  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
-  border-color: var(--mic-border);
-  color: var(--mic-text-primary);
+  border-color: var(--mic-accent);
+  color: var(--mic-accent);
 }
 
 /* Control inerte: sin puntero y atenuado (patrón del design system). */
@@ -350,9 +349,8 @@
 }
 
 .buscarModoActivo {
-  background: color-mix(in srgb, var(--mic-glow) 20%, transparent);
   border-color: var(--mic-accent);
-  color: var(--mic-text-primary);
+  color: var(--mic-accent);
   font-weight: 600;
 }
 
@@ -498,7 +496,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--mic-tracking-label);
 }
 
 .panelNota {

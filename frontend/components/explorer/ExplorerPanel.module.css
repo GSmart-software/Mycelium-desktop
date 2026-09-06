@@ -85,7 +85,7 @@
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
   text-align: left;
 }
@@ -98,7 +98,7 @@
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--mic-tracking-label);
   color: var(--mic-text-muted);
   padding: 0.2rem 0.4rem;
 }
@@ -155,7 +155,12 @@
    archivo se está mirando, así que no puede quedar marcada una carpeta que no
    tiene nada que ver ni hace falta refrescarla a mano. */
 .rowActive {
-  background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+  /* Marcado por BORDE y no por relleno. En un árbol de cincuenta filas, un
+     relleno tenue compite con el hover —que también es un relleno tenue— y la
+     fila donde estás deja de destacarse justo cuando movés el puntero. Una barra
+     de 2px no compite con nada. */
+  box-shadow: inset 2px 0 0 var(--mic-accent);
+  color: var(--mic-text-primary);
 }
 
 /* La carpeta pulsada, que es otra cosa: el destino de «nota nueva», «carpeta
@@ -211,7 +216,7 @@
   background: var(--mic-bg-surface);
   border: 1px solid color-mix(in srgb, var(--mic-glow) 45%, transparent);
   border-radius: var(--mic-radius-sm);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  box-shadow: var(--mic-shadow-menu);
   cursor: grabbing;
   pointer-events: none;
   max-width: 280px;

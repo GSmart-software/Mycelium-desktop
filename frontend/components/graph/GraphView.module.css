@@ -60,6 +60,10 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   color: color-mix(in srgb, var(--mic-raw-mist) 90%, white);
+  /* NO es `--mic-velo`. Aquel oscurece una pantalla entera para apartarla; esto
+     es un fondo de LEGIBILIDAD para un texto que flota sobre el lienzo del
+     grafo, donde debajo puede haber un nodo brillante. Necesita más cuerpo, y
+     por eso conserva su propio valor. */
   background: color-mix(in srgb, var(--mic-raw-base-deep) 70%, transparent);
   border-radius: var(--mic-radius-md);
   backdrop-filter: blur(4px);

@@ -39,7 +39,7 @@
   background: var(--mic-bg-canvas);
   border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
   border-radius: var(--mic-radius-md);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent);
+  box-shadow: var(--mic-shadow-menu);
 }
 
 .group {
@@ -82,9 +82,8 @@
 }
 
 .segmentActive {
-  color: var(--mic-text-primary);
-  border-color: var(--mic-glow);
-  background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+  color: var(--mic-accent);
+  border-color: var(--mic-accent);
 }
 
 .slider {

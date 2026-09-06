@@ -81,8 +81,7 @@
 }
 
 .opcion[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
-  color: var(--mic-text-primary);
+  color: var(--mic-accent);
 }
 
 /* ── El árbol de resultados (FUN-M-20) ────────────────────────────────────── */

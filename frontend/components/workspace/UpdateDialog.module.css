@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: color-mix(in srgb, var(--mic-raw-base-deep) 55%, transparent);
+  background: var(--mic-velo);
   animation: fade-in var(--mic-panel-transition);
 }
 
@@ -18,7 +18,7 @@
   border: 1px solid var(--mic-border);
   border-radius: var(--mic-radius-lg);
   overflow: hidden;
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  box-shadow: var(--mic-shadow-modal);
 }
 
 .header {

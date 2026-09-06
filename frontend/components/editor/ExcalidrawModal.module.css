@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  background: var(--mic-velo);
   display: grid;
   place-items: center;
 }
@@ -15,7 +15,7 @@
   background: var(--mic-bg-canvas);
   border-radius: var(--mic-radius-lg);
   overflow: hidden;
-  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+  box-shadow: var(--mic-shadow-modal);
 }
 
 .header {
