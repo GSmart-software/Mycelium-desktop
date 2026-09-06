@@ -331,9 +331,13 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > actualizar los templates. Historial: `1.0.0` inicial · `1.1.0` `.mycignore` + política
 > de conflictos · `1.2.0` reenfoque a memoria (**el instalado en este vault**) · `1.2.1`
 > default de `.mycignore` corregido en los templates · `1.3.0` propiedades del frontmatter
-> (`FUN-M-04`) · `1.4.0` Esporas (`FUN-M-03`). **Este vault sigue con la `1.2.0`**: sus
-> instrucciones afirman que el frontmatter no se interpreta, lo cual ya es falso — hay que
-> regenerar desde Configuración → Vault.
+> (`FUN-M-04`) · `1.4.0` Esporas (`FUN-M-03`) · `1.5.0` los tipos de archivo del vault
+> —`.base`, `.canvas`, y los que se guardan pero NO se indexan— más la corrección de que
+> renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv`.
+>
+> **Este vault sigue con la `1.2.0`**, o sea tres versiones por detrás: sus instrucciones
+> afirman que el frontmatter no se interpreta y que renombrar rompe los enlaces, y las dos
+> cosas ya son falsas. Hay que regenerar desde Configuración → Vault.
 
 Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
 rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
