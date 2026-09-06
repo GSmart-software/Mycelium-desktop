@@ -109,8 +109,17 @@ export async function crearNota(
  * `PATCH /notas/{id}` (renombrar). En modo carpeta la identidad es la ruta, así
  * que renombrar CAMBIA el id: se devuelve el id NUEVO. En modo clásico el id no
  * cambia y se devuelve el mismo. No reindexa contenido (no cambió), solo el título.
+ *
+ * > [!important] Devuelve también el título que el archivo OBTUVO (`DEF-084`)
+ * > No es el mismo que el pedido: `sanearNombre` sustituye lo que un nombre de
+ * > archivo no admite. Quien reescribe los `[[enlaces]]` entrantes necesita el
+ * > que quedó en disco — con el pedido los deja apuntando a una nota que no
+ * > existe, y en silencio.
  */
-export async function renombrarNota(id: string, titulo: string): Promise<CreatedResponse> {
+export async function renombrarNota(
+  id: string,
+  titulo: string,
+): Promise<CreatedResponse & { titulo: string }> {
   const limpio = titulo.trim();
   if (limpio.length === 0) throw new DbError(400, "El título no puede estar vacío.");
 
@@ -130,7 +139,7 @@ export async function renombrarNota(id: string, titulo: string): Promise<Created
       await moverRuta(vault, id, newId);
       await rekeyIndice([], [{ oldId: id, newId, newCarpetaId: carpeta, newTitulo: nuevoTitulo }]);
     }
-    return { id: newId };
+    return { id: newId, titulo: nuevoTitulo };
   }
 
   await execute("UPDATE notas SET titulo = ?, actualizado_en = ? WHERE id = ?", [
@@ -140,7 +149,7 @@ export async function renombrarNota(id: string, titulo: string): Promise<Created
   ]);
   // Mantener el título del índice FTS en sincronía si la nota ya está indexada.
   await execute("UPDATE notas_fts SET titulo = ? WHERE nota_id = ?", [limpio, id]);
-  return { id };
+  return { id, titulo: limpio };
 }
 
 /**

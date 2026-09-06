@@ -353,14 +353,23 @@ export const useVaultStore = create<VaultState>()(
           }
         }
 
-        const res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          token: token(),
-          body: { titulo },
-        });
+        const res = await api<{ id: string; titulo?: string }>(
+          `/notas/${encodeURIComponent(id)}`,
+          { method: "PATCH", token: token(), body: { titulo } },
+        );
 
-        if (anterior !== null && anterior !== titulo) {
-          await reescribirEnlacesEntrantes(entrantes, anterior, titulo, token());
+        // DEF-084: el titulo que el archivo OBTUVO, no el que se pidio. No son
+        // el mismo — un nombre de archivo no admite `? : * | " < > \ /` y el
+        // saneo los sustituye por `-`— y reescribir los enlaces con el pedido
+        // los dejaba apuntando a una nota que nunca existio. En silencio, y en
+        // archivos que el usuario no esta mirando.
+        //
+        // Por eso la comparacion tambien se hace contra el efectivo: si el saneo
+        // devuelve el nombre que ya tenia, no hubo renombrado y no hay nada que
+        // reescribir. El `?? titulo` es para un backend que todavia no lo mande.
+        const efectivo = res.titulo ?? titulo;
+        if (anterior !== null && anterior !== efectivo) {
+          await reescribirEnlacesEntrantes(entrantes, anterior, efectivo, token());
         }
         // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
         // seguir a la nota con su id nuevo antes de reconciliar el árbol.
