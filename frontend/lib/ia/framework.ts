@@ -43,8 +43,22 @@ import { invoke } from "@tauri-apps/api/core";
  *   para poder ofrecerlas al crear una nota. Se documenta qué es una Espora,
  *   dónde vive, que la carpeta es configurable y qué variables admite.
  *   **Minor**: conocimiento nuevo, no una corrección.
+ * - 1.5.0 — **el vault dejó de ser solo notas**, y los templates seguían
+ *   describiendo uno que sí lo era. Se documentan los tipos de archivo que la IA
+ *   puede crear y editar —`.base` (tablas consultables), `.canvas` (notas en el
+ *   espacio), `.excalidraw`— y los que el vault **lista pero no indexa** (PDF,
+ *   imágenes, código), que es lo que más importa para recuperar: un `grep` los
+ *   encuentra y el grafo no, así que no se pueden citar como si fueran notas.
+ *
+ *   Corrige además la regla dura 2, que mentía desde `FUN-M-08`: Mycelium **sí**
+ *   repara los `[[enlaces]]` al renombrar. Pero solo cuando el renombrado pasa
+ *   por la app — un `mv` desde la terminal no lo hace, y la IA renombra así. La
+ *   regla pasa a decir esa diferencia, que es la que la afecta.
+ *
+ *   **Minor**: conocimiento nuevo sobre capacidades del vault, con una
+ *   corrección absorbida.
  */
-export const FRAMEWORK_IA_VERSION = "1.4.0";
+export const FRAMEWORK_IA_VERSION = "1.5.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -81,6 +95,33 @@ Eso te da dos obligaciones permanentes:
 **El enlace es la unidad de valor.** Una nota sin enlaces es un recuerdo que no se
 puede evocar: existe, pero nada lleva hasta él. Por eso, cada vez que escribas,
 enlazá; y cada vez que busques, seguí enlaces.
+
+## Qué puede haber en el vault (y qué de eso está en la memoria)
+
+Un vault no es solo notas. Esto es lo que podés encontrarte y qué podés hacer con
+cada cosa:
+
+| Archivo | Qué es | Podés |
+|---|---|---|
+| \`.md\` | **Nota**. La unidad de la memoria | Crear y editar libremente |
+| \`.base\` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar. Sintaxis en la skill \`mycelium-vault\` |
+| \`.canvas\` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con cuidado (es JSON) |
+| \`.excalidraw\` | **Dibujo** (JSON) | Leer; **no editar a mano** salvo pedido explícito |
+| Cualquier otro | PDF, imágenes, código, texto | Leerlos y editarlos como archivos normales |
+
+> [!warning] Solo las notas están en la memoria
+> Mycelium **indexa \`.md\`, y nada más**. Los demás archivos existen, se listan y
+> se abren, pero **no** están en la búsqueda del vault, **no** aparecen en el
+> autocompletado de \`[[\`, y **no** son nodos del grafo.
+>
+> Para vos eso significa una cosa concreta: un \`grep\` los encuentra igual, así
+> que podés terminar citando como evidencia de la memoria algo que la memoria no
+> tiene. Si una respuesta se apoya en un \`.py\` o en un \`.csv\`, decilo así —
+> «según el archivo \`x.py\`»— y no con un \`[[enlace]]\`, que no va a resolver.
+
+Un \`.base\` **sí** es un destino válido de \`[[enlace]]\` y aparece en el grafo,
+pero su contenido no se escanea: un \`[[…]]\` dentro de su YAML no crea una
+asociación.
 
 ## Protocolo de RECUPERACIÓN (buscar en la memoria)
 
@@ -125,7 +166,7 @@ usar cada uno:
 
 | Herramienta | Cuándo |
 |---|---|
-| skill \`mycelium-vault\` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, \`.mycignore\`. Consultala antes de escribir Markdown en este vault. |
+| skill \`mycelium-vault\` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, \`.mycignore\`, y el formato de los \`.base\` y los \`.canvas\`. Consultala antes de escribir en este vault. |
 | skill \`mycelium-memoria\` | **Técnicas** de recuperación y consolidación: estrategias de búsqueda, expansión por backlinks, cuándo crear vs ampliar, cómo redactar para recuperación futura. Consultala en tareas de buscar/registrar conocimiento. |
 | \`/vault-buscar <pregunta>\` | Responder una pregunta **con evidencia del vault** (recuperación completa + citas). Preferilo a buscar a mano. |
 | \`/vault-recordar <qué recordar>\` | Consolidar un hecho/decisión/aprendizaje en la memoria (crea o amplía la nota y la enlaza). |
@@ -137,9 +178,12 @@ usar cada uno:
 ## Reglas duras
 
 1. **Títulos únicos**: los \`[[enlaces]]\` resuelven por título, no por ruta.
-2. **Renombrar rompe enlaces**: Mycelium todavía NO reescribe los \`[[enlaces]]\` al
-   renombrar. Si renombrás, buscá \`[[nombre viejo\` (incluidos alias
-   \`[[viejo|…]]\` y embeds \`![[viejo]]\`) y actualizá cada referencia.
+2. **Si renombrás VOS, los enlaces los arreglás vos.** Mycelium repara los
+   \`[[enlaces]]\` entrantes al renombrar, pero solo cuando el renombrado pasa por
+   la app (explorador o el título de la nota). Un \`mv\` desde la terminal —que es
+   como renombrás— **no dispara nada**: buscá \`[[nombre viejo\` (incluidos alias
+   \`[[viejo|…]]\` y embeds \`![[viejo]]\`) y actualizá cada referencia. Y ojo con
+   el nombre: si lleva \`? : * | " < > \ /\` el archivo no puede llamarse así.
 3. **Nada huérfano**: toda nota nueva entra a la red con al menos un enlace en cada
    dirección.
 4. **No dupliques**: buscá antes de crear; ampliá antes de fragmentar.
@@ -180,11 +224,18 @@ vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`ca
 incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
 como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
 panel del rail, en la barra del editor y en el clic derecho de una carpeta;
-**grafo de conexiones** global y mini-grafo por
-nota (tus enlaces se ven ahí); búsqueda global (\`clave:valor\`, \`tag:x\`); panel
-lateral con pestañas ancladas; **terminal integrada** (es probable que estés corriendo en ella, con cwd en el vault);
+**tablas** \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`;
+**grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
+búsqueda global —por nombre, por contenido o los dos, con \`clave:valor\` y
+\`tag:x\`, y con los resultados agrupables por carpeta—; un **visor** para los
+archivos que no son notas (PDF, imágenes, y código con resaltado de sintaxis, que
+además se puede editar); panel lateral con pestañas ancladas; **terminal
+integrada** (es probable que estés corriendo en ella, con cwd en el vault);
 exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (\`\`\`mermaid) y KaTeX
-(\`$…$\`). Mycelium detecta tus cambios en disco y refresca la UI solo.
+(\`$…$\`).
+
+El usuario puede además **renombrar una nota escribiendo en su título**, arriba
+del documento. Mycelium detecta tus cambios en disco y refresca la UI solo.
 `;
 
 const SKILL_MD = `---
@@ -217,7 +268,12 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 ## Estructura del vault
 
 - **Notas**: \`.md\`. El título de la nota es su nombre de archivo (sin extensión).
+  **Son lo único que Mycelium indexa** (ver \`CLAUDE.md\`).
+- **Tablas**: \`.base\` (YAML). Ver abajo.
+- **Lienzos**: \`.canvas\` (JSON Canvas). Ver abajo.
 - **Diagramas**: \`.excalidraw\` (JSON). No editar a mano salvo pedido explícito.
+- **Cualquier otro archivo** (PDF, imágenes, código, texto): el vault los guarda y
+  la app los muestra, pero no están indexados.
 - **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
 - **\`.mycelium/\`**: índice interno y papelera (\`.mycelium/.trash/\`). No tocar.
 - **\`.claude/\`**: este framework (skills + comandos). Lo regenera Mycelium.
@@ -286,6 +342,79 @@ tags: [proyecto, mycelium]
 relacionada: "[[Mapa del vault]]"
 ---
 \`\`\`
+
+## Tablas: los archivos \`.base\`
+
+Un \`.base\` es un **YAML** que define una consulta sobre las notas del vault y la
+muestra como tabla. Es el formato de Obsidian, así que el mismo archivo se abre
+allá. Mínimo utilizable:
+
+\`\`\`yaml
+filters:
+  and:
+    - file.inFolder("Proyectos")
+    - estado != "archivado"
+views:
+  - type: table
+    name: Activos
+    order:
+      - file.name
+      - estado
+      - prioridad
+    sort:
+      - property: prioridad
+        direction: DESC
+    limit: 50
+\`\`\`
+
+- **\`filters\`**: \`and\` / \`or\` / \`not\` anidables, con expresiones sueltas
+  dentro. Cada expresión es una **comparación** \`referencia OP valor\`
+  (\`== != > >= < <=\`) o una **llamada** \`referencia.funcion(arg)\` — siempre con
+  su receptor delante:
+
+  | Sobre el archivo | Sobre una propiedad |
+  |---|---|
+  | \`file.inFolder("Proyectos")\` | \`resumen.contains("api")\` |
+  | \`file.hasTag("idea")\` | \`titulo.startsWith("HU-")\` |
+  | \`file.hasProperty("estado")\` | \`notas.endsWith("!")\` |
+  | | \`notas.isEmpty()\` |
+
+- **Referencias**: \`file.name\`, \`file.folder\`, \`file.path\`, \`file.ext\`,
+  \`file.tags\`, \`file.ctime\`, \`file.mtime\`, \`file.size\`; y cualquier
+  **propiedad** del frontmatter por su clave.
+- **\`views\`**: por ahora solo \`type: table\`. \`order\` son las columnas.
+
+> [!warning] Si Mycelium no entiende un filtro, NO muestra la tabla
+> Se niega y explica por qué, en vez de enseñar un resultado a medias. Es
+> deliberado: una fila de más o de menos en una tabla no se nota, y contamina la
+> decisión que se estaba tomando. Así que escribí solo lo de arriba — lo que
+> quede fuera del subconjunto deja la tabla inservible hasta que se corrija.
+
+Un \`.base\` **es** un destino válido de \`[[enlace]]\` y un nodo del grafo, pero su
+contenido no se escanea: un \`[[…]]\` dentro de su YAML no crea una asociación.
+
+## Lienzos: los archivos \`.canvas\`
+
+**JSON Canvas** (también formato de Obsidian): nodos colocados en el espacio y
+flechas entre ellos.
+
+\`\`\`json
+{
+  "nodes": [
+    { "id": "a", "type": "text", "text": "Una idea", "x": 0, "y": 0, "width": 250, "height": 60 },
+    { "id": "b", "type": "file", "file": "Notas/Rediseño del API.md", "x": 400, "y": 0, "width": 300, "height": 200 }
+  ],
+  "edges": [{ "id": "e1", "fromNode": "a", "toNode": "b" }]
+}
+\`\`\`
+
+- \`type: "text"\` lleva markdown en \`text\`; \`type: "file"\` apunta a una nota con
+  su **ruta** (no su título).
+- Editalo solo si hace falta, y **conservá las claves que no entiendas**: un canvas
+  hecho en Obsidian puede traer campos que Mycelium todavía no dibuja, y borrarlos
+  al reescribir el archivo perdería trabajo ajeno.
+- Un nodo \`file\` **no** cuenta como \`[[enlace]]\`: el canvas no aporta aristas al
+  grafo.
 
 ## Esporas: las plantillas del vault
 
