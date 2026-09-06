@@ -24,7 +24,7 @@ export const PREVIEW_FONTS: FontOption[] = [
   { label: "Lora", value: "var(--font-lora), serif" },
 ];
 
-export type Tema = "bioluminiscencia" | "cantarela";
+export type Tema = "bioluminiscencia" | "cantarela" | "sofka";
 
 /**
  * Ancho de tabulación (`FUN-S-02`). Se escribe libre en vez de elegirse entre unos
@@ -234,7 +234,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     if (!user) return;
     const raw = (user.preferencias ?? {}) as Partial<Preferencias>;
     const prefs: Preferencias = { ...DEFAULT_PREFS, ...raw };
-    const tema: Tema = user.tema === "cantarela" ? "cantarela" : "bioluminiscencia";
+    // Un tema que no se reconoce cae en el de siempre en vez de dejar el
+    // atributo vacío: sin `data-theme` no hay NINGÚN token de tema y la app se
+    // queda sin colores.
+    const guardado = user.tema;
+    const tema: Tema =
+      guardado === "cantarela" || guardado === "sofka" ? guardado : "bioluminiscencia";
     set({ tema, modoOscuro: user.modoOscuro, prefs, hydrated: true });
     applyToDom({ tema, modoOscuro: user.modoOscuro, prefs });
   },

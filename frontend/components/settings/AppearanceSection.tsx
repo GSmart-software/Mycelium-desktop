@@ -8,6 +8,10 @@ import styles from "./Settings.module.css";
 const TEMAS: { value: Tema; nombre: string; canvas: string; mist: string; glow: string; accent: string }[] = [
   { value: "bioluminiscencia", nombre: "Bioluminiscencia", canvas: "#071219", mist: "#0a1a24", glow: "#3DFFC4", accent: "#19E6FF" },
   { value: "cantarela", nombre: "Cantarela", canvas: "#1b1305", mist: "#241a08", glow: "#FFC247", accent: "#C77F2E" },
+  // Experimento de rediseño: el design system de Sofka aplicado entero, con su
+  // paleta, sus degradados y su movimiento. Vive en `styles/tema-sofka.css` y no
+  // toca a los otros dos: todo lo suyo cuelga de `[data-theme='sofka']`.
+  { value: "sofka", nombre: "Sofka", canvas: "#0D0D0D", mist: "#1C1C1C", glow: "#D3942E", accent: "#FF7E0A" },
 ];
 
 /** Sección Apariencia: selector de tema + modo oscuro (HU-12). */

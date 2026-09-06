@@ -15,6 +15,12 @@ import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
 import "../styles/editor.css";
 import "./globals.css";
+import "../styles/estructura-ui.css";
+// VA AL FINAL a propósito: el tema Sofka sobreescribe reglas de los tres
+// anteriores, y entre selectores de la misma especificidad gana el último. Todo
+// lo suyo cuelga de `[data-theme='sofka']`, así que para los otros dos temas
+// este archivo no existe.
+import "../styles/tema-sofka.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

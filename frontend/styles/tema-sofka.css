@@ -1,0 +1,232 @@
+/*
+ * Tema «Sofka» — experimento de rediseño.
+ *
+ * El design system de Sofka Technologies aplicado ENTERO: su paleta, sus
+ * degradados, sus sombras, su tipografía y su movimiento. No es una adaptación
+ * ni una interpretación con los colores de Mycelium: es el brand tal cual.
+ *
+ * > [!important] Todo cuelga de `[data-theme='sofka']`
+ * > Bioluminiscencia y Cantarela no se enteran de que este archivo existe. Es lo
+ * > que permite probar un rediseño completo sin arriesgar los dos temas que ya
+ * > usa la gente: si no convence, se borra el archivo y se quita una línea del
+ * > selector.
+ *
+ * > [!warning] Las MEDIDAS siguen siendo las de Mycelium
+ * > Alturas de barra, anchos de panel, tamaños de ícono. El brand está pensado
+ * > para una web con secciones de 70px de aire; aplicar eso a una herramienta de
+ * > escritorio densa dejaría cuatro filas visibles en el explorador. Lo que se
+ * > adopta es el LENGUAJE —color, forma, tipografía, movimiento—, no la métrica.
+ *
+ * Fuente de los valores: la skill `sofka-brand` (extraídos de sofka.com.co). No
+ * hay ninguno inventado.
+ */
+
+/* ── Paleta oficial ──────────────────────────────────────────────── */
+[data-theme='sofka'] {
+  --sofka-orange: #ea7307;
+  --sofka-orange-bright: #ff7e0a;
+  --sofka-orange-hover: #e06c00;
+  --sofka-orange-dark: #ac5607;
+  --sofka-amber: #de821f;
+  --sofka-orange-red: #ec5a1b;
+  --sofka-gold: #d3942e;
+  --sofka-secondary: #1a1a1a;
+  --sofka-text: #121212;
+  --sofka-text-warm: #595857;
+  --sofka-accent: #737373;
+  --sofka-gray-300: #b7b7b7;
+  --sofka-gray-100: #f2f2f2;
+  --sofka-border-warm: #d8d2cb;
+  --sofka-border-light: #e0e0e0;
+  --sofka-surface-dark: #0d0d0d;
+  --sofka-surface-dark-2: #1c1c1c;
+  --sofka-surface-dark-3: #171717;
+  --sofka-white: #ffffff;
+
+  /* Degradados de marca. Todos cálidos: de ámbar a naranja-rojo, o de negro a
+     marrón. El brand no tiene un solo degradado frío. */
+  --grad-orange: linear-gradient(90deg, #de821f 33%, #ec5a1b 100%);
+  --grad-orange-warm: linear-gradient(90deg, #e38d00 39%, #ef6400 84%);
+  --grad-orange-diag: linear-gradient(273deg, #de821f 0%, #ec5a1b 95%);
+  --grad-dark-warm: linear-gradient(135deg, #1c1008 0%, #2d1a00 40%, #0d0d0d 100%);
+  --grad-black-amber: linear-gradient(152deg, #000000 65%, #853d16 100%);
+  --grad-brown-dark: linear-gradient(63deg, #934c00 0%, #1c1c1c 73%);
+
+  /* ── Modo claro ────────────────────────────────────────────────
+     El brand pone `--paper` en blanco puro, y en una página web está bien: se
+     mira un rato y con luz alrededor. Un editor se mira horas, y ahí el blanco
+     puro a pantalla completa cansa la vista.
+     
+     Así que se invierten los dos tonos claros del brand, sin salirse de su
+     paleta: el LIENZO baja a `gray-100` y los paneles suben a blanco. Es además
+     la jerarquía normal de una interfaz clara —tarjeta blanca sobre página gris
+     claro— y sigue sin haber grises intermedios: `#F2F2F2` es casi blanco. */
+  --mic-raw-canvas: var(--sofka-gray-100);
+  --mic-raw-mist: var(--sofka-white);
+  --mic-raw-base: var(--sofka-white);
+  --mic-raw-base-deep: var(--sofka-surface-dark);
+  --mic-raw-ink: var(--sofka-text);
+  --mic-raw-ink-muted: var(--sofka-text-warm);
+
+  /* > [!important] El naranja no se invierte, pero SÍ cambia de tono con el modo
+     > «El naranja es el ancla de marca en ambos» dice el brand, y el HUE no se
+     > toca. Pero medido sobre las superficies claras, `orange-bright` da 2.28:1
+     > y `gold` 2.33:1: un texto necesita 4.5 y hasta un ícono necesita 3. En
+     > claro serían decorativos, no legibles.
+     >
+     > El propio brand ya tiene la respuesta y no hay que inventar nada:
+     > `--accent-ink` (`orange-dark`, 4.59:1) y `--accent-2-ink` (5.08:1) existen
+     > exactamente para esto. En oscuro no hacen falta — ahí el naranja brillante
+     > da 7.63:1 — así que cada modo usa el suyo. */
+  --mic-raw-accent: var(--sofka-orange-dark);
+  --mic-raw-glow: #8a5e12;
+
+  --mic-border: var(--sofka-border-light);
+  --mic-bg-hover: color-mix(in srgb, var(--sofka-orange-bright) 10%, transparent);
+  --mic-amber-icon: var(--sofka-gold);
+
+  /* Sombras del brand, con sus valores. */
+  --mic-shadow-sm: 0 1px 2px rgb(0 0 0 / 6%);
+  --mic-shadow-md: 0 4px 12px rgb(0 0 0 / 10%);
+  --mic-shadow-menu: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 24px -12px rgb(0 0 0 / 14%);
+  --mic-shadow-modal: 12px 12px 50px rgb(0 0 0 / 40%);
+  /* El halo naranja: la única sombra de color del brand. */
+  --mic-shadow-foco: 0 0 9px -2px rgb(220 112 0 / 46%);
+  --mic-velo: rgb(0 0 0 / 55%);
+
+  /* Estructura (`estructura-ui.css`). El degradado del brand aguanta tinta
+     oscura en los dos extremos —6.53:1 y 5.39:1— así que acá sí puede ir de
+     punta a punta, a diferencia de los otros dos temas. */
+  --mic-grad-chrome: var(--grad-orange);
+  --mic-chrome-ink: var(--sofka-text);
+  --mic-grad-panel: linear-gradient(180deg, #fff3e8 0%, #f6e6d2 40%, #d8d2cb 100%);
+  --mic-panel-ink: var(--sofka-text);
+  --mic-panel-hueco: rgb(255 255 255 / 55%);
+  --mic-grafo-claro: var(--sofka-gray-100);
+}
+
+/* ── Modo oscuro ─────────────────────────────────────────────────
+   Superficies casi negras, y el naranja intacto. */
+[data-theme='sofka'][data-dark='true'] {
+  --mic-raw-canvas: var(--sofka-surface-dark);
+  --mic-raw-mist: var(--sofka-surface-dark-2);
+  --mic-raw-base: var(--sofka-surface-dark-3);
+  --mic-raw-base-deep: #000000;
+  --mic-raw-ink: var(--sofka-gray-100);
+  --mic-raw-ink-muted: var(--sofka-gray-300);
+
+  /* Sobre el negro del brand el naranja brillante da 7.63:1: acá sí va el tono
+     de marca sin tocar. */
+  --mic-raw-accent: var(--sofka-orange-bright);
+  --mic-raw-glow: var(--sofka-gold);
+
+  --mic-border: #2a2a2a;
+  /* En oscuro el chrome vuelve al negro plano: la superficie profunda ya separa,
+     y el naranja recupera su papel de acento. */
+  --mic-grad-panel: linear-gradient(180deg, #1c1008 0%, #2d1a00 45%, #0d0d0d 100%);
+  --mic-panel-ink: var(--sofka-gray-100);
+  --mic-panel-hueco: rgb(0 0 0 / 22%);
+  --mic-shadow-md: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 30px -14px rgb(0 0 0 / 60%);
+  --mic-shadow-menu: 0 1px 2px rgb(0 0 0 / 30%), 0 10px 30px -14px rgb(0 0 0 / 60%);
+}
+
+/* ── Tipografía ──────────────────────────────────────────────────
+   Clash es propietaria y NO se descarga: se declara con `local()` para que la
+   use quien la tenga instalada, y detrás va un stack de sistema robusto. El
+   contraste display ↔ cuerpo es, según el brand, la estructura tipográfica. */
+@font-face {
+  font-family: 'ClashDisplay';
+  src: local('ClashDisplay'), local('Clash Display');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ClashGrotesk';
+  src: local('ClashGrotesk'), local('Clash Grotesk');
+  font-display: swap;
+}
+
+[data-theme='sofka'] {
+  --mic-font-display: 'ClashDisplay', 'Clash Display', ui-sans-serif, system-ui,
+    'Segoe UI', sans-serif;
+  --mic-font-ui: 'ClashGrotesk', 'Clash Grotesk', ui-sans-serif, system-ui,
+    'Segoe UI', sans-serif;
+  --mic-font-body: 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --mic-font-sans: var(--mic-font-ui);
+
+  /* Radios del brand: 4px botones, 6px tarjetas. «Técnico y preciso, no
+     amigable-redondeado». */
+  --mic-radius-xs: 3px;
+  --mic-radius-sm: 4px;
+  --mic-radius-md: 6px;
+  --mic-radius-lg: 8px;
+
+  /* Movimiento: 0.2–0.35s. */
+  --mic-t-rapido: 0.2s;
+  --mic-t-medio: 0.25s;
+  --mic-t-lento: 0.3s;
+}
+
+/* > [!note] Las reglas de tipografía tampoco viven ya acá
+   > Eran del brand por origen, no por naturaleza: «los encabezados en la cara de
+   > display», «los labels en mayúsculas con tracking», «los controles en la cara
+   > de UI a peso 500» valen igual para cualquier tema. Están en `globals.css`,
+   > escritas contra los tokens.
+   >
+   > Lo único que hace que acá se vean distintas es QUÉ cara apunta cada token: en
+   > este tema, Clash. Que es exactamente la diferencia que tiene que haber entre
+   > temas — la forma es una, los valores son de cada uno. */
+
+/* ── El chrome ───────────────────────────────────────────────────
+   Rail y topbar en un oscuro PLANO. Son marcos: encuadran, no se miran. Un
+   degradado ahí compite con el contenido y, en la topbar, además se corta contra
+   el rail y se ve el empalme.
+
+   El degradado se lleva al PANEL, que es una superficie de verdad —alta, con
+   scroll, con contenido— y donde un degradado vertical tiene recorrido para
+   leerse como tal. */
+/* > [!note] El chrome, el panel y el grafo ya no se declaran acá
+   > Se escribieron primero en este archivo, y al llevarlos a los otros dos temas
+   > quedó claro que no eran del brand: eran ESTRUCTURA. Viven en
+   > `estructura-ui.css`, y este tema solo pone sus cuatro variables —arriba, con
+   > el resto de su paleta—. Lo que queda abajo sí es del brand y de nadie más. */
+
+/* ── Movimiento del brand ────────────────────────────────────────
+   Desplazamientos de 12–20px, decorativos y lentos. El bloque de
+   `prefers-reduced-motion` de `globals.css` los desactiva; es obligatorio. */
+@keyframes sofka-flotar {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes sofka-acercar-derecha {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(20px);
+  }
+}
+
+@keyframes sofka-acercar-izquierda {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-20px);
+  }
+}
+
+/* > [!note] El logo NO se anima
+   > El brand lo usa como gesto decorativo y las tres animaciones están arriba
+   > por si hacen falta, pero un elemento que se mueve solo en la barra superior
+   > de una herramienta que se mira ocho horas cansa. El brand dice «movimiento
+   > sutil»: sutil no es permanente. */
