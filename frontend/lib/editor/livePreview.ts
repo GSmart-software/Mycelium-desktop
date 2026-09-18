@@ -872,8 +872,23 @@ function buildDecorations(
       from,
       to,
       enter(node) {
-        // Omitir cualquier nodo dentro de un bloque ya renderizado (tabla/frontmatter)
-        if (bloquesRenderizados.some(([f, t]) => node.from >= f && node.from < t)) {
+        // Omitir los nodos que quedan ENTEROS dentro de un bloque ya renderizado
+        // (tabla/frontmatter): ese bloque los dibuja, y decorarlos acá los
+        // pintaría dos veces.
+        //
+        // «Enteros», y no «que empiezan dentro» (`DEF-087`). `iterate` entra
+        // primero en la RAÍZ del árbol —el nodo `Document`, que empieza en 0—, y
+        // un frontmatter también empieza en 0. Con «empieza dentro», la raíz
+        // contaba como parte del frontmatter, el `return false` podaba el árbol
+        // ENTERO, y ninguna decoración que salga de él —títulos, énfasis, código,
+        // enlaces— se dibujaba en toda la nota. Lo que se detecta por línea
+        // (callouts, wikilinks, etiquetas) seguía funcionando, porque va por
+        // otro recorrido: por eso fallaban «los títulos y otros elementos», no
+        // todos. Lo mismo le pasaba a una nota que EMPIEZA con una tabla.
+        //
+        // Un nodo que empieza dentro pero sigue más allá —la raíz— se recorre:
+        // sus hijos de dentro caen igual en esta misma guarda, uno por uno.
+        if (bloquesRenderizados.some(([f, t]) => node.from >= f && node.to <= t)) {
           return false;
         }
 
