@@ -26,7 +26,7 @@
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: var(--mic-radius-md);
+  border-radius: 2px;
   color: var(--mic-marco-glow);
   opacity: var(--mic-marco-inactivo);
   transition: opacity 120ms ease, background-color 120ms ease;
@@ -41,15 +41,16 @@
   opacity: 1;
 }
 
-/* Barra indicadora del rail (patrón ::before del design system) */
+/* Barra indicadora del rail: de alto completo y 2px, recta (formas del
+   cascarón, 2026-09-19). */
 .button[aria-pressed='true']::before {
   content: '';
   position: absolute;
   left: calc((var(--mic-rail-width) - 40px) / -2);
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  border-radius: 0 var(--mic-radius-sm) var(--mic-radius-sm) 0;
+  width: 2px;
+  height: 100%;
+  border-radius: 0;
   background-color: var(--mic-marco-glow);
 }

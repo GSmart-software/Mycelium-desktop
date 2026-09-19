@@ -189,7 +189,9 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.22rem 0.4rem;
-  border-radius: var(--mic-radius-sm);
+  /* Filas rectas, de canto a canto (formas del cascarón, 2026-09-19): la nota
+     abierta se marca con una barra a la izquierda, como en VS Code. */
+  border-radius: 0;
   cursor: pointer;
   user-select: none;
   font-size: 0.8125rem;
@@ -239,6 +241,17 @@
    tiene nada que ver ni hace falta refrescarla a mano. */
 .rowActive {
   background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+/* La nota abierta: fondo y barra de 2px. En una carpeta el «estás acá» ya lo
+   dice el rastro (`.rowEnRuta`), así que no lleva fondo: una sola marca fuerte
+   en el árbol, la de la nota. */
+.rowHoja.rowActive {
+  box-shadow: inset 2px 0 0 var(--mic-glow-texto);
+}
+
+.rowCarpeta.rowActive {
+  background-color: transparent;
 }
 
 /* La carpeta pulsada, que es otra cosa: el destino de «nota nueva», «carpeta

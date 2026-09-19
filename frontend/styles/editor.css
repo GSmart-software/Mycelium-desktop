@@ -1539,11 +1539,14 @@
   text-align: right;
 }
 
-/* Carril de los tiradores de fila: ancho fijo, sin borde (no es contenido). */
+/* Carril de los tiradores de fila: ancho fijo, sin borde ni fondo (no es
+   contenido). Sin el fondo transparente, en el encabezado —donde es un <th>—
+   tomaba el de `.mic-preview th` y se veía una celda vacía sombreada (DEF-093). */
 .mic-tab-tabla .mic-tab-lat {
   width: 1.4rem;
   padding: 0 0.1rem;
   border: none;
+  background: transparent;
   text-align: center;
 }
 

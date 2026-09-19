@@ -167,16 +167,32 @@
   flex: 1;
 }
 
+/* Modos como control segmentado: una pista y el activo como píldora que se
+   apoya en ella (formas del cascarón, 2026-09-19). */
 .modeGroup {
   display: flex;
-  gap: 0.15rem;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--mic-text-primary) 7%, transparent);
 }
 
-/* Modo activo (HU-02 CA8) */
+.modeGroup .modeButton {
+  border-radius: 7px;
+}
+
+/* Botón encendido fuera del grupo de modos (panel de enlaces, «Formato ▾»
+   abierto): relleno, sin borde. */
 .modeActive {
-  background: var(--mic-bg-surface);
-  border: 1px solid var(--mic-accent);
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
   color: var(--mic-text-primary);
+}
+
+/* Modo activo (HU-02 CA8): la píldora del control segmentado. */
+.modeGroup .modeActive {
+  background: var(--mic-bg-canvas);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent);
+  color: var(--mic-glow-texto);
 }
 
 .relative {

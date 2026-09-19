@@ -135,11 +135,15 @@
   flex: 0 1 auto;
   min-width: 72px;
   max-width: 260px;
+  /* Píldoras separadas (formas del cascarón, 2026-09-19): 26px de alto dentro
+     de la barra de 34. Con margen y no con `align-items` en la barra, que
+     tiene que seguir estirando la zona de soltar del final. */
+  margin: 4px 0 4px 2px;
+  border-radius: 8px;
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
   cursor: pointer;
   user-select: none;
-  border-right: 1px solid color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
   white-space: nowrap;
 }
 
@@ -147,10 +151,10 @@
   background: color-mix(in srgb, var(--mic-glow) 10%, transparent);
 }
 
-/* Pestaña activa (patrón del design system) */
+/* Pestaña activa: la píldora rellena, sin subrayado. Elegida entre cuatro
+   lenguajes de forma probados en vivo (docs/procesos/Rediseñar la UI con impeccable.md). */
 .tabActive {
-  background: var(--mic-bg-canvas);
-  border-bottom: 2px solid var(--mic-accent);
+  background: color-mix(in srgb, var(--mic-text-primary) 10%, var(--mic-bg-surface));
   color: var(--mic-text-primary);
 }
 
