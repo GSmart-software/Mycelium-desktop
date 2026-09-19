@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Ícono de la aplicación: el isotipo de Mycelium —tres nodos unidos por
+    hifas— sobre Esporo, con las mismas proporciones que el logo de la barra
+    superior (grilla de 32 escalada ×16). Fuente de `npx tauri icon`, que genera
+    de acá el .ico, el .icns y los PNG de src-tauri/icons.
+  -->
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B2733" />
+      <stop offset="1" stop-color="#050D13" />
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#fondo)" />
+
+  <!-- Las hifas primero: los nodos las tapan en los cruces. -->
+  <g stroke="#16B8C9" stroke-width="20" stroke-linecap="round" opacity="0.75">
+    <path d="M144 168 L368 136" />
+    <path d="M144 168 L256 376" />
+    <path d="M368 136 L256 376" />
+  </g>
+
+  <circle cx="144" cy="168" r="62" fill="#3DFFC4" />
+  <circle cx="368" cy="136" r="46" fill="#19E6FF" />
+  <circle cx="256" cy="376" r="62" fill="#3D8BFF" />
+</svg>

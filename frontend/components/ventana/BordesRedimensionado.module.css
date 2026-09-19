@@ -1,0 +1,71 @@
+/* Franjas de agarre del borde (`FUN-M-31`). Transparentes y por encima de todo,
+   pero de 6px: lo justo para apuntar sin robarle clics al contenido. Las
+   esquinas van después en el archivo para ganarle al borde recto que cruzan. */
+.borde {
+  position: fixed;
+  z-index: 9999;
+}
+
+.bordeNorth,
+.bordeSouth {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.bordeNorth {
+  top: 0;
+}
+
+.bordeSouth {
+  bottom: 0;
+}
+
+.bordeEast,
+.bordeWest {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.bordeWest {
+  left: 0;
+}
+
+.bordeEast {
+  right: 0;
+}
+
+.bordeNorthWest,
+.bordeNorthEast,
+.bordeSouthWest,
+.bordeSouthEast {
+  width: 12px;
+  height: 12px;
+}
+
+.bordeNorthWest {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.bordeNorthEast {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.bordeSouthWest {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.bordeSouthEast {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}

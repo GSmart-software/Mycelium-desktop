@@ -3,7 +3,9 @@
 import { LogOut, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/stores/uiStore";
+import { nombreDeVault } from "@/lib/vaultMode";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { ControlesVentana } from "@/components/ventana/ControlesVentana";
 import styles from "./AppTopbar.module.css";
 
 /**
@@ -13,6 +15,11 @@ import styles from "./AppTopbar.module.css";
  * El centro era un campo «Buscar en Mycelium…» que no buscaba nada (`DEF-090`)
  * y a la derecha estaba «Compartir», que en desktop no existe (ver
  * `lib/capacidades.ts`). Rediseño del cascarón, 2026-09-19.
+ *
+ * Además es la barra de título: la ventana va sin la del sistema (`FUN-M-31`),
+ * así que el fondo libre de esta barra arrastra la ventana
+ * (`data-tauri-drag-region`, con doble clic para maximizar) y a la derecha van
+ * minimizar, maximizar y cerrar.
  */
 export function AppTopbar() {
   const router = useRouter();
@@ -27,7 +34,7 @@ export function AppTopbar() {
   }
 
   return (
-    <header className={styles.topbar}>
+    <header className={styles.topbar} data-tauri-drag-region>
       <button
         type="button"
         className={styles.logo}
@@ -50,6 +57,15 @@ export function AppTopbar() {
         <span className={styles.logoFull}>Mycelium</span>
       </button>
 
+      {/* El vault abierto. Estaba en el título de la ventana y con el marco
+          propio esa barra ya no está; el título sigue existiendo para la barra
+          de tareas y el Alt+Tab, pero adentro hacía falta verlo. */}
+      {rutaVault && (
+        <span className={styles.vault} title={rutaVault}>
+          {nombreDeVault(rutaVault)}
+        </span>
+      )}
+
       <button type="button" className={styles.searchBar} onClick={() => setPaleta("notas")}>
         <Search size={14} aria-hidden className={styles.searchIcon} />
         <span className={styles.searchPlaceholder}>Ir a una nota o comando…</span>
@@ -57,6 +73,7 @@ export function AppTopbar() {
       </button>
 
       <div className={styles.actions}>
+
         {rutaVault && (
           <button
             type="button"
@@ -68,6 +85,8 @@ export function AppTopbar() {
             <LogOut size={14} aria-hidden />
           </button>
         )}
+
+        <ControlesVentana className={styles.controlesVentana} />
       </div>
     </header>
   );

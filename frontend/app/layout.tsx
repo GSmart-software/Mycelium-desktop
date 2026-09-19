@@ -8,6 +8,7 @@ import {
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
+import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
 import "@excalidraw/excalidraw/index.css";
@@ -71,6 +72,8 @@ export default function RootLayout({
       <body>
         {/* F12 / Ctrl+Shift+I abren las devtools, también en producción. */}
         <DevToolsHotkey />
+        {/* Sin barra del sistema, los bordes de la ventana los repone la app. */}
+        <BordesRedimensionado />
         {children}
       </body>
     </html>

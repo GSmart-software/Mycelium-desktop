@@ -79,7 +79,10 @@ export async function abrirVaultEnVentana(ruta: string): Promise<boolean> {
  * (`C:\Notas\Trabajo`) o de la URL de una ventana nueva (`C:/Notas/Trabajo`).
  */
 export function nombreDeVault(ruta: string): string {
-  const tramos = ruta.replace(/[\/]+$/, "").split(/[\/]/);
+  // `DEF-094`: la clase decía `[\/]`, que es solo la barra común —la
+  // contrabarra hay que escaparla—, así que con una ruta de Windows no partía
+  // nada y devolvía la ruta entera.
+  const tramos = ruta.replace(/[\\/]+$/, "").split(/[\\/]/);
   return tramos[tramos.length - 1] || ruta;
 }
 
