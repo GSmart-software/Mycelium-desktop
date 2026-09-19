@@ -12,7 +12,7 @@ import {
   ICONO_REFERENCIAS,
 } from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";

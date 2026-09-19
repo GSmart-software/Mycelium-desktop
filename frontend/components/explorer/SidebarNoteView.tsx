@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Eye, Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BaseView } from "@/components/bases/BaseView";
@@ -7,10 +8,9 @@ import { CanvasView } from "@/components/canvas/CanvasView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
-import { TerminalView } from "@/components/terminal/TerminalView";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
@@ -21,6 +21,13 @@ import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { GRAPH_TAB_ID } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "../workspace/SidebarDock.module.css";
+
+// La consola se carga cuando se muestra una: TerminalView trae xterm, y este
+// componente está siempre montado (ver lib/terminalBase.ts).
+const TerminalView = dynamic(
+  async () => (await import("@/components/terminal/TerminalView")).TerminalView,
+  { ssr: false },
+);
 
 /**
  * Documento anclado en el explorador (DEF-023 P3): solo lectura por defecto, con

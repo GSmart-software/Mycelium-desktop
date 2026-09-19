@@ -34,7 +34,6 @@ import { canvasInicial } from "@/lib/canvas";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
-import { crearTerminal } from "@/lib/terminal";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -483,7 +482,10 @@ export function ExplorerPanel() {
         ? [
             {
               label: "Abrir terminal aquí",
-              onClick: () => {
+              // La consola (xterm) se carga recién acá: el explorador está
+              // siempre montado y no tiene por qué traerla al arrancar.
+              onClick: async () => {
+                const { crearTerminal } = await import("@/lib/terminal");
                 const tabId = crearTerminal({ cwd: `${rutaVault}/${carpeta.id}` });
                 router.replace(`/workspace?note=${encodeURIComponent(tabId)}`);
               },

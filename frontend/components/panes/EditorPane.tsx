@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BaseView } from "@/components/bases/BaseView";
@@ -8,10 +9,9 @@ import { RelinkView } from "@/components/enlaces/RelinkView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
-import { TerminalView } from "@/components/terminal/TerminalView";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
 import { esTabArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import {
   ENLACES_TAB_ID,
   GRAPH_TAB_ID,
@@ -24,6 +24,13 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
 import { TabBar } from "./TabBar";
 import styles from "./panes.module.css";
+
+// La consola se carga cuando se muestra una: TerminalView trae xterm, y este
+// componente está siempre montado (ver lib/terminalBase.ts).
+const TerminalView = dynamic(
+  async () => (await import("@/components/terminal/TerminalView")).TerminalView,
+  { ssr: false },
+);
 
 /** Pane hoja: tab bar propio + editor de la pestaña activa (HU-25 CA2). */
 export function EditorPane({ pane }: { pane: LeafPane }) {

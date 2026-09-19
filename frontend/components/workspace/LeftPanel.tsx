@@ -1,15 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { CircleDot, Files, Search, Tag, Terminal, Trash2, type LucideIcon } from "lucide-react";
 import { EsporasPanel } from "@/components/explorer/EsporasPanel";
 import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
-import { TerminalPanel } from "@/components/terminal/TerminalPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { SidebarDock } from "./SidebarDock";
 import styles from "./Panels.module.css";
+
+// La consola se carga cuando se muestra una: TerminalPanel trae xterm, y este
+// componente está siempre montado (ver lib/terminalBase.ts).
+const TerminalPanel = dynamic(
+  async () => (await import("@/components/terminal/TerminalPanel")).TerminalPanel,
+  { ssr: false },
+);
 
 const SECTION_TITLES: Record<RailSection, string> = {
   explorer: "Explorador",

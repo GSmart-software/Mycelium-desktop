@@ -2,7 +2,7 @@
 
 import { Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { listarShells, type ShellInfo } from "@/lib/terminal";
+import { listarShells, type ShellInfo } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import styles from "./Settings.module.css";
 
