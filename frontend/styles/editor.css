@@ -749,7 +749,13 @@
   overflow-y: auto;
 }
 
-.mic-layout-read .mic-preview > div {
+/* Medida de lectura (`DEF-092`): el texto no pasa de 72 caracteres y se centra.
+   Las dos clases van en el MISMO elemento —la lectura, la vista lateral y la
+   vista previa enlazada renderizan `.mic-preview.mic-layout-read` con sus divs
+   adentro—, así que el selector es compuesto. Antes decía
+   `.mic-layout-read .mic-preview > div` (una DENTRO de la otra), nunca
+   coincidió, y en una ventana ancha cada renglón llegaba a 170-180 caracteres. */
+.mic-preview.mic-layout-read > div {
   max-width: 72ch;
   margin: 0 auto;
 }
