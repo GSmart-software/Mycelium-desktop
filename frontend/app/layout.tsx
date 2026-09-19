@@ -12,6 +12,7 @@ import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
 import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
+import "../styles/atmosferas.css";
 import "../styles/editor.css";
 import "./globals.css";
 
@@ -64,6 +65,7 @@ export default function RootLayout({
       lang="es"
       data-theme="bioluminiscencia"
       data-dark="true"
+      data-atmosfera="niebla"
       className={`${geistSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${fontVariables}`}
     >
       <body>

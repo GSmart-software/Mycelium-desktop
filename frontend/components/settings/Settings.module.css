@@ -136,11 +136,88 @@
   color: var(--mic-text-primary);
 }
 
+/* ── Atmósferas: una muestra en miniatura de la ventana ─────────────
+   La muestra lleva los atributos de su combinación, así que las reglas de
+   tokens.css (raw del tema y del modo) y atmosferas.css (semánticos) valen en
+   ella. Abisal no tiene reglas en atmosferas.css y el semántico de :root se
+   hereda ya calculado con el modo de la app: por eso acá se reponen sus
+   valores desde los raw, que sí se recalculan en la muestra. */
+.atmosferas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.muestra {
+  --mic-bg-sidebar: var(--mic-raw-base);
+  --mic-bg-surface: var(--mic-raw-mist);
+  --mic-bg-canvas: var(--mic-raw-canvas);
+  --mic-text-primary: var(--mic-raw-ink);
+  --mic-text-muted: var(--mic-raw-ink-muted);
+  --mic-accent: var(--mic-raw-accent);
+  --mic-glow: var(--mic-raw-glow);
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 88%, var(--mic-text-primary));
+  display: grid;
+  grid-template-columns: 22% 1fr;
+  grid-template-rows: 9px 1fr;
+  height: 52px;
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+}
+
+.muestraMarco {
+  grid-column: 1 / -1;
+  background: var(--mic-bg-sidebar);
+}
+
+.muestraPanel {
+  background: var(--mic-bg-surface);
+  box-shadow: inset 5px 0 0 var(--mic-bg-sidebar);
+}
+
+.muestraLienzo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 10px;
+  background: var(--mic-bg-canvas);
+}
+
+.muestraTitulo,
+.muestraTexto,
+.muestraEnlace {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.muestraTitulo {
+  width: 55%;
+  height: 6px;
+  background: var(--mic-h1);
+}
+
+.muestraTexto {
+  width: 85%;
+  background: color-mix(in srgb, var(--mic-text-primary) 55%, transparent);
+}
+
+.muestraEnlace {
+  width: 40%;
+  background: var(--mic-accent);
+}
+
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
 .toggleRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* En Apariencia, debajo del modo vienen las atmósferas: aire antes del rótulo. */
+.filaModo {
+  margin-bottom: 0.9rem;
 }
 
 .toggle {

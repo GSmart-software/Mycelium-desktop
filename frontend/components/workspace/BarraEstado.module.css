@@ -1,10 +1,8 @@
 /* Barra de estado: 24px, en el tono del marco (Esporo), texto de 12px a la
    derecha como en VS Code. Solo lo que no se ve en la nota misma.
 
-   En reposo el texto es neutro: el Brote es para lo vivo (hover y el panel
-   abierto). En oscuro sirve el gris de siempre; en claro el marco sigue oscuro
-   y ese gris (pensado para el lienzo claro) no se leía, así que se usa la
-   Niebla del tema mezclada con el marco. */
+   En reposo el texto es neutro (--mic-marco-texto, tokens.css): el Brote es
+   para lo vivo (hover y el panel abierto). */
 .barra {
   grid-area: estado;
   display: flex;
@@ -16,14 +14,10 @@
   background: var(--mic-bg-sidebar);
   border-top: 1px solid color-mix(in srgb, var(--mic-marco-glow) 14%, transparent);
   font-size: 0.75rem;
-  color: var(--mic-text-muted);
+  color: var(--mic-marco-texto);
   white-space: nowrap;
   overflow: hidden;
   --mic-focus: var(--mic-marco-glow);
-}
-
-:global(:root:not([data-dark='true'])) .barra {
-  color: color-mix(in srgb, var(--mic-raw-mist) 78%, var(--mic-bg-sidebar));
 }
 
 .item {

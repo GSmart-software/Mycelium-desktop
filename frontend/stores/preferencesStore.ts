@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import {
+  ATMOSFERA_CLARO_DEFECTO,
+  ATMOSFERA_OSCURO_DEFECTO,
+  atmosferaValida,
+  type Atmosfera,
+} from "@/lib/atmosferas";
 import { api } from "@/lib/api";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
 import { useAuthStore } from "@/stores/authStore";
@@ -155,6 +161,13 @@ export type Preferencias = {
    * relativa POSIX; cambiarla NO mueve nada, solo cambia dónde se buscan.
    */
   carpetaEsporas: string;
+  /**
+   * Atmósfera de cada modo (lib/atmosferas.ts): cómo se reparten los colores del
+   * tema en fondos, marco y títulos. Una por modo, porque de noche y de día
+   * conviene otra cosa.
+   */
+  atmosferaOscuro: Atmosfera;
+  atmosferaClaro: Atmosfera;
 };
 
 const DEFAULT_PREFS: Preferencias = {
@@ -176,6 +189,8 @@ const DEFAULT_PREFS: Preferencias = {
   graphColorGroups: [],
   graphExcludeRules: [],
   carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
+  atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
+  atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,
 };
 
 type PreferencesState = {
@@ -197,6 +212,12 @@ function applyToDom(s: Pick<PreferencesState, "tema" | "modoOscuro" | "prefs">) 
   html.setAttribute("data-theme", s.tema); // HU-12 CA6
   if (s.modoOscuro) html.setAttribute("data-dark", "true"); // HU-12 CA7
   else html.removeAttribute("data-dark");
+  html.setAttribute(
+    "data-atmosfera",
+    s.modoOscuro
+      ? atmosferaValida(s.prefs.atmosferaOscuro, ATMOSFERA_OSCURO_DEFECTO)
+      : atmosferaValida(s.prefs.atmosferaClaro, ATMOSFERA_CLARO_DEFECTO),
+  );
 
   html.style.setProperty("--mic-editor-font-family", s.prefs.editorFont);
   html.style.setProperty("--mic-editor-font-size", `${s.prefs.editorSize}px`);

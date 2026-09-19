@@ -61,6 +61,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Solo scroll vertical: con `overflow-y: auto` el eje x también se volvía
+     desplazable y asomaba una barra por 2px de redondeo de las muestras. */
+  overflow-x: hidden;
 }
 
 /* Versión del sistema, al pie del drawer de configuración. */

@@ -108,6 +108,7 @@
   --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
   --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
   --mic-marco-inactivo: 0.55;                /* opacidad de un ícono del marco en reposo */
+  --mic-marco-texto:    var(--mic-text-muted); /* texto neutro sobre el marco (barra de estado) */
   --mic-callout-tinta:  85%;                 /* cuánto color propio lleva el título de un callout */
 }
 
@@ -117,6 +118,9 @@
   --mic-marco-glow:     color-mix(in srgb, var(--mic-raw-glow) 60%, var(--mic-raw-mist));
   --mic-marco-acento:   color-mix(in srgb, var(--mic-raw-glow) 80%, var(--mic-raw-mist));
   --mic-marco-inactivo: 0.7;
+  /* El gris del texto está pensado para el lienzo claro; sobre el marco, que
+     sigue oscuro, no se leía. Niebla mezclada con el marco: 5.8-6.5:1. */
+  --mic-marco-texto:    color-mix(in srgb, var(--mic-raw-mist) 78%, var(--mic-bg-sidebar));
   --mic-callout-tinta:  50%;
 }
 

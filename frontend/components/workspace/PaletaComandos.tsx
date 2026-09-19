@@ -1,10 +1,11 @@
 "use client";
 
-import { FilePlus, PanelLeft, Search, Settings, SunMoon, Terminal, type LucideIcon } from "lucide-react";
+import { FilePlus, Palette, PanelLeft, Search, Settings, SunMoon, Terminal, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
+import { ATMOSFERAS } from "@/lib/atmosferas";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
@@ -175,6 +176,18 @@ export function PaletaComandos() {
         icono: Settings,
         ejecutar: () => useUiStore.getState().setSettingsOpen(true),
       },
+      // Atmósfera del modo en uso (la del otro modo se cambia en Configuración).
+      ...ATMOSFERAS.map((a) => {
+        const { modoOscuro, prefs } = usePreferencesStore.getState();
+        const clave = modoOscuro ? "atmosferaOscuro" : "atmosferaClaro";
+        return {
+          id: `cmd-atmosfera-${a.id}`,
+          titulo: `Atmósfera: ${a.nombre}`,
+          detalle: prefs[clave] === a.id ? `En uso en modo ${modoOscuro ? "oscuro" : "claro"}` : a.descripcion,
+          icono: Palette,
+          ejecutar: () => usePreferencesStore.getState().setPref(clave, a.id),
+        };
+      }),
     ],
     // El título del cambio de modo se recalcula en cada apertura.
     // eslint-disable-next-line react-hooks/exhaustive-deps
