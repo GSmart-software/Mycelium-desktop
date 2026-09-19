@@ -57,7 +57,7 @@ function temaXterm() {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
-    background: v("--mic-bg-canvas", "#1b1305"),
+    background: v("--mic-terminal-bg", "#141719"),
     foreground: v("--mic-text-primary", "#f6e8c8"),
     cursor: v("--mic-accent", "#c77f2e"),
     selectionBackground: "rgba(127, 127, 127, 0.35)",
@@ -245,7 +245,7 @@ function ensureInfra() {
     if (instancias.has(e.payload.id)) finalizarConsola(e.payload.id);
   });
 
-  // Cambio de tema/modo oscuro de Mycelium (data-theme/data-dark en <html>):
+  // Cambio de tema, modo o atmósfera de Mycelium (atributos de <html>):
   // re-aplicar los colores a todas las consolas vivas (el tema del xterm se fija
   // al crear la instancia y no sigue las variables CSS por sí solo).
   const observerTema = new MutationObserver(() => {
@@ -256,7 +256,7 @@ function ensureInfra() {
   });
   observerTema.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-theme", "data-dark"],
+    attributeFilter: ["data-theme", "data-dark", "data-atmosfera"],
   });
 
   // Al cerrar la app: volcar el scrollback de cada consola para poder

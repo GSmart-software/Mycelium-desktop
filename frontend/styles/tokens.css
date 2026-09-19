@@ -21,6 +21,14 @@
   --mic-bg-hover:  color-mix(in srgb, var(--mic-glow) 14%, transparent);
   --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
 
+  /* Fondo de las consolas integradas. Es un valor propio y no un token de
+     superficie: la consola es su propia hoja —como un bloque de código—, igual
+     en los dos temas y en las cuatro atmósferas. Elegido por el usuario el
+     2026-09-19 probándolo en la app. Lo usan el CSS de la vista y el tema del
+     xterm (lib/terminal.ts), así que el relleno alrededor del grid y las celdas
+     son exactamente el mismo color. */
+  --mic-terminal-bg: #EFEFE8;
+
   /* Colores de consola (`FUN-S-12`): la marca con la que se distingue una
      terminal de otra en su pestaña.
 
@@ -172,6 +180,7 @@
    oscuro sale con la lista en blanco. */
 [data-dark='true'] {
   color-scheme: dark;
+  --mic-terminal-bg: #141719;
 }
 
 /* Bioluminiscencia oscuro = paleta abisal del prototipo legacy:
