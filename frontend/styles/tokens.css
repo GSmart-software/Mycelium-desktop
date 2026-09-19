@@ -111,11 +111,22 @@
   --mic-callout-tinta:  50%;
 }
 
+/* ── Fondo del código en modo claro (`DEF-091`) ──────────────────────
+   En claro el código es un fragmento CLARO: un tinte de la tinta sobre el
+   lienzo. Antes usaba Esporo profundo, que es oscuro también en claro, y
+   encima se escribía con la tinta (oscura): el código en línea quedaba a 1:1,
+   y los bloques del modo vivo pintaban la paleta de sintaxis clara —pensada
+   para fondo claro— sobre fondo oscuro. Ahora cada paleta está sobre el fondo
+   para el que se diseñó. En oscuro no cambia nada. */
+:root:not([data-dark='true']) {
+  --mic-bg-code: color-mix(in srgb, var(--mic-raw-ink) 7%, var(--mic-raw-canvas));
+}
+
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
    Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {
   --mic-raw-base:       #0C4A57;   /* rail / topbar / sidebar */
-  --mic-raw-base-deep:  #08323D;   /* bloques de código */
+  --mic-raw-base-deep:  #08323D;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
   --mic-raw-accent:     #0E7C8C;   /* botones y enlaces (teal legible) */
   --mic-raw-glow:       #16B8C9;   /* highlights, cursor, tags (cian) */
   --mic-raw-mist:       #E3EEF1;   /* paneles laterales */
@@ -130,7 +141,7 @@
    Chrome oscuro marrón + contenido claro cálido + acentos ámbar. */
 [data-theme='cantarela'] {
   --mic-raw-base:       #5A3408;   /* rail / topbar / sidebar */
-  --mic-raw-base-deep:  #3E2405;   /* bloques de código */
+  --mic-raw-base-deep:  #3E2405;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
   --mic-raw-accent:     #9A6212;   /* botones y enlaces (ámbar-marrón) */
   --mic-raw-glow:       #D99A1F;   /* highlights, cursor, tags (dorado) */
   --mic-raw-mist:       #FAF0DC;   /* paneles laterales */
@@ -203,19 +214,21 @@
   --mic-syntax-keyword:  #6fb8ff;  /* @media, !important, keywords */
 }
 
-/* Variantes para fondo claro (modo claro = sin data-dark) */
+/* Variantes para fondo claro (modo claro = sin data-dark). Calibradas el
+   2026-09-19 (`DEF-091`) para dar >=4.5:1 sobre el fondo de código claro, Niebla
+   y el lienzo de los dos temas: seis colores quedaban entre 3.3 y 4.4. */
 :root:not([data-dark='true']) {
-  --mic-syntax-comment:  #3f7a4f;
-  --mic-syntax-property: #0e7c8c;
-  --mic-syntax-variable: #1d6fa5;
-  --mic-syntax-class:    #9a6212;
-  --mic-syntax-id:       #b5326b;
+  --mic-syntax-comment:  #3a7049;
+  --mic-syntax-property: #0c6d7b;
+  --mic-syntax-variable: #1b689b;
+  --mic-syntax-class:    #8b5810;
+  --mic-syntax-id:       #b13169;
   --mic-syntax-pseudo:   #7a3fb0;
-  --mic-syntax-tag:      #1f8f5f;
-  --mic-syntax-string:   #a85a1e;
+  --mic-syntax-tag:      #19724c;
+  --mic-syntax-string:   #97511b;
   --mic-syntax-number:   #7a32a8;
   --mic-syntax-value:    #6b5a1e;
-  --mic-syntax-color:    #2a6f8c;
+  --mic-syntax-color:    #286b86;
   --mic-syntax-keyword:  #1565b0;
 }
 

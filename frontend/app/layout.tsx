@@ -10,7 +10,6 @@ import {
 } from "next/font/google";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
-import "highlight.js/styles/atom-one-dark.css";
 import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
 import "../styles/editor.css";

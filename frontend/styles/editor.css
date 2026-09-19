@@ -820,9 +820,8 @@
   border-radius: var(--mic-radius-sm);
 }
 
-/* Bloque de código: posición relativa para el botón de copiar. NO se fija
-   `color` aquí para no pisar los colores de highlight.js (atom-one-dark);
-   el texto base lo da `.hljs` o se hereda de .mic-preview. */
+/* Bloque de código: posición relativa para el botón de copiar. El texto base se
+   hereda de .mic-preview y el resaltado lo dan las reglas `.hljs-*` de abajo. */
 .mic-preview pre {
   position: relative;
   font-family: var(--mic-font-mono);
@@ -907,10 +906,80 @@
   max-width: 100%;
 }
 
-/* El tema de highlight.js define su propio fondo; manda --mic-bg-code */
+/* Resaltado de la vista de lectura (`DEF-091`). highlight.js solo pone clases;
+   los colores salen de `--mic-syntax-*`, igual que en el modo vivo y en el
+   visor de archivos (`lib/editor/paletaSintaxis.ts`), con el mismo reparto:
+   un fragmento se ve igual en los tres sitios. Antes se importaba el tema
+   atom-one-dark, con colores claros fijos: en modo claro, sobre el fondo de
+   código claro, no se habrían leído. */
 .mic-preview pre code.hljs {
   background: transparent;
+  color: var(--mic-text-primary);
   padding: 0;
+}
+.mic-preview .hljs-comment,
+.mic-preview .hljs-quote {
+  color: var(--mic-syntax-comment);
+  font-style: italic;
+}
+.mic-preview .hljs-keyword,
+.mic-preview .hljs-built_in,
+.mic-preview .hljs-doctag,
+.mic-preview .hljs-selector-tag,
+.mic-preview .hljs-title,
+.mic-preview .hljs-section {
+  color: var(--mic-syntax-keyword);
+}
+.mic-preview .hljs-string,
+.mic-preview .hljs-regexp,
+.mic-preview .hljs-symbol {
+  color: var(--mic-syntax-string);
+}
+.mic-preview .hljs-number,
+.mic-preview .hljs-literal {
+  color: var(--mic-syntax-number);
+}
+.mic-preview .hljs-variable,
+.mic-preview .hljs-template-variable,
+.mic-preview .hljs-params {
+  color: var(--mic-syntax-variable);
+}
+.mic-preview .hljs-type,
+.mic-preview .hljs-name,
+.mic-preview .hljs-title.class_,
+.mic-preview .hljs-addition {
+  color: var(--mic-syntax-tag);
+}
+.mic-preview .hljs-attr,
+.mic-preview .hljs-attribute,
+.mic-preview .hljs-property {
+  color: var(--mic-syntax-property);
+}
+.mic-preview .hljs-selector-class {
+  color: var(--mic-syntax-class);
+}
+.mic-preview .hljs-selector-id,
+.mic-preview .hljs-deletion {
+  color: var(--mic-syntax-id);
+}
+.mic-preview .hljs-selector-pseudo {
+  color: var(--mic-syntax-pseudo);
+}
+.mic-preview .hljs-meta,
+.mic-preview .hljs-operator,
+.mic-preview .hljs-punctuation,
+.mic-preview .hljs-bullet {
+  color: var(--mic-text-muted);
+}
+.mic-preview .hljs-link {
+  color: var(--mic-accent);
+  text-decoration: underline;
+}
+.mic-preview .hljs-emphasis {
+  font-style: italic;
+}
+.mic-preview .hljs-strong {
+  font-weight: 700;
 }
 
 /* ── Callouts (HU-03 CA5/CA6) ────────────────────────────────────── */
