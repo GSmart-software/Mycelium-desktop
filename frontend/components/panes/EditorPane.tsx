@@ -70,7 +70,9 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
         ) : activeTab && activeTipo === "excalidraw" ? (
           <ExcalidrawFileEditor key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab && activeTipo === "base" ? (
-          <BaseView key={activeTab.id} notaId={activeTab.notaId} />
+          // `instanceId` es la PESTAÑA, no el archivo (`DEF-085`): dos pestañas del
+          // mismo `.base` pueden estar mirando vistas distintas.
+          <BaseView key={activeTab.id} notaId={activeTab.notaId} instanceId={activeTab.id} />
         ) : activeTab && activeTipo === "canvas" ? (
           <CanvasView key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab ? (

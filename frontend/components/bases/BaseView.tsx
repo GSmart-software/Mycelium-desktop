@@ -13,7 +13,14 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { api } from "@/lib/api";
 import {
   alternarOrden,
@@ -60,22 +67,97 @@ import styles from "./BaseView.module.css";
  * > los controles se deshabilitan con el motivo y queda la edición de la fuente,
  * > que no reescribe nada que no haya escrito el usuario.
  */
-export function BaseView({ notaId }: { notaId: string }) {
+/**
+ * Lo que una pestaña de tabla estaba mostrando, para devolverlo al volver a ella
+ * (`DEF-085`).
+ *
+ * `EditorPane` solo monta la pestaña activa: cambiar de pestaña DESMONTA la tabla,
+ * y sin esto se volvía a la primera vista, con el scroll arriba y el «Cargando la
+ * base…» de por medio. Es el mismo caso que resolvió `instanceCache` en el editor
+ * de notas (`DEF-039`), y vive igual: por pestaña, **sobrevive a cambiar de
+ * pestaña y muere al cerrarla** — al reabrir el archivo la pestaña es otra, y su
+ * id también.
+ *
+ * > [!important] Se guardan también las FILAS, pero no para servirlas
+ * > Al volver se muestran enseguida —es lo que evita el parpadeo de carga— y a la
+ * > vez se piden de nuevo. Servir las del caché sin preguntar congelaría la tabla
+ * > en el momento en que se dejó, y eso es justo el defecto de al lado
+ * > (`DEF-086`): cambiar de pestaña es hoy lo único que la refresca.
+ */
+type EstadoTabla = {
+  fuente: string;
+  notas: NotaTabla[];
+  vistaActiva: number;
+  modo: "tabla" | "fuente";
+  sinFiltrar: Record<number, boolean>;
+  busqueda: Busqueda;
+  /**
+   * Lo escrito en la fuente y todavía sin guardar, o `null` si no hay nada. Antes
+   * se perdía sin aviso al cambiar de pestaña, y es la única parte de este
+   * defecto que perdía TRABAJO en vez de solo comodidad.
+   */
+  borrador: string | null;
+  /**
+   * El scroll de la tabla, capturado MIENTRAS se desplaza y no al desmontar. La
+   * limpieza de un efecto corre con el nodo ya fuera del DOM, y ahí `scrollTop`
+   * vale 0: es la trampa que costó dos intentos en `DEF-039`.
+   */
+  scrollTop: number;
+};
+
+const cacheTablas = new Map<string, EstadoTabla>();
+
+/**
+ * Cuántas pestañas de tabla se recuerdan a la vez.
+ *
+ * El caché del editor de notas no tiene tope y no hace falta: guarda un
+ * documento. Éste guarda las FILAS, que son las notas de todo el vault con sus
+ * propiedades, y sin tope crecería con cada tabla que se abre en la sesión. Una
+ * pestaña que se cae de acá no pierde nada que no se recupere: vuelve a cargar
+ * como antes de `DEF-085`.
+ */
+const MAX_TABLAS_RECORDADAS = 8;
+
+/** Guarda el estado de una pestaña y la marca como la más reciente. */
+function recordar(id: string, estado: EstadoTabla) {
+  // Borrar y volver a poner la manda al final: un `Map` recuerda el orden de
+  // inserción, y eso basta para que el primero sea siempre el más viejo.
+  cacheTablas.delete(id);
+  cacheTablas.set(id, estado);
+  while (cacheTablas.size > MAX_TABLAS_RECORDADAS) {
+    const masViejo = cacheTablas.keys().next().value;
+    if (masViejo === undefined) break;
+    cacheTablas.delete(masViejo);
+  }
+}
+
+export function BaseView({ notaId, instanceId = notaId }: { notaId: string; instanceId?: string }) {
   const router = useRouter();
-  const [fuente, setFuente] = useState<string | null>(null);
-  const [notas, setNotas] = useState<NotaTabla[] | null>(null);
+  // Lo que esta pestaña mostraba la última vez (`DEF-085`). Se lee UNA vez, al
+  // montar: a partir de ahí manda el estado de React.
+  const [previo] = useState(() => cacheTablas.get(instanceId) ?? null);
+  const [fuente, setFuente] = useState<string | null>(previo?.fuente ?? null);
+  const [notas, setNotas] = useState<NotaTabla[] | null>(previo?.notas ?? null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
-  const [vistaActiva, setVistaActiva] = useState(0);
-  const [modo, setModo] = useState<"tabla" | "fuente">("tabla");
+  const [vistaActiva, setVistaActiva] = useState(previo?.vistaActiva ?? 0);
+  const [modo, setModo] = useState<"tabla" | "fuente">(previo?.modo ?? "tabla");
+  // El panel de filtros o de columnas NO se recuerda a propósito: es un
+  // desplegable, y encontrarlo abierto al volver taparía justo la tabla que se
+  // viene a mirar.
   const [panel, setPanel] = useState<null | "columnas" | "filtros">(null);
-  const [borrador, setBorrador] = useState("");
+  const [borrador, setBorrador] = useState(previo?.borrador ?? previo?.fuente ?? "");
   /** Vistas en las que el usuario pidió ver las filas pese al filtro roto. */
-  const [sinFiltrar, setSinFiltrar] = useState<Record<number, boolean>>({});
-  // Lo que se busca DENTRO de la tabla (`FUN-S-14`). No se guarda en el archivo
-  // ni sobrevive a cerrar la pestaña: no define la consulta, solo mira lo que
-  // esta ya devolvió.
-  const [busqueda, setBusqueda] = useState<Busqueda>({ texto: "", exacta: false });
+  const [sinFiltrar, setSinFiltrar] = useState<Record<number, boolean>>(previo?.sinFiltrar ?? {});
+  // Lo que se busca DENTRO de la tabla (`FUN-S-14`). No se guarda en el archivo:
+  // no define la consulta, solo mira lo que esta ya devolvió. Pero sí sobrevive a
+  // cambiar de pestaña (`DEF-085`): volver a la vista Y con otras filas de las que
+  // se dejaron no sería volver a la vista Y.
+  const [busqueda, setBusqueda] = useState<Busqueda>(
+    previo?.busqueda ?? { texto: "", exacta: false },
+  );
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef(previo?.scrollTop ?? 0);
   // Anchos de columna (`FUN-M-25`). Se leen del vault y se escriben ahí; durante
   // el arrastre NO pasan por React —se tocan los `<col>` directamente— para no
   // rehacer la tabla entera en cada píxel.
@@ -99,8 +181,13 @@ export function BaseView({ notaId }: { notaId: string }) {
             : Promise.resolve({ notas: [] as NotaTabla[] }),
         ]);
         if (cancelado) return;
-        setFuente(contenido.contenido ?? "");
-        setBorrador(contenido.contenido ?? "");
+        const nueva = contenido.contenido ?? "";
+        setFuente(nueva);
+        // Un borrador sin guardar que venía de antes de cambiar de pestaña NO se
+        // pisa con lo que se acaba de leer (`DEF-085`): eso era exactamente
+        // perderlo. Sin borrador pendiente, el editor de la fuente sigue al
+        // archivo, como siempre.
+        if (previo?.borrador == null) setBorrador(nueva);
         setNotas(tabla.notas);
       } catch (e) {
         if (!cancelado) setError(e instanceof Error ? e.message : String(e));
@@ -110,6 +197,35 @@ export function BaseView({ notaId }: { notaId: string }) {
       cancelado = true;
     };
   }, [notaId, vaultId]);
+
+  // Recordar lo que esta pestaña está mostrando (`DEF-085`). Se escribe en cada
+  // cambio y no al desmontar: la limpieza de un efecto corre tarde para leer
+  // nada del DOM, y acá no hace falta leerlo — todo sale del estado. El scroll,
+  // que sí sale del DOM, lo anota `onScroll` en `scrollTopRef`.
+  useEffect(() => {
+    if (fuente === null || notas === null) return;
+    recordar(instanceId, {
+      fuente,
+      notas,
+      vistaActiva,
+      modo,
+      sinFiltrar,
+      busqueda,
+      borrador: borrador !== fuente ? borrador : null,
+      scrollTop: scrollTopRef.current,
+    });
+  }, [instanceId, fuente, notas, vistaActiva, modo, sinFiltrar, busqueda, borrador]);
+
+  // Devolver el scroll, UNA vez, antes de pintar. Funciona con un `scrollTop` a
+  // secas —al revés que en CodeMirror, que necesitó `scrollSnapshot()`— porque
+  // la tabla no virtualiza: las filas del caché ya están en el DOM al primer
+  // render, así que el alto total es el de verdad desde el principio.
+  const scrollRestaurado = useRef(false);
+  useLayoutEffect(() => {
+    if (scrollRestaurado.current || !scrollRef.current || notas === null) return;
+    scrollRestaurado.current = true;
+    scrollRef.current.scrollTop = scrollTopRef.current;
+  }, [notas, modo]);
 
   // Cerrar el panel al pulsar fuera, como el resto de los menús de la app.
   useEffect(() => {
@@ -423,7 +539,16 @@ export function BaseView({ notaId }: { notaId: string }) {
               aplicando</strong>: estas son todas las notas del vault.
             </p>
           )}
-          <div className={styles.scroll}>
+          <div
+            ref={scrollRef}
+            className={styles.scroll}
+            onScroll={(e) => {
+              // En vivo, no al desmontar (ver `EstadoTabla.scrollTop`).
+              scrollTopRef.current = e.currentTarget.scrollTop;
+              const c = cacheTablas.get(instanceId);
+              if (c) c.scrollTop = scrollTopRef.current;
+            }}
+          >
             {/* Con anchos guardados la tabla pasa a `fixed` y su ancho lo deciden
                 las columnas; sin ellos se deja el reparto automático de siempre,
                 para que una base que nadie ajustó se vea igual que antes. */}
