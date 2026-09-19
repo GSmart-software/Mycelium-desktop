@@ -17,3 +17,19 @@
  * recargar su nota si no tienen cambios sin guardar— y el panel de conexiones.
  */
 export const EVENTO_RECARGA = "micelio:vault-recargar";
+
+/**
+ * Una nota se acaba de GUARDAR desde la app, y el índice ya tiene su contenido y
+ * sus propiedades nuevas (`DEF-086`). `detail.notaId` dice cuál.
+ *
+ * No es lo mismo que `EVENTO_RECARGA`, y por eso son dos: aquél dice «el vault
+ * cambió por fuera, editores: recarguen su nota», y emitirlo en cada guardado
+ * haría que TODOS los editores abiertos se releyeran cada diez segundos. Éste
+ * solo dice «esto cambió»: lo escucha quien muestre algo derivado de muchas notas
+ * a la vez, como un archivo tabla.
+ *
+ * Lo emite el editor tras cada guardado que sale bien, en las dos ramas. En
+ * desktop llega ANTES que el watcher —que igual dispara, porque la app escribe a
+ * disco—, y en web es la única señal que existe: allá no hay carpeta que vigilar.
+ */
+export const EVENTO_NOTA_GUARDADA = "micelio:nota-guardada";

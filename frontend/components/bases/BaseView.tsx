@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -22,6 +23,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { api } from "@/lib/api";
+import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import {
   alternarOrden,
   columnasDisponibles,
@@ -107,6 +109,9 @@ type EstadoTabla = {
 
 const cacheTablas = new Map<string, EstadoTabla>();
 
+/** Cuánto esperar a que termine una ráfaga de cambios antes de releer (`DEF-086`). */
+const ESPERA_REFRESCO_MS = 250;
+
 /**
  * Cuántas pestañas de tabla se recuerdan a la vez.
  *
@@ -168,10 +173,30 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
   const panelRef = useRef<HTMLDivElement>(null);
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
 
-  useEffect(() => {
-    let cancelado = false;
-    setError(null);
-    void (async () => {
+  // La fuente y el borrador, por referencia: `cargar` también corre desde
+  // oyentes de eventos, que no ven el render actual.
+  const fuenteRef = useRef(fuente);
+  fuenteRef.current = fuente;
+  const borradorRef = useRef(borrador);
+  borradorRef.current = borrador;
+  // Cada carga lleva su número; solo la última puede escribir el estado. Un
+  // refresco que sale mientras otro todavía no volvió no puede pisarlo con datos
+  // más viejos si la red los devuelve al revés.
+  const secuencia = useRef(0);
+
+  /**
+   * Lee el `.base` y las filas.
+   *
+   * `inicial` distingue la carga al abrir de un REFRESCO (`DEF-086`). Solo la
+   * inicial muestra un error: un refresco que falla deja la tabla como estaba,
+   * porque cambiar lo que se está mirando por un cartel sería peor que mostrar
+   * datos de hace un momento — y el cartel diría «No se pudo guardar», que acá
+   * es mentira.
+   */
+  const cargar = useCallback(
+    async (inicial: boolean) => {
+      const n = ++secuencia.current;
+      if (inicial) setError(null);
       try {
         const token = useAuthStore.getState().accessToken;
         const [contenido, tabla] = await Promise.all([
@@ -180,23 +205,61 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
             ? api<{ notas: NotaTabla[] }>(`/vaults/${vaultId}/tabla`, { token })
             : Promise.resolve({ notas: [] as NotaTabla[] }),
         ]);
-        if (cancelado) return;
+        if (n !== secuencia.current) return;
         const nueva = contenido.contenido ?? "";
+        // Lo escrito en la fuente y sin guardar NO se pisa con lo que se acaba de
+        // leer — ni al volver a la pestaña (`DEF-085`) ni en un refresco
+        // (`DEF-086`). Sin nada pendiente, el editor de la fuente sigue al archivo.
+        const sinGuardar =
+          fuenteRef.current !== null && borradorRef.current !== fuenteRef.current;
         setFuente(nueva);
-        // Un borrador sin guardar que venía de antes de cambiar de pestaña NO se
-        // pisa con lo que se acaba de leer (`DEF-085`): eso era exactamente
-        // perderlo. Sin borrador pendiente, el editor de la fuente sigue al
-        // archivo, como siempre.
-        if (previo?.borrador == null) setBorrador(nueva);
+        if (!sinGuardar) setBorrador(nueva);
         setNotas(tabla.notas);
       } catch (e) {
-        if (!cancelado) setError(e instanceof Error ? e.message : String(e));
+        if (inicial && n === secuencia.current) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
       }
-    })();
+    },
+    [notaId, vaultId],
+  );
+
+  useEffect(() => {
+    void cargar(true);
+    // Al desmontar, una respuesta que llegue tarde ya no es de nadie.
     return () => {
-      cancelado = true;
+      secuencia.current++;
     };
-  }, [notaId, vaultId]);
+  }, [cargar]);
+
+  // Enterarse de que cambiaron las propiedades de las notas (`DEF-086`). Dos
+  // avisos, y los dos hacen lo mismo:
+  //
+  // - `EVENTO_NOTA_GUARDADA`: se guardó una nota desde la app. Llega en las dos
+  //   ramas, y en web es el único.
+  // - `EVENTO_RECARGA`: cambió algo por FUERA —una IA, la consola, otro editor—
+  //   y el watcher ya reindexó. Solo en desktop, que es donde hay carpeta.
+  //
+  // Una tabla solo está montada si se está VIENDO (`EditorPane` monta la pestaña
+  // activa), así que esto no refresca las que están de fondo: esas se ponen al
+  // día al volver, por `DEF-085`. El costo queda acotado a lo que está en
+  // pantalla.
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const refrescar = () => {
+      // Agrupar ráfagas: el watcher y el guardado pueden llegar juntos, y una IA
+      // que toca diez archivos no debería disparar diez lecturas.
+      if (espera) clearTimeout(espera);
+      espera = setTimeout(() => void cargar(false), ESPERA_REFRESCO_MS);
+    };
+    window.addEventListener(EVENTO_NOTA_GUARDADA, refrescar);
+    window.addEventListener(EVENTO_RECARGA, refrescar);
+    return () => {
+      if (espera) clearTimeout(espera);
+      window.removeEventListener(EVENTO_NOTA_GUARDADA, refrescar);
+      window.removeEventListener(EVENTO_RECARGA, refrescar);
+    };
+  }, [cargar]);
 
   // Recordar lo que esta pestaña está mostrando (`DEF-085`). Se escribe en cada
   // cambio y no al desmontar: la limpieza de un efecto corre tarde para leer
