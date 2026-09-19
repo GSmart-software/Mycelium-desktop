@@ -252,3 +252,21 @@
     display: none;
   }
 }
+
+/* Movimiento reducido: el punto sigue latiendo —es lo que dice «sincronizando»—
+   pero ya no crece. Se conserva el cambio de opacidad, que es el estado; se
+   quita el de escala, que es el movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .sync_syncing {
+    animation-name: mic-pulse-quieto;
+  }
+}
+
+@keyframes mic-pulse-quieto {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

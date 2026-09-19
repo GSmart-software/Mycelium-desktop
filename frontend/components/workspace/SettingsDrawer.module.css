@@ -184,3 +184,16 @@
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
 }
+
+/* Movimiento reducido: el cajón aparece y se va con un fundido, sin
+   deslizarse. Sigue habiendo una animación —y por eso un `animationend`—, que
+   es lo que el componente espera para desmontarlo al cerrar. */
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
+    animation-name: fade-in;
+  }
+
+  .drawerClosing {
+    animation-name: fade-out;
+  }
+}
