@@ -14,10 +14,10 @@
   gap: 0.5rem;
   font-weight: 700;
   font-size: 1rem;
-  color: var(--mic-glow);
+  color: var(--mic-marco-glow);
   padding: 0.25rem 0.5rem;
   border-radius: var(--mic-radius-sm);
-  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  background: linear-gradient(90deg, var(--mic-marco-glow), var(--mic-marco-acento));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -25,11 +25,11 @@
 
 .logoMark {
   flex-shrink: 0;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-glow) 55%, transparent));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-marco-glow) 55%, transparent));
 }
 
 .logo:hover {
-  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
 
 .logoCompact {
@@ -90,8 +90,8 @@
   padding: 0.3rem 0.65rem;
   border-radius: var(--mic-radius-md);
   font-size: 0.8125rem;
-  color: var(--mic-glow);
-  border: 1px solid color-mix(in srgb, var(--mic-glow) 40%, transparent);
+  color: var(--mic-marco-glow);
+  border: 1px solid color-mix(in srgb, var(--mic-marco-glow) 65%, transparent);
 }
 
 .shareButton:disabled {
@@ -100,7 +100,7 @@
 }
 
 .shareButton:not(:disabled):hover {
-  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
 
 .vaultExitButton {
@@ -108,13 +108,15 @@
   place-items: center;
   padding: 0.35rem;
   border-radius: var(--mic-radius-md);
-  color: var(--mic-text-muted);
+  color: var(--mic-marco-glow);
+  opacity: var(--mic-marco-inactivo);
+  transition: opacity 120ms ease, border-color 120ms ease;
   border: 1px solid transparent;
 }
 
 .vaultExitButton:hover {
-  color: var(--mic-text-primary);
-  border-color: var(--mic-border);
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--mic-marco-glow) 40%, transparent);
 }
 
 @media (max-width: 767px) {

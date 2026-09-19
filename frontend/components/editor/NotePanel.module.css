@@ -133,7 +133,7 @@
   width: 100%;
   text-align: left;
   font-size: 0.8125rem;
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   padding: 0.35rem 0.5rem;
   border-radius: 6px;
 }
@@ -347,7 +347,7 @@
   padding: 0.05rem 0.2rem 0.05rem 0.4rem;
   border-radius: 999px;
   font-size: 0.75rem;
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 

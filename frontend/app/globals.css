@@ -44,7 +44,7 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--mic-glow);
+  outline: 2px solid var(--mic-focus);
   outline-offset: 2px;
 }
 

@@ -130,7 +130,7 @@
   padding: 0.05em 0.45em;
   border-radius: 999px;
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   font-size: 0.78rem;
 }
 
@@ -144,7 +144,7 @@
 }
 
 .enlace:hover {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
 }
 
 /* Un destino que no existe: se ve que la referencia está y que no llega a

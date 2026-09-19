@@ -214,7 +214,7 @@
 }
 
 .snippetName:hover {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
 }
 
 /* Input de renombrado inline del snippet */
@@ -295,6 +295,6 @@
 }
 
 .switch input:focus-visible + .switchTrack {
-  outline: 2px solid var(--mic-glow);
+  outline: 2px solid var(--mic-focus);
   outline-offset: 2px;
 }

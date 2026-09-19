@@ -75,6 +75,42 @@
   --mic-h6: var(--mic-text-muted);
 }
 
+/* ── Brote por rol ─────────────────────────────────────────────────
+   El glow se diseñó para brillar sobre oscuro. En modo claro, usado tal cual
+   como texto, foco o ícono no llega al mínimo de contraste en ningún lado
+   (medido 2026-09-19, docs/design/Auditoria de UI 2026-09-19.md): un #tag a
+   1.95:1, el anillo de foco a 2.2:1. Por eso no se usa en crudo como color de
+   primer plano: cada uso pide su ROL, y el rol decide cómo se ve en cada modo.
+
+   En oscuro, texto, foco y marco valen exactamente lo de siempre; solo el
+   modo claro los recalibra. Los porcentajes están medidos en los cuatro combos
+   y son el mínimo que pasa con margen:
+   - texto  → ≥4.5:1 sobre lienzo, niebla y el tinte de Brote al 15% (píldoras)
+   - foco   → ≥3:1 sobre lienzo y niebla (WCAG 1.4.11)
+   - marco  → sobre Esporo, que en claro SIGUE siendo oscuro: ahí el glow tiene
+              que aclararse, no oscurecerse. Se mezcla con Niebla y no con
+              blanco, para no salir de la familia de color del tema.
+   - título de callout → el color del tipo mezclado con la tinta. Es el único
+              que cambia también en oscuro (85%): los tipos rojos —caution,
+              error, danger— daban 4.1-4.5:1 sobre el lienzo oscuro. */
+:root {
+  --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
+  --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
+  --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
+  --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
+  --mic-marco-inactivo: 0.55;                /* opacidad de un ícono del marco en reposo */
+  --mic-callout-tinta:  85%;                 /* cuánto color propio lleva el título de un callout */
+}
+
+:root:not([data-dark='true']) {
+  --mic-glow-texto:     color-mix(in srgb, var(--mic-glow) 45%, var(--mic-text-primary));
+  --mic-focus:          var(--mic-accent);
+  --mic-marco-glow:     color-mix(in srgb, var(--mic-raw-glow) 60%, var(--mic-raw-mist));
+  --mic-marco-acento:   color-mix(in srgb, var(--mic-raw-glow) 80%, var(--mic-raw-mist));
+  --mic-marco-inactivo: 0.7;
+  --mic-callout-tinta:  50%;
+}
+
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
    Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {

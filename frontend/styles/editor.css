@@ -158,7 +158,7 @@
 }
 
 .cm-completionMatchedText {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   font-weight: 700;
   text-decoration: none;
 }
@@ -401,9 +401,12 @@
 :where(.mic-live-callout[data-callout-depth="4"]) {
   margin-left: 3.3rem;
 }
+/* El título se mezcla con la tinta según --mic-callout-tinta (tokens.css): en
+   oscuro va el color del tipo puro; en claro, ese color en crudo no se lee (un
+   `tip` en Brote daba 2:1). Mismo criterio que los títulos H1-H6. */
 :where(.mic-live-callout-head) {
   font-weight: 600;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 /* El título escrito del callout es texto de cita (tags.quote), que el resaltado
    de sintaxis pinta de gris en un <span> anidado y gana por herencia. Este span
@@ -424,7 +427,7 @@
   cursor: pointer;
   user-select: none;
   margin-right: 0.3em;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 
 /* Ícono del callout en la cabecera del editor (visible en vivo) */
@@ -435,7 +438,7 @@
   height: 1em;
   margin-right: 0.35em;
   vertical-align: -0.15em;
-  background-color: var(--mic-callout-color, var(--mic-callout-note-border));
+  background-color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
   -webkit-mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
   mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
 }
@@ -445,7 +448,7 @@
    resaltado de sintaxis (que decide el color/estilo por herencia). */
 .cm-editor .mic-em-cm-us,
 .cm-editor .mic-em-cm-us * {
-  color: var(--mic-glow); /* _texto_ : cursiva (del highlight) + glow */
+  color: var(--mic-glow-texto); /* _texto_ : cursiva (del highlight) + glow */
 }
 .cm-editor .mic-strong-cm-us,
 .cm-editor .mic-strong-cm-us * {
@@ -566,10 +569,14 @@
 }
 
 .mic-wikilink-cm:hover {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
 }
 
-/* Archivo referenciado inexistente: mismo color, más oscuro (feedback visual).
+/* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
+   punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
+   oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de
+   un fragmento de código en claro en 1:1: justo el enlace que el usuario
+   necesita ver para crear la nota era el que no se veía.
    El texto del wikilink también recibe el resaltado de sintaxis (tags.link →
    color del acento) en un <span> generado (.ͼ…) ANIDADO dentro de nuestro span.
    Ese span hijo fija `color` explícito, así que gana por herencia (no por
@@ -578,19 +585,21 @@
    resistir además snippets CSS del usuario por orden de cascada. */
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing,
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing * {
-  color: color-mix(in srgb, var(--mic-accent) 40%, #000);
+  color: color-mix(in srgb, var(--mic-accent) 55%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
 }
 
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover,
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover * {
-  color: color-mix(in srgb, var(--mic-glow) 48%, #000);
+  color: var(--mic-glow-texto);
 }
 
 /* Tags como píldoras (HU-01 CA9) */
 .mic-tag-cm,
 .mic-tag-pill {
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   border-radius: var(--mic-radius-sm);
   padding: 0.05em 0.4em;
   font-size: 0.9em;
@@ -763,17 +772,21 @@
 .mic-preview li  { margin-bottom: 0.25rem; }
 
 .mic-preview a       { color: var(--mic-accent); text-decoration: underline; }
-.mic-preview a:hover { color: var(--mic-glow); }
+.mic-preview a:hover { color: var(--mic-glow-texto); }
 
-/* Wikilink a un archivo inexistente: mismo color, más oscuro (feedback).
-   Selector específico (a.mic-wikilink.mic-wikilink-missing) para que un snippet
-   CSS del usuario no lo pise por orden de cascada. */
-.mic-preview a.mic-wikilink.mic-wikilink-missing       { color: color-mix(in srgb, var(--mic-accent) 40%, #000); }
-.mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: color-mix(in srgb, var(--mic-glow) 48%, #000); }
+/* Wikilink a un archivo inexistente: el mismo tratamiento que en vivo (ver
+   .mic-wikilink-cm-missing). Selector específico (a.mic-wikilink.mic-wikilink-missing)
+   para que un snippet CSS del usuario no lo pise por orden de cascada. */
+.mic-preview a.mic-wikilink.mic-wikilink-missing {
+  color: color-mix(in srgb, var(--mic-accent) 55%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+.mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: var(--mic-glow-texto); }
 
 /* Énfasis con `_` (estilo propio de Mycelium) en lectura. `*`/`**`/`***` usan el
    estilo por defecto de <em>/<strong>. */
-.mic-preview em.mic-em-us       { color: var(--mic-glow); }   /* _texto_  : cursiva + glow */
+.mic-preview em.mic-em-us       { color: var(--mic-glow-texto); }   /* _texto_  : cursiva + glow */
 .mic-preview strong.mic-strong-us { color: var(--mic-accent); } /* __texto__ : negrita + accent */
 .mic-preview em.mic-em-us-tri-outer { font-style: normal; }  /* ___texto___ : sin cursiva */
 .mic-preview strong.mic-em-us-tri {
@@ -913,7 +926,7 @@
   font-weight: 600;
   font-family: var(--mic-font-sans);
   margin-bottom: 0.35rem;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 
 .mic-preview .mic-callout-title::before {

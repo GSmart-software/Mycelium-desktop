@@ -25,14 +25,14 @@
   width: 40px;
   height: 40px;
   border-radius: var(--mic-radius-md);
-  color: var(--mic-glow);
-  opacity: 0.55;
+  color: var(--mic-marco-glow);
+  opacity: var(--mic-marco-inactivo);
   transition: opacity 120ms ease, background-color 120ms ease;
 }
 
 .button:hover {
   opacity: 1;
-  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
 
 .button[aria-pressed='true'] {
@@ -49,5 +49,5 @@
   width: 3px;
   height: 60%;
   border-radius: 0 var(--mic-radius-sm) var(--mic-radius-sm) 0;
-  background-color: var(--mic-glow);
+  background-color: var(--mic-marco-glow);
 }
