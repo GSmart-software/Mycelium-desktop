@@ -75,6 +75,15 @@
   --mic-h6: var(--mic-text-muted);
 }
 
+/* En claro, el H2 (Brote 70%) quedaba a 3.6:1: mide 22px en peso 600, que
+   para WCAG no es «texto grande» (pide 24px, o 18.7px en 700) y necesita
+   4.5:1. Medido 2026-09-19 en la lectura de los dos temas claros. Con la mitad
+   de tinta pasa a 5.1:1 sobre el lienzo y 4.7:1 sobre Niebla (vista lateral),
+   y sigue un paso más de color que el H4 (44%). En oscuro no cambia. */
+:root:not([data-dark='true']) {
+  --mic-h2: color-mix(in srgb, var(--mic-glow) 50%, var(--mic-text-primary));
+}
+
 /* ── Brote por rol ─────────────────────────────────────────────────
    El glow se diseñó para brillar sobre oscuro. En modo claro, usado tal cual
    como texto, foco o ícono no llega al mínimo de contraste en ningún lado
