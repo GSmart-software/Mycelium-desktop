@@ -151,6 +151,14 @@
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
+/* Foco con teclado (el árbol se recorre con flechas): el anillo va HACIA
+   ADENTRO. Con el `outline-offset` global de +2px se dibujaba afuera de la fila
+   y el panel con scroll lo recortaba justo en la primera y la última fila
+   visibles, que es donde el foco llega al desplazarse. */
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
 /* Dónde estás: la carpeta del archivo abierto (DEF-069). Se DERIVA de qué
    archivo se está mirando, así que no puede quedar marcada una carpeta que no
    tiene nada que ver ni hace falta refrescarla a mano. */

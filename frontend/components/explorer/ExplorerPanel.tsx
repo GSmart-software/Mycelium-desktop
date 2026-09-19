@@ -166,6 +166,26 @@ export function ExplorerPanel() {
   // El árbol de «Archivos»: una sola parada de Tab y navegación con flechas.
   const arbolRef = useRef<HTMLDivElement | null>(null);
   const onFocusFila = useFocoItineranteArbol(arbolRef);
+  // Al terminar un renombrado (F2 o doble clic), el foco vuelve al árbol: el
+  // campo desaparece y, sin esto, caía al <body> y el teclado tenía que
+  // empezar de nuevo desde arriba. Se busca la fila por su id de antes (sirve
+  // si se canceló); renombrada, el id —que es la ruta— ya cambió, y se usa la
+  // parada del árbol.
+  const renombradoAnteriorRef = useRef<RenameState>(null);
+  useEffect(() => {
+    const antes = renombradoAnteriorRef.current;
+    renombradoAnteriorRef.current = renaming;
+    if (!antes || renaming) return;
+    const cuadro = requestAnimationFrame(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const arbol = arbolRef.current;
+      const fila =
+        arbol?.querySelector<HTMLElement>(`[data-arbol-id="${antes.type}:${CSS.escape(antes.id)}"]`) ??
+        arbol?.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]');
+      fila?.focus();
+    });
+    return () => cancelAnimationFrame(cuadro);
+  }, [renaming]);
   const mdInputRef = useRef<HTMLInputElement>(null);
   const importTargetRef = useRef<string | null>(null);
 
@@ -1255,6 +1275,10 @@ const EXTENSION_POR_TIPO: Record<string, string | undefined> = {
  * - Derecha: abre la carpeta; si ya está abierta, baja a su primer hijo.
  * - Izquierda: cierra la carpeta; si no, sube a la carpeta que la contiene.
  * - Enter/Espacio: lo mismo que el clic (abrir el archivo o plegar la carpeta).
+ * - Tecla Menú o Shift+F10: el menú contextual de la fila, como el clic
+ *   derecho (renombrar, borrar, nueva nota adentro…). Sin esto, esas acciones
+ *   no existían para el teclado.
+ * - F2: renombrar, como el doble clic.
  */
 function navegarArbol(e: React.KeyboardEvent<HTMLElement>) {
   const fila = e.target as HTMLElement;
@@ -1299,6 +1323,20 @@ function navegarArbol(e: React.KeyboardEvent<HTMLElement>) {
     case "Enter":
     case " ":
       fila.click();
+      break;
+    case "ContextMenu":
+    case "F10": {
+      if (e.key === "F10" && !e.shiftKey) return;
+      // Se dispara el mismo evento que el clic derecho, anclado bajo la fila:
+      // el manejador de la fila arma el menú de siempre.
+      const r = fila.getBoundingClientRect();
+      fila.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 24, clientY: r.bottom }),
+      );
+      break;
+    }
+    case "F2":
+      fila.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
       break;
     default:
       return;
