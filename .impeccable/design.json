@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-19T02:37:21.298Z",
+  "generatedAt": "2026-09-19T04:36:41.067Z",
   "title": "Design System: Mycelium",
   "extensions": {
     "colorMeta": {
@@ -293,6 +293,91 @@
           "oklch(95.0% 0.003 210.2)"
         ]
       },
+      "brote-texto-claro": {
+        "role": "primary",
+        "displayName": "Brote texto (claro)",
+        "purpose": "Rol --mic-glow-texto en claro: etiquetas, hover de enlaces.",
+        "canonical": "#1B6C75",
+        "oklch": "oklch(48.9% 0.075 206.1)",
+        "tonalRamp": [
+          "oklch(15.0% 0.038 206.1)",
+          "oklch(26.4% 0.061 206.1)",
+          "oklch(37.9% 0.075 206.1)",
+          "oklch(49.3% 0.075 206.1)",
+          "oklch(60.7% 0.075 206.1)",
+          "oklch(72.1% 0.064 206.1)",
+          "oklch(83.6% 0.041 206.1)",
+          "oklch(95.0% 0.013 206.1)"
+        ]
+      },
+      "brote-marco-claro": {
+        "role": "primary",
+        "displayName": "Brote marco (claro)",
+        "purpose": "Rol --mic-marco-glow en claro: iconos, texto y foco sobre Esporo.",
+        "canonical": "#68CED9",
+        "oklch": "oklch(79.4% 0.096 204.7)",
+        "tonalRamp": [
+          "oklch(15.0% 0.048 204.7)",
+          "oklch(26.4% 0.078 204.7)",
+          "oklch(37.9% 0.096 204.7)",
+          "oklch(49.3% 0.096 204.7)",
+          "oklch(60.7% 0.096 204.7)",
+          "oklch(72.1% 0.081 204.7)",
+          "oklch(83.6% 0.052 204.7)",
+          "oklch(95.0% 0.017 204.7)"
+        ]
+      },
+      "brote-marco-acento-claro": {
+        "role": "primary",
+        "displayName": "Brote marco acento (claro)",
+        "purpose": "Segundo color del logo en claro.",
+        "canonical": "#3FC3D1",
+        "oklch": "oklch(75.3% 0.113 205.4)",
+        "tonalRamp": [
+          "oklch(15.0% 0.056 205.4)",
+          "oklch(26.4% 0.091 205.4)",
+          "oklch(37.9% 0.113 205.4)",
+          "oklch(49.3% 0.113 205.4)",
+          "oklch(60.7% 0.113 205.4)",
+          "oklch(72.1% 0.095 205.4)",
+          "oklch(83.6% 0.061 205.4)",
+          "oklch(95.0% 0.019 205.4)"
+        ]
+      },
+      "enlace-roto": {
+        "role": "neutral",
+        "displayName": "Enlace roto",
+        "purpose": "[[nota]] inexistente, con subrayado punteado.",
+        "canonical": "#3FC4D1",
+        "oklch": "oklch(75.5% 0.113 204.6)",
+        "tonalRamp": [
+          "oklch(15.0% 0.056 204.6)",
+          "oklch(26.4% 0.092 204.6)",
+          "oklch(37.9% 0.113 204.6)",
+          "oklch(49.3% 0.113 204.6)",
+          "oklch(60.7% 0.113 204.6)",
+          "oklch(72.1% 0.095 204.6)",
+          "oklch(83.6% 0.061 204.6)",
+          "oklch(95.0% 0.019 204.6)"
+        ]
+      },
+      "enlace-roto-claro": {
+        "role": "neutral",
+        "displayName": "Enlace roto (claro)",
+        "purpose": "[[nota]] inexistente en claro.",
+        "canonical": "#30737E",
+        "oklch": "oklch(51.7% 0.069 209.8)",
+        "tonalRamp": [
+          "oklch(15.0% 0.035 209.8)",
+          "oklch(26.4% 0.056 209.8)",
+          "oklch(37.9% 0.069 209.8)",
+          "oklch(49.3% 0.069 209.8)",
+          "oklch(60.7% 0.069 209.8)",
+          "oklch(72.1% 0.058 209.8)",
+          "oklch(83.6% 0.038 209.8)",
+          "oklch(95.0% 0.012 209.8)"
+        ]
+      },
       "ambar": {
         "role": "tertiary",
         "displayName": "Ámbar",
@@ -515,7 +600,7 @@
       "refersTo": "button-primary",
       "description": "La acción que cierra un diálogo; uno por diálogo.",
       "html": "<button class=\"ds-btn-primary\">Importar</button>",
-      "css": ".ds-btn-primary { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; font-weight: 600; border: none; border-radius: 4px; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-btn-primary:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-btn-primary { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; font-weight: 600; border: none; border-radius: 4px; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-btn-primary:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Botón secundario",
@@ -523,7 +608,7 @@
       "refersTo": "button-secondary",
       "description": "Cancelar y acciones alternativas de un diálogo.",
       "html": "<button class=\"ds-btn\">Cancelar</button>",
-      "css": ".ds-btn { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); background: transparent; border: 1px solid var(--mic-border, #16343f); cursor: pointer; transition: background-color 120ms ease; } .ds-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-btn { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); background: transparent; border: 1px solid var(--mic-border, #16343f); cursor: pointer; transition: background-color 120ms ease; } .ds-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-btn:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Botón con contorno de luz",
@@ -531,7 +616,7 @@
       "refersTo": "button-glow-outline",
       "description": "Acciones de la barra superior, sobre Esporo.",
       "html": "<div class=\"ds-frame\"><button class=\"ds-btn-glow\">Compartir</button></div>",
-      "css": ".ds-frame { background: var(--mic-bg-sidebar, #04090e); padding: 12px; border-radius: 8px; display: inline-block; } .ds-btn-glow { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.3rem 0.65rem; font-size: 0.8125rem; border-radius: 8px; color: var(--mic-glow, #3dffc4); background: transparent; border: 1px solid color-mix(in srgb, var(--mic-glow, #3dffc4) 40%, transparent); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-glow:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-btn-glow:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-frame { background: var(--mic-bg-sidebar, #04090e); padding: 12px; border-radius: 8px; display: inline-block; --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-btn-glow { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.3rem 0.65rem; font-size: 0.8125rem; border-radius: 8px; color: var(--mic-marco-glow, #3dffc4); background: transparent; border: 1px solid color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 65%, transparent); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-glow:hover { background: color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 15%, transparent); } .ds-btn-glow:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Rail",
@@ -539,7 +624,7 @@
       "refersTo": "rail-button",
       "description": "Barra vertical de secciones; el activo lleva barra de 3px en Brote.",
       "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-btn\" aria-pressed=\"true\" aria-label=\"Grafo\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"18\" cy=\"8\" r=\"3\"/><circle cx=\"12\" cy=\"18\" r=\"3\"/><path d=\"M8.5 7.5 15 8M7.5 8.5l3.5 7M16.5 10.5 13.5 15.5\"/></svg></button><button class=\"ds-rail-btn\" aria-label=\"Buscar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></button></nav>",
-      "css": ".ds-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 0.25rem; width: 56px; padding: 0.5rem 0; background: var(--mic-bg-sidebar, #04090e); } .ds-rail-btn { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: none; background: transparent; border-radius: 8px; color: var(--mic-glow, #3dffc4); opacity: 0.55; cursor: pointer; transition: opacity 120ms ease, background-color 120ms ease; } .ds-rail-btn:hover { opacity: 1; background-color: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-rail-btn[aria-pressed=\"true\"] { opacity: 1; } .ds-rail-btn[aria-pressed=\"true\"]::before { content: \"\"; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; border-radius: 0 4px 4px 0; background: var(--mic-glow, #3dffc4); } .ds-rail-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 0.25rem; width: 56px; padding: 0.5rem 0; background: var(--mic-bg-sidebar, #04090e); --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-rail-btn { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: none; background: transparent; border-radius: 8px; color: var(--mic-marco-glow, #3dffc4); opacity: var(--mic-marco-inactivo, 0.55); cursor: pointer; transition: opacity 120ms ease, background-color 120ms ease; } .ds-rail-btn:hover { opacity: 1; background-color: color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 15%, transparent); } .ds-rail-btn[aria-pressed=\"true\"] { opacity: 1; } .ds-rail-btn[aria-pressed=\"true\"]::before { content: \"\"; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; border-radius: 0 4px 4px 0; background: var(--mic-marco-glow, #3dffc4); } .ds-rail-btn:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Barra de pestañas",
@@ -547,7 +632,7 @@
       "refersTo": "tab",
       "description": "Pestañas del pane; la activa toma Lienzo y borde inferior en Hifa.",
       "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-active\" tabindex=\"0\">Mapa de documentacion</div><div class=\"ds-tab\" tabindex=\"0\">BACKLOG</div><div class=\"ds-tab ds-tab-preview\" tabindex=\"0\">RAMAS</div></div>",
-      "css": ".ds-tabs { display: flex; height: 34px; background: var(--mic-bg-surface, #0a1a24); border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; padding: 0 0.6rem; max-width: 180px; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); border-right: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 15%, transparent); white-space: nowrap; cursor: pointer; } .ds-tab:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 10%, transparent); } .ds-tab-active { background: var(--mic-bg-canvas, #071219); border-bottom: 2px solid var(--mic-accent, #19e6ff); color: var(--mic-text-primary, #c6e7e1); } .ds-tab-preview { font-style: italic; } .ds-tab:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-tabs { display: flex; height: 34px; background: var(--mic-bg-surface, #0a1a24); border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; padding: 0 0.6rem; max-width: 180px; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); border-right: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 15%, transparent); white-space: nowrap; cursor: pointer; } .ds-tab:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 10%, transparent); } .ds-tab-active { background: var(--mic-bg-canvas, #071219); border-bottom: 2px solid var(--mic-accent, #19e6ff); color: var(--mic-text-primary, #c6e7e1); } .ds-tab-preview { font-style: italic; } .ds-tab:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Campo de búsqueda",
@@ -555,7 +640,7 @@
       "refersTo": "search-field",
       "description": "Búsqueda global de la barra superior.",
       "html": "<label class=\"ds-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" placeholder=\"Buscar en el vault…\"></label>",
-      "css": ".ds-search { display: flex; align-items: center; gap: 0.5rem; height: 30px; max-width: 480px; padding: 0 0.75rem; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); color: var(--mic-text-muted, #6e9a99); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-search:focus-within { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; } .ds-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font: inherit; font-size: 0.8125rem; color: var(--mic-text-primary, #c6e7e1); } .ds-search-input::placeholder { color: var(--mic-text-muted, #6e9a99); }"
+      "css": ".ds-search { display: flex; align-items: center; gap: 0.5rem; height: 30px; max-width: 480px; padding: 0 0.75rem; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); color: var(--mic-text-muted, #6e9a99); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-search:focus-within { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font: inherit; font-size: 0.8125rem; color: var(--mic-text-primary, #c6e7e1); } .ds-search-input::placeholder { color: var(--mic-text-muted, #6e9a99); }"
     },
     {
       "name": "Menú contextual",
@@ -563,7 +648,7 @@
       "refersTo": "menu-item",
       "description": "Flota con sombra teñida; lo destructivo en Precaución, lo inerte atenuado con motivo.",
       "html": "<div class=\"ds-menu\" role=\"menu\"><button class=\"ds-menu-item\" role=\"menuitem\">Abrir en pestaña nueva</button><button class=\"ds-menu-item\" role=\"menuitem\">Renombrar</button><button class=\"ds-menu-item ds-menu-off\" role=\"menuitem\" disabled title=\"Solo en desktop\">Mostrar en el explorador</button><button class=\"ds-menu-item ds-menu-danger\" role=\"menuitem\">Mover a la papelera</button></div>",
-      "css": ".ds-menu { display: inline-flex; flex-direction: column; min-width: 180px; padding: 0.25rem; background: var(--mic-bg-canvas, #071219); border: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 25%, transparent); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-menu-item { text-align: left; font: inherit; font-size: 0.8125rem; padding: 0.4rem 0.6rem; border: none; background: transparent; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-menu-item:hover:not(:disabled) { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-menu-item:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; } .ds-menu-off { color: var(--mic-text-muted, #6e9a99); opacity: 0.6; cursor: default; } .ds-menu-danger { color: var(--mic-callout-caution-border, #D95040); } .ds-menu-danger:hover { background: color-mix(in srgb, var(--mic-callout-caution-border, #D95040) 10%, transparent); }"
+      "css": ".ds-menu { display: inline-flex; flex-direction: column; min-width: 180px; padding: 0.25rem; background: var(--mic-bg-canvas, #071219); border: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 25%, transparent); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-menu-item { text-align: left; font: inherit; font-size: 0.8125rem; padding: 0.4rem 0.6rem; border: none; background: transparent; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-menu-item:hover:not(:disabled) { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-menu-item:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-menu-off { color: var(--mic-text-muted, #6e9a99); opacity: 0.6; cursor: default; } .ds-menu-danger { color: var(--mic-callout-caution-border, #D95040); } .ds-menu-danger:hover { background: color-mix(in srgb, var(--mic-callout-caution-border, #D95040) 10%, transparent); }"
     },
     {
       "name": "Etiqueta",
@@ -571,7 +656,7 @@
       "refersTo": "tag-pill",
       "description": "#tag renderizado dentro de una nota.",
       "html": "<p class=\"ds-p\">Decisión sobre la <span class=\"ds-tag\">#arquitectura</span> y el <span class=\"ds-tag\">#grafo</span>.</p>",
-      "css": ".ds-p { font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; color: var(--mic-text-primary, #c6e7e1); } .ds-tag { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); color: var(--mic-glow, #3dffc4); border-radius: 4px; padding: 0.05em 0.4em; font-size: 0.9em; }"
+      "css": ".ds-p { font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; color: var(--mic-text-primary, #c6e7e1); } .ds-tag { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); color: var(--mic-glow-texto, #3dffc4); border-radius: 4px; padding: 0.05em 0.4em; font-size: 0.9em; }"
     },
     {
       "name": "Callout",
@@ -579,7 +664,7 @@
       "refersTo": "callout",
       "description": "Firma de las notas: borde izquierdo en el color del tipo, fondo al 8%.",
       "html": "<div class=\"ds-callout\"><strong class=\"ds-callout-t\">Nota</strong><p>El enlace es la unidad de valor.</p></div><div class=\"ds-callout ds-callout-warn\"><strong class=\"ds-callout-t\">Advertencia</strong><p>Un defecto se registra apenas se detecta.</p></div>",
-      "css": ".ds-callout { --c: var(--mic-callout-note-border, #3dffc4); border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--mic-text-primary, #c6e7e1); padding: 8px 16px; margin: 0 0 0.85rem; border-radius: 0 8px 8px 0; font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; } .ds-callout p { margin: 0; } .ds-callout-warn { --c: var(--mic-callout-warning-border, #C9821E); } .ds-callout-t { color: var(--c); font-weight: 600; }"
+      "css": ".ds-callout { --c: var(--mic-callout-note-border, #3dffc4); border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--mic-text-primary, #c6e7e1); padding: 8px 16px; margin: 0 0 0.85rem; border-radius: 0 8px 8px 0; font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; } .ds-callout p { margin: 0; } .ds-callout-warn { --c: var(--mic-callout-warning-border, #C9821E); } .ds-callout-t { color: color-mix(in srgb, var(--c) var(--mic-callout-tinta, 85%), var(--mic-text-primary, #c6e7e1)); font-weight: 600; }"
     },
     {
       "name": "Diálogo",
@@ -587,18 +672,19 @@
       "refersTo": "dialog",
       "description": "Modal sobre velo de Esporo profundo, radio amplio, sombra teñida.",
       "html": "<div class=\"ds-dialog\"><h3 class=\"ds-dialog-t\">Importar carpeta</h3><p class=\"ds-dialog-p\">Se van a copiar 42 notas al vault. Las que ya existan se omiten.</p><div class=\"ds-dialog-a\"><button class=\"ds-d-btn\">Cancelar</button><button class=\"ds-d-btn ds-d-pri\">Importar</button></div></div>",
-      "css": ".ds-dialog { width: min(420px, 92vw); display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem; background: var(--mic-bg-surface, #0a1a24); border-radius: 16px; box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 35%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-dialog-t { font-size: 0.95rem; font-weight: 600; color: var(--mic-text-primary, #c6e7e1); margin: 0; } .ds-dialog-p { font-size: 0.8125rem; line-height: 1.5; color: var(--mic-text-muted, #6e9a99); margin: 0; } .ds-dialog-a { display: flex; gap: 0.5rem; justify-content: flex-end; } .ds-d-btn { font: inherit; font-size: 0.8125rem; padding: 0.45rem 0.75rem; border-radius: 4px; border: 1px solid var(--mic-border, #16343f); background: transparent; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-d-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-d-pri { border: none; font-weight: 600; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); } .ds-d-pri:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-d-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+      "css": ".ds-dialog { width: min(420px, 92vw); display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem; background: var(--mic-bg-surface, #0a1a24); border-radius: 16px; box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 35%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-dialog-t { font-size: 0.95rem; font-weight: 600; color: var(--mic-text-primary, #c6e7e1); margin: 0; } .ds-dialog-p { font-size: 0.8125rem; line-height: 1.5; color: var(--mic-text-muted, #6e9a99); margin: 0; } .ds-dialog-a { display: flex; gap: 0.5rem; justify-content: flex-end; } .ds-d-btn { font: inherit; font-size: 0.8125rem; padding: 0.45rem 0.75rem; border-radius: 4px; border: 1px solid var(--mic-border, #16343f); background: transparent; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-d-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-d-pri { border: none; font-weight: 600; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); } .ds-d-pri:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-d-btn:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     }
   ],
   "narrative": {
     "northStar": "El bosque bioluminiscente",
-    "overview": "Mycelium es un bosque de noche. El marco es oscuro y profundo —el rail, la barra superior y el lienzo del grafo son casi negros, teñidos de azul petróleo— y lo que tiene valor **emite luz**: los nodos del grafo, las etiquetas, el cursor, la barra que marca dónde estás. La luz no es decoración, es información: brilla lo que está vivo, lo que está conectado, lo que tiene el foco. Por eso el modo oscuro de Bioluminiscencia es el que viene por defecto, y el claro es su versión diurna, no al revés.\n\nConviven dos densidades, y cada una tiene su lugar. **El marco es denso y técnico**, como un IDE: texto de interfaz de 13px, controles de 22 a 40px, pestañas de 34px, mucho a la vista y nada que pida atención en reposo. **La nota es serena**: en lectura cambia a una serif, respira con interlineado de 1.7 y se limita a 72 caracteres de ancho. Lo orgánico del micelio se ve en los detalles, no en la cantidad: esquinas suaves, el degradé brote→hifa del logo, el halo del isotipo, títulos que alternan los dos colores de la marca.\n\nHay tres cosas que Mycelium nunca debe parecer: **un clon gris de Obsidian** (violeta y grises neutros sin identidad), **un SaaS corporativo** (tarjetas blancas flotando con sombras suaves, degradé violeta-azul) y **un neón gamer** (brillo saturado en todas partes, donde el glow deja de señalar y pasa a ser ruido).",
+    "overview": "Mycelium es un bosque de noche. El marco es oscuro y profundo —el rail, la barra superior y el lienzo del grafo son casi negros, teñidos de azul petróleo— y lo que tiene valor **emite luz**: los nodos del grafo, las etiquetas, el cursor, la barra que marca dónde estás. La luz no es decoración, es información: brilla lo que está vivo, lo que está conectado, lo que tiene el foco. Por eso el modo oscuro de Bioluminiscencia es el que viene por defecto, y el claro es su versión diurna, no al revés.\n\nConviven dos densidades, y cada una tiene su lugar. **El marco es denso y técnico**, como un IDE: texto de interfaz de 13px, controles de 22 a 40px, pestañas de 34px, mucho a la vista y nada que pida atención en reposo. **La nota es serena**: en lectura cambia a una serif, respira con interlineado de 1.7 y se limita a 72 caracteres de ancho. Lo orgánico del micelio se ve en los detalles, no en la cantidad: esquinas suaves, el degradé brote→hifa (en el logo, el título del documento y el énfasis triple), el halo del isotipo, títulos que alternan los dos colores de la marca.\n\nHay tres cosas que Mycelium nunca debe parecer: **un clon gris de Obsidian** (violeta y grises neutros sin identidad), **un SaaS corporativo** (tarjetas blancas flotando con sombras suaves, degradé violeta-azul) y **un neón gamer** (brillo saturado en todas partes, donde el glow deja de señalar y pasa a ser ruido).",
     "keyCharacteristics": [
       "Marco oscuro, contenido que brilla: la luz se reserva para lo que tiene significado.",
       "Dos colores de marca por tema (Hifa y Brote) y el resto es tono del mismo matiz.",
       "Marco compacto (13px, controles chicos) frente a una lectura amplia (serif, 72ch).",
       "Plano por defecto: las zonas se separan por tono; solo lo que flota tiene sombra.",
-      "Todo sale de tokens: dos temas × claro/oscuro = cuatro combinaciones, siempre las cuatro."
+      "Todo sale de tokens: dos temas × claro/oscuro = cuatro combinaciones, siempre las cuatro.",
+      "Brote nunca se usa en crudo como primer plano: cada uso pide su rol (texto, foco, marco)."
     ],
     "rules": [
       {
@@ -618,7 +704,12 @@
       },
       {
         "name": "The Dark Frame Rule",
-        "body": "Sobre Esporo nunca va Humus tenue: está calibrado para fondo claro. Los íconos del marco usan Brote al 55% en reposo y al 100% activos o con hover.",
+        "body": "Sobre Esporo nunca va Humus tenue ni ningún color calibrado para fondo claro: el marco usa `--mic-marco-glow`, a `--mic-marco-inactivo` en reposo y al 100% activo o con hover.",
+        "section": "colors"
+      },
+      {
+        "name": "The Role Rule",
+        "body": "Brote no se escribe en crudo como color de primer plano. Texto, anillo de foco e íconos usan su rol (`--mic-glow-texto`, `--mic-focus`, `--mic-marco-glow`); Brote en crudo queda para fondos tenues (hover al 14–15%, tintes) y para el grafo, que siempre se dibuja sobre oscuro.",
         "section": "colors"
       },
       {
@@ -628,7 +719,7 @@
       },
       {
         "name": "The Semibold Ceiling Rule",
-        "body": "En la interfaz, el énfasis máximo es 600. El 700 es para el logo y el H1 de una nota.",
+        "body": "En la interfaz, el énfasis máximo es 600. El 700 es para el contenido y la marca: el H1 de una nota, el título del documento, el énfasis triple y el logo.",
         "section": "typography"
       },
       {
@@ -648,12 +739,16 @@
       "**Do** reservar el brillo de Brote para lo que tiene significado: foco, selección, conexión, lo activo.",
       "**Do** mantener la interfaz en 13px y la lectura en 16px con serif a 72ch.",
       "**Do** teñir las sombras con Esporo profundo y darles sombra solo a los elementos que flotan.",
-      "**Do** mostrar atenuada, y con su motivo, la acción que no está disponible, en vez de ocultarla."
+      "**Do** mostrar atenuada, y con su motivo, la acción que no está disponible, en vez de ocultarla.",
+      "**Do** usar el rol de Brote que corresponda (`--mic-glow-texto`, `--mic-focus`, `--mic-marco-glow`) cada vez que Brote vaya en primer plano.",
+      "**Do** dar a toda animación una alternativa con `prefers-reduced-motion` que conserve lo que informa, y detener todo bucle que no esté a la vista.",
+      "**Do** repartir el espacio en una ventana angosta —la nota conserva 420px— en vez de esconder funciones."
     ],
     "donts": [
       "**Don't** parecer un clon gris de Obsidian: nada de violeta ni de grises neutros sin matiz. El neutro de Mycelium siempre tiene el tono de su tema.",
       "**Don't** parecer un SaaS corporativo: nada de tarjetas blancas elevadas con sombras suaves ni degradés violeta-azul.",
-      "**Don't** convertirlo en neón gamer: el glow saturado en todas partes deja de señalar. El logo es el único degradé.",
+      "**Don't** convertirlo en neón gamer: el glow saturado en todas partes deja de señalar. El degradé de marca tiene tres usos (logo, título del documento, énfasis triple) y ninguno más.",
+      "**Don't** escribir Brote en crudo como color de texto, foco o ícono: en claro no llega al contraste mínimo.",
       "**Don't** escribir un hex a mano en un componente ni usar `rgba(0,0,0,…)` para una sombra.",
       "**Don't** poner Humus tenue sobre Esporo.",
       "**Don't** atenuar con `opacity` una fila, un panel o cualquier contenedor.",
