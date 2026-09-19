@@ -1,8 +1,9 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useDialogoModal } from "@/lib/useDialogoModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./ShareModal.module.css";
@@ -47,6 +48,12 @@ export function ShareModal() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Escape, foco adentro y vuelta al botón que lo abrió: ver useDialogoModal.
+  const dialogoRef = useRef<HTMLDivElement>(null);
+  const tituloId = useId();
+  const cerrar = useCallback(() => close(null), [close]);
+  useDialogoModal({ abierto: !!target, cerrar, dialogoRef });
 
   if (!target) return null;
 
@@ -95,9 +102,16 @@ export function ShareModal() {
 
   return (
     <div className={styles.overlay} onClick={() => close(null)}>
-      <div className={styles.modal} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogoRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={tituloId}
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className={styles.header}>
-          <h3 className={styles.title}>Compartir «{target.nombre}»</h3>
+          <h3 id={tituloId} className={styles.title}>Compartir «{target.nombre}»</h3>
           <button type="button" className={styles.close} aria-label="Cerrar" onClick={() => close(null)}>
             <X size={16} aria-hidden />
           </button>
@@ -108,11 +122,17 @@ export function ShareModal() {
             type="email"
             className={styles.input}
             placeholder="email@ejemplo.com"
+            aria-label="Email de la persona"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void compartir()}
           />
-          <select className={styles.select} value={rol} onChange={(e) => setRol(e.target.value)}>
+          <select
+            className={styles.select}
+            aria-label="Rol"
+            value={rol}
+            onChange={(e) => setRol(e.target.value)}
+          >
             {ROLES.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
@@ -134,6 +154,7 @@ export function ShareModal() {
               </div>
               <select
                 className={styles.select}
+                aria-label={`Rol de ${m.nombre}`}
                 value={m.rol}
                 onChange={(e) => void cambiarRol(m, e.target.value)}
               >

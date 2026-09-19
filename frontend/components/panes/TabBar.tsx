@@ -2,8 +2,9 @@
 
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import {
   ICONO_CONSOLA,
   ICONO_GRAFO,
@@ -41,6 +42,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const menuListaRef = useRef<HTMLDivElement>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
   useWheelHScroll(tabBarRef);
 
@@ -52,14 +54,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     setMenuOpen((v) => !v);
   };
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [menuOpen]);
+  const cerrarMenu = useCallback(() => setMenuOpen(false), []);
+  // Escape, flechas, foco y un solo menú abierto a la vez: ver useMenuEmergente.
+  useMenuEmergente({
+    abierto: menuOpen,
+    cerrar: cerrarMenu,
+    contenedorRef: menuRef,
+    menuRef: menuListaRef,
+    disparadorRef: menuBtnRef,
+  });
 
   // `replace` y no `push` (DEF-040): la pila del WebView compite con el historial
   // propio de cada pestaña. La URL sigue reflejando la nota activa.
@@ -288,12 +291,17 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           type="button"
           className={styles.tabMenuButton}
           aria-label="Opciones del pane"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           onClick={toggleMenu}
         >
           <MoreHorizontal size={15} aria-hidden />
         </button>
         {menuOpen && (
           <div
+            ref={menuListaRef}
+            role="menu"
+            aria-label="Opciones del pane"
             className={styles.tabMenu}
             style={{ position: "fixed", top: menuPos.top, right: menuPos.right }}
           >
@@ -301,6 +309,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     void exportNoteMd(activeNota.id, activeNota.titulo);
@@ -311,6 +320,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     exportNotePdfActive(activeNota.id, activeNota.titulo);
@@ -326,6 +336,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.splitActivePane(pane.id, "right");
@@ -337,6 +348,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.splitActivePane(pane.id, "bottom");
@@ -355,6 +367,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   <button
                     key={other.id}
                     type="button"
+                    role="menuitem"
                     className={styles.tabMenuItem}
                     onClick={() => {
                       store.linkPane(pane.id, other.id);
@@ -371,6 +384,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.toggleLinkedScrollSync(pane.id);
@@ -381,6 +395,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.linkPane(pane.id, null);

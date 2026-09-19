@@ -342,6 +342,11 @@ function WorkspaceShell() {
         } as React.CSSProperties
       }
     >
+      {/* Primera parada de Tab: sin esto, llegar a la nota con el teclado
+          costaba recorrer barra superior, rail y el árbol entero. */}
+      <a href="#contenido" className={styles.saltar} onClick={saltarALaNota}>
+        Saltar a la nota
+      </a>
       <AppTopbar shareFolder={shareFolder} />
       <Rail />
       <LeftPanel />
@@ -354,13 +359,32 @@ function WorkspaceShell() {
   );
 }
 
+/**
+ * «Saltar a la nota»: deja el foco donde se escribe o se lee, no en el `<main>`
+ * vacío. Con varios panes, en el que tiene la pestaña activa; si no hay nota
+ * abierta, en el `<main>` mismo.
+ */
+function saltarALaNota(e: React.MouseEvent<HTMLAnchorElement>) {
+  e.preventDefault();
+  const main = document.getElementById("contenido");
+  const destino =
+    main?.querySelector<HTMLElement>(".cm-content") ??
+    main?.querySelector<HTMLElement>(".mic-preview") ??
+    main;
+  // La vista de lectura es un <div>: sin el atributo no recibe el foco.
+  if (destino && !destino.isContentEditable && !destino.hasAttribute("tabindex")) {
+    destino.tabIndex = -1;
+  }
+  destino?.focus();
+}
+
 /** Área central: árbol de panes con pestañas (HU-25/26/27). Es el `<main>` del
  *  workspace: el landmark al que salta un lector de pantalla para ir al
  *  contenido, salteando la barra superior, el rail y el explorador. */
 function EditorArea() {
   const root = useTabsStore((s) => s.root);
   return (
-    <main className={styles.editorArea}>
+    <main id="contenido" tabIndex={-1} className={styles.editorArea}>
       <PaneTree node={root} />
     </main>
   );

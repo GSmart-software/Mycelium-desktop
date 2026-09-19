@@ -1,9 +1,10 @@
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./ExportMenu.module.css";
 
@@ -29,17 +30,13 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const liveTables = useUiStore((s) => s.liveTables);
   const setLiveTables = useUiStore((s) => s.setLiveTables);
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: PointerEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
-  }, [open]);
+  const cerrar = useCallback(() => setOpen(false), []);
+  // Escape, flechas, foco y un solo menú abierto a la vez: ver useMenuEmergente.
+  useMenuEmergente({ abierto: open, cerrar, contenedorRef: wrapRef, menuRef, disparadorRef: btnRef });
 
   const toggle = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -55,14 +52,23 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
         className={styles.button}
         aria-label="Más opciones"
         title="Más opciones"
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={toggle}
       >
         <MoreHorizontal size={16} aria-hidden />
       </button>
       {open && (
-        <div className={styles.menu} style={{ position: "fixed", top: pos.top, right: pos.right }}>
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="Más opciones"
+          className={styles.menu}
+          style={{ position: "fixed", top: pos.top, right: pos.right }}
+        >
           <button
             type="button"
+            role="menuitem"
             className={styles.item}
             onClick={() => {
               void exportNoteMd(notaId, titulo);
@@ -73,6 +79,7 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
           </button>
           <button
             type="button"
+            role="menuitem"
             className={styles.item}
             onClick={() => {
               exportNotePdfActive(notaId, titulo);
@@ -85,6 +92,8 @@ export function ExportMenu({ notaId, titulo }: { notaId: string; titulo: string 
           <label className={styles.check}>
             <input
               type="checkbox"
+              role="menuitemcheckbox"
+              aria-checked={liveTables}
               checked={liveTables}
               onChange={(e) => {
                 setLiveTables(e.target.checked);

@@ -25,6 +25,31 @@
   background: var(--mic-bg-canvas);
 }
 
+/* «Saltar a la nota»: fuera de la vista hasta que recibe el foco con el
+   teclado; entonces aparece arriba a la izquierda, sobre la barra superior. */
+.saltar {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+  transform: translateY(calc(-100% - 1rem));
+}
+
+.saltar:focus-visible {
+  transform: none;
+}
+
+/* El <main> recibe el foco solo como destino del salto: no dibuja anillo. */
+.editorArea:focus {
+  outline: none;
+}
+
 .editorArea {
   grid-area: editor;
   /* El fondo es el del lienzo, no el de la superficie: lo que se ve del área es

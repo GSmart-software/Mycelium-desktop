@@ -25,7 +25,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ICONO_OTRO_ARCHIVO, ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { api } from "@/lib/api";
@@ -163,6 +163,9 @@ export function ExplorerPanel() {
     return Number.isFinite(v) && v > 0 ? v : 200;
   });
   const explorerRef = useRef<HTMLDivElement>(null);
+  // El árbol de «Archivos»: una sola parada de Tab y navegación con flechas.
+  const arbolRef = useRef<HTMLDivElement | null>(null);
+  const onFocusFila = useFocoItineranteArbol(arbolRef);
   const mdInputRef = useRef<HTMLInputElement>(null);
   const importTargetRef = useRef<string | null>(null);
 
@@ -579,7 +582,7 @@ export function ExplorerPanel() {
     setRenaming(null);
   }
 
-  function renderCarpeta(carpeta: TreeCarpeta) {
+  function renderCarpeta(carpeta: TreeCarpeta, nivel: number) {
     const isExpanded = store.expanded[carpeta.id] ?? false;
     // El fondo marca DÓNDE ESTÁS, y eso se deriva del archivo abierto: no es un
     // estado que alguien prenda y apague (`DEF-069`). Antes era
@@ -606,6 +609,7 @@ export function ExplorerPanel() {
           <>
         <FolderRow
           carpeta={carpeta}
+          nivel={nivel}
           expanded={isExpanded}
           active={isActive}
           seleccionada={isSeleccionada}
@@ -637,10 +641,10 @@ export function ExplorerPanel() {
             la línea la que dice hasta dónde llega cada carpeta. */}
         {isExpanded && (
           <div className={styles.rama}>
-            {(carpetasPorPadre.get(carpeta.id) ?? []).map((sub) => renderCarpeta(sub))}
-            {(notasPorCarpeta.get(carpeta.id) ?? []).map((nota) => renderNota(nota))}
+            {(carpetasPorPadre.get(carpeta.id) ?? []).map((sub) => renderCarpeta(sub, nivel + 1))}
+            {(notasPorCarpeta.get(carpeta.id) ?? []).map((nota) => renderNota(nota, nivel + 1))}
             {(otrosPorCarpeta.get(carpeta.id) ?? []).map((otro) => (
-              <OtroRow key={otro.ruta} otro={otro} />
+              <OtroRow key={otro.ruta} otro={otro} nivel={nivel + 1} />
             ))}
           </div>
         )}
@@ -650,11 +654,12 @@ export function ExplorerPanel() {
     );
   }
 
-  function renderNota(nota: TreeNota) {
+  function renderNota(nota: TreeNota, nivel: number) {
     return (
       <NoteRow
         key={nota.id}
         nota={nota}
+        nivel={nivel}
         active={activeNoteId === nota.id}
         shared={isCarpetaShared(nota.carpetaId)}
         renaming={renaming?.type === "nota" && renaming.id === nota.id}
@@ -759,6 +764,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Nueva nota"
+          aria-label="Nueva nota"
           onClick={() => void store.createNota(store.activeFolderId).then(openNota)}
         >
           <FilePlus size={16} aria-hidden />
@@ -767,6 +773,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Nuevo dibujo Excalidraw"
+          aria-label="Nuevo dibujo Excalidraw"
           onClick={() => void store.createNota(store.activeFolderId, "excalidraw").then(openNota)}
         >
           <IconoDibujo size={16} aria-hidden />
@@ -775,6 +782,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Nueva base (tabla de notas)"
+          aria-label="Nueva base (tabla de notas)"
           onClick={() => void crearBase(store.activeFolderId)}
         >
           <IconoBase size={16} aria-hidden />
@@ -783,6 +791,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Nuevo canvas (notas en el espacio)"
+          aria-label="Nuevo canvas (notas en el espacio)"
           onClick={() => void crearCanvas(store.activeFolderId)}
         >
           <IconoCanvas size={16} aria-hidden />
@@ -791,6 +800,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Nueva carpeta"
+          aria-label="Nueva carpeta"
           onClick={() => {
             const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
             if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
@@ -802,6 +812,7 @@ export function ExplorerPanel() {
           type="button"
           className={styles.actionButton}
           title="Importar archivos .md"
+          aria-label="Importar archivos .md"
           onClick={() => {
             importTargetRef.current = store.activeFolderId;
             mdInputRef.current?.click();
@@ -830,11 +841,11 @@ export function ExplorerPanel() {
             onToggle={toggleArchivos}
           />
           {!archivosCollapsed && (
-            <RootDropZone onClearActive={() => store.setActiveFolder(null)}>
-              {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta))}
-              {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota))}
+            <RootDropZone arbolRef={arbolRef} onFocusFila={onFocusFila} onClearActive={() => store.setActiveFolder(null)}>
+              {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 1))}
+              {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 1))}
               {(otrosPorCarpeta.get(null) ?? []).map((otro) => (
-                <OtroRow key={otro.ruta} otro={otro} />
+                <OtroRow key={otro.ruta} otro={otro} nivel={1} />
               ))}
               {store.carpetas.length === 0 && store.notas.length === 0 && (
                 <p className={styles.empty}>
@@ -986,8 +997,29 @@ function FolderDropZone({
   );
 }
 
+/**
+ * Semántica de árbol de una fila (critique 2026-09-19). Va DESPUÉS de los
+ * atributos de dnd-kit y los pisa: dnd-kit la anunciaba como «botón
+ * arrastrable», con instrucciones para arrastrar con el teclado que acá no
+ * existen (solo hay `PointerSensor`), y le daba `tabIndex=0` a cada fila —140
+ * paradas de Tab antes de la nota—. El foco itinerante lo reparte
+ * `useFocoItineranteArbol`: todas en -1 y una sola en 0.
+ */
+function atributosDeFila(nivel: number) {
+  return {
+    role: "treeitem",
+    "aria-level": nivel,
+    tabIndex: -1,
+    "aria-roledescription": undefined,
+    "aria-describedby": undefined,
+    "aria-pressed": undefined,
+    "aria-disabled": undefined,
+  } as const;
+}
+
 function FolderRow({
   carpeta,
+  nivel,
   expanded,
   active,
   seleccionada,
@@ -1000,6 +1032,8 @@ function FolderRow({
   ...rename
 }: {
   carpeta: TreeCarpeta;
+  /** Profundidad en el árbol, desde 1 (`aria-level`). */
+  nivel: number;
   expanded: boolean;
   /** Es la carpeta del archivo abierto: dónde estás (`DEF-069`). */
   active: boolean;
@@ -1038,6 +1072,9 @@ function FolderRow({
       onDoubleClick={onDoubleClick}
       {...drag.listeners}
       {...drag.attributes}
+      {...atributosDeFila(nivel)}
+      aria-expanded={expanded}
+      data-arbol-id={`carpeta:${carpeta.id}`}
     >
       {expanded ? (
         <ChevronDown size={14} className={styles.chevron} aria-hidden />
@@ -1066,6 +1103,7 @@ function FolderRow({
 
 function NoteRow({
   nota,
+  nivel,
   active,
   shared,
   onOpen,
@@ -1075,6 +1113,8 @@ function NoteRow({
   ...rename
 }: {
   nota: TreeNota;
+  /** Profundidad en el árbol, desde 1 (`aria-level`). */
+  nivel: number;
   active: boolean;
   shared: boolean;
   onOpen: () => void;
@@ -1119,6 +1159,10 @@ function NoteRow({
       onDoubleClick={onDoubleClick}
       {...drag.listeners}
       {...drag.attributes}
+      {...atributosDeFila(nivel)}
+      aria-selected={active}
+      aria-current={active ? "page" : undefined}
+      data-arbol-id={`nota:${nota.id}`}
     >
       <Icon size={15} className={styles.noteIcon} aria-hidden />
       {rename.renaming ? (
@@ -1154,7 +1198,7 @@ function NoteRow({
  * no aparece en la búsqueda del vault, ni en el autocompletado de `[[`, ni en
  * el grafo.
  */
-function OtroRow({ otro }: { otro: OtroArchivo }) {
+function OtroRow({ otro, nivel }: { otro: OtroArchivo; nivel: number }) {
   const router = useRouter();
   const abrir = () => {
     const tabId = tabIdDeArchivo(otro.ruta);
@@ -1165,6 +1209,8 @@ function OtroRow({ otro }: { otro: OtroArchivo }) {
     <div
       className={`${styles.row} ${styles.rowHoja} ${styles.rowOtro}`}
       title={otro.ruta}
+      {...atributosDeFila(nivel)}
+      data-arbol-id={`otro:${otro.ruta}`}
       onClick={abrir}
       // Evita el auto-scroll del navegador al pulsar la rueda sobre la fila.
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
@@ -1201,19 +1247,125 @@ const EXTENSION_POR_TIPO: Record<string, string | undefined> = {
   canvas: "canvas",
 };
 
+/**
+ * Teclado del árbol (patrón de árbol de WAI-ARIA). Trabaja sobre el DOM porque
+ * lo visible ES el DOM: una rama plegada no se renderiza, así que las filas en
+ * orden de documento son exactamente las filas en pantalla.
+ * - Arriba/abajo, Inicio/Fin: fila anterior/siguiente, primera/última.
+ * - Derecha: abre la carpeta; si ya está abierta, baja a su primer hijo.
+ * - Izquierda: cierra la carpeta; si no, sube a la carpeta que la contiene.
+ * - Enter/Espacio: lo mismo que el clic (abrir el archivo o plegar la carpeta).
+ */
+function navegarArbol(e: React.KeyboardEvent<HTMLElement>) {
+  const fila = e.target as HTMLElement;
+  // Solo cuando el foco está en la FILA: dentro del campo de renombrar, las
+  // flechas y el Enter son del campo.
+  if (fila.getAttribute("role") !== "treeitem") return;
+  const filas = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')];
+  const i = filas.indexOf(fila);
+  const nivel = Number(fila.getAttribute("aria-level"));
+  const expandida = fila.getAttribute("aria-expanded");
+  const ir = (j: number) => filas[Math.max(0, Math.min(filas.length - 1, j))]?.focus();
+
+  switch (e.key) {
+    case "ArrowDown":
+      ir(i + 1);
+      break;
+    case "ArrowUp":
+      ir(i - 1);
+      break;
+    case "Home":
+      ir(0);
+      break;
+    case "End":
+      ir(filas.length - 1);
+      break;
+    case "ArrowRight":
+      if (expandida === "false") fila.click();
+      else if (expandida === "true" && Number(filas[i + 1]?.getAttribute("aria-level")) === nivel + 1) ir(i + 1);
+      break;
+    case "ArrowLeft":
+      if (expandida === "true") {
+        fila.click();
+      } else {
+        for (let j = i - 1; j >= 0; j--) {
+          if (Number(filas[j].getAttribute("aria-level")) === nivel - 1) {
+            ir(j);
+            break;
+          }
+        }
+      }
+      break;
+    case "Enter":
+    case " ":
+      fila.click();
+      break;
+    default:
+      return;
+  }
+  e.preventDefault();
+}
+
+/**
+ * Una sola parada de Tab para todo el árbol (tabindex itinerante). Las filas
+ * nacen con `tabIndex=-1` (`atributosDeFila`); acá se le da 0 a UNA: la que
+ * tiene el foco, si no la última que lo tuvo, si no la nota abierta, si no la
+ * primera. Corre después de cada render porque las ramas se abren y cierran:
+ * la fila elegida puede haber dejado de existir.
+ */
+function useFocoItineranteArbol(arbolRef: React.MutableRefObject<HTMLDivElement | null>) {
+  const ultimaRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const filas = [...(arbolRef.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])];
+    if (!filas.length) return;
+    const elegida =
+      filas.find((f) => f === document.activeElement) ??
+      filas.find((f) => f.dataset.arbolId === ultimaRef.current) ??
+      filas.find((f) => f.getAttribute("aria-selected") === "true") ??
+      filas[0];
+    for (const f of filas) f.tabIndex = f === elegida ? 0 : -1;
+  });
+
+  // Se engancha como `onFocus` del árbol (en React burbujea, como `focusin`):
+  // la fila que recibe el foco —por teclado o por clic— pasa a ser la parada.
+  return useCallback(
+    (e: React.FocusEvent<HTMLElement>) => {
+      const fila = e.target as HTMLElement;
+      if (fila.getAttribute("role") !== "treeitem") return;
+      ultimaRef.current = fila.dataset.arbolId ?? null;
+      for (const f of arbolRef.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? []) {
+        f.tabIndex = f === fila ? 0 : -1;
+      }
+    },
+    [arbolRef],
+  );
+}
+
 /** Zona raíz: soltar aquí mueve a la raíz del vault; clic limpia la carpeta activa. */
 function RootDropZone({
   children,
   onClearActive,
+  arbolRef,
+  onFocusFila,
 }: {
   children: React.ReactNode;
   onClearActive: () => void;
+  arbolRef: React.MutableRefObject<HTMLDivElement | null>;
+  onFocusFila: (e: React.FocusEvent<HTMLElement>) => void;
 }) {
   const drop = useDroppable({ id: "root" });
   return (
     <div
-      ref={drop.setNodeRef}
+      ref={(el) => {
+        drop.setNodeRef(el);
+        arbolRef.current = el;
+      }}
+      role="tree"
+      aria-label="Archivos del vault"
       className={drop.isOver ? `${styles.tree} ${styles.treeDropTarget}` : styles.tree}
+      onKeyDown={navegarArbol}
+      onFocus={onFocusFila}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClearActive();
       }}

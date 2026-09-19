@@ -419,7 +419,7 @@ export function EditorToolbar({
 
             <ExportMenu notaId={notaId} titulo={titulo} />
 
-            <div className={styles.modeGroup} role="radiogroup" aria-label="Modo de visualización">
+            <div className={styles.modeGroup} role="group" aria-label="Modo de visualización">
               {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
                 <button
                   key={m}
@@ -427,6 +427,7 @@ export function EditorToolbar({
                   className={mode === m ? `${styles.modeButton} ${styles.modeActive}` : styles.modeButton}
                   data-mode={m}
                   title={`${label} (${shortcut})`}
+                  aria-label={label}
                   aria-pressed={mode === m}
                   onClick={() => onModeChange(m)}
                 >
