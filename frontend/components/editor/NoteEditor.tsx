@@ -481,7 +481,23 @@ export function NoteEditor({
             // plegar pegada al texto, como en VS Code. Al revés —que es como
             // estaba— el número quedaba lejos de la línea que numera.
             numerosCompartment.current.of(numerosDeLinea ? numerosDeLineaExt() : []),
-            foldGutter({ openText: "⌄", closedText: "›" }),
+            // Marca propia (`DEF-088`): el estado va en `data-plegado` y no se
+            // deduce del `title` de CodeMirror, que está en inglés, en otro
+            // elemento y con mayúscula —la regla que giraba la flecha nunca se
+            // aplicó—. El glifo se conserva por su caja de línea (ver
+            // .cm-foldGutter en editor.css); la flecha la dibuja el ::before.
+            foldGutter({
+              markerDOM: (abierto) => {
+                const marca = document.createElement("span");
+                marca.className = "mic-fold-marca";
+                marca.dataset.plegado = String(!abierto);
+                marca.textContent = abierto ? "⌄" : "›";
+                marca.title = abierto
+                  ? "Plegar sección (Ctrl+Shift+[)"
+                  : "Desplegar sección (Ctrl+Shift+])";
+                return marca;
+              },
+            }),
             headingFoldService,
             // Título (nombre del archivo) como bloque al inicio del documento.
             docTitleField,

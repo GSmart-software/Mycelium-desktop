@@ -645,13 +645,17 @@
   border-radius: 1px;
   transform: translate(-50%, -62%) rotate(45deg); /* ⌄ expandido */
 }
-.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"]::before {
+/* El estado sale de la marca propia (`DEF-088`, markerDOM en NoteEditor). Antes
+   se leía `[title^="unfold"]` en el .cm-gutterElement, pero CodeMirror pone el
+   title en el span de ADENTRO y con mayúscula («Unfold line»): la regla nunca
+   se aplicó, y una sección plegada quedaba sin flecha. */
+.cm-editor .cm-foldGutter .cm-gutterElement:has(> .mic-fold-marca[data-plegado="true"])::before {
   transform: translate(-50%, -50%) rotate(-45deg); /* › plegado */
 }
 
 /* La flecha aparece al pasar el ratón por el editor o si la sección está plegada. */
 .cm-editor:hover .cm-foldGutter .cm-gutterElement,
-.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"] {
+.cm-editor .cm-foldGutter .cm-gutterElement:has(> .mic-fold-marca[data-plegado="true"]) {
   opacity: 0.7;
 }
 
