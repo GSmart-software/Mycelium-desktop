@@ -1,0 +1,663 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-19T02:37:21.298Z",
+  "title": "Design System: Mycelium",
+  "extensions": {
+    "colorMeta": {
+      "hifa": {
+        "role": "primary",
+        "displayName": "Hifa",
+        "purpose": "Acento: botones primarios, enlaces, pestaña activa. Bio oscuro.",
+        "canonical": "#19e6ff",
+        "oklch": "oklch(84.8% 0.144 208.9)",
+        "tonalRamp": [
+          "oklch(15.0% 0.072 208.9)",
+          "oklch(26.4% 0.117 208.9)",
+          "oklch(37.9% 0.144 208.9)",
+          "oklch(49.3% 0.144 208.9)",
+          "oklch(60.7% 0.144 208.9)",
+          "oklch(72.1% 0.121 208.9)",
+          "oklch(83.6% 0.078 208.9)",
+          "oklch(95.0% 0.025 208.9)"
+        ]
+      },
+      "brote": {
+        "role": "primary",
+        "displayName": "Brote",
+        "purpose": "Glow: nodos, tags, cursor, foco, hover. Bio oscuro.",
+        "canonical": "#3dffc4",
+        "oklch": "oklch(89.3% 0.170 167.0)",
+        "tonalRamp": [
+          "oklch(15.0% 0.085 167.0)",
+          "oklch(26.4% 0.138 167.0)",
+          "oklch(37.9% 0.170 167.0)",
+          "oklch(49.3% 0.170 167.0)",
+          "oklch(60.7% 0.170 167.0)",
+          "oklch(72.1% 0.144 167.0)",
+          "oklch(83.6% 0.093 167.0)",
+          "oklch(95.0% 0.029 167.0)"
+        ]
+      },
+      "esporo": {
+        "role": "neutral",
+        "displayName": "Esporo",
+        "purpose": "Marco: rail, topbar, sidebar.",
+        "canonical": "#04090e",
+        "oklch": "oklch(13.6% 0.015 242.1)",
+        "tonalRamp": [
+          "oklch(15.0% 0.008 242.1)",
+          "oklch(26.4% 0.012 242.1)",
+          "oklch(37.9% 0.015 242.1)",
+          "oklch(49.3% 0.015 242.1)",
+          "oklch(60.7% 0.015 242.1)",
+          "oklch(72.1% 0.013 242.1)",
+          "oklch(83.6% 0.008 242.1)",
+          "oklch(95.0% 0.003 242.1)"
+        ]
+      },
+      "esporo-profundo": {
+        "role": "neutral",
+        "displayName": "Esporo profundo",
+        "purpose": "Código, lienzo del grafo, tinte de sombras y velos.",
+        "canonical": "#0b1d27",
+        "oklch": "oklch(22.1% 0.031 234.9)",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 234.9)",
+          "oklch(26.4% 0.025 234.9)",
+          "oklch(37.9% 0.031 234.9)",
+          "oklch(49.3% 0.031 234.9)",
+          "oklch(60.7% 0.031 234.9)",
+          "oklch(72.1% 0.026 234.9)",
+          "oklch(83.6% 0.017 234.9)",
+          "oklch(95.0% 0.005 234.9)"
+        ]
+      },
+      "lienzo": {
+        "role": "neutral",
+        "displayName": "Lienzo",
+        "purpose": "Fondo del editor y del contenido.",
+        "canonical": "#071219",
+        "oklch": "oklch(17.5% 0.022 237.0)",
+        "tonalRamp": [
+          "oklch(15.0% 0.011 237.0)",
+          "oklch(26.4% 0.018 237.0)",
+          "oklch(37.9% 0.022 237.0)",
+          "oklch(49.3% 0.022 237.0)",
+          "oklch(60.7% 0.022 237.0)",
+          "oklch(72.1% 0.019 237.0)",
+          "oklch(83.6% 0.012 237.0)",
+          "oklch(95.0% 0.004 237.0)"
+        ]
+      },
+      "niebla": {
+        "role": "neutral",
+        "displayName": "Niebla",
+        "purpose": "Paneles, pestañas, modales, campos.",
+        "canonical": "#0a1a24",
+        "oklch": "oklch(20.9% 0.029 237.9)",
+        "tonalRamp": [
+          "oklch(15.0% 0.015 237.9)",
+          "oklch(26.4% 0.024 237.9)",
+          "oklch(37.9% 0.029 237.9)",
+          "oklch(49.3% 0.029 237.9)",
+          "oklch(60.7% 0.029 237.9)",
+          "oklch(72.1% 0.025 237.9)",
+          "oklch(83.6% 0.016 237.9)",
+          "oklch(95.0% 0.005 237.9)"
+        ]
+      },
+      "humus": {
+        "role": "neutral",
+        "displayName": "Humus",
+        "purpose": "Tinta del texto principal.",
+        "canonical": "#c6e7e1",
+        "oklch": "oklch(90.2% 0.036 183.3)",
+        "tonalRamp": [
+          "oklch(15.0% 0.018 183.3)",
+          "oklch(26.4% 0.029 183.3)",
+          "oklch(37.9% 0.036 183.3)",
+          "oklch(49.3% 0.036 183.3)",
+          "oklch(60.7% 0.036 183.3)",
+          "oklch(72.1% 0.030 183.3)",
+          "oklch(83.6% 0.019 183.3)",
+          "oklch(95.0% 0.006 183.3)"
+        ]
+      },
+      "humus-tenue": {
+        "role": "neutral",
+        "displayName": "Humus tenue",
+        "purpose": "Texto secundario, placeholders.",
+        "canonical": "#6e9a99",
+        "oklch": "oklch(65.4% 0.048 194.3)",
+        "tonalRamp": [
+          "oklch(15.0% 0.024 194.3)",
+          "oklch(26.4% 0.039 194.3)",
+          "oklch(37.9% 0.048 194.3)",
+          "oklch(49.3% 0.048 194.3)",
+          "oklch(60.7% 0.048 194.3)",
+          "oklch(72.1% 0.040 194.3)",
+          "oklch(83.6% 0.026 194.3)",
+          "oklch(95.0% 0.008 194.3)"
+        ]
+      },
+      "borde": {
+        "role": "neutral",
+        "displayName": "Borde",
+        "purpose": "Bordes finos en oscuro.",
+        "canonical": "#16343f",
+        "oklch": "oklch(30.7% 0.041 224.5)",
+        "tonalRamp": [
+          "oklch(15.0% 0.020 224.5)",
+          "oklch(26.4% 0.033 224.5)",
+          "oklch(37.9% 0.041 224.5)",
+          "oklch(49.3% 0.041 224.5)",
+          "oklch(60.7% 0.041 224.5)",
+          "oklch(72.1% 0.034 224.5)",
+          "oklch(83.6% 0.022 224.5)",
+          "oklch(95.0% 0.007 224.5)"
+        ]
+      },
+      "hifa-claro": {
+        "role": "primary",
+        "displayName": "Hifa (claro)",
+        "purpose": "Acento en modo claro.",
+        "canonical": "#0E7C8C",
+        "oklch": "oklch(53.9% 0.091 210.9)",
+        "tonalRamp": [
+          "oklch(15.0% 0.045 210.9)",
+          "oklch(26.4% 0.074 210.9)",
+          "oklch(37.9% 0.091 210.9)",
+          "oklch(49.3% 0.091 210.9)",
+          "oklch(60.7% 0.091 210.9)",
+          "oklch(72.1% 0.077 210.9)",
+          "oklch(83.6% 0.049 210.9)",
+          "oklch(95.0% 0.016 210.9)"
+        ]
+      },
+      "brote-claro": {
+        "role": "primary",
+        "displayName": "Brote (claro)",
+        "purpose": "Glow en modo claro.",
+        "canonical": "#16B8C9",
+        "oklch": "oklch(71.6% 0.120 206.8)",
+        "tonalRamp": [
+          "oklch(15.0% 0.060 206.8)",
+          "oklch(26.4% 0.097 206.8)",
+          "oklch(37.9% 0.120 206.8)",
+          "oklch(49.3% 0.120 206.8)",
+          "oklch(60.7% 0.120 206.8)",
+          "oklch(72.1% 0.101 206.8)",
+          "oklch(83.6% 0.065 206.8)",
+          "oklch(95.0% 0.021 206.8)"
+        ]
+      },
+      "esporo-claro": {
+        "role": "neutral",
+        "displayName": "Esporo (claro)",
+        "purpose": "Marco en modo claro; sigue siendo oscuro.",
+        "canonical": "#0C4A57",
+        "oklch": "oklch(37.9% 0.062 215.9)",
+        "tonalRamp": [
+          "oklch(15.0% 0.031 215.9)",
+          "oklch(26.4% 0.051 215.9)",
+          "oklch(37.9% 0.062 215.9)",
+          "oklch(49.3% 0.062 215.9)",
+          "oklch(60.7% 0.062 215.9)",
+          "oklch(72.1% 0.053 215.9)",
+          "oklch(83.6% 0.034 215.9)",
+          "oklch(95.0% 0.011 215.9)"
+        ]
+      },
+      "esporo-profundo-claro": {
+        "role": "neutral",
+        "displayName": "Esporo profundo (claro)",
+        "purpose": "Código y tinte de sombras en claro.",
+        "canonical": "#08323D",
+        "oklch": "oklch(29.5% 0.048 219.7)",
+        "tonalRamp": [
+          "oklch(15.0% 0.024 219.7)",
+          "oklch(26.4% 0.039 219.7)",
+          "oklch(37.9% 0.048 219.7)",
+          "oklch(49.3% 0.048 219.7)",
+          "oklch(60.7% 0.048 219.7)",
+          "oklch(72.1% 0.041 219.7)",
+          "oklch(83.6% 0.026 219.7)",
+          "oklch(95.0% 0.008 219.7)"
+        ]
+      },
+      "lienzo-claro": {
+        "role": "neutral",
+        "displayName": "Lienzo (claro)",
+        "purpose": "Fondo del contenido en claro.",
+        "canonical": "#F1F6F7",
+        "oklch": "oklch(97.0% 0.005 211.0)",
+        "tonalRamp": [
+          "oklch(15.0% 0.003 211.0)",
+          "oklch(26.4% 0.004 211.0)",
+          "oklch(37.9% 0.005 211.0)",
+          "oklch(49.3% 0.005 211.0)",
+          "oklch(60.7% 0.005 211.0)",
+          "oklch(72.1% 0.005 211.0)",
+          "oklch(83.6% 0.003 211.0)",
+          "oklch(95.0% 0.001 211.0)"
+        ]
+      },
+      "niebla-claro": {
+        "role": "neutral",
+        "displayName": "Niebla (claro)",
+        "purpose": "Paneles en claro.",
+        "canonical": "#E3EEF1",
+        "oklch": "oklch(94.2% 0.012 215.8)",
+        "tonalRamp": [
+          "oklch(15.0% 0.006 215.8)",
+          "oklch(26.4% 0.010 215.8)",
+          "oklch(37.9% 0.012 215.8)",
+          "oklch(49.3% 0.012 215.8)",
+          "oklch(60.7% 0.012 215.8)",
+          "oklch(72.1% 0.010 215.8)",
+          "oklch(83.6% 0.007 215.8)",
+          "oklch(95.0% 0.002 215.8)"
+        ]
+      },
+      "humus-claro": {
+        "role": "neutral",
+        "displayName": "Humus (claro)",
+        "purpose": "Tinta en claro.",
+        "canonical": "#1F2D30",
+        "oklch": "oklch(28.6% 0.020 212.3)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 212.3)",
+          "oklch(26.4% 0.016 212.3)",
+          "oklch(37.9% 0.020 212.3)",
+          "oklch(49.3% 0.020 212.3)",
+          "oklch(60.7% 0.020 212.3)",
+          "oklch(72.1% 0.017 212.3)",
+          "oklch(83.6% 0.011 212.3)",
+          "oklch(95.0% 0.003 212.3)"
+        ]
+      },
+      "humus-tenue-claro": {
+        "role": "neutral",
+        "displayName": "Humus tenue (claro)",
+        "purpose": "Texto secundario en claro.",
+        "canonical": "#59696C",
+        "oklch": "oklch(50.9% 0.020 210.2)",
+        "tonalRamp": [
+          "oklch(15.0% 0.010 210.2)",
+          "oklch(26.4% 0.016 210.2)",
+          "oklch(37.9% 0.020 210.2)",
+          "oklch(49.3% 0.020 210.2)",
+          "oklch(60.7% 0.020 210.2)",
+          "oklch(72.1% 0.017 210.2)",
+          "oklch(83.6% 0.011 210.2)",
+          "oklch(95.0% 0.003 210.2)"
+        ]
+      },
+      "ambar": {
+        "role": "tertiary",
+        "displayName": "Ámbar",
+        "purpose": "Callout warning, íconos de advertencia.",
+        "canonical": "#C9821E",
+        "oklch": "oklch(66.5% 0.136 68.8)",
+        "tonalRamp": [
+          "oklch(15.0% 0.068 68.8)",
+          "oklch(26.4% 0.111 68.8)",
+          "oklch(37.9% 0.136 68.8)",
+          "oklch(49.3% 0.136 68.8)",
+          "oklch(60.7% 0.136 68.8)",
+          "oklch(72.1% 0.115 68.8)",
+          "oklch(83.6% 0.074 68.8)",
+          "oklch(95.0% 0.023 68.8)"
+        ]
+      },
+      "precaucion": {
+        "role": "tertiary",
+        "displayName": "Precaución",
+        "purpose": "Callout caution, acciones destructivas.",
+        "canonical": "#D95040",
+        "oklch": "oklch(61.3% 0.175 29.6)",
+        "tonalRamp": [
+          "oklch(15.0% 0.087 29.6)",
+          "oklch(26.4% 0.142 29.6)",
+          "oklch(37.9% 0.175 29.6)",
+          "oklch(49.3% 0.175 29.6)",
+          "oklch(60.7% 0.175 29.6)",
+          "oklch(72.1% 0.148 29.6)",
+          "oklch(83.6% 0.095 29.6)",
+          "oklch(95.0% 0.030 29.6)"
+        ]
+      },
+      "error": {
+        "role": "tertiary",
+        "displayName": "Error",
+        "purpose": "Callouts error/danger.",
+        "canonical": "#E5484D",
+        "oklch": "oklch(62.6% 0.193 23.0)",
+        "tonalRamp": [
+          "oklch(15.0% 0.097 23.0)",
+          "oklch(26.4% 0.157 23.0)",
+          "oklch(37.9% 0.193 23.0)",
+          "oklch(49.3% 0.193 23.0)",
+          "oklch(60.7% 0.193 23.0)",
+          "oklch(72.1% 0.163 23.0)",
+          "oklch(83.6% 0.105 23.0)",
+          "oklch(95.0% 0.033 23.0)"
+        ]
+      },
+      "info": {
+        "role": "tertiary",
+        "displayName": "Info",
+        "purpose": "Callout info.",
+        "canonical": "#3D8BFF",
+        "oklch": "oklch(64.8% 0.189 258.5)",
+        "tonalRamp": [
+          "oklch(15.0% 0.094 258.5)",
+          "oklch(26.4% 0.153 258.5)",
+          "oklch(37.9% 0.189 258.5)",
+          "oklch(49.3% 0.189 258.5)",
+          "oklch(60.7% 0.189 258.5)",
+          "oklch(72.1% 0.159 258.5)",
+          "oklch(83.6% 0.103 258.5)",
+          "oklch(95.0% 0.032 258.5)"
+        ]
+      },
+      "exito": {
+        "role": "tertiary",
+        "displayName": "Éxito",
+        "purpose": "Callout success, estado sincronizado.",
+        "canonical": "#3CA06B",
+        "oklch": "oklch(63.3% 0.123 156.8)",
+        "tonalRamp": [
+          "oklch(15.0% 0.062 156.8)",
+          "oklch(26.4% 0.100 156.8)",
+          "oklch(37.9% 0.123 156.8)",
+          "oklch(49.3% 0.123 156.8)",
+          "oklch(60.7% 0.123 156.8)",
+          "oklch(72.1% 0.104 156.8)",
+          "oklch(83.6% 0.067 156.8)",
+          "oklch(95.0% 0.021 156.8)"
+        ]
+      },
+      "pregunta": {
+        "role": "tertiary",
+        "displayName": "Pregunta",
+        "purpose": "Callout question.",
+        "canonical": "#B07CE8",
+        "oklch": "oklch(68.2% 0.161 304.7)",
+        "tonalRamp": [
+          "oklch(15.0% 0.080 304.7)",
+          "oklch(26.4% 0.131 304.7)",
+          "oklch(37.9% 0.161 304.7)",
+          "oklch(49.3% 0.161 304.7)",
+          "oklch(60.7% 0.161 304.7)",
+          "oklch(72.1% 0.136 304.7)",
+          "oklch(83.6% 0.087 304.7)",
+          "oklch(95.0% 0.028 304.7)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "H1 de nota",
+        "purpose": "Título principal de una nota."
+      },
+      "title": {
+        "displayName": "H2 de nota",
+        "purpose": "Sección de una nota."
+      },
+      "reading": {
+        "displayName": "Lectura",
+        "purpose": "Cuerpo de nota en lectura, a 72ch."
+      },
+      "editor": {
+        "displayName": "Editor",
+        "purpose": "Mono del editor en vivo y en crudo."
+      },
+      "body": {
+        "displayName": "Interfaz",
+        "purpose": "Tamaño base de todo el marco."
+      },
+      "dialog-title": {
+        "displayName": "Título de diálogo",
+        "purpose": "Encabezado de modales."
+      },
+      "label": {
+        "displayName": "Etiqueta",
+        "purpose": "Encabezados de sección y metadatos."
+      }
+    },
+    "shadows": [
+      {
+        "name": "menu",
+        "value": "0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent)",
+        "purpose": "Menús contextuales, submenús, sugerencias."
+      },
+      {
+        "name": "aviso",
+        "value": "0 6px 20px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent)",
+        "purpose": "Progreso y avisos flotantes."
+      },
+      {
+        "name": "modal",
+        "value": "0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent)",
+        "purpose": "Modales, sobre velo de Esporo profundo al 40%."
+      },
+      {
+        "name": "dialogo-grande",
+        "value": "0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent)",
+        "purpose": "Actualización, editor de CSS."
+      },
+      {
+        "name": "pane-foco",
+        "value": "inset 0 1px 0 color-mix(in srgb, var(--mic-glow) 35%, transparent)",
+        "purpose": "Señal del pane con foco; no es elevación."
+      }
+    ],
+    "focusRing": {
+      "value": "outline: 2px solid var(--mic-glow); outline-offset: 2px",
+      "purpose": "Foco visible global; no se reemplaza."
+    },
+    "motion": [
+      {
+        "name": "estado",
+        "value": "120ms ease",
+        "purpose": "Hover, opacidad y fondo de controles."
+      },
+      {
+        "name": "panel",
+        "value": "160ms ease",
+        "purpose": "Colapso y redimensión de paneles (--mic-panel-transition)."
+      },
+      {
+        "name": "cambio-de-nota",
+        "value": "160ms ease",
+        "purpose": "Cambio de contenido de nota (--mic-note-swap)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compacto",
+        "value": "767px",
+        "purpose": "La topbar compacta logo y búsqueda; el editor ofrece solo vivo y lectura."
+      }
+    ],
+    "themes": {
+      "note": "El frontmatter documenta Bioluminiscencia (por defecto). Cantarela redefine los mismos tokens raw.",
+      "cantarela": {
+        "claro": {
+          "esporo": "#5A3408",
+          "esporo-profundo": "#3E2405",
+          "hifa": "#9A6212",
+          "brote": "#D99A1F",
+          "niebla": "#FAF0DC",
+          "lienzo": "#FBF7EE",
+          "humus": "#2C2620",
+          "humus-tenue": "#6B5E4C"
+        },
+        "oscuro": {
+          "esporo": "#130d02",
+          "esporo-profundo": "#2c200a",
+          "hifa": "#c77f2e",
+          "brote": "#ffc247",
+          "niebla": "#241a08",
+          "lienzo": "#1b1305",
+          "humus": "#f6e8c8",
+          "humus-tenue": "#ac9468",
+          "borde": "#40300f"
+        }
+      }
+    }
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "La acción que cierra un diálogo; uno por diálogo.",
+      "html": "<button class=\"ds-btn-primary\">Importar</button>",
+      "css": ".ds-btn-primary { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; font-weight: 600; border: none; border-radius: 4px; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-primary:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-btn-primary:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Cancelar y acciones alternativas de un diálogo.",
+      "html": "<button class=\"ds-btn\">Cancelar</button>",
+      "css": ".ds-btn { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); background: transparent; border: 1px solid var(--mic-border, #16343f); cursor: pointer; transition: background-color 120ms ease; } .ds-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Botón con contorno de luz",
+      "kind": "button",
+      "refersTo": "button-glow-outline",
+      "description": "Acciones de la barra superior, sobre Esporo.",
+      "html": "<div class=\"ds-frame\"><button class=\"ds-btn-glow\">Compartir</button></div>",
+      "css": ".ds-frame { background: var(--mic-bg-sidebar, #04090e); padding: 12px; border-radius: 8px; display: inline-block; } .ds-btn-glow { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.3rem 0.65rem; font-size: 0.8125rem; border-radius: 8px; color: var(--mic-glow, #3dffc4); background: transparent; border: 1px solid color-mix(in srgb, var(--mic-glow, #3dffc4) 40%, transparent); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-glow:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-btn-glow:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Rail",
+      "kind": "nav",
+      "refersTo": "rail-button",
+      "description": "Barra vertical de secciones; el activo lleva barra de 3px en Brote.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-btn\" aria-pressed=\"true\" aria-label=\"Grafo\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"18\" cy=\"8\" r=\"3\"/><circle cx=\"12\" cy=\"18\" r=\"3\"/><path d=\"M8.5 7.5 15 8M7.5 8.5l3.5 7M16.5 10.5 13.5 15.5\"/></svg></button><button class=\"ds-rail-btn\" aria-label=\"Buscar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></button></nav>",
+      "css": ".ds-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 0.25rem; width: 56px; padding: 0.5rem 0; background: var(--mic-bg-sidebar, #04090e); } .ds-rail-btn { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: none; background: transparent; border-radius: 8px; color: var(--mic-glow, #3dffc4); opacity: 0.55; cursor: pointer; transition: opacity 120ms ease, background-color 120ms ease; } .ds-rail-btn:hover { opacity: 1; background-color: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-rail-btn[aria-pressed=\"true\"] { opacity: 1; } .ds-rail-btn[aria-pressed=\"true\"]::before { content: \"\"; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; border-radius: 0 4px 4px 0; background: var(--mic-glow, #3dffc4); } .ds-rail-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Barra de pestañas",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Pestañas del pane; la activa toma Lienzo y borde inferior en Hifa.",
+      "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-active\" tabindex=\"0\">Mapa de documentacion</div><div class=\"ds-tab\" tabindex=\"0\">BACKLOG</div><div class=\"ds-tab ds-tab-preview\" tabindex=\"0\">RAMAS</div></div>",
+      "css": ".ds-tabs { display: flex; height: 34px; background: var(--mic-bg-surface, #0a1a24); border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; padding: 0 0.6rem; max-width: 180px; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); border-right: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 15%, transparent); white-space: nowrap; cursor: pointer; } .ds-tab:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 10%, transparent); } .ds-tab-active { background: var(--mic-bg-canvas, #071219); border-bottom: 2px solid var(--mic-accent, #19e6ff); color: var(--mic-text-primary, #c6e7e1); } .ds-tab-preview { font-style: italic; } .ds-tab:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Campo de búsqueda",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "Búsqueda global de la barra superior.",
+      "html": "<label class=\"ds-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" placeholder=\"Buscar en el vault…\"></label>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 0.5rem; height: 30px; max-width: 480px; padding: 0 0.75rem; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); color: var(--mic-text-muted, #6e9a99); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-search:focus-within { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; } .ds-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font: inherit; font-size: 0.8125rem; color: var(--mic-text-primary, #c6e7e1); } .ds-search-input::placeholder { color: var(--mic-text-muted, #6e9a99); }"
+    },
+    {
+      "name": "Menú contextual",
+      "kind": "custom",
+      "refersTo": "menu-item",
+      "description": "Flota con sombra teñida; lo destructivo en Precaución, lo inerte atenuado con motivo.",
+      "html": "<div class=\"ds-menu\" role=\"menu\"><button class=\"ds-menu-item\" role=\"menuitem\">Abrir en pestaña nueva</button><button class=\"ds-menu-item\" role=\"menuitem\">Renombrar</button><button class=\"ds-menu-item ds-menu-off\" role=\"menuitem\" disabled title=\"Solo en desktop\">Mostrar en el explorador</button><button class=\"ds-menu-item ds-menu-danger\" role=\"menuitem\">Mover a la papelera</button></div>",
+      "css": ".ds-menu { display: inline-flex; flex-direction: column; min-width: 180px; padding: 0.25rem; background: var(--mic-bg-canvas, #071219); border: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 25%, transparent); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-menu-item { text-align: left; font: inherit; font-size: 0.8125rem; padding: 0.4rem 0.6rem; border: none; background: transparent; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-menu-item:hover:not(:disabled) { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); } .ds-menu-item:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; } .ds-menu-off { color: var(--mic-text-muted, #6e9a99); opacity: 0.6; cursor: default; } .ds-menu-danger { color: var(--mic-callout-caution-border, #D95040); } .ds-menu-danger:hover { background: color-mix(in srgb, var(--mic-callout-caution-border, #D95040) 10%, transparent); }"
+    },
+    {
+      "name": "Etiqueta",
+      "kind": "chip",
+      "refersTo": "tag-pill",
+      "description": "#tag renderizado dentro de una nota.",
+      "html": "<p class=\"ds-p\">Decisión sobre la <span class=\"ds-tag\">#arquitectura</span> y el <span class=\"ds-tag\">#grafo</span>.</p>",
+      "css": ".ds-p { font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; color: var(--mic-text-primary, #c6e7e1); } .ds-tag { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); color: var(--mic-glow, #3dffc4); border-radius: 4px; padding: 0.05em 0.4em; font-size: 0.9em; }"
+    },
+    {
+      "name": "Callout",
+      "kind": "card",
+      "refersTo": "callout",
+      "description": "Firma de las notas: borde izquierdo en el color del tipo, fondo al 8%.",
+      "html": "<div class=\"ds-callout\"><strong class=\"ds-callout-t\">Nota</strong><p>El enlace es la unidad de valor.</p></div><div class=\"ds-callout ds-callout-warn\"><strong class=\"ds-callout-t\">Advertencia</strong><p>Un defecto se registra apenas se detecta.</p></div>",
+      "css": ".ds-callout { --c: var(--mic-callout-note-border, #3dffc4); border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--mic-text-primary, #c6e7e1); padding: 8px 16px; margin: 0 0 0.85rem; border-radius: 0 8px 8px 0; font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; } .ds-callout p { margin: 0; } .ds-callout-warn { --c: var(--mic-callout-warning-border, #C9821E); } .ds-callout-t { color: var(--c); font-weight: 600; }"
+    },
+    {
+      "name": "Diálogo",
+      "kind": "card",
+      "refersTo": "dialog",
+      "description": "Modal sobre velo de Esporo profundo, radio amplio, sombra teñida.",
+      "html": "<div class=\"ds-dialog\"><h3 class=\"ds-dialog-t\">Importar carpeta</h3><p class=\"ds-dialog-p\">Se van a copiar 42 notas al vault. Las que ya existan se omiten.</p><div class=\"ds-dialog-a\"><button class=\"ds-d-btn\">Cancelar</button><button class=\"ds-d-btn ds-d-pri\">Importar</button></div></div>",
+      "css": ".ds-dialog { width: min(420px, 92vw); display: flex; flex-direction: column; gap: 0.75rem; padding: 1.1rem; background: var(--mic-bg-surface, #0a1a24); border-radius: 16px; box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 35%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-dialog-t { font-size: 0.95rem; font-weight: 600; color: var(--mic-text-primary, #c6e7e1); margin: 0; } .ds-dialog-p { font-size: 0.8125rem; line-height: 1.5; color: var(--mic-text-muted, #6e9a99); margin: 0; } .ds-dialog-a { display: flex; gap: 0.5rem; justify-content: flex-end; } .ds-d-btn { font: inherit; font-size: 0.8125rem; padding: 0.45rem 0.75rem; border-radius: 4px; border: 1px solid var(--mic-border, #16343f); background: transparent; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-d-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-d-pri { border: none; font-weight: 600; color: var(--mic-raw-canvas, #071219); background: var(--mic-accent, #19e6ff); } .ds-d-pri:hover { background: color-mix(in srgb, var(--mic-accent, #19e6ff) 85%, black); } .ds-d-btn:focus-visible { outline: 2px solid var(--mic-glow, #3dffc4); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El bosque bioluminiscente",
+    "overview": "Mycelium es un bosque de noche. El marco es oscuro y profundo —el rail, la barra superior y el lienzo del grafo son casi negros, teñidos de azul petróleo— y lo que tiene valor **emite luz**: los nodos del grafo, las etiquetas, el cursor, la barra que marca dónde estás. La luz no es decoración, es información: brilla lo que está vivo, lo que está conectado, lo que tiene el foco. Por eso el modo oscuro de Bioluminiscencia es el que viene por defecto, y el claro es su versión diurna, no al revés.\n\nConviven dos densidades, y cada una tiene su lugar. **El marco es denso y técnico**, como un IDE: texto de interfaz de 13px, controles de 22 a 40px, pestañas de 34px, mucho a la vista y nada que pida atención en reposo. **La nota es serena**: en lectura cambia a una serif, respira con interlineado de 1.7 y se limita a 72 caracteres de ancho. Lo orgánico del micelio se ve en los detalles, no en la cantidad: esquinas suaves, el degradé brote→hifa del logo, el halo del isotipo, títulos que alternan los dos colores de la marca.\n\nHay tres cosas que Mycelium nunca debe parecer: **un clon gris de Obsidian** (violeta y grises neutros sin identidad), **un SaaS corporativo** (tarjetas blancas flotando con sombras suaves, degradé violeta-azul) y **un neón gamer** (brillo saturado en todas partes, donde el glow deja de señalar y pasa a ser ruido).",
+    "keyCharacteristics": [
+      "Marco oscuro, contenido que brilla: la luz se reserva para lo que tiene significado.",
+      "Dos colores de marca por tema (Hifa y Brote) y el resto es tono del mismo matiz.",
+      "Marco compacto (13px, controles chicos) frente a una lectura amplia (serif, 72ch).",
+      "Plano por defecto: las zonas se separan por tono; solo lo que flota tiene sombra.",
+      "Todo sale de tokens: dos temas × claro/oscuro = cuatro combinaciones, siempre las cuatro."
+    ],
+    "rules": [
+      {
+        "name": "The Two Voices Rule",
+        "body": "Cada tema tiene exactamente dos colores de marca, Hifa (lo que se hace) y Brote (lo que brilla). Un tercer color de marca rompe el sistema. Si hace falta distinguir más cosas, se usa tono y mezcla, no un color nuevo.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token-Only Rule",
+        "body": "Ningún componente lleva un hex escrito a mano. Se usan los tokens semánticos (`--mic-bg-*`, `--mic-text-*`, `--mic-accent`, `--mic-glow`). Si falta uno, se crea en `tokens.css` mapeado en los dos temas, y recién después se usa.",
+        "section": "colors"
+      },
+      {
+        "name": "The Four Combos Rule",
+        "body": "Todo color se verifica en las cuatro combinaciones: Bio claro, Bio oscuro, Cantarela claro, Cantarela oscuro. Un color de marca en crudo casi siempre falla en alguna. Por eso los títulos **se mezclan con la tinta** (`color-mix` con Humus) en vez de usar Hifa o Brote puros.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dark Frame Rule",
+        "body": "Sobre Esporo nunca va Humus tenue: está calibrado para fondo claro. Los íconos del marco usan Brote al 55% en reposo y al 100% activos o con hover.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Densities Rule",
+        "body": "La interfaz habla en 13px y la nota en 16px. No se agranda el marco para que \"respire\", ni se achica la nota para que entre más.",
+        "section": "typography"
+      },
+      {
+        "name": "The Semibold Ceiling Rule",
+        "body": "En la interfaz, el énfasis máximo es 600. El 700 es para el logo y el H1 de una nota.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tinted Shadow Rule",
+        "body": "Una sombra se tiñe siempre con `--mic-raw-base-deep`. Una `rgba(0,0,0,…)` desentona con el tema cálido.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No-Opacity-Container Rule",
+        "body": "Nada se \"apaga\" con `opacity` sobre un contenedor. Crea un contexto de composición y vuelve translúcido todo lo que cuelga de él, incluidos menús y tooltips. Se atenúa la hoja concreta (el ícono, la etiqueta) o se usa color y borde. Lo que se dibuja encima de otras cosas va en un portal a `document.body`.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** usar solo tokens `var(--mic-*)` y verificar cada color nuevo en los cuatro combos de tema y modo.",
+      "**Do** separar zonas por tono (Esporo → Niebla → Lienzo) antes de pensar en un borde o una sombra.",
+      "**Do** reservar el brillo de Brote para lo que tiene significado: foco, selección, conexión, lo activo.",
+      "**Do** mantener la interfaz en 13px y la lectura en 16px con serif a 72ch.",
+      "**Do** teñir las sombras con Esporo profundo y darles sombra solo a los elementos que flotan.",
+      "**Do** mostrar atenuada, y con su motivo, la acción que no está disponible, en vez de ocultarla."
+    ],
+    "donts": [
+      "**Don't** parecer un clon gris de Obsidian: nada de violeta ni de grises neutros sin matiz. El neutro de Mycelium siempre tiene el tono de su tema.",
+      "**Don't** parecer un SaaS corporativo: nada de tarjetas blancas elevadas con sombras suaves ni degradés violeta-azul.",
+      "**Don't** convertirlo en neón gamer: el glow saturado en todas partes deja de señalar. El logo es el único degradé.",
+      "**Don't** escribir un hex a mano en un componente ni usar `rgba(0,0,0,…)` para una sombra.",
+      "**Don't** poner Humus tenue sobre Esporo.",
+      "**Don't** atenuar con `opacity` una fila, un panel o cualquier contenedor.",
+      "**Don't** tratar el modo oscuro como un tema aparte: es un modificador (`data-dark`) sobre el tema activo."
+    ]
+  }
+}
