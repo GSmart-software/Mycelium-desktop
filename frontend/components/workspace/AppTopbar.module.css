@@ -36,10 +36,6 @@
   background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
 
-.logoCompact {
-  display: none;
-}
-
 .searchBar {
   flex: 1;
   max-width: 480px;
@@ -65,14 +61,6 @@
 .searchIcon {
   color: var(--mic-text-muted);
   flex-shrink: 0;
-}
-
-.searchPlaceholder {
-  font-size: 0.8125rem;
-  color: var(--mic-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .searchInput {
@@ -131,24 +119,21 @@
   border-color: color-mix(in srgb, var(--mic-marco-glow) 40%, transparent);
 }
 
+/* Ventana angosta: el logo queda en su isotipo (el nombre sigue como aria-label
+   y title del botón) y «Compartir» en su ícono. La búsqueda NO se esconde: se
+   achica con el espacio que haya, porque colapsada a un cuadrado de 30px no
+   se podía escribir y asomaba una letra del placeholder. */
 @media (max-width: 767px) {
-  .logoFull {
-    display: none;
+  .topbar {
+    gap: 0.5rem;
   }
 
-  .logoCompact {
-    display: inline;
-  }
-
-  .searchBar {
-    flex: 0 0 auto;
-    width: 30px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .searchPlaceholder,
+  .logoFull,
   .shareLabel {
     display: none;
+  }
+
+  .searchInput {
+    text-overflow: ellipsis;
   }
 }

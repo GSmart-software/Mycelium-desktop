@@ -272,6 +272,10 @@
   --mic-panel-min-width:    160px;
   --mic-panel-max-width:    480px;
   --mic-panel-transition:   160ms ease;
+  /* Lo mínimo que se le deja a la nota en una ventana angosta: por debajo de
+     eso el panel izquierdo cede ancho (ver workspace.module.css). 420px es una
+     línea de ~50 caracteres a 16px, lo justo para leer sin cortar cada frase. */
+  --mic-editor-min-width:   420px;
 
   /* Animaciones */
   --mic-note-swap: 160ms ease;      /* transición de swap de contenido de nota (HU-20) */

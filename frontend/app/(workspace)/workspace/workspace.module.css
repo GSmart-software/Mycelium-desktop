@@ -3,9 +3,20 @@
   grid-template-areas:
     'topbar topbar topbar'
     'rail left editor';
+  /* El panel izquierdo usa el ancho que eligió el usuario MIENTRAS la nota
+     conserve --mic-editor-min-width. En una ventana angosta cede hasta su
+     mínimo en vez de dejar la nota en una columna de 340px; la preferencia
+     guardada no cambia, y al agrandar la ventana vuelve sola a su ancho.
+     Colapsado vale 0px y el min() lo deja en 0. */
   grid-template-columns:
     var(--mic-rail-width)
-    var(--mic-panel-left-width)
+    min(
+      var(--mic-panel-left-width),
+      max(
+        var(--mic-panel-min-width),
+        100vw - var(--mic-rail-width) - var(--mic-editor-min-width)
+      )
+    )
     1fr;
   grid-template-rows: var(--mic-topbar-height) 1fr;
   height: 100vh;

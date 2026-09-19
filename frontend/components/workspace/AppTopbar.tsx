@@ -37,6 +37,7 @@ export function AppTopbar({
         className={styles.logo}
         onClick={() => router.push("/workspace")}
         title="Mycelium"
+        aria-label="Mycelium"
       >
         <svg viewBox="0 0 32 32" width="27" height="27" aria-hidden className={styles.logoMark}>
           <path
@@ -51,7 +52,6 @@ export function AppTopbar({
           <circle cx="16" cy="23" r="4" fill="var(--mic-callout-info-border)" />
         </svg>
         <span className={styles.logoFull}>Mycelium</span>
-        <span className={styles.logoCompact} aria-hidden>M</span>
       </button>
 
       <div className={styles.searchBar}>

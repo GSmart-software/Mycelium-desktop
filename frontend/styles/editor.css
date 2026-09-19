@@ -476,7 +476,12 @@
   font-size: 1.9rem;
   line-height: 1.25;
   padding: 0.2rem 1rem 0.9rem;
-  word-break: break-word;
+  /* Un título de una sola palabra larga, en una ventana angosta, se partía en
+     cualquier letra («documentacio / n»). Con `hyphens` corta por sílaba y con
+     guion, según el idioma del documento (`lang="es"`); si no hay diccionario,
+     `overflow-wrap` sigue evitando que desborde. */
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .mic-doc-title-editor {
   font-family: var(--mic-editor-font-family);
