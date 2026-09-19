@@ -65,6 +65,22 @@ const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
 const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 
+/** Textos que CodeMirror genera por su cuenta —tooltips, anuncios para lectores
+ *  de pantalla— y que salían en inglés en una interfaz en español. Son todas
+ *  las frases de las extensiones que usa este editor (plegado, autocompletado,
+ *  vista); las del panel de búsqueda no aparecen porque ese panel es propio. */
+const frasesEditor = EditorState.phrases.of({
+  "folded code": "sección plegada",
+  unfold: "desplegar",
+  "Folded lines": "Líneas plegadas",
+  "Unfolded lines": "Líneas desplegadas",
+  to: "a",
+  Completions: "Sugerencias",
+  close: "cerrar",
+  "Selection deleted": "Selección borrada",
+  "Control character": "Carácter de control",
+});
+
 /**
  * Cursor y scroll por pestaña mientras está abierta (HU-25 CA10).
  *
@@ -423,6 +439,16 @@ export function NoteEditor({
               }
             : undefined,
           extensions: [
+            frasesEditor,
+            // Nombre accesible del área de texto: sin esto un lector de pantalla
+            // anuncia «campo de texto» sin decir qué nota es. Se evalúa en cada
+            // actualización de la vista, así acompaña un renombrado.
+            EditorView.contentAttributes.of(() => {
+              const titulo = useVaultStore
+                .getState()
+                .notas.find((n) => n.id === notaIdRef.current)?.titulo;
+              return { "aria-label": titulo ? `Nota: ${titulo}` : "Nota" };
+            }),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
             keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),

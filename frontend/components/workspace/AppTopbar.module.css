@@ -6,6 +6,10 @@
   height: var(--mic-topbar-height);
   padding: 0 0.75rem;
   background: var(--mic-bg-sidebar);
+  /* Sobre el marco el foco es el Brote del marco: el de contenido (Hifa, en
+     claro) queda a 2:1 sobre Esporo. Se redefine el token y no cada regla, así
+     el anillo global de globals.css lo toma solo. */
+  --mic-focus: var(--mic-marco-glow);
 }
 
 .logo {
@@ -48,6 +52,14 @@
   border-radius: var(--mic-radius-md);
   background: var(--mic-bg-surface);
   text-align: left;
+}
+
+/* El campo anula su outline (.searchInput) para no dibujarlo dentro de la
+   caja; el foco lo muestra la caja entera. Sin esto, llegar con Tab a la
+   búsqueda global no dejaba ninguna marca visible. */
+.searchBar:focus-within {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 2px;
 }
 
 .searchIcon {

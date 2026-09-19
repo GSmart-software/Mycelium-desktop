@@ -6,6 +6,8 @@
   padding: 0.5rem 0;
   background: var(--mic-bg-sidebar);
   width: var(--mic-rail-width);
+  /* Foco legible sobre Esporo (ver .topbar en AppTopbar.module.css). */
+  --mic-focus: var(--mic-marco-glow);
 }
 
 .group {

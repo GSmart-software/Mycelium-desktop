@@ -354,12 +354,14 @@ function WorkspaceShell() {
   );
 }
 
-/** Área central: árbol de panes con pestañas (HU-25/26/27). */
+/** Área central: árbol de panes con pestañas (HU-25/26/27). Es el `<main>` del
+ *  workspace: el landmark al que salta un lector de pantalla para ir al
+ *  contenido, salteando la barra superior, el rail y el explorador. */
 function EditorArea() {
   const root = useTabsStore((s) => s.root);
   return (
-    <section className={styles.editorArea}>
+    <main className={styles.editorArea}>
       <PaneTree node={root} />
-    </section>
+    </main>
   );
 }
