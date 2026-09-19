@@ -130,7 +130,11 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0 0.6rem;
-  max-width: 180px;
+  /* Con espacio libre el título se lee entero (antes se cortaba a 120px aunque
+     sobrara barra); con muchas pestañas ceden todas por igual. */
+  flex: 0 1 auto;
+  min-width: 72px;
+  max-width: 260px;
   font-size: 0.8125rem;
   color: var(--mic-text-muted);
   cursor: pointer;
@@ -156,9 +160,14 @@
 }
 
 .tabTitle {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+}
+
+/* El anillo va hacia adentro: la barra recorta lo que sobresale. */
+.tab:focus-visible {
+  outline-offset: -2px;
 }
 
 /* Ícono del tipo de documento (FUN-S-11). No se encoge: cuando el tab bar va

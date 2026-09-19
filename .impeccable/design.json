@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-19T04:36:41.067Z",
+  "generatedAt": "2026-09-19T19:01:47.000Z",
   "title": "Design System: Mycelium",
   "extensions": {
     "colorMeta": {
@@ -492,7 +492,7 @@
       },
       "reading": {
         "displayName": "Lectura",
-        "purpose": "Cuerpo de nota en lectura, a 72ch."
+        "purpose": "Cuerpo de nota en lectura, a la medida de lectura (42rem)."
       },
       "editor": {
         "displayName": "Editor",
@@ -509,6 +509,10 @@
       "label": {
         "displayName": "Etiqueta",
         "purpose": "Encabezados de sección y metadatos."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Barra de estado y detalle de las opciones de la paleta; cifras tabulares."
       }
     },
     "shadows": [
@@ -557,13 +561,18 @@
         "name": "cambio-de-nota",
         "value": "160ms ease",
         "purpose": "Cambio de contenido de nota (--mic-note-swap)."
+      },
+      {
+        "name": "paleta-aparece",
+        "value": "120ms ease-out, translateY(-4px) a 0",
+        "purpose": "Entrada de la paleta; sin animación con movimiento reducido."
       }
     ],
     "breakpoints": [
       {
         "name": "compacto",
         "value": "767px",
-        "purpose": "La topbar compacta logo y búsqueda; el editor ofrece solo vivo y lectura."
+        "purpose": "La topbar deja el logo en su isotipo y el disparador de la paleta pierde el atajo; el editor ofrece solo vivo y lectura."
       }
     ],
     "themes": {
@@ -591,6 +600,14 @@
           "borde": "#40300f"
         }
       }
+    },
+    "layout": {
+      "grid": "Tres filas: topbar (52px), cuerpo (rail | panel izquierdo | panes), estado (24px, --mic-statusbar-height).",
+      "anchoLectura": {
+        "value": "42rem",
+        "token": "--mic-ancho-lectura",
+        "purpose": "Medida de la nota, igual en vivo (.cm-content) y en lectura. En rem y no en ch: el ch de la mono es más ancho que el de la serif y la hoja cambiaba de ancho al cambiar de modo."
+      }
     }
   },
   "components": [
@@ -611,36 +628,52 @@
       "css": ".ds-btn { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.45rem 0.75rem; font-size: 0.8125rem; border-radius: 4px; color: var(--mic-text-primary, #c6e7e1); background: transparent; border: 1px solid var(--mic-border, #16343f); cursor: pointer; transition: background-color 120ms ease; } .ds-btn:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 14%, transparent); } .ds-btn:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
-      "name": "Botón con contorno de luz",
+      "name": "Botón de menú con rótulo",
       "kind": "button",
-      "refersTo": "button-glow-outline",
-      "description": "Acciones de la barra superior, sobre Esporo.",
-      "html": "<div class=\"ds-frame\"><button class=\"ds-btn-glow\">Compartir</button></div>",
-      "css": ".ds-frame { background: var(--mic-bg-sidebar, #04090e); padding: 12px; border-radius: 8px; display: inline-block; --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-btn-glow { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); padding: 0.3rem 0.65rem; font-size: 0.8125rem; border-radius: 8px; color: var(--mic-marco-glow, #3dffc4); background: transparent; border: 1px solid color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 65%, transparent); cursor: pointer; transition: background-color 120ms ease; } .ds-btn-glow:hover { background: color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 15%, transparent); } .ds-btn-glow:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
+      "refersTo": "menu-trigger",
+      "description": "«Formato ▾», «Nuevo ▾»: un grupo de acciones detrás de un rótulo, nunca una fila de íconos.",
+      "html": "<div class=\"ds-mwrap\"><button class=\"ds-mtrig\" type=\"button\" aria-haspopup=\"menu\" aria-expanded=\"true\">Nuevo <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></button><div class=\"ds-mmenu\" role=\"menu\"><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Dibujo</span></button><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Base</span></button><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Carpeta</span></button></div></div>",
+      "css": ".ds-mwrap { display: inline-flex; flex-direction: column; gap: 4px; font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-mtrig { display: inline-flex; align-self: flex-start; align-items: center; gap: 0.25rem; height: 28px; padding: 0 0.4rem 0 0.55rem; border: none; background: transparent; border-radius: 4px; font: inherit; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); cursor: pointer; transition: background-color 120ms ease; } .ds-mtrig:hover, .ds-mtrig[aria-expanded='true'] { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); color: var(--mic-text-primary, #c6e7e1); } .ds-mtrig:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-mmenu { display: flex; flex-direction: column; min-width: 220px; padding: 0.3rem; background: var(--mic-bg-canvas, #071219); border: 1px solid var(--mic-border, #16343f); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 20%, transparent); } .ds-mitem { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; border: none; background: transparent; border-radius: 4px; font: inherit; font-size: 0.8125rem; text-align: left; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-mitem svg { color: var(--mic-text-muted, #6e9a99); } .ds-mitem:hover, .ds-mitem:focus-visible { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); outline: none; }"
     },
     {
       "name": "Rail",
       "kind": "nav",
       "refersTo": "rail-button",
-      "description": "Barra vertical de secciones; el activo lleva barra de 3px en Brote.",
-      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-btn\" aria-pressed=\"true\" aria-label=\"Grafo\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"18\" cy=\"8\" r=\"3\"/><circle cx=\"12\" cy=\"18\" r=\"3\"/><path d=\"M8.5 7.5 15 8M7.5 8.5l3.5 7M16.5 10.5 13.5 15.5\"/></svg></button><button class=\"ds-rail-btn\" aria-label=\"Buscar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></button></nav>",
+      "description": "Barra vertical de secciones; el activo lleva barra de 3px en Brote del marco. El grafo usa el isotipo.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-btn\" aria-pressed=\"true\" aria-label=\"Grafo\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8.6 8.2 16 6.4M7.4 9.8l3.2 7.6M17.2 8.6l-3.6 8.2\"/><circle cx=\"6.5\" cy=\"8\" r=\"2.6\"/><circle cx=\"18\" cy=\"6\" r=\"2\"/><circle cx=\"12\" cy=\"18.5\" r=\"2.6\"/></svg></button><button class=\"ds-rail-btn\" aria-label=\"Buscar\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg></button></nav>",
       "css": ".ds-rail { display: inline-flex; flex-direction: column; align-items: center; gap: 0.25rem; width: 56px; padding: 0.5rem 0; background: var(--mic-bg-sidebar, #04090e); --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-rail-btn { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: none; background: transparent; border-radius: 8px; color: var(--mic-marco-glow, #3dffc4); opacity: var(--mic-marco-inactivo, 0.55); cursor: pointer; transition: opacity 120ms ease, background-color 120ms ease; } .ds-rail-btn:hover { opacity: 1; background-color: color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 15%, transparent); } .ds-rail-btn[aria-pressed=\"true\"] { opacity: 1; } .ds-rail-btn[aria-pressed=\"true\"]::before { content: \"\"; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; border-radius: 0 4px 4px 0; background: var(--mic-marco-glow, #3dffc4); } .ds-rail-btn:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
     },
     {
       "name": "Barra de pestañas",
       "kind": "nav",
       "refersTo": "tab",
-      "description": "Pestañas del pane; la activa toma Lienzo y borde inferior en Hifa.",
-      "html": "<div class=\"ds-tabs\"><div class=\"ds-tab ds-tab-active\" tabindex=\"0\">Mapa de documentacion</div><div class=\"ds-tab\" tabindex=\"0\">BACKLOG</div><div class=\"ds-tab ds-tab-preview\" tabindex=\"0\">RAMAS</div></div>",
-      "css": ".ds-tabs { display: flex; height: 34px; background: var(--mic-bg-surface, #0a1a24); border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; padding: 0 0.6rem; max-width: 180px; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); border-right: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 15%, transparent); white-space: nowrap; cursor: pointer; } .ds-tab:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 10%, transparent); } .ds-tab-active { background: var(--mic-bg-canvas, #071219); border-bottom: 2px solid var(--mic-accent, #19e6ff); color: var(--mic-text-primary, #c6e7e1); } .ds-tab-preview { font-style: italic; } .ds-tab:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
+      "description": "Pestañas del pane: ancho flexible 72–260px, roving tabindex con flechas/Inicio/Fin/Supr, anillo hacia adentro.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><div class=\"ds-tab ds-tab-active\" role=\"tab\" aria-selected=\"true\" tabindex=\"0\">Mapa de documentacion</div><div class=\"ds-tab\" role=\"tab\" tabindex=\"-1\">BACKLOG</div><div class=\"ds-tab ds-tab-preview\" role=\"tab\" tabindex=\"-1\">RAMAS</div></div>",
+      "css": ".ds-tabs { display: flex; height: 34px; background: var(--mic-bg-surface, #0a1a24); border-bottom: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 20%, transparent); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-tab { display: flex; align-items: center; padding: 0 0.6rem; flex: 0 1 auto; min-width: 72px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); border-right: 1px solid color-mix(in srgb, var(--mic-text-muted, #6e9a99) 15%, transparent); white-space: nowrap; cursor: pointer; } .ds-tab:hover { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 10%, transparent); } .ds-tab-active { background: var(--mic-bg-canvas, #071219); border-bottom: 2px solid var(--mic-accent, #19e6ff); color: var(--mic-text-primary, #c6e7e1); } .ds-tab-preview { font-style: italic; } .ds-tab:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: -2px; }"
     },
     {
-      "name": "Campo de búsqueda",
+      "name": "Paleta de notas y comandos",
+      "kind": "custom",
+      "refersTo": "palette",
+      "description": "Ctrl+O notas, Ctrl+P comandos («>»); combobox con aria-activedescendant. Lo único que flota sobre el cascarón.",
+      "html": "<div class=\"ds-pal\" role=\"dialog\" aria-label=\"Paleta\"><div class=\"ds-pal-campo\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-pal-in\" role=\"combobox\" aria-expanded=\"true\" value=\"map\" aria-activedescendant=\"o1\"></div><ul class=\"ds-pal-lista\" role=\"listbox\"><li id=\"o1\" class=\"ds-pal-op ds-pal-act\" role=\"option\" aria-selected=\"true\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span class=\"ds-pal-t\">Mapa de documentacion</span><span class=\"ds-pal-d\">docs</span></li><li class=\"ds-pal-op\" role=\"option\" aria-selected=\"false\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span class=\"ds-pal-t\">Mapa del vault</span><span class=\"ds-pal-d\">notas</span></li><li class=\"ds-pal-op\" role=\"option\" aria-selected=\"false\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span class=\"ds-pal-t\">Crear nota «map»</span></li></ul><p class=\"ds-pal-pie\"><kbd>↑↓</kbd> elegir <kbd>Enter</kbd> abrir <kbd>&gt;</kbd> comandos</p></div>",
+      "css": ".ds-pal { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); width: min(600px, 100%); display: flex; flex-direction: column; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); border: 1px solid var(--mic-border, #16343f); box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 35%, transparent); overflow: hidden; } .ds-pal-campo { display: flex; align-items: center; gap: 0.5rem; padding: 0 0.75rem; border-bottom: 1px solid var(--mic-border, #16343f); color: var(--mic-text-muted, #6e9a99); } .ds-pal-campo:focus-within { border-bottom-color: var(--mic-focus, #3dffc4); } .ds-pal-in { flex: 1; min-width: 0; height: 40px; background: transparent; border: none; outline: none; font: inherit; font-size: 0.875rem; color: var(--mic-text-primary, #c6e7e1); } .ds-pal-lista { list-style: none; margin: 0; padding: 0.25rem; } .ds-pal-op { display: flex; align-items: center; gap: 0.6rem; min-height: 30px; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8125rem; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-pal-op > svg { flex-shrink: 0; color: var(--mic-text-muted, #6e9a99); } .ds-pal-act { background: color-mix(in srgb, var(--mic-focus, #3dffc4) 16%, transparent); } .ds-pal-act > svg { color: var(--mic-focus, #3dffc4); } .ds-pal-t { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-pal-d { flex: 1; text-align: right; font-size: 0.75rem; color: var(--mic-text-muted, #6e9a99); } .ds-pal-pie { margin: 0; padding: 0.35rem 0.75rem; border-top: 1px solid var(--mic-border, #16343f); font-size: 0.6875rem; color: var(--mic-text-muted, #6e9a99); } .ds-pal-pie kbd { font: inherit; padding: 0 0.3rem; margin: 0 0.1rem; border-radius: 3px; border: 1px solid var(--mic-border, #16343f); }"
+    },
+    {
+      "name": "Barra de estado",
+      "kind": "nav",
+      "refersTo": "statusbar",
+      "description": "Pie de 24px: enlaces · te citan (abre el panel), palabras, guardado. Neutra en reposo, Brote solo en hover o presionado.",
+      "html": "<footer class=\"ds-sb\" aria-label=\"Barra de estado\"><button class=\"ds-sb-i\" type=\"button\" aria-pressed=\"false\">12 enlaces · 5 te citan</button><span class=\"ds-sb-i\">843 palabras</span><span class=\"ds-sb-i\">Guardado 14:02</span></footer>",
+      "css": ".ds-sb { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; height: 24px; padding: 0 0.75rem; background: var(--mic-bg-sidebar, #04090e); border-top: 1px solid color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 14%, transparent); font-size: 0.75rem; color: var(--mic-text-muted, #6e9a99); white-space: nowrap; --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-sb-i { display: flex; align-items: center; height: 20px; padding: 0 0.4rem; border: none; background: transparent; border-radius: 4px; font: inherit; color: inherit; font-variant-numeric: tabular-nums; } .ds-sb-i + .ds-sb-i::before { content: '·'; margin-right: 0.65rem; margin-left: -0.3rem; } button.ds-sb-i { cursor: pointer; transition: background-color 120ms ease, color 120ms ease; } button.ds-sb-i:hover, button.ds-sb-i[aria-pressed='true'] { color: var(--mic-marco-glow, #3dffc4); background: color-mix(in srgb, var(--mic-marco-glow, #3dffc4) 14%, transparent); } button.ds-sb-i:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; }"
+    },
+    {
+      "name": "Disparador de la paleta",
       "kind": "input",
-      "refersTo": "search-field",
-      "description": "Búsqueda global de la barra superior.",
-      "html": "<label class=\"ds-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input class=\"ds-search-input\" placeholder=\"Buscar en el vault…\"></label>",
-      "css": ".ds-search { display: flex; align-items: center; gap: 0.5rem; height: 30px; max-width: 480px; padding: 0 0.75rem; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); color: var(--mic-text-muted, #6e9a99); font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-search:focus-within { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font: inherit; font-size: 0.8125rem; color: var(--mic-text-primary, #c6e7e1); } .ds-search-input::placeholder { color: var(--mic-text-muted, #6e9a99); }"
+      "refersTo": "palette-trigger",
+      "description": "Centro de la barra superior: un botón con forma de campo que abre la paleta (Ctrl+P).",
+      "html": "<div class=\"ds-frame\"><button class=\"ds-ptrig\" type=\"button\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><span class=\"ds-ptrig-t\">Ir a una nota o comando…</span><kbd class=\"ds-ptrig-k\">Ctrl+P</kbd></button></div>",
+      "css": ".ds-frame { background: var(--mic-bg-sidebar, #04090e); padding: 11px 16px; display: block; --mic-focus: var(--mic-marco-glow, #3dffc4); } .ds-ptrig { font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); display: flex; align-items: center; gap: 0.5rem; width: 100%; max-width: 480px; height: 30px; margin: 0 auto; padding: 0 0.75rem; border: none; border-radius: 8px; background: var(--mic-bg-surface, #0a1a24); color: var(--mic-text-muted, #6e9a99); text-align: left; cursor: pointer; transition: background-color 120ms ease; } .ds-ptrig:hover { color: var(--mic-text-primary, #c6e7e1); background: color-mix(in srgb, var(--mic-bg-surface, #0a1a24) 80%, var(--mic-marco-glow, #3dffc4)); } .ds-ptrig:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-ptrig-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8125rem; } .ds-ptrig-k { font: inherit; font-size: 0.6875rem; padding: 0 0.3rem; border-radius: 3px; border: 1px solid var(--mic-border, #16343f); }"
     },
     {
       "name": "Menú contextual",
@@ -662,9 +695,9 @@
       "name": "Callout",
       "kind": "card",
       "refersTo": "callout",
-      "description": "Firma de las notas: borde izquierdo en el color del tipo, fondo al 8%.",
+      "description": "Firma de las notas: fondo del tipo al 8% y título en su color. La franja lateral de 3px del build es deuda y no se reproduce aquí.",
       "html": "<div class=\"ds-callout\"><strong class=\"ds-callout-t\">Nota</strong><p>El enlace es la unidad de valor.</p></div><div class=\"ds-callout ds-callout-warn\"><strong class=\"ds-callout-t\">Advertencia</strong><p>Un defecto se registra apenas se detecta.</p></div>",
-      "css": ".ds-callout { --c: var(--mic-callout-note-border, #3dffc4); border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--mic-text-primary, #c6e7e1); padding: 8px 16px; margin: 0 0 0.85rem; border-radius: 0 8px 8px 0; font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; } .ds-callout p { margin: 0; } .ds-callout-warn { --c: var(--mic-callout-warning-border, #C9821E); } .ds-callout-t { color: color-mix(in srgb, var(--c) var(--mic-callout-tinta, 85%), var(--mic-text-primary, #c6e7e1)); font-weight: 600; }"
+      "css": ".ds-callout { --c: var(--mic-callout-note-border, #3dffc4); background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--mic-text-primary, #c6e7e1); padding: 8px 16px; margin: 0 0 0.85rem; border-radius: 0 8px 8px 0; font-family: var(--mic-font-serif, \"Source Serif 4\", Georgia, serif); font-size: 16px; line-height: 1.7; } .ds-callout p { margin: 0; } .ds-callout-warn { --c: var(--mic-callout-warning-border, #C9821E); } .ds-callout-t { color: color-mix(in srgb, var(--c) var(--mic-callout-tinta, 85%), var(--mic-text-primary, #c6e7e1)); font-weight: 600; }"
     },
     {
       "name": "Diálogo",
@@ -677,11 +710,13 @@
   ],
   "narrative": {
     "northStar": "El bosque bioluminiscente",
-    "overview": "Mycelium es un bosque de noche. El marco es oscuro y profundo —el rail, la barra superior y el lienzo del grafo son casi negros, teñidos de azul petróleo— y lo que tiene valor **emite luz**: los nodos del grafo, las etiquetas, el cursor, la barra que marca dónde estás. La luz no es decoración, es información: brilla lo que está vivo, lo que está conectado, lo que tiene el foco. Por eso el modo oscuro de Bioluminiscencia es el que viene por defecto, y el claro es su versión diurna, no al revés.\n\nConviven dos densidades, y cada una tiene su lugar. **El marco es denso y técnico**, como un IDE: texto de interfaz de 13px, controles de 22 a 40px, pestañas de 34px, mucho a la vista y nada que pida atención en reposo. **La nota es serena**: en lectura cambia a una serif, respira con interlineado de 1.7 y se limita a 72 caracteres de ancho. Lo orgánico del micelio se ve en los detalles, no en la cantidad: esquinas suaves, el degradé brote→hifa (en el logo, el título del documento y el énfasis triple), el halo del isotipo, títulos que alternan los dos colores de la marca.\n\nHay tres cosas que Mycelium nunca debe parecer: **un clon gris de Obsidian** (violeta y grises neutros sin identidad), **un SaaS corporativo** (tarjetas blancas flotando con sombras suaves, degradé violeta-azul) y **un neón gamer** (brillo saturado en todas partes, donde el glow deja de señalar y pasa a ser ruido).",
+    "overview": "Mycelium es un bosque de noche. El marco es oscuro y profundo —el rail, la barra superior y el lienzo del grafo son casi negros, teñidos de azul petróleo— y lo que tiene valor **emite luz**: los nodos del grafo, las etiquetas, el cursor, la barra que marca dónde estás. La luz no es decoración, es información: brilla lo que está vivo, lo que está conectado, lo que tiene el foco. Por eso el modo oscuro de Bioluminiscencia es el que viene por defecto, y el claro es su versión diurna, no al revés.\n\nConviven dos densidades, y cada una tiene su lugar. **El marco es denso y técnico**, como un IDE: texto de interfaz de 13px, controles de 22 a 40px, pestañas de 34px, mucho a la vista y nada que pida atención en reposo. **La nota es serena**: en lectura cambia a una serif, respira con interlineado de 1.7 y se limita a una medida de 42rem (unos 80 caracteres de serif), la misma en vivo que en lectura. Lo orgánico del micelio se ve en los detalles, no en la cantidad: esquinas suaves, el degradé brote→hifa (en el logo, el título del documento y el énfasis triple), el halo del isotipo, títulos que alternan los dos colores de la marca.\n\n**El cascarón es el estándar de la categoría**, hecho con el oficio de VS Code y Obsidian: rail de actividad, árbol, pestañas, editor y barra de estado, y una paleta que salta a cualquier nota o comando desde el centro de la barra superior. No se inventa un marco nuevo; se ejecuta bien el que ya se conoce. Lo que el rediseño sacó define lo que no vuelve: la tira de íconos sin nombre y los controles que no hacen nada.\n\nHay tres cosas que Mycelium nunca debe parecer: **un clon gris de Obsidian** (violeta y grises neutros sin identidad), **un SaaS corporativo** (tarjetas blancas flotando con sombras suaves, degradé violeta-azul) y **un neón gamer** (brillo saturado en todas partes, donde el glow deja de señalar y pasa a ser ruido).",
     "keyCharacteristics": [
       "Marco oscuro, contenido que brilla: la luz se reserva para lo que tiene significado.",
       "Dos colores de marca por tema (Hifa y Brote) y el resto es tono del mismo matiz.",
-      "Marco compacto (13px, controles chicos) frente a una lectura amplia (serif, 72ch).",
+      "Marco compacto (13px, controles chicos) frente a una lectura amplia (serif, 42rem).",
+      "Cascarón estándar: rail, árbol, pestañas, editor, barra de estado y paleta (Ctrl+P).",
+      "Los grupos de acciones van detrás de un botón con rótulo («Formato ▾», «Nuevo ▾»), no en una fila de íconos.",
       "Plano por defecto: las zonas se separan por tono; solo lo que flota tiene sombra.",
       "Todo sale de tokens: dos temas × claro/oscuro = cuatro combinaciones, siempre las cuatro.",
       "Brote nunca se usa en crudo como primer plano: cada uso pide su rol (texto, foco, marco)."
@@ -704,7 +739,7 @@
       },
       {
         "name": "The Dark Frame Rule",
-        "body": "Sobre Esporo nunca va Humus tenue ni ningún color calibrado para fondo claro: el marco usa `--mic-marco-glow`, a `--mic-marco-inactivo` en reposo y al 100% activo o con hover.",
+        "body": "Sobre Esporo nunca va un color calibrado para fondo claro (el Humus tenue del modo claro, por ejemplo): el marco usa `--mic-marco-glow`, a `--mic-marco-inactivo` en reposo y al 100% activo o con hover. El texto neutro sobre el marco (la barra de estado) va en Humus tenue solo en oscuro, donde está calibrado para fondo oscuro; en claro se usa Niebla mezclada al 78% con el marco.",
         "section": "colors"
       },
       {
@@ -737,12 +772,15 @@
       "**Do** usar solo tokens `var(--mic-*)` y verificar cada color nuevo en los cuatro combos de tema y modo.",
       "**Do** separar zonas por tono (Esporo → Niebla → Lienzo) antes de pensar en un borde o una sombra.",
       "**Do** reservar el brillo de Brote para lo que tiene significado: foco, selección, conexión, lo activo.",
-      "**Do** mantener la interfaz en 13px y la lectura en 16px con serif a 72ch.",
+      "**Do** mantener la interfaz en 13px y la lectura en 16px con serif, a la misma medida (42rem) en vivo y en lectura.",
       "**Do** teñir las sombras con Esporo profundo y darles sombra solo a los elementos que flotan.",
       "**Do** mostrar atenuada, y con su motivo, la acción que no está disponible, en vez de ocultarla.",
       "**Do** usar el rol de Brote que corresponda (`--mic-glow-texto`, `--mic-focus`, `--mic-marco-glow`) cada vez que Brote vaya en primer plano.",
       "**Do** dar a toda animación una alternativa con `prefers-reduced-motion` que conserve lo que informa, y detener todo bucle que no esté a la vista.",
-      "**Do** repartir el espacio en una ventana angosta —la nota conserva 420px— en vez de esconder funciones."
+      "**Do** repartir el espacio en una ventana angosta —la nota conserva 420px— en vez de esconder funciones.",
+      "**Do** agrupar acciones detrás de un botón con rótulo y chevron («Formato ▾», «Nuevo ▾») con el comportamiento de `useMenuEmergente`.",
+      "**Do** llevar a la paleta (Ctrl+P) las acciones que no merecen un lugar fijo en el marco, y a la barra de estado lo que se quiere saber de la nota sin abrir nada.",
+      "**Do** hacer navegable con teclado cada grupo del marco (pestañas con flechas, menús con flechas y Escape), con el anillo hacia adentro donde el contenedor recorta."
     ],
     "donts": [
       "**Don't** parecer un clon gris de Obsidian: nada de violeta ni de grises neutros sin matiz. El neutro de Mycelium siempre tiene el tono de su tema.",
@@ -750,7 +788,10 @@
       "**Don't** convertirlo en neón gamer: el glow saturado en todas partes deja de señalar. El degradé de marca tiene tres usos (logo, título del documento, énfasis triple) y ninguno más.",
       "**Don't** escribir Brote en crudo como color de texto, foco o ícono: en claro no llega al contraste mínimo.",
       "**Don't** escribir un hex a mano en un componente ni usar `rgba(0,0,0,…)` para una sombra.",
-      "**Don't** poner Humus tenue sobre Esporo.",
+      "**Don't** poner sobre Esporo un color calibrado para fondo claro (el Humus tenue del modo claro incluido).",
+      "**Don't** volver a una tira de íconos sin nombre para el formato o para crear: es lo que el rediseño del cascarón sacó.",
+      "**Don't** mostrar un control que no hace nada ni una sección que todavía no existe (un buscador que no busca, «Compartir» en desktop, Tags en el rail). Lo que no se puede usar *en este contexto* se atenúa con su motivo; lo que no existe, no se muestra.",
+      "**Don't** decir un estado solo con un color (el viejo punto de sincronización): se dice con palabras.",
       "**Don't** atenuar con `opacity` una fila, un panel o cualquier contenedor.",
       "**Don't** tratar el modo oscuro como un tema aparte: es un modificador (`data-dark`) sobre el tema activo."
     ]

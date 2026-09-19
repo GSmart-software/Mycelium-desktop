@@ -6,6 +6,8 @@ import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
+import { BarraEstado } from "@/components/workspace/BarraEstado";
+import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
@@ -150,16 +152,6 @@ function WorkspaceShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeNoteId = searchParams.get("note");
-  const activeNote = useVaultStore((s) =>
-    activeNoteId ? s.notas.find((n) => n.id === activeNoteId) ?? null : null,
-  );
-  const carpetas = useVaultStore((s) => s.carpetas);
-  const shareFolder = activeNote?.carpetaId
-    ? {
-        id: activeNote.carpetaId,
-        nombre: carpetas.find((c) => c.id === activeNote.carpetaId)?.nombre ?? "carpeta",
-      }
-    : null;
 
   const { activeSection, leftWidth, toggleLeft } = usePanelLayoutStore();
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
@@ -247,6 +239,22 @@ function WorkspaceShell() {
   // Atajos de paneles (HU-29) y de pestañas (HU-25 CA4/CA7)
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // Ctrl+O: ir a una nota. Ctrl+P / Ctrl+Shift+P: paleta de comandos
+      // (rediseño del cascarón): los dos atajos de la categoría, Obsidian y VS
+      // Code. Antes no hacían nada, o imprimían la página.
+      if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+        const tecla = event.key.toLowerCase();
+        if (!event.shiftKey && tecla === "o") {
+          event.preventDefault();
+          useUiStore.getState().setPaleta("notas");
+          return;
+        }
+        if (tecla === "p") {
+          event.preventDefault();
+          useUiStore.getState().setPaleta("comandos");
+          return;
+        }
+      }
       // Ctrl/Cmd+F abre la búsqueda en la nota, no el buscador del navegador.
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
@@ -347,14 +355,16 @@ function WorkspaceShell() {
       <a href="#contenido" className={styles.saltar} onClick={saltarALaNota}>
         Saltar a la nota
       </a>
-      <AppTopbar shareFolder={shareFolder} />
+      <AppTopbar />
       <Rail />
       <LeftPanel />
       <EditorArea />
+      <BarraEstado />
       <SettingsDrawer />
       <ImportDialogs />
       <ShareModal />
       <UpdateDialog />
+      <PaletaComandos />
     </div>
   );
 }

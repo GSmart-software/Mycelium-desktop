@@ -4,6 +4,7 @@ import type { EditorView } from "@codemirror/view";
 import {
   Bold,
   Braces,
+  ChevronDown,
   CircleDot,
   Code,
   Columns2,
@@ -26,10 +27,9 @@ import {
   Shapes,
   Strikethrough,
   TableProperties,
-  Type,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -46,6 +46,7 @@ import {
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { insertarEsporaEnVista, leerEspora, type Espora } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { EsporaMenu } from "./EsporaMenu";
 import { ExportMenu } from "./ExportMenu";
 import styles from "./EditorToolbar.module.css";
@@ -61,29 +62,25 @@ const MODES: { mode: EditorMode; icon: LucideIcon; label: string; shortcut: stri
   { mode: "raw", icon: Code, label: "Raw", shortcut: "Ctrl+4" },
 ];
 
-const SYNC_LABEL: Record<SyncState, string> = {
-  local: "Guardado localmente — sync pendiente",
-  syncing: "Sincronizando…",
-  synced: "Sincronizado",
-  offline: "Sin conexión — cambios pendientes",
-  error: "Error de sincronización — cambios pendientes",
-};
-
 /** Acción de formato: o un divisor, o un botón con ícono. */
 type FormatAction =
   | { divider: true }
   | { icon: LucideIcon; label: string; run?: (view: EditorView) => void; action?: () => void };
 
 /**
- * Barra de herramientas del editor (HU-02): formato a la izquierda, selector de
- * modo a la derecha. En `read` solo queda el selector. Cuando el ancho no
- * alcanza, el grupo de formato se colapsa en un menú desplegable (responsive).
+ * Barra de herramientas del editor (HU-02): «Formato ▾» a la izquierda; buscar,
+ * panel de enlaces, el selector de modo y «…» a la derecha. En `read` no hay
+ * formato. Si el ancho no alcanza, el grupo derecho se colapsa en «⋯».
+ *
+ * Rediseño del cascarón (2026-09-19): el formato era una tira de 17 íconos
+ * siempre a la vista, más ruido que la nota misma. Quien escribe Markdown usa
+ * los atajos o la sintaxis; el menú queda para descubrirlos (cada ítem dice su
+ * atajo), como en Obsidian, que no tiene barra de formato.
  */
 export function EditorToolbar({
   getView,
   mode,
   onModeChange,
-  syncState,
   onInsertDiagram,
   notaId,
   titulo,
@@ -92,7 +89,6 @@ export function EditorToolbar({
   getView: () => EditorView | null;
   mode: EditorMode;
   onModeChange: (mode: EditorMode) => void;
-  syncState: SyncState;
   onInsertDiagram?: () => void;
   notaId: string;
   titulo: string;
@@ -107,7 +103,6 @@ export function EditorToolbar({
   // cuando algo no se pudo fusionar, para que se pueda leer.
   const [esporasPos, setEsporasPos] = useState<{ top: number; left: number } | null>(null);
   const [esporaAviso, setEsporaAviso] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [rightMenuOpen, setRightMenuOpen] = useState(false);
@@ -121,9 +116,11 @@ export function EditorToolbar({
 
   const toolbarRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
   const rightMeasureRef = useRef<HTMLDivElement>(null);
   const formatWrapRef = useRef<HTMLDivElement>(null);
+  const formatMenuRef = useRef<HTMLDivElement>(null);
+  const formatBtnRef = useRef<HTMLButtonElement>(null);
+  const rightMenuRef = useRef<HTMLDivElement>(null);
   const rightMenuWrapRef = useRef<HTMLDivElement>(null);
   const rightMenuBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -191,47 +188,39 @@ export function EditorToolbar({
   const metaPanelOpen = useTabsStore((s) => panelMetaAbierto(s.root, paneId));
   const toggleMetaPanel = () => useTabsStore.getState().togglePanelMeta(paneId);
 
-  // Colapso responsive en dos etapas según el ancho disponible, medido con
-  // medidores ocultos (anchos naturales, sin feedback al colapsar):
-  //   1) si no entra todo, se colapsa primero el grupo de formato;
-  //   2) si aun así no entra, se colapsa también el grupo derecho (buscar,
-  //      exportar y modos) en un menú "⋯".
+  // Si el grupo derecho (medido en su ancho natural con un medidor oculto) no
+  // entra junto a «Formato», se colapsa en un menú "⋯".
   useEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
     const measure = () => {
-      const formatNatural = showFormatTools ? measureRef.current?.offsetWidth ?? 0 : 0;
       const rightNatural = rightMeasureRef.current?.offsetWidth ?? 0;
-      const formatBtn = showFormatTools ? 34 : 0; // botón "Formato" colapsado
-      const available = toolbar.clientWidth - 16;
-
-      if (formatNatural + rightNatural <= available) {
-        setCollapsed(false);
-        setRightCollapsed(false);
-      } else if (formatBtn + rightNatural <= available) {
-        setCollapsed(true);
-        setRightCollapsed(false);
-      } else {
-        setCollapsed(true);
-        setRightCollapsed(true);
-      }
+      const formatBtn = showFormatTools ? 96 : 0;
+      setRightCollapsed(formatBtn + rightNatural > toolbar.clientWidth - 16);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(toolbar);
     return () => ro.disconnect();
-  }, [showFormatTools, onInsertDiagram]);
+  }, [showFormatTools]);
 
-  // Cerrar los menús al hacer clic fuera.
-  useEffect(() => {
-    if (!formatMenuOpen && !rightMenuOpen) return;
-    function onDown(e: PointerEvent) {
-      if (!formatWrapRef.current?.contains(e.target as Node)) setFormatMenuOpen(false);
-      if (!rightMenuWrapRef.current?.contains(e.target as Node)) setRightMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
-  }, [formatMenuOpen, rightMenuOpen]);
+  // Clic afuera, Escape, flechas y uno solo a la vez (`useMenuEmergente`).
+  const cerrarFormato = useCallback(() => setFormatMenuOpen(false), []);
+  const cerrarDerecho = useCallback(() => setRightMenuOpen(false), []);
+  useMenuEmergente({
+    abierto: formatMenuOpen,
+    cerrar: cerrarFormato,
+    contenedorRef: formatWrapRef,
+    menuRef: formatMenuRef,
+    disparadorRef: formatBtnRef,
+  });
+  useMenuEmergente({
+    abierto: rightMenuOpen,
+    cerrar: cerrarDerecho,
+    contenedorRef: rightMenuWrapRef,
+    menuRef: rightMenuRef,
+    disparadorRef: rightMenuBtnRef,
+  });
 
   const openRightMenu = () => {
     const r = rightMenuBtnRef.current?.getBoundingClientRect();
@@ -276,33 +265,21 @@ export function EditorToolbar({
 
   return (
     <div className={styles.toolbar} ref={toolbarRef}>
-      {showFormatTools && !collapsed && (
-        <div className={styles.formatGroup}>
-          {formatActions.map((a, i) =>
-            "divider" in a ? (
-              <span key={i} className={styles.divider} />
-            ) : (
-              <ToolButton key={i} icon={a.icon} label={a.label} onClick={() => runAction(a)} />
-            ),
-          )}
-        </div>
-      )}
-
-      {showFormatTools && collapsed && (
+      {showFormatTools && (
         <div className={styles.formatMenuWrap} ref={formatWrapRef}>
           <button
+            ref={formatBtnRef}
             type="button"
-            className={styles.toolButton}
-            title="Formato"
-            aria-label="Herramientas de formato"
+            className={formatMenuOpen ? `${styles.formatTrigger} ${styles.modeActive}` : styles.formatTrigger}
             aria-haspopup="menu"
             aria-expanded={formatMenuOpen}
             onClick={() => setFormatMenuOpen((o) => !o)}
           >
-            <Type size={16} aria-hidden />
+            Formato
+            <ChevronDown size={14} aria-hidden />
           </button>
           {formatMenuOpen && (
-            <div className={styles.formatMenu} role="menu">
+            <div ref={formatMenuRef} className={styles.formatMenu} role="menu" aria-label="Formato">
               {formatActions.map((a, i) =>
                 "divider" in a ? (
                   <div key={i} className={styles.formatMenuSep} />
@@ -323,21 +300,6 @@ export function EditorToolbar({
                 ),
               )}
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Medidor oculto: ancho natural del grupo de formato (para decidir colapso). */}
-      {showFormatTools && (
-        <div className={styles.measure} aria-hidden ref={measureRef}>
-          {formatActions.map((a, i) =>
-            "divider" in a ? (
-              <span key={i} className={styles.divider} />
-            ) : (
-              <span key={i} className={styles.toolButton}>
-                <a.icon size={16} aria-hidden />
-              </span>
-            ),
           )}
         </div>
       )}
@@ -392,12 +354,6 @@ export function EditorToolbar({
       <div className={styles.spacer} />
 
       <div className={styles.right} ref={rightRef}>
-        <span
-          className={`${styles.syncDot} ${styles[`sync_${syncState}`]}`}
-          title={SYNC_LABEL[syncState]}
-          aria-label={SYNC_LABEL[syncState]}
-        />
-
         {!rightCollapsed ? (
           <>
             <ToolButton
@@ -409,15 +365,13 @@ export function EditorToolbar({
             <button
               type="button"
               className={metaPanelOpen ? `${styles.toolButton} ${styles.modeActive}` : styles.toolButton}
-              title="Panel de metadatos (Ctrl+Shift+\\)"
-              aria-label="Panel de metadatos"
+              title="Panel de enlaces (Ctrl+Shift+\\)"
+              aria-label="Panel de enlaces"
               aria-pressed={metaPanelOpen}
               onClick={toggleMetaPanel}
             >
               <PanelRight size={16} aria-hidden />
             </button>
-
-            <ExportMenu notaId={notaId} titulo={titulo} />
 
             <div className={styles.modeGroup} role="group" aria-label="Modo de visualización">
               {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
@@ -435,6 +389,9 @@ export function EditorToolbar({
                 </button>
               ))}
             </div>
+
+            {/* «…» al extremo derecho, después de los modos (VS Code, Obsidian). */}
+            <ExportMenu notaId={notaId} titulo={titulo} />
           </>
         ) : (
           // Pantalla muy chica: buscar, exportar y modos colapsados en "⋯".
@@ -453,6 +410,7 @@ export function EditorToolbar({
             </button>
             {rightMenuOpen && (
               <div
+                ref={rightMenuRef}
                 className={styles.rightMenu}
                 role="menu"
                 style={{ position: "fixed", top: rightMenuPos.top, right: rightMenuPos.right }}
@@ -483,7 +441,7 @@ export function EditorToolbar({
                   }}
                 >
                   <PanelRight size={15} aria-hidden />
-                  <span>Panel de metadatos</span>
+                  <span>Panel de enlaces</span>
                 </button>
                 <div className={styles.formatMenuSep} />
                 {MODES.map(({ mode: m, icon: Icon, label }) => (
@@ -549,15 +507,11 @@ export function EditorToolbar({
 
       {/* Medidor oculto del grupo derecho (ancho natural para decidir colapso). */}
       <div className={styles.measure} aria-hidden ref={rightMeasureRef} style={{ gap: "0.4rem" }}>
-        <span className={styles.syncDot} />
         <span className={styles.toolButton}>
           <Search size={16} aria-hidden />
         </span>
         <span className={styles.toolButton}>
           <PanelRight size={16} aria-hidden />
-        </span>
-        <span className={styles.toolButton}>
-          <MoreVertical size={16} aria-hidden />
         </span>
         <span className={styles.modeGroup}>
           {MODES.map(({ mode: m, icon: Icon }) => (
@@ -565,6 +519,9 @@ export function EditorToolbar({
               <Icon size={16} aria-hidden />
             </span>
           ))}
+        </span>
+        <span className={styles.toolButton}>
+          <MoreVertical size={16} aria-hidden />
         </span>
       </div>
     </div>

@@ -40,6 +40,7 @@ import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
+import { HAY_COMPARTIR } from "@/lib/capacidades";
 import { SharedSection } from "./SharedSection";
 import {
   useVaultStore,
@@ -48,6 +49,7 @@ import {
   type TreeNota,
 } from "@/stores/vaultStore";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { MenuNuevo } from "./MenuNuevo";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -515,16 +517,20 @@ export function ExplorerPanel() {
             },
           ]
         : []),
-      {
-        label: "Compartir",
-        onClick: () =>
-          useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
-      },
-      {
-        label: "Gestionar acceso",
-        onClick: () =>
-          useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
-      },
+      ...(HAY_COMPARTIR
+        ? [
+            {
+              label: "Compartir",
+              onClick: () =>
+                useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
+            },
+            {
+              label: "Gestionar acceso",
+              onClick: () =>
+                useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
+            },
+          ]
+        : []),
       {
         label: "Renombrar",
         onClick: () =>
@@ -789,57 +795,41 @@ export function ExplorerPanel() {
         >
           <FilePlus size={16} aria-hidden />
         </button>
-        <button
-          type="button"
-          className={styles.actionButton}
-          title="Nuevo dibujo Excalidraw"
-          aria-label="Nuevo dibujo Excalidraw"
-          onClick={() => void store.createNota(store.activeFolderId, "excalidraw").then(openNota)}
-        >
-          <IconoDibujo size={16} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={styles.actionButton}
-          title="Nueva base (tabla de notas)"
-          aria-label="Nueva base (tabla de notas)"
-          onClick={() => void crearBase(store.activeFolderId)}
-        >
-          <IconoBase size={16} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={styles.actionButton}
-          title="Nuevo canvas (notas en el espacio)"
-          aria-label="Nuevo canvas (notas en el espacio)"
-          onClick={() => void crearCanvas(store.activeFolderId)}
-        >
-          <IconoCanvas size={16} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={styles.actionButton}
-          title="Nueva carpeta"
-          aria-label="Nueva carpeta"
-          onClick={() => {
-            const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-            if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
-          }}
-        >
-          <FolderPlus size={16} aria-hidden />
-        </button>
-        <button
-          type="button"
-          className={styles.actionButton}
-          title="Importar archivos .md"
-          aria-label="Importar archivos .md"
-          onClick={() => {
-            importTargetRef.current = store.activeFolderId;
-            mdInputRef.current?.click();
-          }}
-        >
-          <Upload size={16} aria-hidden />
-        </button>
+        <MenuNuevo
+          items={[
+            {
+              label: "Dibujo Excalidraw",
+              icono: IconoDibujo,
+              onClick: () => void store.createNota(store.activeFolderId, "excalidraw").then(openNota),
+            },
+            {
+              label: "Base (tabla de notas)",
+              icono: IconoBase,
+              onClick: () => void crearBase(store.activeFolderId),
+            },
+            {
+              label: "Canvas (notas en el espacio)",
+              icono: IconoCanvas,
+              onClick: () => void crearCanvas(store.activeFolderId),
+            },
+            {
+              label: "Carpeta",
+              icono: FolderPlus,
+              onClick: () => {
+                const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
+                if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
+              },
+            },
+            {
+              label: "Importar archivos .md",
+              icono: Upload,
+              onClick: () => {
+                importTargetRef.current = store.activeFolderId;
+                mdInputRef.current?.click();
+              },
+            },
+          ]}
+        />
       </div>
 
       <DndContext
@@ -877,7 +867,7 @@ export function ExplorerPanel() {
         </div>
 
         {/* Divisor arrastrable (DEF-023): solo con Compartido expandido. */}
-        {!compartidosCollapsed && (
+        {HAY_COMPARTIR && !compartidosCollapsed && (
           <div
             className={styles.divisor}
             role="separator"
@@ -889,16 +879,18 @@ export function ExplorerPanel() {
 
         {/* Panel "Compartido": alto ajustable con su propio scroll; colapsado
             ocupa solo su cabecera. */}
-        <div
-          className={styles.paneCompartidos}
-          style={
-            compartidosCollapsed
-              ? undefined
-              : { height: `${compartidosPx}px`, overflowY: "auto", flexShrink: 0 }
-          }
-        >
-          <SharedSection collapsed={compartidosCollapsed} onToggle={toggleCompartidos} />
-        </div>
+        {HAY_COMPARTIR && (
+          <div
+            className={styles.paneCompartidos}
+            style={
+              compartidosCollapsed
+                ? undefined
+                : { height: `${compartidosPx}px`, overflowY: "auto", flexShrink: 0 }
+            }
+          >
+            <SharedSection collapsed={compartidosCollapsed} onToggle={toggleCompartidos} />
+          </div>
+        )}
 
         {/* Sombra que sigue al puntero mientras se arrastra (DEF-034). */}
         <DragOverlay dropAnimation={null}>

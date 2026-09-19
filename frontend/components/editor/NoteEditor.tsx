@@ -49,7 +49,7 @@ import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { useSyncStore } from "@/stores/syncStore";
+import { contarPalabras, useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
 import { numerosDeLineaExt } from "@/lib/editor/numerosDeLinea";
@@ -64,6 +64,7 @@ const MODES: EditorMode[] = ["live", "split", "read", "raw"];
 const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
 const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
+const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
 
 /** Textos que CodeMirror genera por su cuenta —tooltips, anuncios para lectores
  *  de pantalla— y que salían en inglés en una interfaz en español. Son todas
@@ -281,10 +282,10 @@ export function NoteEditor({
     const saved = window.localStorage.getItem(`micelio-mode-${notaId}`);
     return MODES.includes(saved as EditorMode) ? (saved as EditorMode) : "live";
   });
-  const [syncState, setSyncStateLocal] = useState<SyncState>("local");
+  // El estado de guardado vive en el store: lo muestran la barra de estado y
+  // el punto de la pestaña, no la barra del editor.
   const setSyncState = useCallback(
     (state: SyncState) => {
-      setSyncStateLocal(state);
       useSyncStore.getState().setSyncState(notaId, state);
     },
     [notaId],
@@ -296,6 +297,7 @@ export function NoteEditor({
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
+  const palabrasTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const modeRef = useRef(mode);
   // El id de la nota, por referencia. Renombrar en modo carpeta CAMBIA el id
@@ -425,6 +427,10 @@ export function NoteEditor({
       const cached = instanceCache.get(instanceId);
       const restaurable = cached !== undefined && cached.doc === content;
 
+      // La carga inicial no es un cambio del documento: las palabras de la
+      // barra de estado se cuentan acá, las siguientes en el updateListener.
+      useSyncStore.getState().setPalabras(notaId, contarPalabras(content));
+
       viewRef.current = new EditorView({
         parent: hostRef.current,
         // El scroll se restaura con el mecanismo propio de CodeMirror: sabe
@@ -522,6 +528,13 @@ export function NoteEditor({
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
+              // Palabras para la barra de estado: también cuando el cambio vino
+              // de otra instancia o de disco (carga inicial incluida).
+              if (palabrasTimer.current) clearTimeout(palabrasTimer.current);
+              palabrasTimer.current = setTimeout(
+                () => useSyncStore.getState().setPalabras(notaId, contarPalabras(doc)),
+                PALABRAS_DEBOUNCE_MS,
+              );
               if (brokerApplyRef.current) {
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
@@ -1205,7 +1218,6 @@ export function NoteEditor({
         getView={() => viewRef.current}
         mode={mode}
         onModeChange={setMode}
-        syncState={syncState}
         onInsertDiagram={insertDiagram}
         notaId={notaId}
         titulo={notaTitulo}

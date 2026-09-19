@@ -195,6 +195,36 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             key={tab.id}
             role="tab"
             aria-selected={isActiveTab}
+            // Pestañas con teclado (rediseño del cascarón): una sola parada de
+            // Tab —la activa— y flechas entre ellas, como el patrón tablist.
+            // Antes no se podían enfocar: solo se llegaba con el ratón.
+            tabIndex={isActiveTab ? 0 : -1}
+            data-tab-id={tab.id}
+            onKeyDown={(e) => {
+              const i = pane.tabs.findIndex((t) => t.id === tab.id);
+              const destino =
+                e.key === "ArrowRight" ? pane.tabs[(i + 1) % pane.tabs.length]
+                : e.key === "ArrowLeft" ? pane.tabs[(i - 1 + pane.tabs.length) % pane.tabs.length]
+                : e.key === "Home" ? pane.tabs[0]
+                : e.key === "End" ? pane.tabs[pane.tabs.length - 1]
+                : null;
+              if (destino) {
+                e.preventDefault();
+                store.activateTab(pane.id, destino.id);
+                router.replace(`/workspace?note=${destino.notaId}`);
+                tabBarRef.current
+                  ?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(destino.id)}"]`)
+                  ?.focus();
+              } else if (e.key === "Delete") {
+                e.preventDefault();
+                store.closeTab(pane.id, tab.id);
+                pushUrl();
+                // El foco sigue en la barra, en la pestaña que quedó activa.
+                requestAnimationFrame(() =>
+                  tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
+                );
+              }
+            }}
             draggable
             title={tooltipOf(tab)}
             // El color de la consola entra como variable y no como clase: son
@@ -252,6 +282,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             <button
               type="button"
               className={styles.tabClose}
+              // Con el teclado se cierra con Supr o Ctrl+W sobre la pestaña.
+              tabIndex={-1}
               aria-label={`Cerrar ${titleOf(tab)}`}
               onClick={(e) => {
                 e.stopPropagation();

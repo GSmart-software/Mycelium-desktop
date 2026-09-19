@@ -50,12 +50,9 @@
   text-align: left;
 }
 
-/* El campo anula su outline (.searchInput) para no dibujarlo dentro de la
-   caja; el foco lo muestra la caja entera. Sin esto, llegar con Tab a la
-   búsqueda global no dejaba ninguna marca visible. */
-.searchBar:focus-within {
-  outline: 2px solid var(--mic-focus);
-  outline-offset: 2px;
+.searchBar:hover {
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-bg-surface) 80%, var(--mic-marco-glow));
 }
 
 .searchIcon {
@@ -63,17 +60,23 @@
   flex-shrink: 0;
 }
 
-.searchInput {
+.searchPlaceholder {
   flex: 1;
   min-width: 0;
-  background: transparent;
-  border: none;
-  outline: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.8125rem;
-  color: var(--mic-text-primary);
+  color: var(--mic-text-muted);
 }
 
-.searchInput::placeholder {
+.searchKey {
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.6875rem;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  border: 1px solid var(--mic-border);
   color: var(--mic-text-muted);
 }
 
@@ -83,25 +86,6 @@
   gap: 0.5rem;
 }
 
-.shareButton {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.65rem;
-  border-radius: var(--mic-radius-md);
-  font-size: 0.8125rem;
-  color: var(--mic-marco-glow);
-  border: 1px solid color-mix(in srgb, var(--mic-marco-glow) 65%, transparent);
-}
-
-.shareButton:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.shareButton:not(:disabled):hover {
-  background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
-}
 
 .vaultExitButton {
   display: grid;
@@ -120,20 +104,14 @@
 }
 
 /* Ventana angosta: el logo queda en su isotipo (el nombre sigue como aria-label
-   y title del botón) y «Compartir» en su ícono. La búsqueda NO se esconde: se
-   achica con el espacio que haya, porque colapsada a un cuadrado de 30px no
-   se podía escribir y asomaba una letra del placeholder. */
+   y title del botón) y el disparador pierde el atajo; el texto se recorta. */
 @media (max-width: 767px) {
   .topbar {
     gap: 0.5rem;
   }
 
   .logoFull,
-  .shareLabel {
+  .searchKey {
     display: none;
-  }
-
-  .searchInput {
-    text-overflow: ellipsis;
   }
 }

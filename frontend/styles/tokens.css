@@ -279,6 +279,12 @@
   /* Shell del workspace */
   --mic-topbar-height:  52px;
   --mic-toolbar-height: 40px;   /* barra de herramientas del editor */
+  --mic-statusbar-height: 24px; /* barra de estado al pie del workspace */
+  /* Medida de la nota, igual en vivo y en lectura. En rem y no en ch: el ch de
+     la mono del editor es más ancho que el de la serif de lectura, y con 72ch
+     la hoja cambiaba de ancho al cambiar de modo. 42rem ≈ 80 caracteres de
+     serif, ≈ 70 de mono. */
+  --mic-ancho-lectura: 42rem;
   --mic-rail-width:     56px;
   --mic-icon-size:      20px;   /* íconos Lucide dentro del rail */
   /* Aire bajo el contenido (`DEF-048`). Sin esto todo queda pegado al límite de

@@ -2,7 +2,8 @@
   display: grid;
   grid-template-areas:
     'topbar topbar topbar'
-    'rail left editor';
+    'rail left editor'
+    'estado estado estado';
   /* El panel izquierdo usa el ancho que eligió el usuario MIENTRAS la nota
      conserve --mic-editor-min-width. En una ventana angosta cede hasta su
      mínimo en vez de dejar la nota en una columna de 340px; la preferencia
@@ -18,7 +19,7 @@
       )
     )
     1fr;
-  grid-template-rows: var(--mic-topbar-height) 1fr;
+  grid-template-rows: var(--mic-topbar-height) 1fr var(--mic-statusbar-height);
   height: 100vh;
   min-height: 0;
   overflow: hidden;

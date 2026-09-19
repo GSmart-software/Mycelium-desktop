@@ -62,10 +62,14 @@
   min-width: var(--mic-ancho-numeros);
 }
 
+/* La nota a la misma medida en vivo que en lectura (rediseño del cascarón):
+   una sola hoja, centrada, que no cambia de ancho al cambiar de modo. */
 .mic-editor-host .cm-content {
   caret-color: var(--mic-glow);
   color: var(--mic-text-primary);
-  /* max-width: 80ch; */
+  width: 100%;
+  max-width: var(--mic-ancho-lectura);
+  margin: 0 auto;
 }
 
 .mic-editor-host .cm-cursor {
@@ -749,14 +753,14 @@
   overflow-y: auto;
 }
 
-/* Medida de lectura (`DEF-092`): el texto no pasa de 72 caracteres y se centra.
+/* Medida de lectura (`DEF-092`): el texto no pasa de `--mic-ancho-lectura` y se centra.
    Las dos clases van en el MISMO elemento —la lectura, la vista lateral y la
    vista previa enlazada renderizan `.mic-preview.mic-layout-read` con sus divs
    adentro—, así que el selector es compuesto. Antes decía
    `.mic-layout-read .mic-preview > div` (una DENTRO de la otra), nunca
    coincidió, y en una ventana ancha cada renglón llegaba a 170-180 caracteres. */
 .mic-preview.mic-layout-read > div {
-  max-width: 72ch;
+  max-width: var(--mic-ancho-lectura);
   margin: 0 auto;
 }
 

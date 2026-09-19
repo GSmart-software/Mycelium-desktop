@@ -1,0 +1,156 @@
+/* Paleta de notas y comandos: flota sobre el cascarón, anclada arriba al
+   centro (donde está su disparador), como en VS Code y Obsidian. Plana con
+   sombra: es lo único que flota en la pantalla principal. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: calc(var(--mic-topbar-height) + 0.5rem) 1rem 1rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 35%, transparent);
+}
+
+.paleta {
+  width: min(600px, 100%);
+  max-height: min(460px, calc(100vh - var(--mic-topbar-height) - 2rem));
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  overflow: hidden;
+  animation: aparecer 120ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta {
+    animation: none;
+  }
+}
+
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.campo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.lupa {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+/* El campo es el único foco posible: el anillo va en la caja entera sería
+   redundante; la línea inferior en Brote lo marca sin ruido. */
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--mic-text-primary);
+}
+
+.campo:focus-within {
+  border-bottom-color: var(--mic-focus);
+}
+
+.input::placeholder {
+  color: var(--mic-text-muted);
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+}
+
+.opcion {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 30px;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.opcion > svg {
+  flex-shrink: 0;
+  color: var(--mic-text-muted);
+}
+
+.opcionActiva {
+  background: color-mix(in srgb, var(--mic-focus) 16%, transparent);
+}
+
+.opcionActiva > svg {
+  color: var(--mic-focus);
+}
+
+.titulo {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detalle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.vacio {
+  padding: 0.75rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.pie {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border-top: 1px solid var(--mic-border);
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.pie kbd {
+  font: inherit;
+  padding: 0 0.3rem;
+  margin: 0 0.1rem;
+  border-radius: 3px;
+  border: 1px solid var(--mic-border);
+}

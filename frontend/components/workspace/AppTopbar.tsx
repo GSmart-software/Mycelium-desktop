@@ -1,29 +1,25 @@
 "use client";
 
-import { LogOut, Search, Share2 } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./AppTopbar.module.css";
 
 /**
- * AppTopbar del workspace (HU-38): logo, búsqueda en la nota activa y
- * botón Compartir. Siempre visible.
+ * AppTopbar del workspace (HU-38): logo, el disparador de la paleta de notas y
+ * comandos, y salir del vault. Siempre visible.
+ *
+ * El centro era un campo «Buscar en Mycelium…» que no buscaba nada (`DEF-090`)
+ * y a la derecha estaba «Compartir», que en desktop no existe (ver
+ * `lib/capacidades.ts`). Rediseño del cascarón, 2026-09-19.
  */
-export function AppTopbar({
-  shareFolder,
-}: {
-  shareFolder: { id: string; nombre: string } | null;
-}) {
+export function AppTopbar() {
   const router = useRouter();
-  const setShareTarget = useUiStore((s) => s.setShareTarget);
+  const setPaleta = useUiStore((s) => s.setPaleta);
   // Solo hay vault en carpeta (fase 3) cuando la sesión tiene ruta abierta; en
   // modo SQLite clásico `rutaActual` es null y no se muestra "Salir del vault".
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
-
-  // El botón Compartir se habilita cuando la nota activa está en una carpeta
-  // compartible (HU-35 CA1b).
-  const canShare = shareFolder !== null;
 
   async function salirDelVault() {
     await useVaultSessionStore.getState().salir();
@@ -54,31 +50,13 @@ export function AppTopbar({
         <span className={styles.logoFull}>Mycelium</span>
       </button>
 
-      <div className={styles.searchBar}>
+      <button type="button" className={styles.searchBar} onClick={() => setPaleta("notas")}>
         <Search size={14} aria-hidden className={styles.searchIcon} />
-        <input
-          className={styles.searchInput}
-          placeholder="Buscar en Mycelium…"
-          aria-label="Buscar"
-        />
-      </div>
+        <span className={styles.searchPlaceholder}>Ir a una nota o comando…</span>
+        <kbd className={styles.searchKey}>Ctrl+P</kbd>
+      </button>
 
       <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.shareButton}
-          disabled={!canShare}
-          onClick={() => shareFolder && setShareTarget(shareFolder)}
-          title={
-            canShare
-              ? "Compartir la carpeta de esta nota"
-              : "Disponible cuando la nota esté en una carpeta compartible"
-          }
-        >
-          <Share2 size={14} aria-hidden />
-          <span className={styles.shareLabel}>Compartir</span>
-        </button>
-
         {rutaVault && (
           <button
             type="button"
