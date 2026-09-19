@@ -631,7 +631,7 @@
       "name": "Botón de menú con rótulo",
       "kind": "button",
       "refersTo": "menu-trigger",
-      "description": "«Formato ▾», «Nuevo ▾»: un grupo de acciones detrás de un rótulo, nunca una fila de íconos.",
+      "description": "«Formato ▾», «Nuevo ▾»: un grupo de acciones detrás de un rótulo, solo cuando no entra a la vista.",
       "html": "<div class=\"ds-mwrap\"><button class=\"ds-mtrig\" type=\"button\" aria-haspopup=\"menu\" aria-expanded=\"true\">Nuevo <svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></button><div class=\"ds-mmenu\" role=\"menu\"><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Dibujo</span></button><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Base</span></button><button class=\"ds-mitem\" role=\"menuitem\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/></svg><span>Carpeta</span></button></div></div>",
       "css": ".ds-mwrap { display: inline-flex; flex-direction: column; gap: 4px; font-family: var(--mic-font-sans, Geist, system-ui, sans-serif); } .ds-mtrig { display: inline-flex; align-self: flex-start; align-items: center; gap: 0.25rem; height: 28px; padding: 0 0.4rem 0 0.55rem; border: none; background: transparent; border-radius: 4px; font: inherit; font-size: 0.8125rem; color: var(--mic-text-muted, #6e9a99); cursor: pointer; transition: background-color 120ms ease; } .ds-mtrig:hover, .ds-mtrig[aria-expanded='true'] { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); color: var(--mic-text-primary, #c6e7e1); } .ds-mtrig:focus-visible { outline: 2px solid var(--mic-focus, #3dffc4); outline-offset: 2px; } .ds-mmenu { display: flex; flex-direction: column; min-width: 220px; padding: 0.3rem; background: var(--mic-bg-canvas, #071219); border: 1px solid var(--mic-border, #16343f); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #0b1d27) 20%, transparent); } .ds-mitem { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; border: none; background: transparent; border-radius: 4px; font: inherit; font-size: 0.8125rem; text-align: left; color: var(--mic-text-primary, #c6e7e1); cursor: pointer; } .ds-mitem svg { color: var(--mic-text-muted, #6e9a99); } .ds-mitem:hover, .ds-mitem:focus-visible { background: color-mix(in srgb, var(--mic-glow, #3dffc4) 15%, transparent); outline: none; }"
     },
@@ -716,7 +716,7 @@
       "Dos colores de marca por tema (Hifa y Brote) y el resto es tono del mismo matiz.",
       "Marco compacto (13px, controles chicos) frente a una lectura amplia (serif, 42rem).",
       "Cascarón estándar: rail, árbol, pestañas, editor, barra de estado y paleta (Ctrl+P).",
-      "Los grupos de acciones van detrás de un botón con rótulo («Formato ▾», «Nuevo ▾»), no en una fila de íconos.",
+      "Las herramientas a la vista mientras entren; sin espacio, se agrupan detrás de un botón con rótulo («Formato ▾», «Nuevo ▾»).",
       "Plano por defecto: las zonas se separan por tono; solo lo que flota tiene sombra.",
       "Todo sale de tokens: dos temas × claro/oscuro = cuatro combinaciones, siempre las cuatro.",
       "Brote nunca se usa en crudo como primer plano: cada uso pide su rol (texto, foco, marco)."
@@ -778,7 +778,7 @@
       "**Do** usar el rol de Brote que corresponda (`--mic-glow-texto`, `--mic-focus`, `--mic-marco-glow`) cada vez que Brote vaya en primer plano.",
       "**Do** dar a toda animación una alternativa con `prefers-reduced-motion` que conserve lo que informa, y detener todo bucle que no esté a la vista.",
       "**Do** repartir el espacio en una ventana angosta —la nota conserva 420px— en vez de esconder funciones.",
-      "**Do** agrupar acciones detrás de un botón con rótulo y chevron («Formato ▾», «Nuevo ▾») con el comportamiento de `useMenuEmergente`.",
+      "**Do** dejar las herramientas a la vista y agruparlas detrás de un botón con rótulo y chevron («Formato ▾», «Nuevo ▾») solo cuando no entran, con el comportamiento de `useMenuEmergente`.",
       "**Do** llevar a la paleta (Ctrl+P) las acciones que no merecen un lugar fijo en el marco, y a la barra de estado lo que se quiere saber de la nota sin abrir nada.",
       "**Do** hacer navegable con teclado cada grupo del marco (pestañas con flechas, menús con flechas y Escape), con el anillo hacia adentro donde el contenedor recorta."
     ],
@@ -789,7 +789,7 @@
       "**Don't** escribir Brote en crudo como color de texto, foco o ícono: en claro no llega al contraste mínimo.",
       "**Don't** escribir un hex a mano en un componente ni usar `rgba(0,0,0,…)` para una sombra.",
       "**Don't** poner sobre Esporo un color calibrado para fondo claro (el Humus tenue del modo claro incluido).",
-      "**Don't** volver a una tira de íconos sin nombre para el formato o para crear: es lo que el rediseño del cascarón sacó.",
+      "**Don't** esconder en un menú herramientas que entran a la vista.",
       "**Don't** mostrar un control que no hace nada ni una sección que todavía no existe (un buscador que no busca, «Compartir» en desktop, Tags en el rail). Lo que no se puede usar *en este contexto* se atenúa con su motivo; lo que no existe, no se muestra.",
       "**Don't** decir un estado solo con un color (el viejo punto de sincronización): se dice con palabras.",
       "**Don't** atenuar con `opacity` una fila, un panel o cualquier contenedor.",

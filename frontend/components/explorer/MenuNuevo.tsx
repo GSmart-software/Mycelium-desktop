@@ -13,10 +13,9 @@ export type ItemNuevo = {
 
 /**
  * «Nuevo ▾» del explorador (rediseño del cascarón, 2026-09-19): dibujo, base,
- * lienzo, carpeta e importar, detrás de un botón con rótulo. Antes eran cinco
- * íconos sueltos al lado de «Nueva nota», la misma fila de íconos sin nombre
- * que el rediseño sacó de la barra del editor. «Nueva nota», lo que más se usa,
- * queda afuera como ícono.
+ * lienzo, carpeta e importar, detrás de un botón con rótulo. Solo aparece con
+ * el panel angosto; con espacio, esas acciones van a la vista como íconos (el
+ * usuario las prefiere visibles). «Nueva nota» queda siempre afuera.
  */
 export function MenuNuevo({ items }: { items: ItemNuevo[] }) {
   const [abierto, setAbierto] = useState(false);

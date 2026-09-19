@@ -49,7 +49,7 @@ import {
   type TreeNota,
 } from "@/stores/vaultStore";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
-import { MenuNuevo } from "./MenuNuevo";
+import { MenuNuevo, type ItemNuevo } from "./MenuNuevo";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -747,6 +747,41 @@ export function ExplorerPanel() {
     window.addEventListener("pointerup", onUp);
   };
 
+  // Lo que se crea desde el explorador, además de «Nueva nota».
+  const accionesNuevo: ItemNuevo[] = [
+    {
+      label: "Nuevo dibujo Excalidraw",
+      icono: IconoDibujo,
+      onClick: () => void store.createNota(store.activeFolderId, "excalidraw").then(openNota),
+    },
+    {
+      label: "Nueva base (tabla de notas)",
+      icono: IconoBase,
+      onClick: () => void crearBase(store.activeFolderId),
+    },
+    {
+      label: "Nuevo canvas (notas en el espacio)",
+      icono: IconoCanvas,
+      onClick: () => void crearCanvas(store.activeFolderId),
+    },
+    {
+      label: "Nueva carpeta",
+      icono: FolderPlus,
+      onClick: () => {
+        const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
+        if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
+      },
+    },
+    {
+      label: "Importar archivos .md",
+      icono: Upload,
+      onClick: () => {
+        importTargetRef.current = store.activeFolderId;
+        mdInputRef.current?.click();
+      },
+    },
+  ];
+
   return (
     <div
       ref={explorerRef}
@@ -795,41 +830,23 @@ export function ExplorerPanel() {
         >
           <FilePlus size={16} aria-hidden />
         </button>
-        <MenuNuevo
-          items={[
-            {
-              label: "Dibujo Excalidraw",
-              icono: IconoDibujo,
-              onClick: () => void store.createNota(store.activeFolderId, "excalidraw").then(openNota),
-            },
-            {
-              label: "Base (tabla de notas)",
-              icono: IconoBase,
-              onClick: () => void crearBase(store.activeFolderId),
-            },
-            {
-              label: "Canvas (notas en el espacio)",
-              icono: IconoCanvas,
-              onClick: () => void crearCanvas(store.activeFolderId),
-            },
-            {
-              label: "Carpeta",
-              icono: FolderPlus,
-              onClick: () => {
-                const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-                if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
-              },
-            },
-            {
-              label: "Importar archivos .md",
-              icono: Upload,
-              onClick: () => {
-                importTargetRef.current = store.activeFolderId;
-                mdInputRef.current?.click();
-              },
-            },
-          ]}
-        />
+        {/* Con espacio, cada acción a la vista; con el panel angosto, en
+            «Nuevo ▾» (container query en .actions). */}
+        {accionesNuevo.map(({ label, icono: Icono, onClick }) => (
+          <button
+            key={label}
+            type="button"
+            className={`${styles.actionButton} ${styles.soloAncho}`}
+            title={label}
+            aria-label={label}
+            onClick={onClick}
+          >
+            <Icono size={16} />
+          </button>
+        ))}
+        <div className={styles.soloAngosto}>
+          <MenuNuevo items={accionesNuevo} />
+        </div>
       </div>
 
       <DndContext

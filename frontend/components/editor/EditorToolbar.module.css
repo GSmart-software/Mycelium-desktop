@@ -9,7 +9,14 @@
   flex-shrink: 0;
 }
 
-/* Medidor oculto del ancho natural del grupo derecho (decide el colapso). */
+.formatGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* Medidores ocultos de los anchos naturales (deciden el colapso). */
 .measure {
   position: absolute;
   left: -9999px;

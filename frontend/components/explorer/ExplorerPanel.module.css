@@ -17,6 +17,26 @@
 .actions {
   display: flex;
   gap: 0.25rem;
+  container-type: inline-size;
+}
+
+/* Las acciones de creación a la vista mientras entren (seis íconos de 28px);
+   con el panel angosto se agrupan en «Nuevo ▾». Lo decide el ancho del panel,
+   no el de la ventana. */
+.soloAngosto {
+  display: none;
+}
+
+@container (max-width: 205px) {
+  /* Con el contenedor delante: .actionButton (display: grid) viene después y,
+     con la misma especificidad, ganaba. */
+  .actions .soloAncho {
+    display: none;
+  }
+
+  .soloAngosto {
+    display: block;
+  }
 }
 
 .actionButton {

@@ -68,14 +68,15 @@ type FormatAction =
   | { icon: LucideIcon; label: string; run?: (view: EditorView) => void; action?: () => void };
 
 /**
- * Barra de herramientas del editor (HU-02): «Formato ▾» a la izquierda; buscar,
+ * Barra de herramientas del editor (HU-02): formato a la izquierda; buscar,
  * panel de enlaces, el selector de modo y «…» a la derecha. En `read` no hay
- * formato. Si el ancho no alcanza, el grupo derecho se colapsa en «⋯».
+ * formato. Colapso responsive en dos etapas, solo cuando no hay espacio:
+ * primero el formato pasa a «Formato ▾», y si aun así no entra, el grupo
+ * derecho pasa a «⋯».
  *
- * Rediseño del cascarón (2026-09-19): el formato era una tira de 17 íconos
- * siempre a la vista, más ruido que la nota misma. Quien escribe Markdown usa
- * los atajos o la sintaxis; el menú queda para descubrirlos (cada ítem dice su
- * atajo), como en Obsidian, que no tiene barra de formato.
+ * El rediseño del cascarón (2026-09-19) probó el formato siempre dentro de
+ * «Formato ▾»; el usuario prefiere las herramientas a la vista, así que el menú
+ * quedó solo para cuando no entran.
  */
 export function EditorToolbar({
   getView,
@@ -104,6 +105,7 @@ export function EditorToolbar({
   const [esporasPos, setEsporasPos] = useState<{ top: number; left: number } | null>(null);
   const [esporaAviso, setEsporaAviso] = useState<string | null>(null);
   const [formatMenuOpen, setFormatMenuOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [rightMenuOpen, setRightMenuOpen] = useState(false);
   const [rightMenuPos, setRightMenuPos] = useState<{ top: number; right: number }>({
@@ -117,6 +119,7 @@ export function EditorToolbar({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const rightMeasureRef = useRef<HTMLDivElement>(null);
+  const formatMeasureRef = useRef<HTMLDivElement>(null);
   const formatWrapRef = useRef<HTMLDivElement>(null);
   const formatMenuRef = useRef<HTMLDivElement>(null);
   const formatBtnRef = useRef<HTMLButtonElement>(null);
@@ -188,15 +191,19 @@ export function EditorToolbar({
   const metaPanelOpen = useTabsStore((s) => panelMetaAbierto(s.root, paneId));
   const toggleMetaPanel = () => useTabsStore.getState().togglePanelMeta(paneId);
 
-  // Si el grupo derecho (medido en su ancho natural con un medidor oculto) no
-  // entra junto a «Formato», se colapsa en un menú "⋯".
+  // Colapso en dos etapas, con los anchos naturales de medidores ocultos (así
+  // colapsar no cambia lo que se mide): si no entra todo, el formato pasa a
+  // «Formato ▾»; si aun así no entra, el grupo derecho pasa a «⋯».
   useEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
     const measure = () => {
+      const formatNatural = showFormatTools ? formatMeasureRef.current?.offsetWidth ?? 0 : 0;
       const rightNatural = rightMeasureRef.current?.offsetWidth ?? 0;
       const formatBtn = showFormatTools ? 96 : 0;
-      setRightCollapsed(formatBtn + rightNatural > toolbar.clientWidth - 16);
+      const disponible = toolbar.clientWidth - 16;
+      setCollapsed(formatNatural + rightNatural > disponible);
+      setRightCollapsed(formatBtn + rightNatural > disponible);
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -265,7 +272,34 @@ export function EditorToolbar({
 
   return (
     <div className={styles.toolbar} ref={toolbarRef}>
+      {showFormatTools && !collapsed && (
+        <div className={styles.formatGroup} role="toolbar" aria-label="Formato">
+          {formatActions.map((a, i) =>
+            "divider" in a ? (
+              <span key={i} className={styles.divider} />
+            ) : (
+              <ToolButton key={i} icon={a.icon} label={a.label} onClick={() => runAction(a)} />
+            ),
+          )}
+        </div>
+      )}
+
+      {/* Medidor oculto: ancho natural de la tira de formato. */}
       {showFormatTools && (
+        <div className={styles.measure} aria-hidden ref={formatMeasureRef}>
+          {formatActions.map((a, i) =>
+            "divider" in a ? (
+              <span key={i} className={styles.divider} />
+            ) : (
+              <span key={i} className={styles.toolButton}>
+                <a.icon size={16} aria-hidden />
+              </span>
+            ),
+          )}
+        </div>
+      )}
+
+      {showFormatTools && collapsed && (
         <div className={styles.formatMenuWrap} ref={formatWrapRef}>
           <button
             ref={formatBtnRef}
