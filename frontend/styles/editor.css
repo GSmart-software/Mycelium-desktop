@@ -585,7 +585,7 @@
 
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
-  color: var(--mic-accent);
+  color: var(--mic-enlace);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -607,7 +607,7 @@
    resistir además snippets CSS del usuario por orden de cascada. */
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing,
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing * {
-  color: color-mix(in srgb, var(--mic-accent) 55%, var(--mic-text-muted));
+  color: color-mix(in srgb, var(--mic-enlace) 55%, var(--mic-text-muted));
   text-decoration: underline dotted;
   text-underline-offset: 0.2em;
 }
@@ -803,7 +803,7 @@
 .mic-preview { tab-size: var(--mic-tab-width, 4); }
 .mic-preview li  { margin-bottom: 0.25rem; }
 
-.mic-preview a       { color: var(--mic-accent); text-decoration: underline; }
+.mic-preview a       { color: var(--mic-enlace); text-decoration: underline; }
 .mic-preview a:hover { color: var(--mic-glow-texto); }
 
 /* Wikilink a un archivo inexistente: el mismo tratamiento que en vivo (ver

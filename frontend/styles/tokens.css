@@ -112,6 +112,7 @@
               error, danger— daban 4.1-4.5:1 sobre el lienzo oscuro. */
 :root {
   --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
+  --mic-enlace:         var(--mic-accent);   /* enlaces en el texto de una nota */
   --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
   --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
   --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
@@ -122,6 +123,10 @@
 
 :root:not([data-dark='true']) {
   --mic-glow-texto:     color-mix(in srgb, var(--mic-glow) 45%, var(--mic-text-primary));
+  /* `DEF-095`: Hifa en crudo pasa sobre el lienzo pero no sobre el fondo teñido
+     de un callout (4.35:1 medido). Mezclada con la tinta, como los títulos,
+     pasa en los dos y sigue leyéndose como enlace. */
+  --mic-enlace:         color-mix(in srgb, var(--mic-accent) 72%, var(--mic-text-primary));
   --mic-focus:          var(--mic-accent);
   --mic-marco-glow:     color-mix(in srgb, var(--mic-raw-glow) 60%, var(--mic-raw-mist));
   --mic-marco-acento:   color-mix(in srgb, var(--mic-raw-glow) 80%, var(--mic-raw-mist));
