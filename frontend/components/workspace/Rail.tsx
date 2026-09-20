@@ -91,7 +91,7 @@ export function Rail() {
           type="button"
           className={styles.button}
           aria-label="Configuración"
-          title="Configuración"
+          title="Configuración (Ctrl+,)"
           onClick={() => setSettingsOpen(true)}
         >
           <Settings size={20} aria-hidden />

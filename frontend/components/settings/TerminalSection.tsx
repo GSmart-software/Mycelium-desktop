@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { listarShells, type ShellInfo } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
+import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
 /** Sección Terminal (FUN-L-07 CA5/CA6): shell por defecto y restauración. */
@@ -38,41 +38,20 @@ export function TerminalSection() {
         podés elegir otra shell para una consola puntual.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Restaurar terminales al abrir</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setPref("restaurarSesiones", !prefs.restaurarSesiones)}
-          aria-pressed={prefs.restaurarSesiones}
-        >
-          {prefs.restaurarSesiones ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {prefs.restaurarSesiones ? "Activado" : "Desactivado"}
-        </button>
-      </div>
-      <p className={styles.hint}>
-        Al reabrir Mycelium se recrean las terminales que estaban abiertas (misma
-        shell y carpeta inicial). El proceso anterior no sobrevive: se inicia una
-        shell nueva.
-      </p>
+      <Interruptor
+        etiqueta="Restaurar terminales al abrir"
+        valor={prefs.restaurarSesiones}
+        onChange={(v) => setPref("restaurarSesiones", v)}
+        ayuda="Al reabrir Mycelium se recrean las terminales que estaban abiertas (misma shell y carpeta inicial). El proceso anterior no sobrevive: se inicia una shell nueva."
+      />
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Restaurar el historial</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          disabled={!prefs.restaurarSesiones}
-          onClick={() => setPref("restaurarScrollback", !prefs.restaurarScrollback)}
-          aria-pressed={prefs.restaurarScrollback}
-        >
-          {prefs.restaurarScrollback ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {prefs.restaurarScrollback ? "Activado" : "Desactivado"}
-        </button>
-      </div>
-      <p className={styles.hint}>
-        Muestra el texto de la sesión anterior al restaurar una terminal (solo
-        lectura, como historial), antes del prompt nuevo.
-      </p>
+      <Interruptor
+        etiqueta="Restaurar el historial"
+        valor={prefs.restaurarScrollback}
+        disabled={!prefs.restaurarSesiones}
+        onChange={(v) => setPref("restaurarScrollback", v)}
+        ayuda="Muestra el texto de la sesión anterior al restaurar una terminal (solo lectura, como historial), antes del prompt nuevo."
+      />
     </div>
   );
 }

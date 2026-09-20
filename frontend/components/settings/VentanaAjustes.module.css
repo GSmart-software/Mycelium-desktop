@@ -240,6 +240,22 @@
   user-select: none;
 }
 
+.pieVersion {
+  font: inherit;
+  color: inherit;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.pieVersion:hover {
+  color: var(--mic-text-primary);
+}
+
+.pieVersion:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
 /* Ventana angosta: las categorías pasan a una tira arriba. */
 @media (max-width: 720px) {
   .cuerpo {
@@ -261,8 +277,12 @@
     gap: 0.35rem;
   }
 
+  /* Las categorías pasan a ser fichas en fila; el nombre del grupo se queda,
+     ocupando el renglón entero, porque es lo que explica por qué esas fichas
+     están juntas. Antes se ocultaba y quedaban ocho fichas sueltas. */
   .grupoTitulo {
-    display: none;
+    flex-basis: 100%;
+    margin: 0.2rem 0 0 0.15rem;
   }
 
   .panel {

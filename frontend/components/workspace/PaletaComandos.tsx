@@ -174,7 +174,7 @@ export function PaletaComandos() {
       },
       {
         id: "cmd-config",
-        titulo: "Abrir la configuración",
+        titulo: "Abrir la configuración (Ctrl+,)",
         icono: Settings,
         ejecutar: () => useUiStore.getState().setSettingsOpen(true),
       },

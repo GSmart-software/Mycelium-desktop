@@ -292,7 +292,7 @@ export function VaultSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Al abrir Mycelium se reabre automáticamente el último vault que usaste. Si
           está desactivado, se muestra el selector de vaults para elegir.
         </p>
@@ -322,7 +322,7 @@ export function VaultSection() {
             }
           }}
         />
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Las notas de esta carpeta son <strong>Esporas</strong>: plantillas para crear notas
           ya con su estructura, o para insertar una estructura en una nota que ya existe.
           Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
@@ -344,7 +344,7 @@ export function VaultSection() {
           sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
       <div className={styles.field}>
         <span className={styles.label}>Referencias del vault</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Si adoptaste Mycelium sobre un proyecto que ya tenías, es probable que tus
           documentos se referencien entre sí desde siempre —con <code>`HU-009`</code> o
           con el nombre suelto— pero con una notación que Mycelium no reconoce, así que el
@@ -368,7 +368,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Exportar</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Exportá todas las notas preservando la estructura de carpetas: a una carpeta
           real del equipo (útil para git o Dropbox) o a un ZIP para compartir.
         </p>
@@ -398,7 +398,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Importar vault de Obsidian</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Importá una carpeta del equipo o un .zip. Se preserva la estructura, se ignora
           <code> .obsidian/</code> y los conflictos se resuelven uno a uno.
         </p>
@@ -439,7 +439,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Asistente IA (Claude Code)</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Genera en el vault las instrucciones para asistentes de IA por terminal
           (<code>CLAUDE.md</code> + skill + comandos en <code>.claude/</code>): le
           enseñan a navegar tus notas con los vínculos <code>[[...]]</code>, la
@@ -471,7 +471,7 @@ export function VaultSection() {
             </button>
           </div>
         ) : (
-          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <p className={styles.hint}>
             Disponible solo con un vault en carpeta (los archivos se escriben en disco).
           </p>
         )}
@@ -479,7 +479,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Archivos ignorados (.mycignore)</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Como un <code>.gitignore</code>, propio de cada vault: decide qué carpetas y
           archivos NO se indexan ni aparecen. Por defecto se ignoran los directorios
           ocultos (<code>.*/</code>) y las carpetas de dependencias y compilación
@@ -539,7 +539,7 @@ export function VaultSection() {
             </>
           )
         ) : (
-          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <p className={styles.hint}>
             Disponible solo con un vault en carpeta.
           </p>
         )}

@@ -121,8 +121,13 @@ select option:disabled {
 /* El ajuste al que llevó el buscador de Configuración, señalado un momento
    (`FUN-M-32`). Va acá y no en el módulo de la ventana porque la marca la
    lleva un elemento de otra sección. */
+/* La marca de «es este» que deja el buscador de Configuración. Usa
+   `--mic-marca` y no `--mic-focus`: el foco sigue en el buscador, y dos cosas
+   con el mismo anillo se leen como dos focos (crítica de Configuración,
+   2026-09-20). Un fondo teñido señala sin disfrazarse de foco. */
 .mic-ajuste-destacado {
   border-radius: var(--mic-radius-sm);
-  box-shadow: 0 0 0 2px var(--mic-focus);
-  transition: box-shadow 300ms ease;
+  box-shadow: 0 0 0 2px var(--mic-marca);
+  background: color-mix(in srgb, var(--mic-marca) 12%, transparent);
+  transition: box-shadow 300ms ease, background 300ms ease;
 }

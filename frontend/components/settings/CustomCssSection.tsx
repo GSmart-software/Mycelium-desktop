@@ -12,7 +12,8 @@ const WARN_BYTES = 50 * 1024; // HU-15 CA5
 
 /**
  * Gestor de snippets de CSS personalizado (estilo Obsidian, HU-13/15): lista de
- * archivos asociados a la cuenta, cada uno con switch para activar/desactivar,
+ * snippets guardados en el índice local del vault abierto, cada uno con switch
+ * para activar/desactivar,
  * exportar y eliminar; botón general para importar un .css. Los cambios se
  * aplican en vivo, sin recargar.
  */
@@ -135,14 +136,15 @@ export function CustomCssSection() {
         />
       </div>
 
-      <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
-        Tus snippets quedan asociados a la cuenta y se aplican en cualquier
-        dispositivo. Activá los que quieras; el estilo se actualiza al instante.
+      <p className={styles.hint}>
+        Tus snippets se guardan en esta máquina, junto al vault abierto: al abrir
+        otro vault verás los suyos. Activá los que quieras; el estilo se
+        actualiza al instante.
       </p>
 
       <ul className={styles.snippetList}>
         {snippets.length === 0 && (
-          <li className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <li className={styles.hint}>
             Todavía no importaste ningún CSS. Usá «Importar .css» (podés empezar
             por la plantilla descargable en /plantilla-estilos.css).
           </li>

@@ -45,13 +45,28 @@ type CategoriaId =
   | "vault"
   | "actualizaciones";
 
+/**
+ * Una entrada del buscador. El `rotulo` es el texto tal cual aparece en la
+ * sección —así se lo encuentra en el DOM para saltar hasta él— y los `alias`
+ * son cómo lo llamaría quien no sabe cómo se llama: buscar «ignorar» o
+ * «indexar» no devolvía nada y el ajuste se llama «Archivos ignorados
+ * (.mycignore)», que hay que adivinar (crítica de Configuración, 2026-09-20).
+ */
+type Ajuste = {
+  rotulo: string;
+  alias?: string[];
+  /** Vive tras los siete clics del modo avanzado: sin él no está en pantalla,
+   *  así que ofrecerlo sería mandar a un salto que no llega a ningún lado. */
+  soloAvanzado?: boolean;
+};
+
 type Categoria = {
   id: CategoriaId;
   nombre: string;
   descripcion: string;
   grupo: string;
   /** Lo que se puede buscar acá: el rótulo de cada ajuste y sus sinónimos. */
-  ajustes: string[];
+  ajustes: Ajuste[];
 };
 
 const CATEGORIAS: Categoria[] = [
@@ -61,17 +76,10 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "Los colores de Mycelium: el tema, el modo y la atmósfera de cada modo.",
     grupo: "Aspecto",
     ajustes: [
-      "Tema",
-      "Bioluminiscencia",
-      "Cantarela",
-      "Modo oscuro",
-      "Modo claro",
-      "Atmósfera en modo oscuro",
-      "Atmósfera en modo claro",
-      "Abisal",
-      "Niebla",
-      "Bosque",
-      "Papel",
+      { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "paleta"] },
+      { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
+      { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
+      { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
     ],
   },
   {
@@ -79,14 +87,24 @@ const CATEGORIAS: Categoria[] = [
     nombre: "Tipografía",
     descripcion: "Con qué letra y a qué tamaño se escribe y se lee una nota.",
     grupo: "Aspecto",
-    ajustes: ["Fuente del editor", "Tamaño del editor", "Fuente del preview", "Tamaño del preview"],
+    ajustes: [
+      { rotulo: "Fuente del editor", alias: ["letra", "tipografía", "monoespaciada"] },
+      { rotulo: "Tamaño del editor", alias: ["tamaño de letra", "zoom", "más grande"] },
+      { rotulo: "Fuente del preview", alias: ["letra de lectura", "vista previa"] },
+      { rotulo: "Tamaño del preview", alias: ["tamaño de letra", "lectura"] },
+    ],
   },
   {
     id: "css",
     nombre: "Snippets CSS",
     descripcion: "Tu propio CSS sobre Mycelium: se aplica al instante y podés apagarlo cuando quieras.",
     grupo: "Aspecto",
-    ajustes: ["Snippets de CSS", "Importar .css", "Descargar plantilla", "Nuevo snippet"],
+    ajustes: [
+      { rotulo: "Snippets de CSS", alias: ["estilos propios", "personalizar", "css"] },
+      { rotulo: "Importar .css", alias: ["cargar estilos"] },
+      { rotulo: "Descargar plantilla", alias: ["ejemplo de css", "variables"] },
+      { rotulo: "Nuevo snippet", alias: ["crear estilo"] },
+    ],
   },
   {
     id: "editor",
@@ -94,12 +112,12 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "Cómo se comportan las pestañas, la escritura y el documento.",
     grupo: "Trabajo",
     ajustes: [
-      "Ancho de tabulación",
-      "Pestañas de previsualización",
-      "Ícono del tipo en las pestañas",
-      "Autocerrar pares",
-      "Números de línea",
-      "Mostrar título del archivo",
+      { rotulo: "Ancho de tabulación", alias: ["tab", "sangría", "indentación", "espacios"] },
+      { rotulo: "Pestañas de previsualización", alias: ["pestaña provisoria", "reemplazar pestaña"] },
+      { rotulo: "Ícono del tipo en las pestañas", alias: ["íconos", "pestañas"] },
+      { rotulo: "Autocerrar pares", alias: ["paréntesis", "comillas", "corchetes"] },
+      { rotulo: "Números de línea", alias: ["numerar", "líneas", "canalón"] },
+      { rotulo: "Mostrar título del archivo", alias: ["título", "nombre del archivo"] },
     ],
   },
   {
@@ -107,14 +125,20 @@ const CATEGORIAS: Categoria[] = [
     nombre: "Grafo",
     descripcion: "El comportamiento de la vista de conexiones.",
     grupo: "Trabajo",
-    ajustes: ["Simulación continua"],
+    ajustes: [
+      { rotulo: "Simulación continua", alias: ["grafo", "cpu", "rendimiento", "movimiento"] },
+    ],
   },
   {
     id: "consolas",
     nombre: "Consolas",
     descripcion: "Qué pasa con las terminales integradas al cerrar y volver a abrir Mycelium.",
     grupo: "Trabajo",
-    ajustes: ["Restaurar terminales al abrir", "Restaurar el historial"],
+    ajustes: [
+      { rotulo: "Shell por defecto", alias: ["terminal", "consola", "powershell", "bash", "cmd"] },
+      { rotulo: "Restaurar terminales al abrir", alias: ["sesiones", "reabrir"] },
+      { rotulo: "Restaurar el historial", alias: ["scrollback", "texto anterior"] },
+    ],
   },
   {
     id: "vault",
@@ -122,13 +146,16 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "La carpeta abierta: qué se indexa, qué se exporta y qué sabe la IA de ella.",
     grupo: "Vault",
     ajustes: [
-      "Abrir el último vault al iniciar",
-      "Referencias del vault",
-      "Exportar",
-      "Importar vault de Obsidian",
-      "Asistente IA (Claude Code)",
-      "Archivos ignorados (.mycignore)",
-      "Carpeta de Esporas",
+      { rotulo: "Abrir el último vault al iniciar", alias: ["inicio", "arranque"] },
+      { rotulo: "Referencias del vault", alias: ["enlaces rotos", "reparar"] },
+      { rotulo: "Exportar", alias: ["respaldo", "backup", "copia", "pdf", "carpeta", "zip"] },
+      { rotulo: "Importar vault de Obsidian", alias: ["traer notas", "migrar", "obsidian"] },
+      { rotulo: "Asistente IA (Claude Code)", alias: ["ia", "claude", "agente", "memoria", "instrucciones"] },
+      {
+        rotulo: "Archivos ignorados (.mycignore)",
+        alias: ["ignorar", "excluir", "indexar", "no indexar", "ocultar carpeta", "mycignore"],
+      },
+      { rotulo: "Carpeta de Esporas", alias: ["plantillas", "esporas", "templates"] },
     ],
   },
   {
@@ -137,10 +164,10 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "Cuándo busca versiones nuevas y cuál tenés instalada.",
     grupo: "Sistema",
     ajustes: [
-      "Buscar actualizaciones automáticamente",
-      "Versiones publicadas",
-      "Versión fijada",
-      "Modo avanzado",
+      { rotulo: "Buscar actualizaciones automáticamente", alias: ["versión nueva", "actualizar"] },
+      { rotulo: "Versión fijada", alias: ["volver atrás", "downgrade"] },
+      { rotulo: "Versiones publicadas", alias: ["instalar otra versión", "historial"], soloAvanzado: true },
+      { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloAvanzado: true },
     ],
   },
 ];
@@ -220,7 +247,11 @@ export function VentanaAjustes() {
     useBorradoresStore.getState().setMycignore(null);
   }, [abierto]);
 
-  /** Ajustes que coinciden con la búsqueda, con su categoría. */
+  /**
+   * Ajustes que coinciden con la búsqueda, con su categoría. Se busca en el
+   * rótulo y en los alias, pero lo que se muestra y a lo que se salta es
+   * siempre el rótulo: el alias es una puerta, no un nombre nuevo.
+   */
   const hallazgos = useMemo(() => {
     const q = normalizar(consulta.trim());
     if (!q) return [];
@@ -228,11 +259,15 @@ export function VentanaAjustes() {
     for (const c of CATEGORIAS) {
       if (normalizar(c.nombre).includes(q)) salida.push({ categoria: c, ajuste: c.nombre });
       for (const a of c.ajustes) {
-        if (normalizar(a).includes(q)) salida.push({ categoria: c, ajuste: a });
+        if (a.soloAvanzado && !avanzado) continue;
+        const coincide =
+          normalizar(a.rotulo).includes(q) ||
+          (a.alias ?? []).some((alias) => normalizar(alias).includes(q));
+        if (coincide) salida.push({ categoria: c, ajuste: a.rotulo });
       }
     }
     return salida.slice(0, 12);
-  }, [consulta]);
+  }, [consulta, avanzado]);
 
   /**
    * Va a un ajuste: abre su categoría y deja anotado a cuál hay que ir. El
@@ -402,22 +437,28 @@ export function VentanaAjustes() {
           </div>
         </div>
 
-        {/* Siete clics acá activan (o apagan) el modo avanzado: `FUN-M-16`. */}
-        <footer
-          className={styles.pie}
-          onClick={() => {
-            const siguiente = clics + 1;
-            if (siguiente < CLICS_MODO_AVANZADO) {
-              setClics(siguiente);
-              return;
-            }
-            setClics(0);
-            setCategoria("actualizaciones");
-            void useUpdaterStore.getState().setAvanzado(!avanzado);
-          }}
-        >
-          Mycelium v{APP_VERSION}
-          {avanzado && " · modo avanzado"}
+        {/* Siete pulsaciones acá activan (o apagan) el modo avanzado: `FUN-M-16`.
+            Es un botón y no el `<footer>` entero porque así también llega el
+            teclado: con el clic sobre el pie, el modo avanzado era inalcanzable
+            sin ratón (crítica de Configuración, 2026-09-20). */}
+        <footer className={styles.pie}>
+          <button
+            type="button"
+            className={styles.pieVersion}
+            onClick={() => {
+              const siguiente = clics + 1;
+              if (siguiente < CLICS_MODO_AVANZADO) {
+                setClics(siguiente);
+                return;
+              }
+              setClics(0);
+              setCategoria("actualizaciones");
+              void useUpdaterStore.getState().setAvanzado(!avanzado);
+            }}
+          >
+            Mycelium v{APP_VERSION}
+            {avanzado && " · modo avanzado"}
+          </button>
         </footer>
       </div>
     </div>

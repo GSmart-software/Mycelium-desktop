@@ -1,8 +1,8 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import { ATMOSFERAS, type Atmosfera } from "@/lib/atmosferas";
 import { type Tema, usePreferencesStore } from "@/stores/preferencesStore";
+import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
 // Swatches con la paleta del modo oscuro (predeterminado) de cada tema.
@@ -49,13 +49,12 @@ export function AppearanceSection() {
         </div>
       </div>
 
-      <div className={`${styles.toggleRow} ${styles.filaModo}`}>
-        <span className={styles.label}>Modo oscuro</span>
-        <button type="button" className={styles.toggle} onClick={toggleDark} aria-pressed={modoOscuro}>
-          {modoOscuro ? <Moon size={15} aria-hidden /> : <Sun size={15} aria-hidden />}
-          {modoOscuro ? "Oscuro" : "Claro"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Modo oscuro"
+        valor={modoOscuro}
+        onChange={toggleDark}
+        className={styles.filaModo}
+      />
 
       <SelectorAtmosfera
         titulo="Atmósfera en modo oscuro"

@@ -263,6 +263,14 @@ function WorkspaceShell() {
           return;
         }
       }
+      // Ctrl+, abre Configuración: el atajo que traen VS Code y Obsidian. Hasta
+      // ahora la única puerta era el engranaje del rail y el comando de la
+      // paleta (crítica de Configuración, 2026-09-20).
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key === ",") {
+        event.preventDefault();
+        useUiStore.getState().setSettingsOpen(true);
+        return;
+      }
       // Ctrl/Cmd+F abre la búsqueda en la nota, no el buscador del navegador.
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "f") {
         event.preventDefault();

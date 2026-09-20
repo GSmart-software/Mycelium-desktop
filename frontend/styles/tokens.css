@@ -114,6 +114,7 @@
   --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
   --mic-enlace:         var(--mic-accent);   /* enlaces en el texto de una nota */
   --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
+  --mic-marca:          var(--mic-accent);   /* «es este»: lo que señala algo sin enfocarlo */
   --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
   --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
   --mic-marco-inactivo: 0.55;                /* opacidad de un ícono del marco en reposo */

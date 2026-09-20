@@ -131,16 +131,16 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **1.3.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
-| **Web** | `web-cloud` | **1.0.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
+| **Desktop** | `desktop-tauri` | **1.7.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Web** | `web-cloud` | **1.3.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores).
 
 > [!important] Las dos líneas se separaron en 1.1.0
 > Todo lo que entró después de 1.0.0 es **solo-desktop** (terminal integrada,
 > framework de IA del vault, `.mycignore`, rendimiento del grafo, devtools en
-> producción), así que web sigue en `1.0.0`. La regla "si se puede en las dos, se hace
-> en las dos" **sigue vigente**, pero el foco actual —la línea de IA sobre el vault—
+> producción), así que web avanza mucho más lento (`1.3.0` contra `1.7.0`). La regla
+> "si se puede en las dos, se hace en las dos" **sigue vigente**, pero el foco actual —la línea de IA sobre el vault—
 > por naturaleza no aplica a web. Ver [[Diferencias funcionales aceptadas entre versiones]].
 
 ## La documentación del proyecto ES un vault de Mycelium
