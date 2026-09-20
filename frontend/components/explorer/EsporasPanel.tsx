@@ -75,7 +75,7 @@ export function EsporasPanel() {
 
   const borrar = (espora: Espora) => {
     void (async () => {
-      if (!(await confirmar(`¿Mandar la Espora "${espora.titulo}" a la papelera?`))) return;
+      if (!(await confirmar(`¿Mandar la Espora "${espora.titulo}" a la papelera?`, "Eliminar"))) return;
       await correr(async () => {
         useTabsStore.getState().closeNotaEverywhere(espora.id);
         await useVaultStore.getState().deleteNota(espora.id);

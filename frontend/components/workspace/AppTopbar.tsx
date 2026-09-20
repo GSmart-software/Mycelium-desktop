@@ -69,7 +69,9 @@ export function AppTopbar() {
       <button type="button" className={styles.searchBar} onClick={() => setPaleta("notas")}>
         <Search size={14} aria-hidden className={styles.searchIcon} />
         <span className={styles.searchPlaceholder}>Ir a una nota o comando…</span>
-        <kbd className={styles.searchKey}>Ctrl+P</kbd>
+        {/* La tecla que hace LO MISMO que este botón: abrir la paleta en notas.
+            Decía Ctrl+P, que abre la de comandos (crítica del cascarón). */}
+        <kbd className={styles.searchKey}>Ctrl+O</kbd>
       </button>
 
       <div className={styles.actions}>

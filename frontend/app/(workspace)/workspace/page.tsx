@@ -6,7 +6,9 @@ import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
+import { Avisos } from "@/components/workspace/Avisos";
 import { BarraEstado } from "@/components/workspace/BarraEstado";
+import { DialogoConfirmar } from "@/components/workspace/DialogoConfirmar";
 import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
@@ -19,7 +21,8 @@ import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useCssStore } from "@/stores/cssStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useUiStore } from "@/stores/uiStore";
-import { useTabsStore } from "@/stores/tabsStore";
+import { allLeaves, useTabsStore } from "@/stores/tabsStore";
+import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -233,7 +236,12 @@ function WorkspaceShell() {
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {
-    if (activeNoteId) useTabsStore.getState().openNote(activeNoteId);
+    if (!activeNoteId) return;
+    useTabsStore.getState().openNote(activeNoteId);
+    // Acá y no en `openNote`: esto se dispara con CUALQUIER forma de llegar a
+    // una nota (clic en el árbol, enlace, paleta, historial), que es justo lo
+    // que «reciente» quiere decir.
+    useRecientesStore.getState().recordar(activeNoteId);
   }, [activeNoteId]);
 
   // Atajos de paneles (HU-29) y de pestañas (HU-25 CA4/CA7)
@@ -271,6 +279,13 @@ function WorkspaceShell() {
         } else {
           toggleLeft();
         }
+        return;
+      }
+      // Ctrl+Tab / Ctrl+Shift+Tab: ciclar las pestañas del pane activo, en el
+      // orden en que están. Es el atajo que trae quien viene de VS Code.
+      if (event.ctrlKey && event.key === "Tab") {
+        event.preventDefault();
+        ciclarPestana(event.shiftKey ? -1 : 1);
         return;
       }
       if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "w") {
@@ -328,6 +343,17 @@ function WorkspaceShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Pasa a la pestaña siguiente (o anterior) del pane activo, con vuelta. */
+  function ciclarPestana(delta: -1 | 1) {
+    const { root, activePaneId, activateTab } = useTabsStore.getState();
+    const pane = allLeaves(root).find((l) => l.id === activePaneId);
+    if (!pane || pane.tabs.length < 2) return;
+    const i = pane.tabs.findIndex((t) => t.id === pane.activeTabId);
+    const destino = pane.tabs[(i + delta + pane.tabs.length) % pane.tabs.length];
+    activateTab(pane.id, destino.id);
+    router.replace("/workspace?note=" + encodeURIComponent(destino.notaId));
+  }
+
   function navegarHistorialActivo(delta: -1 | 1) {
     const { activePaneId, navegarHistorial } = useTabsStore.getState();
     navegarHistorial(activePaneId, delta);
@@ -365,6 +391,8 @@ function WorkspaceShell() {
       <ShareModal />
       <UpdateDialog />
       <PaletaComandos />
+      <Avisos />
+      <DialogoConfirmar />
     </div>
   );
 }

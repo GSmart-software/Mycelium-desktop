@@ -53,6 +53,7 @@ export function TrashPanel() {
                 onClick={() => {
                   void confirmar(
                     `"${item.titulo}" se eliminará permanentemente. ¿Continuar?`,
+                    "Eliminar definitivamente",
                   ).then((ok) => {
                     if (ok) void deleteNotaForever(item.notaId);
                   });

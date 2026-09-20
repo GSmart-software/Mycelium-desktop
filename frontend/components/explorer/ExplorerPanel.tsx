@@ -41,6 +41,7 @@ import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { HAY_COMPARTIR } from "@/lib/capacidades";
+import { avisar } from "@/stores/avisosStore";
 import { SharedSection } from "./SharedSection";
 import {
   useVaultStore,
@@ -556,7 +557,7 @@ export function ExplorerPanel() {
             count > 0
               ? `Eliminar "${carpeta.nombre}" mandará ${count} nota(s) a la papelera. ¿Continuar?`
               : `¿Eliminar la carpeta "${carpeta.nombre}"?`;
-          void confirmar(message).then((ok) => {
+          void confirmar(message, "Eliminar").then((ok) => {
             if (ok) void store.deleteCarpeta(carpeta.id);
           });
         },
@@ -590,9 +591,19 @@ export function ExplorerPanel() {
       {
         label: "Eliminar",
         danger: true,
+        // Sin preguntar, pero con vuelta atrás: la nota va a la papelera y el
+        // aviso ofrece traerla de nuevo (crítica del cascarón, 2026-09-20).
+        // Preguntar antes de cada borrado enseña a decir que sí sin leer.
         onClick: () => {
-          useTabsStore.getState().closeNotaEverywhere(nota.id);
-          void store.deleteNota(nota.id);
+          const titulo = nota.titulo;
+          const id = nota.id;
+          useTabsStore.getState().closeNotaEverywhere(id);
+          void store.deleteNota(id).then(() =>
+            avisar(`«${titulo}» fue a la papelera`, {
+              etiqueta: "Deshacer",
+              hacer: () => void useVaultStore.getState().restoreNota(id),
+            }),
+          );
         },
       },
     ];

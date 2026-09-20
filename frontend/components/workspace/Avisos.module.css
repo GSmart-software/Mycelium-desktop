@@ -1,0 +1,75 @@
+/* Avisos flotantes (`FUN-M-33`): abajo a la izquierda, encima de la barra de
+   estado y por debajo de la paleta. No tapan la nota, que vive al centro. */
+.pila {
+  position: fixed;
+  left: 1rem;
+  bottom: calc(var(--mic-statusbar-height) + 0.75rem);
+  z-index: 55;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.aviso {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 460px;
+  padding: 0.55rem 0.5rem 0.55rem 0.85rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  animation: entrar 140ms ease-out;
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso {
+    animation: none;
+  }
+}
+
+.texto {
+  flex: 1;
+  min-width: 0;
+}
+
+/* La acción es lo vivo del aviso: va en Brote y con rótulo, no en un ícono. */
+.accion {
+  flex-shrink: 0;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-glow-texto);
+}
+
+.accion:hover {
+  background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+}
+
+.cerrar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.cerrar:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}

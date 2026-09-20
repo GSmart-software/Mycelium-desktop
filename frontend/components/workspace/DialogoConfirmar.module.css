@@ -1,0 +1,59 @@
+/* Pregunta de confirmación (`FUN-M-33`). Corta: un mensaje y dos caminos. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 45%, transparent);
+}
+
+.dialogo {
+  width: min(420px, 100%);
+  padding: 1.1rem 1.25rem 1rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+}
+
+.mensaje {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--mic-text-primary);
+}
+
+.botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.cancelar,
+.confirmar {
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+}
+
+.cancelar {
+  color: var(--mic-text-primary);
+  border: 1px solid var(--mic-border);
+}
+
+.cancelar:hover {
+  background: var(--mic-bg-hover);
+}
+
+/* Lo destructivo se dice con el color de Precaución, no con el acento. */
+.confirmar {
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-callout-caution-border);
+}
+
+.confirmar:hover {
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 85%, black);
+}

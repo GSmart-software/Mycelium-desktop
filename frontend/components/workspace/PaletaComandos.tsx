@@ -7,6 +7,7 @@ import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { ATMOSFERAS } from "@/lib/atmosferas";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useRecientesStore } from "@/stores/recientesStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -96,6 +97,7 @@ export function PaletaComandos() {
   const abierto = modo !== null;
   const router = useRouter();
   const notas = useVaultStore((s) => s.notas);
+  const recientes = useRecientesStore((s) => s.recientes);
   const carpetas = useVaultStore((s) => s.carpetas);
 
   const [texto, setTexto] = useState("");
@@ -196,6 +198,9 @@ export function PaletaComandos() {
 
   const enComandos = texto.startsWith(">");
   const consulta = (enComandos ? texto.slice(1) : texto).trim();
+  /** ¿Lo que se está listando son las notas recientes y no una búsqueda? */
+  const mostrandoRecientes =
+    !enComandos && !consulta && recientes.some((id) => notas.some((n) => n.id === id));
 
   const opciones: Opcion[] = useMemo(() => {
     if (enComandos) {
@@ -206,18 +211,30 @@ export function PaletaComandos() {
         .map((x) => x.c);
     }
     const porId = new Map(carpetas.map((c) => [c.id, c]));
+    const aOpcion = (n: (typeof notas)[number]) => ({
+      id: `nota-${n.id}`,
+      titulo: n.titulo,
+      detalle: rutaDe(n.carpetaId, porId),
+      icono: ICONO_POR_TIPO[n.tipo] ?? ICONO_POR_TIPO.markdown,
+      ejecutar: () => abrirNota(n.id),
+    });
+
+    // Sin consulta: las últimas notas que se miraron. Listar el vault entero en
+    // orden alfabético no ayudaba a nadie —lo que casi siempre se busca es
+    // volver a una nota de hace un rato— y además destapaba la chatarra de
+    // herramientas del vault (crítica del cascarón, 2026-09-20).
+    if (!consulta) {
+      const porIdNota = new Map(notas.map((n) => [n.id, n]));
+      const vistas = recientes.map((id) => porIdNota.get(id)).filter((n) => n !== undefined);
+      if (vistas.length > 0) return vistas.map(aOpcion);
+    }
+
     const halladas = notas
       .map((n) => ({ n, p: puntaje(n.titulo, consulta) }))
       .filter((x) => x.p !== null)
       .sort((a, b) => a.p! - b.p! || a.n.titulo.localeCompare(b.n.titulo))
       .slice(0, MAX_RESULTADOS)
-      .map(({ n }) => ({
-        id: `nota-${n.id}`,
-        titulo: n.titulo,
-        detalle: rutaDe(n.carpetaId, porId),
-        icono: ICONO_POR_TIPO[n.tipo] ?? ICONO_POR_TIPO.markdown,
-        ejecutar: () => abrirNota(n.id),
-      }));
+      .map(({ n }) => aOpcion(n));
     const exacta = notas.some((n) => normalizar(n.titulo) === normalizar(consulta));
     if (consulta && !exacta) {
       halladas.push({
@@ -232,7 +249,7 @@ export function PaletaComandos() {
       });
     }
     return halladas;
-  }, [enComandos, consulta, comandos, notas, carpetas, abrirNota]);
+  }, [enComandos, consulta, comandos, notas, carpetas, recientes, abrirNota]);
 
   // La opción activa siempre existe y se ve.
   useEffect(() => setActiva(0), [texto]);
@@ -293,7 +310,13 @@ export function PaletaComandos() {
             autoComplete="off"
           />
         </div>
-        <ul ref={listaRef} id={idLista} role="listbox" className={styles.lista} aria-label="Resultados">
+        <ul
+          ref={listaRef}
+          id={idLista}
+          role="listbox"
+          className={styles.lista}
+          aria-label={mostrandoRecientes ? "Notas recientes" : "Resultados"}
+        >
           {opciones.map((o, i) => {
             const Icono = o.icono;
             return (
@@ -321,7 +344,8 @@ export function PaletaComandos() {
         </ul>
         <p className={styles.pie} aria-hidden>
           <kbd>↑</kbd>
-          <kbd>↓</kbd> moverse · <kbd>Enter</kbd> abrir · <kbd>&gt;</kbd> comandos · <kbd>Esc</kbd> cerrar
+          <kbd>↓</kbd> moverse · <kbd>Enter</kbd> abrir · <kbd>Ctrl+O</kbd> notas ·{" "}
+          <kbd>Ctrl+P</kbd> o <kbd>&gt;</kbd> comandos · <kbd>Esc</kbd> cerrar
         </p>
       </div>
     </div>
