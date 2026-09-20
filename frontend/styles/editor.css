@@ -10,11 +10,25 @@
   outline: none;
 }
 
+/* La hoja se centra con el RELLENO del área desplazable, no con un ancho
+   máximo en el contenido. Los canalones —el de plegado y el de números— son
+   hermanos del contenido y se pegan al borde del área desplazable: con el
+   centrado puesto en el contenido quedaban contra el margen izquierdo de la
+   ventana, lejísimos de la línea que pliegan. Con el relleno, viajan con el
+   texto. El margen izquierdo descuenta los canalones para que la columna de
+   texto caiga en el mismo sitio que en lectura. */
+.mic-editor-host {
+  --mic-ancho-plegado: 1.1em; /* el mismo de .cm-foldGutter */
+  --mic-canalones: var(--mic-ancho-plegado);
+  --mic-margen-hoja: max(1.25rem, calc((100% - var(--mic-ancho-lectura)) / 2));
+}
+
 .mic-editor-host .cm-scroller {
   font-family: var(--mic-editor-font-family);
   font-size: var(--mic-editor-font-size);
   line-height: 1.65;
-  padding: 1rem 1.25rem;
+  padding: 1rem var(--mic-margen-hoja);
+  padding-left: max(1.25rem, calc(var(--mic-margen-hoja) - var(--mic-canalones)));
 }
 
 /* ── Sitio para los números de línea (FUN-M-28) ──────────────────────────────
@@ -50,12 +64,11 @@
   --mic-num-rango-fondo: var(--mic-raw-mist);
 }
 
-.mic-editor-host.mic-con-numeros .cm-scroller {
-  padding-left: 0;
-}
-
-.mic-editor-host.mic-con-numeros .cm-gutters {
-  padding-left: 1.25rem; /* el que le sacamos al scroller */
+/* Con los números, el canalón mide lo suyo más el del plegado: el margen los
+   descuenta y los números quedan en el margen de la hoja, como al costado de
+   una página. */
+.mic-editor-host.mic-con-numeros {
+  --mic-canalones: calc(var(--mic-ancho-plegado) + var(--mic-ancho-numeros));
 }
 
 .mic-editor-host.mic-con-numeros .cm-lineNumbers {
