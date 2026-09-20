@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { enTauri } from "@/lib/ventana";
 import styles from "./ControlesVentana.module.css";
 
@@ -11,10 +11,19 @@ import styles from "./ControlesVentana.module.css";
  * superior de la app, como en VS Code y Obsidian.
  *
  * En web no hay ventana que controlar y el componente no renderiza nada.
+ *
+ * El botón de maximizar además le avisa a Rust dónde está dibujado: con eso
+ * Windows 11 vuelve a ofrecer su **menú de anclaje** al dejar el puntero encima
+ * (ver `src-tauri/src/marco.rs`). A cambio, ese botón deja de recibir el
+ * puntero —para Windows queda fuera del área de cliente—, así que el clic lo
+ * atiende Rust y el hover llega por un evento.
  */
 export function ControlesVentana({ className }: { className?: string }) {
   const [maximizada, setMaximizada] = useState(false);
   const [listo, setListo] = useState(false);
+  /** Hover del botón de maximizar, informado por Rust (ver arriba). */
+  const [hoverMaximizar, setHoverMaximizar] = useState(false);
+  const botonMaximizarRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!enTauri()) return;
@@ -40,6 +49,51 @@ export function ControlesVentana({ className }: { className?: string }) {
     };
   }, []);
 
+  // Dónde está el botón de maximizar, para el menú de anclaje. Se reporta al
+  // montar y cada vez que cambia de lugar o de tamaño.
+  useEffect(() => {
+    if (!listo || !enTauri()) return;
+    const boton = botonMaximizarRef.current;
+    if (!boton) return;
+    let vivo = true;
+    let desuscribir: (() => void) | undefined;
+
+    const reportar = async () => {
+      const r = boton.getBoundingClientRect();
+      if (!vivo || r.width === 0) return;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("marco_zona_maximizar", {
+        x: r.left,
+        y: r.top,
+        ancho: r.width,
+        alto: r.height,
+      }).catch(() => {});
+    };
+
+    void reportar();
+    void (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      const parar = await listen<boolean>("marco://hover-maximizar", (e) => {
+        if (vivo) setHoverMaximizar(e.payload);
+      });
+      if (vivo) desuscribir = parar;
+      else parar();
+    })();
+
+    const observador = new ResizeObserver(() => void reportar());
+    observador.observe(boton);
+    observador.observe(document.documentElement);
+
+    return () => {
+      vivo = false;
+      observador.disconnect();
+      desuscribir?.();
+      void import("@tauri-apps/api/core").then(({ invoke }) =>
+        invoke("marco_olvidar_zona").catch(() => {}),
+      );
+    };
+  }, [listo]);
+
   if (!listo) return null;
 
   const accion = async (que: "minimizar" | "alternar" | "cerrar") => {
@@ -64,8 +118,9 @@ export function ControlesVentana({ className }: { className?: string }) {
         </svg>
       </button>
       <button
+        ref={botonMaximizarRef}
         type="button"
-        className={styles.boton}
+        className={hoverMaximizar ? `${styles.boton} ${styles.hover}` : styles.boton}
         aria-label={maximizada ? "Restaurar" : "Maximizar"}
         title={maximizada ? "Restaurar" : "Maximizar"}
         onClick={() => void accion("alternar")}

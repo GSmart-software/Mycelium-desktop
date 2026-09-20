@@ -17,7 +17,11 @@
   transition: background-color 120ms ease, color 120ms ease;
 }
 
-.boton:hover {
+/* `.hover` es el hover del botón de maximizar cuando lo informa Rust: con el
+   menú de anclaje activo, ese botón ya no recibe el puntero y `:hover` no
+   dispara (ver ControlesVentana.tsx). */
+.boton:hover,
+.hover {
   background-color: color-mix(in srgb, var(--mic-marco-glow) 16%, transparent);
   color: var(--mic-marco-glow);
 }
