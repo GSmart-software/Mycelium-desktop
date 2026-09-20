@@ -11,7 +11,7 @@ import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
-import { SettingsDrawer } from "@/components/workspace/SettingsDrawer";
+import { VentanaAjustes } from "@/components/settings/VentanaAjustes";
 import { UpdateDialog } from "@/components/workspace/UpdateDialog";
 import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
@@ -360,7 +360,7 @@ function WorkspaceShell() {
       <LeftPanel />
       <EditorArea />
       <BarraEstado />
-      <SettingsDrawer />
+      <VentanaAjustes />
       <ImportDialogs />
       <ShareModal />
       <UpdateDialog />

@@ -1,8 +1,12 @@
+/* Un ajuste: rótulo arriba, control abajo. El ancho se acota aunque la ventana
+   sea grande —un desplegable de 700px no se lee mejor que uno de 380— y las
+   explicaciones se quedan en medida de lectura. */
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
+  max-width: 420px;
 }
 
 .label {
@@ -95,8 +99,11 @@
 }
 
 /* ── Swatches de tema (HU-12 CA10) ──────────────────────────────── */
+/* Las muestras no crecen con la ventana: a partir de cierto tamaño dejan de
+   informar y solo ocupan. */
 .swatchGroup {
   display: flex;
+  max-width: 460px;
   gap: 0.6rem;
 }
 
@@ -144,7 +151,8 @@
    valores desde los raw, que sí se recalculan en la muestra. */
 .atmosferas {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 620px;
   gap: 0.6rem;
 }
 
@@ -209,10 +217,23 @@
 }
 
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
+/* Interruptor: el rótulo a la izquierda y el control a la derecha, a la misma
+   distancia siempre, para que la columna de controles se lea de un vistazo. */
 .toggleRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  max-width: 560px;
+  min-height: 34px;
+  /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
+     uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
+  margin-top: 1.2rem;
+}
+
+/* El primero de la sección no necesita ese aire. */
+.toggleRow:first-child {
+  margin-top: 0;
 }
 
 /* En Apariencia, debajo del modo vienen las atmósferas: aire antes del rótulo. */
@@ -236,13 +257,15 @@
 }
 
 .hint {
-  margin-top: 0.5rem;
+  max-width: 62ch;
+  margin-top: 0.35rem;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--mic-text-muted);
 }
 
 .warn {
+  max-width: 62ch;
   margin-top: 0.5rem;
   font-size: 0.75rem;
   line-height: 1.45;

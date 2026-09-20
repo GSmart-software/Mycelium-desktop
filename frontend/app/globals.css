@@ -117,3 +117,12 @@ select option:disabled {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* El ajuste al que llevó el buscador de Configuración, señalado un momento
+   (`FUN-M-32`). Va acá y no en el módulo de la ventana porque la marca la
+   lleva un elemento de otra sección. */
+.mic-ajuste-destacado {
+  border-radius: var(--mic-radius-sm);
+  box-shadow: 0 0 0 2px var(--mic-focus);
+  transition: box-shadow 300ms ease;
+}
