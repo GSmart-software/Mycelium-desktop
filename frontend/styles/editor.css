@@ -488,7 +488,9 @@
    depende de la vista: -editor (en vivo/raw) usa la fuente del editor y -preview
    (lectura/dividido) la del preview. */
 .mic-doc-title {
-  text-align: center;
+  /* `DEF-097`: iba centrado sobre un cuerpo alineado a la izquierda, así que el
+     mismo texto tenía dos ejes a pocos píxeles. */
+  text-align: left;
   font-weight: 700;
   font-size: 1.9rem;
   line-height: 1.25;

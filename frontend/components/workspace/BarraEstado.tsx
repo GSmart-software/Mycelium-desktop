@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { IconoGrafo } from "./IconoGrafo";
 import styles from "./BarraEstado.module.css";
 
 /**
@@ -98,13 +99,17 @@ export function BarraEstado() {
       {esNota && (
         <>
           {conteo && (
+            // Va a la IZQUIERDA y con el isotipo: es lo único pulsable de la
+            // barra y en reposo se leía igual que «1420 palabras», así que el
+            // clic solo se descubría por accidente (crítica del cascarón).
             <button
               type="button"
-              className={styles.item}
+              className={styles.item + " " + styles.enlaces}
               aria-pressed={panelAbierto}
               title="Panel de enlaces (Ctrl+Shift+\)"
               onClick={() => useTabsStore.getState().togglePanelMeta(paneId)}
             >
+              <IconoGrafo size={12} />
               {plural(conteo.salientes, "enlace", "enlaces")} ·{" "}
               {conteo.retro === 1 ? "1 te cita" : `${conteo.retro} te citan`}
             </button>

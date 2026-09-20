@@ -10,8 +10,10 @@ import { TerminalSection } from "@/components/settings/TerminalSection";
 import { TypographySection } from "@/components/settings/TypographySection";
 import { UpdaterSection } from "@/components/settings/UpdaterSection";
 import { VaultSection } from "@/components/settings/VaultSection";
+import { confirmar } from "@/lib/confirmar";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { APP_VERSION } from "@/lib/version";
+import { useBorradoresStore } from "@/stores/borradoresStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import styles from "./VentanaAjustes.module.css";
@@ -187,7 +189,26 @@ export function VentanaAjustes() {
   const panelRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
-  const cerrar = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
+  /**
+   * Cerrar pregunta si hay algo escrito sin guardar (hoy, el `.mycignore`):
+   * Escape, el clic en el velo y la × pasan todos por acá, así que una sola
+   * guardia cubre los tres caminos por los que ese texto se perdía en silencio
+   * (crítica de Configuración, 2026-09-20).
+   */
+  const cerrar = useCallback(() => {
+    if (!useBorradoresStore.getState().haySinGuardar()) {
+      setSettingsOpen(false);
+      return;
+    }
+    void confirmar(
+      "Hay cambios sin guardar en .mycignore. Si cerrás ahora, se descartan.",
+      "Descartar",
+    ).then((ok) => {
+      if (!ok) return;
+      useBorradoresStore.getState().setMycignore(null);
+      setSettingsOpen(false);
+    });
+  }, [setSettingsOpen]);
   useDialogoModal({ abierto, cerrar, dialogoRef });
 
   // Cada apertura arranca limpia: sin búsqueda previa y con el contador de los
@@ -196,6 +217,7 @@ export function VentanaAjustes() {
     if (!abierto) return;
     setConsulta("");
     setClics(0);
+    useBorradoresStore.getState().setMycignore(null);
   }, [abierto]);
 
   /** Ajustes que coinciden con la búsqueda, con su categoría. */

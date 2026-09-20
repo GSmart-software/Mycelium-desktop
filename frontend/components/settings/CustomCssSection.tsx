@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmar } from "@/lib/confirmar";
+import { avisar } from "@/stores/avisosStore";
 import { Download, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useCssStore, type CssSnippet } from "@/stores/cssStore";
@@ -20,6 +22,21 @@ export function CustomCssSection() {
   const toggle = useCssStore((s) => s.toggle);
   const rename = useCssStore((s) => s.rename);
   const remove = useCssStore((s) => s.remove);
+
+  /**
+   * Borrar un snippet pregunta y, hecho, ofrece traerlo de vuelta: el contenido
+   * viaja en el aviso y «Deshacer» lo vuelve a crear (con otro id, mismo
+   * nombre y mismo CSS). Antes se borraba de un clic, sin red (crítica de
+   * Configuración, 2026-09-20).
+   */
+  const borrarSnippet = async (s: { id: string; nombre: string; contenido: string }) => {
+    if (!(await confirmar(`¿Eliminar el snippet "${s.nombre}"?`, "Eliminar"))) return;
+    await remove(s.id);
+    avisar(`«${s.nombre}» fue eliminado`, {
+      etiqueta: "Deshacer",
+      hacer: () => void importSnippet(s.nombre, s.contenido),
+    });
+  };
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -186,7 +203,7 @@ export function CustomCssSection() {
               className={`${styles.snippetIcon} ${styles.snippetDanger}`}
               title="Eliminar"
               aria-label={`Eliminar ${s.nombre}`}
-              onClick={() => void remove(s.id)}
+              onClick={() => void borrarSnippet(s)}
             >
               <Trash2 size={15} aria-hidden />
             </button>

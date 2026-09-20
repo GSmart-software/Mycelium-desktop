@@ -23,14 +23,27 @@
 .item {
   display: flex;
   align-items: center;
+  gap: 0.35rem;
   height: 20px;
   padding: 0 0.4rem;
   border-radius: var(--mic-radius-sm);
   font-variant-numeric: tabular-nums;
 }
 
+/* Los enlaces, a la izquierda del todo: es lo importante y lo único pulsable;
+   el resto —palabras, guardado— sigue a la derecha. */
+.enlaces {
+  margin-right: auto;
+}
+
+/* El ítem que sigue a los enlaces no lleva separador: entre los dos hay todo el
+   ancho de la barra, así que el punto quedaba suelto en el aire. */
+.enlaces + .item::before {
+  content: none;
+}
+
 /* Separador entre ítems, sin anunciarse con el lector de pantalla. */
-.item + .item::before {
+.item + .item:not(.enlaces)::before {
   content: "·";
   margin-right: 0.65rem;
   margin-left: -0.3rem;

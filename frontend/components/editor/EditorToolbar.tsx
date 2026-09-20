@@ -59,7 +59,9 @@ const MODES: { mode: EditorMode; icon: LucideIcon; label: string; shortcut: stri
   { mode: "live", icon: PenLine, label: "En vivo", shortcut: "Ctrl+1" },
   { mode: "split", icon: Columns2, label: "Dividido", shortcut: "Ctrl+2" },
   { mode: "read", icon: Eye, label: "Lectura", shortcut: "Ctrl+3" },
-  { mode: "raw", icon: Code, label: "Raw", shortcut: "Ctrl+4" },
+  // `DEF-096`: era «Raw», el único en inglés entre tres modos en español.
+  // DESIGN.md ya lo llamaba «crudo».
+  { mode: "raw", icon: Code, label: "Crudo", shortcut: "Ctrl+4" },
 ];
 
 /** Acción de formato: o un divisor, o un botón con ícono. */

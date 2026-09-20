@@ -10,6 +10,8 @@ import {
 } from "@/lib/ia/framework";
 import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
+import { avisar } from "@/stores/avisosStore";
+import { useBorradoresStore } from "@/stores/borradoresStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -42,14 +44,32 @@ export function VaultSection() {
   const setProgreso = useExportStore((s) => s.setProgreso);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Lo que terminó bien se cuenta con un aviso flotante y no solo con el
+   * párrafo del final del panel: exportar deja el resultado a ~900px de scroll
+   * del botón que lo disparó (crítica de Configuración, 2026-09-20). El error
+   * se queda ADEMÁS en el panel, porque conviene poder releerlo.
+   */
+  const informar = (texto: string) => {
+    setMensaje(texto);
+    avisar(texto);
+  };
+  const fallar = (texto: string) => {
+    setError(texto);
+    avisar(texto);
+  };
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   const zipRef = useRef<HTMLInputElement>(null);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
-  // .mycignore por vault (FUN-M-11): null = editor cerrado.
-  const [ignoreTexto, setIgnoreTexto] = useState<string | null>(null);
+  // .mycignore por vault (FUN-M-11): null = editor cerrado. El texto vive en un
+  // store y no en estado local (`FUN-M-34`): el panel se remonta al cambiar de
+  // categoría, y con estado local el borrador moría por ir a mirar otra cosa.
+  const ignoreTexto = useBorradoresStore((s) => s.mycignore);
+  const setMycignore = useBorradoresStore((s) => s.setMycignore);
   const [guardandoIgnore, setGuardandoIgnore] = useState(false);
   // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
   // de validación, que se confirma al salir del campo.
@@ -68,6 +88,21 @@ export function VaultSection() {
     setEsporasBorrador(carpetaEsporasPref);
     setEsporasError(null);
   }
+
+  /**
+   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
+   * del campo puede ser el mismo clic que cambia de categoría: la sección se
+   * desmontaba con el error recién puesto y el usuario nunca lo veía
+   * (crítica de Configuración, 2026-09-20).
+   */
+  const escribirCarpetaEsporas = (valor: string) => {
+    setEsporasBorrador(valor);
+    setEsporasError(
+      normalizarCarpetaEsporas(valor) === null
+        ? "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..»."
+        : null,
+    );
+  };
 
   /** Confirma la carpeta de Esporas: si la ruta no es válida, no se guarda. */
   const confirmarCarpetaEsporas = () => {
@@ -102,11 +137,11 @@ export function VaultSection() {
       const conflictos = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
       if (conflictos.length === 0) {
-        setMensaje(
+        informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
         );
       } else {
-        setMensaje(
+        informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas. ⚠ ${conflictos.length} archivo(s) ` +
             `ya existían y NO se tocaron — la versión nueva se creó al lado: ` +
             conflictos.map((c) => c.generado).join(" · ") +
@@ -114,7 +149,7 @@ export function VaultSection() {
         );
       }
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setGenerandoIa(false);
     }
@@ -161,9 +196,9 @@ export function VaultSection() {
       const escritos = await exportVaultACarpeta(destino, (done, total) =>
         setProgreso({ done, total, titulo: T_CARPETA }),
       );
-      setMensaje(`Se escribieron ${escritos} archivos en ${destino}`);
+      informar(`Se escribieron ${escritos} archivos en ${destino}`);
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setProgreso(null);
     }
@@ -193,7 +228,7 @@ export function VaultSection() {
       vaultRuta: rutaVault,
       rutaRel: ".mycignore",
     });
-    setIgnoreTexto(actual ?? IGNORE_DEFAULT);
+    setMycignore(actual ?? IGNORE_DEFAULT, false);
   };
 
   const guardarIgnore = async () => {
@@ -213,10 +248,10 @@ export function VaultSection() {
       await indexarVault(rutaVault);
       const vaultId = useVaultStore.getState().vaultId;
       if (vaultId) await useVaultStore.getState().loadTree(vaultId);
-      setIgnoreTexto(null);
-      setMensaje(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
+      setMycignore(null);
+      informar(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setGuardandoIgnore(false);
     }
@@ -235,7 +270,7 @@ export function VaultSection() {
       }
       await useImportStore.getState().run(archivos, activeFolder(), "Vault de Obsidian");
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     }
   };
 
@@ -274,11 +309,14 @@ export function VaultSection() {
           value={esporasBorrador}
           spellCheck={false}
           placeholder={CARPETA_ESPORAS_DEFECTO}
-          onChange={(e) => setEsporasBorrador(e.target.value)}
+          onChange={(e) => escribirCarpetaEsporas(e.target.value)}
           onBlur={confirmarCarpetaEsporas}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") {
+              // Escape acá deshace lo tecleado y NO cierra la ventana: sin
+              // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
+              e.stopPropagation();
               setEsporasBorrador(carpetaEsporasPref);
               setEsporasError(null);
             }
@@ -465,7 +503,7 @@ export function VaultSection() {
             <>
               <textarea
                 value={ignoreTexto}
-                onChange={(e) => setIgnoreTexto(e.target.value)}
+                onChange={(e) => setMycignore(e.target.value, true)}
                 rows={8}
                 spellCheck={false}
                 style={{
@@ -493,7 +531,7 @@ export function VaultSection() {
                   type="button"
                   className={styles.secondaryBtn}
                   disabled={guardandoIgnore}
-                  onClick={() => setIgnoreTexto(null)}
+                  onClick={() => setMycignore(null)}
                 >
                   Cancelar
                 </button>
