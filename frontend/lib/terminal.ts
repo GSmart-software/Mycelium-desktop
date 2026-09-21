@@ -1,6 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { listarShells, tabIdDe } from "@/lib/terminalBase";
@@ -75,11 +76,32 @@ export function getInstancia(termId: string): Instancia {
     cursorBlink: true,
     scrollback: 5000,
     theme: temaXterm(),
+    // `term.unicode` es API «propuesta» en xterm: sin esto, fijar el ancho de
+    // los caracteres (abajo) tira una excepción.
+    allowProposedApi: true,
   });
   const fit = new FitAddon();
   const serialize = new SerializeAddon();
   term.loadAddon(fit);
   term.loadAddon(serialize);
+
+  // Cuántas celdas ocupa cada carácter (`DEF-098`).
+  //
+  // Sin esto xterm usa la tabla de Unicode 6, de 2010, donde ✅, 🟡 o 🚀 ocupan
+  // UNA celda. Los programas de hoy —Node con `string-width`, el CLI de una IA,
+  // Windows Terminal— les dan DOS. Cada emoji corría una celda el resto de la
+  // línea, y cualquier programa que redibuja la pantalla terminaba escribiendo
+  // encima de lo que no era: el «desfase de símbolos».
+  //
+  // > [!important] `unicode11`, que es la solución habitual, NO alcanza
+  // > Se midió en un Chromium real con cada símbolo del reporte. `unicode11`
+  // > arregla ✅ ❌ 🟡 🟨 🟦, pero deja ☑️ y ⚠️ en una celda: son un carácter
+  // > de texto más un selector invisible (U+FE0F) que lo pide en versión emoji,
+  // > y solo leyendo el GRUPO entero se sabe que ocupa dos. Eso es lo que hace
+  // > `unicode-graphemes`, que además deja bien los ✔ ☑ ⚠ sin selector, que sí
+  // > ocupan una.
+  term.loadAddon(new UnicodeGraphemesAddon());
+  term.unicode.activeVersion = "15-graphemes";
 
   // Teclas del usuario → PTY.
   term.onData((datos) => {
