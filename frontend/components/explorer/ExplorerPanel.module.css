@@ -17,6 +17,26 @@
 .actions {
   display: flex;
   gap: 0.25rem;
+  container-type: inline-size;
+}
+
+/* Las acciones de creación a la vista mientras entren (seis íconos de 28px);
+   con el panel angosto se agrupan en «Nuevo ▾». Lo decide el ancho del panel,
+   no el de la ventana. */
+.soloAngosto {
+  display: none;
+}
+
+@container (max-width: 205px) {
+  /* Con el contenedor delante: .actionButton (display: grid) viene después y,
+     con la misma especificidad, ganaba. */
+  .actions .soloAncho {
+    display: none;
+  }
+
+  .soloAngosto {
+    display: block;
+  }
 }
 
 .actionButton {
@@ -31,6 +51,61 @@
 .actionButton:hover {
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
   color: var(--mic-text-primary);
+}
+
+/* «Nuevo ▾»: el resto de lo que se puede crear, con rótulo (MenuNuevo.tsx). */
+.menuNuevoWrap {
+  position: relative;
+}
+
+.menuNuevoBoton {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 28px;
+  padding: 0 0.4rem 0 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.menuNuevoBoton:hover,
+.menuNuevoBoton[aria-expanded='true'] {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.menuNuevo {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 0.3rem;
+  background: var(--mic-bg-canvas);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent);
+}
+
+.menuNuevoItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--mic-text-primary);
+}
+
+.menuNuevoItem svg {
+  color: var(--mic-text-muted);
+}
+
+.menuNuevoItem:hover,
+.menuNuevoItem:focus-visible {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
 .tree {
@@ -105,7 +180,7 @@
 
 .sharedIcon {
   margin-left: auto;
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   flex-shrink: 0;
 }
 
@@ -114,7 +189,9 @@
   align-items: center;
   gap: 0.3rem;
   padding: 0.22rem 0.4rem;
-  border-radius: var(--mic-radius-sm);
+  /* Filas rectas, de canto a canto (formas del cascarón, 2026-09-19): la nota
+     abierta se marca con una barra a la izquierda, como en VS Code. */
+  border-radius: 0;
   cursor: pointer;
   user-select: none;
   font-size: 0.8125rem;
@@ -151,11 +228,30 @@
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
+/* Foco con teclado (el árbol se recorre con flechas): el anillo va HACIA
+   ADENTRO. Con el `outline-offset` global de +2px se dibujaba afuera de la fila
+   y el panel con scroll lo recortaba justo en la primera y la última fila
+   visibles, que es donde el foco llega al desplazarse. */
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
 /* Dónde estás: la carpeta del archivo abierto (DEF-069). Se DERIVA de qué
    archivo se está mirando, así que no puede quedar marcada una carpeta que no
    tiene nada que ver ni hace falta refrescarla a mano. */
 .rowActive {
   background-color: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+/* La nota abierta: fondo y barra de 2px. En una carpeta el «estás acá» ya lo
+   dice el rastro (`.rowEnRuta`), así que no lleva fondo: una sola marca fuerte
+   en el árbol, la de la nota. */
+.rowHoja.rowActive {
+  box-shadow: inset 2px 0 0 var(--mic-glow-texto);
+}
+
+.rowCarpeta.rowActive {
+  background-color: transparent;
 }
 
 /* La carpeta pulsada, que es otra cosa: el destino de «nota nueva», «carpeta

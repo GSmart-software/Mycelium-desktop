@@ -49,7 +49,7 @@ import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { useSyncStore } from "@/stores/syncStore";
+import { contarPalabras, useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
 import { numerosDeLineaExt } from "@/lib/editor/numerosDeLinea";
@@ -64,6 +64,23 @@ const MODES: EditorMode[] = ["live", "split", "read", "raw"];
 const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
 const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
+const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
+
+/** Textos que CodeMirror genera por su cuenta —tooltips, anuncios para lectores
+ *  de pantalla— y que salían en inglés en una interfaz en español. Son todas
+ *  las frases de las extensiones que usa este editor (plegado, autocompletado,
+ *  vista); las del panel de búsqueda no aparecen porque ese panel es propio. */
+const frasesEditor = EditorState.phrases.of({
+  "folded code": "sección plegada",
+  unfold: "desplegar",
+  "Folded lines": "Líneas plegadas",
+  "Unfolded lines": "Líneas desplegadas",
+  to: "a",
+  Completions: "Sugerencias",
+  close: "cerrar",
+  "Selection deleted": "Selección borrada",
+  "Control character": "Carácter de control",
+});
 
 /**
  * Cursor y scroll por pestaña mientras está abierta (HU-25 CA10).
@@ -265,10 +282,10 @@ export function NoteEditor({
     const saved = window.localStorage.getItem(`micelio-mode-${notaId}`);
     return MODES.includes(saved as EditorMode) ? (saved as EditorMode) : "live";
   });
-  const [syncState, setSyncStateLocal] = useState<SyncState>("local");
+  // El estado de guardado vive en el store: lo muestran la barra de estado y
+  // el punto de la pestaña, no la barra del editor.
   const setSyncState = useCallback(
     (state: SyncState) => {
-      setSyncStateLocal(state);
       useSyncStore.getState().setSyncState(notaId, state);
     },
     [notaId],
@@ -280,6 +297,7 @@ export function NoteEditor({
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
+  const palabrasTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const modeRef = useRef(mode);
   // El id de la nota, por referencia. Renombrar en modo carpeta CAMBIA el id
@@ -409,6 +427,10 @@ export function NoteEditor({
       const cached = instanceCache.get(instanceId);
       const restaurable = cached !== undefined && cached.doc === content;
 
+      // La carga inicial no es un cambio del documento: las palabras de la
+      // barra de estado se cuentan acá, las siguientes en el updateListener.
+      useSyncStore.getState().setPalabras(notaId, contarPalabras(content));
+
       viewRef.current = new EditorView({
         parent: hostRef.current,
         // El scroll se restaura con el mecanismo propio de CodeMirror: sabe
@@ -423,6 +445,16 @@ export function NoteEditor({
               }
             : undefined,
           extensions: [
+            frasesEditor,
+            // Nombre accesible del área de texto: sin esto un lector de pantalla
+            // anuncia «campo de texto» sin decir qué nota es. Se evalúa en cada
+            // actualización de la vista, así acompaña un renombrado.
+            EditorView.contentAttributes.of(() => {
+              const titulo = useVaultStore
+                .getState()
+                .notas.find((n) => n.id === notaIdRef.current)?.titulo;
+              return { "aria-label": titulo ? `Nota: ${titulo}` : "Nota" };
+            }),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
             keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
@@ -455,7 +487,23 @@ export function NoteEditor({
             // plegar pegada al texto, como en VS Code. Al revés —que es como
             // estaba— el número quedaba lejos de la línea que numera.
             numerosCompartment.current.of(numerosDeLinea ? numerosDeLineaExt() : []),
-            foldGutter({ openText: "⌄", closedText: "›" }),
+            // Marca propia (`DEF-088`): el estado va en `data-plegado` y no se
+            // deduce del `title` de CodeMirror, que está en inglés, en otro
+            // elemento y con mayúscula —la regla que giraba la flecha nunca se
+            // aplicó—. El glifo se conserva por su caja de línea (ver
+            // .cm-foldGutter en editor.css); la flecha la dibuja el ::before.
+            foldGutter({
+              markerDOM: (abierto) => {
+                const marca = document.createElement("span");
+                marca.className = "mic-fold-marca";
+                marca.dataset.plegado = String(!abierto);
+                marca.textContent = abierto ? "⌄" : "›";
+                marca.title = abierto
+                  ? "Plegar sección (Ctrl+Shift+[)"
+                  : "Desplegar sección (Ctrl+Shift+])";
+                return marca;
+              },
+            }),
             headingFoldService,
             // Título (nombre del archivo) como bloque al inicio del documento.
             docTitleField,
@@ -480,6 +528,13 @@ export function NoteEditor({
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
+              // Palabras para la barra de estado: también cuando el cambio vino
+              // de otra instancia o de disco (carga inicial incluida).
+              if (palabrasTimer.current) clearTimeout(palabrasTimer.current);
+              palabrasTimer.current = setTimeout(
+                () => useSyncStore.getState().setPalabras(notaId, contarPalabras(doc)),
+                PALABRAS_DEBOUNCE_MS,
+              );
               if (brokerApplyRef.current) {
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
@@ -1163,7 +1218,6 @@ export function NoteEditor({
         getView={() => viewRef.current}
         mode={mode}
         onModeChange={setMode}
-        syncState={syncState}
         onInsertDiagram={insertDiagram}
         notaId={notaId}
         titulo={notaTitulo}

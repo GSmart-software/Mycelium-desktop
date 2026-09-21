@@ -1,0 +1,164 @@
+/*
+ * Atmósferas (2026-09-19): el tercer eje del estilo, al lado del Tema y el Modo.
+ * Nacieron como una exploración de color tras el prototipo del cascarón, que
+ * había cambiado mucho la UX y poco la UI; el usuario prefirió Niebla en oscuro
+ * y Bosque en claro, y pidió que las cuatro quedaran elegibles.
+ *
+ * Una atmósfera no es un tema: redefine los tokens SEMÁNTICOS (fondos, marco,
+ * títulos, bordes) con fórmulas sobre los colores raw del tema activo. Así cada
+ * una sirve para Bioluminiscencia y Cantarela, y el matiz (verde agua o ámbar)
+ * se conserva solo. Abisal no tiene reglas: es tokens.css tal cual.
+ *
+ * Se aplica con `data-atmosfera` en <html> (preferencesStore → applyToDom); ver
+ * lib/atmosferas.ts. Los selectores no llevan `html` a propósito: las muestras
+ * de Configuración repiten los atributos en un <span> para pintarse con la
+ * atmósfera que representan. Van después de tokens.css y con la misma
+ * especificidad que las reglas de tema (`[data-theme][data-dark]`, que también
+ * fijan --mic-border y --mic-bg-hover), así que ganan por orden.
+ *
+ * Contraste medido en los 16 combos (tema × modo × atmósfera): texto, títulos,
+ * enlaces, árbol, pestañas y barra de estado ≥4.5:1.
+ */
+
+/* ── Niebla: sobria, neutra fría ──────────────────────────────────
+   Grises con apenas un matiz del tema. En oscuro la nota es lo MÁS claro de la
+   pantalla (protagonista) y el marco lo más oscuro, como VS Code. En claro el
+   marco también es claro, como Obsidian. El color queda para lo vivo: enlaces,
+   foco, selección y el título del documento. */
+[data-atmosfera='niebla'][data-dark='true'] {
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 4%, #0b0d0f);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-accent) 4%, #141719);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-accent) 3%, #1a1d20);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-accent) 3%, #111416);
+  --mic-bg-code:      color-mix(in srgb, var(--mic-raw-accent) 3%, #121518);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-accent) 4%, #1f2326);
+  --mic-text-primary: color-mix(in srgb, var(--mic-raw-ink) 35%, #e3e6e8);
+  --mic-text-muted:   color-mix(in srgb, var(--mic-raw-ink-muted) 35%, #8e969c);
+  --mic-border:       color-mix(in srgb, #ffffff 8%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, #ffffff 6%, transparent);
+  --mic-marco-glow:   color-mix(in srgb, var(--mic-raw-glow) 45%, #dfe3e6);
+  --mic-marco-inactivo: 0.6;
+
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 35%, var(--mic-text-primary));
+  --mic-h2: color-mix(in srgb, var(--mic-glow)   25%, var(--mic-text-primary));
+  --mic-h3: var(--mic-text-primary);
+  --mic-h4: var(--mic-text-primary);
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}
+
+[data-atmosfera='niebla']:not([data-dark='true']) {
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 5%, #e8ebed);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-accent) 3%, #f1f3f4);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-accent) 1%, #fcfcfd);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-accent) 2%, #f6f7f8);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-accent) 3%, #f3f5f6);
+  --mic-border:       color-mix(in srgb, var(--mic-raw-ink) 11%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, var(--mic-raw-ink) 6%, transparent);
+  /* Marco claro: los íconos y el logo pasan a tinta teñida, no a Brote aclarado. */
+  --mic-marco-glow:   color-mix(in srgb, var(--mic-raw-accent) 70%, var(--mic-raw-ink));
+  --mic-marco-acento: var(--mic-raw-accent);
+  --mic-marco-texto:  color-mix(in srgb, var(--mic-text-muted) 80%, var(--mic-text-primary));
+  --mic-marco-inactivo: 0.75;
+
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 70%, var(--mic-text-primary));
+  --mic-h2: color-mix(in srgb, var(--mic-accent) 45%, var(--mic-text-primary));
+  --mic-h3: var(--mic-text-primary);
+  --mic-h4: var(--mic-text-primary);
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}
+
+/* ── Bosque: el color en los bordes, la nota en calma ──────────────
+   El marco lleva el color del tema con cuerpo (verde agua profundo o marrón
+   ámbar); los paneles, un tinte; la nota, casi neutra. Es el más «de marca» de
+   los tres sin volver al neón: el color enmarca, no compite con el texto. */
+[data-atmosfera='bosque'][data-dark='true'] {
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 32%, #030809);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-accent) 12%, #0a1012);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-accent) 4%, #0e1315);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-accent) 6%, #080d0f);
+  --mic-bg-code:      color-mix(in srgb, var(--mic-raw-accent) 7%, #090e10);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-accent) 8%, #0e1315);
+  --mic-border:       color-mix(in srgb, var(--mic-raw-glow) 12%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, var(--mic-raw-glow) 9%, transparent);
+  --mic-marco-texto:  color-mix(in srgb, var(--mic-raw-ink) 60%, var(--mic-raw-ink-muted));
+
+  --mic-h1: color-mix(in srgb, var(--mic-glow)   65%, var(--mic-text-primary));
+  --mic-h2: color-mix(in srgb, var(--mic-accent) 45%, var(--mic-text-primary));
+  --mic-h3: color-mix(in srgb, var(--mic-glow)   30%, var(--mic-text-primary));
+  --mic-h4: color-mix(in srgb, var(--mic-accent) 20%, var(--mic-text-primary));
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}
+
+[data-atmosfera='bosque']:not([data-dark='true']) {
+  /* Marco en el acento del tema oscurecido: color con cuerpo, no casi negro. */
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 75%, #041a1e);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-glow) 9%, #f3f6f6);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-glow) 2%, #fdfdfc);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-glow) 5%, #f7f9f9);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-glow) 8%, #f5f8f8);
+  --mic-border:       color-mix(in srgb, var(--mic-raw-accent) 16%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, var(--mic-raw-accent) 9%, transparent);
+  --mic-marco-glow:   color-mix(in srgb, var(--mic-raw-mist) 88%, var(--mic-raw-glow));
+  --mic-marco-acento: color-mix(in srgb, var(--mic-raw-glow) 55%, #ffffff);
+  --mic-marco-texto:  color-mix(in srgb, var(--mic-raw-mist) 92%, var(--mic-bg-sidebar));
+  --mic-marco-inactivo: 0.8;
+
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 90%, var(--mic-text-primary));
+  --mic-h2: color-mix(in srgb, var(--mic-accent) 60%, var(--mic-text-primary));
+  --mic-h3: color-mix(in srgb, var(--mic-accent) 35%, var(--mic-text-primary));
+  --mic-h4: var(--mic-text-primary);
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}
+
+/* ── Papel: editorial y cálido ──────────────────────────────────────
+   Fondos de papel y de carbón tibio, casi sin color: la pantalla se lee como un
+   libro. El tema aparece solo en enlaces, foco, selección y el título. Es la más
+   silenciosa; en Cantarela queda muy cerca de su propio carácter. */
+[data-atmosfera='papel'][data-dark='true'] {
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 2%, #121110);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-accent) 2%, #1a1917);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-accent) 2%, #1f1e1b);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-accent) 2%, #171614);
+  --mic-bg-code:      color-mix(in srgb, var(--mic-raw-accent) 2%, #181715);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-accent) 3%, #24231f);
+  --mic-text-primary: color-mix(in srgb, var(--mic-raw-ink) 20%, #e8e3d9);
+  --mic-text-muted:   color-mix(in srgb, var(--mic-raw-ink-muted) 20%, #9b9487);
+  --mic-border:       color-mix(in srgb, #f0e8d8 9%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, #f0e8d8 6%, transparent);
+  --mic-marco-glow:   color-mix(in srgb, var(--mic-raw-glow) 30%, #e2ddd3);
+  --mic-marco-inactivo: 0.6;
+
+  --mic-h1: var(--mic-text-primary);
+  --mic-h2: var(--mic-text-primary);
+  --mic-h3: var(--mic-text-primary);
+  --mic-h4: var(--mic-text-primary);
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}
+
+[data-atmosfera='papel']:not([data-dark='true']) {
+  --mic-bg-sidebar:   color-mix(in srgb, var(--mic-raw-accent) 3%, #ebe7de);
+  --mic-bg-surface:   color-mix(in srgb, var(--mic-raw-accent) 2%, #f4f1ea);
+  --mic-bg-canvas:    color-mix(in srgb, var(--mic-raw-accent) 1%, #fbf9f4);
+  --mic-bg-base:      color-mix(in srgb, var(--mic-raw-accent) 2%, #f6f3ec);
+  --mic-callout-bg:   color-mix(in srgb, var(--mic-raw-accent) 3%, #f2eee5);
+  --mic-text-primary: color-mix(in srgb, var(--mic-raw-ink) 40%, #2b2824);
+  --mic-text-muted:   color-mix(in srgb, var(--mic-raw-ink-muted) 40%, #6d665b);
+  --mic-border:       color-mix(in srgb, #3a3226 13%, transparent);
+  --mic-bg-hover:     color-mix(in srgb, #3a3226 6%, transparent);
+  --mic-marco-glow:   color-mix(in srgb, var(--mic-raw-accent) 65%, #2b2824);
+  --mic-marco-acento: var(--mic-raw-accent);
+  --mic-marco-texto:  color-mix(in srgb, var(--mic-text-muted) 80%, var(--mic-text-primary));
+  --mic-marco-inactivo: 0.75;
+
+  --mic-h1: var(--mic-text-primary);
+  --mic-h2: var(--mic-text-primary);
+  --mic-h3: var(--mic-text-primary);
+  --mic-h4: var(--mic-text-primary);
+  --mic-h5: var(--mic-text-primary);
+  --mic-h6: var(--mic-text-muted);
+}

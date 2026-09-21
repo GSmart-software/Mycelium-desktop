@@ -2,8 +2,9 @@
 
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import {
   ICONO_CONSOLA,
   ICONO_GRAFO,
@@ -12,7 +13,7 @@ import {
   ICONO_REFERENCIAS,
 } from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
@@ -41,6 +42,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const menuListaRef = useRef<HTMLDivElement>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
   useWheelHScroll(tabBarRef);
 
@@ -52,14 +54,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     setMenuOpen((v) => !v);
   };
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onPointerDown(e: PointerEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [menuOpen]);
+  const cerrarMenu = useCallback(() => setMenuOpen(false), []);
+  // Escape, flechas, foco y un solo menú abierto a la vez: ver useMenuEmergente.
+  useMenuEmergente({
+    abierto: menuOpen,
+    cerrar: cerrarMenu,
+    contenedorRef: menuRef,
+    menuRef: menuListaRef,
+    disparadorRef: menuBtnRef,
+  });
 
   // `replace` y no `push` (DEF-040): la pila del WebView compite con el historial
   // propio de cada pestaña. La URL sigue reflejando la nota activa.
@@ -192,6 +195,36 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             key={tab.id}
             role="tab"
             aria-selected={isActiveTab}
+            // Pestañas con teclado (rediseño del cascarón): una sola parada de
+            // Tab —la activa— y flechas entre ellas, como el patrón tablist.
+            // Antes no se podían enfocar: solo se llegaba con el ratón.
+            tabIndex={isActiveTab ? 0 : -1}
+            data-tab-id={tab.id}
+            onKeyDown={(e) => {
+              const i = pane.tabs.findIndex((t) => t.id === tab.id);
+              const destino =
+                e.key === "ArrowRight" ? pane.tabs[(i + 1) % pane.tabs.length]
+                : e.key === "ArrowLeft" ? pane.tabs[(i - 1 + pane.tabs.length) % pane.tabs.length]
+                : e.key === "Home" ? pane.tabs[0]
+                : e.key === "End" ? pane.tabs[pane.tabs.length - 1]
+                : null;
+              if (destino) {
+                e.preventDefault();
+                store.activateTab(pane.id, destino.id);
+                router.replace(`/workspace?note=${destino.notaId}`);
+                tabBarRef.current
+                  ?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(destino.id)}"]`)
+                  ?.focus();
+              } else if (e.key === "Delete") {
+                e.preventDefault();
+                store.closeTab(pane.id, tab.id);
+                pushUrl();
+                // El foco sigue en la barra, en la pestaña que quedó activa.
+                requestAnimationFrame(() =>
+                  tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
+                );
+              }
+            }}
             draggable
             title={tooltipOf(tab)}
             // El color de la consola entra como variable y no como clase: son
@@ -249,6 +282,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             <button
               type="button"
               className={styles.tabClose}
+              // Con el teclado se cierra con Supr o Ctrl+W sobre la pestaña.
+              tabIndex={-1}
               aria-label={`Cerrar ${titleOf(tab)}`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -288,12 +323,17 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           type="button"
           className={styles.tabMenuButton}
           aria-label="Opciones del pane"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
           onClick={toggleMenu}
         >
           <MoreHorizontal size={15} aria-hidden />
         </button>
         {menuOpen && (
           <div
+            ref={menuListaRef}
+            role="menu"
+            aria-label="Opciones del pane"
             className={styles.tabMenu}
             style={{ position: "fixed", top: menuPos.top, right: menuPos.right }}
           >
@@ -301,6 +341,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     void exportNoteMd(activeNota.id, activeNota.titulo);
@@ -311,6 +352,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     exportNotePdfActive(activeNota.id, activeNota.titulo);
@@ -326,6 +368,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.splitActivePane(pane.id, "right");
@@ -337,6 +380,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.splitActivePane(pane.id, "bottom");
@@ -355,6 +399,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   <button
                     key={other.id}
                     type="button"
+                    role="menuitem"
                     className={styles.tabMenuItem}
                     onClick={() => {
                       store.linkPane(pane.id, other.id);
@@ -371,6 +416,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.toggleLinkedScrollSync(pane.id);
@@ -381,6 +427,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
                     store.linkPane(pane.id, null);

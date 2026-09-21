@@ -1,0 +1,42 @@
+/* Controles de la ventana (`FUN-M-31`). Alto de 32px y ancho de 46, las medidas
+   de Windows: la memoria muscular de dónde hay que apuntar es del sistema, no
+   nuestra. Lo propio es el color y el trazo de los íconos. */
+/* El grupo no se separa del borde por su cuenta: quien lo usa cancela su propio
+   relleno, porque el botón de cerrar tiene que llegar a la esquina de la ventana
+   para poder apuntarlo sin mirar (regla de Fitts). */
+.grupo {
+  display: flex;
+  align-self: stretch;
+}
+
+.boton {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  color: var(--mic-marco-texto);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+/* `.hover` es el hover del botón de maximizar cuando lo informa Rust: con el
+   menú de anclaje activo, ese botón ya no recibe el puntero y `:hover` no
+   dispara (ver ControlesVentana.tsx). */
+.boton:hover,
+.hover {
+  background-color: color-mix(in srgb, var(--mic-marco-glow) 16%, transparent);
+  color: var(--mic-marco-glow);
+}
+
+.cerrar:hover {
+  /* El rojo de cerrar es una convención del sistema operativo, no del tema. */
+  background-color: #c42b1c;
+  color: #ffffff;
+}
+
+.icono {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}

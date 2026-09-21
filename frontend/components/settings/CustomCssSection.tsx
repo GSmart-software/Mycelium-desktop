@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmar } from "@/lib/confirmar";
+import { avisar } from "@/stores/avisosStore";
 import { Download, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useCssStore, type CssSnippet } from "@/stores/cssStore";
@@ -10,7 +12,8 @@ const WARN_BYTES = 50 * 1024; // HU-15 CA5
 
 /**
  * Gestor de snippets de CSS personalizado (estilo Obsidian, HU-13/15): lista de
- * archivos asociados a la cuenta, cada uno con switch para activar/desactivar,
+ * snippets guardados en el índice local del vault abierto, cada uno con switch
+ * para activar/desactivar,
  * exportar y eliminar; botón general para importar un .css. Los cambios se
  * aplican en vivo, sin recargar.
  */
@@ -20,6 +23,21 @@ export function CustomCssSection() {
   const toggle = useCssStore((s) => s.toggle);
   const rename = useCssStore((s) => s.rename);
   const remove = useCssStore((s) => s.remove);
+
+  /**
+   * Borrar un snippet pregunta y, hecho, ofrece traerlo de vuelta: el contenido
+   * viaja en el aviso y «Deshacer» lo vuelve a crear (con otro id, mismo
+   * nombre y mismo CSS). Antes se borraba de un clic, sin red (crítica de
+   * Configuración, 2026-09-20).
+   */
+  const borrarSnippet = async (s: { id: string; nombre: string; contenido: string }) => {
+    if (!(await confirmar(`¿Eliminar el snippet "${s.nombre}"?`, "Eliminar"))) return;
+    await remove(s.id);
+    avisar(`«${s.nombre}» fue eliminado`, {
+      etiqueta: "Deshacer",
+      hacer: () => void importSnippet(s.nombre, s.contenido),
+    });
+  };
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -118,14 +136,15 @@ export function CustomCssSection() {
         />
       </div>
 
-      <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
-        Tus snippets quedan asociados a la cuenta y se aplican en cualquier
-        dispositivo. Activá los que quieras; el estilo se actualiza al instante.
+      <p className={styles.hint}>
+        Tus snippets se guardan en esta máquina, junto al vault abierto: al abrir
+        otro vault verás los suyos. Activá los que quieras; el estilo se
+        actualiza al instante.
       </p>
 
       <ul className={styles.snippetList}>
         {snippets.length === 0 && (
-          <li className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <li className={styles.hint}>
             Todavía no importaste ningún CSS. Usá «Importar .css» (podés empezar
             por la plantilla descargable en /plantilla-estilos.css).
           </li>
@@ -186,7 +205,7 @@ export function CustomCssSection() {
               className={`${styles.snippetIcon} ${styles.snippetDanger}`}
               title="Eliminar"
               aria-label={`Eliminar ${s.nombre}`}
-              onClick={() => void remove(s.id)}
+              onClick={() => void borrarSnippet(s)}
             >
               <Trash2 size={15} aria-hidden />
             </button>

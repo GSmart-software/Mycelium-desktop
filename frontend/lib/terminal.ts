@@ -3,6 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { listarShells, tabIdDe } from "@/lib/terminalBase";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -20,10 +21,16 @@ import { useVaultSessionStore } from "@/stores/vaultSessionStore";
  * muere solo, p. ej. con `exit`).
  */
 
-/** Prefijo de las pestañas de terminal en el tabsStore (patrón `graph:global`). */
-export const TERMINAL_TAB_PREFIX = "terminal:";
-
-export type ShellInfo = { id: string; nombre: string; ruta: string };
+// Lo liviano (sin xterm) vive en terminalBase; se reexporta para que los
+// consumidores de la consola no cambien.
+export {
+  TERMINAL_TAB_PREFIX,
+  tabIdDe,
+  termIdDe,
+  esTabTerminal,
+  listarShells,
+  type ShellInfo,
+} from "@/lib/terminalBase";
 
 type Instancia = {
   term: Terminal;
@@ -39,18 +46,6 @@ const nuevasEstaCorrida = new Set<string>();
 /** Abiertas por el usuario en esta corrida (creadas o reabiertas desde el panel). */
 const tocadasEstaCorrida = new Set<string>();
 let infraLista = false;
-let shellsCache: ShellInfo[] | null = null;
-
-/** Id de pestaña ↔ id de terminal. */
-export const tabIdDe = (termId: string) => `${TERMINAL_TAB_PREFIX}${termId}`;
-export const termIdDe = (tabId: string) => tabId.slice(TERMINAL_TAB_PREFIX.length);
-export const esTabTerminal = (tabId: string) => tabId.startsWith(TERMINAL_TAB_PREFIX);
-
-/** Shells detectadas en el sistema (cacheado; no cambian durante la corrida). */
-export async function listarShells(): Promise<ShellInfo[]> {
-  if (!shellsCache) shellsCache = await invoke<ShellInfo[]>("terminal_shells");
-  return shellsCache;
-}
 
 /** ¿El PTY de esta consola está corriendo en esta corrida? */
 export function estaCorriendo(termId: string): boolean {
@@ -62,7 +57,7 @@ function temaXterm() {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
-    background: v("--mic-bg-canvas", "#1b1305"),
+    background: v("--mic-terminal-bg", "#141719"),
     foreground: v("--mic-text-primary", "#f6e8c8"),
     cursor: v("--mic-accent", "#c77f2e"),
     selectionBackground: "rgba(127, 127, 127, 0.35)",
@@ -250,7 +245,7 @@ function ensureInfra() {
     if (instancias.has(e.payload.id)) finalizarConsola(e.payload.id);
   });
 
-  // Cambio de tema/modo oscuro de Mycelium (data-theme/data-dark en <html>):
+  // Cambio de tema, modo o atmósfera de Mycelium (atributos de <html>):
   // re-aplicar los colores a todas las consolas vivas (el tema del xterm se fija
   // al crear la instancia y no sigue las variables CSS por sí solo).
   const observerTema = new MutationObserver(() => {
@@ -261,7 +256,7 @@ function ensureInfra() {
   });
   observerTema.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-theme", "data-dark"],
+    attributeFilter: ["data-theme", "data-dark", "data-atmosfera"],
   });
 
   // Al cerrar la app: volcar el scrollback de cada consola para poder

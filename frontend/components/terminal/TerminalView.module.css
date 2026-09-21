@@ -1,13 +1,25 @@
-/* Contenedor de la terminal integrada: llena el cuerpo del pane. El fondo usa el
-   token del lienzo para que el "sobrante" alrededor del grid de xterm no contraste. */
+/* Contenedor de la terminal integrada: llena el cuerpo del pane. Fondo propio
+   (--mic-terminal-bg) y 10px de aire alrededor del grid de xterm.
+
+   El relleno va acá y no en `.xterm-screen`: xterm mide las coordenadas del
+   ratón desde el rectángulo de esa caja, y un relleno adentro correría la
+   selección respecto del cursor. Como el tema del xterm usa el mismo color, el
+   aire y las celdas se ven como una sola hoja. */
 .terminal {
   height: 100%;
   min-height: 0;
-  padding: 4px 0 0 6px;
-  background: var(--mic-bg-canvas);
+  padding: 10px;
+  background: var(--mic-terminal-bg);
   overflow: hidden;
 }
 
 .terminal :global(.xterm) {
   height: 100%;
+}
+
+/* El área que desplaza trae `background-color: #000` de la hoja propia de
+   xterm, y el tema no la pisa: sin esto el grid quedaba negro dentro del aire
+   de color. */
+.terminal :global(.xterm-viewport) {
+  background-color: var(--mic-terminal-bg);
 }

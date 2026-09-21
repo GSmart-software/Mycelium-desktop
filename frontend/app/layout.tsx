@@ -8,11 +8,12 @@ import {
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
+import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
-import "highlight.js/styles/atom-one-dark.css";
 import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
+import "../styles/atmosferas.css";
 import "../styles/editor.css";
 import "./globals.css";
 
@@ -65,11 +66,14 @@ export default function RootLayout({
       lang="es"
       data-theme="bioluminiscencia"
       data-dark="true"
+      data-atmosfera="niebla"
       className={`${geistSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${fontVariables}`}
     >
       <body>
         {/* F12 / Ctrl+Shift+I abren las devtools, también en producción. */}
         <DevToolsHotkey />
+        {/* Sin barra del sistema, los bordes de la ventana los repone la app. */}
+        <BordesRedimensionado />
         {children}
       </body>
     </html>

@@ -10,11 +10,25 @@
   outline: none;
 }
 
+/* La hoja se centra con el RELLENO del área desplazable, no con un ancho
+   máximo en el contenido. Los canalones —el de plegado y el de números— son
+   hermanos del contenido y se pegan al borde del área desplazable: con el
+   centrado puesto en el contenido quedaban contra el margen izquierdo de la
+   ventana, lejísimos de la línea que pliegan. Con el relleno, viajan con el
+   texto. El margen izquierdo descuenta los canalones para que la columna de
+   texto caiga en el mismo sitio que en lectura. */
+.mic-editor-host {
+  --mic-ancho-plegado: 1.1em; /* el mismo de .cm-foldGutter */
+  --mic-canalones: var(--mic-ancho-plegado);
+  --mic-margen-hoja: max(1.25rem, calc((100% - var(--mic-ancho-lectura)) / 2));
+}
+
 .mic-editor-host .cm-scroller {
   font-family: var(--mic-editor-font-family);
   font-size: var(--mic-editor-font-size);
   line-height: 1.65;
-  padding: 1rem 1.25rem;
+  padding: 1rem var(--mic-margen-hoja);
+  padding-left: max(1.25rem, calc(var(--mic-margen-hoja) - var(--mic-canalones)));
 }
 
 /* ── Sitio para los números de línea (FUN-M-28) ──────────────────────────────
@@ -50,22 +64,25 @@
   --mic-num-rango-fondo: var(--mic-raw-mist);
 }
 
-.mic-editor-host.mic-con-numeros .cm-scroller {
-  padding-left: 0;
-}
-
-.mic-editor-host.mic-con-numeros .cm-gutters {
-  padding-left: 1.25rem; /* el que le sacamos al scroller */
+/* Con los números, el canalón mide lo suyo más el del plegado: el margen los
+   descuenta y los números quedan en el margen de la hoja, como al costado de
+   una página. */
+.mic-editor-host.mic-con-numeros {
+  --mic-canalones: calc(var(--mic-ancho-plegado) + var(--mic-ancho-numeros));
 }
 
 .mic-editor-host.mic-con-numeros .cm-lineNumbers {
   min-width: var(--mic-ancho-numeros);
 }
 
+/* La nota a la misma medida en vivo que en lectura (rediseño del cascarón):
+   una sola hoja, centrada, que no cambia de ancho al cambiar de modo. */
 .mic-editor-host .cm-content {
   caret-color: var(--mic-glow);
   color: var(--mic-text-primary);
-  /* max-width: 80ch; */
+  width: 100%;
+  max-width: var(--mic-ancho-lectura);
+  margin: 0 auto;
 }
 
 .mic-editor-host .cm-cursor {
@@ -158,7 +175,7 @@
 }
 
 .cm-completionMatchedText {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   font-weight: 700;
   text-decoration: none;
 }
@@ -401,9 +418,12 @@
 :where(.mic-live-callout[data-callout-depth="4"]) {
   margin-left: 3.3rem;
 }
+/* El título se mezcla con la tinta según --mic-callout-tinta (tokens.css): en
+   oscuro va el color del tipo puro; en claro, ese color en crudo no se lee (un
+   `tip` en Brote daba 2:1). Mismo criterio que los títulos H1-H6. */
 :where(.mic-live-callout-head) {
   font-weight: 600;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 /* El título escrito del callout es texto de cita (tags.quote), que el resaltado
    de sintaxis pinta de gris en un <span> anidado y gana por herencia. Este span
@@ -424,7 +444,7 @@
   cursor: pointer;
   user-select: none;
   margin-right: 0.3em;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 
 /* Ícono del callout en la cabecera del editor (visible en vivo) */
@@ -435,7 +455,7 @@
   height: 1em;
   margin-right: 0.35em;
   vertical-align: -0.15em;
-  background-color: var(--mic-callout-color, var(--mic-callout-note-border));
+  background-color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
   -webkit-mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
   mask: var(--mic-callout-icon, var(--mic-callout-icon-default)) center / contain no-repeat;
 }
@@ -445,7 +465,7 @@
    resaltado de sintaxis (que decide el color/estilo por herencia). */
 .cm-editor .mic-em-cm-us,
 .cm-editor .mic-em-cm-us * {
-  color: var(--mic-glow); /* _texto_ : cursiva (del highlight) + glow */
+  color: var(--mic-glow-texto); /* _texto_ : cursiva (del highlight) + glow */
 }
 .cm-editor .mic-strong-cm-us,
 .cm-editor .mic-strong-cm-us * {
@@ -468,12 +488,19 @@
    depende de la vista: -editor (en vivo/raw) usa la fuente del editor y -preview
    (lectura/dividido) la del preview. */
 .mic-doc-title {
-  text-align: center;
+  /* `DEF-097`: iba centrado sobre un cuerpo alineado a la izquierda, así que el
+     mismo texto tenía dos ejes a pocos píxeles. */
+  text-align: left;
   font-weight: 700;
   font-size: 1.9rem;
   line-height: 1.25;
   padding: 0.2rem 1rem 0.9rem;
-  word-break: break-word;
+  /* Un título de una sola palabra larga, en una ventana angosta, se partía en
+     cualquier letra («documentacio / n»). Con `hyphens` corta por sílaba y con
+     guion, según el idioma del documento (`lang="es"`); si no hay diccionario,
+     `overflow-wrap` sigue evitando que desborde. */
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .mic-doc-title-editor {
   font-family: var(--mic-editor-font-family);
@@ -560,16 +587,20 @@
 
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
-  color: var(--mic-accent);
+  color: var(--mic-enlace);
   text-decoration: underline;
   cursor: pointer;
 }
 
 .mic-wikilink-cm:hover {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
 }
 
-/* Archivo referenciado inexistente: mismo color, más oscuro (feedback visual).
+/* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
+   punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
+   oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de
+   un fragmento de código en claro en 1:1: justo el enlace que el usuario
+   necesita ver para crear la nota era el que no se veía.
    El texto del wikilink también recibe el resaltado de sintaxis (tags.link →
    color del acento) en un <span> generado (.ͼ…) ANIDADO dentro de nuestro span.
    Ese span hijo fija `color` explícito, así que gana por herencia (no por
@@ -578,19 +609,21 @@
    resistir además snippets CSS del usuario por orden de cascada. */
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing,
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing * {
-  color: color-mix(in srgb, var(--mic-accent) 40%, #000);
+  color: color-mix(in srgb, var(--mic-enlace) 55%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
 }
 
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover,
 .cm-editor .mic-wikilink-cm.mic-wikilink-cm-missing:hover * {
-  color: color-mix(in srgb, var(--mic-glow) 48%, #000);
+  color: var(--mic-glow-texto);
 }
 
 /* Tags como píldoras (HU-01 CA9) */
 .mic-tag-cm,
 .mic-tag-pill {
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   border-radius: var(--mic-radius-sm);
   padding: 0.05em 0.4em;
   font-size: 0.9em;
@@ -636,13 +669,17 @@
   border-radius: 1px;
   transform: translate(-50%, -62%) rotate(45deg); /* ⌄ expandido */
 }
-.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"]::before {
+/* El estado sale de la marca propia (`DEF-088`, markerDOM en NoteEditor). Antes
+   se leía `[title^="unfold"]` en el .cm-gutterElement, pero CodeMirror pone el
+   title en el span de ADENTRO y con mayúscula («Unfold line»): la regla nunca
+   se aplicó, y una sección plegada quedaba sin flecha. */
+.cm-editor .cm-foldGutter .cm-gutterElement:has(> .mic-fold-marca[data-plegado="true"])::before {
   transform: translate(-50%, -50%) rotate(-45deg); /* › plegado */
 }
 
 /* La flecha aparece al pasar el ratón por el editor o si la sección está plegada. */
 .cm-editor:hover .cm-foldGutter .cm-gutterElement,
-.cm-editor .cm-foldGutter .cm-gutterElement[title^="unfold"] {
+.cm-editor .cm-foldGutter .cm-gutterElement:has(> .mic-fold-marca[data-plegado="true"]) {
   opacity: 0.7;
 }
 
@@ -731,8 +768,14 @@
   overflow-y: auto;
 }
 
-.mic-layout-read .mic-preview > div {
-  max-width: 72ch;
+/* Medida de lectura (`DEF-092`): el texto no pasa de `--mic-ancho-lectura` y se centra.
+   Las dos clases van en el MISMO elemento —la lectura, la vista lateral y la
+   vista previa enlazada renderizan `.mic-preview.mic-layout-read` con sus divs
+   adentro—, así que el selector es compuesto. Antes decía
+   `.mic-layout-read .mic-preview > div` (una DENTRO de la otra), nunca
+   coincidió, y en una ventana ancha cada renglón llegaba a 170-180 caracteres. */
+.mic-preview.mic-layout-read > div {
+  max-width: var(--mic-ancho-lectura);
   margin: 0 auto;
 }
 
@@ -762,18 +805,22 @@
 .mic-preview { tab-size: var(--mic-tab-width, 4); }
 .mic-preview li  { margin-bottom: 0.25rem; }
 
-.mic-preview a       { color: var(--mic-accent); text-decoration: underline; }
-.mic-preview a:hover { color: var(--mic-glow); }
+.mic-preview a       { color: var(--mic-enlace); text-decoration: underline; }
+.mic-preview a:hover { color: var(--mic-glow-texto); }
 
-/* Wikilink a un archivo inexistente: mismo color, más oscuro (feedback).
-   Selector específico (a.mic-wikilink.mic-wikilink-missing) para que un snippet
-   CSS del usuario no lo pise por orden de cascada. */
-.mic-preview a.mic-wikilink.mic-wikilink-missing       { color: color-mix(in srgb, var(--mic-accent) 40%, #000); }
-.mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: color-mix(in srgb, var(--mic-glow) 48%, #000); }
+/* Wikilink a un archivo inexistente: el mismo tratamiento que en vivo (ver
+   .mic-wikilink-cm-missing). Selector específico (a.mic-wikilink.mic-wikilink-missing)
+   para que un snippet CSS del usuario no lo pise por orden de cascada. */
+.mic-preview a.mic-wikilink.mic-wikilink-missing {
+  color: color-mix(in srgb, var(--mic-accent) 55%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+.mic-preview a.mic-wikilink.mic-wikilink-missing:hover { color: var(--mic-glow-texto); }
 
 /* Énfasis con `_` (estilo propio de Mycelium) en lectura. `*`/`**`/`***` usan el
    estilo por defecto de <em>/<strong>. */
-.mic-preview em.mic-em-us       { color: var(--mic-glow); }   /* _texto_  : cursiva + glow */
+.mic-preview em.mic-em-us       { color: var(--mic-glow-texto); }   /* _texto_  : cursiva + glow */
 .mic-preview strong.mic-strong-us { color: var(--mic-accent); } /* __texto__ : negrita + accent */
 .mic-preview em.mic-em-us-tri-outer { font-style: normal; }  /* ___texto___ : sin cursiva */
 .mic-preview strong.mic-em-us-tri {
@@ -798,9 +845,8 @@
   border-radius: var(--mic-radius-sm);
 }
 
-/* Bloque de código: posición relativa para el botón de copiar. NO se fija
-   `color` aquí para no pisar los colores de highlight.js (atom-one-dark);
-   el texto base lo da `.hljs` o se hereda de .mic-preview. */
+/* Bloque de código: posición relativa para el botón de copiar. El texto base se
+   hereda de .mic-preview y el resaltado lo dan las reglas `.hljs-*` de abajo. */
 .mic-preview pre {
   position: relative;
   font-family: var(--mic-font-mono);
@@ -885,10 +931,80 @@
   max-width: 100%;
 }
 
-/* El tema de highlight.js define su propio fondo; manda --mic-bg-code */
+/* Resaltado de la vista de lectura (`DEF-091`). highlight.js solo pone clases;
+   los colores salen de `--mic-syntax-*`, igual que en el modo vivo y en el
+   visor de archivos (`lib/editor/paletaSintaxis.ts`), con el mismo reparto:
+   un fragmento se ve igual en los tres sitios. Antes se importaba el tema
+   atom-one-dark, con colores claros fijos: en modo claro, sobre el fondo de
+   código claro, no se habrían leído. */
 .mic-preview pre code.hljs {
   background: transparent;
+  color: var(--mic-text-primary);
   padding: 0;
+}
+.mic-preview .hljs-comment,
+.mic-preview .hljs-quote {
+  color: var(--mic-syntax-comment);
+  font-style: italic;
+}
+.mic-preview .hljs-keyword,
+.mic-preview .hljs-built_in,
+.mic-preview .hljs-doctag,
+.mic-preview .hljs-selector-tag,
+.mic-preview .hljs-title,
+.mic-preview .hljs-section {
+  color: var(--mic-syntax-keyword);
+}
+.mic-preview .hljs-string,
+.mic-preview .hljs-regexp,
+.mic-preview .hljs-symbol {
+  color: var(--mic-syntax-string);
+}
+.mic-preview .hljs-number,
+.mic-preview .hljs-literal {
+  color: var(--mic-syntax-number);
+}
+.mic-preview .hljs-variable,
+.mic-preview .hljs-template-variable,
+.mic-preview .hljs-params {
+  color: var(--mic-syntax-variable);
+}
+.mic-preview .hljs-type,
+.mic-preview .hljs-name,
+.mic-preview .hljs-title.class_,
+.mic-preview .hljs-addition {
+  color: var(--mic-syntax-tag);
+}
+.mic-preview .hljs-attr,
+.mic-preview .hljs-attribute,
+.mic-preview .hljs-property {
+  color: var(--mic-syntax-property);
+}
+.mic-preview .hljs-selector-class {
+  color: var(--mic-syntax-class);
+}
+.mic-preview .hljs-selector-id,
+.mic-preview .hljs-deletion {
+  color: var(--mic-syntax-id);
+}
+.mic-preview .hljs-selector-pseudo {
+  color: var(--mic-syntax-pseudo);
+}
+.mic-preview .hljs-meta,
+.mic-preview .hljs-operator,
+.mic-preview .hljs-punctuation,
+.mic-preview .hljs-bullet {
+  color: var(--mic-text-muted);
+}
+.mic-preview .hljs-link {
+  color: var(--mic-accent);
+  text-decoration: underline;
+}
+.mic-preview .hljs-emphasis {
+  font-style: italic;
+}
+.mic-preview .hljs-strong {
+  font-weight: 700;
 }
 
 /* ── Callouts (HU-03 CA5/CA6) ────────────────────────────────────── */
@@ -913,7 +1029,7 @@
   font-weight: 600;
   font-family: var(--mic-font-sans);
   margin-bottom: 0.35rem;
-  color: var(--mic-callout-color, var(--mic-callout-note-border));
+  color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 
 .mic-preview .mic-callout-title::before {
@@ -1438,11 +1554,14 @@
   text-align: right;
 }
 
-/* Carril de los tiradores de fila: ancho fijo, sin borde (no es contenido). */
+/* Carril de los tiradores de fila: ancho fijo, sin borde ni fondo (no es
+   contenido). Sin el fondo transparente, en el encabezado —donde es un <th>—
+   tomaba el de `.mic-preview th` y se veía una celda vacía sombreada (DEF-093). */
 .mic-tab-tabla .mic-tab-lat {
   width: 1.4rem;
   padding: 0 0.1rem;
   border: none;
+  background: transparent;
   text-align: center;
 }
 

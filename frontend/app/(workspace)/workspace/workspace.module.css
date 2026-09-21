@@ -2,16 +2,53 @@
   display: grid;
   grid-template-areas:
     'topbar topbar topbar'
-    'rail left editor';
+    'rail left editor'
+    'estado estado estado';
+  /* El panel izquierdo usa el ancho que eligió el usuario MIENTRAS la nota
+     conserve --mic-editor-min-width. En una ventana angosta cede hasta su
+     mínimo en vez de dejar la nota en una columna de 340px; la preferencia
+     guardada no cambia, y al agrandar la ventana vuelve sola a su ancho.
+     Colapsado vale 0px y el min() lo deja en 0. */
   grid-template-columns:
     var(--mic-rail-width)
-    var(--mic-panel-left-width)
+    min(
+      var(--mic-panel-left-width),
+      max(
+        var(--mic-panel-min-width),
+        100vw - var(--mic-rail-width) - var(--mic-editor-min-width)
+      )
+    )
     1fr;
-  grid-template-rows: var(--mic-topbar-height) 1fr;
+  grid-template-rows: var(--mic-topbar-height) 1fr var(--mic-statusbar-height);
   height: 100vh;
   min-height: 0;
   overflow: hidden;
   background: var(--mic-bg-canvas);
+}
+
+/* «Saltar a la nota»: fuera de la vista hasta que recibe el foco con el
+   teclado; entonces aparece arriba a la izquierda, sobre la barra superior. */
+.saltar {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+  transform: translateY(calc(-100% - 1rem));
+}
+
+.saltar:focus-visible {
+  transform: none;
+}
+
+/* El <main> recibe el foco solo como destino del salto: no dibuja anillo. */
+.editorArea:focus {
+  outline: none;
 }
 
 .editorArea {

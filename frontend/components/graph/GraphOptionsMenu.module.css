@@ -139,7 +139,7 @@
 }
 
 .handle:focus-visible {
-  outline: 1px solid var(--mic-glow);
+  outline: 1px solid var(--mic-focus);
   outline-offset: 1px;
 }
 
@@ -243,6 +243,6 @@
   transform: translateX(16px);
 }
 .switch input:focus-visible + .switchTrack {
-  outline: 2px solid var(--mic-glow);
+  outline: 2px solid var(--mic-focus);
   outline-offset: 2px;
 }

@@ -1,0 +1,291 @@
+/* Ventana de Configuración (`FUN-M-32`): cuadro centrado con las categorías a
+   la izquierda. Lo único que flota además de la paleta, así que lleva velo y
+   sombra; el resto del sistema sigue siendo plano. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 45%, transparent);
+}
+
+.ventana {
+  display: flex;
+  flex-direction: column;
+  width: min(980px, 100%);
+  height: min(700px, 100%);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-canvas);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  overflow: hidden;
+  animation: aparecer 140ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ventana {
+    animation: none;
+  }
+}
+
+/* ── Cabecera: título, buscador y cerrar ───────────────────────── */
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 0.75rem 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  flex-shrink: 0;
+}
+
+.buscador {
+  flex: 1;
+  max-width: 320px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 30px;
+  padding: 0 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+}
+
+.buscador:focus-within {
+  border-color: color-mix(in srgb, var(--mic-focus) 60%, transparent);
+}
+
+.lupa {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.campoBusqueda {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.campoBusqueda::placeholder {
+  color: var(--mic-text-muted);
+}
+
+.cerrar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.cerrar:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+/* ── Cuerpo: categorías + panel ────────────────────────────────── */
+.cuerpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 216px 1fr;
+}
+
+.categorias {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.9rem 0.6rem;
+  overflow-y: auto;
+  background: var(--mic-bg-surface);
+  border-right: 1px solid var(--mic-border);
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.grupoTitulo {
+  margin: 0 0 0.3rem 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+/* La categoría elegida se marca con relleno, como las pestañas del editor. */
+.categoria {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--mic-text-muted);
+}
+
+.categoria:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.categoriaActiva {
+  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+/* ── Resultados de la búsqueda, en lugar de las categorías ─────── */
+.resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+}
+
+.resultado:hover {
+  background: var(--mic-bg-hover);
+}
+
+.resultadoAjuste {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.resultadoCategoria {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.sinResultados {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Panel de la categoría ─────────────────────────────────────── */
+.panel {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+.panelCabecera {
+  margin-bottom: 1.1rem;
+}
+
+.panelTitulo {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.panelDescripcion {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+/* ── Pie: la versión (y los siete clics del modo avanzado) ─────── */
+.pie {
+  flex-shrink: 0;
+  padding: 0.5rem;
+  border-top: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+  text-align: center;
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+  user-select: none;
+}
+
+.pieVersion {
+  font: inherit;
+  color: inherit;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.pieVersion:hover {
+  color: var(--mic-text-primary);
+}
+
+.pieVersion:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
+/* Ventana angosta: las categorías pasan a una tira arriba. */
+@media (max-width: 720px) {
+  .cuerpo {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .categorias {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    border-right: none;
+    border-bottom: 1px solid var(--mic-border);
+  }
+
+  .grupo {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  /* Las categorías pasan a ser fichas en fila; el nombre del grupo se queda,
+     ocupando el renglón entero, porque es lo que explica por qué esas fichas
+     están juntas. Antes se ocultaba y quedaban ocho fichas sueltas. */
+  .grupoTitulo {
+    flex-basis: 100%;
+    margin: 0.2rem 0 0 0.15rem;
+  }
+
+  .panel {
+    padding: 1rem 1rem 1.5rem;
+  }
+}

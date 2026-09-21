@@ -16,7 +16,7 @@
   min-width: 0;
 }
 
-/* Medidor oculto del ancho natural del grupo de formato (decide el colapso). */
+/* Medidores ocultos de los anchos naturales (deciden el colapso). */
 .measure {
   position: absolute;
   left: -9999px;
@@ -42,6 +42,8 @@
   display: flex;
   flex-direction: column;
   min-width: 210px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
   padding: 0.3rem;
   background: var(--mic-bg-canvas);
   border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
@@ -81,7 +83,7 @@
   background-color: color-mix(in srgb, var(--mic-accent) 18%, transparent);
 }
 
-/* Grupo derecho: dot de sync + buscar + exportar + modos, en fila. */
+/* Grupo derecho: buscar + panel de enlaces + «…» + modos, en fila. */
 .right {
   display: flex;
   align-items: center;
@@ -141,20 +143,56 @@
   color: var(--mic-text-primary);
 }
 
+/* «Formato ▾»: un botón con texto, no un ícono más; es el único punto de
+   entrada al formato (rediseño del cascarón). */
+.formatTrigger {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 28px;
+  padding: 0 0.4rem 0 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.formatTrigger:hover {
+  background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
 .spacer {
   flex: 1;
 }
 
+/* Modos como control segmentado: una pista y el activo como píldora que se
+   apoya en ella (formas del cascarón, 2026-09-19). */
 .modeGroup {
   display: flex;
-  gap: 0.15rem;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--mic-text-primary) 7%, transparent);
 }
 
-/* Modo activo (HU-02 CA8) */
+.modeGroup .modeButton {
+  border-radius: 7px;
+}
+
+/* Botón encendido fuera del grupo de modos (panel de enlaces, «Formato ▾»
+   abierto): relleno, sin borde. */
 .modeActive {
-  background: var(--mic-bg-surface);
-  border: 1px solid var(--mic-accent);
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
   color: var(--mic-text-primary);
+}
+
+/* Modo activo (HU-02 CA8): la píldora del control segmentado. */
+.modeGroup .modeActive {
+  background: var(--mic-bg-canvas);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--mic-raw-base-deep) 30%, transparent);
+  color: var(--mic-glow-texto);
 }
 
 .relative {
@@ -207,44 +245,6 @@
   color: var(--mic-text-muted);
 }
 
-/* Dot de estado de sync (HU-04 CA3) */
-.syncDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin: 0 0.5rem;
-  flex-shrink: 0;
-}
-
-.sync_local {
-  background: var(--mic-text-muted);
-}
-
-.sync_syncing {
-  background: var(--mic-glow);
-  animation: mic-pulse 1.2s ease-in-out infinite;
-}
-
-.sync_synced {
-  background: var(--mic-sync-ok);
-}
-
-.sync_offline,
-.sync_error {
-  background: var(--mic-sync-warn);
-}
-
-@keyframes mic-pulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.4;
-    transform: scale(1.6);
-  }
-}
-
 /* En pantallas chicas solo live y read (HU-02 CA12) */
 @media (max-width: 767px) {
   .modeButton[data-mode='split'],
@@ -252,3 +252,4 @@
     display: none;
   }
 }
+

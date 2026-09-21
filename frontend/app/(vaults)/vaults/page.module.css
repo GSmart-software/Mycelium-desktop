@@ -1,3 +1,20 @@
+/* Franja de la ventana (`FUN-M-31`): arrastra y trae los controles. Va sobre
+   el contenido, sin ocupar alto propio, porque el selector está centrado y no
+   hay nada arriba con lo que chocar. */
+.barraVentana {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  z-index: 50;
+  --mic-marco-texto: var(--mic-text-muted);
+  --mic-marco-glow: var(--mic-glow-texto);
+}
+
 .main {
   min-height: 100vh;
   display: grid;
@@ -171,7 +188,7 @@
   border-radius: var(--mic-radius-md);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
   border: 1px solid color-mix(in srgb, var(--mic-glow) 40%, transparent);
 }
 

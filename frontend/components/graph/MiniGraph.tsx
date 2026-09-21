@@ -313,6 +313,32 @@ export function MiniGraph({
     };
     wakeRef.current = wake; // permite despertar el bucle al cambiar las opciones
 
+    // Movimiento reducido: el flujo animado de las aristas es un bucle infinito
+    // que no se detiene nunca. Con la preferencia del sistema activa se dibuja
+    // como FLECHA —conserva la dirección, que es lo que el flujo comunica— y el
+    // bucle se detiene. Se escucha en vivo: cambiarla en Windows alcanza.
+    const movimiento = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reducido = movimiento.matches;
+    const alCambiarMovimiento = () => {
+      reducido = movimiento.matches;
+      wake();
+    };
+    movimiento.addEventListener("change", alCambiarMovimiento);
+
+    // Un grafo que no se ve no anima: el mini-grafo del panel lateral queda
+    // montado aunque su pestaña esté oculta, y con el flujo animado (que viene
+    // por defecto) redibujaba a 60 fps sin que nadie lo mirara. La simulación
+    // sí sigue hasta asentarse, para que al volver el grafo esté quieto.
+    let visible = true;
+    // Las entradas llegan en lote y en orden: la vigente es la ÚLTIMA. Al montar
+    // suelen venir dos —«oculto» cuando el lienzo aún mide 0, y «visible» tras
+    // dimensionarlo— y quedarse con la primera dejaba el flujo detenido.
+    const observador = new IntersectionObserver((entradas) => {
+      visible = entradas[entradas.length - 1].isIntersecting;
+      if (visible) wake();
+    });
+    observador.observe(canvas);
+
     const resize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
@@ -494,10 +520,10 @@ export function MiniGraph({
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
       // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
       const dir = edgeDirectionRef.current;
-      const showFlow = dir === "animated" || dir === "both";
-      const showArrow = dir === "arrow" || dir === "both";
+      const showFlow = !reducido && (dir === "animated" || dir === "both");
+      const showArrow = dir === "arrow" || dir === "both" || (reducido && dir === "animated");
       const glow = hoverGlowRef.current;
-      const flowOffset = -((performance.now() / 1000) * 30) / scale;
+      const flowOffset = showFlow ? -((performance.now() / 1000) * 30) / scale : 0;
       for (const e of simEdges) {
         if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
         // Culling: descartar la arista si su caja envolvente no toca la vista.
@@ -646,9 +672,12 @@ export function MiniGraph({
       // Flujo animado en los enlaces → mantener el redibujo aunque la simulación
       // esté en reposo (en ese caso solo se dibuja, sin simular).
       const d = edgeDirectionRef.current;
-      const animating = d === "animated" || d === "both";
+      const animating = !reducido && visible && (d === "animated" || d === "both");
       if (active) simulate();
-      draw();
+      // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
+      // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
+      // verse, el observador lo despierta y el primer frame ya lo pinta.
+      if (visible) draw();
       // Si no hay nada activo ni animándose, se detiene (sin rAF) hasta que algo
       // lo despierte con wake().
       if (active || animating) frame = requestAnimationFrame(tick);
@@ -658,6 +687,8 @@ export function MiniGraph({
 
     return () => {
       running = false;
+      movimiento.removeEventListener("change", alCambiarMovimiento);
+      observador.disconnect();
       if (wakeRef.current === wake) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)

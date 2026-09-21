@@ -145,6 +145,10 @@ pub async fn abrir_vault_en_ventana(
     let destino = format!("{pagina}?vault={}", urlencode(&ruta));
     WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(destino.into()))
         .title("Mycelium")
+        // Sin la barra del sistema: el marco lo dibuja la app (FUN-M-31). La
+        // sombra se mantiene para que la ventana siga despegada del fondo.
+        .decorations(false)
+        .shadow(true)
         .inner_size(1280.0, 800.0)
         .min_inner_size(640.0, 480.0)
         .build()
@@ -203,6 +207,8 @@ pub fn abrir_ventana_de_seleccion(app: &AppHandle) {
         let pagina = if tauri::is_dev() { "/vaults" } else { "vaults.html" };
         let _ = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(pagina.into()))
             .title("Mycelium")
+            .decorations(false)
+            .shadow(true)
             .inner_size(1280.0, 800.0)
             .min_inner_size(640.0, 480.0)
             .build();

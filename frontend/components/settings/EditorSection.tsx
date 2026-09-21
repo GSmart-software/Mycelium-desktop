@@ -1,6 +1,5 @@
 "use client";
 
-import { Check, X } from "lucide-react";
 import {
   anchoTabValido,
   TAB_DEFECTO,
@@ -9,6 +8,7 @@ import {
   usePreferencesStore,
 } from "@/stores/preferencesStore";
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
+import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
 /** Sección Editor: comportamiento de las pestañas. */
@@ -64,54 +64,33 @@ export function EditorSection() {
         reindentar el documento.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Pestañas de previsualización</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setPref("previewTabs", !previewTabs)}
-          aria-pressed={previewTabs}
-        >
-          {previewTabs ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {previewTabs ? "Activado" : "Desactivado"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Pestañas de previsualización"
+        valor={previewTabs}
+        onChange={(v) => setPref("previewTabs", v)}
+      />
       <p className={styles.hint}>
         Al abrir un archivo que solo estás viendo (sin editarlo), reemplaza esa
         pestaña en vez de abrir una nueva. La pestaña se fija al editarla o con
         doble clic. Desactivá esta opción para abrir siempre una pestaña nueva.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Ícono del tipo en las pestañas</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setPref("iconosEnPestanas", !iconosEnPestanas)}
-          aria-pressed={iconosEnPestanas}
-        >
-          {iconosEnPestanas ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {iconosEnPestanas ? "Activado" : "Desactivado"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Ícono del tipo en las pestañas"
+        valor={iconosEnPestanas}
+        onChange={(v) => setPref("iconosEnPestanas", v)}
+      />
       <p className={styles.hint}>
         Junto al nombre, el ícono del tipo de documento: nota, dibujo, lienzo,
         tabla, consola o un archivo que Mycelium no indexa. Apagalo si preferís
         que el título ocupe todo el ancho de la pestaña.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Autocerrar pares</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setPref("autoCloseBrackets", !autoCloseBrackets)}
-          aria-pressed={autoCloseBrackets}
-        >
-          {autoCloseBrackets ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {autoCloseBrackets ? "Activado" : "Desactivado"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Autocerrar pares"
+        valor={autoCloseBrackets}
+        onChange={(v) => setPref("autoCloseBrackets", v)}
+      />
       <p className={styles.hint}>
         Al escribir <code>(</code>, <code>[</code>, <code>{"{"}</code>, <code>&quot;</code>,{" "}
         <code>&apos;</code>, <code>`</code>, <code>*</code> o <code>_</code> se inserta también
@@ -119,19 +98,12 @@ export function EditorSection() {
         reemplazarlo. Desactivá esta opción para escribir los símbolos tal cual.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Números de línea</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          disabled={!hayVault}
-          onClick={() => setPrefVault("numerosDeLinea", !numerosDeLinea)}
-          aria-pressed={numerosDeLinea}
-        >
-          {numerosDeLinea ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {numerosDeLinea ? "Activado" : "Desactivado"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Números de línea"
+        valor={numerosDeLinea}
+        disabled={!hayVault}
+        onChange={(v) => setPrefVault("numerosDeLinea", v)}
+      />
       <p className={styles.hint}>
         Muestra el número de cada línea al costado del texto, como en el visor de
         archivos de código. Desactivado por defecto.{" "}
@@ -147,21 +119,14 @@ export function EditorSection() {
         cada una sin inventarlo.
       </p>
 
-      <div className={styles.toggleRow}>
-        <span className={styles.label}>Mostrar título del archivo</span>
-        <button
-          type="button"
-          className={styles.toggle}
-          onClick={() => setPref("showFileTitle", !showFileTitle)}
-          aria-pressed={showFileTitle}
-        >
-          {showFileTitle ? <Check size={15} aria-hidden /> : <X size={15} aria-hidden />}
-          {showFileTitle ? "Activado" : "Desactivado"}
-        </button>
-      </div>
+      <Interruptor
+        etiqueta="Mostrar título del archivo"
+        valor={showFileTitle}
+        onChange={(v) => setPref("showFileTitle", v)}
+      />
       <p className={styles.hint}>
-        Muestra el nombre del archivo como título centrado en la parte superior
-        de todas las vistas. No es un encabezado <code>#</code> del documento.
+        Muestra el nombre del archivo como título en la parte superior de todas
+        las vistas. No es un encabezado <code>#</code> del documento.
         Desactivá esta opción para ocultarlo.
       </p>
     </div>

@@ -1,8 +1,12 @@
+/* Un ajuste: rótulo arriba, control abajo. El ancho se acota aunque la ventana
+   sea grande —un desplegable de 700px no se lee mejor que uno de 380— y las
+   explicaciones se quedan en medida de lectura. */
 .field {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
+  max-width: 420px;
 }
 
 .label {
@@ -95,8 +99,11 @@
 }
 
 /* ── Swatches de tema (HU-12 CA10) ──────────────────────────────── */
+/* Las muestras no crecen con la ventana: a partir de cierto tamaño dejan de
+   informar y solo ocupan. */
 .swatchGroup {
   display: flex;
+  max-width: 460px;
   gap: 0.6rem;
 }
 
@@ -136,36 +143,115 @@
   color: var(--mic-text-primary);
 }
 
+/* ── Atmósferas: una muestra en miniatura de la ventana ─────────────
+   La muestra lleva los atributos de su combinación, así que las reglas de
+   tokens.css (raw del tema y del modo) y atmosferas.css (semánticos) valen en
+   ella. Abisal no tiene reglas en atmosferas.css y el semántico de :root se
+   hereda ya calculado con el modo de la app: por eso acá se reponen sus
+   valores desde los raw, que sí se recalculan en la muestra. */
+.atmosferas {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 620px;
+  gap: 0.6rem;
+}
+
+.muestra {
+  --mic-bg-sidebar: var(--mic-raw-base);
+  --mic-bg-surface: var(--mic-raw-mist);
+  --mic-bg-canvas: var(--mic-raw-canvas);
+  --mic-text-primary: var(--mic-raw-ink);
+  --mic-text-muted: var(--mic-raw-ink-muted);
+  --mic-accent: var(--mic-raw-accent);
+  --mic-glow: var(--mic-raw-glow);
+  --mic-h1: color-mix(in srgb, var(--mic-accent) 88%, var(--mic-text-primary));
+  display: grid;
+  grid-template-columns: 22% 1fr;
+  grid-template-rows: 9px 1fr;
+  height: 52px;
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+}
+
+.muestraMarco {
+  grid-column: 1 / -1;
+  background: var(--mic-bg-sidebar);
+}
+
+.muestraPanel {
+  background: var(--mic-bg-surface);
+  box-shadow: inset 5px 0 0 var(--mic-bg-sidebar);
+}
+
+.muestraLienzo {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 10px;
+  background: var(--mic-bg-canvas);
+}
+
+.muestraTitulo,
+.muestraTexto,
+.muestraEnlace {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.muestraTitulo {
+  width: 55%;
+  height: 6px;
+  background: var(--mic-h1);
+}
+
+.muestraTexto {
+  width: 85%;
+  background: color-mix(in srgb, var(--mic-text-primary) 55%, transparent);
+}
+
+.muestraEnlace {
+  width: 40%;
+  background: var(--mic-accent);
+}
+
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
+/* Interruptor: el rótulo a la izquierda y el control a la derecha, a la misma
+   distancia siempre, para que la columna de controles se lea de un vistazo. */
 .toggleRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
+  max-width: 560px;
+  min-height: 34px;
+  /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
+     uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
+  margin-top: 1.2rem;
 }
 
-.toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.7rem;
-  border: 1px solid var(--mic-border);
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  color: var(--mic-text-primary);
+/* El primero de la sección no necesita ese aire. */
+.toggleRow:first-child {
+  margin-top: 0;
 }
 
-.toggle:hover {
-  background: var(--mic-bg-hover);
+/* En Apariencia, debajo del modo vienen las atmósferas: aire antes del rótulo. */
+.filaModo {
+  margin-bottom: 0.9rem;
 }
+
 
 .hint {
-  margin-top: 0.5rem;
+  max-width: 62ch;
+  margin-top: 0.35rem;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--mic-text-muted);
 }
 
 .warn {
+  max-width: 62ch;
   margin-top: 0.5rem;
   font-size: 0.75rem;
   line-height: 1.45;
@@ -185,6 +271,9 @@
   gap: 0.35rem;
   margin-top: 0.6rem;
   list-style: none;
+  /* El mismo tope que un ajuste: estas filas se estiraban a los ~700px del
+     panel mientras todo lo demás se medía (crítica de Configuración). */
+  max-width: 560px;
 }
 
 .snippetRow {
@@ -214,7 +303,7 @@
 }
 
 .snippetName:hover {
-  color: var(--mic-glow);
+  color: var(--mic-glow-texto);
 }
 
 /* Input de renombrado inline del snippet */
@@ -295,6 +384,13 @@
 }
 
 .switch input:focus-visible + .switchTrack {
-  outline: 2px solid var(--mic-glow);
+  outline: 2px solid var(--mic-focus);
   outline-offset: 2px;
+}
+
+/* Un ajuste que todavía no se puede tocar (no hay vault donde guardarlo, o
+   depende de otro que está apagado) se ve apagado y no invita al clic. */
+.switch:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
 }

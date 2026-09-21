@@ -90,7 +90,7 @@ export function UpdaterSection() {
 
   if (!estado) {
     return (
-      <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+      <p className={styles.hint}>
         Cargando el estado de las actualizaciones…
       </p>
     );
@@ -112,7 +112,7 @@ export function UpdaterSection() {
       {estado.versionFijada && (
         <div className={styles.field}>
           <span className={styles.label}>Versión fijada</span>
-          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <p className={styles.hint}>
             Elegiste instalar la <strong>{estado.versionFijada}</strong> a mano, así que
             Mycelium <strong>dejó de ofrecerte actualizaciones</strong>. Volvé a seguirlas
             cuando termines de investigar lo que fueras a investigar.
@@ -145,7 +145,7 @@ export function UpdaterSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Una vez al día, en el primer arranque de la jornada, y en segundo plano: la app
           abre igual aunque no haya conexión y nunca se actualiza sola. Desactivalo y
           Mycelium no hará <strong>ninguna</strong> petición de red al arrancar; el botón de
@@ -198,7 +198,7 @@ export function UpdaterSection() {
                 }
               }}
             />
-            <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+            <p className={styles.hint}>
               URL del <code>latest.json</code>. Vacío = el compilado en esta versión
               (<code>{estado.endpointDefecto}</code>). Sirve para probar contra un bucket de
               pruebas sin tocar el de producción, y para el día que haya que cambiar la URL
@@ -213,7 +213,7 @@ export function UpdaterSection() {
 
           <div className={styles.field}>
             <span className={styles.label}>Versiones publicadas</span>
-            <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+            <p className={styles.hint}>
               Herramienta de desarrollo: instalar cualquier versión publicada, incluida una
               anterior a la actual —para revisar cómo se comportaba algo, o para volver
               atrás si una versión sale mal—. Elegir una <strong>fija</strong> la app en
@@ -235,7 +235,7 @@ export function UpdaterSection() {
               </p>
             )}
             {versiones !== null && versiones.length === 0 && (
-              <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+              <p className={styles.hint}>
                 El índice está vacío: no hay ninguna versión publicada.
               </p>
             )}

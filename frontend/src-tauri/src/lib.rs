@@ -5,6 +5,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod actualizador;
 mod archivos;
+mod marco;
 mod mycignore;
 mod prefs_vault;
 mod terminal;
@@ -190,6 +191,8 @@ pub fn run() {
             archivos::escribir_archivo_visor,
             archivos::listar_directorios,
             archivos::carpeta_no_vacia,
+            marco::marco_zona_maximizar,
+            marco::marco_olvidar_zona,
             ventanas::registrar_vault,
             ventanas::soltar_vault,
             ventanas::abrir_vault_en_ventana,

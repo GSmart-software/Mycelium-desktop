@@ -21,6 +21,14 @@
   --mic-bg-hover:  color-mix(in srgb, var(--mic-glow) 14%, transparent);
   --mic-border:    color-mix(in srgb, var(--mic-raw-ink) 16%, transparent);
 
+  /* Fondo de las consolas integradas. Es un valor propio y no un token de
+     superficie: la consola es su propia hoja —como un bloque de código—, igual
+     en los dos temas y en las cuatro atmósferas. Elegido por el usuario el
+     2026-09-19 probándolo en la app. Lo usan el CSS de la vista y el tema del
+     xterm (lib/terminal.ts), así que el relleno alrededor del grid y las celdas
+     son exactamente el mismo color. */
+  --mic-terminal-bg: #EFEFE8;
+
   /* Colores de consola (`FUN-S-12`): la marca con la que se distingue una
      terminal de otra en su pestaña.
 
@@ -75,11 +83,77 @@
   --mic-h6: var(--mic-text-muted);
 }
 
+/* En claro, el H2 (Brote 70%) quedaba a 3.6:1: mide 22px en peso 600, que
+   para WCAG no es «texto grande» (pide 24px, o 18.7px en 700) y necesita
+   4.5:1. Medido 2026-09-19 en la lectura de los dos temas claros. Con la mitad
+   de tinta pasa a 5.1:1 sobre el lienzo y 4.7:1 sobre Niebla (vista lateral),
+   y sigue un paso más de color que el H4 (44%). En oscuro no cambia. */
+:root:not([data-dark='true']) {
+  --mic-h2: color-mix(in srgb, var(--mic-glow) 50%, var(--mic-text-primary));
+}
+
+/* ── Brote por rol ─────────────────────────────────────────────────
+   El glow se diseñó para brillar sobre oscuro. En modo claro, usado tal cual
+   como texto, foco o ícono no llega al mínimo de contraste en ningún lado
+   (medido 2026-09-19, docs/design/Auditoria de UI 2026-09-19.md): un #tag a
+   1.95:1, el anillo de foco a 2.2:1. Por eso no se usa en crudo como color de
+   primer plano: cada uso pide su ROL, y el rol decide cómo se ve en cada modo.
+
+   En oscuro, texto, foco y marco valen exactamente lo de siempre; solo el
+   modo claro los recalibra. Los porcentajes están medidos en los cuatro combos
+   y son el mínimo que pasa con margen:
+   - texto  → ≥4.5:1 sobre lienzo, niebla y el tinte de Brote al 15% (píldoras)
+   - foco   → ≥3:1 sobre lienzo y niebla (WCAG 1.4.11)
+   - marco  → sobre Esporo, que en claro SIGUE siendo oscuro: ahí el glow tiene
+              que aclararse, no oscurecerse. Se mezcla con Niebla y no con
+              blanco, para no salir de la familia de color del tema.
+   - título de callout → el color del tipo mezclado con la tinta. Es el único
+              que cambia también en oscuro (85%): los tipos rojos —caution,
+              error, danger— daban 4.1-4.5:1 sobre el lienzo oscuro. */
+:root {
+  --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
+  --mic-enlace:         var(--mic-accent);   /* enlaces en el texto de una nota */
+  --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
+  --mic-marca:          var(--mic-accent);   /* «es este»: lo que señala algo sin enfocarlo */
+  --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
+  --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
+  --mic-marco-inactivo: 0.55;                /* opacidad de un ícono del marco en reposo */
+  --mic-marco-texto:    var(--mic-text-muted); /* texto neutro sobre el marco (barra de estado) */
+  --mic-callout-tinta:  85%;                 /* cuánto color propio lleva el título de un callout */
+}
+
+:root:not([data-dark='true']) {
+  --mic-glow-texto:     color-mix(in srgb, var(--mic-glow) 45%, var(--mic-text-primary));
+  /* `DEF-095`: Hifa en crudo pasa sobre el lienzo pero no sobre el fondo teñido
+     de un callout (4.35:1 medido). Mezclada con la tinta, como los títulos,
+     pasa en los dos y sigue leyéndose como enlace. */
+  --mic-enlace:         color-mix(in srgb, var(--mic-accent) 72%, var(--mic-text-primary));
+  --mic-focus:          var(--mic-accent);
+  --mic-marco-glow:     color-mix(in srgb, var(--mic-raw-glow) 60%, var(--mic-raw-mist));
+  --mic-marco-acento:   color-mix(in srgb, var(--mic-raw-glow) 80%, var(--mic-raw-mist));
+  --mic-marco-inactivo: 0.7;
+  /* El gris del texto está pensado para el lienzo claro; sobre el marco, que
+     sigue oscuro, no se leía. Niebla mezclada con el marco: 5.8-6.5:1. */
+  --mic-marco-texto:    color-mix(in srgb, var(--mic-raw-mist) 78%, var(--mic-bg-sidebar));
+  --mic-callout-tinta:  50%;
+}
+
+/* ── Fondo del código en modo claro (`DEF-091`) ──────────────────────
+   En claro el código es un fragmento CLARO: un tinte de la tinta sobre el
+   lienzo. Antes usaba Esporo profundo, que es oscuro también en claro, y
+   encima se escribía con la tinta (oscura): el código en línea quedaba a 1:1,
+   y los bloques del modo vivo pintaban la paleta de sintaxis clara —pensada
+   para fondo claro— sobre fondo oscuro. Ahora cada paleta está sobre el fondo
+   para el que se diseñó. En oscuro no cambia nada. */
+:root:not([data-dark='true']) {
+  --mic-bg-code: color-mix(in srgb, var(--mic-raw-ink) 7%, var(--mic-raw-canvas));
+}
+
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
    Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {
   --mic-raw-base:       #0C4A57;   /* rail / topbar / sidebar */
-  --mic-raw-base-deep:  #08323D;   /* bloques de código */
+  --mic-raw-base-deep:  #08323D;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
   --mic-raw-accent:     #0E7C8C;   /* botones y enlaces (teal legible) */
   --mic-raw-glow:       #16B8C9;   /* highlights, cursor, tags (cian) */
   --mic-raw-mist:       #E3EEF1;   /* paneles laterales */
@@ -94,7 +168,7 @@
    Chrome oscuro marrón + contenido claro cálido + acentos ámbar. */
 [data-theme='cantarela'] {
   --mic-raw-base:       #5A3408;   /* rail / topbar / sidebar */
-  --mic-raw-base-deep:  #3E2405;   /* bloques de código */
+  --mic-raw-base-deep:  #3E2405;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
   --mic-raw-accent:     #9A6212;   /* botones y enlaces (ámbar-marrón) */
   --mic-raw-glow:       #D99A1F;   /* highlights, cursor, tags (dorado) */
   --mic-raw-mist:       #FAF0DC;   /* paneles laterales */
@@ -112,6 +186,7 @@
    oscuro sale con la lista en blanco. */
 [data-dark='true'] {
   color-scheme: dark;
+  --mic-terminal-bg: #141719;
 }
 
 /* Bioluminiscencia oscuro = paleta abisal del prototipo legacy:
@@ -167,19 +242,21 @@
   --mic-syntax-keyword:  #6fb8ff;  /* @media, !important, keywords */
 }
 
-/* Variantes para fondo claro (modo claro = sin data-dark) */
+/* Variantes para fondo claro (modo claro = sin data-dark). Calibradas el
+   2026-09-19 (`DEF-091`) para dar >=4.5:1 sobre el fondo de código claro, Niebla
+   y el lienzo de los dos temas: seis colores quedaban entre 3.3 y 4.4. */
 :root:not([data-dark='true']) {
-  --mic-syntax-comment:  #3f7a4f;
-  --mic-syntax-property: #0e7c8c;
-  --mic-syntax-variable: #1d6fa5;
-  --mic-syntax-class:    #9a6212;
-  --mic-syntax-id:       #b5326b;
+  --mic-syntax-comment:  #3a7049;
+  --mic-syntax-property: #0c6d7b;
+  --mic-syntax-variable: #1b689b;
+  --mic-syntax-class:    #8b5810;
+  --mic-syntax-id:       #b13169;
   --mic-syntax-pseudo:   #7a3fb0;
-  --mic-syntax-tag:      #1f8f5f;
-  --mic-syntax-string:   #a85a1e;
+  --mic-syntax-tag:      #19724c;
+  --mic-syntax-string:   #97511b;
   --mic-syntax-number:   #7a32a8;
   --mic-syntax-value:    #6b5a1e;
-  --mic-syntax-color:    #2a6f8c;
+  --mic-syntax-color:    #286b86;
   --mic-syntax-keyword:  #1565b0;
 }
 
@@ -221,6 +298,12 @@
   /* Shell del workspace */
   --mic-topbar-height:  52px;
   --mic-toolbar-height: 40px;   /* barra de herramientas del editor */
+  --mic-statusbar-height: 24px; /* barra de estado al pie del workspace */
+  /* Medida de la nota, igual en vivo y en lectura. En rem y no en ch: el ch de
+     la mono del editor es más ancho que el de la serif de lectura, y con 72ch
+     la hoja cambiaba de ancho al cambiar de modo. 42rem ≈ 80 caracteres de
+     serif, ≈ 70 de mono. */
+  --mic-ancho-lectura: 42rem;
   --mic-rail-width:     56px;
   --mic-icon-size:      20px;   /* íconos Lucide dentro del rail */
   /* Aire bajo el contenido (`DEF-048`). Sin esto todo queda pegado al límite de
@@ -236,6 +319,10 @@
   --mic-panel-min-width:    160px;
   --mic-panel-max-width:    480px;
   --mic-panel-transition:   160ms ease;
+  /* Lo mínimo que se le deja a la nota en una ventana angosta: por debajo de
+     eso el panel izquierdo cede ancho (ver workspace.module.css). 420px es una
+     línea de ~50 caracteres a 16px, lo justo para leer sin cortar cada frase. */
+  --mic-editor-min-width:   420px;
 
   /* Animaciones */
   --mic-note-swap: 160ms ease;      /* transición de swap de contenido de nota (HU-20) */

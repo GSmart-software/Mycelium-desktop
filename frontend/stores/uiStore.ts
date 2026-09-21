@@ -9,10 +9,14 @@ type UiState = {
   shareTarget: { id: string; nombre: string } | null;
   /** Renderizar tablas en la edición en vivo (toggle del menú "…"). */
   liveTables: boolean;
+  /** Paleta de la barra superior: ir a una nota (Ctrl+O) o ejecutar un comando
+   *  (Ctrl+P). `null` = cerrada. */
+  paleta: "notas" | "comandos" | null;
   setSettingsOpen: (open: boolean) => void;
   setSearchInNoteOpen: (open: boolean) => void;
   setShareTarget: (target: { id: string; nombre: string } | null) => void;
   setLiveTables: (on: boolean) => void;
+  setPaleta: (modo: "notas" | "comandos" | null) => void;
 };
 
 const initialLiveTables =
@@ -23,6 +27,7 @@ export const useUiStore = create<UiState>((set) => ({
   searchInNoteOpen: false,
   shareTarget: null,
   liveTables: initialLiveTables,
+  paleta: null,
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSearchInNoteOpen: (open) => set({ searchInNoteOpen: open }),
   setShareTarget: (target) => set({ shareTarget: target }),
@@ -30,4 +35,5 @@ export const useUiStore = create<UiState>((set) => ({
     if (typeof window !== "undefined") localStorage.setItem("mic-live-tables", on ? "1" : "0");
     set({ liveTables: on });
   },
+  setPaleta: (modo) => set({ paleta: modo }),
 }));

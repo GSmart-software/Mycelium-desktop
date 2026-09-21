@@ -10,6 +10,8 @@ import {
 } from "@/lib/ia/framework";
 import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
+import { avisar } from "@/stores/avisosStore";
+import { useBorradoresStore } from "@/stores/borradoresStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -42,14 +44,32 @@ export function VaultSection() {
   const setProgreso = useExportStore((s) => s.setProgreso);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Lo que terminó bien se cuenta con un aviso flotante y no solo con el
+   * párrafo del final del panel: exportar deja el resultado a ~900px de scroll
+   * del botón que lo disparó (crítica de Configuración, 2026-09-20). El error
+   * se queda ADEMÁS en el panel, porque conviene poder releerlo.
+   */
+  const informar = (texto: string) => {
+    setMensaje(texto);
+    avisar(texto);
+  };
+  const fallar = (texto: string) => {
+    setError(texto);
+    avisar(texto);
+  };
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   const zipRef = useRef<HTMLInputElement>(null);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
-  // .mycignore por vault (FUN-M-11): null = editor cerrado.
-  const [ignoreTexto, setIgnoreTexto] = useState<string | null>(null);
+  // .mycignore por vault (FUN-M-11): null = editor cerrado. El texto vive en un
+  // store y no en estado local (`FUN-M-34`): el panel se remonta al cambiar de
+  // categoría, y con estado local el borrador moría por ir a mirar otra cosa.
+  const ignoreTexto = useBorradoresStore((s) => s.mycignore);
+  const setMycignore = useBorradoresStore((s) => s.setMycignore);
   const [guardandoIgnore, setGuardandoIgnore] = useState(false);
   // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
   // de validación, que se confirma al salir del campo.
@@ -68,6 +88,21 @@ export function VaultSection() {
     setEsporasBorrador(carpetaEsporasPref);
     setEsporasError(null);
   }
+
+  /**
+   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
+   * del campo puede ser el mismo clic que cambia de categoría: la sección se
+   * desmontaba con el error recién puesto y el usuario nunca lo veía
+   * (crítica de Configuración, 2026-09-20).
+   */
+  const escribirCarpetaEsporas = (valor: string) => {
+    setEsporasBorrador(valor);
+    setEsporasError(
+      normalizarCarpetaEsporas(valor) === null
+        ? "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..»."
+        : null,
+    );
+  };
 
   /** Confirma la carpeta de Esporas: si la ruta no es válida, no se guarda. */
   const confirmarCarpetaEsporas = () => {
@@ -102,11 +137,11 @@ export function VaultSection() {
       const conflictos = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
       if (conflictos.length === 0) {
-        setMensaje(
+        informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
         );
       } else {
-        setMensaje(
+        informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas. ⚠ ${conflictos.length} archivo(s) ` +
             `ya existían y NO se tocaron — la versión nueva se creó al lado: ` +
             conflictos.map((c) => c.generado).join(" · ") +
@@ -114,7 +149,7 @@ export function VaultSection() {
         );
       }
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setGenerandoIa(false);
     }
@@ -161,9 +196,9 @@ export function VaultSection() {
       const escritos = await exportVaultACarpeta(destino, (done, total) =>
         setProgreso({ done, total, titulo: T_CARPETA }),
       );
-      setMensaje(`Se escribieron ${escritos} archivos en ${destino}`);
+      informar(`Se escribieron ${escritos} archivos en ${destino}`);
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setProgreso(null);
     }
@@ -193,7 +228,7 @@ export function VaultSection() {
       vaultRuta: rutaVault,
       rutaRel: ".mycignore",
     });
-    setIgnoreTexto(actual ?? IGNORE_DEFAULT);
+    setMycignore(actual ?? IGNORE_DEFAULT, false);
   };
 
   const guardarIgnore = async () => {
@@ -213,10 +248,10 @@ export function VaultSection() {
       await indexarVault(rutaVault);
       const vaultId = useVaultStore.getState().vaultId;
       if (vaultId) await useVaultStore.getState().loadTree(vaultId);
-      setIgnoreTexto(null);
-      setMensaje(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
+      setMycignore(null);
+      informar(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     } finally {
       setGuardandoIgnore(false);
     }
@@ -235,7 +270,7 @@ export function VaultSection() {
       }
       await useImportStore.getState().run(archivos, activeFolder(), "Vault de Obsidian");
     } catch (e) {
-      setError((e as Error).message ?? String(e));
+      fallar((e as Error).message ?? String(e));
     }
   };
 
@@ -257,7 +292,7 @@ export function VaultSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Al abrir Mycelium se reabre automáticamente el último vault que usaste. Si
           está desactivado, se muestra el selector de vaults para elegir.
         </p>
@@ -274,17 +309,20 @@ export function VaultSection() {
           value={esporasBorrador}
           spellCheck={false}
           placeholder={CARPETA_ESPORAS_DEFECTO}
-          onChange={(e) => setEsporasBorrador(e.target.value)}
+          onChange={(e) => escribirCarpetaEsporas(e.target.value)}
           onBlur={confirmarCarpetaEsporas}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") {
+              // Escape acá deshace lo tecleado y NO cierra la ventana: sin
+              // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
+              e.stopPropagation();
               setEsporasBorrador(carpetaEsporasPref);
               setEsporasError(null);
             }
           }}
         />
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Las notas de esta carpeta son <strong>Esporas</strong>: plantillas para crear notas
           ya con su estructura, o para insertar una estructura en una nota que ya existe.
           Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
@@ -306,7 +344,7 @@ export function VaultSection() {
           sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
       <div className={styles.field}>
         <span className={styles.label}>Referencias del vault</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Si adoptaste Mycelium sobre un proyecto que ya tenías, es probable que tus
           documentos se referencien entre sí desde siempre —con <code>`HU-009`</code> o
           con el nombre suelto— pero con una notación que Mycelium no reconoce, así que el
@@ -330,7 +368,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Exportar</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Exportá todas las notas preservando la estructura de carpetas: a una carpeta
           real del equipo (útil para git o Dropbox) o a un ZIP para compartir.
         </p>
@@ -360,7 +398,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Importar vault de Obsidian</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Importá una carpeta del equipo o un .zip. Se preserva la estructura, se ignora
           <code> .obsidian/</code> y los conflictos se resuelven uno a uno.
         </p>
@@ -401,7 +439,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Asistente IA (Claude Code)</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Genera en el vault las instrucciones para asistentes de IA por terminal
           (<code>CLAUDE.md</code> + skill + comandos en <code>.claude/</code>): le
           enseñan a navegar tus notas con los vínculos <code>[[...]]</code>, la
@@ -433,7 +471,7 @@ export function VaultSection() {
             </button>
           </div>
         ) : (
-          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <p className={styles.hint}>
             Disponible solo con un vault en carpeta (los archivos se escriben en disco).
           </p>
         )}
@@ -441,7 +479,7 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Archivos ignorados (.mycignore)</span>
-        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+        <p className={styles.hint}>
           Como un <code>.gitignore</code>, propio de cada vault: decide qué carpetas y
           archivos NO se indexan ni aparecen. Por defecto se ignoran los directorios
           ocultos (<code>.*/</code>) y las carpetas de dependencias y compilación
@@ -465,7 +503,7 @@ export function VaultSection() {
             <>
               <textarea
                 value={ignoreTexto}
-                onChange={(e) => setIgnoreTexto(e.target.value)}
+                onChange={(e) => setMycignore(e.target.value, true)}
                 rows={8}
                 spellCheck={false}
                 style={{
@@ -493,7 +531,7 @@ export function VaultSection() {
                   type="button"
                   className={styles.secondaryBtn}
                   disabled={guardandoIgnore}
-                  onClick={() => setIgnoreTexto(null)}
+                  onClick={() => setMycignore(null)}
                 >
                   Cancelar
                 </button>
@@ -501,7 +539,7 @@ export function VaultSection() {
             </>
           )
         ) : (
-          <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-muted)" }}>
+          <p className={styles.hint}>
             Disponible solo con un vault en carpeta.
           </p>
         )}

@@ -10,7 +10,7 @@ import {
   ICONO_POR_TIPO,
 } from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminal";
+import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";

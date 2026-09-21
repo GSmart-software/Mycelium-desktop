@@ -1,7 +1,8 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import styles from "./ContextMenu.module.css";
 
 export type MenuItem = {
@@ -67,20 +68,19 @@ export function ContextMenu({
     setPos({ x: nx, y: ny });
   }, [x, y, items]);
 
-  useEffect(() => {
-    function onPointerDown(event: PointerEvent) {
-      if (!ref.current?.contains(event.target as Node)) onClose();
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
+  // Clic afuera, Escape, flechas, foco en el primer ítem y un solo menú abierto:
+  // lo mismo que los demás menús (`useMenuEmergente`). El «disparador» es lo
+  // que tenía el foco al abrir —la fila del árbol, con teclado o con clic—, y
+  // a eso vuelve el foco con Escape. `onClose` llega nuevo en cada render del
+  // explorador: se lee por ref para que el efecto no se rehaga en cada uno (y
+  // no devuelva el foco al primer ítem sin parar).
+  const origenRef = useRef<HTMLElement | null>(
+    typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null),
+  );
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const cerrar = useCallback(() => onCloseRef.current(), []);
+  useMenuEmergente({ abierto: true, cerrar, contenedorRef: ref, menuRef: ref, disparadorRef: origenRef });
 
   // Cerca del borde derecho, el submenú se despliega hacia la izquierda para no
   // quedar fuera de la ventana.

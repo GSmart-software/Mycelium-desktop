@@ -54,6 +54,18 @@ trash = "5.2.3"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
 
+# Menú de anclaje de Windows 11 con marco propio (FUN-M-31, src/marco.rs): hay
+# que contestar a mano el mensaje con el que Windows pregunta qué hay bajo el
+# puntero. Misma versión que ya traen tao/wry, para no compilar dos copias.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 # Solo para el test headless del data layer (misma sqlx/SQLite que usa el plugin).
 [dev-dependencies]
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }

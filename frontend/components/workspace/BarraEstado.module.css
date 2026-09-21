@@ -1,0 +1,65 @@
+/* Barra de estado: 24px, en el tono del marco (Esporo), texto de 12px a la
+   derecha como en VS Code. Solo lo que no se ve en la nota misma.
+
+   En reposo el texto es neutro (--mic-marco-texto, tokens.css): el Brote es
+   para lo vivo (hover y el panel abierto). */
+.barra {
+  grid-area: estado;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  height: var(--mic-statusbar-height);
+  padding: 0 0.75rem;
+  background: var(--mic-bg-sidebar);
+  border-top: 1px solid color-mix(in srgb, var(--mic-marco-glow) 14%, transparent);
+  font-size: 0.75rem;
+  color: var(--mic-marco-texto);
+  white-space: nowrap;
+  overflow: hidden;
+  --mic-focus: var(--mic-marco-glow);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 20px;
+  padding: 0 0.4rem;
+  border-radius: var(--mic-radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Los enlaces, a la izquierda del todo: es lo importante y lo único pulsable;
+   el resto —palabras, guardado— sigue a la derecha. */
+.enlaces {
+  margin-right: auto;
+}
+
+/* El ítem que sigue a los enlaces no lleva separador: entre los dos hay todo el
+   ancho de la barra, así que el punto quedaba suelto en el aire. */
+.enlaces + .item::before {
+  content: none;
+}
+
+/* Separador entre ítems, sin anunciarse con el lector de pantalla. */
+.item + .item:not(.enlaces)::before {
+  content: "·";
+  margin-right: 0.65rem;
+  margin-left: -0.3rem;
+}
+
+button.item:hover {
+  color: var(--mic-marco-glow);
+  background: color-mix(in srgb, var(--mic-marco-glow) 12%, transparent);
+}
+
+/* Panel abierto: color y fondo, no solo color. */
+button.item[aria-pressed="true"] {
+  color: var(--mic-marco-glow);
+  background: color-mix(in srgb, var(--mic-marco-glow) 14%, transparent);
+}
+
+.alerta {
+  color: var(--mic-sync-warn);
+}

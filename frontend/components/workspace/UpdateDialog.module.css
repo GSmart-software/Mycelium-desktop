@@ -196,3 +196,21 @@
     transform: translateX(200%);
   }
 }
+
+/* Movimiento reducido: sin tamaño conocido, la barra no va y viene; ocupa todo
+   el ancho y late en su lugar. Sigue diciendo «descargando» sin desplazarse. */
+@media (prefers-reduced-motion: reduce) {
+  .progressBarIndet {
+    width: 100%;
+    animation: latido 1.4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes latido {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
