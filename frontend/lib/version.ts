@@ -89,9 +89,8 @@
  * - `2.0.0` — **el rediseño de la interfaz** (el experimento de impeccable,
  *   integrado el 2026-09-21): marco de ventana propio, atmósferas, la barra
  *   superior como paleta, configuración en una ventana con categorías, borrar con
- *   deshacer y la interfaz entera usable con teclado. Entrega además la `1.7.0`,
- *   que nunca se publicó, y las correcciones de después (`DEF-085` a `DEF-098`,
- *   salvo `DEF-089`).
+ *   deshacer y la interfaz entera usable con teclado. Más las correcciones que
+ *   llegaron después de la `1.7.0` (`DEF-085` a `DEF-098`, salvo `DEF-089`).
  *
  *   **Major por decisión del usuario**, no por la regla: por dentro no es una
  *   rearquitectura —el vault y los formatos son los mismos—, pero cambia TODA la
