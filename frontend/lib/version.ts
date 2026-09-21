@@ -86,9 +86,22 @@
  *   cuántos entran. Absorbe además `DEF-080`, `DEF-081` y `DEF-084` —este
  *   último salió de implementar `FUN-M-24`—, así que no hay patch aparte.
  *
+ * - `2.0.0` — **el rediseño de la interfaz** (el experimento de impeccable,
+ *   integrado el 2026-09-21): marco de ventana propio, atmósferas, la barra
+ *   superior como paleta, configuración en una ventana con categorías, borrar con
+ *   deshacer y la interfaz entera usable con teclado. Entrega además la `1.7.0`,
+ *   que nunca se publicó, y las correcciones de después (`DEF-085` a `DEF-098`,
+ *   salvo `DEF-089`).
+ *
+ *   **Major por decisión del usuario**, no por la regla: por dentro no es una
+ *   rearquitectura —el vault y los formatos son los mismos—, pero cambia TODA la
+ *   interfaz a la vez y quien actualiza no encuentra las cosas donde estaban. Es
+ *   la tercera vez que el dígito lo elige el usuario (antes, `1.6.1` y `1.6.2`).
+ *   Ver `docs/estado/Version 2.0.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
  * `.canvas`— se saldó con la **1.5.0 del framework**, que sube con esta versión.
  */
-export const APP_VERSION = "1.7.0";
+export const APP_VERSION = "2.0.0";
