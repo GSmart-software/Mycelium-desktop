@@ -237,6 +237,48 @@ export function finalizarConsola(termId: string) {
   useTerminalStore.getState().cerrar(termId);
 }
 
+/**
+ * Suelta TODAS las consolas vivas porque la ventana cambia de vault
+ * (`DEF-099`): mata los PTY, descarta las instancias xterm y las despega del
+ * visor del explorador.
+ *
+ * No toca el registro del `terminalStore` ni las pestañas del workspace: las
+ * dos cosas son del vault que se está dejando y tienen que seguir ahí cuando se
+ * vuelva a él. Lo que no sobrevive es el **proceso**, igual que al cerrar la
+ * app (CA6): su directorio de trabajo apunta a la carpeta del vault anterior,
+ * que es justo lo que el defecto dejaba a la vista.
+ *
+ * Se llama ANTES de cambiar el almacén, porque el scrollback que se vuelca acá
+ * pertenece al vault que se va.
+ */
+export function soltarConsolasDeVault() {
+  const { prefs, guardarScrollback } = useTerminalStore.getState();
+  for (const [termId, inst] of instancias) {
+    if (prefs.restaurarScrollback) {
+      try {
+        guardarScrollback(termId, inst.serialize.serialize({ scrollback: 200 }));
+      } catch {
+        // serializar es best-effort
+      }
+    }
+    void invoke("terminal_cerrar", { id: termId }).catch(() => {});
+    inst.term.dispose();
+    // El visor del explorador es de la ventana, no del vault: una consola
+    // anclada ahí sobreviviría al cambio y quedaría apuntando a nada.
+    const tabId = tabIdDe(termId);
+    const dock = useSidebarViewerStore.getState();
+    if (dock.tabs.includes(tabId)) dock.cerrar(tabId);
+  }
+  // Matar el PTY hace que Rust emita `terminal-salida`, que normalmente
+  // finaliza la consola —y eso la borraría del registro, que acá es justo lo
+  // que hay que conservar—. No pasa: el mapa se vacía de forma síncrona y el
+  // evento no llega hasta que el bucle de eventos vuelva a correr, así que el
+  // `instancias.has(id)` de `ensureInfra` ya da `false`.
+  instancias.clear();
+  nuevasEstaCorrida.clear();
+  tocadasEstaCorrida.clear();
+}
+
 /** Cierra las pestañas de una consola SIN finalizarla (ocultar). */
 export function ocultarPestanas(termId: string) {
   const tabId = tabIdDe(termId);

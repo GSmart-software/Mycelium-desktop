@@ -29,11 +29,31 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
 const CLAVE_VAULT_ABIERTO = "mycelium:vault-abierto";
+
+/**
+ * Mata los PTY de las consolas vivas antes de cambiar de vault (`DEF-099`).
+ *
+ * Va por `import()` y no por import normal a propósito: `lib/terminal` arrastra
+ * xterm entero y a su vez importa ESTE store —el cwd por defecto de una consola
+ * es la raíz del vault—, así que el import estático sería un ciclo y además
+ * metería el emulador de terminal en el arranque de la app, que hoy lo carga
+ * perezoso. Si no hay consolas, la función no hace nada.
+ */
+async function soltarConsolasSiHay(): Promise<void> {
+  try {
+    const { soltarConsolasDeVault } = await import("@/lib/terminal");
+    soltarConsolasDeVault();
+  } catch {
+    // Sin terminal (o si falla su carga) no hay nada que soltar: cambiar de
+    // vault no puede quedar bloqueado por esto.
+  }
+}
 
 /**
  * Etapas de la apertura, en orden. La pantalla de carga (`DEF-042`) las muestra
@@ -118,6 +138,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // por delante las pestañas que se acaban de restaurar — y deja el layout
     // vacío guardado en la clave de este vault.
     useVaultStore.getState().reset();
+    // Y las consolas del vault anterior (`DEF-099`): sus procesos tienen el cwd
+    // en la carpeta que se está dejando. Se sueltan ANTES de cambiar de almacén
+    // para que el scrollback se guarde en la clave a la que pertenece.
+    await soltarConsolasSiHay();
     try {
       // Antes de tocar nada: reclamar el vault para esta ventana (`FUN-L-16`).
       // Si lo tiene otra, se corta acá — abrir su índice desde dos ventanas
@@ -153,6 +177,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // existen. En modo carpeta el id interno es común a todos los vaults, así
       // que las distingue la ruta.
       await useTabsStore.getState().usarAlmacenDeVault(ruta);
+      // Y las consolas, por lo mismo (`DEF-099`): la lista es de ESTE vault, no
+      // de la instalación. Con una clave por vault, dos ventanas dejan de
+      // compartirlas (`DEF-100`), porque no pueden tener el mismo vault abierto.
+      await useTerminalStore.getState().usarAlmacenDeVault(ruta);
       // Watcher nativo (fase 5): observa la carpeta para reflejar en la UI los
       // cambios hechos desde fuera de la app. No es fatal si falla (el vault
       // sigue usable, solo no se auto-refresca ante cambios externos).
@@ -211,8 +239,12 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // si no había watcher o falla el invoke, no impide salir del vault
     }
     // Soltar también las pestañas y el árbol de este vault: quien entre después
-    // no debe heredarlos (`DEF-044`).
+    // no debe heredarlos (`DEF-044`). Y las consolas, por el mismo motivo
+    // (`DEF-099`): primero se matan los procesos —su cwd es de este vault— y
+    // después se suelta la lista, que se queda guardada en su clave.
+    await soltarConsolasSiHay();
     await useTabsStore.getState().usarAlmacenDeVault(null);
+    await useTerminalStore.getState().usarAlmacenDeVault(null);
     useVaultStore.getState().reset();
     // Soltar el vault para que otra ventana pueda abrirlo (`FUN-L-16`).
     await soltarVaultDeVentana().catch(() => undefined);
