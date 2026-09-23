@@ -122,7 +122,9 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         ) : esCanvas ? (
           <CanvasView key={notaId} notaId={notaId} />
         ) : esDrawio ? (
-          <DrawioView key={notaId} notaId={notaId} />
+          // El panel lateral no es una pestaña: lleva su propia clave para que
+          // el barrido de pestañas cerradas no se lo lleve por delante.
+          <DrawioView key={notaId} notaId={notaId} instanceId={`sidebar:${notaId}`} />
         ) : editing ? (
           <NoteEditor
             key={`edit-${notaId}`}

@@ -84,7 +84,9 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
         ) : activeTab && activeTipo === "canvas" ? (
           <CanvasView key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab && activeTipo === "drawio" ? (
-          <DrawioView key={activeTab.id} notaId={activeTab.notaId} />
+          // `instanceId` es la PESTAÑA, no el archivo: es la clave con la que el
+          // editor sobrevive a cambiar de pestaña y muere al cerrarla.
+          <DrawioView key={activeTab.id} notaId={activeTab.notaId} instanceId={activeTab.id} />
         ) : activeTab ? (
           <NoteEditor
             key={activeTab.id}
