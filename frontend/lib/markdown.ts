@@ -8,6 +8,7 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
+import { embedDrawioRe } from "@/lib/drawio";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
 import { partirWikilink } from "@/lib/wikilinks";
 
@@ -20,9 +21,6 @@ type MdNode = {
 };
 
 const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
-/** `![[diagrama.drawio]]` (`FUN-L-20`). La extensión va dentro de la captura
- *  porque el destino se resuelve por nombre de archivo, con extensión y todo. */
-const DRAWIO = /!\[\[([^[\]]+\.drawio)\]\]/gi;
 const WIKILINK = /\[\[([^[\]]+)\]\]/g;
 const TAG = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
@@ -64,7 +62,7 @@ function remarkMicelio() {
       // Diagramas de draw.io embebidos (`FUN-L-20` CA5): mismo mecanismo que
       // Excalidraw —un placeholder que el cliente reemplaza por el dibujo—
       // porque el XML de mxGraph solo lo sabe dibujar la webapp de draw.io.
-      for (const match of value.matchAll(DRAWIO)) {
+      for (const match of value.matchAll(embedDrawioRe())) {
         matches.push({
           start: match.index,
           end: match.index + match[0].length,

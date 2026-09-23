@@ -1198,6 +1198,32 @@
   font-size: 0.8125rem;
 }
 
+/* Embed de draw.io renderizado en el editor en vivo (`FUN-L-20`). La vista en
+   vivo no comparte código con la de lectura: son dos widgets, y por eso también
+   son dos reglas. */
+.mic-live-drawio {
+  display: flex;
+  justify-content: center;
+  padding: 0.4rem 0;
+  cursor: pointer;
+  border-radius: var(--mic-radius-md);
+  transition: background-color 120ms ease;
+}
+
+.mic-live-drawio:hover {
+  background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+.mic-live-drawio .mic-drawio-img {
+  max-width: 100%;
+  height: auto;
+}
+
+.mic-live-drawio.mic-drawio-error {
+  color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+}
+
 /* ── Notas al pie (HU-03 CA7) ────────────────────────────────────── */
 
 .mic-preview .footnotes {

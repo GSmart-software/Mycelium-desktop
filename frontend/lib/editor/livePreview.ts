@@ -44,6 +44,8 @@ import {
   controlTablaDe,
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
+import { embedDrawioRe } from "@/lib/drawio";
+import { dibujarDrawioEn } from "@/lib/drawioRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
@@ -623,6 +625,7 @@ export function liveExtensions(
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 /** Embed de un diagrama/archivo excalidraw: `![[ref.excalidraw]]`. */
 const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
+
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` (con `>` anidados para callouts dentro de
  *  callouts, DEF-022) y símbolo de plegado opcional (-/+). Grupo 1 = marcadores
@@ -821,6 +824,47 @@ class ExcalidrawWidget extends WidgetType {
 
   ignoreEvent() {
     return true; // dejamos que nuestro propio listener de mousedown gestione el clic
+  }
+}
+
+/**
+ * Widget de bloque que dibuja un embed de draw.io (`![[ref.drawio]]`) en la
+ * vista en vivo (`FUN-L-20` CA5).
+ *
+ * Existe por separado del de excalidraw porque la vista en vivo **no comparte**
+ * código con la de lectura: son dos caminos, y tocar solo `lib/markdown.ts`
+ * dejaba el embed funcionando en lectura y en blanco mientras se edita.
+ */
+class DrawioWidget extends WidgetType {
+  constructor(
+    readonly ref: string,
+    readonly pos: number,
+    readonly gen: number,
+  ) {
+    super();
+  }
+
+  eq(other: DrawioWidget) {
+    return other.ref === this.ref && other.gen === this.gen;
+  }
+
+  toDOM(view: EditorView) {
+    const block = document.createElement("div");
+    block.className = "mic-live-drawio";
+    block.addEventListener("mousedown", (event) => {
+      // Clic → revelar la fuente, como el resto del live preview. La pestaña se
+      // abre desde la vista de LECTURA; acá, mientras se edita, lo útil es ver
+      // el `![[…]]` para poder cambiarlo.
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    void dibujarDrawioEn(block, this.ref);
+    return block;
+  }
+
+  ignoreEvent() {
+    return true;
   }
 }
 
@@ -1168,6 +1212,23 @@ function buildDecorations(
             to: line.to,
             deco: Decoration.replace({
               widget: new ExcalidrawWidget(match[1], notaId, line.from, liveGen),
+            }),
+          });
+        }
+      }
+
+      // Embeds de draw.io (`FUN-L-20`), con el mismo trato: bloque cuando ocupan
+      // la línea entera y el cursor no está en ella, y su rango excluido del
+      // paso de wikilinks para que el `[[…]]` interno no se estilice.
+      for (const match of line.text.matchAll(embedDrawioRe())) {
+        const mFrom = line.from + match.index;
+        exRanges.push([mFrom, mFrom + match[0].length]);
+        if (!isActive && text.trim() === match[0]) {
+          decos.push({
+            from: line.from,
+            to: line.to,
+            deco: Decoration.replace({
+              widget: new DrawioWidget(match[1], line.from, liveGen),
             }),
           });
         }

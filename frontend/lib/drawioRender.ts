@@ -130,7 +130,10 @@ export function resolverDestinoDrawio(ref: string): TreeNota | undefined {
  * y la nota sigue leyéndose. Devuelve el id de la nota destino, que es lo que
  * necesita quien maneja el clic para abrir la pestaña.
  */
-async function dibujarEn(bloque: HTMLElement, ref: string): Promise<string | null> {
+export async function dibujarDrawioEn(
+  bloque: HTMLElement,
+  ref: string,
+): Promise<string | null> {
   bloque.classList.add("mic-drawio-block");
   bloque.setAttribute("data-diag", ref);
   const destino = resolverDestinoDrawio(ref);
@@ -171,6 +174,6 @@ export async function renderDrawioIn(container: HTMLElement): Promise<void> {
     if (!ref) continue;
     const bloque = document.createElement("div");
     ancla.replaceWith(bloque);
-    await dibujarEn(bloque, ref);
+    await dibujarDrawioEn(bloque, ref);
   }
 }

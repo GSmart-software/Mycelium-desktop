@@ -189,6 +189,77 @@ export function contenidoParaCargar(contenido: string | null | undefined): strin
   return esDiagramaDrawio(contenido ?? "") ? (contenido as string) : diagramaInicial();
 }
 
+// ── Vida de un editor abierto ─────────────────────────────────────────────────
+//
+// Las reglas viven acá —y no en `lib/drawioInstancias.ts`, que las aplica—
+// porque son decisiones puras y son justo las que, si se equivocan, destruyen
+// un editor que el usuario estaba mirando. Acá se pueden probar sin navegador.
+
+/** Prefijo de las claves que NO son pestañas (el panel lateral anclado). */
+export const CLAVE_LATERAL = "sidebar:";
+
+/** ¿Esta clave es la de una pestaña del área de trabajo? */
+export function claveEsDePestana(clave: string): boolean {
+  return !clave.startsWith(CLAVE_LATERAL);
+}
+
+/**
+ * Qué editores hay que soltar porque su pestaña ya no existe.
+ *
+ * El panel lateral no está en el árbol de pestañas, así que sus claves nunca
+ * son huérfanas: olvidarlo cerraría el diagrama anclado cada vez que se cierra
+ * cualquier pestaña.
+ */
+export function clavesHuerfanas(
+  vivas: Iterable<string>,
+  pestanasAbiertas: ReadonlySet<string>,
+): string[] {
+  const fuera: string[] = [];
+  for (const clave of vivas) {
+    if (!claveEsDePestana(clave)) continue;
+    if (!pestanasAbiertas.has(clave)) fuera.push(clave);
+  }
+  return fuera;
+}
+
+/**
+ * Cuál se poda cuando hay más editores vivos que el tope.
+ *
+ * `vivas` viene en orden de uso, del más viejo al más reciente. Se elige el más
+ * viejo que **no se esté viendo**: podar uno visible lo recargaría delante del
+ * usuario, que es exactamente lo que este módulo existe para evitar. Si todos
+ * están visibles se devuelve `null` y se pasa del tope, a propósito.
+ */
+export function claveAPodar(
+  vivas: readonly { clave: string; visible: boolean }[],
+  max: number,
+): string | null {
+  if (vivas.length <= max) return null;
+  return vivas.find((v) => !v.visible)?.clave ?? null;
+}
+
+/**
+ * Expresión de un embed `![[diagrama.drawio]]` en una nota.
+ *
+ * Es una **fábrica** y no una constante porque los dos caminos que la usan
+ * —`lib/markdown.ts` (vista de lectura) y `lib/editor/livePreview.ts` (vista en
+ * vivo)— la recorren con `matchAll`, y compartir un `RegExp` con `/g` entre
+ * llamadas es pedirle a `lastIndex` que sorprenda a alguien.
+ *
+ * > [!important] Una sola definición para las dos vistas
+ * > La vista en vivo **no comparte código** con la de lectura. Cuando cada una
+ * > tenía su propia copia de esta expresión, agregar el embed tocó solo la de
+ * > lectura: el diagrama se veía al leer y desaparecía al editar. Tenerla acá
+ * > es lo que hace imposible arreglar una y olvidar la otra.
+ *
+ * La extensión va **dentro** de la captura, al revés que en el de excalidraw:
+ * el destino se resuelve por nombre de archivo, y `resolveWikilink` ya sabe
+ * quitarle la extensión (`lib/extensionesDeTipo`).
+ */
+export function embedDrawioRe(): RegExp {
+  return /!\[\[([^[\]]+\.drawio)\]\]/gi;
+}
+
 /**
  * Nombre de archivo al que apunta un embed `![[diagrama.drawio]]`.
  *

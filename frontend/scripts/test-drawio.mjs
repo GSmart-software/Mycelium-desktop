@@ -18,9 +18,13 @@ const {
   accionCargar,
   accionExportarSvg,
   accionGuardar,
+  claveAPodar,
+  claveEsDePestana,
+  clavesHuerfanas,
   contenidoParaCargar,
   destinoDeEmbed,
   diagramaInicial,
+  embedDrawioRe,
   esDiagramaDrawio,
   EXTENSION_DRAWIO,
   leerEvento,
@@ -118,4 +122,94 @@ test("destinoDeEmbed resuelve ![[diagrama.drawio]] y sus alias", () => {
   assert.equal(destinoDeEmbed("otra nota"), null);
   assert.equal(destinoDeEmbed("dibujo.excalidraw"), null);
   assert.equal(destinoDeEmbed(""), null);
+});
+
+// ── El embed en una nota (CA5) ───────────────────────────────────────────────
+//
+// Esta expresión la usan LAS DOS vistas —lectura (`lib/markdown.ts`) y en vivo
+// (`lib/editor/livePreview.ts`)—, que no comparten código. Cuando cada una
+// tenía su copia, el embed funcionaba al leer y desaparecía al editar.
+
+/** Todo lo que captura la expresión en un texto. */
+const embeds = (texto) => [...texto.matchAll(embedDrawioRe())].map((m) => m[1]);
+
+test("el embed reconoce ![[diagrama.drawio]] y captura el nombre CON extensión", () => {
+  // La extensión queda dentro de la captura: el destino se resuelve por nombre
+  // de archivo y `sinExtensionDeNota` se la quita después.
+  assert.deepEqual(embeds("![[Arquitectura.drawio]]"), ["Arquitectura.drawio"]);
+  assert.deepEqual(embeds("![[Carpeta/Arquitectura.drawio]]"), ["Carpeta/Arquitectura.drawio"]);
+  assert.deepEqual(embeds("![[Diagrama sin título.drawio]]"), ["Diagrama sin título.drawio"]);
+  assert.deepEqual(embeds("![[Arquitectura.DRAWIO]]"), ["Arquitectura.DRAWIO"]);
+});
+
+test("el embed aparece igual rodeado de texto y varias veces", () => {
+  assert.deepEqual(embeds("Ver ![[a.drawio]] y también ![[b.drawio]]."), [
+    "a.drawio",
+    "b.drawio",
+  ]);
+});
+
+test("la expresión NO se lleva por delante otros embeds ni los enlaces", () => {
+  assert.deepEqual(embeds("![[dibujo.excalidraw]]"), []);
+  assert.deepEqual(embeds("![[lienzo.canvas]]"), []);
+  assert.deepEqual(embeds("![[Mi nota]]"), [], "sin extensión no es un embed de draw.io");
+  assert.deepEqual(embeds("[[Arquitectura.drawio]]"), [], "sin `!` es un enlace, no un embed");
+});
+
+test("cada llamada da una expresión nueva (el /g no se comparte)", () => {
+  // Dos vistas recorriendo la MISMA expresión con `lastIndex` compartido se
+  // saltarían embeds de forma intermitente, que es de lo peor que hay para
+  // diagnosticar.
+  const a = embedDrawioRe();
+  const b = embedDrawioRe();
+  assert.notEqual(a, b);
+  a.exec("![[x.drawio]]");
+  assert.equal(b.lastIndex, 0);
+});
+
+// ── Vida de un editor abierto ────────────────────────────────────────────────
+
+test("las claves del panel lateral no son pestañas", () => {
+  assert.equal(claveEsDePestana("tab-123"), true);
+  assert.equal(claveEsDePestana("sidebar:Diagrama"), false);
+});
+
+test("se sueltan los editores cuya pestaña se cerró, y solo esos", () => {
+  const abiertas = new Set(["tab-1", "tab-3"]);
+  assert.deepEqual(
+    clavesHuerfanas(["tab-1", "tab-2", "tab-3", "tab-4"], abiertas).sort(),
+    ["tab-2", "tab-4"],
+  );
+});
+
+test("el panel lateral NO se suelta al cerrar pestañas", () => {
+  // Olvidarlo cerraría el diagrama anclado cada vez que se cierra cualquier
+  // pestaña, porque el panel lateral no está en el árbol de pestañas.
+  assert.deepEqual(clavesHuerfanas(["sidebar:Plano"], new Set()), []);
+  assert.deepEqual(clavesHuerfanas(["sidebar:Plano", "tab-9"], new Set(["tab-9"])), []);
+});
+
+test("la poda elige el oculto más viejo y nunca uno que se está viendo", () => {
+  const vivas = [
+    { clave: "viejo-visible", visible: true },
+    { clave: "viejo-oculto", visible: false },
+    { clave: "nuevo-oculto", visible: false },
+    { clave: "nuevo-visible", visible: true },
+  ];
+  assert.equal(claveAPodar(vivas, 3), "viejo-oculto");
+});
+
+test("no se poda nada si no se pasa del tope", () => {
+  assert.equal(claveAPodar([{ clave: "a", visible: false }], 3), null);
+  assert.equal(claveAPodar([], 3), null);
+});
+
+test("si TODOS están visibles no se poda: recargar delante del usuario es peor", () => {
+  const todosVisibles = [
+    { clave: "a", visible: true },
+    { clave: "b", visible: true },
+    { clave: "c", visible: true },
+    { clave: "d", visible: true },
+  ];
+  assert.equal(claveAPodar(todosVisibles, 3), null);
 });
