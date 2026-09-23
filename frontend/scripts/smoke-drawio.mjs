@@ -204,7 +204,44 @@ try {
         plantillas = -1;
       }
 
+      // 7. La suposición sobre la que se apoya TODO el manejo de pestañas
+      //    (`lib/drawioInstancias.ts`): ocultar y reposicionar un iframe
+      //    conserva su documento, y MOVERLO en el DOM lo recarga.
+      //
+      //    Si esto no fuera cierto, el editor se recargaría igual al cambiar de
+      //    pestaña y el arreglo no serviría de nada, así que se comprueba
+      //    contra la webapp de verdad y no de memoria.
+      const marcaDeVida = () => {
+        try {
+          return iframe.contentWindow.__micVivo === true;
+        } catch {
+          return false;
+        }
+      };
+      // Se marca el documento actual: si el iframe recarga, la marca se va.
+      iframe.contentWindow.__micVivo = true;
+
+      // a) Ocultar, reposicionar y volver a mostrar: NO debe recargar.
+      iframe.style.display = "none";
+      iframe.style.left = "40px";
+      iframe.style.top = "60px";
+      iframe.style.width = "640px";
+      iframe.style.height = "480px";
+      void iframe.offsetHeight; // fuerza reflow, por si acaso
+      iframe.style.display = "block";
+      await new Promise((r) => setTimeout(r, 600));
+      const sobreviveAOcultar = marcaDeVida();
+
+      // b) Moverlo a otro padre: DEBE recargar (por eso no se re-parenta).
+      const otroPadre = document.createElement("div");
+      document.body.appendChild(otroPadre);
+      otroPadre.appendChild(iframe);
+      await new Promise((r) => setTimeout(r, 1200));
+      const sobreviveAMudarse = marcaDeVida();
+
       return {
+        sobreviveAOcultar,
+        sobreviveAMudarse,
         init: init.event === "init",
         loadOk: load.event === "load",
         autosaveXml: autosave?.xml ?? "",
@@ -235,6 +272,9 @@ try {
   checks.motorDeStencils = resultado.hayRegistroDeStencils && resultado.hayFormasBasicas;
   checks.plantillas = resultado.plantillas > 20;
   checks.nadaFaltante = faltantes.length === 0;
+  // Lo que sostiene que cambiar de pestaña no recargue el editor.
+  checks.ocultarNoRecarga = resultado.sobreviveAOcultar === true;
+  checks.mudarloSiRecarga = resultado.sobreviveAMudarse === false;
 
   await page.screenshot({ path: "scripts/smoke-drawio.png" });
 
