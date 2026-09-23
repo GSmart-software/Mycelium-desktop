@@ -57,8 +57,15 @@ import { invoke } from "@tauri-apps/api/core";
  *
  *   **Minor**: conocimiento nuevo sobre capacidades del vault, con una
  *   corrección absorbida.
+ * - 1.6.0 — **diagramas de draw.io** (`FUN-L-20`): el vault gana un tipo de
+ *   archivo más, `.drawio` (XML de mxGraph). La IA tiene que saber que existe
+ *   —si no, lo trata como un archivo cualquiera— y, sobre todo, que **no se
+ *   edita a mano**: es el mismo trato que `.excalidraw`, y por el mismo motivo
+ *   (lo escribe una herramienta, y tocar el XML a ciegas rompe el diagrama).
+ *   Tampoco se indexa, como el resto de lo que no es `.md`.
+ *   **Minor**: un tipo de archivo nuevo que la IA se va a encontrar.
  */
-export const FRAMEWORK_IA_VERSION = "1.5.0";
+export const FRAMEWORK_IA_VERSION = "1.6.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -107,6 +114,7 @@ cada cosa:
 | \`.base\` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar. Sintaxis en la skill \`mycelium-vault\` |
 | \`.canvas\` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con cuidado (es JSON) |
 | \`.excalidraw\` | **Dibujo** (JSON) | Leer; **no editar a mano** salvo pedido explícito |
+| \`.drawio\` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Leer; **no editar a mano** salvo pedido explícito |
 | Cualquier otro | PDF, imágenes, código, texto | Leerlos y editarlos como archivos normales |
 
 > [!warning] Solo las notas están en la memoria
@@ -271,7 +279,9 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
   **Son lo único que Mycelium indexa** (ver \`CLAUDE.md\`).
 - **Tablas**: \`.base\` (YAML). Ver abajo.
 - **Lienzos**: \`.canvas\` (JSON Canvas). Ver abajo.
-- **Diagramas**: \`.excalidraw\` (JSON). No editar a mano salvo pedido explícito.
+- **Dibujos**: \`.excalidraw\` (JSON). No editar a mano salvo pedido explícito.
+- **Diagramas**: \`.drawio\` (XML de mxGraph). Figuras y conectores que se enganchan,
+  para el diagrama que hay que retocar dentro de seis meses. Tampoco a mano.
 - **Cualquier otro archivo** (PDF, imágenes, código, texto): el vault los guarda y
   la app los muestra, pero no están indexados.
 - **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
