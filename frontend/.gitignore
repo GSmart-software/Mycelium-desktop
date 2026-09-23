@@ -44,3 +44,8 @@ next-env.d.ts
 
 # capturas de smoke tests
 scripts/*.png
+
+# Webapp de draw.io (`FUN-L-20`): la baja `npm run preparar-drawio` desde una
+# release fijada. Son ~50 MB que no tienen por que vivir en git.
+/public/drawio/
+/.drawio-cache/

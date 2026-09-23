@@ -11,7 +11,8 @@
     "tauri:otra": "src-tauri/target/debug/app.exe",
     "versionar": "node scripts/versionar.mjs",
     "publicar": "node scripts/publicar.mjs",
-    "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio"
+    "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio",
+    "preparar-drawio": "node scripts/preparar-drawio.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
