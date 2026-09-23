@@ -13,6 +13,7 @@
  * Todo esto vive aparte para que `notas.ts`/`carpetas.ts`/`papelera.ts`/
  * `contenido.ts` compartan la misma lógica sin duplicarla.
  */
+import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
@@ -105,18 +106,16 @@ export function extDe(ruta: string): string {
   return i <= 0 ? "" : nombre.slice(i);
 }
 
-/** Extensión de archivo según el tipo de nota. */
+/**
+ * Extensión de archivo según el tipo de nota, con punto.
+ *
+ * El mapa vive en `lib/extensionesDeTipo`: es la misma pregunta que contestan el
+ * explorador (para mostrar el nombre con extensión) y la resolución de
+ * wikilinks, y tenerla tres veces fue justo cómo `.drawio` quedó a medias.
+ */
 export function extDeTipo(tipo: string): string {
-  if (tipo === "excalidraw") return ".excalidraw";
-  // `.base` y `.canvas` son las extensiones de Obsidian: se adoptan para que las
-  // bases (`FUN-L-03`) y los canvas (`FUN-L-18`) sean intercambiables.
-  if (tipo === "base") return ".base";
-  if (tipo === "canvas") return ".canvas";
-  // `.drawio` (`FUN-L-20`) es la extensión nativa de draw.io: XML de mxGraph,
-  // texto plano y versionable. Se eligió sobre `.drawio.svg` para no tener dos
-  // representaciones del mismo diagrama que puedan desincronizarse.
-  if (tipo === "drawio") return ".drawio";
-  return ".md";
+  const ext = (EXTENSION_POR_TIPO as Record<string, string | undefined>)[tipo];
+  return `.${ext ?? "md"}`;
 }
 
 /** Une carpeta (id/ruta POSIX o null=raíz) y nombre en una ruta relativa. */

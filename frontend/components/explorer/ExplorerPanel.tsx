@@ -32,6 +32,10 @@ import { api } from "@/lib/api";
 import { baseInicial } from "@/lib/bases";
 import { canvasInicial } from "@/lib/canvas";
 import { diagramaInicial } from "@/lib/drawio";
+// La extensión que se lee en cada fila (`FUN-S-03`) sale del mismo mapa que usa
+// `extDeTipo` para nombrar el archivo en disco: eran dos copias, y agregar
+// `.drawio` tocó solo una —el diagrama se creaba bien y se listaba sin extensión.
+import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
@@ -1297,22 +1301,6 @@ function OtroRow({ otro, nivel }: { otro: OtroArchivo; nivel: number }) {
     </div>
   );
 }
-
-/**
- * Extensión que se muestra junto al nombre, por tipo de nota (`FUN-S-03`).
- *
- * **También el markdown.** Primero se omitió, por leer el enunciado del
- * backlog al pie de la letra («los archivos no-markdown»), pero omitirlo hace
- * que la única fila sin extensión sea la más común: se lee como si le faltara
- * algo, no como el caso normal. Con todas puestas, la columna es uniforme y la
- * extensión pasa a ser información y no una excepción.
- */
-const EXTENSION_POR_TIPO: Record<string, string | undefined> = {
-  markdown: "md",
-  excalidraw: "excalidraw",
-  base: "base",
-  canvas: "canvas",
-};
 
 /**
  * Teclado del árbol (patrón de árbol de WAI-ARIA). Trabaja sobre el DOM porque

@@ -6,6 +6,7 @@ import type {
 import type { EditorView } from "@codemirror/view";
 import type { TreeCarpeta, TreeNota } from "@/stores/vaultStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { sinExtensionDeNota } from "@/lib/extensionesDeTipo";
 import { partirWikilink } from "@/lib/wikilinks";
 
 /**
@@ -71,8 +72,13 @@ export function resolveWikilink(
   // Las referencias a archivos llevan extensión (`archivo.excalidraw`), pero el
   // título de la nota no la incluye: si no hubo match exacto, se prueba sin la
   // extensión para que el enlace/embed resuelva y no se estile como inexistente.
+  //
+  // Las extensiones salen de `lib/extensionesDeTipo` y no de una lista escrita
+  // acá: cuando estaban a mano decían solo `excalidraw|md`, así que
+  // `![[diagrama.drawio]]` no resolvía a nada y el embed se dibujaba como
+  // «no existe» aunque el archivo estuviera ahí al lado.
   if (matches.length === 0) {
-    const stripped = title.replace(/\.(excalidraw|md)$/, "");
+    const stripped = sinExtensionDeNota(title);
     if (stripped !== title) matches = notas.filter((n) => n.titulo.toLowerCase() === stripped);
   }
   if (matches.length === 0) return undefined;
