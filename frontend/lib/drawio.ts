@@ -71,6 +71,24 @@ export function urlDelEditor(tema: TemaDrawio, lang = "es"): string {
   return `${BASE_DRAWIO}?${params.toString()}`;
 }
 
+/**
+ * URL del iframe **oculto** que dibuja las vistas previas de los embeds.
+ *
+ * Es la misma webapp, pero sin cromado (`chrome=0`) y sin bibliotecas de formas:
+ * no se edita nada ahí, solo se carga un XML y se pide el SVG. Un solo iframe
+ * atiende a todos los embeds de la nota, uno por vez.
+ */
+export function urlDelRenderizador(): string {
+  const params = new URLSearchParams({
+    ...PARAMS_DRAWIO,
+    libraries: "0",
+    spin: "0",
+    chrome: "0",
+    lang: "es",
+  });
+  return `${BASE_DRAWIO}?${params.toString()}`;
+}
+
 // ── El protocolo ──────────────────────────────────────────────────────────────
 
 /** Lo que el editor le manda al host. */

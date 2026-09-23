@@ -14,6 +14,7 @@ import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivo
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
+import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
@@ -170,6 +171,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
       void renderExcalidrawIn(containerRef.current, notaId);
+      void renderDrawioIn(containerRef.current);
     }
   }, [html, notaId]);
 

@@ -1136,6 +1136,38 @@
   margin-bottom: 0.85rem;
 }
 
+/* Diagramas de draw.io embebidos (`FUN-L-20` CA5). Son una vista previa: el
+   clic abre la pestaña del diagrama, no un editor dentro de la nota. El dibujo
+   llega como <img> con un SVG, porque el XML de mxGraph solo lo sabe dibujar la
+   webapp de draw.io. */
+.mic-preview .mic-drawio-block {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+  cursor: pointer;
+  border-radius: var(--mic-radius-md);
+  transition: background-color 120ms ease;
+}
+
+.mic-preview .mic-drawio-block:hover {
+  background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+.mic-preview .mic-drawio-block .mic-drawio-img {
+  max-width: 100%;
+  height: auto;
+}
+
+.mic-preview .mic-drawio-error {
+  color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+  border-radius: var(--mic-radius-sm);
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.85rem;
+  cursor: default;
+}
+
 /* Embed de excalidraw renderizado en el editor en vivo (widget de bloque). */
 .mic-live-excalidraw {
   display: flex;

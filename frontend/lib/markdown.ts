@@ -20,6 +20,9 @@ type MdNode = {
 };
 
 const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
+/** `![[diagrama.drawio]]` (`FUN-L-20`). La extensión va dentro de la captura
+ *  porque el destino se resuelve por nombre de archivo, con extensión y todo. */
+const DRAWIO = /!\[\[([^[\]]+\.drawio)\]\]/gi;
 const WIKILINK = /\[\[([^[\]]+)\]\]/g;
 const TAG = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
@@ -50,6 +53,27 @@ function remarkMicelio() {
             data: {
               hProperties: {
                 className: "mic-excalidraw",
+                dataDiag: match[1],
+              },
+            },
+            children: [{ type: "text", value: `Diagrama ${match[1]}` }],
+          },
+        });
+      }
+
+      // Diagramas de draw.io embebidos (`FUN-L-20` CA5): mismo mecanismo que
+      // Excalidraw —un placeholder que el cliente reemplaza por el dibujo—
+      // porque el XML de mxGraph solo lo sabe dibujar la webapp de draw.io.
+      for (const match of value.matchAll(DRAWIO)) {
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          node: {
+            type: "link",
+            url: "#drawio",
+            data: {
+              hProperties: {
+                className: "mic-drawio",
                 dataDiag: match[1],
               },
             },

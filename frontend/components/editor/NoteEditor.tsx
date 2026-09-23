@@ -34,6 +34,7 @@ import {
 } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
+import { renderDrawioIn } from "@/lib/drawioRender";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
@@ -923,6 +924,7 @@ export function NoteEditor({
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current, notaId);
+      void renderDrawioIn(previewRef.current);
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
   }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas]);
@@ -1118,6 +1120,18 @@ export function NoteEditor({
         } else {
           // Diagrama embebido (legado) → editor Excalidraw en modal.
           setEditingDiag(diagram.getAttribute("data-diag"));
+        }
+        return;
+      }
+      // Un diagrama de draw.io embebido es una vista previa, no un editor: el
+      // clic abre su pestaña (`FUN-L-20` § 8). Un editor por embed sería la
+      // webapp entera cargada una vez por diagrama de la nota.
+      const diagramaDrawio = (event.target as HTMLElement).closest(".mic-drawio-block");
+      if (diagramaDrawio) {
+        const targetNota = diagramaDrawio.getAttribute("data-nota");
+        if (targetNota) {
+          useTabsStore.getState().openNote(targetNota);
+          router.replace(`/workspace?note=${targetNota}`);
         }
         return;
       }

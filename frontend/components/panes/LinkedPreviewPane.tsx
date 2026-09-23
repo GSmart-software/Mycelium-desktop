@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import { getCachedNote } from "@/lib/idb";
+import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -47,6 +48,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
       if (sourceNotaId) void renderExcalidrawIn(containerRef.current, sourceNotaId);
+      void renderDrawioIn(containerRef.current);
     }
   }, [html, sourceNotaId]);
 

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { getCachedNote } from "@/lib/idb";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { buildPrintCss, type PdfPrintOpts } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
@@ -160,6 +161,9 @@ async function renderNoteHtml(notaId: string): Promise<string> {
   try {
     await renderMermaidIn(container);
     await renderExcalidrawIn(container, notaId);
+    // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
+    // saldrian como un hueco en el PDF.
+    await renderDrawioIn(container);
     return container.innerHTML;
   } finally {
     container.remove();
