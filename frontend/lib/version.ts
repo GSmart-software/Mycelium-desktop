@@ -98,9 +98,22 @@
  *   la tercera vez que el dígito lo elige el usuario (antes, `1.6.1` y `1.6.2`).
  *   Ver `docs/estado/Version 2.0.0.md`.
  *
+ * - `2.1.0` — **draw.io como tipo de archivo del vault** (`FUN-L-20`), con su
+ *   webapp empaquetada para que funcione sin conexión: por eso el instalador
+ *   pasa de 10,2 a 40,3 MB. Con ella entran dos cosas que salieron de probarla
+ *   —los enlaces web abren el navegador (`FUN-S-20`, que corrige el `DEF-101`:
+ *   un clic se llevaba la ventana entera) y el reproductor de YouTube dentro de
+ *   la nota (`FUN-S-21`)— más `DEF-099` y `DEF-100`, que hacen que las consolas
+ *   sean de cada vault.
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva y eso manda; las correcciones
+ *   viajan absorbidas. Ver `docs/estado/Version 2.1.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
- * `.canvas`— se saldó con la **1.5.0 del framework**, que sube con esta versión.
+ * `.canvas`— se saldó con la **1.5.0 del framework**. Con la `2.1.0` el
+ * framework va por **1.6.0**: la IA tiene que saber que existe `.drawio` y que
+ * no se edita a mano.
  */
-export const APP_VERSION = "2.0.0";
+export const APP_VERSION = "2.1.0";
