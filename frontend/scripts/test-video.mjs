@@ -107,16 +107,27 @@ test("lo que no es un vídeo se deja pasar como lo que sea", () => {
   assert.equal(leerVideo(undefined), null);
 });
 
-test("el iframe NO puede compartir origen con la app", () => {
-  // Con `allow-same-origin` el documento de YouTube alcanzaría el
-  // `localStorage`, las cookies y el DOM de Mycelium. Es la línea que no se
-  // puede cruzar, así que está fijada por test.
-  assert.ok(!SANDBOX_VIDEO.includes("allow-same-origin"));
+test("el iframe no puede llevarse la ventana ni pedir cámara", () => {
+  // `allow-top-navigation` es la línea que no se cruza: con eso el iframe podría
+  // sacar a Mycelium de su propia página, que es exactamente el `DEF-101`.
   assert.ok(!SANDBOX_VIDEO.includes("allow-top-navigation"));
-  assert.ok(SANDBOX_VIDEO.includes("allow-scripts"), "sin scripts no hay reproductor");
   assert.ok(!ALLOW_VIDEO.includes("camera"));
   assert.ok(!ALLOW_VIDEO.includes("microphone"));
   assert.ok(!ALLOW_VIDEO.includes("geolocation"));
+});
+
+test("el reproductor tiene lo que necesita para arrancar", () => {
+  // Estas dos NO son decoración: sin `allow-scripts` no hay reproductor, y sin
+  // `allow-same-origin` YouTube no llega a su propio almacenamiento y se queda
+  // en un recuadro NEGRO. Se midió con el reproductor real el 2026-09-23 —cero
+  // peticiones y marco liso sin él; póster y vídeo con él— después de que el
+  // usuario reportara justamente eso.
+  //
+  // No abre la app: el documento del iframe sigue siendo de
+  // `youtube-nocookie.com`, o sea otro origen, así que no puede tocar el
+  // `localStorage` ni el DOM de Mycelium.
+  assert.ok(SANDBOX_VIDEO.includes("allow-scripts"), "sin scripts no hay reproductor");
+  assert.ok(SANDBOX_VIDEO.includes("allow-same-origin"), "sin esto el reproductor queda negro");
 });
 
 test("el título del reproductor dice de dónde sale", () => {

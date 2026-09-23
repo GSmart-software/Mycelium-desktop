@@ -19,6 +19,7 @@
     "dialog:allow-confirm",
     "dialog:allow-ask",
     "opener:allow-open-url",
+  "opener:allow-default-urls",
     "sql:default",
     "sql:allow-load",
     "sql:allow-execute",

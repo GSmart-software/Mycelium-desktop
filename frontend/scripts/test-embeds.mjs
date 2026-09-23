@@ -132,12 +132,16 @@ test("![](youtube) emite el iframe del reproductor", () => {
   assert.match(html, /class="mic-video"/);
 });
 
-test("el iframe del vídeo sale con su sandbox y SIN allow-same-origin", () => {
-  // Si esto se relaja, el documento de YouTube alcanza el `localStorage` y el
-  // DOM de la app. Se fija en el HTML de verdad, no solo en la constante.
+test("el iframe del vídeo sale con el sandbox que lo deja funcionar", () => {
+  // Se fija en el HTML de verdad, no solo en la constante. `allow-same-origin`
+  // es lo que le deja a YouTube su propio almacenamiento: sin eso el usuario ve
+  // un recuadro negro (medido el 2026-09-23). No alcanza a la app, que es otro
+  // origen. Lo que nunca puede aparecer acá es `allow-top-navigation`: con eso
+  // el iframe se llevaría la ventana, o sea el `DEF-101` por otra puerta.
   const html = renderNota("![](https://youtu.be/dQw4w9WgXcQ)");
   assert.match(html, /sandbox="[^"]*allow-scripts[^"]*"/);
-  assert.ok(!/allow-same-origin/.test(html), `el sandbox se relajó: ${html}`);
+  assert.match(html, /sandbox="[^"]*allow-same-origin[^"]*"/);
+  assert.ok(!/allow-top-navigation/.test(html), `el iframe podría llevarse la ventana: ${html}`);
 });
 
 test("youtu.be y /shorts/ salen igual que la forma larga", () => {

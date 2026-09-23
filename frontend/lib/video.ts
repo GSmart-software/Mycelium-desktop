@@ -127,14 +127,26 @@ export function esVideo(href: string | null | undefined): boolean {
 /**
  * Los permisos del iframe del reproductor.
  *
- * > [!danger] Nunca `allow-same-origin`
- * > Con él, el documento de YouTube compartiría origen con la app y podría
- * > alcanzar su `localStorage`, sus cookies y su DOM. Sin él queda en un origen
- * > opaco: se ve y se reproduce, y no puede tocar nada de Mycelium.
+ * > [!warning] `allow-same-origin` hace falta, y no es lo que parece
+ * > Sin él el reproductor **no arranca**: el usuario ve un recuadro negro y
+ * > nada más. Medido con el reproductor real (2026-09-23): sin
+ * > `allow-same-origin`, cero peticiones del reproductor y el marco liso; con
+ * > él, el póster dibujado y el reproductor pidiendo su vídeo.
+ * >
+ * > Lo que concede **no** es acceso a Mycelium. `allow-same-origin` significa
+ * > «no le pongas un origen opaco a este documento», así que el iframe conserva
+ * > el **suyo** —`youtube-nocookie.com`—, que sigue siendo distinto del de la
+ * > app: la política de mismo origen le impide igual tocar el `localStorage`,
+ * > las cookies o el DOM de Mycelium. Lo que rompía era el propio YouTube, que
+ * > necesita su almacenamiento para funcionar.
+ * >
+ * > Lo que sí hay que seguir negando es `allow-top-navigation`: con eso el
+ * > iframe podría llevarse la ventana entera, que es justo el `DEF-101`.
  *
  * `allow-presentation` es lo que permite la pantalla completa del reproductor.
  */
-export const SANDBOX_VIDEO = "allow-scripts allow-popups allow-presentation";
+export const SANDBOX_VIDEO =
+  "allow-scripts allow-popups allow-presentation allow-same-origin";
 
 /** Lo que el iframe puede pedirle al navegador. */
 export const ALLOW_VIDEO = "accelerometer; encrypted-media; picture-in-picture; fullscreen";
