@@ -35,6 +35,7 @@ import {
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
 import { renderDrawioIn } from "@/lib/drawioRender";
+import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
@@ -1138,6 +1139,9 @@ export function NoteEditor({
       const anchor = (event.target as HTMLElement).closest("a");
       if (!anchor) return;
       const href = anchor.getAttribute("href") ?? "";
+      // Un enlace a una página web abre el navegador del sistema y NO navega la
+      // webview: hacerlo se llevaba la app entera (`DEF-101`).
+      if (manejarClicDeEnlace(event, href)) return;
       if (href.startsWith("#wikilink:")) {
         event.preventDefault();
         openByTitle(decodeURIComponent(href.slice("#wikilink:".length)));

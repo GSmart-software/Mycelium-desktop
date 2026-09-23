@@ -596,6 +596,14 @@
   color: var(--mic-glow-texto);
 }
 
+/* Enlace a una página web en la vista EN VIVO (`FUN-S-20`). Acá no hay `<a>`:
+   el `(url)` se oculta y queda el texto marcado con su `data-href`, así que el
+   puntero es lo único que dice «esto se puede abrir». Antes no hacía nada al
+   hacerle clic, que era la mitad callada de `DEF-101`. */
+.mic-enlace-externo {
+  cursor: pointer;
+}
+
 /* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
    punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
    oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de
