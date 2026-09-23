@@ -40,14 +40,15 @@ export const PARAMS_DRAWIO: Record<string, string> = {
   offline: "1",
   stealth: "1",
   pwa: "0",
-  spin: "1",
+  // Las bibliotecas de formas: es lo que distingue a draw.io de Excalidraw, así
+  // que van encendidas.
   libraries: "1",
   // El host decide cuándo se guarda; el editor solo avisa. `modified` hace que
   // el editor reporte el estado «sin guardar» en vez de inventarse uno.
   modified: "unsavedChanges",
-  // Sin botón de «guardar y salir»: la pestaña de Mycelium ya es el contenedor.
+  // Sin «guardar y salir»: la pestaña de Mycelium ya es el contenedor, no hay
+  // a dónde salir.
   saveAndExit: "0",
-  noExitBtn: "1",
 };
 
 /** Tema del editor: sigue al claro/oscuro de Mycelium (CA6). */
