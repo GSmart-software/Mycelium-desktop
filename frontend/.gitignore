@@ -49,3 +49,6 @@ scripts/*.png
 # release fijada. Son ~50 MB que no tienen por que vivir en git.
 /public/drawio/
 /.drawio-cache/
+
+# Carpeta temporal de scripts/test-embeds.mjs (se borra sola al terminar).
+/.tmp-test-embeds/
