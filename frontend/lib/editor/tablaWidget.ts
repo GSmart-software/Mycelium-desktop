@@ -26,6 +26,7 @@
  * pasar el puntero obligaría a medir en cada `mouseover`.
  */
 
+import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { renderMarkdown, renderMarkdownEnLinea } from "@/lib/markdown";
 import {
   alinear,
@@ -194,6 +195,10 @@ export class TablaEnSitio {
     this.dom.addEventListener("mousedown", (event) => {
       const a = (event.target as HTMLElement).closest("a");
       const href = a?.getAttribute("href") ?? "";
+      // Una celda puede traer un enlace web: al navegador del sistema
+      // (`FUN-S-20`). Va antes que el wikilink porque es el caso que, sin
+      // atender, se llevaba la app entera (`DEF-101`).
+      if (manejarClicDeEnlace(event, href)) return;
       if (!href.startsWith("#wikilink:")) return;
       event.preventDefault();
       this.acciones.navegar(decodeURIComponent(href.slice("#wikilink:".length)));

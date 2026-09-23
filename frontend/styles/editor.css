@@ -596,6 +596,14 @@
   color: var(--mic-glow-texto);
 }
 
+/* Enlace a una página web en la vista EN VIVO (`FUN-S-20`). Acá no hay `<a>`:
+   el `(url)` se oculta y queda el texto marcado con su `data-href`, así que el
+   puntero es lo único que dice «esto se puede abrir». Antes no hacía nada al
+   hacerle clic, que era la mitad callada de `DEF-101`. */
+.mic-enlace-externo {
+  cursor: pointer;
+}
+
 /* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
    punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
    oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de
@@ -1221,6 +1229,58 @@
 
 .mic-live-drawio.mic-drawio-error {
   color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+}
+
+/* ── Vídeo embebido (`FUN-S-21`) ──────────────────────────────────
+   Dos reglas para las dos vistas: `.mic-video` la de lectura (es un `span`
+   porque vive dentro del párrafo del `![](…)`, y un `div` ahí sería HTML
+   inválido) y `.mic-live-video` el widget de la edición en vivo. */
+.mic-preview .mic-video,
+.mic-live-video {
+  display: block;
+  position: relative;
+  width: 100%;
+  /* 16:9 sin trucos de padding: el reproductor se adapta al ancho de la nota. */
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  margin: 0.85rem 0;
+  border-radius: var(--mic-radius-md);
+  overflow: hidden;
+  background: var(--mic-bg-code);
+}
+
+.mic-preview .mic-video iframe,
+.mic-live-video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* Sin conexión: el enlace y el motivo, nunca un recuadro en blanco. Se pierde
+   la proporción 16:9 a propósito — no hay reproductor que encuadrar y una caja
+   de texto alta y vacía se lee como un fallo. */
+.mic-preview .mic-video-caido,
+.mic-live-video.mic-video-caido {
+  aspect-ratio: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px dashed color-mix(in srgb, var(--mic-text-muted) 40%, transparent);
+  background: transparent;
+}
+
+.mic-video-enlace {
+  color: var(--mic-enlace);
+  word-break: break-all;
+  cursor: pointer;
+}
+
+.mic-video-motivo {
+  color: var(--mic-text-muted);
   font-size: 0.8125rem;
 }
 

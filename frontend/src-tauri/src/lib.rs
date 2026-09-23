@@ -7,6 +7,7 @@ mod actualizador;
 mod archivos;
 mod marco;
 mod mycignore;
+mod navegacion;
 mod prefs_vault;
 mod terminal;
 mod vault_config;
@@ -155,6 +156,11 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        // Abrir enlaces en el navegador del sistema (`FUN-S-20`).
+        .plugin(tauri_plugin_opener::init())
+        // Red de seguridad de `DEF-101`: ningún camino puede sacar a la app de
+        // su propia página. Va DESPUÉS del opener porque lo usa para derivar.
+        .plugin(navegacion::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`
         // leyendo la config compilada, así que sin claves la app arranca igual

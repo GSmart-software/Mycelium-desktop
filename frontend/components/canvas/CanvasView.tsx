@@ -22,6 +22,7 @@ import {
   type Nodo,
 } from "@/lib/canvas";
 import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
+import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { renderNota } from "@/lib/markdown";
 import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
 import { useAuthStore } from "@/stores/authStore";
@@ -760,6 +761,8 @@ function NodoVista({
             onClick={(e) => {
               const a = (e.target as HTMLElement).closest("a");
               const href = a?.getAttribute("href") ?? "";
+              // Una tarjeta puede traer un enlace web: al navegador (`FUN-S-20`).
+              if (manejarClicDeEnlace(e, href)) return;
               if (href.startsWith("#wikilink:")) {
                 e.preventDefault();
                 onAbrirTitulo(decodeURIComponent(href.slice("#wikilink:".length)));

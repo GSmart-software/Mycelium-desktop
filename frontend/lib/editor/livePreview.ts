@@ -45,6 +45,14 @@ import {
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
+import { esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import {
+  ALLOW_VIDEO,
+  esVideo,
+  leerVideo,
+  SANDBOX_VIDEO,
+  tituloDeVideo,
+} from "@/lib/video";
 import { dibujarDrawioEn } from "@/lib/drawioRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
@@ -623,6 +631,12 @@ export function liveExtensions(
 }
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
+/**
+ * Embed de imagen de markdown: `![alt](url)`. Lo usa el reproductor de vídeo
+ * (`FUN-S-21`), que mira si la `url` es de YouTube o Vimeo.
+ */
+const EMBED_IMAGEN_RE = /!\[[^\]]*\]\(([^)\s]+)\)/g;
+
 /** Embed de un diagrama/archivo excalidraw: `![[ref.excalidraw]]`. */
 const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 
@@ -782,6 +796,14 @@ export function livePreview(
             onWikilinkClick(link.getAttribute("data-title") ?? "");
             return true;
           }
+          // Enlace a una página web (`FUN-S-20`). Acá NO hay un `<a>`: el live
+          // preview oculta el `(url)` y deja el texto marcado, así que el destino
+          // viaja en `data-href` (ver el caso `Link` de `buildDecorations`).
+          // Antes de esto, en esta vista un enlace no hacía nada (`DEF-101`).
+          const externo = (event.target as HTMLElement).closest("[data-href]");
+          if (externo && manejarClicDeEnlace(event, externo.getAttribute("data-href"))) {
+            return true;
+          }
           return false;
         },
       },
@@ -865,6 +887,86 @@ class DrawioWidget extends WidgetType {
 
   ignoreEvent() {
     return true;
+  }
+}
+
+/**
+ * Widget de bloque que dibuja el reproductor de un vídeo embebido
+ * (`![](https://youtu.be/ID)`) en la vista en vivo (`FUN-S-21`).
+ *
+ * Existe por separado del camino de lectura porque **las dos vistas no
+ * comparten código**: `lib/markdown.ts` solo cubre la lectura. Lo que sí
+ * comparten es la detección (`lib/video.ts`), que es lo que impide que el vídeo
+ * se vea en una vista y no en la otra — la lección de `FUN-L-20`.
+ */
+class VideoWidget extends WidgetType {
+  constructor(
+    readonly url: string,
+    readonly pos: number,
+  ) {
+    super();
+  }
+
+  eq(other: VideoWidget) {
+    return other.url === this.url;
+  }
+
+  toDOM(view: EditorView) {
+    const caja = document.createElement("div");
+    caja.className = "mic-live-video";
+    const video = leerVideo(this.url);
+    if (video === null) {
+      caja.textContent = this.url;
+      return caja;
+    }
+
+    // Clic en el borde (fuera del reproductor) → revelar la fuente, como el
+    // resto del live preview. Dentro del iframe manda YouTube, y el enlace del
+    // recuadro sin conexión abre el navegador (`FUN-S-20`): si no, sería el
+    // único enlace de la app que no se puede seguir.
+    caja.addEventListener("mousedown", (event) => {
+      if ((event.target as HTMLElement).closest("iframe")) return;
+      if (manejarClicDeEnlace(event)) return;
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      // Sin red: el enlace y el motivo, nunca un recuadro en blanco.
+      caja.classList.add("mic-video-caido");
+      const a = document.createElement("a");
+      a.href = video.url;
+      a.className = "mic-video-enlace";
+      a.textContent = video.url;
+      const motivo = document.createElement("span");
+      motivo.className = "mic-video-motivo";
+      motivo.textContent = "Sin conexión: no se pudo cargar el reproductor.";
+      caja.append(a, motivo);
+      return caja;
+    }
+
+    const marco = document.createElement("iframe");
+    marco.src = video.src;
+    marco.title = tituloDeVideo(video);
+    // Sin `allow-same-origin`: el documento de YouTube queda en un origen opaco
+    // y no puede alcanzar nada de la app.
+    marco.setAttribute("sandbox", SANDBOX_VIDEO);
+    marco.setAttribute("allow", ALLOW_VIDEO);
+    marco.setAttribute("loading", "lazy");
+    marco.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+    marco.frameBorder = "0";
+    caja.appendChild(marco);
+    return caja;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+
+  /** Alto aproximado del reproductor, para el height-map de CodeMirror. */
+  get estimatedHeight() {
+    return 260;
   }
 }
 
@@ -1047,6 +1149,30 @@ function buildDecorations(
             }
             break;
           }
+          case "Link": {
+            // El destino de un `[texto](https://…)` para poder abrirlo en el
+            // navegador (`FUN-S-20`). El `(url)` se oculta más arriba, así que
+            // sin esto el enlace queda como texto suelto y el clic no hace nada
+            // —que es la mitad de `DEF-101` que se veía en esta vista—.
+            //
+            // Se marca el nodo entero y no solo el texto: el `data-href` tiene
+            // que seguir estando cuando el cursor NO está en la línea, que es
+            // justo cuando se ve como enlace y da ganas de hacerle clic.
+            let destino: string | null = null;
+            const hijo = node.node.getChild("URL");
+            if (hijo) destino = doc.sliceString(hijo.from, hijo.to).trim();
+            if (destino !== null && esEnlaceExterno(destino)) {
+              decos.push({
+                from: node.from,
+                to: node.to,
+                deco: Decoration.mark({
+                  class: "mic-enlace-externo",
+                  attributes: { "data-href": destino, title: destino },
+                }),
+              });
+            }
+            break;
+          }
           case "ListMark": {
             // Marcador de lista (- * + o 1.) coloreado, no se oculta (HU-01)
             decos.push({
@@ -1215,6 +1341,20 @@ function buildDecorations(
             }),
           });
         }
+      }
+
+      // Vídeos embebidos (`FUN-S-21`): `![](url)` con un enlace de YouTube o
+      // Vimeo se reemplaza por el reproductor cuando ocupa la línea entera y el
+      // cursor no está en ella. La detección la hace `lib/video.ts`, la misma
+      // que usa la vista de lectura.
+      for (const match of line.text.matchAll(EMBED_IMAGEN_RE)) {
+        if (isActive || text.trim() !== match[0]) continue;
+        if (!esVideo(match[1])) continue;
+        decos.push({
+          from: line.from,
+          to: line.to,
+          deco: Decoration.replace({ widget: new VideoWidget(match[1], line.from) }),
+        });
       }
 
       // Embeds de draw.io (`FUN-L-20`), con el mismo trato: bloque cuando ocupan

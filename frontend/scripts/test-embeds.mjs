@@ -31,6 +31,7 @@ const MODULOS = [
   "lib/drawio.ts",
   "lib/extensionesDeTipo.ts",
   "lib/editor/wikilink.ts",
+  "lib/video.ts",
 ];
 
 await rm(TMP, { recursive: true, force: true });
@@ -117,6 +118,53 @@ test("un embed de draw.io convive con texto y con otros enlaces", () => {
   assert.match(html, /class="mic-wikilink"/);
   assert.match(html, /class="mic-drawio"/);
   assert.match(html, /data-diag="Plano\.drawio"/);
+});
+
+// ── El reproductor de vídeo en el pipeline de verdad (`FUN-S-21`) ───────────
+//
+// Probar solo `leerVideo` no diría si `renderNota` llega a emitir el iframe:
+// es la misma distancia que dejó el embed de draw.io roto con los tests verdes.
+
+test("![](youtube) emite el iframe del reproductor", () => {
+  const html = renderNota("![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)");
+  assert.match(html, /<iframe/);
+  assert.match(html, /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  assert.match(html, /class="mic-video"/);
+});
+
+test("el iframe del vídeo sale con el sandbox que lo deja funcionar", () => {
+  // Se fija en el HTML de verdad, no solo en la constante. `allow-same-origin`
+  // es lo que le deja a YouTube su propio almacenamiento: sin eso el usuario ve
+  // un recuadro negro (medido el 2026-09-23). No alcanza a la app, que es otro
+  // origen. Lo que nunca puede aparecer acá es `allow-top-navigation`: con eso
+  // el iframe se llevaría la ventana, o sea el `DEF-101` por otra puerta.
+  const html = renderNota("![](https://youtu.be/dQw4w9WgXcQ)");
+  assert.match(html, /sandbox="[^"]*allow-scripts[^"]*"/);
+  assert.match(html, /sandbox="[^"]*allow-same-origin[^"]*"/);
+  assert.ok(!/allow-top-navigation/.test(html), `el iframe podría llevarse la ventana: ${html}`);
+});
+
+test("youtu.be y /shorts/ salen igual que la forma larga", () => {
+  for (const url of [
+    "https://youtu.be/dQw4w9WgXcQ",
+    "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+  ]) {
+    assert.match(renderNota(`![](${url})`), /youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
+  }
+});
+
+test("una imagen normal sigue siendo una imagen", () => {
+  // Que el reproductor no se lleve por delante los embeds de imagen de siempre.
+  const html = renderNota("![gato](https://ejemplo.com/gato.png)");
+  assert.match(html, /<img/);
+  assert.ok(!/mic-video/.test(html));
+});
+
+test("un enlace a YouTube que NO es embed sigue siendo un enlace", () => {
+  // Sin el `!` delante es un enlace normal: lo abre el navegador, no se dibuja.
+  const html = renderNota("[mirá esto](https://youtu.be/dQw4w9WgXcQ)");
+  assert.match(html, /<a /);
+  assert.ok(!/<iframe/.test(html));
 });
 
 // ── La resolución del destino: donde estaba el defecto ───────────────────────

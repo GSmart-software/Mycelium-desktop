@@ -39,6 +39,7 @@ import {
   type TipoPropiedad,
   type ValorPropiedad,
 } from "@/lib/frontmatter";
+import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { ICONO_TIPO, valorPropiedadHtml } from "@/lib/markdown";
 
 /** Lo que la tarjeta le pide al editor. Todas pueden lanzar (guarda del YAML). */
@@ -504,6 +505,9 @@ export class TarjetaPropiedades {
     this.dom.addEventListener("mousedown", (event) => {
       const a = (event.target as HTMLElement).closest("a");
       const href = a?.getAttribute("href") ?? "";
+      // Una propiedad de tipo URL es justo esto: un enlace web. Al navegador
+      // (`FUN-S-20`), nunca navegando la webview (`DEF-101`).
+      if (manejarClicDeEnlace(event, href)) return;
       if (!href.startsWith("#wikilink:")) return;
       event.preventDefault();
       this.acciones.navegar(decodeURIComponent(href.slice("#wikilink:".length)));
