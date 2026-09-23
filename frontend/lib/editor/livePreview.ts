@@ -921,9 +921,12 @@ class VideoWidget extends WidgetType {
     }
 
     // Clic en el borde (fuera del reproductor) → revelar la fuente, como el
-    // resto del live preview. Dentro del iframe manda YouTube.
+    // resto del live preview. Dentro del iframe manda YouTube, y el enlace del
+    // recuadro sin conexión abre el navegador (`FUN-S-20`): si no, sería el
+    // único enlace de la app que no se puede seguir.
     caja.addEventListener("mousedown", (event) => {
       if ((event.target as HTMLElement).closest("iframe")) return;
+      if (manejarClicDeEnlace(event)) return;
       event.preventDefault();
       view.dispatch({ selection: { anchor: this.pos } });
       view.focus();
