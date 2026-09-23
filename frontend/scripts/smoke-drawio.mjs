@@ -10,9 +10,23 @@
 //
 //   node scripts/smoke-drawio.mjs
 import { createReadStream, existsSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import ts from "typescript";
+
+// Los parámetros salen de `lib/drawio.ts`, no de una copia a mano: si no, el
+// smoke probaría una URL que la app no usa. `lib/drawio.ts` es puro, así que se
+// transpila al vuelo como en `test-drawio.mjs`.
+const rutaTs = fileURLToPath(new URL("../lib/drawio.ts", import.meta.url));
+const { outputText } = ts.transpileModule(await readFile(rutaTs, "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+});
+const { urlDelEditor } = await import(
+  `data:text/javascript,${encodeURIComponent(outputText)}`
+);
 
 const RAIZ = resolve(import.meta.dirname, "..", "out");
 const PUERTO = 3199;
@@ -99,25 +113,10 @@ try {
   await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
 
   const resultado = await page.evaluate(
-    async ({ xmlInicial }) => {
-      const params = [
-        "embed=1",
-        "proto=json",
-        "offline=1",
-        "stealth=1",
-        // Sin service worker: la app ya se sirve local, así que el SW no aporta
-        // nada y sí arriesga servir una versión vieja tras actualizar el paquete.
-        "pwa=0",
-        "spin=1",
-        "libraries=1",
-        "noSaveBtn=0",
-        "saveAndExit=0",
-        "modified=unsavedChanges",
-      ].join("&");
-
+    async ({ xmlInicial, urlEditor }) => {
       const iframe = document.createElement("iframe");
       iframe.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0";
-      iframe.src = `/drawio/index.html?${params}`;
+      iframe.src = urlEditor;
       document.body.appendChild(iframe);
 
       const eventos = [];
@@ -220,7 +219,7 @@ try {
         eventos,
       };
     },
-    { xmlInicial: XML_DE_PRUEBA },
+    { xmlInicial: XML_DE_PRUEBA, urlEditor: urlDelEditor("claro") },
   );
 
   checks.initRecibido = resultado.init;
