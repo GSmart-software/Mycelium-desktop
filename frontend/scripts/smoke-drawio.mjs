@@ -74,6 +74,9 @@ const XML_DE_PRUEBA =
 const checks = {};
 const externas = [];
 const erroresConsola = [];
+/** Lo que el recorte se llevó y la webapp todavía pide: la señal de que una
+ *  quita rompió algo que ningún check mira directamente. */
+const faltantes = [];
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
@@ -86,6 +89,9 @@ page.on("request", (r) => {
   }
 });
 page.on("console", (m) => m.type() === "error" && erroresConsola.push(m.text()));
+page.on("response", (r) => {
+  if (r.status() === 404) faltantes.push(r.url().replace(base, ""));
+});
 
 try {
   // Página de prueba: un iframe al editor y el puente `postMessage` del host.
@@ -170,6 +176,35 @@ try {
       enviar({ action: "export", format: "xmlsvg" });
       const exp = await exportado;
 
+      // 6. Las bibliotecas de formas y las plantillas: es lo que hay que volver
+      //    a mirar después de CADA quita del recorte (spec § 3). Mismo origen,
+      //    así que se puede contar lo que hay dentro del iframe.
+      //    Las paletas son perezosas: se registran todas las bibliotecas (una
+      //    `.geTitle` por cada una) pero solo dibujan sus formas las que están
+      //    abiertas. Por eso se miran las dos cosas: cuántas bibliotecas hay y
+      //    cuántas formas llegaron a dibujarse.
+      const doc = iframe.contentDocument;
+      const formasEnLaBarra = doc.querySelectorAll(".geSidebarContainer .geItem").length;
+      const seccionesDeFormas = doc.querySelectorAll(".geSidebarContainer .geTitle").length;
+      // Los stencils se cargan a demanda; que el registro exista y las formas
+      // básicas estén resueltas es lo que dice que la maquinaria sigue entera.
+      const w = iframe.contentWindow;
+      const hayRegistroDeStencils =
+        typeof w.mxStencilRegistry === "object" && w.mxStencilRegistry !== null;
+      const hayFormasBasicas =
+        typeof w.mxCellRenderer === "function" || typeof w.mxCellRenderer === "object";
+
+      // Las plantillas salen de este índice: si el recorte se lo lleva, el
+      // diálogo de plantillas abre vacío y no falla nada visible.
+      let plantillas = 0;
+      try {
+        const r = await fetch("/drawio/templates/index.xml");
+        const txt = await r.text();
+        plantillas = (txt.match(/<template /g) ?? []).length;
+      } catch {
+        plantillas = -1;
+      }
+
       return {
         init: init.event === "init",
         loadOk: load.event === "load",
@@ -177,6 +212,11 @@ try {
         xmlGuardado: save.xml ?? "",
         exportTieneDatos: typeof exp.data === "string" && exp.data.length > 1000,
         exportEsSvg: (exp.data ?? "").startsWith("data:image/svg+xml"),
+        formasEnLaBarra,
+        seccionesDeFormas,
+        hayRegistroDeStencils,
+        hayFormasBasicas,
+        plantillas,
         eventos,
       };
     },
@@ -190,6 +230,12 @@ try {
   checks.autosaveLlegaSolo = /<mxGraphModel|<mxfile/.test(resultado.autosaveXml);
   checks.exportDevuelveSvg = resultado.exportEsSvg && resultado.exportTieneDatos;
   checks.sinPeticionesExternas = externas.length === 0;
+  // Lo que hay que volver a mirar después de cada quita del recorte (spec § 3).
+  checks.bibliotecasDeFormas = resultado.formasEnLaBarra >= 40;
+  checks.seccionesDeFormas = resultado.seccionesDeFormas >= 100;
+  checks.motorDeStencils = resultado.hayRegistroDeStencils && resultado.hayFormasBasicas;
+  checks.plantillas = resultado.plantillas > 20;
+  checks.nadaFaltante = faltantes.length === 0;
 
   await page.screenshot({ path: "scripts/smoke-drawio.png" });
 
@@ -198,8 +244,14 @@ try {
     JSON.stringify(
       {
         checks,
+        medidas: {
+          formasEnLaBarra: resultado.formasEnLaBarra,
+          seccionesDeFormas: resultado.seccionesDeFormas,
+          plantillas: resultado.plantillas,
+        },
         eventos: resultado.eventos,
         peticionesExternas: externas.slice(0, 10),
+        faltantes: faltantes.slice(0, 10),
         erroresConsola: erroresConsola.slice(0, 5),
         muestraXmlGuardado: resultado.xmlGuardado.slice(0, 200),
       },

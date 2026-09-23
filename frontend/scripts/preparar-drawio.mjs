@@ -56,9 +56,24 @@ const SELLO = join(DESTINO, ".preparado.json");
  */
 const RECORTE = [
   // Andamiaje de la app Java del `.war`: Mycelium sirve los estáticos, no hay
-  // servlet container. Nada de esto se referencia desde `webapp/index.html`.
+  // servlet container. Nada de esto se referencia desde `index.html`.
   "META-INF/",
   "WEB-INF/",
+
+  // El bundle del modo «integrate» (22 MB), el que usa `embed.diagrams.net`.
+  // No lo referencia **ningún** archivo del paquete: `index.html` carga
+  // `js/app.min.js` por `bootstrap.js`. Es la quita más grande y la más barata.
+  "js/integrate.min.js",
+
+  // Las traducciones que no se usan. La UI va en español y el fallback de
+  // draw.io es el inglés, así que sobreviven `dia.txt` y `dia_es.txt` (abajo).
+  "resources/",
+
+  // Las fuentes SIN minificar, que solo se cargan con `dev=1` (`bootstrap.js`
+  // las pide en la rama de desarrollo). En producción manda `js/app.min.js`,
+  // que ya las trae adentro: son 14 MB de copia duplicada.
+  "js/diagramly/",
+  "js/grapheditor/",
 ];
 
 /**
@@ -67,19 +82,40 @@ const RECORTE = [
  * de formas, las plantillas y la exportación.
  */
 const INTOCABLE = [
+  "index.html",
   "js/app.min.js",
-  "js/viewer.min.js",
+  "js/bootstrap.js",
+  "js/main.js",
   "js/extensions.min.js",
+  "js/stencils.min.js",
+  "js/shapes-14-6-5.min.js",
+  // Los dos viewers se quedan: `js/PreConfig.js` referencia a `viewer.min.js`, y
+  // `viewer-static.min.js` lo referencian `app.min.js` y `EditorUi.js` (es el
+  // que sostiene la exportación a HTML). Sacarlos rompería en silencio, que es
+  // justo lo que la spec pide no hacer.
+  "js/viewer.min.js",
+  "js/viewer-static.min.js",
+  // Las bibliotecas de formas y las plantillas: lo que hay que volver a probar
+  // después de cada quita, y por eso mismo lo que nunca se quita.
   "shapes/",
   "stencils/",
   "templates/",
   "styles/",
   "images/",
-  "index.html",
-  "js/diagramly/",
-  "js/grapheditor/",
+  "img/",
+  "mxgraph/",
+  // El inglés es el fallback de draw.io y el español es la UI de Mycelium.
   "resources/dia.txt",
   "resources/dia_es.txt",
+
+  // > [!warning] MathJax se queda, aunque la spec lo daba por descartado
+  // > Se probó sacarlo y **se revirtió**. draw.io lo pide al arrancar
+  // > (`js/PreConfig.js` → `DRAW_MATH_URL`), así que sin él quedaba un 404 en
+  // > cada apertura del editor, y las fórmulas dentro de las figuras dejaban de
+  // > dibujarse en silencio. A cambio, ahorraba ~1 MB comprimido sobre 32: el
+  // > peso real está en `stencils/`, que no se toca. La regla de la spec —«si
+  // > algo se rompe, revertí esa quita»— manda sobre la lista de candidatos.
+  "math4/",
 ];
 
 const args = new Set(process.argv.slice(2));
