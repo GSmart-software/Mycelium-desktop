@@ -66,7 +66,11 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
     // consulta, no prosa, y un `[[…]]` dentro de un valor del YAML crearía una
     // arista fantasma. Es el mismo efecto colateral que ya arrastra Excalidraw y
     // que nadie diseñó (ver docs/features/canvas.md).
-    if (f.contenido && f.tipo !== "base" && f.tipo !== "canvas") {
+    // Un `.drawio` (`FUN-L-20`) se suma a la lista por el mismo motivo: es XML
+    // de mxGraph, y escanearlo como prosa encontraría `[[…]]` dentro de los
+    // estilos y las etiquetas de las figuras. Es un destino válido, no una
+    // fuente de aristas.
+    if (f.contenido && f.tipo !== "base" && f.tipo !== "canvas" && f.tipo !== "drawio") {
       contenidos.set(f.id, f.contenido);
     }
     // Un canvas (`FUN-L-18`) tampoco se escanea como prosa: es JSON, y buscarle

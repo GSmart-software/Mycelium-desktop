@@ -8,7 +8,7 @@
  *     componentes que mapean estas respuestas (vaultStore, authStore, etc.).
  */
 
-export type NotaTipo = "markdown" | "excalidraw" | "base" | "canvas";
+export type NotaTipo = "markdown" | "excalidraw" | "base" | "canvas" | "drawio";
 
 // ── Filas SQLite ────────────────────────────────────────────────────────────
 

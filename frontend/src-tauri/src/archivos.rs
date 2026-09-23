@@ -36,7 +36,8 @@ pub struct ArchivoMeta {
     pub ruta_relativa: String,
     /// Fecha de modificación en milisegundos epoch (de `metadata().modified()`).
     pub mtime: i64,
-    /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"markdown"` para el resto.
+    /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"canvas"` para
+    /// `.canvas`, `"drawio"` para `.drawio`, `"markdown"` para el resto.
     pub tipo: String,
 }
 
@@ -48,6 +49,10 @@ fn tipo_de(path: &Path) -> String {
         // Obsidian, para que el vault siga siendo intercambiable.
         Some(ext) if ext.eq_ignore_ascii_case("base") => "base".to_string(),
         Some(ext) if ext.eq_ignore_ascii_case("canvas") => "canvas".to_string(),
+        // Diagramas de draw.io (`FUN-L-20`): XML de mxGraph. La extensión es la
+        // nativa de la herramienta, para que el archivo se abra en cualquier
+        // draw.io de afuera.
+        Some(ext) if ext.eq_ignore_ascii_case("drawio") => "drawio".to_string(),
         _ => "markdown".to_string(),
     }
 }
@@ -67,7 +72,11 @@ pub(crate) fn es_importable(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) => {
             let ext = ext.to_ascii_lowercase();
-            ext == "md" || ext == "excalidraw" || ext == "base" || ext == "canvas"
+            ext == "md"
+                || ext == "excalidraw"
+                || ext == "base"
+                || ext == "canvas"
+                || ext == "drawio"
         }
         None => false,
     }
@@ -596,6 +605,23 @@ pub fn carpeta_no_vacia(ruta: String) -> Result<bool, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Un tipo de archivo nuevo entra por dos puertas —el tipo y el filtro de
+    /// importables— y olvidar la segunda lo deja fuera del índice y del árbol
+    /// sin que nada falle: el archivo existe en el disco y la app no lo ve.
+    #[test]
+    fn los_diagramas_drawio_entran_al_indice_con_su_tipo() {
+        assert_eq!(tipo_de(Path::new("arquitectura.drawio")), "drawio");
+        assert_eq!(tipo_de(Path::new("sub/arquitectura.DrawIO")), "drawio");
+        assert!(es_importable(Path::new("arquitectura.drawio")));
+
+        // Y no se lleva por delante a los tipos que ya existían.
+        assert_eq!(tipo_de(Path::new("nota.md")), "markdown");
+        assert_eq!(tipo_de(Path::new("dibujo.excalidraw")), "excalidraw");
+        assert_eq!(tipo_de(Path::new("lienzo.canvas")), "canvas");
+        assert_eq!(tipo_de(Path::new("tabla.base")), "base");
+        assert!(!es_importable(Path::new("foto.png")));
+    }
 
     #[test]
     fn rechaza_escapes_de_la_carpeta_destino() {

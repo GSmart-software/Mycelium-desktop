@@ -112,6 +112,10 @@ export function extDeTipo(tipo: string): string {
   // bases (`FUN-L-03`) y los canvas (`FUN-L-18`) sean intercambiables.
   if (tipo === "base") return ".base";
   if (tipo === "canvas") return ".canvas";
+  // `.drawio` (`FUN-L-20`) es la extensión nativa de draw.io: XML de mxGraph,
+  // texto plano y versionable. Se eligió sobre `.drawio.svg` para no tener dos
+  // representaciones del mismo diagrama que puedan desincronizarse.
+  if (tipo === "drawio") return ".drawio";
   return ".md";
 }
 

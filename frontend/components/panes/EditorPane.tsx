@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BaseView } from "@/components/bases/BaseView";
 import { CanvasView } from "@/components/canvas/CanvasView";
+import { DrawioView } from "@/components/drawio/DrawioView";
 import { RelinkView } from "@/components/enlaces/RelinkView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
@@ -82,6 +83,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <BaseView key={activeTab.id} notaId={activeTab.notaId} instanceId={activeTab.id} />
         ) : activeTab && activeTipo === "canvas" ? (
           <CanvasView key={activeTab.id} notaId={activeTab.notaId} />
+        ) : activeTab && activeTipo === "drawio" ? (
+          <DrawioView key={activeTab.id} notaId={activeTab.notaId} />
         ) : activeTab ? (
           <NoteEditor
             key={activeTab.id}

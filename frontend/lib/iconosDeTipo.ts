@@ -7,6 +7,7 @@ import {
   Shapes,
   Table2,
   Terminal,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { NotaTipo } from "@/stores/vaultStore";
@@ -29,6 +30,9 @@ export const ICONO_POR_TIPO: Record<NotaTipo, LucideIcon> = {
   excalidraw: Shapes,
   base: Table2,
   canvas: LayoutDashboard,
+  // draw.io (`FUN-L-20`): cajas unidas por conectores. Es justo lo que lo
+  // separa del dibujo a mano alzada de Excalidraw, que se queda con `Shapes`.
+  drawio: Workflow,
 };
 
 /** El grafo de conexiones. Es el mismo ícono que su sección del rail. */

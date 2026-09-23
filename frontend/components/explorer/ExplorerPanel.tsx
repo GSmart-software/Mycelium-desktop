@@ -31,6 +31,7 @@ import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { api } from "@/lib/api";
 import { baseInicial } from "@/lib/bases";
 import { canvasInicial } from "@/lib/canvas";
+import { diagramaInicial } from "@/lib/drawio";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
@@ -122,6 +123,7 @@ type RenameState = { type: "carpeta" | "nota"; id: string; valor: string } | nul
 const IconoDibujo = ICONO_POR_TIPO.excalidraw;
 const IconoBase = ICONO_POR_TIPO.base;
 const IconoCanvas = ICONO_POR_TIPO.canvas;
+const IconoDiagrama = ICONO_POR_TIPO.drawio;
 
 export function ExplorerPanel() {
   const router = useRouter();
@@ -464,6 +466,20 @@ export function ExplorerPanel() {
     openNota(id);
   }
 
+  /**
+   * Crea un `.drawio` con una página vacía ya escrita (`FUN-L-20`). Un archivo
+   * de cero bytes no es un diagrama válido: el editor lo trataría como corrupto.
+   */
+  async function crearDiagrama(carpetaId: string | null) {
+    const id = await store.createNota(carpetaId, "drawio");
+    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
+      method: "PUT",
+      token: useAuthStore.getState().accessToken,
+      body: { contenido: diagramaInicial() },
+    });
+    openNota(id);
+  }
+
   function carpetaMenu(carpeta: TreeCarpeta): MenuItem[] {
     return [
       {
@@ -483,6 +499,12 @@ export function ExplorerPanel() {
       {
         label: "Nuevo canvas",
         onClick: () => void crearCanvas(carpeta.id),
+      },
+      // draw.io (`FUN-L-20`): el diagrama formal, el que se retoca dentro de seis
+      // meses moviendo una caja y que las flechas la sigan.
+      {
+        label: "Nuevo diagrama draw.io",
+        onClick: () => void crearDiagrama(carpeta.id),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
       // Esporas la entrada queda deshabilitada con el motivo, nunca oculta: es
@@ -774,6 +796,11 @@ export function ExplorerPanel() {
       label: "Nuevo canvas (notas en el espacio)",
       icono: IconoCanvas,
       onClick: () => void crearCanvas(store.activeFolderId),
+    },
+    {
+      label: "Nuevo diagrama draw.io (figuras y conectores)",
+      icono: IconoDiagrama,
+      onClick: () => void crearDiagrama(store.activeFolderId),
     },
     {
       label: "Nueva carpeta",
