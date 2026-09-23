@@ -9,6 +9,13 @@ import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
 import { embedDrawioRe } from "@/lib/drawio";
+import {
+  ALLOW_VIDEO,
+  leerVideo,
+  SANDBOX_VIDEO,
+  tituloDeVideo,
+  type VideoEmbebido,
+} from "@/lib/video";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
 import { partirWikilink } from "@/lib/wikilinks";
 
@@ -17,7 +24,12 @@ type MdNode = {
   value?: string;
   url?: string;
   children?: MdNode[];
-  data?: { hName?: string; hProperties?: Record<string, string | boolean> };
+  data?: {
+    hName?: string;
+    hProperties?: Record<string, string | boolean>;
+    /** Hijos ya en hast: lo usa el reproductor de vídeo (`FUN-S-21`). */
+    hChildren?: unknown[];
+  };
 };
 
 const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
@@ -302,6 +314,90 @@ function rehypeLineas(opciones: { activo: boolean }) {
 }
 
 /**
+ * Plugin remark: `![](https://youtu.be/ID)` → el reproductor (`FUN-S-21`).
+ *
+ * Un embed de imagen cuyo destino es un vídeo se convierte en el iframe del
+ * reproductor. La detección vive en `lib/video.ts`, que también usa el widget
+ * de la vista en vivo: **una sola definición para los dos caminos**, que es la
+ * lección de `FUN-L-20` —ahí cada vista tenía su copia y el embed funcionaba
+ * al leer y desaparecía al editar—.
+ */
+function remarkVideo() {
+  return (tree: Parent) => {
+    visit(tree, "image", (node: MdNode, index, parent: Parent | undefined) => {
+      if (!parent || index === undefined) return;
+      const video = leerVideo(node.url);
+      if (video === null) return;
+      parent.children[index] = nodoDeVideo(video) as never;
+    });
+  };
+}
+
+/**
+ * El nodo hast del reproductor, o el recuadro de reserva si no hay conexión.
+ *
+ * Se usa `span` y no `div` a propósito: `![](…)` vive dentro de un párrafo, y
+ * un `div` ahí dentro es HTML inválido. El CSS lo hace bloque.
+ */
+function nodoDeVideo(video: VideoEmbebido): MdNode {
+  // Sin conexión no se pide el reproductor: se muestra el enlace y el motivo,
+  // que es mejor que un recuadro en blanco sin explicación. `navigator.onLine`
+  // no sabe si YouTube responde, pero sí sabe que no hay red, que es el caso
+  // que la spec pide atender.
+  const sinRed = typeof navigator !== "undefined" && navigator.onLine === false;
+  if (sinRed) {
+    return {
+      type: "paragraph",
+      data: {
+        hName: "span",
+        hProperties: { className: "mic-video mic-video-caido" },
+        hChildren: [
+          {
+            type: "element",
+            tagName: "a",
+            properties: { href: video.url, className: "mic-video-enlace" },
+            children: [{ type: "text", value: video.url }],
+          },
+          {
+            type: "element",
+            tagName: "span",
+            properties: { className: "mic-video-motivo" },
+            children: [{ type: "text", value: "Sin conexión: no se pudo cargar el reproductor." }],
+          },
+        ],
+      },
+      children: [],
+    };
+  }
+  return {
+    type: "paragraph",
+    data: {
+      hName: "span",
+      hProperties: { className: "mic-video" },
+      hChildren: [
+        {
+          type: "element",
+          tagName: "iframe",
+          properties: {
+            src: video.src,
+            title: tituloDeVideo(video),
+            // El iframe NO comparte origen con la app: sin `allow-same-origin`
+            // queda en un origen opaco y no puede tocar nada de Mycelium.
+            sandbox: SANDBOX_VIDEO,
+            allow: ALLOW_VIDEO,
+            loading: "lazy",
+            referrerPolicy: "strict-origin-when-cross-origin",
+            frameBorder: "0",
+          },
+          children: [],
+        },
+      ],
+    },
+    children: [],
+  };
+}
+
+/**
  * La cadena de plugins, en UNA sola definición. Se instancia dos veces porque
  * el marcado de líneas solo lo quiere la vista de lectura: en una exportación a
  * PDF o en una tarjeta de canvas esos atributos serían ruido.
@@ -311,6 +407,7 @@ function crearProcesador(conLineas: boolean) {
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkVideo)
     .use(remarkMicelio)
     .use(remarkCallouts)
     .use(remarkEmphasisStyle)
