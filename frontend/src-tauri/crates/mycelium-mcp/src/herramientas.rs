@@ -251,23 +251,27 @@ fn una_linea(s: &str, max: usize) -> String {
 
 fn formatear_busqueda(c: &Consulta, b: &Busqueda, frescura: &str, de_respaldo: bool) -> String {
     let mut o = String::new();
-    let unidad = if c.ambito == Ambito::Notas || b.modo == Modo::Interseccion { "notas" } else { "resultados" };
+    let unidad = if c.ambito == Ambito::Notas { "notas" } else { "resultados" };
+    let ausentes = || b.sin_coincidencias.iter().map(|t| format!("«{t}»")).collect::<Vec<_>>().join(", ");
     if b.resultados.is_empty() {
         let _ = writeln!(o, "0 resultados para «{}» · {frescura}", c.texto);
         let _ = writeln!(
             o,
-            "\nProbá con menos términos, con el vocabulario del vault (títulos, tags) o sin filtros. \
-             Si el vault no tiene la respuesta, decilo en vez de suponer."
+            "\nNinguna sección del vault tiene esos términos{}. Probá con otras palabras (las del vault: \
+             títulos, tags) o sin filtros. Si es código o configuración, no está en el índice: grep. Si el \
+             vault no tiene la respuesta, decilo en vez de suponer.",
+            if c.filtros.vacio() { "" } else { " (con esos filtros)" }
         );
         return o;
     }
-    let _ = writeln!(o, "{} {unidad} · mostrando {} · {frescura}", b.total, b.resultados.len());
-    if b.modo == Modo::Interseccion {
-        let _ = writeln!(
-            o,
-            "Ninguna sección tiene todos los términos: notas que los reúnen entre varias secciones \
-             (la mejor sección de cada término)."
-        );
+    let completos = if b.modo == Modo::Filtros || b.terminos_presentes() < 2 {
+        String::new()
+    } else {
+        format!(" ({} con todos los términos)", b.completos)
+    };
+    let _ = writeln!(o, "{} {unidad}{completos} · mostrando {} · {frescura}", b.total, b.resultados.len());
+    if !b.sin_coincidencias.is_empty() {
+        let _ = writeln!(o, "Sin coincidencias en el vault: {} (probá otra palabra para eso).", ausentes());
     }
     if de_respaldo {
         let _ = writeln!(o, "(índice en el directorio temporal: el app-data no se pudo escribir)");
