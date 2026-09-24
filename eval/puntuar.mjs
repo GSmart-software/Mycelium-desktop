@@ -9,9 +9,9 @@
 // § 10 pide además marcar la vieja con `descartada: true`, lo que sería
 // reescribirla: ver el resumen de la fase 0.)
 //
-// El juez LLM (nivel 2) y el árbitro humano (nivel 3) quedan diseñados en la
-// nota y no están implementados: las filas con `puntuador: "requiere-juez"` son
-// las que les tocarían.
+// Las filas con `puntuador: "requiere-juez"` las puntúa el juez LLM (nivel 2):
+// `eval/juzgar.mjs`. Una fila ya juzgada conserva el acierto del juez al
+// re-puntuarla (`conservarJuicio`).
 
 import { appendFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -23,6 +23,22 @@ import { puntuar } from "./lib/puntuacion.mjs";
 
 const EVAL = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(EVAL, "..");
+
+/**
+ * Si la fila ya la puntuó el juez o el humano y la regla mecánica la sigue
+ * mandando al juez, el acierto de ese veredicto se conserva: re-puntuar las citas
+ * no puede deshacer un juicio (y una fila nueva con `requiere-juez` lo haría,
+ * porque manda la última). Si la regla ya NO la manda al juez, vale la mecánica.
+ */
+export function conservarJuicio(fila, p) {
+  if (!["juez", "humano"].includes(fila.puntuador) || p.puntuador !== "requiere-juez") return p;
+  return {
+    ...p,
+    acierto: fila.acierto,
+    acierto_citado: fila.acierto === 1 && p.citas_exhaustividad === 1 ? 1 : 0,
+    puntuador: fila.puntuador,
+  };
+}
 
 function principal() {
   const { values: v } = parseArgs({
@@ -49,7 +65,7 @@ function principal() {
       corpora.set(f.commit_vault, inventario(c.dir));
     }
     const inv = corpora.get(f.commit_vault);
-    const p = puntuar(clave, { respuesta: f.respuesta, citas: f.citas, no_esta: f.no_esta }, { titulos: inv.titulos, archivos: inv.archivos });
+    const p = conservarJuicio(f, puntuar(clave, { respuesta: f.respuesta, citas: f.citas, no_esta: f.no_esta }, { titulos: inv.titulos, archivos: inv.archivos }));
     const campos = ["acierto", "distractor", "citas_precision", "citas_exhaustividad", "citas_inventadas", "acierto_citado", "puntuador"];
     const distintos = campos.filter((k) => p[k] !== f[k]);
     const prec = p.citas_precision === null ? "—" : p.citas_precision.toFixed(2);
