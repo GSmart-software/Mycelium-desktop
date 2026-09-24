@@ -270,6 +270,25 @@ export function estimar(plan, filas, modelo) {
   return { total, faltan: [...faltan], porBrazo };
 }
 
+/**
+ * Lo que ya se hizo de esta tanda, para REANUDAR sin volver a pagarlo.
+ *
+ * Una tanda son cientos de corridas y horas de reloj; en esta máquina un
+ * proceso largo ya fue terminado por falta de memoria. Sin esto, relanzar la
+ * tanda repetía todo lo hecho. Cuenta como hecha la corrida cuya ÚLTIMA fila
+ * (append-only: manda la última) no está descartada; el calentamiento, con que
+ * exista uno de esta tanda.
+ */
+export function yaHechas(filas, tanda) {
+  const hechas = new Set();
+  let calentamiento = false;
+  for (const f of ultimaPorSesion(filas.filter((x) => x.tanda === tanda))) {
+    if (f.motivo_descarte === "calentamiento") calentamiento = true;
+    else if (!f.descartada) hechas.add(`${f.pregunta}|${f.brazo}|${f.rep}`);
+  }
+  return { hechas, calentamiento };
+}
+
 function principal() {
   const { values: v } = parseArgs({
     options: {
@@ -332,7 +351,11 @@ function principal() {
   // § 7, regla 5: una corrida descartada se anota y se REPITE. Con un tope, para
   // que una pregunta que siempre rompe la salida no se coma la tanda.
   const reintentos = Number(v.reintentos);
+  const previas = yaHechas(existsSync(comun.salida) ? leerJsonl(comun.salida) : [], v.tanda);
+  if (previas.hechas.size || previas.calentamiento)
+    console.log(`Reanudando la tanda ${v.tanda}: ${previas.hechas.size} corridas válidas ya hechas se saltean${previas.calentamiento ? ", y el calentamiento" : ""}.`);
   for (const [i, c] of plan.entries()) {
+    if (c.calentamiento ? previas.calentamiento : previas.hechas.has(`${c.pregunta.id}|${c.brazo}|${c.rep}`)) continue;
     for (let intento = 0; intento <= (c.calentamiento ? 0 : reintentos); intento++) {
       const res = correrUna({
         ...comun,
