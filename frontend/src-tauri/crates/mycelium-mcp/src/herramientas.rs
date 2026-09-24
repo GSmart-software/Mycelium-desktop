@@ -10,6 +10,7 @@
 //! 3. **La última línea enseña el próximo paso**, en vez de confiar en que el
 //!    agente recuerde la descripción de la herramienta.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
@@ -51,6 +52,9 @@ tienen más (y los más raros), después ordena BM25. Prefijo: «enlace» encuen
 \"entre comillas\" busca la frase. Consultas CORTAS: 2 o 3 términos distintivos, no la pregunta \
 entera; si no aparece lo que buscás, cambiá o sacá términos en vez de agregar. Después, vault_leer \
 con las refs que interesen.\n\
+CITAS: cada resultado trae `cita [[nombre]]`. Citá cada nota EXACTAMENTE así: es el nombre del \
+archivo, lo único que resuelve como [[enlace]]; el # título visible (p. ej. «Atmósferas» para \
+atmosferas.md) NO resuelve.\n\
 IMPORTANTE: el índice tiene SOLO las notas .md. El código, la configuración y los otros tipos de \
 archivo (.ts, .rs, .json, .toml, .canvas, .base…) NO están: buscalos con grep/Grep y leelos con \
 Read. Y la documentación puede ir por detrás del código: si la pregunta es cómo funciona algo HOY, \
@@ -85,7 +89,8 @@ Una ruta o título de nota sin #sN devuelve la nota ENTERA si pesa hasta 20 KB (
 es más grande, el índice COMPLETO de sus secciones (todas, con su ref y su tamaño) y el costo de \
 leerla entera (forzar=true para pagarlo). Si una sección no alcanza —el porqué, el costo real o una \
 enumeración suelen estar en otra sección de la misma nota—, pedí la nota o las secciones vecinas \
-(contexto=1). Solo .md: el código se lee con Read.",
+(contexto=1). Solo .md: el código se lee con Read. Cada lectura empieza con `cita [[nombre]]`: \
+citá la nota así, no por el # título que viene después.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -196,7 +201,26 @@ fn buscar(a: &mut Abierto, vault: &str, args: &Value, reval: Option<&Revalidacio
     let b = a.indice.buscar(&c)?;
     let ms = t0.elapsed().as_millis();
     bitacora::registrar(&a.bitacora, vault, &c, &b, ms);
-    Ok(formatear_busqueda(&c, &b, &frescura(a, reval), a.de_respaldo))
+    let mut citas = HashMap::new();
+    for r in &b.resultados {
+        if !citas.contains_key(&r.nota_id) {
+            citas.insert(r.nota_id.clone(), cita(&a.indice.cita(&r.nota_id, &r.titulo)?));
+        }
+    }
+    Ok(formatear_busqueda(&c, &b, &citas, &frescura(a, reval), a.de_respaldo))
+}
+
+/// `cita [[atmosferas]]`: el destino de `[[enlace]]` que la app resuelve a esa
+/// nota (evaluación § 13). Es el **nombre del archivo**, no el `# Título`:
+/// citar «Atmósferas» deja un enlace que no lleva a ningún lado. Con homónimas
+/// lleva la carpeta justa (`viejo/Plan`), como las desambigua la app; si ni la
+/// ruta entera alcanza, lo dice.
+fn cita((destino, resuelve): &(String, bool)) -> String {
+    if *resuelve {
+        format!("cita [[{destino}]]")
+    } else {
+        format!("cita [[{destino}]] (ambigua: otra nota solo difiere en mayúsculas)")
+    }
 }
 
 /// «índice al día (…)»: cuándo se comprobó el disco por última vez.
@@ -264,7 +288,13 @@ fn una_linea(s: &str, max: usize) -> String {
     out
 }
 
-fn formatear_busqueda(c: &Consulta, b: &Busqueda, frescura: &str, de_respaldo: bool) -> String {
+fn formatear_busqueda(
+    c: &Consulta,
+    b: &Busqueda,
+    citas: &HashMap<String, String>,
+    frescura: &str,
+    de_respaldo: bool,
+) -> String {
     let mut o = String::new();
     let unidad = if c.ambito == Ambito::Notas { "notas" } else { "resultados" };
     let ausentes = || b.sin_coincidencias.iter().map(|t| format!("«{t}»")).collect::<Vec<_>>().join(", ");
@@ -297,7 +327,8 @@ fn formatear_busqueda(c: &Consulta, b: &Busqueda, frescura: &str, de_respaldo: b
     for (i, r) in b.resultados.iter().enumerate() {
         let parte = if r.parcial { " (parte)" } else { "" };
         let m = migas_sin_titulo(&r.ruta_encabezados, &r.titulo);
-        let _ = writeln!(o, "\n[{}] {} · {m}{parte}", i + 1, r.referencia());
+        let ct = citas.get(&r.nota_id).map(String::as_str).unwrap_or("");
+        let _ = writeln!(o, "\n[{}] {} · {ct} · {m}{parte}", i + 1, r.referencia());
         let frag = una_linea(&r.fragmento, 160);
         if b.modo == Modo::Filtros {
             let _ = writeln!(o, "    {frag}");
@@ -305,7 +336,11 @@ fn formatear_busqueda(c: &Consulta, b: &Busqueda, frescura: &str, de_respaldo: b
             let _ = writeln!(o, "    {frag} {}", senales(&r.senales));
         }
     }
-    let _ = writeln!(o, "\nDetalle: vault_leer(refs=[…], hasta 10 a la vez) · Contexto: contexto=1");
+    let _ = writeln!(
+        o,
+        "\nDetalle: vault_leer(refs=[…], hasta 10 a la vez) · Contexto: contexto=1 · Al citar: la cita [[…]] de cada \
+         resultado, no el # título"
+    );
     o
 }
 
@@ -440,6 +475,7 @@ fn leer_una(a: &mut Abierto, r: &str, contexto: usize, forzar: bool) -> Result<S
                 migas_sin_titulo(&s.ruta_encabezados, &info.titulo),
                 tokens(cuerpo.len())
             );
+            o.push_str(&linea_cita(a, &id, &info.titulo, &secciones)?);
             o.push_str(aviso);
             o.push_str(&cuerpo);
             o.push('\n');
@@ -465,6 +501,7 @@ fn leer_nota(
     if bytes <= TOPE_NOTA_ENTERA || forzar || secciones.is_empty() {
         let texto = a.indice.leer_nota(id)?;
         let _ = writeln!(o, "── {id} · nota completa · {} líneas · {}", texto.lines().count(), tokens(texto.len()));
+        o.push_str(&linea_cita(a, id, titulo, secciones)?);
         o.push_str(aviso);
         o.push_str(texto.trim_end());
         o.push('\n');
@@ -481,6 +518,7 @@ fn leer_nota(
         tokens(bytes),
         secciones.len()
     );
+    o.push_str(&linea_cita(a, id, titulo, secciones)?);
     o.push_str(aviso);
     // El índice va COMPLETO (diagnóstico de la fase 1, causa 3): se cortaba en 40
     // filas y en D11 dejó afuera, justo después de `DEF-059`, todos los defectos
@@ -514,6 +552,20 @@ fn leer_nota(
         "\nPara una sección: vault_leer(refs=[\"{id}#sN\"]) · Para el texto completo: forzar=true ({})",
         tokens(bytes)
     );
+    Ok(o)
+}
+
+/// La línea que va justo debajo de la cabecera de cada lectura, **antes** del
+/// texto: lo primero que el agente ve después es el `# Título`, y con la nota
+/// entera citaba eso (fase 1b: 13 citas de notas reales por su título visible).
+/// Si el H1 dice otra cosa que el nombre, se lo nombra para descartarlo.
+fn linea_cita(a: &Abierto, id: &str, titulo: &str, secciones: &[SeccionInfo]) -> Result<String, String> {
+    let mut o = cita(&a.indice.cita(id, titulo)?);
+    let h1 = secciones.iter().find(|s| s.nivel == 1).map(|s| una_linea(&s.encabezado, 80));
+    if let Some(h1) = h1.filter(|h| !h.is_empty() && h.to_lowercase() != titulo.to_lowercase()) {
+        let _ = write!(o, " (no «{h1}»: el # título no es enlace)");
+    }
+    o.push('\n');
     Ok(o)
 }
 

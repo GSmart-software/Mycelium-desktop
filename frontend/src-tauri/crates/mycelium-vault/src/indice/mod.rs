@@ -16,6 +16,7 @@
 //! corrección la da WAL; el cerrojo solo ahorra trabajo repetido.
 
 pub mod buscar;
+pub mod citar;
 pub mod leer;
 
 use std::collections::HashMap;

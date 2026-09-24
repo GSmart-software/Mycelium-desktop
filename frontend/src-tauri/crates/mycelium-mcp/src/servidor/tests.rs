@@ -61,7 +61,7 @@ fn habla_mcp_de_punta_a_punta() {
     assert_eq!(b["result"]["isError"], false);
     let t = texto_de(&b);
     assert!(t.starts_with("1 resultados"), "{t}");
-    assert!(t.contains("[1] docs/Plan.md#s2 · Índice propio"), "{t}");
+    assert!(t.contains("[1] docs/Plan.md#s2 · cita [[Plan]] · Índice propio"), "{t}");
     assert!(t.contains("Detalle: vault_leer"), "{t}");
 
     let l = uno(
@@ -90,6 +90,7 @@ fn estado_con(nombre: &str, archivos: &[(&str, String)]) -> (Estado, PathBuf) {
     let (e, base) = estado(nombre, false);
     let v = e.vault.as_ref().unwrap().clone();
     for (rel, texto) in archivos {
+        std::fs::create_dir_all(v.raiz.join(rel).parent().unwrap()).unwrap();
         std::fs::write(v.raiz.join(rel), texto).unwrap();
     }
     *e.celda.lock().unwrap() = Some(Ok(preparar(&v, &Progreso::default()).unwrap()));
@@ -144,6 +145,53 @@ fn el_indice_de_una_nota_grande_no_se_corta() {
     let _ = std::fs::remove_dir_all(base);
 }
 
+fn buscar(e: &mut Estado, consulta: &str) -> String {
+    let r = uno(
+        e,
+        json!({"jsonrpc":"2.0","id":8,"method":"tools/call",
+               "params":{"name":"vault_buscar","arguments":{"consulta":consulta}}}),
+    );
+    texto_de(&r).to_string()
+}
+
+#[test]
+fn cada_resultado_y_cada_lectura_dicen_como_se_cita() {
+    // Como `atmosferas.md` en la fase 1b: el H1 dice otra cosa que el nombre.
+    let at = "# Atmósferas\n\nIntro de las atmósferas.\n\n## Uso\n\nSe elige una atmósfera.\n".to_string();
+    let (mut e, base) = estado_con("citas", &[("docs/atmosferas.md", at)]);
+    let t = buscar(&mut e, "atmósfera");
+    assert!(t.contains("docs/atmosferas.md#s1 · cita [[atmosferas]] · Atmósferas"), "{t}");
+    assert!(t.contains("Al citar: la cita [[…]]"), "{t}");
+
+    // La cita va ANTES del contenido: lo primero después es el `# Atmósferas`.
+    for refs in [json!(["atmosferas"]), json!(["docs/atmosferas.md#s2"])] {
+        let t = leer(&mut e, refs);
+        let cita = t.find("cita [[atmosferas]] (no «Atmósferas»: el # título no es enlace)\n").expect(&t);
+        let cuerpo = t.find("Se elige una atmósfera").expect(&t);
+        assert!(t.starts_with("── docs/atmosferas.md") && cita < cuerpo, "{t}");
+        assert_eq!(t.lines().nth(1).unwrap_or(""), "cita [[atmosferas]] (no «Atmósferas»: el # título no es enlace)");
+    }
+    // Si el H1 coincide con el nombre, no hay nada que descartar.
+    let t = leer(&mut e, json!(["docs/Plan.md"]));
+    assert_eq!(t.lines().nth(1), Some("cita [[Plan]]"), "{t}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn las_homonimas_se_citan_con_la_carpeta_que_las_distingue() {
+    let (mut e, base) = estado_con("homonimas", &[("docs/viejo/Plan.md", "# Plan viejo\nel plan de antes\n".into())]);
+    let t = buscar(&mut e, "plan");
+    assert!(t.contains("docs/Plan.md#s1 · cita [[Plan]] ·"), "{t}");
+    assert!(t.contains("docs/viejo/Plan.md#s1 · cita [[viejo/Plan]] ·"), "{t}");
+    // Y la cita con carpeta se puede leer: resuelve como en la app.
+    let t = leer(&mut e, json!(["viejo/Plan"]));
+    assert!(t.starts_with("── docs/viejo/Plan.md · nota completa") && t.contains("el plan de antes"), "{t}");
+    assert!(t.contains("cita [[viejo/Plan]] (no «Plan viejo»"), "{t}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
 #[test]
 fn las_descripciones_mandan_a_grep_para_lo_que_no_es_md() {
     let (mut e, base) = estado("descripciones", false);
@@ -152,6 +200,10 @@ fn las_descripciones_mandan_a_grep_para_lo_que_no_es_md() {
     assert!(buscar.contains("SOLO las notas .md") && buscar.contains("grep"), "{buscar}");
     assert!(buscar.contains("por detrás del código"), "{buscar}");
     assert!(buscar.contains("CORTAS"), "{buscar}");
+    // Cómo se cita: solo lo ve el brazo MCP (el CLAUDE.md es el control).
+    assert!(buscar.contains("cita [[nombre]]") && buscar.contains("NO resuelve"), "{buscar}");
+    let leer = lista["result"]["tools"][1]["description"].as_str().unwrap();
+    assert!(leer.contains("cita [[nombre]]"), "{leer}");
     let ini = uno(&mut e, json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{}}));
     let instr = ini["result"]["instructions"].as_str().unwrap();
     assert!(!instr.contains("preferí esto a grep") && instr.contains("grep/Grep"), "{instr}");
