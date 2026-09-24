@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 
 use crate::frontmatter;
 use crate::markdown;
@@ -174,20 +174,47 @@ impl Indice {
         }
         let conn = Connection::open(ruta_db).map_err(e)?;
         conn.busy_timeout(Duration::from_millis(5000)).map_err(e)?;
-        // `journal_mode` DEVUELVE una fila: va por `query_row`.
-        let _: String = conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0)).map_err(e)?;
-        conn.execute_batch("PRAGMA synchronous=NORMAL;").map_err(e)?;
-
         let indice = Indice { conn, raiz: raiz.to_path_buf(), ultima_comprobacion: None, ultima: None };
-        let vigente = indice.meta("version_esquema")?.as_deref() == Some(VERSION_ESQUEMA)
-            && indice.meta("ruta_vault")?.as_deref() == Some(ruta_registrada);
-        if !vigente {
-            indice.descartar()?;
+        // Pasar a WAL y preparar el esquema puede chocar con otra sesión que está
+        // haciendo lo mismo en ese instante, y ese choque SQLite lo devuelve
+        // como «locked» **sin** pasar por `busy_timeout` (el cambio de modo de
+        // journal no espera). Se reintenta un rato, como haría el timeout.
+        let hasta = Instant::now() + Duration::from_millis(5000);
+        loop {
+            match indice.preparar(ruta_registrada) {
+                Ok(()) => return Ok(indice),
+                Err(err) if (err.contains("locked") || err.contains("busy")) && Instant::now() < hasta => {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                Err(err) => return Err(err),
+            }
         }
-        indice.conn.execute_batch(ESQUEMA).map_err(e)?;
-        indice.poner_meta("version_esquema", VERSION_ESQUEMA)?;
-        indice.poner_meta("ruta_vault", ruta_registrada)?;
-        Ok(indice)
+    }
+
+    /// WAL, y el esquema al día (descartando el índice si es de otra versión o
+    /// de otro vault).
+    fn preparar(&self, ruta_registrada: &str) -> Resultado<()> {
+        // `journal_mode` DEVUELVE una fila: va por `query_row`.
+        let _: String = self.conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0)).map_err(e)?;
+        self.conn.execute_batch("PRAGMA synchronous=NORMAL;").map_err(e)?;
+        let indice = self;
+        // Comprobar la versión y, si hace falta, descartar y recrear, en UNA
+        // transacción `IMMEDIATE`: con dos sesiones arrancando a la vez sobre un
+        // índice nuevo, la segunda podría ver el esquema a medio escribir, darlo
+        // por viejo y borrarle las tablas a la primera mientras indexa.
+        indice.conn.execute_batch("BEGIN IMMEDIATE").map_err(e)?;
+        let r = (|| {
+            let vigente = indice.meta("version_esquema")?.as_deref() == Some(VERSION_ESQUEMA)
+                && indice.meta("ruta_vault")?.as_deref() == Some(ruta_registrada);
+            if !vigente {
+                indice.descartar()?;
+            }
+            indice.conn.execute_batch(ESQUEMA).map_err(e)?;
+            indice.poner_meta("version_esquema", VERSION_ESQUEMA)?;
+            indice.poner_meta("ruta_vault", ruta_registrada)
+        })();
+        indice.conn.execute_batch(if r.is_ok() { "COMMIT" } else { "ROLLBACK" }).map_err(e)?;
+        r
     }
 
     /// La carpeta del vault.
@@ -366,7 +393,11 @@ impl Indice {
             (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
 
-        let tx = self.conn.transaction().map_err(e)?;
+        // IMMEDIATE y no DEFERRED: en WAL, una transacción que empieza leyendo y
+        // después quiere escribir recibe «locked» SIN esperar si otra sesión
+        // escribió en el medio. Pidiendo la escritura al empezar, `busy_timeout`
+        // hace su trabajo y la segunda sesión espera su turno.
+        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).map_err(e)?;
         borrar_filas(&tx, id)?;
         tx.execute(
             "INSERT OR REPLACE INTO notas (id, titulo, titulo_norm, tipo, mtime, bytes, secciones)
@@ -454,7 +485,7 @@ impl Indice {
     }
 
     fn borrar_nota(&mut self, id: &str) -> Resultado<()> {
-        let tx = self.conn.transaction().map_err(e)?;
+        let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).map_err(e)?;
         borrar_filas(&tx, id)?;
         tx.execute("DELETE FROM notas WHERE id = ?", [id]).map_err(e)?;
         tx.commit().map_err(e)
@@ -646,6 +677,32 @@ pub(crate) mod pruebas {
         std::fs::remove_file(v.raiz.join("a.md")).unwrap();
         assert_eq!(ix.revalidar_nota("a.md").unwrap(), EstadoNota::Borrada);
         assert_eq!(ix.conteos().unwrap(), (0, 0));
+    }
+
+    /// Dos sesiones que arrancan a la vez sobre el mismo índice nuevo: ninguna
+    /// le borra el esquema a la otra y el resultado es el mismo índice.
+    #[test]
+    fn dos_sesiones_en_frio_sobre_el_mismo_indice() {
+        let v = VaultDePrueba::nuevo("dos");
+        for i in 0..30 {
+            v.escribir(&format!("n{i}.md"), &format!("# N{i}\ntexto {i} [[n{}]]", (i + 1) % 30));
+        }
+        let hilos: Vec<_> = (0..2)
+            .map(|_| {
+                let (db, raiz) = (v.db.clone(), v.raiz.clone());
+                std::thread::spawn(move || {
+                    let mut ix = Indice::abrir(&db, &raiz, &raiz.to_string_lossy()).unwrap();
+                    ix.revalidar(&mut |_, _| {}).unwrap();
+                })
+            })
+            .collect();
+        for h in hilos {
+            h.join().unwrap();
+        }
+        let ix = v.abrir();
+        assert_eq!(ix.conteos().unwrap(), (30, 30));
+        let enlaces: i64 = ix.conn.query_row("SELECT COUNT(*) FROM enlaces", [], |r| r.get(0)).unwrap();
+        assert_eq!(enlaces, 30);
     }
 
     #[test]
