@@ -11,7 +11,11 @@
 //! - `nombre` — ignora archivos o carpetas con ese nombre en cualquier nivel.
 //! - `ruta/con/barras` — anclada a la raíz del vault (p. ej. `docs/tmp/`).
 //! - `*` y `?` — comodines dentro de un segmento (`*.tmp.md`, `.*/`).
-//! - `.mycelium/` (índice interno + papelera) se ignora SIEMPRE, esté o no.
+//! - `.mycelium/` (papelera y datos internos del vault) se ignora SIEMPRE, esté o no.
+//!
+//! Vivía en `src-tauri/src/mycignore.rs`; se movió a este crate sin cambios de
+//! comportamiento para que el servidor MCP ignore **exactamente** lo mismo que la
+//! app (`FUN-L-10`). La app lo sigue usando como `crate::mycignore`.
 
 use std::path::Path;
 

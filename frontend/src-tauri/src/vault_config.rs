@@ -13,33 +13,13 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
-const ARCHIVO: &str = "vaults.json";
-
-/// Un vault vinculado. `ultimoAcceso` en milisegundos epoch (o `null`).
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct VaultRef {
-    pub ruta: String,
-    pub nombre: String,
-    #[serde(default)]
-    pub ultimo_acceso: Option<i64>,
-}
-
-/// Contenido del registro en disco.
-#[derive(Serialize, Deserialize, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-struct Registro {
-    #[serde(default)]
-    vaults: Vec<VaultRef>,
-    /// Si es `true`, al arrancar se reabre automáticamente el ÚLTIMO vault usado
-    /// (el de `ultimoAcceso` más reciente), sea cual sea. Ajuste global, no por
-    /// vault. (El antiguo campo `autoAbrir` se ignora si aparece en configs viejas.)
-    #[serde(default)]
-    abrir_ultimo: bool,
-}
+// El formato de `vaults.json` (`VaultRef`, `Registro`) y su lectura viven en el
+// crate compartido (`FUN-L-10`): el servidor MCP lee este mismo archivo para
+// saber a qué vault pertenece la carpeta desde la que lo lanzaron.
+use mycelium_vault::registro::{leer_registro, Registro, ARCHIVO};
+pub use mycelium_vault::registro::VaultRef;
 
 fn ruta_config(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -47,14 +27,6 @@ fn ruta_config(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("No se pudo resolver el config-dir: {e}"))?;
     Ok(dir.join(ARCHIVO))
-}
-
-/// Lee el registro (archivo ausente o corrupto → registro vacío). Pura, testeable.
-fn leer_registro(config: &Path) -> Registro {
-    std::fs::read_to_string(config)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default()
 }
 
 /// Escribe el registro (crea el config-dir si falta). Pura, testeable.

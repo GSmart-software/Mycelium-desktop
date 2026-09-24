@@ -6,7 +6,9 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 mod actualizador;
 mod archivos;
 mod marco;
-mod mycignore;
+// `.mycignore` vive en el crate compartido con el servidor MCP (`FUN-L-10`); se
+// re-exporta con el mismo nombre para que `crate::mycignore::…` siga valiendo.
+pub(crate) use mycelium_vault::mycignore;
 mod navegacion;
 mod prefs_vault;
 mod terminal;
