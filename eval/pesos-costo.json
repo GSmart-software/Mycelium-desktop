@@ -1,0 +1,36 @@
+{
+  "id": "2026-09-24",
+  "fecha": "2026-09-24",
+  "fuente": "https://platform.claude.com/docs/en/about-claude/pricing — tablas «Model pricing» y «Prompt caching», consultadas el 2026-09-24",
+  "unidad": "USD por millón de tokens (API de Anthropic, primera parte, sin lote ni residencia de datos)",
+  "modelos": {
+    "claude-haiku-4-5": {
+      "entrada": 1.0,
+      "cache_escritura_5m": 1.25,
+      "cache_escritura_1h": 2.0,
+      "cache_lectura": 0.1,
+      "salida": 5.0
+    },
+    "claude-sonnet-5": {
+      "entrada": 2.0,
+      "cache_escritura_5m": 2.5,
+      "cache_escritura_1h": 4.0,
+      "cache_lectura": 0.2,
+      "salida": 10.0
+    }
+  },
+  "cocientes": {
+    "_que_es": "Peso de cada categoría relativo a la entrada sin caché. Es lo que congela la § 9.4: con los dos brazos en el mismo modelo, K depende solo de esto. Idénticos en los dos modelos.",
+    "entrada": 1,
+    "cache_escritura_5m": 1.25,
+    "cache_escritura_1h": 2,
+    "cache_lectura": 0.1,
+    "salida": 5
+  },
+  "notas": [
+    "Los tokens de pensamiento se facturan como salida: van dentro de `salida`.",
+    "Sonnet 5: la página aclara que $2/$10 pasó a ser el precio estándar (el aumento previsto a $3/$15 para el 2026-09-01 no ocurrió).",
+    "La escritura de caché tiene dos precios según el TTL (5 min o 1 h). El arnés reparte `cache_escritura` con el desglose por TTL de la transcripción; ver `eval/lib/costo.mjs`."
+  ],
+  "pendientes": []
+}
