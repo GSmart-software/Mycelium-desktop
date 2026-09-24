@@ -26,3 +26,6 @@ pub mod registro;
 pub mod rutas;
 pub mod tipos;
 pub mod wikilinks;
+
+#[cfg(feature = "indice")]
+pub mod indice;

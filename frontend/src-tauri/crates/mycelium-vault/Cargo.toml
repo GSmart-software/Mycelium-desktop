@@ -18,8 +18,16 @@ publish = false
 [lib]
 name = "mycelium_vault"
 
+[features]
+default = []
+indice = ["dep:rusqlite"]
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 regex = "1"
 sha2 = "0.10"
+# MISMA `libsqlite3-sys` (0.30) que la de sqlx/`tauri-plugin-sql`: el crate
+# declara `links = "sqlite3"` y cargo no admite dos versiones en el mismo
+# workspace. `bundled` compila SQLite con FTS5 activado.
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
