@@ -301,15 +301,19 @@ impl Indice {
                 "SELECT id, titulo FROM notas WHERE id = ?1
                  UNION SELECT id, titulo FROM notas WHERE id = ?1 COLLATE NOCASE
                  UNION SELECT id, titulo FROM notas WHERE titulo_norm = ?2
-                 UNION SELECT id, titulo FROM notas WHERE titulo_norm = ?3",
+                 UNION SELECT id, titulo FROM notas WHERE titulo_norm = ?3
+                 UNION SELECT id, titulo FROM notas WHERE titulo_norm = ?4",
             )
             .map_err(e)?;
         // Las minúsculas se calculan acá y no con `lower()`: la de SQLite solo
         // sabe de ASCII y `titulo_norm` se guardó con las de Unicode («Índice»).
         // `?3`: el título sin extensión, por si pasaron `Nota.md`.
+        // `?4`: el último segmento tal cual, para la cita con pista de carpeta
+        // (`viejo/v1.2.0 notas`: ahí `titulo_de_ruta` cortaría en el punto).
         let sin_ext = crate::tipos::titulo_de_ruta(t).to_lowercase();
+        let ultimo = t.rsplit('/').next().unwrap_or(t).trim().to_lowercase();
         let filas = st
-            .query_map(rusqlite::params![t, t.to_lowercase(), sin_ext], |r| {
+            .query_map(rusqlite::params![t, t.to_lowercase(), sin_ext, ultimo], |r| {
                 Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
             })
             .map_err(e)?;
@@ -322,6 +326,16 @@ impl Indice {
             }
             if !out.contains(&f) {
                 out.push(f);
+            }
+        }
+        // Una cita con pista de carpeta (`viejo/Plan`, como la da `cita`) se
+        // resuelve como en la app. Un título solo sigue siendo ambiguo: acá se
+        // prefiere avisar y listar las rutas a elegir por profundidad.
+        if out.len() > 1 && t.contains('/') {
+            let ids: Vec<String> = out.iter().map(|(id, _)| id.clone()).collect();
+            let destino = t.strip_suffix(".md").unwrap_or(t);
+            if let Some(id) = super::citar::resolver_entre(destino, &ids) {
+                out.retain(|(i, _)| *i == id);
             }
         }
         Ok(out)
@@ -830,5 +844,20 @@ mod tests {
         assert_eq!(ix.resolver_nota("rust").unwrap()[0].0, "docs/Rust.md");
         assert_eq!(ix.resolver_nota("DOCS\\rust.md").unwrap()[0].0, "docs/Rust.md");
         assert!(ix.resolver_nota("no existe").unwrap().is_empty());
+    }
+
+    #[test]
+    fn resolver_nota_acepta_la_cita_con_pista_de_carpeta() {
+        let v = VaultDePrueba::nuevo("pista");
+        v.escribir("docs/Plan.md", "a");
+        v.escribir("docs/viejo/Plan.md", "b");
+        v.escribir("x/v1.2.0 notas.md", "c");
+        v.escribir("y/v1.2.0 notas.md", "d");
+        let mut ix = v.abrir();
+        ix.revalidar(&mut |_, _| {}).unwrap();
+        assert_eq!(ix.resolver_nota("Plan").unwrap().len(), 2, "el título solo sigue siendo ambiguo");
+        assert_eq!(ix.resolver_nota("viejo/Plan").unwrap(), [("docs/viejo/Plan.md".into(), "Plan".into())]);
+        assert_eq!(ix.resolver_nota("y/v1.2.0 notas").unwrap()[0].0, "y/v1.2.0 notas.md");
+        assert_eq!(ix.resolver_nota("y/v1.2.0 notas").unwrap().len(), 1);
     }
 }
