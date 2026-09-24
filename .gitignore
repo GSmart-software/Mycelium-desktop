@@ -29,3 +29,6 @@ dist/
 # llevan el prompt de sistema de Claude Code, que incluye el email de la cuenta.
 # Viven en disco para auditar; el registro que se versiona es eval/resultados.jsonl.
 eval/corridas/
+
+# Rutas de esta maquina: se arma desde eval/mcp.ejemplo.json
+eval/mcp.json

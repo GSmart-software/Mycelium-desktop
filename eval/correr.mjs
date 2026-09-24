@@ -61,7 +61,7 @@ export const ESQUEMA = {
 const BRAZOS = ["ciego", "base", "mcp"];
 
 /** Variables del Claude Code que lanza el arnés: ninguna de la sesión que lo lanzó. */
-function entornoLimpio() {
+export function entornoLimpio() {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) if (!/^CLAUDE/i.test(k)) env[k] = v;
   // Sin memoria automática: sería contexto que no es ni el vault ni el control.
