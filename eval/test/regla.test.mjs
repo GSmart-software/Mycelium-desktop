@@ -56,7 +56,8 @@ test("filtro 9.2 · compactación ≥ 20 %: el costo sale y lo que necesita K no
   assert.equal(r.k, null);
   assert.equal(r.fila, 3);
   assert.match(r.decision, /NO DECIDIBLE/);
-  assert.ok(r.defectos.some((d) => /no tiene filas para decidir sin K/.test(d)));
+  // Desde el 2026-09-24 la § 9.2 lo dice así: ya no es un defecto de la regla.
+  assert.ok(!r.defectos.some((d) => /no tiene filas para decidir sin K/.test(d)));
 });
 
 test("bordes: Δ = +10 exacto es fila 2 pese a la coma flotante; −6 es fila 1 y −4 no", () => {
@@ -125,15 +126,16 @@ test("fila 6 · K > 1: se rehace", () => {
   assert.equal(r.fila, 6);
 });
 
-test("HUECO de la § 9.3: K ≤ 0,6 con el IC de K que no excluye el 1 no cae en ninguna fila", () => {
+test("fila 7 de la § 9.3: K ≤ 0,6 con el IC de K que no excluye el 1 no demuestra ahorro", () => {
   // Seis preguntas mucho más baratas y cuatro más caras: K = 0,3, pero remuestreando
   // preguntas la mediana llega a 1,3 con probabilidad alta.
   const r = decidir(brazo("base", { p: () => 3 }), brazo("mcp", { p: () => 3, costo: (q, i) => (i < 6 ? 0.03 : 0.13) }));
   assert.ok(Math.abs(r.k - 0.3) < 1e-9);
   assert.ok(r.icK[1] >= 1);
-  assert.equal(r.fila, null);
-  assert.match(r.decision, /Ninguna fila se cumple/);
-  assert.ok(r.defectos.some((d) => /Hueco/.test(d)));
+  // Antes era un hueco de la tabla; ahora la fila 7 la hace exhaustiva.
+  assert.equal(r.fila, 7);
+  assert.match(r.decision, /no entra como está/);
+  assert.ok(!r.defectos.some((d) => /Hueco/.test(d)));
 });
 
 test("§ 8.2: el ciego que acierta ≥ 2 de 5 contamina la pregunta y la saca del Δ", () => {

@@ -229,10 +229,9 @@ export function aplicarRegla(filas, claves, opciones = {}) {
   const bs = bootstrap(datos, { ...opciones.bootstrap, conK: costoComparable });
   Object.assign(salida, { delta, icDelta: bs.icDelta, k, icK: bs.icK });
 
-  if (!costoComparable)
-    defectos.push(
-      "Un brazo compactó en ≥ 20 % de sus corridas: su costo queda fuera (§ 9.2), pero la tabla de la § 9.3 no tiene filas para decidir sin K. Solo pueden decidir la fila 1 y la fila 2 sin su salvedad.",
-    );
+  // § 9.2: si un brazo compactó, se lee la exactitud (filas 1 y 2) y el costo
+  // queda sin decidir. Ya no es un defecto: la regla lo dice así desde el
+  // 2026-09-24.
 
   const icSinCeroPositivo = bs.icDelta[0] > 0;
   const sinK = (n) => {
@@ -250,8 +249,7 @@ export function aplicarRegla(filas, claves, opciones = {}) {
   if (delta >= U.contundente && icSinCeroPositivo) {
     salida.fila = 2;
     if (k === null) {
-      salida.decision = "Fila 2 — entra. La salvedad «salvo que K > 2» no se puede evaluar: K no es comparable.";
-      defectos.push("Fila 2 decidida sin poder evaluar su salvedad de costo.");
+      salida.decision = "Fila 2 — entra. Su salvedad de costo («salvo que K > 2») queda sin evaluar: un brazo compactó (§ 9.2).";
     } else if (k > U.kCaro) {
       salida.decision = `Fila 2 con K = ${k.toFixed(2)} > 2 — entra solo con decisión explícita del usuario: la exactitud se paga cara.`;
     } else {
@@ -284,9 +282,11 @@ export function aplicarRegla(filas, claves, opciones = {}) {
     salida.decision = "Fila 6 — cuesta más que grep sin acertar más: se rehace.";
     return salida;
   }
-  // DEFECTO DE LA REGLA: K ≤ 0,6 con el IC de K tocando o cruzando el 1 no cae
-  // en ninguna fila (la 4 pide el IC sin el 1; la 5, K > 0,6; la 6, K > 1).
-  salida.decision = `Ninguna fila se cumple: K = ${k.toFixed(2)} ≤ 0,6 pero su IC [${bs.icK[0].toFixed(2)}, ${bs.icK[1].toFixed(2)}] no excluye el 1. Hueco de la § 9.3.`;
-  defectos.push("Hueco de la § 9.3: K ≤ 0,6 con el IC de K que no excluye el 1 no cae en ninguna fila.");
+  // Fila 7 (§ 9.3, agregada el 2026-09-24): lo que no cayó en ninguna de las
+  // anteriores no demostró nada, y se lee como la fila 5. El caso típico es
+  // K ≤ 0,6 con el IC de K tocando el 1: el ahorro no está probado. Antes de
+  // esta fila era un hueco de la tabla, y lo encontró este mismo código.
+  salida.fila = 7;
+  salida.decision = `Fila 7 — ninguna de las anteriores: K = ${k.toFixed(2)}, IC [${bs.icK[0].toFixed(2)}, ${bs.icK[1].toFixed(2)}]. El ahorro o la mejora no están probados: se lee como la fila 5, no entra como está.`;
   return salida;
 }
