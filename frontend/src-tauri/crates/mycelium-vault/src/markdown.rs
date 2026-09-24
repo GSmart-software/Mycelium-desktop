@@ -394,6 +394,16 @@ pub fn secciones(titulo: &str, texto: &str, fm: &Frontmatter) -> Vec<Seccion> {
     let codigo = lineas_de_codigo(&lineas);
     let desde_cuerpo = fm.cuerpo_desde();
 
+    // ¿El documento tiene UN solo H1 y es su primer encabezado? Entonces ese H1
+    // hace de título del documento y, como ancestro, no aporta a las migas: el
+    // plan (§ 4.4) las escribe `Nota > H2 > H3`, no `Nota > H1 > H2 > H3`.
+    let encabezados: Vec<(usize, u8)> = (desde_cuerpo..total)
+        .filter(|&i| !codigo[i])
+        .filter_map(|i| encabezado_atx(lineas[i]).map(|(n, _)| (i, n)))
+        .collect();
+    let h1_es_titulo = encabezados.first().is_some_and(|&(_, n)| n == 1)
+        && encabezados.iter().filter(|&&(_, n)| n == 1).count() == 1;
+
     let mut crudas: Vec<Cruda> = Vec::new();
     let mut pila: Vec<(u8, String)> = Vec::new();
     let mut actual = Cruda { nivel: 0, encabezado: String::new(), ruta: titulo.to_string(), ini: 0, fin: 0 };
@@ -413,10 +423,14 @@ pub fn secciones(titulo: &str, texto: &str, fm: &Frontmatter) -> Vec<Seccion> {
             }
             pila.push((nivel, enc.clone()));
             let mut ruta = titulo.to_string();
-            for (k, (_, e)) in pila.iter().enumerate() {
+            for (k, (n, e)) in pila.iter().enumerate() {
                 // El H1 que repite el título de la nota no aporta nada a las
                 // migas: `BACKLOG > Grandes`, no `BACKLOG > BACKLOG > Grandes`.
-                if k == 0 && e.to_lowercase() == titulo.to_lowercase() {
+                // Y el H1 que hace de título del documento tampoco, como
+                // ancestro (en su propia sección sí va).
+                let repite_titulo = e.to_lowercase() == titulo.to_lowercase();
+                let es_titulo_ancestro = h1_es_titulo && *n == 1 && pila.len() > 1;
+                if k == 0 && (repite_titulo || es_titulo_ancestro) {
                     continue;
                 }
                 ruta.push_str(SEPARADOR_MIGAS);
@@ -506,6 +520,10 @@ fn renumerar(secs: &mut [Seccion]) {
     }
 }
 
+fn bytes_de(lineas: &[&str], desde: usize, hasta: usize) -> usize {
+    lineas[desde..=hasta].iter().map(|l| l.len() + 1).sum()
+}
+
 /// Parte `[ini, fin]` en trozos de hasta [`TOPE_SECCION`] bytes, cortando en
 /// líneas en blanco fuera de código; si un párrafo solo ya pasa el tope, corta
 /// en un límite de línea.
@@ -522,8 +540,11 @@ fn trocear(lineas: &[&str], codigo: &[bool], ini: usize, fin: usize) -> Vec<(usi
     while i <= fin {
         let largo = lineas[i].len() + 1;
         if acumulado + largo > TOPE_SECCION && i > desde {
+            // Se corta en el último párrafo solo si el trozo no queda
+            // raquítico: una tabla larga justo debajo del encabezado dejaría un
+            // primer trozo con el encabezado solo. Si no, en el límite de línea.
             let corte = match ultimo_corte {
-                Some(c) if c >= desde && c < i => c,
+                Some(c) if c >= desde && c < i && bytes_de(lineas, desde, c) >= TOPE_SECCION / 2 => c,
                 _ => i - 1,
             };
             out.push((desde, corte));
@@ -621,10 +642,12 @@ mod tests {
             resumen(&s),
             [
                 (0, 0, "Nota", 1, 1),
+                // `A` es el único H1 y el primer encabezado: es el título del
+                // documento, así que como ancestro no se repite.
                 (1, 1, "Nota > A", 2, 3),
-                (2, 2, "Nota > A > B", 4, 5),
-                (3, 3, "Nota > A > B > C", 6, 7),
-                (4, 2, "Nota > A > D", 8, 9),
+                (2, 2, "Nota > B", 4, 5),
+                (3, 3, "Nota > B > C", 6, 7),
+                (4, 2, "Nota > D", 8, 9),
             ]
         );
         // La línea del encabezado no va al cuerpo: ya está en las migas.
@@ -639,6 +662,16 @@ x
 y", &Frontmatter::No);
         assert_eq!(s[0].ruta_encabezados, "BACKLOG");
         assert_eq!(s[1].ruta_encabezados, "BACKLOG > Grandes");
+    }
+
+    #[test]
+    fn con_varios_h1_las_migas_los_conservan() {
+        let s = secciones("N", "# Parte 1
+## A
+# Parte 2
+## B", &Frontmatter::No);
+        let rutas: Vec<_> = s.iter().map(|x| x.ruta_encabezados.as_str()).collect();
+        assert_eq!(rutas, ["N > Parte 1", "N > Parte 1 > A", "N > Parte 2", "N > Parte 2 > B"]);
     }
 
     #[test]
@@ -689,6 +722,7 @@ y", &Frontmatter::No);
         t.push_str("# Chica\nfin\n");
         let s = secciones("N", &t, &Frontmatter::No);
         let grandes: Vec<_> = s.iter().filter(|x| x.encabezado == "Grande").collect();
+        assert!(grandes.iter().all(|x| x.bytes >= TOPE_SECCION / 2 || x.linea_fin == grandes.last().unwrap().linea_fin));
         assert!(grandes.len() >= 3, "{}", grandes.len());
         assert!(grandes.iter().all(|x| x.parcial && x.bytes <= TOPE_SECCION));
         // Los trozos se tocan sin huecos ni solape, y cortan en líneas en blanco.
@@ -699,6 +733,23 @@ y", &Frontmatter::No);
         let esperados: Vec<_> = (1..=s.len()).collect();
         assert_eq!(ordenes, esperados);
         assert!(!s.last().unwrap().parcial);
+    }
+
+    #[test]
+    fn una_tabla_larga_bajo_el_encabezado_no_deja_un_trozo_raquitico() {
+        let mut t = String::from("## Tabla
+
+| a | b |
+|---|---|
+");
+        for i in 0..200 {
+            t.push_str(&format!("| fila {i} | un texto de relleno bastante largo |
+"));
+        }
+        let s = secciones("N", &t, &Frontmatter::No);
+        assert!(s.len() > 1);
+        assert!(s[0].bytes > TOPE_SECCION / 2, "{}", s[0].bytes);
+        assert!(s.iter().all(|x| x.bytes <= TOPE_SECCION));
     }
 
     #[test]

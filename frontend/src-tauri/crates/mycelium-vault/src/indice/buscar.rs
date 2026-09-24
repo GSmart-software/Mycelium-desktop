@@ -326,7 +326,7 @@ impl Indice {
             "SELECT s.nota_id, n.titulo, s.orden, s.ruta_encabezados, s.linea_ini, s.linea_fin, s.bytes,
                     s.parcial, n.mtime, n.titulo_norm,
                     -bm25(secciones_fts, {PESO_TITULO}, {PESO_ENCABEZADOS}, {PESO_CUERPO}) AS b,
-                    snippet(secciones_fts, 2, '«', '»', '…', 24) AS frag
+                    snippet(secciones_fts, 2, '«', '»', '…', 16) AS frag
              {desde}
              ORDER BY b DESC
              LIMIT {tope}"
