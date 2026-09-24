@@ -18,8 +18,11 @@
 //! | [`wikilinks`], [`frontmatter`], [`markdown`] | enlaces, propiedades, tags y secciones | MCP (la app sigue en TS) |
 //! | `indice` (feature) | el índice de recuperación en SQLite | MCP |
 
+pub mod frontmatter;
+pub mod markdown;
 pub mod mycignore;
 pub mod recorrido;
 pub mod registro;
 pub mod rutas;
 pub mod tipos;
+pub mod wikilinks;
