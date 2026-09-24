@@ -85,6 +85,65 @@ fn habla_mcp_de_punta_a_punta() {
     let _ = std::fs::remove_dir_all(base);
 }
 
+/// Un servidor listo sobre el vault de `estado` más los archivos dados.
+fn estado_con(nombre: &str, archivos: &[(&str, String)]) -> (Estado, PathBuf) {
+    let (e, base) = estado(nombre, false);
+    let v = e.vault.as_ref().unwrap().clone();
+    for (rel, texto) in archivos {
+        std::fs::write(v.raiz.join(rel), texto).unwrap();
+    }
+    *e.celda.lock().unwrap() = Some(Ok(preparar(&v, &Progreso::default()).unwrap()));
+    (e, base)
+}
+
+fn leer(e: &mut Estado, refs: Value) -> String {
+    let r = uno(
+        e,
+        json!({"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"vault_leer","arguments":{"refs":refs}}}),
+    );
+    texto_de(&r).to_string()
+}
+
+/// Una nota de `n` secciones de ~`bytes` cada una.
+fn nota(n: usize, bytes: usize) -> String {
+    let relleno = "palabra ".repeat(bytes / 8);
+    (0..n).map(|i| format!("## Parte {i:02}\n{relleno}\n")).collect()
+}
+
+#[test]
+fn una_nota_de_hasta_20_kb_se_devuelve_entera() {
+    // ~18 KB, como `drawio.md`: con el tope de 8 KB devolvía el índice y el
+    // agente eligió secciones sin la del costo real (D03).
+    let (mut e, base) = estado_con("umbral", &[("docs/Mediana.md", nota(20, 900)), ("docs/Grande.md", nota(30, 900))]);
+    let t = leer(&mut e, json!(["docs/Mediana.md"]));
+    assert!(t.contains("· nota completa ·"), "{}", &t[..200]);
+    assert!(t.contains("## Parte 19"), "trae la última sección");
+    // Por encima del tope: el índice, no el texto, y el precio de la entera.
+    let t = leer(&mut e, json!(["docs/Grande.md"]));
+    assert!(t.contains("no se devuelve entera") && t.contains("forzar=true"), "{t}");
+    assert!(!t.contains("## Parte 29"), "no trae el texto de la última");
+    // Y leer una sección de la mediana dice cuánto cuesta la nota entera.
+    let t = leer(&mut e, json!(["docs/Mediana.md#s3"]));
+    assert!(t.contains("(la nota tiene 20 secciones; entera: vault_leer(refs=[\"docs/Mediana.md\"])"), "{t}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn el_indice_de_una_nota_grande_no_se_corta() {
+    // 85 secciones, como el catálogo de defectos: el índice se cortaba en 40
+    // filas y dejaba afuera los defectos que D11 enumeraba.
+    let (mut e, base) = estado_con("indice", &[("docs/Catalogo.md", nota(85, 400))]);
+    let t = leer(&mut e, json!(["docs/Catalogo.md"]));
+    assert!(t.contains("no se devuelve entera"), "{}", &t[..200]);
+    for i in [0, 40, 41, 84] {
+        assert!(t.contains(&format!("Parte {i:02} ·")), "falta la sección {i} en el índice:\n{t}");
+    }
+    assert!(!t.contains("solo hasta H"), "sin resumen por niveles");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
 #[test]
 fn antes_de_terminar_el_arranque_en_frio_dice_indexando() {
     let (mut e, base) = estado("frio", false);
