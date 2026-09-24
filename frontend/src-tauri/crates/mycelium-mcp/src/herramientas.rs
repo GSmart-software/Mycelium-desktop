@@ -10,7 +10,7 @@
 //! 3. **La última línea enseña el próximo paso**, en vez de confiar en que el
 //!    agente recuerde la descripción de la herramienta.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
@@ -39,6 +39,34 @@ use crate::servidor::{Abierto, Estado};
 /// de no perder el dato que vive en otra sección. Las grandes de verdad
 /// (BACKLOG, bugs-progreso, el catálogo de defectos) siguen detrás del índice.
 pub const TOPE_NOTA_ENTERA: usize = 20 * 1024;
+
+/// Cuántas notas que enlazan a la leída se listan al final de la lectura
+/// (`MCP de Mycelium - memoria` § 16).
+///
+/// **10 es el percentil 75** de entrantes por nota en el corpus (115 notas `.md`:
+/// mediana 7, p75 10, p90 21, máximo 67 en el mapa y 61 en el BACKLOG): tres de
+/// cada cuatro notas salen con la lista **completa**, que es lo que pide una
+/// enumeración. Medido sobre las 115: ~26 tokens por línea, la lista entera
+/// cuesta ≈183 tokens de mediana y ≈342 como máximo —un 20 % de la lectura
+/// mediana (≈1.659) y un 6 % de la corrida mediana del MCP (≈5.717)—: un hub no
+/// convierte la lectura en cien líneas. Lo que queda afuera se cuenta, y la
+/// cabecera dice cómo pedirlo con `grep`.
+pub const TOPE_CONEXIONES: usize = 10;
+
+/// Caracteres de texto alrededor del enlace en cada línea de conexión: lo que
+/// la nota que enlaza **dice** de la leída («reemplaza a …», «DEF-099 · …»).
+/// Con la cita y la flecha, una línea queda en ~26 tokens (medido).
+///
+/// Por qué el texto y no el encabezado de la sección donde está el enlace: un
+/// 34 % de los enlaces del corpus viven bajo `## Relacionadas`, que no dice
+/// nada; y el `# Título` de la nota que enlaza casi siempre repite su nombre,
+/// que ya va en la cita. El texto dice la **relación** («reemplaza a», «el CA7
+/// de», «DEF-099 · …»), que es lo que decide si vale la pena abrirla.
+const ANCHO_FRAGMENTO: usize = 80;
+
+/// Un fragmento más corto que esto («Ver [[…]].») no dice nada por sí solo:
+/// se le antepone el encabezado de la sección donde está el enlace.
+const MINIMO_FRAGMENTO: usize = 25;
 
 pub fn definiciones() -> Value {
     json!([
@@ -90,7 +118,13 @@ es más grande, el índice COMPLETO de sus secciones (todas, con su ref y su tam
 leerla entera (forzar=true para pagarlo). Si una sección no alcanza —el porqué, el costo real o una \
 enumeración suelen estar en otra sección de la misma nota—, pedí la nota o las secciones vecinas \
 (contexto=1). Solo .md: el código se lee con Read. Cada lectura empieza con `cita [[nombre]]`: \
-citá la nota así, no por el # título que viene después.",
+citá la nota así, no por el # título que viene después.\n\
+CONEXIONES: cada lectura TERMINA con `← conexiones`: cuántas notas enlazan a la leída y, de las que \
+más hablan de ella (hasta 10), su cita y el texto alrededor del enlace, que dice QUÉ dice esa nota de \
+esta. `↔` = la leída también la enlaza. Es lo que grep no encuentra: quién menciona esta nota. \
+Seguila (vault_leer con esa cita) cuando el texto sugiere que la corrige, la reemplaza o la \
+actualiza —una decisión posterior, un defecto, una versión—, o cuando la pregunta pide TODO lo que \
+toca un tema. Si no, no hace falta abrirlas.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -397,22 +431,38 @@ fn leer(a: &mut Abierto, args: &Value) -> Result<String, String> {
     let contexto = args.get("contexto").and_then(Value::as_u64).unwrap_or(0).min(2) as usize;
     let forzar = args.get("forzar").and_then(Value::as_bool).unwrap_or(false);
 
+    // Cada bloque con la nota que leyó (ninguna si fue un error).
+    let mut bloques: Vec<(Option<String>, String)> = Vec::new();
+    for r in &refs {
+        match leer_una(a, r, contexto, forzar) {
+            Ok((id, t)) => bloques.push((Some(id), t)),
+            Err(msg) => bloques.push((None, format!("── {r}\n{msg}\n"))),
+        }
+    }
+    // Las conexiones de una nota van UNA vez por llamada —pedir tres secciones
+    // de la misma nota no repite la lista tres veces— y al final de su ÚLTIMO
+    // bloque: siempre después de todo el contenido que se leyó de ella.
     let mut o = String::new();
-    for (i, r) in refs.iter().enumerate() {
+    for (i, (id, t)) in bloques.iter().enumerate() {
         if i > 0 {
             o.push('\n');
         }
-        match leer_una(a, r, contexto, forzar) {
-            Ok(t) => o.push_str(&t),
-            Err(msg) => {
-                let _ = writeln!(o, "── {r}\n{msg}");
+        o.push_str(t);
+        if let Some(id) = id {
+            if !bloques[i + 1..].iter().any(|(otro, _)| otro.as_ref() == Some(id)) {
+                o.push_str(&conexiones(a, id)?);
             }
         }
     }
     Ok(o)
 }
 
-fn leer_una(a: &mut Abierto, r: &str, contexto: usize, forzar: bool) -> Result<String, String> {
+fn leer_una(
+    a: &mut Abierto,
+    r: &str,
+    contexto: usize,
+    forzar: bool,
+) -> Result<(String, String), String> {
     let (nota, orden) = partir_ref(r);
     let candidatas = a.indice.resolver_nota(nota)?;
     let id = match candidatas.as_slice() {
@@ -482,10 +532,201 @@ fn leer_una(a: &mut Abierto, r: &str, contexto: usize, forzar: bool) -> Result<S
             let ordenes: Vec<usize> = tramo.iter().map(|s| s.orden).collect();
             o.push_str(&enlaces(a, &id, &ordenes)?);
             o.push_str(&pista_nota_entera(&id, info.bytes, secciones.len(), tramo.len()));
-            Ok(o)
+            Ok((id, o))
         }
-        None => leer_nota(a, &id, &info.titulo, info.bytes, &secciones, forzar, aviso),
+        None => {
+            let o = leer_nota(a, &id, &info.titulo, info.bytes, &secciones, forzar, aviso)?;
+            Ok((id, o))
+        }
     }
+}
+
+/// Quién enlaza a esta nota (`MCP de Mycelium - memoria` § 16): cuántas notas en
+/// total y, de las [`TOPE_CONEXIONES`] más específicas, cómo se citan y qué
+/// dicen de ella.
+///
+/// **Solo los entrantes.** Los salientes ya están en el texto que se acaba de
+/// leer y en la línea `→ enlaza a:`; los entrantes son lo que `grep` no da
+/// barato (y da mal: `grep "\[\[Título"` pierde `[[Carpeta/Título]]` y el alias
+/// escapado en tablas). Si la nota leída **también** enlaza a la que la cita, la
+/// línea va con `↔` en vez de `←`: es una arista que el agente ya vio de un
+/// lado.
+fn conexiones(a: &Abierto, id: &str) -> Result<String, String> {
+    let Some(info) = a.indice.nota(id)? else {
+        return Ok(String::new());
+    };
+    let titulo = info.titulo.as_str();
+    let secciones = a.indice.secciones_de(id)?;
+    let entrantes = a.indice.entrantes(id)?;
+    if entrantes.is_empty() {
+        return Ok("← conexiones: ninguna nota la enlaza\n".into());
+    }
+    let todas: Vec<usize> = secciones.iter().map(|s| s.orden).collect();
+    let sale_a: HashSet<String> =
+        a.indice.salientes(id, &todas)?.into_iter().flat_map(|s| s.resuelve_a).collect();
+    let (destino, _) = a.indice.cita(id, titulo)?;
+    let total = entrantes.len();
+    let mut o = String::new();
+    if total <= TOPE_CONEXIONES {
+        let _ = writeln!(o, "← conexiones: la enlaza{} {total} nota{}:", if total == 1 { "" } else { "n" }, if total == 1 { "" } else { "s" });
+    } else {
+        let _ = writeln!(
+            o,
+            "← conexiones: la enlazan {total} notas; las {TOPE_CONEXIONES} que más hablan de ella (el resto: grep -rlF \"[[{destino}\" --include=*.md):"
+        );
+    }
+    let titulo_norm = titulo.to_lowercase();
+    for en in entrantes.iter().take(TOPE_CONEXIONES) {
+        let flecha = if sale_a.contains(&en.origen) { "↔" } else { "←" };
+        let ct = cita(&a.indice.cita(&en.origen, &en.titulo)?);
+        let ct = ct.strip_prefix("cita ").unwrap_or(&ct);
+        let ini = en.linea.saturating_sub(1).max(1);
+        let lineas = a.indice.leer_lineas(&en.origen, ini, en.linea + 1).unwrap_or_default();
+        let lineas: Vec<&str> = lineas.split('\n').collect();
+        // Las migas de la sección donde está el enlace: solo cuando el texto no
+        // alcanza (un «Ver [[…]].» suelto) o el archivo cambió desde que se
+        // indexó y el enlace ya no está en esa línea.
+        let migas_del_enlace = || {
+            a.indice
+                .secciones_de(&en.origen)
+                .ok()?
+                .into_iter()
+                .find(|s| s.orden == en.seccion_orden && s.nivel > 0)
+                .map(|s| migas_sin_titulo(&s.ruta_encabezados, &en.titulo))
+        };
+        let frag = match fragmento(&lineas, en.linea - ini, &titulo_norm, en.alias.as_deref(), ANCHO_FRAGMENTO) {
+            Some(f) if f.chars().count() >= MINIMO_FRAGMENTO => f,
+            Some(f) => match migas_del_enlace() {
+                Some(m) => format!("{m}: {f}"),
+                None => f,
+            },
+            None => migas_del_enlace().unwrap_or_default(),
+        };
+        let _ = writeln!(o, "  {flecha} {ct} {frag}");
+    }
+    Ok(o)
+}
+
+/// ¿La línea es parte de un párrafo de prosa (que puede seguir en la de al
+/// lado) y no un ítem, una fila, un encabezado o un bloque de código?
+fn es_prosa(l: &str) -> bool {
+    let t = l.trim_start_matches(|c: char| c == '>' || c.is_whitespace());
+    !(t.is_empty()
+        || t.starts_with('#')
+        || t.starts_with('|')
+        || t.starts_with("```")
+        || t.starts_with("- ")
+        || t.starts_with("* ")
+        || t.starts_with("+ ")
+        || t.starts_with("[!")
+        || t.split_once(". ").is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())))
+}
+
+/// Limpia un trozo para una sola línea: sin marcas de lista, cita, encabezado ni
+/// énfasis, y las celdas de una tabla separadas por `·`.
+fn limpiar(s: &str) -> String {
+    let s = s.replace("**", "").replace('`', "");
+    let t = s.trim_start_matches(|c: char| c == '>' || c == '#' || c.is_whitespace());
+    let t = ["- ", "* ", "+ "].iter().find_map(|m| t.strip_prefix(m)).unwrap_or(t);
+    // Lo que queda antes de un enlace que abre el ítem es la marca sola.
+    let t = if matches!(t.trim(), "-" | "*" | "+") { "" } else { t };
+    let t = t.trim_matches(|c: char| c == '|' || c.is_whitespace());
+    t.replace(" | ", " · ").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// El texto alrededor del enlace a la nota leída: `ancho` caracteres repartidos
+/// antes y después, cortando en palabra, con el enlace como `[[…]]` (la nota ya
+/// se sabe cuál es) o `[[…|alias]]` si la llaman de otra forma. `lineas` son la
+/// del enlace (`i`) y sus vecinas, que se suman solo si es prosa partida en
+/// renglones. `None` si el enlace ya no está en esa línea.
+fn fragmento(lineas: &[&str], i: usize, titulo_norm: &str, alias: Option<&str>, ancho: usize) -> Option<String> {
+    let actual = *lineas.get(i)?;
+    let (pos, fin) = buscar_enlace(actual, titulo_norm)?;
+    let mut antes = actual[..pos].trim_start_matches(|c: char| c == '>' || c.is_whitespace()).to_string();
+    let mut despues = actual[fin..].to_string();
+    if es_prosa(actual) {
+        // Un renglón vecino de una cita (`> …`) entra sin su `>`.
+        let sin_cita = |l: &str| l.trim_start_matches(|c: char| c == '>' || c.is_whitespace()).to_string();
+        if let Some(p) = i.checked_sub(1).and_then(|k| lineas.get(k)).filter(|l| es_prosa(l)) {
+            antes = format!("{} {antes}", sin_cita(p));
+        }
+        if let Some(n) = lineas.get(i + 1).filter(|l| es_prosa(l)) {
+            despues = format!("{despues} {}", sin_cita(n));
+        }
+    }
+    let antes = limpiar(&antes);
+    let despues = limpiar(&despues);
+    let (na, nd) = (antes.chars().count(), despues.chars().count());
+    // A cada lado la mitad; lo que un lado no usa, lo usa el otro.
+    let mitad = ancho / 2;
+    let cupo_a = if nd < mitad { ancho - nd } else { mitad };
+    let cupo_d = if na < mitad { ancho - na } else { ancho - mitad };
+    let antes = cola(&antes, cupo_a);
+    let despues = cabeza(&despues, cupo_d);
+    let enlace = match alias {
+        Some(al) => format!("[[…|{}]]", una_linea(al, 40)),
+        None => "[[…]]".to_string(),
+    };
+    let mut out = String::new();
+    if !antes.is_empty() {
+        out.push_str(&antes);
+        if !antes.ends_with(['(', '[', '«', '"']) {
+            out.push(' ');
+        }
+    }
+    out.push_str(&enlace);
+    if !despues.is_empty() {
+        if !despues.starts_with([',', '.', ';', ':', ')']) {
+            out.push(' ');
+        }
+        out.push_str(&despues);
+    }
+    Some(out)
+}
+
+/// Dónde está, en la línea, el primer `[[…]]` que apunta a la nota (por su
+/// nombre normalizado, como los resuelve el índice): `(inicio, fin)` en bytes,
+/// con el `!` de un embed incluido.
+fn buscar_enlace(linea: &str, titulo_norm: &str) -> Option<(usize, usize)> {
+    let mut desde = 0;
+    while let Some(k) = linea[desde..].find("[[") {
+        let ini = desde + k;
+        let cierre = ini + 2 + linea[ini + 2..].find("]]")?;
+        let partido = mycelium_vault::wikilinks::partir_wikilink(&linea[ini + 2..cierre]);
+        if mycelium_vault::wikilinks::destino_norm(&partido.destino) == titulo_norm {
+            let ini = if linea[..ini].ends_with('!') { ini - 1 } else { ini };
+            return Some((ini, cierre + 2));
+        }
+        desde = cierre + 2;
+    }
+    None
+}
+
+/// Los últimos `n` caracteres, empezando en palabra, con `…` si se cortó.
+fn cola(s: &str, n: usize) -> String {
+    let total = s.chars().count();
+    if total <= n {
+        return s.to_string();
+    }
+    let resto: String = s.chars().skip(total - n).collect();
+    let resto = match resto.find(' ') {
+        Some(k) if k + 1 < resto.len() => &resto[k + 1..],
+        _ => resto.as_str(),
+    };
+    format!("…{resto}")
+}
+
+/// Los primeros `n` caracteres, terminando en palabra, con `…` si se cortó.
+fn cabeza(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        return s.to_string();
+    }
+    let corte: String = s.chars().take(n).collect();
+    let corte = match corte.rfind(' ') {
+        Some(k) if k > 0 => &corte[..k],
+        _ => corte.as_str(),
+    };
+    format!("{}…", corte.trim_end_matches([',', ';', ':', ' ']))
 }
 
 fn leer_nota(
@@ -635,5 +876,35 @@ mod tests {
         );
         assert_eq!(pista_nota_entera("docs/BACKLOG.md", 127_917, 99, 1), "", "grande: no se ofrece");
         assert_eq!(pista_nota_entera("a.md", 500, 2, 2), "", "ya se leyó todo");
+    }
+
+    #[test]
+    fn el_fragmento_dice_que_dice_la_otra_nota_de_esta() {
+        // Una fila de tabla: celdas con `·`, el enlace como [[…]].
+        let f = fragmento(&["| Las consolas no pertenecían al vault | `DEF-099` | desktop · [[terminal-integrada]] |"], 0, "terminal-integrada", None, 80);
+        assert_eq!(f.as_deref(), Some("Las consolas no pertenecían al vault · DEF-099 · desktop · [[…]]"));
+        // Un ítem de «Relacionadas»: lo de después, sin la marca de lista.
+        let f = fragmento(&["- [[terminal-integrada]] — dónde corre el asistente."], 0, "terminal-integrada", None, 80);
+        assert_eq!(f.as_deref(), Some("[[…]] — dónde corre el asistente."));
+        // Prosa partida en renglones: suma los vecinos, corta en palabra y con alias.
+        let lineas = [
+            "La decisión de 2026-09 **revierte** lo anterior: el índice",
+            "ya no vive en la app, y [[Decision vieja|la de agosto]] queda como registro",
+            "de por qué se probó primero ahí, con todas sus mediciones y sus números.",
+        ];
+        let f = fragmento(&lineas, 1, "decision vieja", Some("la de agosto"), 80).unwrap();
+        assert!(f.starts_with('…') && f.ends_with('…'), "{f}");
+        assert!(f.contains("ya no vive en la app, y [[…|la de agosto]] queda como registro"), "{f}");
+        assert!(f.chars().count() <= 80 + 20, "{f}");
+        // El embed y el ancla también son el enlace; otro enlace de la línea, no.
+        let f = fragmento(&["ver [[Otra]] y ![[X#Uso]]"], 0, "x", None, 80);
+        assert_eq!(f.as_deref(), Some("ver [[Otra]] y [[…]]"));
+        // Dentro de una cita (`> …`) los renglones se juntan sin los `>`.
+        let f = fragmento(&["> que ignorar al indexar) y la", "> [[X]] (no hay shell). Ver"], 1, "x", None, 80);
+        assert_eq!(f.as_deref(), Some("que ignorar al indexar) y la [[…]] (no hay shell). Ver"));
+        let f = fragmento(&["repara ([[X]], `FUN-M-08`)"], 0, "x", None, 80);
+        assert_eq!(f.as_deref(), Some("repara ([[…]], FUN-M-08)"));
+        // Si el enlace ya no está en la línea (el archivo cambió), no inventa.
+        assert_eq!(fragmento(&["otra cosa"], 0, "x", None, 80), None);
     }
 }

@@ -2,6 +2,7 @@
 //! cliente MCP, procesados por `procesar`.
 
 use super::*;
+use crate::herramientas::TOPE_CONEXIONES;
 use mycelium_vault::registro::VaultRef;
 
 /// Un servidor sobre un vault temporal.
@@ -193,6 +194,118 @@ fn las_homonimas_se_citan_con_la_carpeta_que_las_distingue() {
 }
 
 #[test]
+fn una_nota_sin_entrantes_lo_dice_en_una_linea() {
+    let (mut e, base) = estado_con("sin-entrantes", &[]);
+    // `Otra` enlaza a `Plan`, y a `Otra` no la enlaza nadie.
+    let t = leer(&mut e, json!(["docs/Otra.md"]));
+    assert!(t.ends_with("← conexiones: ninguna nota la enlaza\n"), "{t}");
+    let t = leer(&mut e, json!(["docs/Plan.md#s2"]));
+    assert!(t.ends_with("← conexiones: la enlaza 1 nota:\n  ← [[Otra]] Ver [[…]] y [[Ejemplo]].\n"), "{t}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn las_conexiones_van_despues_del_contenido_y_una_vez_por_nota() {
+    let (mut e, base) = estado_con(
+        "conexiones-orden",
+        &[("docs/Nueva.md", "# Nueva\n\nEsta decisión reemplaza a [[Plan]] desde hoy.\n".into())],
+    );
+    let t = leer(&mut e, json!(["docs/Plan.md#s1", "docs/Plan.md#s2"]));
+    let cuerpo = t.find("el MCP tiene su índice").expect(&t);
+    let con = t.find("← conexiones: la enlazan 2 notas:").expect(&t);
+    assert!(con > cuerpo, "la lista va después del contenido:\n{t}");
+    assert_eq!(t.matches("← conexiones").count(), 1, "una sola vez por llamada:\n{t}");
+    // Nueva enlaza solo a Plan (específica: 1/1) y va antes que Otra (1/2).
+    let nueva = t.find("  ← [[Nueva]] Esta decisión reemplaza a [[…]] desde hoy.").expect(&t);
+    let otra = t.find("  ← [[Otra]]").expect(&t);
+    assert!(nueva < otra, "{t}");
+    // Si la leída también enlaza a la que la cita, la flecha es ↔.
+    let t = leer(&mut e, json!(["docs/Otra.md"]));
+    assert!(!t.contains("↔"), "{t}");
+    let plan = e.vault.as_ref().unwrap().raiz.join("docs/Plan.md");
+    std::fs::write(&plan, "# Plan\nver [[Nueva]]\n").unwrap();
+    // Un mtime distinto sin esperar al reloj del sistema de archivos.
+    let f = std::fs::File::options().write(true).open(&plan).unwrap();
+    f.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5)).unwrap();
+    drop(f);
+    let t = leer(&mut e, json!(["Plan"]));
+    assert!(t.contains("  ↔ [[Nueva]] "), "{t}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn una_nota_con_mas_entrantes_que_el_tope_lista_solo_las_mas_especificas() {
+    // Un hub: 15 notas que solo lo enlazan a él, y un mapa que enlaza a todo.
+    let mut archivos: Vec<(String, String)> =
+        (0..15).map(|i| (format!("docs/n{i:02}.md"), format!("Nota {i} sobre el [[Hub]].\n"))).collect();
+    archivos.push(("docs/Hub.md".into(), "# Hub\ncentro\n".into()));
+    let todas: String = (0..15).map(|i| format!("[[n{i:02}]] ")).collect();
+    archivos.push(("docs/Mapa.md".into(), format!("{todas}[[Hub]]\n")));
+    let refs: Vec<(&str, String)> = archivos.iter().map(|(a, b)| (a.as_str(), b.clone())).collect();
+    let (mut e, base) = estado_con("conexiones-tope", &refs);
+    let t = leer(&mut e, json!(["Hub"]));
+    let desde = t.find("← conexiones").expect(&t);
+    let lista = &t[desde..];
+    assert!(
+        lista.starts_with(&format!(
+            "← conexiones: la enlazan 16 notas; las {TOPE_CONEXIONES} que más hablan de ella (el resto: grep -rlF \"[[Hub\" --include=*.md):\n"
+        )),
+        "{lista}"
+    );
+    assert_eq!(lista.lines().count(), 1 + TOPE_CONEXIONES, "{lista}");
+    assert!(!lista.contains("[[Mapa]]"), "el mapa enlaza a todo: es el menos específico\n{lista}");
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn las_citas_de_las_conexiones_resuelven_a_la_nota_que_enlaza() {
+    // Dos homónimas que enlazan a X: cada una tiene que salir con la cita que
+    // la app resuelve a ella, no a la otra.
+    let (mut e, base) = estado_con(
+        "conexiones-citas",
+        &[
+            ("docs/X.md", "# X\nx\n".into()),
+            ("docs/Notas.md", "sobre [[X]]\n".into()),
+            ("docs/viejo/Notas.md", "antes, [[X]]\n".into()),
+            ("docs/features/atmosferas.md", "# Atmósferas\nusa [[X]]\n".into()),
+        ],
+    );
+    let t = leer(&mut e, json!(["docs/X.md"]));
+    let lista = &t[t.find("← conexiones").expect(&t)..];
+    let citas: Vec<&str> = lista
+        .lines()
+        .skip(1)
+        .map(|l| {
+            let ini = l.find("[[").unwrap() + 2;
+            &l[ini..ini + l[ini..].find("]]").unwrap()]
+        })
+        .collect();
+    assert_eq!(citas.len(), 3, "{lista}");
+    let a = e.celda.lock().unwrap();
+    let ix = &a.as_ref().unwrap().as_ref().unwrap().indice;
+    let mut resueltas = Vec::new();
+    for c in &citas {
+        let (_, titulo) = c.rsplit_once('/').unwrap_or(("", c));
+        let homonimas = ix.homonimas(titulo).unwrap();
+        let id = if homonimas.len() == 1 {
+            homonimas[0].clone()
+        } else {
+            mycelium_vault::indice::citar::resolver_entre(c, &homonimas).expect(c)
+        };
+        resueltas.push(id);
+    }
+    resueltas.sort();
+    assert_eq!(resueltas, ["docs/Notas.md", "docs/features/atmosferas.md", "docs/viejo/Notas.md"], "{lista}");
+    assert!(citas.contains(&"viejo/Notas") && citas.contains(&"atmosferas"), "{lista}");
+    drop(a);
+    drop(e);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
 fn las_descripciones_mandan_a_grep_para_lo_que_no_es_md() {
     let (mut e, base) = estado("descripciones", false);
     let lista = uno(&mut e, json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}));
@@ -204,6 +317,8 @@ fn las_descripciones_mandan_a_grep_para_lo_que_no_es_md() {
     assert!(buscar.contains("cita [[nombre]]") && buscar.contains("NO resuelve"), "{buscar}");
     let leer = lista["result"]["tools"][1]["description"].as_str().unwrap();
     assert!(leer.contains("cita [[nombre]]"), "{leer}");
+    // La lista de conexiones: qué es y cuándo seguirla.
+    assert!(leer.contains("← conexiones") && leer.contains("quién menciona esta nota"), "{leer}");
     let ini = uno(&mut e, json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{}}));
     let instr = ini["result"]["instructions"].as_str().unwrap();
     assert!(!instr.contains("preferí esto a grep") && instr.contains("grep/Grep"), "{instr}");
