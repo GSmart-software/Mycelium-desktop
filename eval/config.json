@@ -1,0 +1,12 @@
+{
+  "_que_es": "Lo que la § 9.4 de «MCP de Mycelium - evaluacion» deja para completar al congelar, más los valores fijos del protocolo (§ 7). Cambiar algo de esto separa tandas: se anota, no se pisa.",
+  "commit_vault": "c0a33b8ec71a32b1ef49da61c0a487aa42625b3c",
+  "commit_vault_motivo": "Punta de desktop-tauri el 2026-09-24, antes de cualquier código del MCP. Todas las claves de preguntas.jsonl se verificaron contra este commit (node eval/verificar-claves.mjs).",
+  "pesos_costo": "2026-09-24",
+  "modelo_principal": "claude-haiku-4-5-20251001",
+  "modelo_grande": "claude-sonnet-5",
+  "repeticiones": 5,
+  "herramientas_base": ["Bash", "Glob", "Grep", "Read", "Skill"],
+  "setting_sources": "project,local",
+  "timeout_ms": 900000
+}
