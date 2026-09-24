@@ -145,6 +145,20 @@ fn el_indice_de_una_nota_grande_no_se_corta() {
 }
 
 #[test]
+fn las_descripciones_mandan_a_grep_para_lo_que_no_es_md() {
+    let (mut e, base) = estado("descripciones", false);
+    let lista = uno(&mut e, json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}));
+    let buscar = lista["result"]["tools"][0]["description"].as_str().unwrap();
+    assert!(buscar.contains("SOLO las notas .md") && buscar.contains("grep"), "{buscar}");
+    assert!(buscar.contains("por detrás del código"), "{buscar}");
+    assert!(buscar.contains("CORTAS"), "{buscar}");
+    let ini = uno(&mut e, json!({"jsonrpc":"2.0","id":2,"method":"initialize","params":{}}));
+    let instr = ini["result"]["instructions"].as_str().unwrap();
+    assert!(!instr.contains("preferí esto a grep") && instr.contains("grep/Grep"), "{instr}");
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
 fn antes_de_terminar_el_arranque_en_frio_dice_indexando() {
     let (mut e, base) = estado("frio", false);
     e.progreso.total.store(40, Ordering::Relaxed);

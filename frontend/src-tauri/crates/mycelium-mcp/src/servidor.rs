@@ -184,11 +184,18 @@ fn instrucciones(estado: &Estado) -> String {
         Ok(v) => format!("el vault «{}» ({})", v.registrado.nombre, v.registrado.ruta),
         Err(_) => "ningún vault (no se pudo resolver: cualquier herramienta explica por qué)".to_string(),
     };
+    // Decía «preferí esto a grep», y el agente dejó grep justo donde era
+    // imprescindible: 0 de 10 corridas de C7 leyeron código (diagnóstico de la
+    // fase 1, causa 5). Estas instrucciones y las descripciones de las
+    // herramientas son lo único que ve solo el brazo MCP: el CLAUDE.md y la
+    // skill del vault son el grupo de control y no se tocan.
     format!(
-        "Memoria de Mycelium sobre {donde}. Para encontrar algo del vault, preferí esto a grep: \
-         vault_buscar devuelve previews de SECCIONES (migas + fragmento, nunca el texto entero) y \
-         vault_leer lee solo las secciones elegidas, del disco y al día. Las herramientas vault_* \
-         andan con la app abierta o cerrada."
+        "Memoria de Mycelium sobre {donde}. Para las NOTAS .md del vault: vault_buscar devuelve \
+         previews de SECCIONES (migas + fragmento) con consultas cortas, y vault_leer lee las \
+         secciones elegidas o la nota entera si es chica, del disco y al día. El índice NO tiene el \
+         código, la configuración ni otros tipos de archivo: para eso, grep/Grep y Read, como \
+         siempre. La documentación puede ir por detrás del código. Las herramientas vault_* andan \
+         con la app abierta o cerrada."
     )
 }
 

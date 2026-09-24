@@ -44,12 +44,17 @@ pub fn definiciones() -> Value {
         {
             "name": "vault_buscar",
             "title": "Buscar en el vault",
-            "description": "Busca en las notas del vault y devuelve PREVIEWS de secciones (no el texto): \
-por resultado, una ref `ruta#sN`, las migas `Nota › H2 › H3` y un fragmento con las coincidencias \
-entre «». Ranking léxico (BM25) por sección; los términos se combinan con Y y aceptan prefijo \
-(«enlace» encuentra «enlaces»); \"entre comillas\" busca la frase. Si ninguna sección tiene todos \
-los términos, devuelve notas que los reúnen entre varias secciones. Después, vault_leer con las refs \
-que interesen.",
+            "description": "Busca en las notas .md del vault y devuelve PREVIEWS de secciones (no el \
+texto): por resultado, una ref `ruta#sN`, las migas `Nota › H2 › H3` y un fragmento con las \
+coincidencias entre «». Alcanza con que una sección tenga UNO de los términos; primero salen las que \
+tienen más (y los más raros), después ordena BM25. Prefijo: «enlace» encuentra «enlaces»; \
+\"entre comillas\" busca la frase. Consultas CORTAS: 2 o 3 términos distintivos, no la pregunta \
+entera; si no aparece lo que buscás, cambiá o sacá términos en vez de agregar. Después, vault_leer \
+con las refs que interesen.\n\
+IMPORTANTE: el índice tiene SOLO las notas .md. El código, la configuración y los otros tipos de \
+archivo (.ts, .rs, .json, .toml, .canvas, .base…) NO están: buscalos con grep/Grep y leelos con \
+Read. Y la documentación puede ir por detrás del código: si la pregunta es cómo funciona algo HOY, \
+confirmalo en el código antes de afirmarlo.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
