@@ -20,7 +20,7 @@ rust-version = "1.77.2"
 #   - `crates/mycelium-mcp`: el servidor MCP de memoria, un binario delgado
 #     encima de la biblioteca.
 [workspace]
-members = [".", "crates/mycelium-vault"]
+members = [".", "crates/mycelium-vault", "crates/mycelium-mcp"]
 resolver = "2"
 
 [lib]

@@ -2592,6 +2592,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mycelium-mcp"
+version = "0.1.0"
+dependencies = [
+ "mycelium-vault",
+ "serde_json",
+]
+
+[[package]]
 name = "mycelium-vault"
 version = "0.1.0"
 dependencies = [
