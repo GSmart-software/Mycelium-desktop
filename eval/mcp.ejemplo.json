@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mycelium": {
+      "command": "C:\\ruta\\a\\mycelium-mcp-<commit>.exe",
+      "args": [],
+      "env": {
+        "MYCELIUM_DIR_APP": "C:\\ruta\\a\\un\\registro\\propio",
+        "MYCELIUM_VAULT": "C:\\ruta\\a\\la\\copia\\del\\corpus"
+      }
+    }
+  },
+  "_nota": "Copiar a eval/mcp.json (fuera de git: lleva rutas de la maquina). El registro propio evita dar de alta la copia del corpus en el vaults.json del usuario; el binario se copia y se nombra por commit para que una tanda no cambie de version a mitad de camino."
+}
