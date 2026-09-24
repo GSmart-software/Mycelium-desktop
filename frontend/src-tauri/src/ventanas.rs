@@ -24,12 +24,10 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 #[derive(Default)]
 pub struct VentanasState(pub Mutex<HashMap<String, String>>);
 
-/// Comparación de rutas tolerante a mayúsculas y a las barras de Windows: la
-/// misma carpeta escrita de dos formas sigue siendo la misma carpeta.
-fn misma_ruta(a: &str, b: &str) -> bool {
-    let norm = |s: &str| s.replace('\\', "/").trim_end_matches('/').to_lowercase();
-    norm(a) == norm(b)
-}
+/// Comparación de rutas tolerante a mayúsculas y a las barras de Windows. Vive
+/// en el crate compartido (`FUN-L-10`): es la misma respuesta con la que el
+/// servidor MCP resuelve su vault contra `vaults.json` (plan del MCP § 7.3).
+use mycelium_vault::rutas::misma_ruta;
 
 /// Etiqueta de la ventana que tiene abierto ese vault, si alguna.
 fn ventana_con(state: &VentanasState, ruta: &str) -> Option<String> {

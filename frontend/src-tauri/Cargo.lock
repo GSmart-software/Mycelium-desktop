@@ -86,6 +86,7 @@ name = "app"
 version = "2.1.0"
 dependencies = [
  "log",
+ "mycelium-vault",
  "notify-debouncer-full",
  "portable-pty",
  "reqwest",
@@ -2546,6 +2547,15 @@ dependencies = [
  "serde",
  "thiserror 2.0.18",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mycelium-vault"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

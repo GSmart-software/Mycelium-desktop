@@ -23,64 +23,13 @@ pub struct ArchivoLeido {
     pub contenido: String,
 }
 
-/// Archivo del vault con los metadatos que el índice derivado necesita para la
-/// validación incremental por `mtime` (fase 2 del "vault en carpeta").
-///
-/// **Sin `contenido` a propósito** (FUN-M-12): el indexador compara `mtime` y
-/// recién entonces pide el texto de lo que cambió, con `leer_archivos`. Antes
-/// esta estructura llevaba el contenido de TODOS los archivos y se descartaba
-/// casi entero en cada apertura (14 MB por IPC en un vault sobre un repo).
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ArchivoMeta {
-    pub ruta_relativa: String,
-    /// Fecha de modificación en milisegundos epoch (de `metadata().modified()`).
-    pub mtime: i64,
-    /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"canvas"` para
-    /// `.canvas`, `"drawio"` para `.drawio`, `"markdown"` para el resto.
-    pub tipo: String,
-}
-
-/// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
-fn tipo_de(path: &Path) -> String {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
-        // Bases (`FUN-L-03`) y canvas (`FUN-L-18`): las extensiones son las de
-        // Obsidian, para que el vault siga siendo intercambiable.
-        Some(ext) if ext.eq_ignore_ascii_case("base") => "base".to_string(),
-        Some(ext) if ext.eq_ignore_ascii_case("canvas") => "canvas".to_string(),
-        // Diagramas de draw.io (`FUN-L-20`): XML de mxGraph. La extensión es la
-        // nativa de la herramienta, para que el archivo se abra en cualquier
-        // draw.io de afuera.
-        Some(ext) if ext.eq_ignore_ascii_case("drawio") => "drawio".to_string(),
-        _ => "markdown".to_string(),
-    }
-}
-
-/// `mtime` en milisegundos epoch (0 si el SO no lo expone).
-fn mtime_ms(metadata: &std::fs::Metadata) -> i64 {
-    metadata
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-/// Extensiones que se importan como notas del vault.
-pub(crate) fn es_importable(path: &Path) -> bool {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) => {
-            let ext = ext.to_ascii_lowercase();
-            ext == "md"
-                || ext == "excalidraw"
-                || ext == "base"
-                || ext == "canvas"
-                || ext == "drawio"
-        }
-        None => false,
-    }
-}
+// El walker del índice, los tipos de archivo y los helpers de rutas viven en el
+// crate compartido con el servidor MCP (`FUN-L-10`): los dos procesos tienen que
+// decidir igual qué archivos son notas y qué ignora el `.mycignore`.
+pub use mycelium_vault::recorrido::ArchivoMeta;
+use mycelium_vault::recorrido::{mtime_ms, recorrer_meta, rel_posix};
+pub(crate) use mycelium_vault::tipos::es_importable;
+use mycelium_vault::tipos::tipo_de;
 
 /// Un directorio oculto (`.git`, `.obsidian`, …) no se recorre.
 fn es_oculto(nombre: &str) -> bool {
@@ -180,65 +129,6 @@ pub fn leer_carpeta(origen: String) -> Result<Vec<ArchivoLeido>, String> {
     let mut out = Vec::new();
     recorrer(&base, &base, &mut out)?;
     Ok(out)
-}
-
-/// Ruta relativa POSIX de `ruta` respecto de `base`.
-fn rel_posix(base: &Path, ruta: &Path) -> Result<String, String> {
-    Ok(ruta
-        .strip_prefix(base)
-        .map_err(|_| format!("Ruta inesperada: {}", ruta.display()))?
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().to_string())
-        .collect::<Vec<_>>()
-        .join("/"))
-}
-
-/// Recorre `dir` recursivamente acumulando los archivos importables con sus
-/// metadatos (`mtime`, `tipo`). Gemelo de `recorrer`, pero para el índice.
-/// El filtrado lo deciden los patrones del `.mycignore` del vault (FUN-M-11);
-/// `.mycelium` queda excluido siempre.
-///
-/// **No lee el contenido** (FUN-M-12): eso lo hace `leer_archivos`, y solo para
-/// las rutas que el indexador decidió reindexar comparando `mtime`.
-///
-/// Micro-optimizaciones del walker (FUN-M-12): se usa `entrada.file_type()` en
-/// vez de `ruta.is_dir()` —el tipo ya viene en la entrada del directorio, así que
-/// se ahorra un `stat` por archivo, notorio en Windows— y `rel_posix` se calcula
-/// UNA vez por entrada en lugar de dos. Contrapartida asumida: `file_type()` no
-/// sigue enlaces simbólicos, así que un symlink a una carpeta ya no se recorre
-/// (antes sí). Es lo deseable: evita ciclos y duplicados en el índice.
-fn recorrer_meta(
-    dir: &Path,
-    base: &Path,
-    patrones: &[crate::mycignore::Patron],
-    incluir: &dyn Fn(&Path) -> bool,
-    etiqueta: &dyn Fn(&Path) -> String,
-    out: &mut Vec<ArchivoMeta>,
-) -> Result<(), String> {
-    let entradas =
-        std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
-
-    for entrada in entradas {
-        let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
-        let ruta = entrada.path();
-        let es_dir = entrada.file_type().map(|t| t.is_dir()).unwrap_or(false);
-
-        if es_dir {
-            let relativa = rel_posix(base, &ruta)?;
-            if crate::mycignore::ignorada(&relativa, true, patrones) {
-                continue;
-            }
-            recorrer_meta(&ruta, base, patrones, incluir, etiqueta, out)?;
-        } else if incluir(&ruta) {
-            let relativa = rel_posix(base, &ruta)?;
-            if crate::mycignore::ignorada(&relativa, false, patrones) {
-                continue;
-            }
-            let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
-            out.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: etiqueta(&ruta) });
-        }
-    }
-    Ok(())
 }
 
 /// Rutas ABSOLUTAS que el vault mira de verdad: las carpetas no ignoradas y los
