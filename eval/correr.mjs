@@ -27,6 +27,7 @@ import { huella, inventario, invalidarCorpus, prepararCorpus, rutaTranscripcion 
 import { cargarPreguntas, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 import { puntuar } from "./lib/puntuacion.mjs";
 import { prng, mediana } from "./lib/regla.mjs";
+import { motivoRed } from "./lib/red.mjs";
 import { resumirTranscripcion } from "./lib/transcripcion.mjs";
 
 const EVAL = dirname(fileURLToPath(import.meta.url));
@@ -90,11 +91,17 @@ export function argumentosClaude({ brazo, modelo, effort, sessionId, mcpConfig }
   return a;
 }
 
-/** Una corrida con descarte explícito (§ 7, regla 5): nunca se borra, se anota. */
-function motivoDescarte(r, t, esperado, dirCorpus) {
+/**
+ * Una corrida con descarte explícito (§ 7, regla 5): nunca se borra, se anota.
+ * El acceso a la red va antes que cualquier problema de la salida: una corrida
+ * que salió del corpus no mide la memoria del vault, termine como termine
+ * (diagnóstico de la fase 1, § 3.6).
+ */
+export function motivoDescarte(r, t, esperado, dirCorpus) {
   if (!r) return "la salida no es JSON";
   const ajenas = (t?.instrucciones ?? []).filter((p) => !p.toLowerCase().startsWith(dirCorpus.toLowerCase()));
   if (ajenas.length) return `instrucciones de fuera del corpus: ${ajenas.join(", ")}`;
+  if (t?.red?.length) return motivoRed(t.red);
   if (r.is_error) return `is_error (${r.subtype ?? "?"})`;
   if (Array.isArray(r.permission_denials) && r.permission_denials.length) return "permission_denials";
   if (r.subtype && r.subtype !== "success") return `subtype ${r.subtype}`;

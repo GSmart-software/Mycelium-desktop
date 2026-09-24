@@ -13,10 +13,38 @@
 //! | `prox` | `0.5^d`, `d` = saltos hasta la nota `cerca_de` (hasta 2); 0 sin ella |
 //! | `rec` | `exp(-días_desde_mtime / 90)` |
 //! | `anc` | texto de los enlaces **entrantes** que casa con la consulta (señal de nota) |
+//!
+//! ## Cobertura, no conjunción (diagnóstico de la fase 1, causa 1)
+//!
+//! La fase 1 exigía **todos** los términos en la misma sección (`"a"* "b"* "c"*`):
+//! una sola palabra de la consulta que la nota no usara la sacaba de la lista, y
+//! 58 de 181 búsquedas de la tanda volvieron vacías. Ahora **alcanza con uno**
+//! (`"a"* OR "b"* OR "c"*`) y el orden premia **cubrir más términos**:
+//!
+//! ```text
+//! lexico = bm25(O) · cobertura²      cobertura = Σ idf(términos que tiene) / Σ idf(términos)
+//! ```
+//!
+//! - **Por qué no un O a secas**: con O, una sección que repite un solo término
+//!   común (y lo tiene en el título, que pesa 4) le gana a la que tiene casi
+//!   todos. En la reproducción del diagnóstico eso bajó D01 de 8 a 3 de 10.
+//! - **Por qué la cobertura va pesada por idf**: los términos que están en casi
+//!   todas las secciones («no», «de», «la», y con prefijo más) no distinguen
+//!   nada; contarlos como un término más haría ganar a las secciones largas que
+//!   tienen todas las palabras vacías. Un término que no está en ninguna sección
+//!   pesa 0 (no puede distinguir) y se le avisa al agente.
+//! - **Por qué al cuadrado**: que la cobertura mande sin volver al Y. Con la
+//!   mitad del peso cubierto, una sección necesita cuatro veces el BM25 de la que
+//!   lo cubre todo para empatarle; entre coberturas parecidas ordena el BM25.
+//!
+//! El respaldo de la fase 1 —intersectar por nota cuando ninguna sección tenía
+//! todos los términos— se sacó: exigía el mismo Y un nivel más arriba y, cuando
+//! no volvía vacío, traía «la mejor sección de cada término», que era ruido.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use rusqlite::types::Value;
+use rusqlite::OptionalExtension;
 
 use super::{ahora_ms, e, Indice, Resultado};
 
@@ -27,6 +55,9 @@ use super::{ahora_ms, e, Indice, Resultado};
 pub const PESO_TITULO: f64 = 4.0;
 pub const PESO_ENCABEZADOS: f64 = 2.0;
 pub const PESO_CUERPO: f64 = 1.0;
+
+/// Exponente de la cobertura en el puntaje léxico (ver el encabezado del módulo).
+pub const EXPONENTE_COBERTURA: f64 = 2.0;
 
 /// Pesos del puntaje final. **v1: solo `rel`.**
 #[derive(Debug, Clone, Copy, serde::Serialize)]
@@ -98,11 +129,8 @@ pub struct Consulta {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Modo {
-    /// Todos los términos en una misma sección.
+    /// Secciones con **al menos un** término, ordenadas por cobertura y BM25.
     Seccion,
-    /// Ninguna sección los tenía todos: notas que los tienen **entre varias**
-    /// secciones, con la mejor sección de cada término (§ 4 de la nota).
-    Interseccion,
     /// Solo filtros, sin texto.
     Filtros,
 }
@@ -120,8 +148,12 @@ pub struct Encontrado {
     pub parcial: bool,
     /// Fragmento con las coincidencias entre «».
     pub fragmento: String,
-    /// `-bm25` crudo (antes de normalizar).
+    /// `-bm25` crudo de la expresión con O (antes de normalizar).
     pub bm25: f64,
+    /// Qué parte del peso (idf) de los términos tiene la sección, en `[0, 1]`.
+    pub cobertura: f64,
+    /// Cuántos términos de la consulta tiene la sección.
+    pub cubiertos: usize,
     pub senales: Senales,
     pub puntaje: f64,
 }
@@ -143,6 +175,20 @@ pub struct Busqueda {
     pub expresion: String,
     /// La nota `cerca_de` resuelta, si se pasó y existe.
     pub cerca_de: Option<String>,
+    /// Términos que no aparecen en ninguna sección del vault (se le avisan al
+    /// agente: es la palabra que hay que cambiar).
+    pub sin_coincidencias: Vec<String>,
+    /// Cuántas secciones (o notas) tienen todos los términos que sí existen.
+    pub completos: usize,
+    /// Cuántos términos distintos tuvo la consulta.
+    pub terminos: usize,
+}
+
+impl Busqueda {
+    /// Los términos de la consulta que están en alguna sección del vault.
+    pub fn terminos_presentes(&self) -> usize {
+        self.terminos - self.sin_coincidencias.len()
+    }
 }
 
 /// Parte la consulta en términos: frases entre comillas o palabras sueltas.
@@ -181,8 +227,24 @@ fn a_fts(termino: &str) -> String {
     format!("\"{limpio}\"{prefijo}")
 }
 
+/// La expresión con **O**: alcanza con que la sección tenga un término.
 pub fn expresion_fts(terminos: &[String]) -> String {
-    terminos.iter().map(|t| a_fts(t)).collect::<Vec<_>>().join(" ")
+    terminos.iter().map(|t| a_fts(t)).collect::<Vec<_>>().join(" OR ")
+}
+
+/// El idf de BM25 (`ln(1 + (N − df + 0,5) / (df + 0,5))`); 0 si el término no
+/// está en ninguna sección, porque entonces no distingue nada.
+pub fn idf(n: usize, df: usize) -> f64 {
+    if df == 0 {
+        return 0.0;
+    }
+    let (n, df) = (n as f64, df as f64);
+    (1.0 + (n - df + 0.5).max(0.0) / (df + 0.5)).ln()
+}
+
+/// El puntaje léxico de una sección: su BM25 por la cobertura al cuadrado.
+pub fn lexico(bm25: f64, cobertura: f64) -> f64 {
+    bm25.max(0.0) * cobertura.powf(EXPONENTE_COBERTURA)
 }
 
 /// Condiciones SQL de los filtros (sobre `n` = notas).
@@ -219,6 +281,10 @@ fn sql_filtros(f: &Filtros, params: &mut Vec<Value>) -> String {
 /// Una fila candidata antes de calcular las señales de grafo.
 struct Candidato {
     e: Encontrado,
+    /// `secciones.id` (= rowid en `secciones_fts`).
+    rowid: i64,
+    /// `lexico(bm25, cobertura)`: lo que normalizado da `rel`.
+    lexico: f64,
     mtime: i64,
     titulo_norm: String,
 }
@@ -278,58 +344,94 @@ impl Indice {
             return self.solo_filtros(c, limite, cerca_de);
         }
 
-        let expresion = expresion_fts(&terms);
-        let tope = match c.ambito {
-            Ambito::Secciones => (limite * 3).max(30),
-            Ambito::Notas => 300,
-        };
-        let (mut total, mut candidatos) = self.consultar(&expresion, &c.filtros, tope, c.ambito)?;
-        let mut modo = Modo::Seccion;
-
-        if total == 0 && terms.len() > 1 {
-            let (t, cands) = self.interseccion(&terms, &c.filtros)?;
-            total = t;
-            candidatos = cands;
-            modo = Modo::Interseccion;
+        // Cada término por separado: en qué secciones está. Da la cobertura de
+        // cada candidata y el idf de cada término (sobre todo el vault, sin
+        // filtros: el peso de una palabra no depende de dónde se busque).
+        let mut vistos = HashSet::new();
+        let terms: Vec<String> = terms.into_iter().filter(|t| vistos.insert(a_fts(t).to_lowercase())).collect();
+        let n: i64 = self.conn.query_row("SELECT COUNT(*) FROM secciones", [], |r| r.get(0)).map_err(e)?;
+        let mut por_termino: Vec<HashSet<i64>> = Vec::new();
+        for t in &terms {
+            por_termino.push(self.filas_de(&a_fts(t))?);
         }
+        let pesos: Vec<f64> = por_termino.iter().map(|f| idf(n as usize, f.len())).collect();
+        let peso_total: f64 = pesos.iter().sum();
+        let sin_coincidencias: Vec<String> =
+            terms.iter().zip(&por_termino).filter(|(_, f)| f.is_empty()).map(|(t, _)| t.clone()).collect();
+        let presentes = por_termino.iter().filter(|f| !f.is_empty()).count();
+
+        let expresion = expresion_fts(&terms);
+        let (total, mut candidatos) = self.consultar(&expresion, &c.filtros, c.ambito)?;
+        for cand in &mut candidatos {
+            let (mut cubierto, mut cuantos) = (0.0, 0);
+            for (f, w) in por_termino.iter().zip(&pesos) {
+                if f.contains(&cand.rowid) {
+                    cubierto += w;
+                    cuantos += 1;
+                }
+            }
+            cand.e.cobertura = if peso_total > 0.0 { cubierto / peso_total } else { 0.0 };
+            cand.e.cubiertos = cuantos;
+            cand.lexico = lexico(cand.e.bm25, cand.e.cobertura);
+        }
+        let completos = {
+            let completas = candidatos.iter().filter(|x| presentes > 0 && x.e.cubiertos == presentes);
+            match c.ambito {
+                Ambito::Secciones => completas.count(),
+                Ambito::Notas => completas.map(|x| x.e.nota_id.as_str()).collect::<HashSet<_>>().len(),
+            }
+        };
 
         let resultados = self.puntuar(candidatos, &expresion, cerca_de.as_deref(), c.ambito, limite)?;
-        Ok(Busqueda { total, modo, resultados, expresion, cerca_de })
+        Ok(Busqueda {
+            total,
+            modo: Modo::Seccion,
+            resultados,
+            expresion,
+            cerca_de,
+            sin_coincidencias,
+            completos,
+            terminos: terms.len(),
+        })
     }
 
-    /// Filas que casan con `expresion`, en orden de BM25, y el total.
-    fn consultar(
-        &self,
-        expresion: &str,
-        filtros: &Filtros,
-        tope: usize,
-        ambito: Ambito,
-    ) -> Resultado<(usize, Vec<Candidato>)> {
+    /// Las secciones (rowid) que casan con una expresión.
+    fn filas_de(&self, expresion: &str) -> Resultado<HashSet<i64>> {
+        let mut st = self.conn.prepare("SELECT rowid FROM secciones_fts WHERE secciones_fts MATCH ?").map_err(e)?;
+        let filas = st.query_map([expresion], |r| r.get::<_, i64>(0)).map_err(e)?;
+        filas.collect::<Result<HashSet<_>, _>>().map_err(e)
+    }
+
+    /// El fragmento de una sección con las coincidencias de `expresion` entre «».
+    fn fragmento(&self, expresion: &str, rowid: i64) -> Resultado<String> {
+        self.conn
+            .query_row(
+                "SELECT snippet(secciones_fts, 2, '«', '»', '…', 16) FROM secciones_fts
+                  WHERE secciones_fts MATCH ?1 AND rowid = ?2",
+                rusqlite::params![expresion, rowid],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .map(Option::unwrap_or_default)
+            .map_err(e)
+    }
+
+    /// **Todas** las filas que casan con `expresion` (con su BM25, sin el
+    /// fragmento, que se pide después solo para las que se devuelven), y el total.
+    /// Sin tope: el orden final no es el de BM25, así que no se puede cortar antes
+    /// de calcular la cobertura. Son miles de filas como mucho, y una consulta.
+    fn consultar(&self, expresion: &str, filtros: &Filtros, ambito: Ambito) -> Resultado<(usize, Vec<Candidato>)> {
         let mut params: Vec<Value> = vec![Value::Text(expresion.to_string())];
         let filtro_sql = sql_filtros(filtros, &mut params);
-        let desde = format!(
-            "FROM secciones_fts
-             JOIN secciones s ON s.id = secciones_fts.rowid
-             JOIN notas n ON n.id = s.nota_id
-             WHERE secciones_fts MATCH ?{filtro_sql}"
-        );
-        let contar = match ambito {
-            Ambito::Secciones => format!("SELECT COUNT(*) {desde}"),
-            Ambito::Notas => format!("SELECT COUNT(DISTINCT s.nota_id) {desde}"),
-        };
-        let total: i64 = self
-            .conn
-            .query_row(&contar, rusqlite::params_from_iter(params.iter()), |r| r.get(0))
-            .map_err(e)?;
-
         let sql = format!(
             "SELECT s.nota_id, n.titulo, s.orden, s.ruta_encabezados, s.linea_ini, s.linea_fin, s.bytes,
                     s.parcial, n.mtime, n.titulo_norm,
                     -bm25(secciones_fts, {PESO_TITULO}, {PESO_ENCABEZADOS}, {PESO_CUERPO}) AS b,
-                    snippet(secciones_fts, 2, '«', '»', '…', 16) AS frag
-             {desde}
-             ORDER BY b DESC
-             LIMIT {tope}"
+                    s.id
+               FROM secciones_fts
+               JOIN secciones s ON s.id = secciones_fts.rowid
+               JOIN notas n ON n.id = s.nota_id
+              WHERE secciones_fts MATCH ?{filtro_sql}"
         );
         let mut st = self.conn.prepare(&sql).map_err(e)?;
         let filas = st
@@ -344,11 +446,15 @@ impl Indice {
                         linea_fin: r.get::<_, i64>(5)? as usize,
                         bytes: r.get::<_, i64>(6)? as usize,
                         parcial: r.get::<_, i64>(7)? != 0,
-                        fragmento: r.get(11)?,
+                        fragmento: String::new(),
                         bm25: r.get(10)?,
+                        cobertura: 0.0,
+                        cubiertos: 0,
                         senales: Senales::default(),
                         puntaje: 0.0,
                     },
+                    rowid: r.get(11)?,
+                    lexico: 0.0,
                     mtime: r.get(8)?,
                     titulo_norm: r.get(9)?,
                 })
@@ -358,45 +464,11 @@ impl Indice {
         for f in filas {
             out.push(f.map_err(e)?);
         }
-        Ok((total as usize, out))
-    }
-
-    /// Ningún par de términos comparte sección: una subconsulta por término,
-    /// intersección por nota, y la mejor sección de cada término.
-    fn interseccion(&self, terms: &[String], filtros: &Filtros) -> Resultado<(usize, Vec<Candidato>)> {
-        let mut por_termino: Vec<Vec<Candidato>> = Vec::new();
-        for t in terms {
-            let (_, cands) = self.consultar(&a_fts(t), filtros, 200, Ambito::Secciones)?;
-            por_termino.push(cands);
-        }
-        let mut comunes: Option<HashSet<String>> = None;
-        for cands in &por_termino {
-            let notas: HashSet<String> = cands.iter().map(|c| c.e.nota_id.clone()).collect();
-            comunes = Some(match comunes {
-                None => notas,
-                Some(prev) => prev.intersection(&notas).cloned().collect(),
-            });
-        }
-        let comunes = comunes.unwrap_or_default();
-        // BM25 de términos distintos no es comparable: se normaliza cada término
-        // contra su mejor sección antes de mezclarlos.
-        let mut out: Vec<Candidato> = Vec::new();
-        let mut vistas: HashSet<(String, usize)> = HashSet::new();
-        for cands in por_termino {
-            let mejor = cands.first().map(|c| c.e.bm25).unwrap_or(1.0).max(f64::EPSILON);
-            let mut ya: HashSet<String> = HashSet::new();
-            for mut c in cands {
-                if !comunes.contains(&c.e.nota_id) || !ya.insert(c.e.nota_id.clone()) {
-                    continue;
-                }
-                if vistas.insert((c.e.nota_id.clone(), c.e.orden)) {
-                    c.e.bm25 /= mejor;
-                    out.push(c);
-                }
-            }
-        }
-        out.sort_by(|a, b| b.e.bm25.total_cmp(&a.e.bm25));
-        Ok((comunes.len(), out))
+        let total = match ambito {
+            Ambito::Secciones => out.len(),
+            Ambito::Notas => out.iter().map(|c| c.e.nota_id.as_str()).collect::<HashSet<_>>().len(),
+        };
+        Ok((total, out))
     }
 
     /// Calcula las señales, ordena por puntaje y corta.
@@ -408,11 +480,7 @@ impl Indice {
         ambito: Ambito,
         limite: usize,
     ) -> Resultado<Vec<Encontrado>> {
-        if ambito == Ambito::Notas {
-            let mut vistas = HashSet::new();
-            cands.retain(|c| vistas.insert(c.e.nota_id.clone()));
-        }
-        let mejor = cands.iter().map(|c| c.e.bm25).fold(0.0_f64, f64::max);
+        let mejor = cands.iter().map(|c| c.lexico).fold(0.0_f64, f64::max);
         let backlinks = self.backlinks()?;
         let max_bl = backlinks.values().copied().max().unwrap_or(0);
         let distancias = match cerca_de {
@@ -425,7 +493,7 @@ impl Indice {
         for c in &mut cands {
             let bl = backlinks.get(&c.e.nota_id).copied().unwrap_or(0);
             let s = Senales {
-                rel: if mejor > 0.0 { c.e.bm25 / mejor } else { 0.0 },
+                rel: if mejor > 0.0 { c.lexico / mejor } else { 0.0 },
                 pop: if max_bl > 0 { (bl as f64).ln_1p() / (max_bl as f64).ln_1p() } else { 0.0 },
                 prox: distancias.get(&c.e.nota_id).map(|d| 0.5_f64.powi(*d as i32)).unwrap_or(0.0),
                 rec: (-((ahora - c.mtime).max(0) as f64) / 86_400_000.0 / 90.0).exp(),
@@ -434,9 +502,25 @@ impl Indice {
             c.e.puntaje = s.puntaje(&PESOS_V1);
             c.e.senales = s;
         }
-        // Orden estable: a igual puntaje queda el orden de BM25.
-        cands.sort_by(|a, b| b.e.puntaje.total_cmp(&a.e.puntaje));
-        Ok(cands.into_iter().take(limite).map(|c| c.e).collect())
+        // A igual puntaje decide el BM25 y, después, la ruta: el orden no puede
+        // depender de cómo SQLite devolvió las filas.
+        cands.sort_by(|a, b| {
+            b.e.puntaje
+                .total_cmp(&a.e.puntaje)
+                .then(b.e.bm25.total_cmp(&a.e.bm25))
+                .then_with(|| (&a.e.nota_id, a.e.orden).cmp(&(&b.e.nota_id, b.e.orden)))
+        });
+        if ambito == Ambito::Notas {
+            let mut vistas = HashSet::new();
+            cands.retain(|c| vistas.insert(c.e.nota_id.clone()));
+        }
+        cands.truncate(limite);
+        let mut out = Vec::with_capacity(cands.len());
+        for mut c in cands {
+            c.e.fragmento = self.fragmento(expresion, c.rowid)?;
+            out.push(c.e);
+        }
+        Ok(out)
     }
 
     /// Backlinks por nota: cuántas **otras** notas la enlazan (resuelto por join
@@ -552,6 +636,8 @@ impl Indice {
                     parcial: r.get::<_, Option<i64>>(7)?.unwrap_or(0) != 0,
                     fragmento: r.get::<_, Option<String>>(10)?.unwrap_or_default(),
                     bm25: 0.0,
+                    cobertura: 0.0,
+                    cubiertos: 0,
                     senales: Senales::default(),
                     puntaje: 0.0,
                 })
@@ -561,7 +647,16 @@ impl Indice {
         for f in filas {
             resultados.push(f.map_err(e)?);
         }
-        Ok(Busqueda { total: total as usize, modo: Modo::Filtros, resultados, expresion: String::new(), cerca_de })
+        Ok(Busqueda {
+            total: total as usize,
+            modo: Modo::Filtros,
+            resultados,
+            expresion: String::new(),
+            cerca_de,
+            sin_coincidencias: Vec::new(),
+            completos: 0,
+            terminos: 0,
+        })
     }
 }
 
@@ -621,14 +716,70 @@ mod tests {
     }
 
     #[test]
-    fn sin_seccion_comun_cae_a_interseccion_por_nota() {
+    fn alcanza_con_un_termino_y_avisa_el_que_no_esta() {
         let (_v, ix) = vault();
-        let b = ix.buscar(&consulta("lenguaje sqlite")).unwrap();
-        assert_eq!(b.modo, Modo::Interseccion);
-        assert_eq!(b.total, 1);
+        // «lenguaje» está en Rust#s1 y «sqlite» en Rust#s2: con Y no había
+        // ninguna sección; ahora vuelven las dos. «símbolos» no está en el vault
+        // (el caso de D08): no vacía la lista, se avisa.
+        let b = ix.buscar(&consulta("lenguaje sqlite símbolos")).unwrap();
+        assert_eq!(b.modo, Modo::Seccion);
         let refs: Vec<_> = b.resultados.iter().map(|r| r.referencia()).collect();
-        assert_eq!(refs.len(), 2);
+        assert_eq!(refs.len(), 2, "{refs:?}");
         assert!(refs.iter().all(|r| r.starts_with("docs/Rust.md#")));
+        assert_eq!(b.sin_coincidencias, ["símbolos"]);
+        assert_eq!(b.completos, 0, "ninguna sección tiene los dos que existen");
+        assert_eq!(b.expresion, "\"lenguaje\"* OR \"sqlite\"* OR \"símbolos\"*");
+        // Todos ausentes: cero resultados, y los tres avisados.
+        let b = ix.buscar(&consulta("zzz yyy")).unwrap();
+        assert!(b.resultados.is_empty());
+        assert_eq!(b.sin_coincidencias.len(), 2);
+    }
+
+    /// El caso de D01: un O a secas deja arriba a las secciones que repiten un
+    /// solo término de la consulta —y lo tienen en el título, que pesa 4—; la
+    /// cobertura pone primero a la que tiene todos.
+    #[test]
+    fn la_cobertura_le_gana_a_un_termino_repetido_en_el_titulo() {
+        let v = VaultDePrueba::nuevo("cobertura");
+        // Secciones cortas que repiten «enlaces» en el título, el encabezado y
+        // el cuerpo.
+        for i in 0..3 {
+            v.escribir(&format!("Enlaces {i}.md"), "## Enlaces\nenlaces, enlaces y enlaces.\n");
+        }
+        // Relleno: «clic», «navegador» y «externo» son palabras comunes del vault.
+        for i in 0..6 {
+            v.escribir(&format!("Nota {i}.md"), &format!("## Uso {i}\nun clic en el navegador, un disco externo.\n"));
+        }
+        // La que responde: tiene los cuatro términos una vez, en una sección
+        // larga (BM25 la castiga por el largo).
+        let relleno = "texto de relleno para que la sección sea larga ".repeat(8);
+        v.escribir(
+            "Version.md",
+            &format!(
+                "# Version\n## Novedades\nAhora un clic en un enlace externo abre el navegador del sistema. {relleno}\n"
+            ),
+        );
+        let mut ix = v.abrir();
+        ix.revalidar(&mut |_, _| {}).unwrap();
+        let b = ix.buscar(&consulta("enlace externo navegador clic")).unwrap();
+        let primero = &b.resultados[0];
+        assert_eq!(primero.referencia(), "Version.md#s2", "{:?}", b.resultados.iter().map(|r| r.referencia()).collect::<Vec<_>>());
+        assert_eq!((primero.cubiertos, primero.cobertura), (4, 1.0));
+        assert_eq!(b.completos, 1);
+        // Y el test distingue: por BM25 solo (el O a secas), la sección que
+        // repite «enlaces» le ganaba.
+        let max_bm25 = b.resultados.iter().map(|r| r.bm25).fold(0.0_f64, f64::max);
+        assert!(primero.bm25 < max_bm25, "con O a secas ganaba otra: bm25 {} < {max_bm25}", primero.bm25);
+    }
+
+    #[test]
+    fn un_termino_que_esta_en_todas_partes_casi_no_pesa() {
+        // N = 10 secciones: un término en las 10 pesa ~0,05; uno en 1, ~1,9.
+        assert!(idf(10, 10) < 0.1);
+        assert!(idf(10, 1) > 1.5);
+        assert_eq!(idf(10, 0), 0.0);
+        assert_eq!(lexico(8.0, 0.5), 2.0);
+        assert_eq!(lexico(-1.0, 1.0), 0.0);
     }
 
     #[test]
@@ -669,7 +820,7 @@ mod tests {
     #[test]
     fn terminos_y_expresion() {
         assert_eq!(terminos("hola \"dos palabras\" -- FUN-L-09"), ["hola", "\"dos palabras\"", "FUN-L-09"]);
-        assert_eq!(expresion_fts(&terminos("a\"b FUN-L-09")), "\"a\"\"b\"* \"FUN-L-09\"*");
+        assert_eq!(expresion_fts(&terminos("a\"b FUN-L-09")), "\"a\"\"b\"* OR \"FUN-L-09\"*");
     }
 
     #[test]

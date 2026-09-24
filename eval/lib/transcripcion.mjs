@@ -1,6 +1,8 @@
 // Lectura de la transcripción `.jsonl` de una sesión de Claude Code (§ 6, «Lo
 // que sale de la transcripción, verificado»). Lógica pura sobre el texto.
 
+import { accesosARed } from "./red.mjs";
+
 /** La herramienta por la que vuelve la salida estructurada: no es recuperación. */
 export const HERRAMIENTA_SALIDA = "StructuredOutput";
 
@@ -24,6 +26,8 @@ export function resumirTranscripcion(texto) {
   let gitBranch;
   let orden = 0;
   const instrucciones = new Set();
+  // Todos los tool_use, subagentes incluidos: para detectar la salida a la red.
+  const usos = [];
   for (const linea of String(texto).split("\n")) {
     if (!linea.trim()) continue;
     let e;
@@ -41,6 +45,7 @@ export function resumirTranscripcion(texto) {
     // Qué archivos de instrucciones (CLAUDE.md) cargó la sesión: el control tiene
     // que ser el del corpus y nada más.
     if (e.attachment?.type === "instructions") for (const f of e.attachment.files ?? []) if (f?.path) instrucciones.add(f.path);
+    if (e.type === "assistant") for (const b of e.message?.content ?? []) if (b?.type === "tool_use") usos.push(b);
     if (e.type !== "assistant" || e.isSidechain) continue;
     const m = e.message ?? {};
     const id = m.id ?? `sin-id-${orden}`;
@@ -71,5 +76,8 @@ export function resumirTranscripcion(texto) {
     gitBranch: gitBranch ?? null,
     cacheEscrituraPorTtl: { "5m": cache5m, "1h": cache1h },
     instrucciones: [...instrucciones],
+    // Los bloques llegan repetidos (una entrada por bloque, a veces el mismo
+    // tool_use dos veces): se deduplican por id.
+    red: accesosARed([...new Map(usos.map((u, i) => [u.id ?? `sin-id-${i}`, u])).values()]),
   };
 }

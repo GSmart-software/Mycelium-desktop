@@ -26,23 +26,35 @@ use crate::servidor::{Abierto, Estado};
 
 /// Una nota más grande que esto, pedida entera, devuelve su índice de
 /// secciones en vez del texto (§ 7: «dice lo que cuesta antes de cobrarlo»).
-const TOPE_NOTA_ENTERA: usize = 8 * 1024;
-
-/// Más secciones que esto en el índice de una nota grande: se listan solo los
-/// niveles altos.
-const TOPE_LISTA_SECCIONES: usize = 40;
+///
+/// **20 KB ≈ 5.000 tokens** (diagnóstico de la fase 1, causa 3). Era 8 KB, y la
+/// base ganó justamente leyendo notas enteras (mediana de 27.500 caracteres por
+/// corrida). La cota sale del costo, no de una nota: 5.000 tokens es lo que el
+/// MCP metió en contexto en una corrida **entera** (mediana 5.533), así que una
+/// lectura de nota completa puede como mucho duplicar esa mediana y sigue lejos
+/// de los 14.809 de la base. Lo que se pierde: una nota de 8–20 KB (24 de las
+/// 115 del corpus) pedida sin `#sN` cuesta 2.000–5.000 tokens en vez del índice
+/// (~300); es parte de la ventaja de costo (`K = 0,53`) que se entrega a cambio
+/// de no perder el dato que vive en otra sección. Las grandes de verdad
+/// (BACKLOG, bugs-progreso, el catálogo de defectos) siguen detrás del índice.
+pub const TOPE_NOTA_ENTERA: usize = 20 * 1024;
 
 pub fn definiciones() -> Value {
     json!([
         {
             "name": "vault_buscar",
             "title": "Buscar en el vault",
-            "description": "Busca en las notas del vault y devuelve PREVIEWS de secciones (no el texto): \
-por resultado, una ref `ruta#sN`, las migas `Nota › H2 › H3` y un fragmento con las coincidencias \
-entre «». Ranking léxico (BM25) por sección; los términos se combinan con Y y aceptan prefijo \
-(«enlace» encuentra «enlaces»); \"entre comillas\" busca la frase. Si ninguna sección tiene todos \
-los términos, devuelve notas que los reúnen entre varias secciones. Después, vault_leer con las refs \
-que interesen.",
+            "description": "Busca en las notas .md del vault y devuelve PREVIEWS de secciones (no el \
+texto): por resultado, una ref `ruta#sN`, las migas `Nota › H2 › H3` y un fragmento con las \
+coincidencias entre «». Alcanza con que una sección tenga UNO de los términos; primero salen las que \
+tienen más (y los más raros), después ordena BM25. Prefijo: «enlace» encuentra «enlaces»; \
+\"entre comillas\" busca la frase. Consultas CORTAS: 2 o 3 términos distintivos, no la pregunta \
+entera; si no aparece lo que buscás, cambiá o sacá términos en vez de agregar. Después, vault_leer \
+con las refs que interesen.\n\
+IMPORTANTE: el índice tiene SOLO las notas .md. El código, la configuración y los otros tipos de \
+archivo (.ts, .rs, .json, .toml, .canvas, .base…) NO están: buscalos con grep/Grep y leelos con \
+Read. Y la documentación puede ir por detrás del código: si la pregunta es cómo funciona algo HOY, \
+confirmalo en el código antes de afirmarlo.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -69,8 +81,11 @@ que interesen.",
             "title": "Leer del vault",
             "description": "Lee del disco, al día, las secciones o notas pedidas. Una ref `ruta#sN` \
 (la que da vault_buscar) devuelve esa sección con sus migas, su rango de líneas y a qué notas enlaza. \
-Una ruta o título de nota sin #sN devuelve la nota entera si es chica; si es grande, su índice de \
-secciones y el costo de leerla entera (forzar=true para pagarlo).",
+Una ruta o título de nota sin #sN devuelve la nota ENTERA si pesa hasta 20 KB (≈5.000 tokens); si \
+es más grande, el índice COMPLETO de sus secciones (todas, con su ref y su tamaño) y el costo de \
+leerla entera (forzar=true para pagarlo). Si una sección no alcanza —el porqué, el costo real o una \
+enumeración suelen estar en otra sección de la misma nota—, pedí la nota o las secciones vecinas \
+(contexto=1). Solo .md: el código se lee con Read.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -251,23 +266,27 @@ fn una_linea(s: &str, max: usize) -> String {
 
 fn formatear_busqueda(c: &Consulta, b: &Busqueda, frescura: &str, de_respaldo: bool) -> String {
     let mut o = String::new();
-    let unidad = if c.ambito == Ambito::Notas || b.modo == Modo::Interseccion { "notas" } else { "resultados" };
+    let unidad = if c.ambito == Ambito::Notas { "notas" } else { "resultados" };
+    let ausentes = || b.sin_coincidencias.iter().map(|t| format!("«{t}»")).collect::<Vec<_>>().join(", ");
     if b.resultados.is_empty() {
         let _ = writeln!(o, "0 resultados para «{}» · {frescura}", c.texto);
         let _ = writeln!(
             o,
-            "\nProbá con menos términos, con el vocabulario del vault (títulos, tags) o sin filtros. \
-             Si el vault no tiene la respuesta, decilo en vez de suponer."
+            "\nNinguna sección del vault tiene esos términos{}. Probá con otras palabras (las del vault: \
+             títulos, tags) o sin filtros. Si es código o configuración, no está en el índice: grep. Si el \
+             vault no tiene la respuesta, decilo en vez de suponer.",
+            if c.filtros.vacio() { "" } else { " (con esos filtros)" }
         );
         return o;
     }
-    let _ = writeln!(o, "{} {unidad} · mostrando {} · {frescura}", b.total, b.resultados.len());
-    if b.modo == Modo::Interseccion {
-        let _ = writeln!(
-            o,
-            "Ninguna sección tiene todos los términos: notas que los reúnen entre varias secciones \
-             (la mejor sección de cada término)."
-        );
+    let completos = if b.modo == Modo::Filtros || b.terminos_presentes() < 2 {
+        String::new()
+    } else {
+        format!(" ({} con todos los términos)", b.completos)
+    };
+    let _ = writeln!(o, "{} {unidad}{completos} · mostrando {} · {frescura}", b.total, b.resultados.len());
+    if !b.sin_coincidencias.is_empty() {
+        let _ = writeln!(o, "Sin coincidencias en el vault: {} (probá otra palabra para eso).", ausentes());
     }
     if de_respaldo {
         let _ = writeln!(o, "(índice en el directorio temporal: el app-data no se pudo escribir)");
@@ -426,6 +445,7 @@ fn leer_una(a: &mut Abierto, r: &str, contexto: usize, forzar: bool) -> Result<S
             o.push('\n');
             let ordenes: Vec<usize> = tramo.iter().map(|s| s.orden).collect();
             o.push_str(&enlaces(a, &id, &ordenes)?);
+            o.push_str(&pista_nota_entera(&id, info.bytes, secciones.len(), tramo.len()));
             Ok(o)
         }
         None => leer_nota(a, &id, &info.titulo, info.bytes, &secciones, forzar, aviso),
@@ -462,23 +482,13 @@ fn leer_nota(
         secciones.len()
     );
     o.push_str(aviso);
-    let mut lista: Vec<&SeccionInfo> = secciones.iter().collect();
-    let mut nota_lista = String::new();
-    if lista.len() > TOPE_LISTA_SECCIONES {
-        for max_nivel in [3u8, 2, 1] {
-            let filtrada: Vec<&SeccionInfo> =
-                secciones.iter().filter(|s| s.nivel <= max_nivel && !(s.parcial && s.nivel > 0 && es_continuacion(secciones, s))).collect();
-            lista = filtrada;
-            nota_lista = format!(" (solo hasta H{max_nivel}; las demás, por vault_buscar con carpeta o por su ref)");
-            if lista.len() <= TOPE_LISTA_SECCIONES {
-                break;
-            }
-        }
-        lista.truncate(TOPE_LISTA_SECCIONES);
-    }
-    let _ = writeln!(o, "Secciones{nota_lista}:");
+    // El índice va COMPLETO (diagnóstico de la fase 1, causa 3): se cortaba en 40
+    // filas y en D11 dejó afuera, justo después de `DEF-059`, todos los defectos
+    // que la pregunta enumeraba. Una fila son ~30 bytes: las 85 secciones del
+    // catálogo de defectos son ~2.500 bytes contra los 37.000 de la nota.
+    let _ = writeln!(o, "Secciones:");
     let prefijo = format!("{titulo}{SEPARADOR_MIGAS}");
-    for s in &lista {
+    for s in secciones {
         let nombre = if s.nivel == 0 {
             "(preámbulo)".to_string()
         } else {
@@ -507,12 +517,14 @@ fn leer_nota(
     Ok(o)
 }
 
-/// Un trozo que no es el primero de su sección (para no listar la misma
-/// sección varias veces en el índice resumido).
-fn es_continuacion(secciones: &[SeccionInfo], s: &SeccionInfo) -> bool {
-    secciones
-        .iter()
-        .any(|x| x.orden + 1 == s.orden && x.parcial && x.ruta_encabezados == s.ruta_encabezados)
+/// Al leer una sección de una nota que se devuelve entera por su tamaño, una
+/// línea con lo que cuesta pedirla toda: el dato puede estar en otra sección de
+/// la misma nota (D03: el objetivo en `#s9`, el costo real en `#s19`).
+fn pista_nota_entera(id: &str, bytes: usize, secciones: usize, leidas: usize) -> String {
+    if secciones <= leidas || bytes > TOPE_NOTA_ENTERA {
+        return String::new();
+    }
+    format!("(la nota tiene {secciones} secciones; entera: vault_leer(refs=[\"{id}\"]), {})\n", tokens(bytes))
 }
 
 /// «→ enlaza a: …» con los enlaces de esas secciones, resueltos ahora.
@@ -561,5 +573,15 @@ mod tests {
         assert_eq!(partir_ref("docs/BACKLOG.md#s412"), ("docs/BACKLOG.md", Some(412)));
         assert_eq!(partir_ref("Nota#sección"), ("Nota#sección", None));
         assert_eq!(una_linea("a\n  b   c", 10), "a b c");
+    }
+
+    #[test]
+    fn la_pista_de_la_nota_entera_solo_si_se_devolveria_entera() {
+        assert_eq!(
+            pista_nota_entera("docs/drawio.md", 17_890, 20, 1),
+            "(la nota tiene 20 secciones; entera: vault_leer(refs=[\"docs/drawio.md\"]), ≈4.473 tokens)\n"
+        );
+        assert_eq!(pista_nota_entera("docs/BACKLOG.md", 127_917, 99, 1), "", "grande: no se ofrece");
+        assert_eq!(pista_nota_entera("a.md", 500, 2, 2), "", "ya se leyó todo");
     }
 }
