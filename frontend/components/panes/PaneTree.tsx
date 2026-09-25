@@ -16,10 +16,17 @@ function SplitContainer({ split }: { split: SplitPane }) {
   const setSizes = useTabsStore((s) => s.setSizes);
 
   // Divisor arrastrable entre panes (HU-26 CA4)
-  function startDrag(index: number, event: React.PointerEvent) {
+  function startDrag(index: number, event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault();
     const container = containerRef.current;
     if (!container) return;
+    // DEF-104: el divisor CAPTURA el puntero. Sin esto, al pasar sobre un
+    // `iframe` (draw.io, un PDF, un video) los eventos van al documento del
+    // iframe y la ventana deja de recibir `pointermove`: el arrastre se corta.
+    // Con la captura, los eventos siguen llegando al divisor —y de ahí suben a
+    // `window`— aunque el puntero esté encima de otro documento.
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
     const rect = container.getBoundingClientRect();
     const total = split.direction === "row" ? rect.width : rect.height;
     const startPos = split.direction === "row" ? event.clientX : event.clientY;
@@ -39,10 +46,14 @@ function SplitContainer({ split }: { split: SplitPane }) {
     function onUp() {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("lostpointercapture", onUp);
     }
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    // Si el sistema quita la captura (Alt+Tab en pleno arrastre), el arrastre
+    // termina ahí y no queda un `pointermove` colgado.
+    handle.addEventListener("lostpointercapture", onUp);
   }
 
   return (
