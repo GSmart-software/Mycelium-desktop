@@ -20,7 +20,14 @@
 .mic-editor-host {
   --mic-ancho-plegado: 1.1em; /* el mismo de .cm-foldGutter */
   --mic-canalones: var(--mic-ancho-plegado);
-  --mic-margen-hoja: max(1.25rem, calc((100% - var(--mic-ancho-lectura)) / 2));
+  /* `FUN-S-22`: cada margen es la mitad de lo que dejaba la hoja de 42rem
+     —(panel − 42rem) / 4—, salvo que la hoja pase el tope: ahí el margen crece
+     para que no se estire más. */
+  --mic-margen-hoja: max(
+    1.25rem,
+    calc((100% - var(--mic-ancho-lectura)) / 4),
+    calc((100% - var(--mic-ancho-hoja-max)) / 2)
+  );
 }
 
 .mic-editor-host .cm-scroller {
@@ -81,7 +88,10 @@
   caret-color: var(--mic-glow);
   color: var(--mic-text-primary);
   width: 100%;
-  max-width: var(--mic-ancho-lectura);
+  /* El ancho lo deciden los márgenes del scroller; esto es solo el tope. No
+     puede repetir la fórmula de la hoja: acá el 100% ya es el hueco entre los
+     márgenes, no el panel. */
+  max-width: var(--mic-ancho-hoja-max);
   margin: 0 auto;
 }
 
@@ -783,7 +793,17 @@
    `.mic-layout-read .mic-preview > div` (una DENTRO de la otra), nunca
    coincidió, y en una ventana ancha cada renglón llegaba a 170-180 caracteres. */
 .mic-preview.mic-layout-read > div {
-  max-width: var(--mic-ancho-lectura);
+  /* `FUN-S-22`: la misma hoja que en vivo, (panel + 42rem) / 2 entre 42rem y el
+     tope. El 100% de acá es el panel MENOS el relleno de `.mic-preview`, así que
+     se lo devuelve; si no, la hoja mediría un relleno menos y el texto saltaría
+     al cambiar de modo. */
+  max-width: min(
+    var(--mic-ancho-hoja-max),
+    max(
+      var(--mic-ancho-lectura),
+      calc((100% + 2 * var(--mic-radius-lg) + var(--mic-ancho-lectura)) / 2)
+    )
+  );
   margin: 0 auto;
 }
 
@@ -1188,6 +1208,26 @@
 
 .mic-live-excalidraw:hover {
   background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+/* Fórmulas KaTeX en vivo (`DEF-103`). Se marcan al pasar el puntero, como los
+   demás bloques dibujados, porque un clic abre su fuente. */
+.mic-live-math {
+  cursor: pointer;
+  border-radius: var(--mic-radius-sm, 4px);
+  transition: background-color 120ms ease;
+}
+
+.mic-live-math:hover {
+  background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+/* En bloque: centrada y con aire, como la dibuja la lectura. Una fórmula más
+   ancha que la hoja se desplaza sola en vez de desbordar. */
+.mic-live-math-bloque {
+  display: block;
+  padding: 0.4rem 0;
+  overflow-x: auto;
 }
 
 .mic-live-excalidraw svg {

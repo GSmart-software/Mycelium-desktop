@@ -304,7 +304,12 @@
      la hoja cambiaba de ancho al cambiar de modo. 42rem ≈ 80 caracteres de
      serif, ≈ 70 de mono. */
   --mic-ancho-lectura: 42rem;
-  --mic-rail-width:     56px;
+  /* `FUN-S-22`: la hoja ya no mide 42rem fijos. Los márgenes son la MITAD de lo
+     que dejaba esa medida, así que la hoja crece con el panel —(panel + 42rem) / 2—
+     entre 42rem y este tope. El tope existe porque en un monitor ancho, sin él, el
+     renglón se vuelve demasiado largo para seguirlo con la vista. */
+  --mic-ancho-hoja-max: 72rem;
+  --mic-rail-width:    56px;
   --mic-icon-size:      20px;   /* íconos Lucide dentro del rail */
   /* Aire bajo el contenido (`DEF-048`). Sin esto todo queda pegado al límite de
      la ventana y parece que sigue por detrás de la pantalla. Es un token y no un

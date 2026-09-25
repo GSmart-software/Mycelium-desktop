@@ -59,6 +59,7 @@ import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 import { partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
+import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -625,6 +626,10 @@ export function liveExtensions(
     EditorView.atomicRanges.of(
       (view) => view.state.field(tableField, false)?.decorations ?? Decoration.none,
     ),
+    // Fórmulas en bloque (`DEF-103`). Sin átomo, a diferencia de las dos de
+    // arriba: acá el cursor que toca el bloque lo abre en crudo, así que nunca
+    // queda escribiendo a ciegas dentro de una fórmula dibujada.
+    formulasField,
     navegarPorTitulo.of(onWikilinkClick),
     livePreview(onWikilinkClick, noteExists, notaId),
   ];
@@ -1011,7 +1016,18 @@ function buildDecorations(
   const bloquesRenderizados = [
     ...(view.state.field(frontmatterField, false)?.ranges ?? []),
     ...(view.state.field(tableField, false)?.ranges ?? []),
+    ...(view.state.field(formulasField, false)?.ranges ?? []),
   ];
+  // Dentro de un bloque `$$ … $$`, dibujado o abierto en crudo, no se buscan
+  // fórmulas en línea: sus `$` son del bloque.
+  const bloquesFormula = view.state.field(formulasField, false)?.todos ?? [];
+
+  // Código (en línea o en bloque) de lo visible: ahí un `$` es solo un `$`.
+  const codigo: [number, number][] = [];
+  // Fórmulas en línea dibujadas: lo que otras reglas decoren DENTRO de ellas
+  // —un `_` que el parser tomó por énfasis, un `#` que parece etiqueta— se
+  // descarta al final, o se pisaría con el dibujo.
+  const formulas: [number, number][] = [];
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -1036,6 +1052,10 @@ function buildDecorations(
         // sus hijos de dentro caen igual en esta misma guarda, uno por uno.
         if (bloquesRenderizados.some(([f, t]) => node.from >= f && node.to <= t)) {
           return false;
+        }
+
+        if (node.name === "InlineCode" || node.name === "FencedCode" || node.name === "CodeBlock") {
+          codigo.push([node.from, node.to]);
         }
 
         const headingMatch = /^ATXHeading([1-6])$/.exec(node.name);
@@ -1413,8 +1433,35 @@ function buildDecorations(
         });
       }
 
+      // Fórmulas en línea (`DEF-103`): `$…$` se dibuja con KaTeX fuera de la
+      // línea activa, como el resto; con el cursor en la línea, la fuente.
+      if (!isActive && !bloquesFormula.some(([f, t]) => line.from >= f && line.from <= t)) {
+        const enCodigo = (i: number) =>
+          codigo.some(([f, t]) => line.from + i >= f && line.from + i < t);
+        for (const fm of formulasEnLinea(line.text, enCodigo)) {
+          const mFrom = line.from + fm.desde;
+          const mTo = line.from + fm.hasta;
+          formulas.push([mFrom, mTo]);
+          decos.push({
+            from: mFrom,
+            to: mTo,
+            deco: Decoration.replace({ widget: new FormulaWidget(fm.tex, false, mFrom) }),
+          });
+        }
+      }
+
       if (line.to >= to) break;
       pos = line.to + 1;
+    }
+  }
+
+  if (formulas.length > 0) {
+    for (let i = decos.length - 1; i >= 0; i--) {
+      const d = decos[i];
+      if (d.deco.spec.widget instanceof FormulaWidget) continue;
+      // Una decoración de línea (vacía, al inicio del renglón) no solapa: la
+      // fórmula nunca empieza antes del renglón.
+      if (formulas.some(([f, t]) => d.from < t && d.to > f)) decos.splice(i, 1);
     }
   }
 
