@@ -31,6 +31,22 @@ fn ruta_prefs(vault: &Path) -> PathBuf {
     vault.join(DIR).join(ARCHIVO)
 }
 
+/// Los demás archivos de estado que viven en `.mycelium/` (`DEF-107`): lo que
+/// antes estaba **solo** en el índice y se perdía al reconstruirlo. El índice
+/// los sigue teniendo como tablas, pero la verdad es el archivo.
+///
+/// Es una lista cerrada a propósito: el nombre llega del frontend, y aceptar
+/// cualquiera sería dejar escribir en `.mycelium/` —o, con un `..`, fuera de
+/// él— desde la webview.
+const ESTADOS: &[&str] = &["apariencia.json", "snippets.json", "papelera.json"];
+
+fn ruta_estado(vault: &Path, nombre: &str) -> Result<PathBuf, String> {
+    if !ESTADOS.contains(&nombre) {
+        return Err(format!("Archivo de estado desconocido: {nombre}"));
+    }
+    Ok(vault.join(DIR).join(nombre))
+}
+
 /// Lee las preferencias del vault. **Ausente o ilegible → `None`**, nunca un
 /// error: un archivo que todavía no existe es el caso normal —un vault recién
 /// abierto no tiene ninguno— y uno corrupto no debe impedir abrir el vault. El
@@ -53,6 +69,26 @@ fn escribir(vault: &Path, contenido: &str) -> Result<(), String> {
             .map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
     }
     escribir_atomico(&destino, contenido)
+}
+
+/// Lee un archivo de estado del vault. Ausente o ilegible → `None`, como las
+/// preferencias: que no exista es el caso normal de un vault que todavía no lo
+/// escribió.
+#[tauri::command]
+pub fn leer_estado_vault(ruta: String, nombre: String) -> Result<Option<String>, String> {
+    let destino = ruta_estado(Path::new(&ruta), &nombre)?;
+    Ok(std::fs::read_to_string(destino).ok())
+}
+
+/// Escribe un archivo de estado del vault, atómico y creando `.mycelium/`.
+#[tauri::command]
+pub fn escribir_estado_vault(ruta: String, nombre: String, contenido: String) -> Result<(), String> {
+    let destino = ruta_estado(Path::new(&ruta), &nombre)?;
+    if let Some(dir) = destino.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+    }
+    escribir_atomico(&destino, &contenido)
 }
 
 #[tauri::command]
@@ -104,6 +140,27 @@ mod tests {
         let v = vault_temporal("opaco");
         escribir(&v, "cualquier cosa").unwrap();
         assert_eq!(leer(&v).as_deref(), Some("cualquier cosa"));
+    }
+
+    #[test]
+    fn los_estados_se_escriben_y_se_leen() {
+        let v = vault_temporal("estados");
+        let r = v.to_string_lossy().to_string();
+        assert_eq!(leer_estado_vault(r.clone(), "snippets.json".into()).unwrap(), None);
+        escribir_estado_vault(r.clone(), "snippets.json".into(), "[]".into()).unwrap();
+        assert_eq!(
+            leer_estado_vault(r, "snippets.json".into()).unwrap().as_deref(),
+            Some("[]")
+        );
+    }
+
+    #[test]
+    fn un_nombre_fuera_de_la_lista_se_rechaza() {
+        let v = vault_temporal("fuera-de-lista");
+        let r = v.to_string_lossy().to_string();
+        assert!(escribir_estado_vault(r.clone(), "../fuera.json".into(), "x".into()).is_err());
+        assert!(escribir_estado_vault(r.clone(), "preferencias.json".into(), "x".into()).is_err());
+        assert!(leer_estado_vault(r, "otro.json".into()).is_err());
     }
 
     #[test]

@@ -5,6 +5,7 @@
  */
 import { execute, select } from "./client";
 import { ftsBorrar } from "./ftsIndice";
+import { respaldarPapelera } from "./estadoVault";
 import { DbError } from "./errors";
 import type { PapeleraResponse } from "./types";
 import { ahoraIso, buildRutaLookup, nuevoId, rutaDe } from "./util";
@@ -46,6 +47,9 @@ export async function borrarNota(id: string): Promise<void> {
       "INSERT INTO papelera (id, nota_id, ruta_original, carpeta_original_id, eliminado_en, ruta_papelera) VALUES (?, ?, ?, ?, ?, ?)",
       [nuevoId(), id, rutaDe(rutas, carpeta_id), carpeta_id, now, rutaPapelera],
     );
+    // El registro también va a `.mycelium/papelera.json` (`DEF-107`): sin él,
+    // reconstruir el índice deja el archivo en `.trash` sin forma de recuperarlo.
+    await respaldarPapelera();
     return;
   }
 
@@ -117,6 +121,7 @@ export async function recuperarNota(id: string): Promise<void> {
         id,
       ]);
     }
+    await respaldarPapelera();
     return;
   }
 
@@ -150,6 +155,7 @@ export async function borrarPermanente(id: string): Promise<void> {
   await ftsBorrar([id]);
   // contenidos y diagramas se borran en cascada (FK ON DELETE CASCADE).
   await execute("DELETE FROM notas WHERE id = ?", [id]);
+  await respaldarPapelera();
 }
 
 /** Purga permanente de notas con más de 30 días en la papelera (HU-23 CA7). */

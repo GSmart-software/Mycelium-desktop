@@ -18,6 +18,7 @@ import { create } from "zustand";
 import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
 import { ensureSeed } from "@/lib/db/auth";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
+import { restaurarEstadoVault } from "@/lib/db/estadoVault";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import {
   marcarAcceso,
@@ -164,6 +165,11 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
         set({ progreso: { hechas, total }, avanceEn: Date.now() }),
       );
       set({ progreso: null }); // el indexado terminó
+      // Lo que NO se deriva de los archivos —apariencia, snippets, papelera— vive
+      // en `.mycelium/` y se vuelca al índice acá (`DEF-107`). La primera vez,
+      // con un índice anterior, hace lo inverso: lo saca del índice a los
+      // archivos, antes de que nada pueda perderlo.
+      await restaurarEstadoVault(ruta);
       await marcarAcceso(ruta);
       etapa("ajustes");
       // Recargar la sesión (usuario/vaults) y las preferencias DESDE ESTE índice:

@@ -4,6 +4,7 @@
  * por `/auth/me`; aquí solo la escritura (`PUT /auth/preferencias`).
  */
 import { execute, select } from "./client";
+import { respaldarApariencia } from "./estadoVault";
 import { ahoraIso } from "./util";
 
 /** `PUT /auth/preferencias`. */
@@ -25,5 +26,8 @@ export async function putPreferencias(
       rows[0].id,
     ],
   );
+  // Y a `.mycelium/apariencia.json` (`DEF-107`): lo que solo vive en el índice
+  // se pierde al reconstruirlo.
+  await respaldarApariencia();
   return { ok: true };
 }

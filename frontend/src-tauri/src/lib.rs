@@ -204,6 +204,8 @@ pub fn run() {
             ventanas::abrir_vault_en_ventana,
             prefs_vault::leer_prefs_vault,
             prefs_vault::escribir_prefs_vault,
+            prefs_vault::leer_estado_vault,
+            prefs_vault::escribir_estado_vault,
             vault_config::listar_vaults,
             vault_config::vincular_vault,
             vault_config::desvincular_vault,

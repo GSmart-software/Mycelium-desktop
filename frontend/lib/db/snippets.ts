@@ -4,6 +4,7 @@
  */
 import { execute, select } from "./client";
 import { ensureSeed } from "./auth";
+import { respaldarSnippets } from "./estadoVault";
 import type { CssSnippetDto, RowCssSnippet, SnippetsResponse } from "./types";
 
 async function usuarioId(): Promise<string> {
@@ -34,6 +35,7 @@ export async function crearSnippet(nombre: string, contenido: string): Promise<C
     "INSERT INTO css_snippets (id, usuario_id, nombre, activo, contenido, creado_en) VALUES (?, ?, ?, 1, ?, ?)",
     [id, uid, nombre, contenido, new Date().toISOString()],
   );
+  await respaldarSnippets();
   return { id, nombre, activo: true, contenido };
 }
 
@@ -59,11 +61,13 @@ export async function actualizarSnippet(
   if (sets.length === 0) return { ok: true };
   params.push(id);
   await execute(`UPDATE css_snippets SET ${sets.join(", ")} WHERE id = ?`, params);
+  await respaldarSnippets();
   return { ok: true };
 }
 
 /** `DELETE /auth/css/snippets/{id}`. */
 export async function borrarSnippet(id: string): Promise<{ ok: true }> {
   await execute("DELETE FROM css_snippets WHERE id = ?", [id]);
+  await respaldarSnippets();
   return { ok: true };
 }
