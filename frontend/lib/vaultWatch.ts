@@ -39,6 +39,17 @@ export { EVENTO_RECARGA };
 const DEBOUNCE_MS = 300;
 
 /**
+ * Espera MÁXIMA desde el primer evento de una ráfaga (`DEF-106`). Sin tope, el
+ * debounce se reiniciaba con cada evento: el watcher nativo emite uno por
+ * archivo, y mientras algo escribe sin parar —un agente, una sincronización—
+ * llegan cada ~150 ms, así que el reindexado no arrancaba hasta que la escritura
+ * terminaba. Medido el 2026-09-25: 50 archivos escritos durante 7,8 s, ninguno
+ * visible hasta el final. Con el tope, lo nuevo aparece como mucho un segundo
+ * después, aunque la ráfaga siga.
+ */
+const ESPERA_MAXIMA_MS = 1000;
+
+/**
  * Empieza a escuchar `vault-cambios`. Devuelve una función para dejar de
  * escuchar (llamarla al desmontar/salir para no duplicar listeners).
  */
@@ -46,12 +57,25 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   const { listen } = await import("@tauri-apps/api/event");
   let timer: ReturnType<typeof setTimeout> | null = null;
   let procesando = false;
+  // Llegó un cambio mientras se procesaba otro (`DEF-106`). Antes ese cambio se
+  // DESCARTABA —`refrescar` salía por `procesando` y nadie lo volvía a correr—,
+  // así que un archivo creado durante un reindexado no aparecía hasta que
+  // ocurriera OTRO cambio en la carpeta. Con un agente escribiendo en el vault
+  // los eventos son constantes y el caso, frecuente. Ahora se anota y, al
+  // terminar, se corre una vez más: el reindexado es incremental, así que una
+  // pasada alcanza para todo lo que se acumuló mientras tanto.
+  let pendiente = false;
 
   const refrescar = async () => {
     // Si se salió del vault entre el evento y el debounce, no hay nada que hacer.
     const ruta = useVaultSessionStore.getState().rutaActual;
-    if (!ruta || procesando) return;
+    if (!ruta) return;
+    if (procesando) {
+      pendiente = true;
+      return;
+    }
     procesando = true;
+    pendiente = false;
     try {
       await indexarVault(ruta); // incremental por mtime
       const vaultId =
@@ -69,16 +93,29 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
       // Avisar a los editores abiertos para que recarguen su nota si no tienen
       // cambios locales sin guardar (lo decide cada NoteEditor).
       window.dispatchEvent(new Event(EVENTO_RECARGA));
-    } catch {
-      // Best-effort: un reindex fallido no debe romper la UI.
+    } catch (e) {
+      // Un reindex fallido no debe romper la UI, pero tampoco pasar en silencio:
+      // sin este rastro, un archivo que no aparece no tiene explicación.
+      console.error("[Mycelium] watcher · falló el reindexado tras un cambio externo", e);
     } finally {
       procesando = false;
+      if (pendiente) void refrescar();
     }
   };
 
+  // Cuándo llegó el primer evento de la ráfaga que se está juntando.
+  let desde: number | null = null;
+
   const unlisten = await listen(EVENTO_TAURI, () => {
+    const ahora = Date.now();
+    desde ??= ahora;
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => void refrescar(), DEBOUNCE_MS);
+    const espera = Math.max(0, Math.min(DEBOUNCE_MS, desde + ESPERA_MAXIMA_MS - ahora));
+    timer = setTimeout(() => {
+      timer = null;
+      desde = null;
+      void refrescar();
+    }, espera);
   });
 
   return () => {
