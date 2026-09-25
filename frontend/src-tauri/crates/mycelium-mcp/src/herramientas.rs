@@ -40,6 +40,25 @@ use crate::servidor::{Abierto, Estado};
 /// (BACKLOG, bugs-progreso, el catálogo de defectos) siguen detrás del índice.
 pub const TOPE_NOTA_ENTERA: usize = 20 * 1024;
 
+/// Lo más que devuelve **una llamada** de `vault_leer`, sume lo que sume: notas,
+/// secciones, contexto e índices.
+///
+/// **48 KB ≈ 12.000 tokens** (tanda de desarrollo de la tesina, 2026-09-25).
+/// Claude Code rechaza la salida de una herramienta MCP que pasa su tope
+/// (`MAX_MCP_OUTPUT_TOKENS`, 25.000 por defecto): la guarda en un archivo y el
+/// agente pierde el turno. En la tesina pasó en 11 de 115 corridas —un índice
+/// de secciones de 88 KB, una nota con `forzar` de 435 KB— y 4 terminaron mal.
+/// La cota deja la mitad del tope de Claude Code de margen: el español son ~3,5
+/// caracteres por token, y lo que no entra se **ofrece**, no se pierde.
+pub const TOPE_RESPUESTA: usize = 48 * 1024;
+
+/// Lo más que ocupa el índice de secciones de una nota grande. El índice iba
+/// completo (diagnóstico de la fase 1, causa 3) porque en el vault de Mycelium
+/// el más largo eran ~2.500 bytes; en una bitácora de 7.800 líneas y 500
+/// secciones son 88 KB. Por encima, se abrevia por nivel (ver
+/// [`indice_abreviado`]).
+pub const TOPE_INDICE: usize = 16 * 1024;
+
 /// Cuántas notas que enlazan a la leída se listan al final de la lectura
 /// (`MCP de Mycelium - memoria` § 16).
 ///
@@ -114,8 +133,10 @@ confirmalo en el código antes de afirmarlo.",
             "description": "Lee del disco, al día, las secciones o notas pedidas. Una ref `ruta#sN` \
 (la que da vault_buscar) devuelve esa sección con sus migas, su rango de líneas y a qué notas enlaza. \
 Una ruta o título de nota sin #sN devuelve la nota ENTERA si pesa hasta 20 KB (≈5.000 tokens); si \
-es más grande, el índice COMPLETO de sus secciones (todas, con su ref y su tamaño) y el costo de \
-leerla entera (forzar=true para pagarlo). Si una sección no alcanza —el porqué, el costo real o una \
+es más grande, el índice de sus secciones (con su ref y su tamaño; en notas enormes, abreviado a los \
+encabezados altos) y el costo de leerla entera. forzar=true la lee de corrido, de a ~40 KB por \
+llamada: cada tramo dice con qué `desde` seguir. Para algo puntual dentro de una nota enorme, \
+vault_buscar llega antes que leerla. Si una sección no alcanza —el porqué, el costo real o una \
 enumeración suelen estar en otra sección de la misma nota—, pedí la nota o las secciones vecinas \
 (contexto=1). Solo .md: el código se lee con Read. Cada lectura empieza con `cita [[nombre]]`: \
 citá la nota así, no por el # título que viene después.\n\
@@ -130,7 +151,8 @@ toca un tema. Si no, no hace falta abrirlas.",
                 "properties": {
                     "refs": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 10, "description": "Refs `ruta#sN`, rutas o títulos de nota" },
                     "contexto": { "type": "integer", "enum": [0, 1, 2], "description": "Cuántas secciones vecinas sumar a cada lado (0 por defecto)" },
-                    "forzar": { "type": "boolean", "description": "Devolver la nota entera aunque sea grande" }
+                    "forzar": { "type": "boolean", "description": "Leer la nota de corrido aunque sea grande (por tramos si no entra en una respuesta)" },
+                    "desde": { "type": "integer", "minimum": 0, "description": "Con forzar: el #sN desde donde seguir, como lo indica el tramo anterior" }
                 },
                 "required": ["refs"]
             },
@@ -430,11 +452,12 @@ fn leer(a: &mut Abierto, args: &Value) -> Result<String, String> {
     }
     let contexto = args.get("contexto").and_then(Value::as_u64).unwrap_or(0).min(2) as usize;
     let forzar = args.get("forzar").and_then(Value::as_bool).unwrap_or(false);
+    let desde = args.get("desde").and_then(Value::as_u64).map(|n| n as usize);
 
     // Cada bloque con la nota que leyó (ninguna si fue un error).
     let mut bloques: Vec<(Option<String>, String)> = Vec::new();
     for r in &refs {
-        match leer_una(a, r, contexto, forzar) {
+        match leer_una(a, r, contexto, forzar, desde) {
             Ok((id, t)) => bloques.push((Some(id), t)),
             Err(msg) => bloques.push((None, format!("── {r}\n{msg}\n"))),
         }
@@ -444,17 +467,90 @@ fn leer(a: &mut Abierto, args: &Value) -> Result<String, String> {
     // bloque: siempre después de todo el contenido que se leyó de ella.
     let mut o = String::new();
     for (i, (id, t)) in bloques.iter().enumerate() {
+        let mut bloque = String::new();
         if i > 0 {
-            o.push('\n');
+            bloque.push('\n');
         }
-        o.push_str(t);
+        bloque.push_str(t);
         if let Some(id) = id {
             if !bloques[i + 1..].iter().any(|(otro, _)| otro.as_ref() == Some(id)) {
-                o.push_str(&conexiones(a, id)?);
+                bloque.push_str(&conexiones(a, id)?);
             }
         }
+        // El tope es de la llamada entera (ver [`TOPE_RESPUESTA`]): lo que ya no
+        // entra no se manda a medias, se nombra para pedirlo aparte.
+        if o.len() + bloque.len() > TOPE_RESPUESTA {
+            if o.is_empty() {
+                // Un solo bloque que ya no entra (una sección enorme con contexto).
+                let (cortado, _) = recortar(&bloque, TOPE_RESPUESTA - 512);
+                o.push_str(&cortado);
+                let _ = writeln!(
+                    o,
+                    "\n(cortado en {}: la respuesta no puede pasar de {}; pedí menos contexto o las secciones de a una)",
+                    kb(cortado.len()),
+                    kb(TOPE_RESPUESTA)
+                );
+                continue;
+            }
+            let faltan: Vec<&str> = refs[i..].iter().map(String::as_str).collect();
+            let _ = writeln!(
+                o,
+                "\n(no entraron en esta respuesta —tope de {}—; pedilas en otra llamada: {})",
+                kb(TOPE_RESPUESTA),
+                faltan.join(" · ")
+            );
+            break;
+        }
+        o.push_str(&bloque);
     }
     Ok(o)
+}
+
+/// Los primeros `tope` bytes de `texto`, cortando al final de una línea.
+/// Devuelve también si hubo que cortar.
+fn recortar(texto: &str, tope: usize) -> (String, bool) {
+    if texto.len() <= tope {
+        return (texto.to_string(), false);
+    }
+    let mut fin = tope;
+    while !texto.is_char_boundary(fin) {
+        fin -= 1;
+    }
+    let fin = texto[..fin].rfind('\n').map(|k| k + 1).unwrap_or(fin);
+    (texto[..fin].to_string(), true)
+}
+
+/// Qué filas del índice de secciones se muestran cuando no entra entero en
+/// `tope` bytes: todas las de nivel ≤ L, con el L más profundo que entra; si ni
+/// el nivel más alto entra, las primeras que entren. `filas` es `(nivel, texto
+/// de la fila)`. Devuelve las posiciones elegidas y el nivel de corte (`None` si
+/// no hizo falta abreviar o si se cortó por cantidad).
+fn indice_abreviado(filas: &[(u8, String)], tope: usize) -> (Vec<usize>, Option<u8>) {
+    let peso = |i: &usize| filas[*i].1.len() + 1;
+    let todas: Vec<usize> = (0..filas.len()).collect();
+    if todas.iter().map(peso).sum::<usize>() <= tope {
+        return (todas, None);
+    }
+    let mut niveles: Vec<u8> = filas.iter().map(|(n, _)| *n).collect();
+    niveles.sort_unstable();
+    niveles.dedup();
+    for &l in niveles.iter().rev() {
+        let elegidas: Vec<usize> = (0..filas.len()).filter(|&i| filas[i].0 <= l).collect();
+        if elegidas.iter().map(peso).sum::<usize>() <= tope {
+            // Con el último nivel ya no queda nada abreviado: no puede pasar,
+            // porque el total no entraba.
+            return (elegidas, Some(l));
+        }
+    }
+    let mut usado = 0;
+    let elegidas = todas
+        .into_iter()
+        .take_while(|i| {
+            usado += peso(i);
+            usado <= tope
+        })
+        .collect();
+    (elegidas, None)
 }
 
 fn leer_una(
@@ -462,6 +558,7 @@ fn leer_una(
     r: &str,
     contexto: usize,
     forzar: bool,
+    desde: Option<usize>,
 ) -> Result<(String, String), String> {
     let (nota, orden) = partir_ref(r);
     let candidatas = a.indice.resolver_nota(nota)?;
@@ -535,7 +632,7 @@ fn leer_una(
             Ok((id, o))
         }
         None => {
-            let o = leer_nota(a, &id, &info.titulo, info.bytes, &secciones, forzar, aviso)?;
+            let o = leer_nota(a, &id, &info.titulo, info.bytes, &secciones, forzar, desde, aviso)?;
             Ok((id, o))
         }
     }
@@ -736,19 +833,32 @@ fn leer_nota(
     bytes: usize,
     secciones: &[SeccionInfo],
     forzar: bool,
+    desde: Option<usize>,
     aviso: &str,
 ) -> Result<String, String> {
     let mut o = String::new();
-    if bytes <= TOPE_NOTA_ENTERA || forzar || secciones.is_empty() {
+    // `forzar` devuelve la nota entera solo si entra en la respuesta; si no, de
+    // corrido por tramos (ver [`leer_por_tramos`]).
+    let entera_forzada = forzar && desde.is_none() && bytes <= TOPE_RESPUESTA - MARGEN_TRAMO;
+    if bytes <= TOPE_NOTA_ENTERA || entera_forzada || secciones.is_empty() {
         let texto = a.indice.leer_nota(id)?;
+        let (texto, cortado) = recortar(&texto, TOPE_RESPUESTA - MARGEN_TRAMO);
         let _ = writeln!(o, "── {id} · nota completa · {} líneas · {}", texto.lines().count(), tokens(texto.len()));
         o.push_str(&linea_cita(a, id, titulo, secciones)?);
         o.push_str(aviso);
         o.push_str(texto.trim_end());
         o.push('\n');
+        if cortado {
+            // Solo sin secciones (una nota sin encabezados enorme): no hay #sN
+            // por donde seguir.
+            let _ = writeln!(o, "(cortada en {}: la nota pesa {} y no tiene secciones; el resto se lee con Read)", kb(texto.len()), kb(bytes));
+        }
         let ordenes: Vec<usize> = secciones.iter().map(|s| s.orden).collect();
         o.push_str(&enlaces(a, id, &ordenes)?);
         return Ok(o);
+    }
+    if forzar {
+        return leer_por_tramos(a, id, titulo, bytes, secciones, desde, aviso);
     }
 
     // Grande: el índice de secciones y la primera, y el precio de la entera.
@@ -761,23 +871,49 @@ fn leer_nota(
     );
     o.push_str(&linea_cita(a, id, titulo, secciones)?);
     o.push_str(aviso);
-    // El índice va COMPLETO (diagnóstico de la fase 1, causa 3): se cortaba en 40
-    // filas y en D11 dejó afuera, justo después de `DEF-059`, todos los defectos
-    // que la pregunta enumeraba. Una fila son ~30 bytes: las 85 secciones del
-    // catálogo de defectos son ~2.500 bytes contra los 37.000 de la nota.
-    let _ = writeln!(o, "Secciones:");
+    // El índice va completo mientras entre en [`TOPE_INDICE`] (diagnóstico de la
+    // fase 1, causa 3: cortarlo en 40 filas dejó afuera, justo después de
+    // `DEF-059`, todos los defectos que la pregunta enumeraba). Si no entra, se
+    // abrevia por nivel: los encabezados altos dicen dónde está cada parte.
     let prefijo = format!("{titulo}{SEPARADOR_MIGAS}");
-    for s in secciones {
-        let nombre = if s.nivel == 0 {
-            "(preámbulo)".to_string()
-        } else {
-            migas(s.ruta_encabezados.strip_prefix(&prefijo).unwrap_or(&s.ruta_encabezados))
-        };
-        let parte = if s.parcial { " (parte)" } else { "" };
-        let _ = writeln!(o, "  #s{:<3} {nombre}{parte} · {}", s.orden, kb(s.bytes));
+    let filas: Vec<(u8, String)> = secciones
+        .iter()
+        .map(|s| {
+            let nombre = if s.nivel == 0 {
+                "(preámbulo)".to_string()
+            } else {
+                migas(s.ruta_encabezados.strip_prefix(&prefijo).unwrap_or(&s.ruta_encabezados))
+            };
+            let parte = if s.parcial { " (parte)" } else { "" };
+            (s.nivel, format!("  #s{:<3} {nombre}{parte} · {}", s.orden, kb(s.bytes)))
+        })
+        .collect();
+    let (elegidas, corte) = indice_abreviado(&filas, TOPE_INDICE);
+    if elegidas.len() == filas.len() {
+        let _ = writeln!(o, "Secciones:");
+    } else if let Some(l) = corte {
+        let _ = writeln!(
+            o,
+            "Secciones — abreviado: {} de {}, las de encabezado hasta nivel {l} (las que faltan están entre dos números \
+             que se ven; pedí #sN o buscá con vault_buscar):",
+            elegidas.len(),
+            filas.len()
+        );
+    } else {
+        let _ = writeln!(
+            o,
+            "Secciones — abreviado: las primeras {} de {} (las demás se piden por su #sN; o buscá con vault_buscar):",
+            elegidas.len(),
+            filas.len()
+        );
+    }
+    for i in elegidas {
+        o.push_str(&filas[i].1);
+        o.push('\n');
     }
     let primera = &secciones[0];
     let cuerpo = a.indice.leer_lineas(id, primera.linea_ini, primera.linea_fin)?;
+    let (cuerpo, cortado) = recortar(&cuerpo, TOPE_NOTA_ENTERA);
     let _ = writeln!(
         o,
         "\n── {id}#s{} · {} · L{}–{}",
@@ -788,11 +924,83 @@ fn leer_nota(
     );
     o.push_str(&cuerpo);
     o.push('\n');
+    if cortado {
+        let _ = writeln!(o, "(sección cortada en {}; entera: vault_leer(refs=[\"{id}#s{}\"]))", kb(cuerpo.len()), primera.orden);
+    }
     let _ = writeln!(
         o,
-        "\nPara una sección: vault_leer(refs=[\"{id}#sN\"]) · Para el texto completo: forzar=true ({})",
+        "\nPara una sección: vault_leer(refs=[\"{id}#sN\"]) · De corrido: forzar=true ({} en total; va de a {} \
+         por llamada, y cada tramo dice cómo seguir)",
+        tokens(bytes),
+        kb(TOPE_RESPUESTA - MARGEN_TRAMO)
+    );
+    Ok(o)
+}
+
+/// Lo que se reserva en cada respuesta, fuera del texto de la nota, para la
+/// cabecera, la cita, los enlaces y las conexiones.
+const MARGEN_TRAMO: usize = 8 * 1024;
+
+/// `forzar` sobre una nota que no entra en una respuesta: secciones seguidas
+/// desde `desde` (o la primera) mientras entren, y cómo pedir el tramo que sigue.
+/// Antes devolvía la nota entera (435 KB en la tesina) y Claude Code la
+/// rechazaba (ver [`TOPE_RESPUESTA`]).
+fn leer_por_tramos(
+    a: &mut Abierto,
+    id: &str,
+    titulo: &str,
+    bytes: usize,
+    secciones: &[SeccionInfo],
+    desde: Option<usize>,
+    aviso: &str,
+) -> Result<String, String> {
+    let inicio = match desde {
+        None => 0,
+        Some(n) => secciones
+            .iter()
+            .position(|s| s.orden == n)
+            .ok_or_else(|| format!("{id}: no hay sección #s{n} desde donde seguir (la nota tiene {}).", secciones.len()))?,
+    };
+    let cupo = TOPE_RESPUESTA - MARGEN_TRAMO;
+    let mut fin = inicio;
+    let mut usado = secciones[inicio].bytes;
+    while fin + 1 < secciones.len() && usado + secciones[fin + 1].bytes <= cupo {
+        fin += 1;
+        usado += secciones[fin].bytes;
+    }
+    let (ini_l, fin_l) = (secciones[inicio].linea_ini, secciones[fin].linea_fin);
+    let cuerpo = a.indice.leer_lineas(id, ini_l, fin_l)?;
+    let (cuerpo, cortado) = recortar(&cuerpo, cupo);
+    let mut o = String::new();
+    let _ = writeln!(
+        o,
+        "── {id} · de corrido: #s{}–#s{} de {} secciones · L{ini_l}–{fin_l} · {} (la nota entera: {})",
+        secciones[inicio].orden,
+        secciones[fin].orden,
+        secciones.len(),
+        tokens(cuerpo.len()),
         tokens(bytes)
     );
+    o.push_str(&linea_cita(a, id, titulo, secciones)?);
+    o.push_str(aviso);
+    o.push_str(cuerpo.trim_end());
+    o.push('\n');
+    if cortado {
+        let _ = writeln!(o, "(la sección #s{} sola no entra: cortada en {})", secciones[inicio].orden, kb(cuerpo.len()));
+    }
+    let ordenes: Vec<usize> = secciones[inicio..=fin].iter().map(|s| s.orden).collect();
+    o.push_str(&enlaces(a, id, &ordenes)?);
+    if fin + 1 < secciones.len() {
+        let resto: usize = secciones[fin + 1..].iter().map(|s| s.bytes).sum();
+        let _ = writeln!(
+            o,
+            "(sigue: vault_leer(refs=[\"{id}\"], forzar=true, desde={}) · faltan {} en {} secciones; si buscás algo \
+             puntual, vault_buscar llega más rápido)",
+            secciones[fin + 1].orden,
+            tokens(resto),
+            secciones.len() - fin - 1
+        );
+    }
     Ok(o)
 }
 
@@ -876,6 +1084,37 @@ mod tests {
         );
         assert_eq!(pista_nota_entera("docs/BACKLOG.md", 127_917, 99, 1), "", "grande: no se ofrece");
         assert_eq!(pista_nota_entera("a.md", 500, 2, 2), "", "ya se leyó todo");
+    }
+
+    #[test]
+    fn recortar_corta_en_fin_de_linea_y_respeta_los_caracteres() {
+        assert_eq!(recortar("abc\ndef\n", 100), ("abc\ndef\n".to_string(), false));
+        assert_eq!(recortar("abc\ndef\nghi\n", 9), ("abc\ndef\n".to_string(), true));
+        // Sin salto de línea antes del tope: corta en un borde de carácter, no a
+        // la mitad de una «ñ» (dos bytes).
+        let (t, c) = recortar("ññññ", 3);
+        assert!(c);
+        assert_eq!(t, "ñ");
+    }
+
+    #[test]
+    fn el_indice_se_abrevia_por_nivel_y_si_no_por_cantidad() {
+        let fila = |n: u8, i: usize| (n, format!("  #s{i} fila de nivel {n}"));
+        // Una bitácora: 2 secciones de nivel 2 y 40 de nivel 3 debajo.
+        let mut filas = vec![fila(0, 0), fila(2, 1)];
+        filas.extend((2..22).map(|i| fila(3, i)));
+        filas.push(fila(2, 22));
+        filas.extend((23..43).map(|i| fila(3, i)));
+        let total: usize = filas.iter().map(|(_, t)| t.len() + 1).sum();
+        // Entra entero: no se toca.
+        assert_eq!(indice_abreviado(&filas, total), ((0..filas.len()).collect(), None));
+        // No entra: quedan el preámbulo y los dos de nivel 2, en orden.
+        assert_eq!(indice_abreviado(&filas, 200), (vec![0, 1, 22], Some(2)));
+        // Solo entra el preámbulo (nivel 0).
+        assert_eq!(indice_abreviado(&filas, 30), (vec![0], Some(0)));
+        // Muchas del nivel más alto: las primeras que entren.
+        let altas: Vec<(u8, String)> = (0..10).map(|i| fila(1, i)).collect();
+        assert_eq!(indice_abreviado(&altas, 70), (vec![0, 1, 2], None));
     }
 
     #[test]

@@ -227,6 +227,38 @@ fn a_fts(termino: &str) -> String {
     format!("\"{limpio}\"{prefijo}")
 }
 
+/// Cuántas letras tiene la raíz con la que se buscan las variantes de una
+/// palabra (tanda de desarrollo de la tesina, 2026-09-25).
+///
+/// El prefijo (`conclusiones*`) encuentra las palabras que **empiezan** con la
+/// buscada, no sus variantes: la pregunta decía «conclusiones» y el encabezado
+/// que la respondía, «El trabajo **concluye** consultivo». En prosa en español
+/// eso pasa todo el tiempo (concluye/conclusiones, computación/computadora).
+/// Truncar a una longitud fija es el lematizador más simple que hay, y a
+/// propósito: no depende de un diccionario ni de un idioma, y lo que trae de más
+/// lo frena [`PESO_RAIZ`]. Seis es un punto de partida, no una calibración: el
+/// registro de búsquedas dirá si conviene otro.
+pub const LARGO_RAIZ: usize = 6;
+
+/// Cuánto cubre un término encontrado solo por su raíz, contra 1 por la palabra.
+/// Con la cobertura al cuadrado, una sección que tiene un término solo por raíz
+/// y el resto enteros queda por debajo de la que los tiene todos enteros, y por
+/// encima de la que no tiene ese término de ninguna forma.
+pub const PESO_RAIZ: f64 = 0.5;
+
+/// La raíz de un término (sus primeras [`LARGO_RAIZ`] letras, en minúsculas),
+/// o `None` si no hace falta o no aplica: frases, términos con algo que no sea
+/// letra (`FUN-L-09`, `2029`) y palabras cortas, donde el prefijo ya alcanza.
+/// Desde 8 letras: con 7, la raíz es la palabra menos una letra, y el prefijo
+/// solo ya cubre casi lo mismo.
+pub fn raiz(termino: &str) -> Option<String> {
+    let letras: Vec<char> = termino.chars().collect();
+    if letras.len() < LARGO_RAIZ + 2 || !letras.iter().all(|c| c.is_alphabetic()) {
+        return None;
+    }
+    Some(letras[..LARGO_RAIZ].iter().collect::<String>().to_lowercase())
+}
+
 /// La expresión con **O**: alcanza con que la sección tenga un término.
 pub fn expresion_fts(terminos: &[String]) -> String {
     terminos.iter().map(|t| a_fts(t)).collect::<Vec<_>>().join(" OR ")
@@ -365,22 +397,43 @@ impl Indice {
         let terms: Vec<String> = terms.into_iter().filter(|t| vistos.insert(a_fts(t).to_lowercase())).collect();
         let n: i64 = self.conn.query_row("SELECT COUNT(*) FROM secciones", [], |r| r.get(0)).map_err(e)?;
         let mut por_termino: Vec<HashSet<i64>> = Vec::new();
-        for t in &terms {
+        let mut por_raiz: Vec<HashSet<i64>> = Vec::new();
+        let raices: Vec<Option<String>> = terms.iter().map(|t| raiz(t)).collect();
+        for (t, r) in terms.iter().zip(&raices) {
             por_termino.push(self.filas_de(&a_fts(t))?);
+            por_raiz.push(match r {
+                Some(r) => self.filas_de(&a_fts(r))?,
+                None => HashSet::new(),
+            });
         }
-        let pesos: Vec<f64> = por_termino.iter().map(|f| idf(n as usize, f.len())).collect();
+        // El peso de un término es el idf de la palabra; si la palabra no está
+        // en el vault pero su raíz sí (pidió «conclusiones» y la nota dice
+        // «concluye»), el de la raíz.
+        let pesos: Vec<f64> = por_termino
+            .iter()
+            .zip(&por_raiz)
+            .map(|(f, r)| idf(n as usize, if f.is_empty() { r.len() } else { f.len() }))
+            .collect();
         let peso_total: f64 = pesos.iter().sum();
-        let sin_coincidencias: Vec<String> =
-            terms.iter().zip(&por_termino).filter(|(_, f)| f.is_empty()).map(|(t, _)| t.clone()).collect();
-        let presentes = por_termino.iter().filter(|f| !f.is_empty()).count();
+        let ausente = |i: usize| por_termino[i].is_empty() && por_raiz[i].is_empty();
+        let sin_coincidencias: Vec<String> = (0..terms.len()).filter(|&i| ausente(i)).map(|i| terms[i].clone()).collect();
+        let presentes = (0..terms.len()).filter(|&i| !ausente(i)).count();
 
-        let expresion = expresion_fts(&terms);
+        let mut partes: Vec<String> = terms.clone();
+        partes.extend(raices.iter().flatten().filter(|r| !terms.iter().any(|t| t.eq_ignore_ascii_case(r))).cloned());
+        let mut vistas = HashSet::new();
+        partes.retain(|p| vistas.insert(p.to_lowercase()));
+        let expresion = expresion_fts(&partes);
         let (total, mut candidatos) = self.consultar(&expresion, &c.filtros, c.ambito)?;
         for cand in &mut candidatos {
             let (mut cubierto, mut cuantos) = (0.0, 0);
-            for (f, w) in por_termino.iter().zip(&pesos) {
+            for ((f, r), w) in por_termino.iter().zip(&por_raiz).zip(&pesos) {
                 if f.contains(&cand.rowid) {
                     cubierto += w;
+                    cuantos += 1;
+                } else if r.contains(&cand.rowid) {
+                    // Solo por la raíz: cubre, pero menos que la palabra.
+                    cubierto += w * PESO_RAIZ;
                     cuantos += 1;
                 }
             }
@@ -742,7 +795,7 @@ mod tests {
         assert!(refs.iter().all(|r| r.starts_with("docs/Rust.md#")));
         assert_eq!(b.sin_coincidencias, ["símbolos"]);
         assert_eq!(b.completos, 0, "ninguna sección tiene los dos que existen");
-        assert_eq!(b.expresion, "\"lenguaje\"* OR \"sqlite\"* OR \"símbolos\"*");
+        assert_eq!(b.expresion, "\"lenguaje\"* OR \"sqlite\"* OR \"símbolos\"* OR \"lengua\"* OR \"símbol\"*");
         // Todos ausentes: cero resultados, y los tres avisados.
         let b = ix.buscar(&consulta("zzz yyy")).unwrap();
         assert!(b.resultados.is_empty());
@@ -829,6 +882,33 @@ mod tests {
         let d = ix.distancias_desde("docs/Índice.md", 2).unwrap();
         assert_eq!(d.get("docs/Rust.md"), Some(&1));
         assert_eq!(b.cerca_de.as_deref(), Some("docs/Índice.md"));
+    }
+
+    #[test]
+    fn la_raiz_encuentra_la_variante_y_pesa_menos_que_la_palabra() {
+        assert_eq!(raiz("conclusiones").as_deref(), Some("conclu"));
+        assert_eq!(raiz("Computación").as_deref(), Some("comput"));
+        assert_eq!(raiz("sistema"), None, "7 letras: alcanza el prefijo");
+        assert_eq!(raiz("FUN-L-09"), None);
+        assert_eq!(raiz("\"dos palabras\""), None);
+
+        let v = VaultDePrueba::nuevo("raiz");
+        // La que responde dice «concluye», no «conclusiones».
+        v.escribir("Estado.md", "# Estado\n## Decisiones\n### El trabajo concluye consultivo\nsobre base descriptiva.\n");
+        v.escribir("Conclusiones.md", "# Conclusiones\n## Cierre\nlas conclusiones del trabajo, de carácter general.\n");
+        v.escribir("Otra.md", "# Otra\n## Nada\ntexto sin relación.\n");
+        let mut ix = v.abrir();
+        ix.revalidar(&mut |_, _| {}).unwrap();
+        let b = ix.buscar(&consulta("conclusiones consultivo")).unwrap();
+        let refs: Vec<_> = b.resultados.iter().map(|r| r.nota_id.as_str()).collect();
+        assert!(refs.contains(&"Estado.md"), "la variante entra: {refs:?}");
+        let est = b.resultados.iter().find(|r| r.nota_id == "Estado.md").unwrap();
+        assert_eq!(est.cubiertos, 2, "«consultivo» entero y «conclusiones» por raíz");
+        assert!(est.cobertura < 1.0 && est.cobertura > 0.5, "por raíz cubre menos: {}", est.cobertura);
+        assert!(b.sin_coincidencias.is_empty());
+        // Una palabra que no está pero su raíz sí no se avisa como ausente.
+        let b = ix.buscar(&consulta("concluyentes")).unwrap();
+        assert!(b.sin_coincidencias.is_empty() && !b.resultados.is_empty());
     }
 
     #[test]
