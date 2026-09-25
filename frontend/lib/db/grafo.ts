@@ -7,6 +7,7 @@
  */
 import { referenciasDe } from "@/lib/canvas";
 import { etiquetasDe } from "@/lib/frontmatter";
+import { sinCodigo } from "@/lib/sinCodigo";
 import { destinoDeWikilink } from "@/lib/wikilinks";
 import { select } from "./client";
 import { DbError } from "./errors";
@@ -104,7 +105,10 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
     for (const r of rutas) if (titulosPorId.has(r)) agregar(notaId, r);
   }
   for (const [notaId, contenido] of contenidos) {
-    for (let m = WIKILINK_RE.exec(contenido); m !== null; m = WIKILINK_RE.exec(contenido)) {
+    // Sin el código (`DEF-102`): un `[[x]]` escrito para mostrar la sintaxis no
+    // es una arista del grafo.
+    const texto = sinCodigo(contenido);
+    for (let m = WIKILINK_RE.exec(texto); m !== null; m = WIKILINK_RE.exec(texto)) {
       // [[destino|alias]] y [[Carpeta/destino]] → apunta al título (antes del `|`,
       // último segmento de la ruta). La barra puede venir escapada si el enlace
       // está dentro de una tabla (`DEF-045`), y ahí también es un alias.
@@ -157,7 +161,7 @@ export async function grafo(vaultId: string): Promise<GraphDataDto> {
       conexiones: conexionesTotales.get(id) ?? 0,
       // Etiquetas = las de `tags:` del frontmatter MÁS los `#tag` del cuerpo
       // (FUN-M-04): los grupos de color por etiqueta ven las dos fuentes.
-      tags: contenido ? etiquetasDe(contenido) : [],
+      tags: contenido ? etiquetasDe(contenido, sinCodigo) : [],
       creadoEn: creadoPorId.get(id),
     });
   }

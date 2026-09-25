@@ -10,6 +10,7 @@
  * caro con el frontmatter (ver `docs/estado/Version 1.1.0 de web.md`).
  */
 import { etiquetasDe } from "@/lib/frontmatter";
+import { sinCodigo } from "@/lib/sinCodigo";
 import type { NotaTabla, PropiedadFila } from "@/lib/bases";
 import { select } from "./client";
 import { extDe } from "./vaultFs";
@@ -74,7 +75,7 @@ export async function notasParaTabla(vaultId: string): Promise<{ notas: NotaTabl
     size: f.tamano_bytes,
     // Las mismas etiquetas que ve el grafo: las de `tags:` del frontmatter más
     // los `#tag` del cuerpo, sin distinguir de dónde salieron.
-    tags: f.contenido ? etiquetasDe(f.contenido) : [],
+    tags: f.contenido ? etiquetasDe(f.contenido, sinCodigo) : [],
     props: porNota.get(f.id) ?? [],
   }));
 

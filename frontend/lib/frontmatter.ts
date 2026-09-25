@@ -437,8 +437,12 @@ export function propiedadDe(texto: string, clave: string): Propiedad | undefined
  * Etiquetas de la nota: las de `tags:` MÁS los `#tag` del cuerpo, sin distinguir
  * de dónde salieron (spec § 1). Se buscan sobre el CUERPO para que los
  * comentarios `#` del YAML no se cuelen como etiquetas.
+ *
+ * `filtrarCuerpo` se aplica al cuerpo antes de buscar los `#tag`. Quien llama
+ * pasa `sinCodigo` (`DEF-102`) para que un color `#0F6E56` de un bloque de CSS
+ * no cuente; va como parámetro y no como import porque este módulo es puro.
  */
-export function etiquetasDe(texto: string): string[] {
+export function etiquetasDe(texto: string, filtrarCuerpo: (s: string) => string = (s) => s): string[] {
   const out: string[] = [];
   const vistas = new Set<string>();
   const push = (t: string) => {
@@ -454,7 +458,7 @@ export function etiquetasDe(texto: string): string[] {
     const tags = fm.props.find((p) => esTags(p.clave));
     if (tags && Array.isArray(tags.valor)) for (const t of tags.valor) push(t);
   }
-  for (const m of cuerpoDe(texto, fm).matchAll(TAG_RE)) push(m[1]);
+  for (const m of filtrarCuerpo(cuerpoDe(texto, fm)).matchAll(TAG_RE)) push(m[1]);
   return out;
 }
 
