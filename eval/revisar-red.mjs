@@ -19,7 +19,9 @@ import { leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 import { motivoRed } from "./lib/red.mjs";
 import { resumirTranscripcion } from "./lib/transcripcion.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
+import { OPCION_VAULT, vaultDeArgs } from "./lib/vault.mjs";
+
+const VAULT = vaultDeArgs();
 
 /**
  * Las filas de descarte que corresponden a `filas` (las últimas por sesión),
@@ -47,7 +49,8 @@ export function descartesPorRed(filas, leer) {
 function principal() {
   const { values: v } = parseArgs({
     options: {
-      resultados: { type: "string", default: join(EVAL, "resultados.jsonl") },
+      ...OPCION_VAULT,
+      resultados: { type: "string", default: VAULT.resultados },
       tanda: { type: "string" },
       escribir: { type: "boolean", default: false },
     },

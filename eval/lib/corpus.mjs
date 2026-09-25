@@ -47,10 +47,16 @@ const CONTROL = [".claude/skills/mycelium-memoria", ".claude/skills/mycelium-vau
  * Prepara (o reutiliza) el corpus del commit dado. Devuelve su descripción, que
  * también queda escrita al lado —no adentro, para no meterle un archivo más al
  * vault— como `<dir>.json`.
+ *
+ * Los valores por defecto son los del vault de Mycelium: se excluye `eval/` y el
+ * control se copia de la instalación. Otro vault (ver `lib/vault.mjs`) pasa
+ * `excluir`, `raiz` y `control: null` cuando su `CLAUDE.md` y su `.claude/` ya
+ * vienen en el commit. El repo del vault solo se LEE (`git archive`).
  */
-export function prepararCorpus({ repo, commit, control = checkoutPrincipal(repo), destino } = {}) {
+export function prepararCorpus({ repo, commit, control, destino, excluir = ["eval"], raiz = join(RAIZ_EVAL, "corpus") } = {}) {
+  if (control === undefined) control = checkoutPrincipal(repo);
   const sha = shaCompleto(repo, commit);
-  const dir = destino ?? join(RAIZ_EVAL, "corpus", sha.slice(0, 12));
+  const dir = destino ?? join(raiz, sha.slice(0, 12));
   const meta = `${dir}.json`;
   if (existsSync(meta) && existsSync(join(dir, "CLAUDE.md"))) return JSON.parse(readFileSync(meta, "utf8"));
 
@@ -60,28 +66,36 @@ export function prepararCorpus({ repo, commit, control = checkoutPrincipal(repo)
   // «C:» como un host remoto, y el de Windows no conoce --force-local.
   const nombreTar = `.corpus-${sha.slice(0, 12)}.tar`;
   git(repo, ["archive", "--format=tar", "-o", join(dir, nombreTar), sha]);
-  const x = spawnSync("tar", ["-xf", nombreTar, "--exclude=eval", "--exclude=eval/*"], { cwd: dir, encoding: "utf8" });
+  const filtros = excluir.flatMap((e) => [`--exclude=${e}`, `--exclude=${e}/*`]);
+  const x = spawnSync("tar", ["-xf", nombreTar, ...filtros], { cwd: dir, encoding: "utf8" });
   rmSync(join(dir, nombreTar), { force: true });
   if (x.status !== 0) throw new Error(`tar: ${x.stderr}`);
-  rmSync(join(dir, "eval"), { recursive: true, force: true });
+  // Además del filtro de tar, se borra: un patrón que tar no entienda no puede
+  // dejar pasar lo excluido en silencio.
+  for (const e of excluir) rmSync(join(dir, e), { recursive: true, force: true });
+  const quedaron = excluir.filter((e) => existsSync(join(dir, e)));
+  if (quedaron.length) throw new Error(`no se pudo excluir del corpus: ${quedaron.join(", ")}`);
 
   const copiados = [];
-  for (const rel of CONTROL) {
-    const desde = join(control, rel);
-    if (!existsSync(desde)) continue;
-    cpSync(desde, join(dir, rel), { recursive: true });
-    copiados.push(rel);
+  if (control) {
+    for (const rel of CONTROL) {
+      const desde = join(control, rel);
+      if (!existsSync(desde)) continue;
+      cpSync(desde, join(dir, rel), { recursive: true });
+      copiados.push(rel);
+    }
+    // De los comandos, solo los del framework del vault: el resto no es control.
+    const cmds = join(dir, ".claude", "commands");
+    if (existsSync(cmds))
+      for (const f of readdirSync(cmds)) if (!/^vault-/.test(f)) rmSync(join(cmds, f), { recursive: true, force: true });
   }
-  // De los comandos, solo los del framework del vault: el resto no es control.
-  const cmds = join(dir, ".claude", "commands");
-  if (existsSync(cmds))
-    for (const f of readdirSync(cmds)) if (!/^vault-/.test(f)) rmSync(join(cmds, f), { recursive: true, force: true });
 
   const desc = {
     dir,
     commit: sha,
     control,
     copiados,
+    excluidos: excluir,
     hash_claude_md: hashArchivo(join(dir, "CLAUDE.md")),
     hash_skill_memoria: hashArchivo(join(dir, ".claude", "skills", "mycelium-memoria", "SKILL.md")),
     preparado: new Date().toISOString(),
@@ -101,21 +115,26 @@ export function inventario(dir) {
   const titulos = new Set();
   const archivos = new Set();
   const notas = new Map(); // título → ruta (para el validador de claves)
+  const rutas = []; // todos los archivos, también las notas que repiten título
   const pila = [dir];
   while (pila.length) {
     const d = pila.pop();
     for (const e of readdirSync(d, { withFileTypes: true })) {
       if (SALTAR.has(e.name)) continue;
       const p = join(d, e.name);
-      if (e.isDirectory()) pila.push(p);
-      else if (/\.md$/i.test(e.name)) {
+      if (e.isDirectory()) {
+        pila.push(p);
+        continue;
+      }
+      rutas.push(p);
+      if (/\.md$/i.test(e.name)) {
         const t = e.name.slice(0, -3).normalize("NFC");
         titulos.add(t);
         if (!notas.has(t)) notas.set(t, p);
       } else archivos.add(e.name.normalize("NFC"));
     }
   }
-  return { titulos, archivos, notas };
+  return { titulos, archivos, notas, rutas };
 }
 
 /**

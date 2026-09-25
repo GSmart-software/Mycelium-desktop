@@ -14,13 +14,14 @@ import { dirname, join } from "node:path";
 
 export const RUTA_CLAVE_DEFECTO = join(homedir(), ".mycelium-eval", "sello.key");
 
-export function rutaClave() {
-  return process.env.MYCELIUM_EVAL_SELLO || RUTA_CLAVE_DEFECTO;
+/** La clave del vault de Mycelium; otro vault pasa la suya (`lib/vault.mjs`, campo `sello`). */
+export function rutaClave(propia = null) {
+  return propia || process.env.MYCELIUM_EVAL_SELLO || RUTA_CLAVE_DEFECTO;
 }
 
-/** Lee la clave (64 hex). `crear` la genera si no existe. */
-export function leerClave({ crear = false } = {}) {
-  const ruta = rutaClave();
+/** Lee la clave (64 hex). `crear` la genera si no existe. `ruta`: la del vault, si no es el de Mycelium. */
+export function leerClave({ crear = false, ruta: propia = null } = {}) {
+  const ruta = rutaClave(propia);
   if (!existsSync(ruta)) {
     if (!crear) throw new Error(`No está la clave del sello en ${ruta}. Sin ella la reserva no se abre (a propósito).`);
     mkdirSync(dirname(ruta), { recursive: true });

@@ -14,9 +14,11 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { leerJsonl } from "./lib/preguntas.mjs";
 import { abrir, leerClave, rutaClave, sellar } from "./lib/sello.mjs";
+import { OPCION_VAULT, vaultDeArgs } from "./lib/vault.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
-const DESTINO = join(EVAL, "preguntas.jsonl");
+// Con `--vault <json>`, las preguntas y la clave del sello son las de ese vault.
+const VAULT = vaultDeArgs();
+const DESTINO = VAULT.preguntas;
 
 const ORDEN = [
   "id", "clase", "conjunto", "sellada", "quemada", "retirada", "pregunta", "fuente", "veredicto", "dato",
@@ -32,9 +34,9 @@ function ordenar(p) {
 }
 
 function principal() {
-  const { values: v } = parseArgs({ options: { desde: { type: "string" }, comprobar: { type: "boolean", default: false } } });
+  const { values: v } = parseArgs({ options: { ...OPCION_VAULT, desde: { type: "string" }, comprobar: { type: "boolean", default: false } } });
   if (v.comprobar) {
-    const clave = leerClave();
+    const clave = leerClave({ ruta: VAULT.sello });
     let n = 0;
     for (const l of leerJsonl(DESTINO)) if (l.sellada) (abrir(l, clave), n++);
     console.log(`${n} preguntas selladas: todas abren y coinciden con su compromiso.`);
@@ -42,14 +44,14 @@ function principal() {
   }
   if (!v.desde) throw new Error("Falta --desde <borrador.json>.");
   const borrador = JSON.parse(readFileSync(resolve(v.desde), "utf8"));
-  const clave = leerClave({ crear: true });
+  const clave = leerClave({ crear: true, ruta: VAULT.sello });
   const lineas = borrador.map((p) => {
     const q = ordenar({ ...p, sellada: false, quemada: false, retirada: false });
     return p.conjunto === "reserva" ? sellar(q, clave) : q;
   });
   writeFileSync(DESTINO, lineas.map((l) => JSON.stringify(l)).join("\n") + "\n");
   const r = lineas.filter((l) => l.sellada).length;
-  console.log(`${lineas.length} preguntas en ${DESTINO}: ${lineas.length - r} de desarrollo, ${r} selladas. Clave: ${rutaClave()}`);
+  console.log(`${lineas.length} preguntas en ${DESTINO}: ${lineas.length - r} de desarrollo, ${r} selladas. Clave: ${rutaClave(VAULT.sello)}`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

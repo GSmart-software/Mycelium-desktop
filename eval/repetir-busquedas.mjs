@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { RAIZ_EVAL, rutaTranscripcion } from "./lib/corpus.mjs";
 import { leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
+import { emparejar, llamadasMcp } from "./lib/bitacora.mjs";
 
 const EVAL = dirname(fileURLToPath(import.meta.url));
 
@@ -81,47 +82,9 @@ export function refsDeRespuesta(texto) {
   return out;
 }
 
-/** Los tool_use de una transcripción, sin repetir, con la hora de su entrada. */
-export function llamadasMcp(texto) {
-  const vistas = new Map();
-  for (const linea of String(texto).split("\n")) {
-    if (!linea.trim()) continue;
-    let e;
-    try {
-      e = JSON.parse(linea);
-    } catch {
-      continue;
-    }
-    if (e.type !== "assistant") continue;
-    for (const b of e.message?.content ?? [])
-      if (b?.type === "tool_use" && /^mcp__mycelium__vault_(buscar|leer)$/.test(b.name) && !vistas.has(b.id))
-        vistas.set(b.id, { herramienta: b.name.replace("mcp__mycelium__", ""), args: b.input ?? {}, ts: Date.parse(e.timestamp) });
-  }
-  return [...vistas.values()];
-}
-
-/**
- * Empareja cada `vault_buscar` de las transcripciones con su línea del registro
- * de búsquedas del servidor: misma consulta y la hora más cercana (a menos de
- * 2 minutos), una a una. Devuelve las llamadas con su línea (o sin ella).
- */
-export function emparejar(llamadas, registro) {
-  const libres = registro.map((l, i) => ({ l, i }));
-  const usadas = new Set();
-  for (const c of llamadas) {
-    let mejor = null;
-    for (const { l, i } of libres) {
-      if (usadas.has(i) || l.consulta !== (c.args.consulta ?? "")) continue;
-      const d = Math.abs(l.ts - c.ts);
-      if (d < 120_000 && (!mejor || d < mejor.d)) mejor = { i, d, l };
-    }
-    if (mejor) {
-      usadas.add(mejor.i);
-      c.registro = mejor.l;
-    }
-  }
-  return llamadas;
-}
+// El cruce de transcripciones con el registro de búsquedas vive en
+// `lib/bitacora.mjs` (lo usa también el informe, para la latencia del MCP).
+export { emparejar, llamadasMcp };
 
 // ── El servidor, por stdio ───────────────────────────────────────────────────
 

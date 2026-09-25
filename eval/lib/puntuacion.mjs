@@ -118,7 +118,11 @@ function baseCodigo(ruta) {
  * cuente como admisible salvo que esté en `fuentes_codigo` (clase C7).
  */
 export function puntuarCitas(citasCrudas, clave, ctx) {
-  const citas = [...new Set((citasCrudas ?? []).map(normalizarCita).filter(Boolean))];
+  // EXTENSIÓN (clase C9, tesina): un PDF citado sin su extensión es ese PDF, no
+  // una cita inventada. Solo aplica si el corpus tiene un `.pdf` con ese nombre
+  // y ninguna nota se llama así; el vault de Mycelium no tiene PDFs.
+  const aPdf = (c) => (!ctx.titulos.has(c) && !ctx.archivos?.has(c) && ctx.archivos?.has(`${c}.pdf`) ? `${c}.pdf` : c);
+  const citas = [...new Set((citasCrudas ?? []).map(normalizarCita).filter(Boolean).map(aPdf))];
   const clavesNota = clave.notas_clave ?? [];
   const admisibles = new Set([
     ...aplanar(clavesNota),
