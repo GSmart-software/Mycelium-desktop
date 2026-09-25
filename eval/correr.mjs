@@ -23,7 +23,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { costoRecalculado, tokensPorCategoria } from "./lib/costo.mjs";
-import { huella, inventario, invalidarCorpus, prepararCorpus, rutaTranscripcion } from "./lib/corpus.mjs";
+import { huella, inventario, invalidarCorpus, rutaTranscripcion } from "./lib/corpus.mjs";
+import { OPCION_VAULT, prepararCorpusDe, vaultDeArgs } from "./lib/vault.mjs";
 import { cargarPreguntas, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 import { puntuar } from "./lib/puntuacion.mjs";
 import { prng, mediana } from "./lib/regla.mjs";
@@ -31,8 +32,11 @@ import { motivoRed } from "./lib/red.mjs";
 import { resumirTranscripcion } from "./lib/transcripcion.mjs";
 
 const EVAL = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(EVAL, "..");
-const CONFIG = JSON.parse(readFileSync(join(EVAL, "config.json"), "utf8"));
+// Qué vault se corre: el de Mycelium por defecto, u otro con `--vault <json>`
+// (ver lib/vault.mjs). El protocolo común sale de config.json y el vault puede
+// pisar parte.
+const VAULT = vaultDeArgs();
+const CONFIG = VAULT.config;
 const PESOS = JSON.parse(readFileSync(join(EVAL, "pesos-costo.json"), "utf8"));
 
 /**
@@ -129,7 +133,7 @@ function ttlDe(r, t) {
 
 export function correrUna({ pregunta, brazo, tanda, rep = 1, modelo, effort, semilla = null, salida, mcpConfig, versionMcp = null, forzarDescarte = null, depurar = null }) {
   if (!BRAZOS.includes(brazo)) throw new Error(`brazo desconocido: ${brazo}`);
-  const corpus = prepararCorpus({ repo: REPO, commit: CONFIG.commit_vault });
+  const corpus = prepararCorpusDe(VAULT);
   const sessionId = randomUUID();
   const args = argumentosClaude({ brazo, modelo, effort, sessionId, mcpConfig });
   // Solo para auditar el entorno (qué CLAUDE.md, skills y hooks cargó): no en tandas.
@@ -152,7 +156,7 @@ export function correrUna({ pregunta, brazo, tanda, rep = 1, modelo, effort, sem
     r = null;
   }
 
-  const carpeta = join(EVAL, "corridas", tanda);
+  const carpeta = join(VAULT.corridas, tanda);
   mkdirSync(carpeta, { recursive: true });
   const base = `${pregunta.id}-${brazo}-r${rep}-${sessionId.slice(0, 8)}`;
   writeFileSync(join(carpeta, `${base}.salida.json`), p.stdout || "");
@@ -309,8 +313,11 @@ function principal() {
       modelo: { type: "string", default: CONFIG.modelo_principal },
       effort: { type: "string" },
       semilla: { type: "string" },
-      salida: { type: "string", default: join(EVAL, "resultados.jsonl") },
-      "mcp-config": { type: "string", default: join(EVAL, "mcp.json") },
+      ...OPCION_VAULT,
+      // Otro archivo de preguntas del mismo vault (p. ej. un borrador todavía sin sellar, para un piloto).
+      preguntas: { type: "string", default: VAULT.preguntas },
+      salida: { type: "string", default: VAULT.resultados },
+      "mcp-config": { type: "string", default: VAULT.mcp_config },
       "version-mcp": { type: "string" },
       plan: { type: "boolean", default: false },
       ejecutar: { type: "boolean", default: false },
@@ -321,7 +328,7 @@ function principal() {
     },
   });
   if (!v.tanda) throw new Error("Falta --tanda (p. ej. 2026-10-05-piloto).");
-  const preguntas = cargarPreguntas(join(EVAL, "preguntas.jsonl"), { abrirReserva: v["abrir-reserva"] });
+  const preguntas = cargarPreguntas(resolve(v.preguntas), { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello });
   const comun = {
     tanda: v.tanda,
     modelo: v.modelo,

@@ -38,8 +38,10 @@ import { cargarPreguntas, indicePorId, leerJsonl, ultimaPorSesion } from "./lib/
 import { mediana, prng } from "./lib/regla.mjs";
 import { resumirTranscripcion } from "./lib/transcripcion.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
-const CONFIG = JSON.parse(readFileSync(join(EVAL, "config.json"), "utf8"));
+import { OPCION_VAULT, vaultDeArgs } from "./lib/vault.mjs";
+
+const VAULT = vaultDeArgs();
+const CONFIG = VAULT.config;
 
 export function argumentosJuez({ modelo, sessionId }) {
   return [
@@ -150,8 +152,9 @@ function barajar(xs, semilla) {
 function principal() {
   const { values: v } = parseArgs({
     options: {
-      resultados: { type: "string", default: join(EVAL, "resultados.jsonl") },
-      juicios: { type: "string", default: join(EVAL, "juicios.jsonl") },
+      ...OPCION_VAULT,
+      resultados: { type: "string", default: VAULT.resultados },
+      juicios: { type: "string", default: VAULT.juicios },
       tanda: { type: "string" },
       modelo: { type: "string", default: CONFIG.modelo_juez },
       semilla: { type: "string", default: "20260924" },
@@ -162,7 +165,7 @@ function principal() {
     },
   });
   if (!v.tanda) throw new Error("Falta --tanda.");
-  const claves = indicePorId(cargarPreguntas(join(EVAL, "preguntas.jsonl"), { abrirReserva: v["abrir-reserva"] }));
+  const claves = indicePorId(cargarPreguntas(VAULT.preguntas, { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello }));
   const juicios = existsSync(v.juicios) ? leerJsonl(v.juicios) : [];
   const previos = juiciosPrevios(juicios, v.modelo);
   const pendientes = pendientesDeJuez(ultimaPorSesion(leerJsonl(v.resultados)).filter((f) => f.tanda === v.tanda)).filter((f) => {

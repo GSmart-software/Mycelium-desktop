@@ -13,9 +13,15 @@ import { CORRELACION_FUERTE, KAPPA_MINIMO, VERSION_JUEZ, acuerdo, correlacionLar
 import { paresPatron } from "./lib/patron.mjs";
 import { cargarPreguntas, indicePorId, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 import { agrupar, aplicarRegla, contaminadas, media, mediana, UMBRALES } from "./lib/regla.mjs";
+import { aplicarReglaTiempo, UMBRALES_TIEMPO } from "./lib/regla-tiempo.mjs";
+import { latenciaMcp, razonTiempo, tiemposPorBrazo } from "./lib/tiempo.mjs";
+import { leyoPdf, tiemposDeHerramientas } from "./lib/transcripcion.mjs";
+import { emparejar, leerBitacoras, llamadasMcp } from "./lib/bitacora.mjs";
+import { rutaTranscripcion } from "./lib/corpus.mjs";
+import { OPCION_VAULT, vaultDeArgs } from "./lib/vault.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
-const CONFIG = JSON.parse(readFileSync(join(EVAL, "config.json"), "utf8"));
+const VAULT = vaultDeArgs();
+const CONFIG = VAULT.config;
 
 const pct = (x) => (Number.isFinite(x) ? `${(x * 100).toFixed(1)} %` : "—");
 const num = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "—");
@@ -152,21 +158,79 @@ export function seccionJuez({ validas, crudas, patron, juicios, modeloJuez, comp
   return out;
 }
 
+/**
+ * La transcripción de una fila: la copia de la tanda (`corridas/<tanda>/`) o,
+ * si no está —el vault de Mycelium no guarda `corridas/` en git—, la original
+ * de `~/.claude/projects/`.
+ */
+export function lectorDeTranscripciones(dirCorridas) {
+  return (f) => {
+    const copia = join(dirCorridas, f.tanda ?? "", `${f.pregunta}-${f.brazo}-r${f.rep}-${String(f.session_id).slice(0, 8)}.transcripcion.jsonl`);
+    if (existsSync(copia)) return readFileSync(copia, "utf8");
+    const p = rutaTranscripcion(f.session_id);
+    return p && existsSync(p) ? readFileSync(p, "utf8") : null;
+  };
+}
+
+const seg = (ms) => (Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : "—");
+
+/**
+ * El tiempo, como métrica de primera clase (pedido del usuario, 2026-09-24):
+ * `R` con la construcción de `K`, el tiempo en herramientas separado del resto,
+ * y la latencia interna del MCP. `enRegla`: si la regla del vault lo usa (la de
+ * la tesina) o es solo diagnóstico (la § 9, congelada sin él).
+ */
+export function seccionTiempo({ validas, claves, base, trat, bootstrap, leer, bitacoras, enRegla }) {
+  const out = ["", `## Tiempo${enRegla ? " (decide junto al costo, en la regla de este vault)" : " (diagnóstico: la § 9 no lo usa)"}`, ""];
+  const herr = new Map();
+  const llamadas = [];
+  for (const f of validas) {
+    const t = leer(f);
+    if (t == null) continue;
+    herr.set(f.session_id, tiemposDeHerramientas(t));
+    if (f.brazo === trat) llamadas.push(...llamadasMcp(t));
+  }
+  const r = razonTiempo(validas, claves, { brazoBase: base, brazoTratamiento: trat, bootstrap });
+  if (r.r !== null)
+    out.push(
+      `- **R = ${num(r.r)}** · IC 95 % [${r.icR.map((x) => num(x)).join(", ")}] sobre ${r.porPregunta.length} preguntas (razón de \`ms_total\` ${trat}/${base}, construida como K) · ${trat} más rápido en ${r.masRapido} de ${r.porPregunta.length}`,
+    );
+  else out.push(`- R: sin preguntas con los dos brazos (${base} y ${trat}).`);
+  const pb = tiemposPorBrazo(validas, herr);
+  for (const [b, x] of Object.entries(pb))
+    out.push(
+      `- **${b}** · ${x.corridas} corridas · total ${seg(x.ms_total)} · en herramientas ${seg(x.ms_herramientas)} · resto (modelo y API) ${seg(x.ms_resto)} · turnos ${num(x.turnos, 0)}` +
+        (x.sin_transcripcion ? ` · ${x.sin_transcripcion} sin transcripción` : "") +
+        " (medianas)",
+    );
+  if (llamadas.length) {
+    const l = latenciaMcp(emparejar(llamadas.filter((c) => c.herramienta === "vault_buscar"), bitacoras));
+    out.push(
+      `- **Latencia interna del MCP** (\`ms\` de su registro de búsquedas, solo \`vault_buscar\`): ${l.emparejadas} de ${l.llamadas_buscar} llamadas emparejadas · mediana ${num(l.ms_mediana, 0)} ms · p95 ${num(l.ms_p95, 0)} ms · máx ${num(l.ms_max, 0)} ms`,
+    );
+  }
+  return out;
+}
+
 function principal() {
   const { values: v } = parseArgs({
     options: {
-      resultados: { type: "string", default: join(EVAL, "resultados.jsonl") },
+      ...OPCION_VAULT,
+      resultados: { type: "string", default: VAULT.resultados },
       tanda: { type: "string" },
       semilla: { type: "string", default: "20260924" },
       replicas: { type: "string", default: "10000" },
       "abrir-reserva": { type: "boolean", default: false },
       base: { type: "string", default: "base" },
       tratamiento: { type: "string", default: "mcp" },
-      juicios: { type: "string", default: join(EVAL, "juicios.jsonl") },
-      patron: { type: "string", default: join(EVAL, "patron-juez.jsonl") },
+      juicios: { type: "string", default: VAULT.juicios },
+      patron: { type: "string", default: VAULT.patron },
       "modelo-juez": { type: "string", default: CONFIG.modelo_juez },
+      "sin-tiempo": { type: "boolean", default: false },
     },
   });
+  const reglaTiempo = VAULT.regla === "costo-y-tiempo";
+  const leer = lectorDeTranscripciones(VAULT.corridas);
   if (!existsSync(v.resultados)) throw new Error(`No existe ${v.resultados}`);
   const tandas = v.tanda ? new Set(v.tanda.split(",")) : null;
   const todas = ultimaPorSesion(leerJsonl(v.resultados)).filter((f) => !tandas || tandas.has(f.tanda));
@@ -176,7 +240,7 @@ function principal() {
     patron: existsSync(v.patron) ? leerJsonl(v.patron) : [],
     modeloJuez: v["modelo-juez"],
   };
-  const claves = indicePorId(cargarPreguntas(join(EVAL, "preguntas.jsonl"), { abrirReserva: v["abrir-reserva"] }));
+  const claves = indicePorId(cargarPreguntas(VAULT.preguntas, { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello }));
   const validas = todas.filter((f) => !f.descartada);
   const out = [];
 
@@ -212,25 +276,57 @@ function principal() {
       }),
     );
   } else {
-    const r = aplicarRegla(validas, claves, {
+    const opcionesRegla = {
       brazoBase: v.base,
       brazoTratamiento: v.tratamiento,
       bootstrap: { semilla: Number(v.semilla), replicas: Number(v.replicas) },
-    });
+    };
+    let r;
+    if (reglaTiempo) {
+      // El bloqueante de C9 necesita saber, por corrida del MCP, si leyó el PDF.
+      const leyo = new Map();
+      for (const f of validas) {
+        if (f.brazo !== v.tratamiento || claves[f.pregunta]?.clase !== "C9") continue;
+        const t = leer(f);
+        if (t != null) leyo.set(f.session_id, leyoPdf(t));
+      }
+      r = aplicarReglaTiempo(validas, claves, { ...opcionesRegla, leyoPdf: leyo });
+    } else r = aplicarRegla(validas, claves, opcionesRegla);
     const f = r.filtros;
-    out.push("", "## Regla de decisión (§ 9)", "", "### 9.2 Filtros de validez", "");
+    out.push(
+      "",
+      reglaTiempo ? "## Regla de decisión de este vault: costo y tiempo («MCP de Mycelium - tesina, regla de decision»)" : "## Regla de decisión (§ 9)",
+      "",
+      "### 9.2 Filtros de validez",
+      "",
+    );
     out.push(`- Piso del brazo base: ${pct(f.piso.valor)} (umbral 50 %) → ${f.piso.pasa ? "pasa" : "**falla**"}`);
     out.push(`- Adopción del MCP: ${pct(f.adopcion.valor)} (umbral 50 %) → ${f.adopcion.pasa ? "pasa" : "**falla**"}`);
     for (const [b, c] of Object.entries(f.compactacion)) out.push(`- Compactación de ${b}: ${pct(c.valor)} (< 20 %) → ${c.pasa ? "pasa" : "**falla**: su costo queda fuera"}`);
     out.push("", "### 9.1 Magnitudes", "");
     out.push(`- Δ = ${num(r.delta, 1)} pts · IC 95 % [${r.icDelta ? r.icDelta.map((x) => num(x, 1)).join(", ") : "—"}] sobre ${r.preguntas.length} preguntas`);
     out.push(`- K = ${num(r.k)} · IC 95 % [${r.icK ? r.icK.map((x) => num(x)).join(", ") : "—"}]`);
+    if (reglaTiempo) out.push(`- R = ${num(r.r)} · IC 95 % [${r.icR ? r.icR.map((x) => num(x)).join(", ") : "—"}] (umbral de la fila 4: ${UMBRALES_TIEMPO.rAhorro})`);
     out.push(`- Δ por clase: ${Object.entries(r.porClase).sort().map(([c, d]) => `${c} ${num(d, 1)}`).join(" · ")}`);
     if (r.bloqueanteC7) out.push(`- Bloqueante C7: Δ(C7) ${num(r.bloqueanteC7.delta, 1)} pts, cayó a grep en ${pct(r.bloqueanteC7.tasaCaidaAGrep)} → **${r.bloqueanteC7.estado}**`);
+    if (r.bloqueanteC9) out.push(`- Bloqueante C9: Δ(C9) ${num(r.bloqueanteC9.delta, 1)} pts, leyó el PDF en ${pct(r.bloqueanteC9.tasaRepliegue)} → **${r.bloqueanteC9.estado}**`);
     for (const [b, qs] of Object.entries(r.inestables)) if (qs.length) out.push(`- Inestables en ${b}: ${qs.join(", ")}`);
     out.push("", "### 9.3 Decisión", "", `**${r.fila ? `Fila ${r.fila}` : "Ninguna fila"}** — ${r.decision}`);
     if (r.defectos.length) out.push("", "> [!warning] La regla no se pudo aplicar mecánicamente en esto", ...r.defectos.map((d) => `> - ${d}`));
     out.push(...seccionJuez({ validas, ...juez, comparacion: { nombre: `el Δ de ${num(r.delta, 1)} pts (§ 9.3)`, diferenciaPts: r.delta, brazos: [v.base, v.tratamiento] } }));
+    if (!v["sin-tiempo"])
+      out.push(
+        ...seccionTiempo({
+          validas,
+          claves,
+          base: v.base,
+          trat: v.tratamiento,
+          bootstrap: opcionesRegla.bootstrap,
+          leer,
+          bitacoras: leerBitacoras(VAULT.app_mcp),
+          enRegla: reglaTiempo,
+        }),
+      );
   }
   console.log(out.join("\n"));
 }

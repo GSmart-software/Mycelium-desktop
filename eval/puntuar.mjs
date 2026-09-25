@@ -17,12 +17,12 @@ import { appendFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { inventario, prepararCorpus } from "./lib/corpus.mjs";
+import { inventario } from "./lib/corpus.mjs";
 import { cargarPreguntas, indicePorId, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 import { puntuar } from "./lib/puntuacion.mjs";
+import { OPCION_VAULT, prepararCorpusDe, vaultDeArgs } from "./lib/vault.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(EVAL, "..");
+const VAULT = vaultDeArgs();
 
 /**
  * Si la fila ya la puntuó el juez o el humano y la regla mecánica la sigue
@@ -43,14 +43,15 @@ export function conservarJuicio(fila, p) {
 function principal() {
   const { values: v } = parseArgs({
     options: {
-      resultados: { type: "string", default: join(EVAL, "resultados.jsonl") },
+      ...OPCION_VAULT,
+      resultados: { type: "string", default: VAULT.resultados },
       tanda: { type: "string" },
       escribir: { type: "boolean", default: false },
       "abrir-reserva": { type: "boolean", default: false },
     },
   });
   if (!existsSync(v.resultados)) throw new Error(`No existe ${v.resultados}`);
-  const claves = indicePorId(cargarPreguntas(join(EVAL, "preguntas.jsonl"), { abrirReserva: v["abrir-reserva"] }));
+  const claves = indicePorId(cargarPreguntas(VAULT.preguntas, { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello }));
   const filas = ultimaPorSesion(leerJsonl(v.resultados)).filter((f) => !v.tanda || f.tanda === v.tanda);
   const corpora = new Map();
   let cambios = 0;
@@ -61,7 +62,7 @@ function principal() {
       continue;
     }
     if (!corpora.has(f.commit_vault)) {
-      const c = prepararCorpus({ repo: REPO, commit: f.commit_vault });
+      const c = prepararCorpusDe(VAULT, { commit: f.commit_vault });
       corpora.set(f.commit_vault, inventario(c.dir));
     }
     const inv = corpora.get(f.commit_vault);

@@ -22,14 +22,14 @@ export function leerJsonl(ruta) {
  * `{id, clase, conjunto, sellada: true}` salvo que `abrirReserva` sea true, en
  * cuyo caso se descifran con la clave del sello.
  */
-export function cargarPreguntas(ruta, { abrirReserva = false, incluirRetiradas = false } = {}) {
+export function cargarPreguntas(ruta, { abrirReserva = false, incluirRetiradas = false, rutaClave = null } = {}) {
   const lineas = leerJsonl(ruta);
   let clave = null;
   return lineas
     .filter((p) => incluirRetiradas || !p.retirada)
     .map((p) => {
       if (!p.sellada || !abrirReserva) return p;
-      clave ??= leerClave();
+      clave ??= leerClave({ ruta: rutaClave });
       return { ...abrir(p, clave), sellada: false, sha256: p.sha256 };
     });
 }

@@ -24,10 +24,12 @@ import { VERSION_JUEZ, acuerdo, idOpaco, KAPPA_MINIMO } from "./lib/juez.mjs";
 import { leerPlanilla, paresPatron, planillaMarkdown, seleccionarPatron } from "./lib/patron.mjs";
 import { cargarPreguntas, indicePorId, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs";
 
-const EVAL = dirname(fileURLToPath(import.meta.url));
-const CONFIG = JSON.parse(readFileSync(join(EVAL, "config.json"), "utf8"));
-const RUTA_PATRON = join(EVAL, "patron-juez.jsonl");
-const RUTA_PLANILLA = join(EVAL, "patron-juez.md");
+import { OPCION_VAULT, vaultDeArgs } from "./lib/vault.mjs";
+
+const VAULT = vaultDeArgs();
+const CONFIG = VAULT.config;
+const RUTA_PATRON = VAULT.patron;
+const RUTA_PLANILLA = VAULT.planilla;
 
 const pct = (x) => (Number.isFinite(x) ? `${(x * 100).toFixed(1)} %` : "—");
 
@@ -117,8 +119,9 @@ function principal() {
   const { values: v } = parseArgs({
     args: process.argv.slice(3),
     options: {
-      resultados: { type: "string", default: join(EVAL, "resultados.jsonl") },
-      juicios: { type: "string", default: join(EVAL, "juicios.jsonl") },
+      ...OPCION_VAULT,
+      resultados: { type: "string", default: VAULT.resultados },
+      juicios: { type: "string", default: VAULT.juicios },
       tanda: { type: "string" },
       semilla: { type: "string", default: "20260924" },
       modelo: { type: "string", default: CONFIG.modelo_juez },
@@ -126,7 +129,7 @@ function principal() {
       "confirmo-costo": { type: "boolean", default: false },
     },
   });
-  const claves = indicePorId(cargarPreguntas(join(EVAL, "preguntas.jsonl")));
+  const claves = indicePorId(cargarPreguntas(VAULT.preguntas));
   if (accion === "generar") generar(v, claves);
   else if (accion === "validar") validar(v, claves);
   else throw new Error("Uso: node eval/patron.mjs generar --tanda X | validar [--juzgar --confirmo-costo]");
