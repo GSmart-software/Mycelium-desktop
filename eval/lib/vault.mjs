@@ -71,6 +71,7 @@ export function vaultMycelium() {
     // La § 9 de «MCP de Mycelium - evaluacion», congelada. Otro vault puede
     // declarar "costo-y-tiempo" (lib/regla-tiempo.mjs).
     regla: "§9",
+    c8: "seccion",
     config,
   };
 }
@@ -100,6 +101,8 @@ export function cargarVault(rutaJson) {
     raiz_corpus: abs(j.corpus ?? "corpus"),
     composicion: j.composicion ?? null,
     regla: j.regla ?? "§9",
+    // Cómo se controla el vocabulario de una C8 (verificar-claves.mjs).
+    c8: j.c8 ?? "seccion",
     config: { ...base, ...(j.protocolo ?? {}), commit_vault: j.commit_vault },
   };
   const defectos = {

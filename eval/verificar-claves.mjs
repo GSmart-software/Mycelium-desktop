@@ -55,6 +55,24 @@ function compartidas(a, b) {
   return [...a].filter((x) => [...b].some((y) => mismaPalabra(x, y)));
 }
 
+/**
+ * El puesto de la nota `objetivo` si se ordenan todas las notas por cuántas de
+ * las palabras de la pregunta contienen —lo que haría quien encadena `grep -l`
+ * con cada término y abre primero las que más coinciden—. Los empates cuentan en
+ * contra: el puesto es 1 + las notas con TANTAS o más coincidencias, y si
+ * el título se repite vale la mejor de sus copias. `notas`: `[{t, x}]` con texto
+ * normalizado.
+ */
+export function puestoPorGrep(palabras, notas, objetivo) {
+  const ps = [...palabras];
+  const puntaje = (x) => ps.filter((w) => x.includes(w)).length;
+  const conTitulo = (t) => t.split(/[\\/]/).pop().replace(/\.md$/i, "").normalize("NFC");
+  const scores = notas.map((n) => ({ t: conTitulo(n.t), s: puntaje(n.x) }));
+  const propio = Math.max(...scores.filter((n) => n.t === objetivo).map((n) => n.s), -1);
+  if (propio < 0) return Infinity;
+  return 1 + scores.filter((n) => n.t !== objetivo && n.s >= propio).length;
+}
+
 /** Grupos de alternativas del dato: `requeridas`, o `aceptadas` como un solo grupo. */
 function grupos(q) {
   if (q.requeridas?.length) return q.requeridas;
@@ -153,7 +171,12 @@ export function verificar(preguntas, inv, leerNota, leerCodigo, claudeMd, opcion
       if (c.length > 2) A(q, `comparte ${c.length} palabras con el título «${t}»: ${c.join(", ")}`);
     }
 
-    // C8: ninguna palabra de contenido en común con la sección objetivo.
+    // C8: ninguna palabra de contenido en común con la sección objetivo. En el
+    // vault de Mycelium, con el TEXTO entero de la sección. Con `c8: "encabezados"`
+    // (la tesina, donde una sección tiene miles de palabras y compartir ninguna es
+    // imposible), con el título de la nota y la cadena de encabezados; y además un
+    // grep de las palabras de la pregunta no puede poner la nota entre las
+    // primeras `c8Puesto` (§ 8, sesgo 1, hecho mecánico).
     if (q.clase === "C8") {
       if (!q.secciones_clave?.length) E(q, "C8 sin secciones_clave");
       for (const s of q.secciones_clave ?? []) {
@@ -167,8 +190,15 @@ export function verificar(preguntas, inv, leerNota, leerCodigo, claudeMd, opcion
           E(q, `la sección no existe: ${s}`);
           continue;
         }
-        const c = compartidas(pq, palabrasDeContenido(sec.texto)).filter((w) => !PERMITIDAS_C8.has(w));
+        const contra = opciones.c8 === "encabezados" ? [nota, ...ruta].join(" ") : sec.texto;
+        const c = compartidas(pq, palabrasDeContenido(contra)).filter((w) => !PERMITIDAS_C8.has(w));
         if (c.length) E(q, `C8 comparte vocabulario con «${s}»: ${c.join(", ")}`);
+        if (opciones.c8 === "encabezados") {
+          const puesto = puestoPorGrep(pq, todasLasNotas(), nota);
+          const tope = opciones.c8Puesto ?? 10;
+          if (puesto <= tope) E(q, `C8: un grep de sus palabras pone «${nota}» en el puesto ${puesto} (tope ${tope})`);
+          else A(q, `C8: un grep de sus palabras pone «${nota}» en el puesto ${puesto}`);
+        }
       }
     }
 
@@ -222,6 +252,7 @@ function principal() {
   const recorrer = (filtro) => inv.rutas.filter(filtro).map((p) => ({ t: p.slice(corpus.dir.length + 1), x: normalizar(readFileSync(p, "utf8")) }));
   const opciones = {
     composicion: VAULT.composicion,
+    c8: VAULT.c8,
     todasLasNotas: () => (notas ??= recorrer((p) => /\.md$/i.test(p))),
     otrosTextos: () => (textos ??= recorrer((p) => TEXTO_NO_NOTA.test(p))),
   };

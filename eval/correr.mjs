@@ -314,6 +314,8 @@ function principal() {
       effort: { type: "string" },
       semilla: { type: "string" },
       ...OPCION_VAULT,
+      // Otro archivo de preguntas del mismo vault (p. ej. un borrador todavía sin sellar, para un piloto).
+      preguntas: { type: "string", default: VAULT.preguntas },
       salida: { type: "string", default: VAULT.resultados },
       "mcp-config": { type: "string", default: VAULT.mcp_config },
       "version-mcp": { type: "string" },
@@ -326,7 +328,7 @@ function principal() {
     },
   });
   if (!v.tanda) throw new Error("Falta --tanda (p. ej. 2026-10-05-piloto).");
-  const preguntas = cargarPreguntas(VAULT.preguntas, { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello });
+  const preguntas = cargarPreguntas(resolve(v.preguntas), { abrirReserva: v["abrir-reserva"], rutaClave: VAULT.sello });
   const comun = {
     tanda: v.tanda,
     modelo: v.modelo,

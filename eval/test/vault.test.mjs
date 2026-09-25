@@ -13,7 +13,7 @@ import { inventario, prepararCorpus, RAIZ_EVAL } from "../lib/corpus.mjs";
 import { puntuar } from "../lib/puntuacion.mjs";
 import { normalizar } from "../lib/texto.mjs";
 import { cargarVault, EVAL, prepararCorpusDe, vaultDeArgs, vaultMycelium } from "../lib/vault.mjs";
-import { verificar } from "../verificar-claves.mjs";
+import { puestoPorGrep, verificar } from "../verificar-claves.mjs";
 
 test("sin --vault, el vault es el de Mycelium con las rutas de siempre", () => {
   const v = vaultDeArgs(["node", "x.mjs"], {});
@@ -155,6 +155,32 @@ test("C9 · el verificador: el dato tiene que estar en el PDF y en ningún otro 
   assert.ok(enNota.errores.some((e) => /C9 pero la nota/.test(e)));
   const noPdf = verificar([{ ...q, fuentes_codigo: ["x.html"] }], inv, leerNota, leerPdf, "", opciones);
   assert.ok(noPdf.errores.some((e) => /no es un PDF/.test(e)));
+});
+
+test("C8 con `c8: encabezados`: vocabulario contra título y encabezados, y el puesto por grep", () => {
+  const md = "## Capitulo largo\n\n### La espera en la fila\n\nnadie publica cuanto se tarda en atender un pedido remoto\n";
+  const inv = { titulos: new Set(["Capitulo largo"]), archivos: new Set(), notas: new Map([["Capitulo largo", "x"]]) };
+  const base = {
+    id: "C8a", clase: "C8", conjunto: "desarrollo", fuente: { tipo: "estructura" }, veredicto: "dato", dato: "nadie publica",
+    aceptadas: ["nadie publica"], notas_clave: ["Capitulo largo"], notas_admisibles: ["Capitulo largo"],
+    secciones_clave: ["Capitulo largo > Capitulo largo > La espera en la fila"],
+  };
+  const otras = Array.from({ length: 12 }, (_, i) => ({ t: `Docs/otra ${i}.md`, x: normalizar("demora remoto pedido atender") }));
+  const notas = () => [{ t: "Docs/Capitulo largo.md", x: normalizar(md) }, ...otras];
+  const opciones = { composicion: null, c8: "encabezados", todasLasNotas: notas };
+  // Comparte «espera» con el encabezado: error, aunque el texto no importe en este modo.
+  const r1 = verificar([{ ...base, pregunta: "¿Cuánta espera hay?" }], inv, () => md, () => "", "", opciones);
+  assert.ok(r1.errores.some((e) => /comparte vocabulario/.test(e)));
+  // Sin palabras del encabezado, pero doce notas le ganan por grep: puesto 13, pasa con aviso.
+  const r2 = verificar([{ ...base, pregunta: "¿Cuánto demora que atiendan un pedido remoto?" }], inv, () => md, () => "", "", opciones);
+  assert.deepEqual(r2.errores, []);
+  assert.ok(r2.avisos.some((a) => /puesto 13/.test(a)));
+  // Con tope 20, el mismo puesto es un error.
+  const r3 = verificar([{ ...base, pregunta: "¿Cuánto demora que atiendan un pedido remoto?" }], inv, () => md, () => "", "", { ...opciones, c8Puesto: 20 });
+  assert.ok(r3.errores.some((e) => /puesto 13/.test(e)));
+  // Los empates cuentan en contra; una nota que no existe queda en el infinito.
+  assert.equal(puestoPorGrep(new Set(["a", "b"]), [{ t: "x.md", x: "a b" }, { t: "y.md", x: "a b" }], "y"), 2);
+  assert.equal(puestoPorGrep(new Set(["a"]), [{ t: "x.md", x: "a" }], "z"), Infinity);
 });
 
 test("la composición del vault de Mycelium se sigue exigiendo por defecto; otro vault puede no declararla", () => {
