@@ -446,5 +446,56 @@ export async function indexarVault(
     await execute(`DELETE FROM carpetas WHERE id IN (${marcadores(tanda.length)})`, tanda);
   }
 
+  if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
+
   return { notas: archivos.length, carpetas: carpetas.size, reindexadas };
+}
+
+/**
+ * Proporción de páginas libres a partir de la cual se compacta, y el mínimo de
+ * espacio recuperable que lo justifica (`DEF-108`).
+ */
+const UMBRAL_LIBRE = 0.25;
+const MINIMO_RECUPERABLE = 16 * 1024 * 1024;
+
+/**
+ * Devuelve al disco el espacio de lo borrado (`DEF-108`).
+ *
+ * SQLite no achica el archivo al borrar: las páginas quedan libres **adentro**,
+ * para reusarlas, y el archivo conserva su tamaño máximo histórico. Medido en un
+ * índice al que se le borraron 3.000 de 3.340 notas: **134 MB, con el 93 % de
+ * las páginas libres; compactado, 0,36 MB**. En la PC del incidente de
+ * `DEF-105`, 479 MB que no bajaban después de borrar 5.000 notas.
+ *
+ * Son tres pasos, y los tres hacen falta (medido sobre el mismo índice):
+ *
+ *   1. `optimize` de FTS5: la tabla de búsqueda NO suelta lo borrado al borrar;
+ *      lo marca y lo conserva en sus segmentos hasta fusionarlos. Sin esto, el
+ *      `VACUUM` dejaba el índice en 10 MB en vez de 0,36.
+ *   2. `VACUUM`: devuelve al disco las páginas libres.
+ *   3. `wal_checkpoint(TRUNCATE)`: en modo WAL el `VACUUM` escribe la base nueva
+ *      en el `-wal`, que quedaba en 12 MB; el checkpoint la pasa al archivo y lo
+ *      vacía.
+ *
+ * `VACUUM` reescribe la base entera, así que solo se hace cuando vale la pena:
+ * tras una limpieza que dejó libre al menos un cuarto del archivo y 16 MB. Si
+ * no se puede —otra conexión del pool en plena lectura—, no pasa nada: el índice
+ * sigue siendo correcto y se intentará en la próxima limpieza.
+ */
+async function compactarSiHaceFalta(): Promise<void> {
+  try {
+    const [total] = await select<{ page_count: number }>("PRAGMA page_count");
+    const [libres] = await select<{ freelist_count: number }>("PRAGMA freelist_count");
+    const [pagina] = await select<{ page_size: number }>("PRAGMA page_size");
+    const n = total?.page_count ?? 0;
+    const l = libres?.freelist_count ?? 0;
+    const bytesLibres = l * (pagina?.page_size ?? 4096);
+    if (n === 0 || l / n < UMBRAL_LIBRE || bytesLibres < MINIMO_RECUPERABLE) return;
+    await execute("INSERT INTO notas_fts(notas_fts) VALUES('optimize')");
+    await execute("VACUUM");
+    // El pragma devuelve una fila: va por `select`, como `journal_mode` en `client.ts`.
+    await select("PRAGMA wal_checkpoint(TRUNCATE)");
+  } catch (e) {
+    console.warn("[Mycelium] indexado · no se pudo compactar el índice; se reintenta en la próxima limpieza", e);
+  }
 }
