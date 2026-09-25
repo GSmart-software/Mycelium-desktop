@@ -117,6 +117,11 @@ test("ausencia: no_esta = true sin decirlo en prosa → error (§ 3, regla 1)", 
   assert.equal(puntuar(AUSENCIA, { respuesta: "Consulté varias notas.", citas: [], no_esta: true }, ctx).acierto, 0);
 });
 
+test("ausencia: «no encuentro» y «no se encontró» también dicen que no está", () => {
+  for (const respuesta of ["No encuentro información en el vault sobre eso.", "No se encontró en el vault nada sobre eso."])
+    assert.equal(puntuar(AUSENCIA, { respuesta, citas: [], no_esta: true }, ctx).acierto, 1, respuesta);
+});
+
 test("ausencia: no_esta = false → error", () => {
   assert.equal(puntuar(AUSENCIA, { respuesta: "Es hunter2.", citas: [], no_esta: false }, ctx).acierto, 0);
 });

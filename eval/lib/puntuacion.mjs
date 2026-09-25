@@ -24,6 +24,10 @@ const PROSA_AUSENCIA = [
   "no figura",
   "no aparece",
   "no encontr",
+  // EXTENSIÓN (2026-09-25, tanda de desarrollo de la tesina): «no encuentro» y
+  // «no se encontró» no contienen «no encontr» y dejaban en 0 respuestas correctas.
+  "no encuentr",
+  "no se encontr",
   "no hay ",
   "no se menciona",
   "no menciona",
