@@ -1240,6 +1240,10 @@ function buildDecorations(
 
       const isActive = activeLines.has(line.number);
       const text = line.text;
+      // ¿La posición (absoluta) cae dentro de código? Ahí un `[[x]]` o un `#x` se
+      // escribió para MOSTRAR la sintaxis, no para usarla (`DEF-089`): no se
+      // decora como enlace, etiqueta ni embed.
+      const enCodigoAbs = (pos: number) => codigo.some(([f, t]) => pos >= f && pos < t);
 
       // Callouts (> [!tipo] …, con anidamiento — DEF-022) y citas (>) en vivo.
       const headMatch = CALLOUT_HEAD_RE.exec(text);
@@ -1352,6 +1356,7 @@ function buildDecorations(
       for (const match of line.text.matchAll(EXCALIDRAW_RE)) {
         const mFrom = line.from + match.index;
         exRanges.push([mFrom, mFrom + match[0].length]);
+        if (enCodigoAbs(mFrom)) continue;
         if (!isActive && text.trim() === match[0]) {
           decos.push({
             from: line.from,
@@ -1369,6 +1374,7 @@ function buildDecorations(
       // que usa la vista de lectura.
       for (const match of line.text.matchAll(EMBED_IMAGEN_RE)) {
         if (isActive || text.trim() !== match[0]) continue;
+        if (enCodigoAbs(line.from + match.index)) continue;
         if (!esVideo(match[1])) continue;
         decos.push({
           from: line.from,
@@ -1383,6 +1389,7 @@ function buildDecorations(
       for (const match of line.text.matchAll(embedDrawioRe())) {
         const mFrom = line.from + match.index;
         exRanges.push([mFrom, mFrom + match[0].length]);
+        if (enCodigoAbs(mFrom)) continue;
         if (!isActive && text.trim() === match[0]) {
           decos.push({
             from: line.from,
@@ -1397,6 +1404,7 @@ function buildDecorations(
       for (const match of line.text.matchAll(WIKILINK_RE)) {
         const start = line.from + match.index;
         if (exRanges.some(([f, t]) => start >= f && start < t)) continue;
+        if (enCodigoAbs(start)) continue;
         const innerFrom = start + 2;
         const innerTo = innerFrom + match[1].length;
         // [[destino|alias]]: el destino navega, el alias es lo visible. La
@@ -1426,6 +1434,7 @@ function buildDecorations(
 
       for (const match of line.text.matchAll(TAG_RE)) {
         const start = line.from + match.index + match[1].length;
+        if (enCodigoAbs(start)) continue;
         decos.push({
           from: start,
           to: start + match[2].length + 1,
