@@ -19,6 +19,7 @@
  */
 import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
+import { crearFtsFilas, enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
 import { reindexarPropiedades, textoIndexable } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 
@@ -163,6 +164,10 @@ export async function crearEsquemaIndice(): Promise<void> {
   } catch {
     // La columna ya existe: nada que hacer.
   }
+  // Qué `rowid` de `notas_fts` le toca a cada nota (`DEF-105`): sin esto, borrar
+  // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
+  // anterior la llena a partir de lo que ya hay, una sola vez.
+  await crearFtsFilas();
 }
 
 /**
@@ -390,14 +395,9 @@ export async function indexarVault(
         [id, leido.contenido, now],
       );
 
-      // Reindex FTS (delete + insert), como `TouchNotaContenidoAsync`/`contenido.ts`.
-      // Al índice va el CUERPO + los VALORES de las propiedades, no el YAML crudo.
-      await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
-      await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
-        id,
-        titulo,
-        textoIndexable(leido.contenido),
-      ]);
+      // Reindex FTS, como `contenido.ts`. Al índice va el CUERPO + los VALORES
+      // de las propiedades, no el YAML crudo.
+      await ftsPoner(id, titulo, textoIndexable(leido.contenido));
       await reindexarPropiedades(id, leido.contenido);
 
       reindexadas++;
@@ -422,20 +422,28 @@ export async function indexarVault(
   const enPapelera = new Set(
     (await select<{ nota_id: string }>("SELECT nota_id FROM papelera")).map((r) => r.nota_id),
   );
+  //
+  // Y va POR CONJUNTOS (`DEF-105`): se calcula la diferencia entre el índice y el
+  // disco, y se borra por tandas de ids. Antes eran seis sentencias por nota,
+  // cada una un viaje por el puente IPC, y la de `notas_fts` recorría la tabla
+  // entera: tras un `git worktree remove` de 5.000 notas con la app cerrada, la
+  // apertura se quedaba horas en «Leyendo los archivos… N de N».
   const rutasActuales = new Set(archivos.map((a) => a.rutaRelativa));
-  for (const { id } of notasExistentes) {
-    if (rutasActuales.has(id)) continue;
-    if (enPapelera.has(id)) continue;
-    await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
-    await execute("DELETE FROM propiedades WHERE nota_id = ?", [id]);
-    await execute("DELETE FROM contenidos WHERE nota_id = ?", [id]);
-    await execute("DELETE FROM diagramas WHERE nota_id = ?", [id]);
-    await execute("DELETE FROM papelera WHERE nota_id = ?", [id]);
-    await execute("DELETE FROM notas WHERE id = ?", [id]);
+  const desaparecidas = notasExistentes
+    .map((n) => n.id)
+    .filter((id) => !rutasActuales.has(id) && !enPapelera.has(id));
+  await ftsBorrar(desaparecidas);
+  for (const tanda of enTandas(desaparecidas)) {
+    const q = marcadores(tanda.length);
+    await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);
+    await execute(`DELETE FROM contenidos WHERE nota_id IN (${q})`, tanda);
+    await execute(`DELETE FROM diagramas WHERE nota_id IN (${q})`, tanda);
+    await execute(`DELETE FROM papelera WHERE nota_id IN (${q})`, tanda);
+    await execute(`DELETE FROM notas WHERE id IN (${q})`, tanda);
   }
-  for (const { id } of carpetasExistentes) {
-    if (carpetas.has(id)) continue;
-    await execute("DELETE FROM carpetas WHERE id = ?", [id]);
+  const carpetasIdas = carpetasExistentes.map((c) => c.id).filter((id) => !carpetas.has(id));
+  for (const tanda of enTandas(carpetasIdas)) {
+    await execute(`DELETE FROM carpetas WHERE id IN (${marcadores(tanda.length)})`, tanda);
   }
 
   return { notas: archivos.length, carpetas: carpetas.size, reindexadas };

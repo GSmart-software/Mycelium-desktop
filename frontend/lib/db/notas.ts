@@ -4,6 +4,7 @@
  * copia de contenido al duplicar).
  */
 import { execute, select } from "./client";
+import { ftsPoner, ftsRetitular } from "./ftsIndice";
 import { DbError } from "./errors";
 import { carpetaDeArchivo, tituloDeRuta } from "./indexer";
 import type { CreatedResponse, NotaTipo } from "./types";
@@ -94,10 +95,7 @@ export async function crearNota(
       "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",
       [id, now],
     );
-    await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, '')", [
-      id,
-      titulo,
-    ]);
+    await ftsPoner(id, titulo, "");
     return { id };
   }
 
@@ -152,7 +150,7 @@ export async function renombrarNota(
     id,
   ]);
   // Mantener el título del índice FTS en sincronía si la nota ya está indexada.
-  await execute("UPDATE notas_fts SET titulo = ? WHERE nota_id = ?", [limpio, id]);
+  await ftsRetitular(id, limpio);
   return { id, titulo: limpio };
 }
 
@@ -251,11 +249,7 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
       cont[0].contenido,
       now,
     ]);
-    await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
-      nuevo,
-      titulo,
-      cont[0].contenido,
-    ]);
+    await ftsPoner(nuevo, titulo, cont[0].contenido);
   }
 
   // Copia de diagramas excalidraw embebidos.

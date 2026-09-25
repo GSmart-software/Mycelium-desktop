@@ -15,6 +15,7 @@
  */
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
+import { ftsBorrar, ftsPoner } from "./ftsIndice";
 import { desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
 
@@ -268,12 +269,8 @@ export async function rekeyIndice(
     await execute("UPDATE contenidos SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE diagramas SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE papelera SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
-    await execute("DELETE FROM notas_fts WHERE nota_id = ?", [n.oldId]);
-    await execute("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)", [
-      n.newId,
-      n.newTitulo,
-      cont[0]?.contenido ?? "",
-    ]);
+    await ftsBorrar([n.oldId]);
+    await ftsPoner(n.newId, n.newTitulo, cont[0]?.contenido ?? "");
   }
 
   // 4) Borrado de notas viejas (ya sin hijos que las referencien).

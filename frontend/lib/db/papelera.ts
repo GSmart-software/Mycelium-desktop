@@ -4,6 +4,7 @@
  * (al directorio original o a la raíz si ya no existe) y borrar permanentemente.
  */
 import { execute, select } from "./client";
+import { ftsBorrar } from "./ftsIndice";
 import { DbError } from "./errors";
 import type { PapeleraResponse } from "./types";
 import { ahoraIso, buildRutaLookup, nuevoId, rutaDe } from "./util";
@@ -146,7 +147,7 @@ export async function borrarPermanente(id: string): Promise<void> {
   }
 
   await execute("DELETE FROM papelera WHERE nota_id = ?", [id]);
-  await execute("DELETE FROM notas_fts WHERE nota_id = ?", [id]);
+  await ftsBorrar([id]);
   // contenidos y diagramas se borran en cascada (FK ON DELETE CASCADE).
   await execute("DELETE FROM notas WHERE id = ?", [id]);
 }
