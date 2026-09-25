@@ -29,6 +29,7 @@ import { cargarPreguntas, leerJsonl, ultimaPorSesion } from "./lib/preguntas.mjs
 import { puntuar } from "./lib/puntuacion.mjs";
 import { prng, mediana } from "./lib/regla.mjs";
 import { motivoRed } from "./lib/red.mjs";
+import { sondearMcp } from "./lib/sonda-mcp.mjs";
 import { resumirTranscripcion } from "./lib/transcripcion.mjs";
 
 const EVAL = dirname(fileURLToPath(import.meta.url));
@@ -362,6 +363,11 @@ function principal() {
   console.log(`Costo estimado (con las repeticiones por descarte): US$ ${est.total.toFixed(2)}${est.faltan.length ? ` — sin datos para: ${est.faltan.join(", ")}` : ""}.`);
   if (!v.ejecutar) return;
   if (!v["confirmo-costo"]) throw new Error("Una tanda consume cuota del usuario: agregar --confirmo-costo para ejecutarla.");
+  if (brazos.includes("mcp")) {
+    const problemas = sondearMcp(comun.mcpConfig);
+    if (problemas.length) throw new Error(`El servidor MCP no anda; la tanda no arranca:\n  - ${problemas.join("\n  - ")}`);
+    console.log("Servidor MCP verificado: arranca, da sus herramientas y contesta una búsqueda.");
+  }
   // § 7, regla 5: una corrida descartada se anota y se REPITE. Con un tope, para
   // que una pregunta que siempre rompe la salida no se coma la tanda.
   const reintentos = Number(v.reintentos);
