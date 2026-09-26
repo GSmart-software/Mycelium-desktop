@@ -15,12 +15,10 @@
 //!
 //! En los demás sistemas se cae al plugin, sin manejo del clic.
 
-use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
-
-/// Evento que recibe la ventana cuando el usuario hace clic en la notificación.
-const EVENTO_ACTIVADA: &str = "recordatorio-notificacion-activada";
+use tauri::{AppHandle, Runtime, WebviewWindow};
 
 /// Trae una ventana al frente: la desminimiza, la muestra y le da el foco.
+#[cfg(windows)]
 fn traer_al_frente<R: Runtime>(ventana: &WebviewWindow<R>) {
     let _ = ventana.unminimize();
     let _ = ventana.show();
@@ -48,6 +46,7 @@ pub fn notificar_recordatorio<R: Runtime>(
 
 #[cfg(windows)]
 fn mostrar<R: Runtime>(app: AppHandle<R>, etiqueta: String, titulo: String, cuerpo: String) {
+    use tauri::Manager;
     use tauri_winrt_notification::Toast;
 
     // El AppUserModelID: el del instalador cuando es la app instalada; en
@@ -77,9 +76,9 @@ fn mostrar<R: Runtime>(app: AppHandle<R>, etiqueta: String, titulo: String, cuer
             .title(&titulo)
             .text1(&cuerpo)
             .on_activated(move |_| {
+                // La tarjeta ya está en la ventana: alcanza con traerla.
                 if let Some(v) = app_clic.get_webview_window(&etiqueta_clic) {
                     traer_al_frente(&v);
-                    let _ = v.emit(EVENTO_ACTIVADA, ());
                 }
                 Ok(())
             })
