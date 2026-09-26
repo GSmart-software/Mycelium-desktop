@@ -823,3 +823,127 @@
   font-size: 0.75rem;
   color: var(--mic-text-muted);
 }
+
+/* ── Selector de mes y año (saltar lejos sin sesenta clics) ─────── */
+
+.selector {
+  position: relative;
+}
+
+.selectorBoton,
+.selectorBotonCompacto {
+  padding: 0.2rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  white-space: nowrap;
+}
+
+.selectorBoton {
+  margin: 0 0.25rem;
+  min-width: 11rem;
+  font-size: 1rem;
+  text-align: left;
+}
+
+.selectorBotonCompacto {
+  font-size: 0.8125rem;
+}
+
+.selectorBoton:hover,
+.selectorBotonCompacto:hover,
+.selectorBoton[aria-expanded="true"],
+.selectorBotonCompacto[aria-expanded="true"] {
+  background: var(--mic-bg-hover);
+}
+
+.selectorBoton span::first-letter,
+.selectorBotonCompacto span::first-letter {
+  text-transform: uppercase;
+}
+
+.selectorPanel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  z-index: 30;
+  width: 15.5rem;
+  padding: 0.6rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+}
+
+.selectorAnio {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.selectorCampoAnio {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.selectorCampoAnio:focus {
+  outline: 2px solid var(--mic-accent);
+  outline-offset: -1px;
+}
+
+.selectorMeses {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+}
+
+.selectorMes {
+  padding: 0.4rem 0;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.selectorMes::first-letter {
+  text-transform: uppercase;
+}
+
+.selectorMes:hover {
+  background: var(--mic-bg-hover);
+}
+
+/* El mes que hoy se está mirando, relleno; el mes de hoy, solo contorneado. */
+.selectorMes[data-actual] {
+  box-shadow: inset 0 0 0 1px var(--mic-accent);
+}
+
+.selectorMes[data-visible] {
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+  font-weight: 600;
+}
+
+.selectorHoy {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--mic-border);
+  font-size: 0.8125rem;
+  color: var(--mic-accent);
+}
+
+.selectorHoy:hover {
+  background: var(--mic-bg-hover);
+}

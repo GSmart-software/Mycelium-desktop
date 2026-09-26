@@ -19,6 +19,7 @@ import {
 import { DIAS_SEMANA, fechaCompleta } from "./comun";
 import { ListaRecordatorios } from "./ListaRecordatorios";
 import styles from "./Recordatorios.module.css";
+import { SelectorMes } from "./SelectorMes";
 
 /** Cuántos chips entran en un día antes del «+N más». */
 const CHIPS_POR_DIA = 3;
@@ -144,9 +145,7 @@ export function CalendarioVista() {
         >
           <ChevronRight size={18} aria-hidden />
         </button>
-        <h2 className={styles.tituloMes} aria-live="polite">
-          {nombreDelMes(mes)} {anio}
-        </h2>
+        <SelectorMes anio={anio} mes={mes} onElegir={(a, m) => setMes({ anio: a, mes: m })} />
         <button type="button" className={styles.boton} onClick={irAHoy}>
           Hoy
         </button>

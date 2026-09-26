@@ -3,7 +3,6 @@
 import { ChevronLeft, ChevronRight, ExternalLink, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  nombreDelMes,
   ocurrenciasEnRango,
   semanasDelMes,
   varColor,
@@ -14,6 +13,7 @@ import { hoy, nuevoRecordatorio, useRecordatoriosStore } from "@/stores/recordat
 import { fechaCompleta, INICIALES_SEMANA, useAbrirCalendario } from "./comun";
 import { ListaRecordatorios } from "./ListaRecordatorios";
 import styles from "./Recordatorios.module.css";
+import { SelectorMes } from "./SelectorMes";
 
 /** Como mucho tantos puntos por día: más no entran en la celda y no dicen más. */
 const PUNTOS_POR_DIA = 3;
@@ -89,9 +89,14 @@ export function CalendarioPanel() {
           >
             <ChevronLeft size={16} aria-hidden />
           </button>
-          <span className={styles.compactoMes} aria-live="polite">
-            {nombreDelMes(mes)} {anio}
-          </span>
+          <div className={styles.compactoMes}>
+            <SelectorMes
+              compacto
+              anio={anio}
+              mes={mes}
+              onElegir={(a, m) => setMesVisible({ anio: a, mes: m })}
+            />
+          </div>
           <button
             type="button"
             className={styles.botonIcono}
