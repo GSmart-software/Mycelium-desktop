@@ -311,10 +311,27 @@ Usa subagentes para trabajo real que afecte a **ambas** versiones o que sea no t
 
 ## Versionar y empaquetar (solo desktop)
 
-Al subir de versión hay que tocar **todos** estos lugares a mano (no hay automatización):
-`frontend/lib/version.ts` (`APP_VERSION`, es lo que ve el usuario) · `frontend/package.json`
-· `frontend/src-tauri/Cargo.toml` · `frontend/src-tauri/tauri.conf.json` (define el nombre
-del instalador). El criterio lo decide **qué cambia para el usuario**, no el tamaño del
+Al subir de versión, el número vive en **cinco archivos** —`frontend/lib/version.ts`
+(`APP_VERSION`, es lo que ve el usuario) · `frontend/package.json` ·
+`frontend/src-tauri/Cargo.toml` · `frontend/src-tauri/tauri.conf.json` (define el nombre
+del instalador) · `Cargo.lock`— y los sube de una vez `cd frontend && npm run versionar --
+X.Y.Z`, que además crea el esqueleto de `docs/estado/Version X.Y.Z.md`. **No los toques a
+mano.**
+
+> [!important] La versión también vive en la memoria: estos documentos se tocan en cada salto
+> Cuatro notas **afirman** cuál es la versión vigente (no la mencionan de paso: la declaran),
+> y quedan mintiendo si no se actualizan con el número:
+> 1. `CLAUDE.md` — la tabla de versiones de arriba.
+> 2. `docs/estado/Estado del proyecto.md` — la línea «Versión: …» del encabezado.
+> 3. `docs/estado/Versionado del sistema.md` — el callout «Estado actual».
+> 4. `docs/Mapa de documentacion.md` — la entrada «release actual de desktop» (y la de web).
+>
+> Más la nota de release nueva (`docs/estado/Version X.Y.Z.md`), enlazada desde las tres
+> últimas. Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
+> documento nuevo empieza a declarar la versión, se agrega acá. Lo demás (`BACKLOG`,
+> catálogo de defectos, specs) menciona versiones **pasadas** como hechos y no se retoca.
+
+El criterio lo decide **qué cambia para el usuario**, no el tamaño del
 trabajo: si no puede hacer nada que antes no pudiera, es **patch** —aunque el cambio haya
 costado mucho—; si gana funcionalidad, minor; si es rearquitectura, major. Los tamaños
 del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.

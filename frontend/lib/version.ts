@@ -109,6 +109,17 @@
  *   **Minor, y uno solo**: hay capacidad nueva y eso manda; las correcciones
  *   viajan absorbidas. Ver `docs/estado/Version 2.1.0.md`.
  *
+ * - `2.2.0` — **el calendario con recordatorios** (`FUN-L-22`: avisan en la app y
+ *   en Windows, viven en el vault y no son archivos) y **las disposiciones del
+ *   grafo** (`FUN-L-23`: anillo de colonias, crecimiento y sustrato, elegibles
+ *   por vault, además del cúmulo de siempre). Absorbe los arreglos del índice
+ *   que salieron del incidente de un vault de 11.780 notas (`DEF-105` a
+ *   `DEF-108`: reindexado lento, cambios externos que no aparecían, datos que
+ *   se perdían al reconstruir el índice, y un índice que no se achicaba).
+ *
+ *   **Minor, y uno solo** para dos funcionalidades: el salto lo decide el
+ *   cambio más significativo, no cuántos hay. Ver `docs/estado/Version 2.2.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
