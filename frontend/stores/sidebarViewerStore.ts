@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { GRAPH_TAB_ID } from "@/stores/tabsStore";
+import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/stores/tabsStore";
 
 /**
  * Valor de `activeTab` que representa la pestaña del árbol de archivos. Solo se usa
@@ -100,6 +100,7 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
         const rest = tabs.filter(
           (id) =>
             id === GRAPH_TAB_ID ||
+            id === CALENDAR_TAB_ID ||
             id.startsWith("terminal:") ||
             id.startsWith("archivo:") ||
             validIds.has(id),

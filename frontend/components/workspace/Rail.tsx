@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarDays,
   CircleDot,
   Files,
   Search,
@@ -23,6 +24,9 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   // para una versión futura» en el tercer lugar del rail (critique 2026-09-19).
   // Plantillas de notas (FUN-M-03): un clic en una Espora crea la nota.
   { section: "esporas", icon: CircleDot, label: "Esporas" },
+  // Calendario de recordatorios (FUN-L-22): el panel es la vista compacta; desde
+  // ahí se abre como pestaña.
+  { section: "calendario", icon: CalendarDays, label: "Calendario" },
 ];
 
 const BOTTOM_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [

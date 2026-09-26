@@ -12,6 +12,13 @@ export const GRAPH_TAB_ID = "graph:global";
 export const ENLACES_TAB_ID = "enlaces:global";
 
 /**
+ * Pestaña del calendario de recordatorios (`FUN-L-22`). Como la del grafo: un id
+ * reservado que no es una nota, así que se mueve, divide y cierra como
+ * cualquier pestaña pero nunca es de preview ni se descarta al reconciliar.
+ */
+export const CALENDAR_TAB_ID = "calendario:global";
+
+/**
  * Pestaña: instancia de una nota abierta en un pane (HU-25). `preview` marca
  * la pestaña efímera (estilo Obsidian/VSCode): si solo se está viendo el
  * archivo, abrir otro la reemplaza; al editarla o fijarla pasa a permanente.
@@ -90,6 +97,7 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 const esSentinela = (notaId: string) =>
   notaId === GRAPH_TAB_ID ||
   notaId === ENLACES_TAB_ID ||
+  notaId === CALENDAR_TAB_ID ||
   notaId.startsWith("terminal:") ||
   notaId.startsWith("archivo:");
 

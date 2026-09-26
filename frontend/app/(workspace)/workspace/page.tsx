@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
+import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { Avisos } from "@/components/workspace/Avisos";
 import { BarraEstado } from "@/components/workspace/BarraEstado";
@@ -400,6 +401,8 @@ function WorkspaceShell() {
       <UpdateDialog />
       <PaletaComandos />
       <Avisos />
+      {/* Tarjetas de aviso y modal del calendario (FUN-L-22). */}
+      <Recordatorios />
       <DialogoConfirmar />
     </div>
   );

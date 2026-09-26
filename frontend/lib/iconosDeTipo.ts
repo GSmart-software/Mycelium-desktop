@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   FileQuestion,
   FileText,
   LayoutDashboard,
@@ -37,6 +38,9 @@ export const ICONO_POR_TIPO: Record<NotaTipo, LucideIcon> = {
 
 /** El grafo de conexiones. Es el mismo ícono que su sección del rail. */
 export const ICONO_GRAFO = Share2;
+
+/** El calendario de recordatorios (`FUN-L-22`). El mismo ícono que su ítem del rail. */
+export const ICONO_CALENDARIO = CalendarDays;
 
 /** La pantalla de referencias del vault (`FUN-L-17`). */
 export const ICONO_REFERENCIAS = Link2;

@@ -6,6 +6,7 @@ import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import {
+  ICONO_CALENDARIO,
   ICONO_CONSOLA,
   ICONO_GRAFO,
   ICONO_OTRO_ARCHIVO,
@@ -19,6 +20,7 @@ import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import {
   allLeaves,
+  CALENDAR_TAB_ID,
   ENLACES_TAB_ID,
   GRAPH_TAB_ID,
   useTabsStore,
@@ -74,6 +76,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   function tituloDeNotaId(notaId: string) {
     if (notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
     if (notaId === ENLACES_TAB_ID) return "Referencias del vault";
+    if (notaId === CALENDAR_TAB_ID) return "Calendario";
     if (esTabTerminal(notaId)) {
       return sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal";
     }
@@ -99,6 +102,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   function iconoDeTab(notaId: string) {
     if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
     if (notaId === ENLACES_TAB_ID) return ICONO_REFERENCIAS;
+    if (notaId === CALENDAR_TAB_ID) return ICONO_CALENDARIO;
     if (esTabTerminal(notaId)) return ICONO_CONSOLA;
     if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
     const tipo = notas.find((n) => n.id === notaId)?.tipo;
@@ -132,6 +136,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   function tooltipOf(tab: Tab) {
     if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
     if (tab.notaId === ENLACES_TAB_ID) return "Referencias del vault";
+    if (tab.notaId === CALENDAR_TAB_ID) return "Calendario";
     if (esTabTerminal(tab.notaId)) return titleOf(tab);
     // La ruta relativa completa: es lo único que ubica al archivo, porque no
     // está en el árbol de carpetas del índice.

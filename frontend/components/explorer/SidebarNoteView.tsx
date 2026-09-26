@@ -9,6 +9,7 @@ import { DrawioView } from "@/components/drawio/DrawioView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
+import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
@@ -20,7 +21,7 @@ import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
-import { GRAPH_TAB_ID } from "@/stores/tabsStore";
+import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "../workspace/SidebarDock.module.css";
 
@@ -91,6 +92,21 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         </div>
         <div className={styles.viewerGraph}>
           <GraphView />
+        </div>
+      </div>
+    );
+  }
+
+  // El calendario anclado en el costado (`FUN-L-22`) usa su vista compacta: la
+  // grilla del mes no entra en el ancho de un panel.
+  if (notaId === CALENDAR_TAB_ID) {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>Calendario</span>
+        </div>
+        <div className={styles.viewerBody}>
+          <CalendarioPanel />
         </div>
       </div>
     );
