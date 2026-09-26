@@ -8,7 +8,13 @@
 import { referenciasDe } from "@/lib/canvas";
 import { etiquetasDe } from "@/lib/frontmatter";
 import { sinCodigo } from "@/lib/sinCodigo";
-import { destinoDeWikilink } from "@/lib/wikilinks";
+import {
+  indexarPorTitulo,
+  partirWikilink,
+  resolveWikilinkEnIndice,
+  type CarpetaEnlazable,
+  type NotaEnlazable,
+} from "@/lib/wikilinks";
 import { select } from "./client";
 import { DbError } from "./errors";
 
@@ -40,26 +46,38 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
   const filas = await select<{
     id: string;
     titulo: string;
+    carpeta_id: string | null;
     creado_en: string;
     tipo: string;
     contenido: string | null;
   }>(
-    `SELECT n.id, n.titulo, n.creado_en, n.tipo, c.contenido
+    `SELECT n.id, n.titulo, n.carpeta_id, n.creado_en, n.tipo, c.contenido
      FROM notas n LEFT JOIN contenidos c ON c.nota_id = n.id
      WHERE n.vault_id = ? AND n.id NOT IN (SELECT nota_id FROM papelera)`,
     [vaultId],
   );
+  const carpetas: CarpetaEnlazable[] = (
+    await select<{ id: string; nombre: string; padre_id: string | null }>(
+      "SELECT id, nombre, padre_id FROM carpetas WHERE vault_id = ?",
+      [vaultId],
+    )
+  ).map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
 
-  // Título → primera nota con ese título (case-insensitive), para resolver enlaces.
-  const porTitulo = new Map<string, string>();
+  // Los enlaces se resuelven con la MISMA regla que el editor (`FUN-M-40`, D8):
+  // pista de carpeta, sin extensión, empate a la ruta más corta. Antes era «la
+  // primera nota con ese título» en el orden de esta consulta, así que con dos
+  // homónimas el clic iba a una y la arista a otra, y `![[x.excalidraw]]` no
+  // llegaba al grafo.
+  const porTitulo = indexarPorTitulo<NotaEnlazable>(
+    filas.map((f) => ({ id: f.id, titulo: f.titulo, carpetaId: f.carpeta_id })),
+  );
+  const resolver = (ref: string) => resolveWikilinkEnIndice(ref, porTitulo, carpetas)?.id;
   const titulosPorId = new Map<string, string>();
   const contenidos = new Map<string, string>();
   /** Canvas por id: su contenido se interpreta aparte, no como prosa. */
   const canvasPorId = new Map<string, string>();
   const creadoPorId = new Map<string, string>();
   for (const f of filas) {
-    const key = f.titulo.toLowerCase();
-    if (!porTitulo.has(key)) porTitulo.set(key, f.id);
     titulosPorId.set(f.id, f.titulo);
     creadoPorId.set(f.id, f.creado_en);
     // Una base (`FUN-L-03`) SÍ es un destino válido —`[[Mi base]]` navega y
@@ -98,7 +116,7 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
   for (const [notaId, json] of canvasPorId) {
     const { titulos, rutas } = referenciasDe(json);
     for (const t of titulos) {
-      const destinoId = porTitulo.get(t.toLowerCase());
+      const destinoId = resolver(t);
       if (destinoId) agregar(notaId, destinoId);
     }
     // La tarjeta guarda una RUTA, y en desktop el id de una nota ES su ruta.
@@ -109,18 +127,13 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
     // es una arista del grafo.
     const texto = sinCodigo(contenido);
     for (let m = WIKILINK_RE.exec(texto); m !== null; m = WIKILINK_RE.exec(texto)) {
-      // [[destino|alias]] y [[Carpeta/destino]] → apunta al título (antes del `|`,
-      // último segmento de la ruta). La barra puede venir escapada si el enlace
-      // está dentro de una tabla (`DEF-045`), y ahí también es un alias.
-      const destino = destinoDeWikilink(m[1]);
-      const destinoId = porTitulo.get(destino.toLowerCase());
-      if (destinoId && destinoId !== notaId) {
-        const clave = `${notaId}\u0000${destinoId}`;
-        if (!vistas.has(clave)) {
-          vistas.add(clave);
-          aristas.push({ from: notaId, to: destinoId });
-        }
-      }
+      // [[destino|alias]] y [[Carpeta/destino]] → el destino sin el alias, CON
+      // la ruta, que es la pista para desambiguar homónimas. La barra puede
+      // venir escapada si el enlace está dentro de una tabla (`DEF-045`), y ahí
+      // también es un alias. Un embed `![[x.excalidraw]]` entra por acá igual:
+      // la extensión la quita el resolutor.
+      const destinoId = resolver(partirWikilink(m[1]).destino);
+      if (destinoId) agregar(notaId, destinoId);
     }
   }
 

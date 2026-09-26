@@ -1,8 +1,9 @@
 /**
- * Cómo se parte un `[[wikilink]]` en destino y alias. Módulo **puro y sin
- * imports** a propósito: lo consumen tanto la capa de datos (`lib/db/grafo.ts`)
+ * Cómo se parte un `[[wikilink]]` en destino y alias, y a qué nota apunta. Módulo
+ * **puro** a propósito: lo consumen tanto la capa de datos (`lib/db/grafo.ts`)
  * como el editor, y `scripts/test-wikilinks.mjs` lo transpila e importa sin
- * build, igual que `lib/frontmatter.ts` o `lib/bases.ts`.
+ * build, igual que `lib/frontmatter.ts` o `lib/bases.ts`. Su único import es
+ * `lib/extensionesDeTipo`, que también es puro (solo importa un tipo).
  *
  * > [!important] La barra del alias puede venir escapada (`DEF-045`)
  * > Dentro de una tabla, la barra vertical **separa celdas**, así que
@@ -23,6 +24,8 @@
  * >
  * > Por eso el separador es `\|` **o** `|`: las dos formas son el mismo enlace.
  */
+
+import { sinExtensionDeNota } from "@/lib/extensionesDeTipo";
 
 /**
  * El separador entre destino y alias. La barra invertida es opcional porque
@@ -63,12 +66,182 @@ export function partirWikilink(inner: string): WikilinkPartido {
 }
 
 /**
- * El destino ya listo para buscar por título: sin alias y sin la ruta de
- * carpetas que lo desambigua. Es lo que necesitan el grafo y el canvas, que
- * comparan contra los títulos del vault.
+ * Embed de un dibujo de Excalidraw: `![[ref.excalidraw]]`. El grupo 1 es la
+ * referencia **sin** la extensión (`Carpeta/Dibujo`), que es lo que resuelve
+ * `resolveWikilink` contra los títulos del vault.
+ *
+ * Vive una sola vez acá (`FUN-M-40`, D6): la vista de lectura, la vista en vivo
+ * y la exportación la llevaban copiada, y la de la exportación solo aceptaba un
+ * uuid —el embed del mecanismo «embebido», ya retirado—.
+ *
+ * > [!warning] Es global (`/g`): usarla solo con `matchAll`
+ * > `matchAll` trabaja sobre una copia y no toca su `lastIndex`; `exec` o `test`
+ * > sí lo harían, y dos consumidores se pisarían.
  */
-export function destinoDeWikilink(inner: string): string {
-  const { destino } = partirWikilink(inner);
-  const barra = destino.lastIndexOf("/");
-  return (barra >= 0 ? destino.slice(barra + 1) : destino).trim();
+export const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
+
+// ── A qué nota apunta un enlace (`FUN-M-40`, D8) ──────────────────────────────
+//
+// > [!important] Una sola regla para el editor y para el grafo
+// > Hasta `FUN-M-40` había dos: el editor (clic, embeds, autocompletado) usaba
+// > esta —pista de carpeta, sin extensión, empate a la ruta más corta— y el
+// > grafo, las conexiones y los retroenlaces usaban «la primera nota con ese
+// > título» en el orden de la consulta, sin pista ni extensión. Con dos notas
+// > homónimas el clic iba a una y el grafo dibujaba la arista a otra;
+// > `![[x.excalidraw]]` resolvía en el editor y no en el grafo; y renombrar
+// > —que reescribe los enlaces entrantes a partir de las conexiones— podía
+// > reescribir la nota equivocada. Ahora las dos puntas llaman a esta.
+
+/** Lo mínimo de una nota para resolver un enlace hacia ella. */
+export type NotaEnlazable = { id: string; titulo: string; carpetaId: string | null };
+/** Lo mínimo de una carpeta para leer la ruta de una nota. */
+export type CarpetaEnlazable = { id: string; nombre: string; padreId: string | null };
+
+/**
+ * Carpetas por id, calculado una vez por lista de carpetas. Misma idea que el
+ * índice por título de abajo: la lista del store no se muta, así que sirve de
+ * clave y el índice se libera con ella.
+ */
+const carpetasPorId = new WeakMap<readonly CarpetaEnlazable[], Map<string, CarpetaEnlazable>>();
+
+/** Segmentos de carpeta (raíz→hoja) que contienen a una nota. */
+export function folderSegments(
+  carpetaId: string | null,
+  carpetas: readonly CarpetaEnlazable[],
+): string[] {
+  let porId = carpetasPorId.get(carpetas);
+  if (!porId) {
+    porId = new Map(carpetas.map((c) => [c.id, c]));
+    carpetasPorId.set(carpetas, porId);
+  }
+  const segs: string[] = [];
+  const seen = new Set<string>();
+  let id = carpetaId;
+  while (id && !seen.has(id)) {
+    seen.add(id);
+    const c = porId.get(id);
+    if (!c) break;
+    segs.unshift(c.nombre);
+    id = c.padreId;
+  }
+  return segs;
+}
+
+/**
+ * Notas agrupadas por título en minúsculas: el índice sobre el que se resuelve.
+ * Quien resuelve muchos enlaces contra la misma lista —el grafo, una vez por
+ * arista— lo arma una vez y llama a `resolveWikilinkEnIndice`.
+ */
+export function indexarPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Map<string, N[]> {
+  const indice = new Map<string, N[]>();
+  for (const n of notas) {
+    const clave = n.titulo.toLowerCase();
+    const lista = indice.get(clave);
+    if (lista) lista.push(n);
+    else indice.set(clave, [n]);
+  }
+  return indice;
+}
+
+/**
+ * El índice por título de una lista, calculado una vez por lista (`FUN-M-38`,
+ * hallazgo H6). `resolveWikilink` se llama por cada `[[enlace]]` visible en
+ * cada tecla, y recorrer las notas con `toLowerCase()` costaba 0,34 ms por
+ * llamada en un vault de 1.300 notas: con cien enlaces a la vista, 34 ms por
+ * tecla solo en resolver. La clave es la lista misma —el store crea una nueva
+ * en cada recarga y nunca la muta—, así que el índice se rehace solo cuando
+ * cambian las notas y se libera con ellas (`WeakMap`).
+ */
+const indicePorLista = new WeakMap<readonly NotaEnlazable[], Map<string, NotaEnlazable[]>>();
+
+export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Map<string, N[]> {
+  let indice = indicePorLista.get(notas) as Map<string, N[]> | undefined;
+  if (!indice) {
+    indice = indexarPorTitulo(notas);
+    indicePorLista.set(notas, indice);
+  }
+  return indice;
+}
+
+/**
+ * Resuelve una referencia de wikilink contra un índice por título. Acepta solo
+ * el título (`archivo`) o una ruta parcial (`Carpeta/archivo`) para desambiguar
+ * cuando hay varios archivos con el mismo nombre. Ante empate sin pista de
+ * ruta, elige el de ruta más corta (más cercano a la raíz), como Obsidian.
+ *
+ * `ref` es el destino ya sin alias (`partirWikilink`), con su ruta si la traía.
+ */
+export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
+  ref: string,
+  porTitulo: Map<string, N[]>,
+  carpetas: readonly CarpetaEnlazable[],
+): N | undefined {
+  const parts = ref
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return undefined;
+
+  const title = parts[parts.length - 1].toLowerCase();
+  const hint = parts.slice(0, -1).map((s) => s.toLowerCase());
+
+  let matches = porTitulo.get(title) ?? [];
+  // Las referencias a archivos llevan extensión (`archivo.excalidraw`), pero el
+  // título de la nota no la incluye: si no hubo match exacto, se prueba sin la
+  // extensión para que el enlace/embed resuelva y no se estile como inexistente.
+  //
+  // Las extensiones salen de `lib/extensionesDeTipo` y no de una lista escrita
+  // acá: cuando estaban a mano decían solo `excalidraw|md`, así que
+  // `![[diagrama.drawio]]` no resolvía a nada y el embed se dibujaba como
+  // «no existe» aunque el archivo estuviera ahí al lado.
+  if (matches.length === 0) {
+    const stripped = sinExtensionDeNota(title);
+    if (stripped !== title) matches = porTitulo.get(stripped) ?? [];
+  }
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return matches[0];
+
+  // Empate de profundidad → por ruta, y no por el orden de la lista: el editor
+  // recibe las notas en el orden del store y el grafo en el de su consulta, y
+  // con el orden de llegada dos homónimas a la misma altura podían resolver
+  // distinto en cada punta.
+  const byDepth = (a: N, b: N) =>
+    folderSegments(a.carpetaId, carpetas).length - folderSegments(b.carpetaId, carpetas).length ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+  if (hint.length === 0) return [...matches].sort(byDepth)[0];
+
+  // Desambiguar: la ruta de la nota debe terminar con los segmentos de la pista.
+  const matchHint = matches.filter((n) => {
+    const segs = folderSegments(n.carpetaId, carpetas).map((s) => s.toLowerCase());
+    if (hint.length > segs.length) return false;
+    return hint.every((h, i) => segs[segs.length - hint.length + i] === h);
+  });
+  const pool = matchHint.length > 0 ? matchHint : matches;
+  return [...pool].sort(byDepth)[0];
+}
+
+/**
+ * La referencia más corta que resuelve a `nota`: su título si es el único con
+ * ese nombre, y si no `Carpeta/Sub/título`. Es lo que inserta quien escribe un
+ * enlace o un embed por su cuenta —crear o soltar un dibujo en una nota—, para
+ * que no termine apuntando a una homónima más cercana a la raíz.
+ */
+export function refUnivoca(
+  nota: NotaEnlazable,
+  notas: readonly NotaEnlazable[],
+  carpetas: readonly CarpetaEnlazable[],
+): string {
+  const homonimas = notasPorTitulo(notas).get(nota.titulo.toLowerCase())?.length ?? 0;
+  if (homonimas <= 1) return nota.titulo;
+  return [...folderSegments(nota.carpetaId, carpetas), nota.titulo].join("/");
+}
+
+/** `resolveWikilinkEnIndice` sobre una lista de notas (con su índice en caché). */
+export function resolveWikilink<N extends NotaEnlazable>(
+  ref: string,
+  notas: readonly N[],
+  carpetas: readonly CarpetaEnlazable[],
+): N | undefined {
+  return resolveWikilinkEnIndice(ref, notasPorTitulo(notas), carpetas);
 }
