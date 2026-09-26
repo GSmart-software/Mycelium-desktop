@@ -36,6 +36,32 @@ export function folderSegments(
 }
 
 /**
+ * Notas agrupadas por título en minúsculas, calculado una vez por lista de
+ * notas (`FUN-M-38`, hallazgo H6). `resolveWikilink` se llama por cada
+ * `[[enlace]]` visible en cada tecla, y recorrer las notas con `toLowerCase()`
+ * costaba 0,34 ms por llamada en un vault de 1.300 notas: con cien enlaces a la
+ * vista, 34 ms por tecla solo en resolver. La clave es la lista misma —el store
+ * crea una nueva en cada recarga y nunca la muta—, así que el índice se rehace
+ * solo cuando cambian las notas y se libera con ellas (`WeakMap`).
+ */
+const indicePorTitulo = new WeakMap<TreeNota[], Map<string, TreeNota[]>>();
+
+function notasPorTitulo(notas: TreeNota[]): Map<string, TreeNota[]> {
+  let indice = indicePorTitulo.get(notas);
+  if (!indice) {
+    indice = new Map();
+    for (const n of notas) {
+      const clave = n.titulo.toLowerCase();
+      const lista = indice.get(clave);
+      if (lista) lista.push(n);
+      else indice.set(clave, [n]);
+    }
+    indicePorTitulo.set(notas, indice);
+  }
+  return indice;
+}
+
+/**
  * Resuelve una referencia de wikilink a una nota. Acepta solo el título
  * (`archivo`) o una ruta parcial (`Carpeta/archivo`) para desambiguar cuando
  * hay varios archivos con el mismo nombre. Ante empate sin pista de ruta,
@@ -55,7 +81,8 @@ export function resolveWikilink(
   const title = parts[parts.length - 1].toLowerCase();
   const hint = parts.slice(0, -1).map((s) => s.toLowerCase());
 
-  let matches = notas.filter((n) => n.titulo.toLowerCase() === title);
+  const porTitulo = notasPorTitulo(notas);
+  let matches = porTitulo.get(title) ?? [];
   // Las referencias a archivos llevan extensión (`archivo.excalidraw`), pero el
   // título de la nota no la incluye: si no hubo match exacto, se prueba sin la
   // extensión para que el enlace/embed resuelva y no se estile como inexistente.
@@ -66,7 +93,7 @@ export function resolveWikilink(
   // «no existe» aunque el archivo estuviera ahí al lado.
   if (matches.length === 0) {
     const stripped = sinExtensionDeNota(title);
-    if (stripped !== title) matches = notas.filter((n) => n.titulo.toLowerCase() === stripped);
+    if (stripped !== title) matches = porTitulo.get(stripped) ?? [];
   }
   if (matches.length === 0) return undefined;
 
@@ -125,17 +152,13 @@ export function wikilinkCompletions(context: CompletionContext): CompletionResul
 
   const { notas, carpetas } = useVaultStore.getState();
 
-  // Conteo de títulos para detectar ambigüedad.
-  const counts = new Map<string, number>();
-  for (const n of notas) {
-    const k = n.titulo.toLowerCase();
-    counts.set(k, (counts.get(k) ?? 0) + 1);
-  }
+  // Títulos repetidos (ambiguos), del mismo índice que usa `resolveWikilink`.
+  const porTitulo = notasPorTitulo(notas);
 
   const options = notas
     .map((n) => {
       const segs = folderSegments(n.carpetaId, carpetas);
-      const ambiguous = (counts.get(n.titulo.toLowerCase()) ?? 0) > 1;
+      const ambiguous = (porTitulo.get(n.titulo.toLowerCase())?.length ?? 0) > 1;
       const path = segs.length > 0 ? `${segs.join("/")}/${n.titulo}` : n.titulo;
       // Las ambiguas se insertan con ruta para que resuelvan de forma única.
       const insert = ambiguous ? path : n.titulo;
