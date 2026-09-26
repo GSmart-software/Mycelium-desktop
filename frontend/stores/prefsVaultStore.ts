@@ -24,6 +24,19 @@ import { invoke } from "@tauri-apps/api/core";
 export type ModoNombresGrafo = "todos" | "vecinos" | "apuntado";
 
 /**
+ * Disposiciones del grafo global (`FUN-L-23`). `cumulo` es la de siempre
+ * (fuerzas); las otras tres vienen de la exploración de representaciones
+ * inspiradas en el micelio. Es preferencia **del vault** por la misma razón que
+ * los nombres: un vault chico y uno de miles de notas no se leen igual.
+ */
+export const DISPOSICIONES_GRAFO = ["cumulo", "anillo", "crecimiento", "sustrato"] as const;
+export type DisposicionGrafo = (typeof DISPOSICIONES_GRAFO)[number];
+
+/** Si `v` es una disposición conocida. Sirve de saneo al leer del disco. */
+export const esDisposicionGrafo = (v: unknown): v is DisposicionGrafo =>
+  typeof v === "string" && (DISPOSICIONES_GRAFO as readonly string[]).includes(v);
+
+/**
  * Anchos de columna de los archivos tabla (`FUN-M-25`).
  *
  * `id del .base` → `referencia de la columna` → ancho en píxeles.
@@ -45,6 +58,8 @@ export type PrefsVault = {
   numerosDeLinea: boolean;
   /** Qué nombres se dibujan en el grafo (`FUN-M-21`). */
   nombresGrafo: ModoNombresGrafo;
+  /** Cómo se disponen los nodos del grafo global (`FUN-L-23`). */
+  disposicionGrafo: DisposicionGrafo;
   /** Ancho de las columnas de cada archivo tabla (`FUN-M-25`). */
   anchosTabla: AnchosTabla;
 };
@@ -53,11 +68,14 @@ export type PrefsVault = {
  * Los valores con los que arranca un vault que nunca guardó nada.
  *
  * `numerosDeLinea` va **apagado** a propósito: es lo que pidió el usuario y es
- * lo que hace que un vault existente no cambie de aspecto al actualizar.
+ * lo que hace que un vault existente no cambie de aspecto al actualizar. Por
+ * el mismo motivo `disposicionGrafo` arranca en `cumulo`, la disposición de
+ * siempre.
  */
 export const POR_DEFECTO: PrefsVault = {
   numerosDeLinea: false,
   nombresGrafo: "todos",
+  disposicionGrafo: "cumulo",
   anchosTabla: {},
 };
 
@@ -82,6 +100,9 @@ export function normalizar(crudo: unknown): PrefsVault {
       o.nombresGrafo === "todos" || o.nombresGrafo === "vecinos" || o.nombresGrafo === "apuntado"
         ? o.nombresGrafo
         : POR_DEFECTO.nombresGrafo,
+    disposicionGrafo: esDisposicionGrafo(o.disposicionGrafo)
+      ? o.disposicionGrafo
+      : POR_DEFECTO.disposicionGrafo,
     anchosTabla: normalizarAnchos(o.anchosTabla),
   };
 }
