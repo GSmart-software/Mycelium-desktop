@@ -9,6 +9,7 @@ mod marco;
 mod mycignore;
 mod navegacion;
 mod prefs_vault;
+mod recordatorios;
 mod terminal;
 mod vault_config;
 mod vault_fs;
@@ -166,6 +167,10 @@ pub fn run() {
         // leyendo la config compilada, así que sin claves la app arranca igual
         // y solo queda el updater desactivado con su motivo a la vista.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Notificación del sistema de los recordatorios (`FUN-L-22`). En Windows
+        // el toast lo arma `recordatorios.rs` para atender el clic; el plugin
+        // cubre los demás sistemas.
+        .plugin(tauri_plugin_notification::init())
         .manage(Pending(Mutex::new(pendientes)))
         .manage(vault_watch::WatcherState::default())
         .manage(terminal::TerminalesState::default())
@@ -206,6 +211,7 @@ pub fn run() {
             prefs_vault::escribir_prefs_vault,
             prefs_vault::leer_estado_vault,
             prefs_vault::escribir_estado_vault,
+            recordatorios::notificar_recordatorio,
             vault_config::listar_vaults,
             vault_config::vincular_vault,
             vault_config::desvincular_vault,
