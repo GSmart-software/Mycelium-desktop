@@ -1,11 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { CircleDot, Files, Search, Tag, Terminal, Trash2, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  CircleDot,
+  Files,
+  Search,
+  Tag,
+  Terminal,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import { EsporasPanel } from "@/components/explorer/EsporasPanel";
 import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
+import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { SidebarDock } from "./SidebarDock";
@@ -23,6 +33,7 @@ const SECTION_TITLES: Record<RailSection, string> = {
   search: "Búsqueda",
   tags: "Tags",
   esporas: "Esporas",
+  calendario: "Calendario",
   trash: "Papelera",
   terminal: "Consolas",
 };
@@ -32,6 +43,7 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
   search: Search,
   tags: Tag,
   esporas: CircleDot,
+  calendario: CalendarDays,
   trash: Trash2,
   terminal: Terminal,
 };
@@ -88,6 +100,8 @@ function SectionContent({ section }: { section: RailSection }) {
       return <p className={styles.placeholder}>La vista de tags está planificada para una versión futura.</p>;
     case "esporas":
       return <EsporasPanel />;
+    case "calendario":
+      return <CalendarioPanel />;
     case "trash":
       return <TrashPanel />;
     case "terminal":

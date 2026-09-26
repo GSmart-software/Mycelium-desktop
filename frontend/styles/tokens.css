@@ -51,6 +51,28 @@
   --mic-consola-violeta: #855DE2;
   --mic-consola-azul:    #2975D9;
 
+  /* Colores de los recordatorios del calendario (`FUN-L-22`): una paleta FIJA
+     de ocho, sin selector libre, porque los temas los define Mycelium y un color
+     elegido a mano puede quedar ilegible en otro tema. Los nombres (Hifa,
+     Musgo…) están en lib/recordatorios.ts y son los que lee un lector de
+     pantalla en el formulario.
+
+     A diferencia de los de consola, cambian con el MODO: acá el color es el
+     fondo teñido de un chip y el borde de una tarjeta, y un solo valor no llega
+     a los dos extremos. Los de claro se midieron sobre los cuatro fondos claros
+     (lienzo y niebla de los dos temas) y los de oscuro sobre los cuatro
+     oscuros: el peor caso queda en 3.78:1 en claro y 6.0:1 en oscuro, por
+     encima del 3:1 de WCAG 1.4.11 para un objeto gráfico. El texto de un chip
+     no va en este color sino en la tinta, sobre el color diluido. */
+  --mic-recordatorio-1: #1A8391; /* Hifa    — cian */
+  --mic-recordatorio-2: #188847; /* Musgo   — verde */
+  --mic-recordatorio-3: #6B7A0E; /* Liquen  — oliva */
+  --mic-recordatorio-4: #B0590B; /* Yesca   — naranja */
+  --mic-recordatorio-5: #C7322B; /* Amanita — rojo */
+  --mic-recordatorio-6: #C42E7E; /* Coral   — rosa */
+  --mic-recordatorio-7: #7F55DD; /* Espora  — violeta */
+  --mic-recordatorio-8: #2A6FD0; /* Bruma   — azul */
+
   /* Lo que el NAVEGADOR dibuja por su cuenta y el CSS no alcanza: la lista
      desplegada de un <select>, el calendario de un <input type="date">, los
      controles nativos. Sin esto los pinta siempre en claro —texto casi blanco
@@ -187,6 +209,16 @@
 [data-dark='true'] {
   color-scheme: dark;
   --mic-terminal-bg: #141719;
+
+  /* Recordatorios (`FUN-L-22`): la misma paleta, aclarada para fondo oscuro. */
+  --mic-recordatorio-1: #3FC7D6;
+  --mic-recordatorio-2: #52CC7E;
+  --mic-recordatorio-3: #B8CB4E;
+  --mic-recordatorio-4: #F0A04B;
+  --mic-recordatorio-5: #F4706A;
+  --mic-recordatorio-6: #F07AB8;
+  --mic-recordatorio-7: #B59BFF;
+  --mic-recordatorio-8: #72A9FF;
 }
 
 /* Bioluminiscencia oscuro = paleta abisal del prototipo legacy:

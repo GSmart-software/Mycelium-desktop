@@ -1,0 +1,825 @@
+/* Calendario y recordatorios (`FUN-L-22`). Un solo módulo para la pestaña, el
+   panel, el modal y la tarjeta de aviso: comparten el chip, el punto de color y
+   la lista, y así se ven iguales en los cuatro sitios.
+
+   El color de cada recordatorio llega como `--rec` en el estilo del elemento
+   (`var(--mic-recordatorio-N)`, styles/tokens.css). Nunca es color de texto:
+   pinta bordes, puntos y el fondo diluido de un chip; el texto va en la tinta. */
+
+/* ── Botones ───────────────────────────────────────────────────── */
+
+.boton,
+.botonPrimario,
+.botonIcono {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  white-space: nowrap;
+}
+
+.boton {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--mic-border);
+}
+
+.boton:hover,
+.botonIcono:hover {
+  background: var(--mic-bg-hover);
+}
+
+.botonPrimario {
+  padding: 0.3rem 0.7rem;
+  font-weight: 600;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+}
+
+.botonPrimario:hover {
+  background: color-mix(in srgb, var(--mic-accent) 85%, var(--mic-text-primary));
+}
+
+.botonPrimario:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.botonIcono {
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--mic-text-muted);
+}
+
+.botonIcono:hover {
+  color: var(--mic-text-primary);
+}
+
+.peligro {
+  color: var(--mic-callout-caution-border);
+}
+
+/* ── Selector Día · Semana · Mes ──────────────────────────────── */
+
+.segmentos {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-text-muted) 12%, transparent);
+}
+
+.segmento {
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.segmento[aria-pressed="true"] {
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--mic-raw-base-deep) 20%, transparent);
+}
+
+/* ── Punto y chip de color ────────────────────────────────────── */
+
+.punto {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rec);
+}
+
+.chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  width: 100%;
+  min-width: 0;
+  padding: 1px 0.35rem;
+  border-left: 3px solid var(--rec);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--rec) 16%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--mic-text-primary);
+  text-align: left;
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--rec) 28%, transparent);
+}
+
+.chipHora {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-muted);
+}
+
+.chipTitulo {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seleccionado {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
+/* ── Pestaña ──────────────────────────────────────────────────── */
+
+.vista {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--mic-bg-canvas);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.tituloMes {
+  margin: 0 0.25rem;
+  min-width: 11rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.tituloMes::first-letter {
+  text-transform: uppercase;
+}
+
+.empuje {
+  flex: 1;
+}
+
+.cuerpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.grilla {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.encabezadoSemana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mic-text-muted);
+  text-align: center;
+}
+
+.semanas {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+  border-top: 1px solid var(--mic-border);
+  border-left: 1px solid var(--mic-border);
+}
+
+.semana {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.dia {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: 0.25rem;
+  overflow: hidden;
+  border-right: 1px solid var(--mic-border);
+  border-bottom: 1px solid var(--mic-border);
+  cursor: default;
+}
+
+.dia:hover {
+  background: color-mix(in srgb, var(--mic-glow) 5%, transparent);
+}
+
+.diaFuera {
+  background: color-mix(in srgb, var(--mic-text-muted) 5%, transparent);
+}
+
+.diaFuera .numeroDia {
+  color: color-mix(in srgb, var(--mic-text-muted) 60%, transparent);
+}
+
+.diaElegido {
+  background: color-mix(in srgb, var(--mic-glow) 9%, transparent);
+}
+
+.numeroDia {
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+}
+
+.numeroDia:hover {
+  background: var(--mic-bg-hover);
+}
+
+/* Hoy: el número en una píldora del acento, como en cualquier calendario. */
+.hoy .numeroDia {
+  font-weight: 700;
+  color: var(--mic-raw-canvas);
+  background: var(--mic-accent);
+}
+
+.mas {
+  align-self: flex-start;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+}
+
+.mas:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 18rem;
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 0.75rem;
+  border-left: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+  overflow-y: auto;
+}
+
+/* ── Lista (pestaña y panel) ──────────────────────────────────── */
+
+.listaCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.listaTitulo {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.listaTitulo::first-letter {
+  text-transform: uppercase;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.grupoFecha {
+  margin: 0.5rem 0 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mic-text-muted);
+}
+
+.grupoFecha:first-child {
+  margin-top: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+.itemHora {
+  flex-shrink: 0;
+  width: 4.6rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-muted);
+}
+
+.itemTitulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vacio {
+  padding: 0.6rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+/* ── Panel lateral ────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.panelAcciones {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.compacto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.compactoNav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.compactoMes {
+  flex: 1;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  text-align: center;
+}
+
+.compactoMes::first-letter {
+  text-transform: uppercase;
+}
+
+.compactoGrilla {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+
+.compactoInicial {
+  padding: 0.15rem 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+  text-align: center;
+}
+
+.compactoDia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.2rem 0 0.25rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+}
+
+.compactoDia:hover {
+  background: var(--mic-bg-hover);
+}
+
+.compactoDia.diaFuera {
+  background: none;
+  color: color-mix(in srgb, var(--mic-text-muted) 60%, transparent);
+}
+
+.compactoDia.hoy {
+  font-weight: 700;
+  color: var(--mic-enlace);
+}
+
+.compactoDia.diaElegido {
+  background: color-mix(in srgb, var(--mic-glow) 18%, transparent);
+}
+
+.puntos {
+  display: flex;
+  gap: 2px;
+  height: 5px;
+}
+
+.puntos .punto {
+  width: 5px;
+  height: 5px;
+}
+
+/* ── Modal (ver y editar) ─────────────────────────────────────── */
+
+/* Por debajo de `DialogoConfirmar` (z-80): «Eliminar» pregunta encima. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 45%, transparent);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(86vh, 760px);
+  border-radius: var(--mic-radius-md);
+  border: 1px solid var(--mic-border);
+  border-top: 4px solid var(--rec, var(--mic-border));
+  background: var(--mic-bg-surface);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+}
+
+.modalCabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem 1rem 0.5rem 1.25rem;
+}
+
+.modalTitulo {
+  flex: 1;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--mic-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.modalCuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-height: 0;
+  padding: 0 1.25rem 1rem;
+  overflow-y: auto;
+}
+
+.modalPie {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--mic-border);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.meta strong {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+/* El detalle renderizado usa `.mic-preview` para heredar el estilo de lectura
+   (enlaces, callouts, listas), pero no su papel de PANEL: ni alto completo ni
+   scroll propio ni el fondo del lienzo. */
+.detalle:global(.mic-preview) {
+  height: auto;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.detalle > :first-child {
+  margin-top: 0;
+}
+
+.detalle > :last-child {
+  margin-bottom: 0;
+}
+
+.sinDetalle {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: var(--mic-text-muted);
+}
+
+/* ── Formulario ───────────────────────────────────────────────── */
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+}
+
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.entrada {
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-base);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--mic-text-primary);
+}
+
+.entrada:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 0;
+}
+
+.entradaTitulo {
+  font-size: 1rem;
+}
+
+.casilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-bottom: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--mic-text-primary);
+}
+
+.colores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.color {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--rec);
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 2px var(--mic-bg-surface);
+}
+
+.color[aria-checked="true"] {
+  border-color: var(--rec);
+  box-shadow: inset 0 0 0 3px var(--mic-bg-surface);
+}
+
+.color:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 2px;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--mic-callout-error-border);
+}
+
+/* El editor del detalle: el de las notas, sin su hoja centrada ni su alto
+   completo. Doble clase para ganarle a `.mic-editor-host .cm-*` sin depender
+   del orden en que se cargan las hojas. */
+.editorDetalle {
+  min-height: 7.5rem;
+  max-height: 16rem;
+  display: flex;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-base);
+  overflow: hidden;
+  font-weight: 400;
+}
+
+.editorDetalle:focus-within {
+  outline: 2px solid var(--mic-focus);
+}
+
+.editorDetalle:global(.mic-editor-host) :global(.cm-editor) {
+  flex: 1;
+  height: auto;
+  background: transparent;
+}
+
+.editorDetalle:global(.mic-editor-host) :global(.cm-scroller) {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.875rem;
+}
+
+.editorDetalle:global(.mic-editor-host) :global(.cm-content) {
+  max-width: none;
+}
+
+/* ── Tarjetas de aviso ────────────────────────────────────────── */
+
+/* Abajo a la DERECHA: los avisos efímeros (`FUN-M-33`) ocupan la izquierda, y
+   así una tarjeta que no se va no tapa a los que sí. Por encima del modal del
+   calendario y de Configuración, como ellos. */
+.pilaTarjetas {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--mic-statusbar-height) + 0.75rem);
+  z-index: 85;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  width: min(360px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.tarjeta {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem 0.6rem 0.9rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--rec) 45%, var(--mic-border));
+  border-left: 4px solid var(--rec);
+  background: color-mix(in srgb, var(--rec) 9%, var(--mic-bg-surface));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+  color: var(--mic-text-primary);
+  animation: entrar 160ms ease-out;
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta {
+    animation: none;
+  }
+}
+
+.tarjetaCabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.tarjetaIcono {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--rec);
+}
+
+.tarjetaTitulo {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.tarjetaCuando {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.vencido {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.tarjetaDetalle {
+  max-height: 5.2em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent);
+  mask-image: linear-gradient(to bottom, black 65%, transparent);
+}
+
+.tarjetaDetalle.abierto {
+  max-height: 40vh;
+  overflow-y: auto;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.tarjetaDetalle:global(.mic-preview) {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.verTodo {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  color: var(--mic-enlace);
+}
+
+.verTodo:hover {
+  text-decoration: underline;
+}
+
+.tarjetaAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.accion {
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  border: 1px solid color-mix(in srgb, var(--rec) 40%, var(--mic-border));
+}
+
+.accion:hover {
+  background: color-mix(in srgb, var(--rec) 18%, transparent);
+}
+
+.accionSecundaria {
+  font-weight: 400;
+  border-color: transparent;
+  color: var(--mic-text-muted);
+}
+
+.masTarjetas {
+  pointer-events: auto;
+  align-self: flex-end;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}

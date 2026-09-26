@@ -1,6 +1,17 @@
 "use client";
 
-import { FilePlus, Palette, PanelLeft, Search, Settings, SunMoon, Terminal, type LucideIcon } from "lucide-react";
+import {
+  BellPlus,
+  CalendarDays,
+  FilePlus,
+  Palette,
+  PanelLeft,
+  Search,
+  Settings,
+  SunMoon,
+  Terminal,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
@@ -9,7 +20,8 @@ import { ATMOSFERAS } from "@/lib/atmosferas";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { CALENDAR_TAB_ID, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore, type TreeCarpeta } from "@/stores/vaultStore";
 import { IconoGrafo } from "./IconoGrafo";
@@ -149,6 +161,19 @@ export function PaletaComandos() {
         titulo: "Abrir el grafo de conexiones",
         icono: IconoGrafo,
         ejecutar: () => abrirNota(GRAPH_TAB_ID),
+      },
+      {
+        id: "cmd-calendario",
+        titulo: "Abrir el calendario",
+        icono: CalendarDays,
+        ejecutar: () => abrirNota(CALENDAR_TAB_ID),
+      },
+      {
+        id: "cmd-recordatorio",
+        titulo: "Nuevo recordatorio",
+        detalle: "Para hoy, en el calendario",
+        icono: BellPlus,
+        ejecutar: () => nuevoRecordatorio(hoy()),
       },
       {
         id: "cmd-explorador",

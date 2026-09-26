@@ -29,6 +29,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
+import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -139,6 +140,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // por delante las pestañas que se acaban de restaurar — y deja el layout
     // vacío guardado en la clave de este vault.
     useVaultStore.getState().reset();
+    // Y los recordatorios del anterior (`FUN-L-22`): mientras se abre este, no
+    // tiene que sonar ninguno de aquel.
+    void useRecordatoriosStore.getState().cargar(null);
     // Y las consolas del vault anterior (`DEF-099`): sus procesos tienen el cwd
     // en la carpeta que se está dejando. Se sueltan ANTES de cambiar de almacén
     // para que el scrollback se guarde en la clave a la que pertenece.
@@ -212,6 +216,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // tardan o fallan, el vault se abre igual con los valores por defecto —un
       // ajuste de aspecto no puede demorar la apertura.
       void usePrefsVaultStore.getState().cargar(ruta);
+      // Los recordatorios del calendario (`FUN-L-22`) también son del vault: se
+      // cargan acá, y al cargarlos arranca el programador, que avisa en el acto
+      // lo que venció con la app cerrada. Sin esperar, por lo mismo que arriba.
+      void useRecordatoriosStore.getState().cargar(ruta);
       set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
       return true;
     } catch (error) {
@@ -266,6 +274,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // Las preferencias del vault que se cierra no deben quedar puestas: el
     // siguiente vault trae las suyas, y mientras tanto valen las por defecto.
     void usePrefsVaultStore.getState().cargar(null);
+    // Y sus recordatorios: fuera del vault no se muestran ni avisan (`FUN-L-22`).
+    // Vaciar el store detiene también el programador.
+    void useRecordatoriosStore.getState().cargar(null);
     set({ rutaActual: null, rutaAbriendo: null, etapa: null, progreso: null, error: null });
   },
 }));

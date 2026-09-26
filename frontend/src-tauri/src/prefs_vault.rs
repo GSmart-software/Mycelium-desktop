@@ -38,7 +38,16 @@ fn ruta_prefs(vault: &Path) -> PathBuf {
 /// Es una lista cerrada a propósito: el nombre llega del frontend, y aceptar
 /// cualquiera sería dejar escribir en `.mycelium/` —o, con un `..`, fuera de
 /// él— desde la webview.
-const ESTADOS: &[&str] = &["apariencia.json", "snippets.json", "papelera.json"];
+///
+/// `recordatorios.json` es el calendario del vault (`FUN-L-22`): no es un
+/// archivo del vault —no aparece en el explorador, la búsqueda ni el grafo—
+/// pero viaja con él, y por eso vive acá y no en la config de la app.
+const ESTADOS: &[&str] = &[
+    "apariencia.json",
+    "snippets.json",
+    "papelera.json",
+    "recordatorios.json",
+];
 
 fn ruta_estado(vault: &Path, nombre: &str) -> Result<PathBuf, String> {
     if !ESTADOS.contains(&nombre) {
@@ -161,6 +170,22 @@ mod tests {
         assert!(escribir_estado_vault(r.clone(), "../fuera.json".into(), "x".into()).is_err());
         assert!(escribir_estado_vault(r.clone(), "preferencias.json".into(), "x".into()).is_err());
         assert!(leer_estado_vault(r, "otro.json".into()).is_err());
+    }
+
+    #[test]
+    fn los_recordatorios_son_un_estado_valido() {
+        // El calendario (`FUN-L-22`) guarda sus recordatorios en `.mycelium/`:
+        // si el nombre no estuviera en la lista, cada guardado fallaría.
+        let v = vault_temporal("recordatorios");
+        let r = v.to_string_lossy().to_string();
+        assert_eq!(leer_estado_vault(r.clone(), "recordatorios.json".into()).unwrap(), None);
+        escribir_estado_vault(r.clone(), "recordatorios.json".into(), r#"{"version":1}"#.into())
+            .unwrap();
+        assert!(v.join(DIR).join("recordatorios.json").is_file());
+        assert_eq!(
+            leer_estado_vault(r, "recordatorios.json".into()).unwrap().as_deref(),
+            Some(r#"{"version":1}"#)
+        );
     }
 
     #[test]

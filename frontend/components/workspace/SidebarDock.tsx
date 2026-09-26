@@ -4,6 +4,7 @@ import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
 import {
+  ICONO_CALENDARIO,
   ICONO_CONSOLA,
   ICONO_GRAFO,
   ICONO_OTRO_ARCHIVO,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
-import { findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { CALENDAR_TAB_ID, findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
@@ -63,7 +64,9 @@ export function SidebarDock({
   const tituloDe = (notaId: string) =>
     notaId === GRAPH_TAB_ID
       ? "Grafo de conexiones"
-      : esTabTerminal(notaId)
+      : notaId === CALENDAR_TAB_ID
+        ? "Calendario"
+        : esTabTerminal(notaId)
         ? sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal"
         : esTabArchivo(notaId)
           ? nombreDeRuta(rutaDeTabArchivo(notaId))
@@ -78,6 +81,7 @@ export function SidebarDock({
    */
   const iconoDe = (notaId: string) => {
     if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
+    if (notaId === CALENDAR_TAB_ID) return ICONO_CALENDARIO;
     if (esTabTerminal(notaId)) return ICONO_CONSOLA;
     if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
     return ICONO_POR_TIPO[notas.find((n) => n.id === notaId)?.tipo ?? "markdown"];

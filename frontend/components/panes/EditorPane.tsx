@@ -7,6 +7,7 @@ import { BaseView } from "@/components/bases/BaseView";
 import { CanvasView } from "@/components/canvas/CanvasView";
 import { DrawioView } from "@/components/drawio/DrawioView";
 import { RelinkView } from "@/components/enlaces/RelinkView";
+import { CalendarioVista } from "@/components/recordatorios/CalendarioVista";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
@@ -14,6 +15,7 @@ import { VisorArchivo } from "@/components/visor/VisorArchivo";
 import { esTabArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import {
+  CALENDAR_TAB_ID,
   ENLACES_TAB_ID,
   GRAPH_TAB_ID,
   useTabsStore,
@@ -67,6 +69,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <GraphView key={activeTab.id} />
         ) : activeTab && activeTab.notaId === ENLACES_TAB_ID ? (
           <RelinkView key={activeTab.id} />
+        ) : activeTab && activeTab.notaId === CALENDAR_TAB_ID ? (
+          <CalendarioVista key={activeTab.id} />
         ) : activeTab && esTabTerminal(activeTab.notaId) ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
         ) : activeTab && esTabArchivo(activeTab.notaId) ? (

@@ -55,6 +55,11 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 # fijar el proveedor por defecto del proceso antes del primer TLS propio.
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 trash = "5.2.3"
+# Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
+# la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.
+# En Windows el toast se arma con `tauri-winrt-notification` (abajo) para poder
+# atender el clic; el plugin queda para los demás sistemas.
+tauri-plugin-notification = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
@@ -70,6 +75,9 @@ windows = { version = "0.61", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
 ] }
+# El toast de un recordatorio con manejador de clic (`FUN-L-22`, src/recordatorios.rs).
+# Misma versión que trae `tauri-plugin-notification` por debajo: no se compila dos veces.
+tauri-winrt-notification = "0.7"
 
 # Solo para el test headless del data layer (misma sqlx/SQLite que usa el plugin).
 [dev-dependencies]
