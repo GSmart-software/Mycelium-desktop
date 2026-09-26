@@ -1,22 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { esSentinela } from "@/lib/pestanas";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-
-/**
- * Id sentinela para la pestaña del grafo global: se abre como una ventana más
- * en el área de panes (estilo Obsidian), no en el panel de archivos.
- */
-export const GRAPH_TAB_ID = "graph:global";
-
-/** Pestaña de la pantalla de referencias del vault (`FUN-L-17`). */
-export const ENLACES_TAB_ID = "enlaces:global";
-
-/**
- * Pestaña del calendario de recordatorios (`FUN-L-22`). Como la del grafo: un id
- * reservado que no es una nota, así que se mueve, divide y cierra como
- * cualquier pestaña pero nunca es de preview ni se descarta al reconciliar.
- */
-export const CALENDAR_TAB_ID = "calendario:global";
 
 /**
  * Pestaña: instancia de una nota abierta en un pane (HU-25). `preview` marca
@@ -83,23 +68,9 @@ export type SplitEdge = "top" | "bottom" | "left" | "right";
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
-/**
- * Ids que no son notas del vault: el grafo, las terminales y los visores de
- * archivos que Mycelium no indexa (`FUN-L-11`) — ver "ids sentinela" en
- * docs/aprendizajes/Estado con Zustand.md. No pueden ser pestaña de preview ni
- * entrar en una línea de historial: reemplazar una terminal mata su sesión, y
- * un archivo suelto no es un destino de navegación del vault.
- *
- * El prefijo va literal y no importado de `lib/otrosArchivos` a propósito: es el
- * mismo criterio que con `terminal:`, para que el store no dependa de módulos
- * que a su vez dependen de él.
- */
-const esSentinela = (notaId: string) =>
-  notaId === GRAPH_TAB_ID ||
-  notaId === ENLACES_TAB_ID ||
-  notaId === CALENDAR_TAB_ID ||
-  notaId.startsWith("terminal:") ||
-  notaId.startsWith("archivo:");
+// Qué pestañas no son notas (grafo, referencias, calendario, consolas, visores de
+// archivos no indexados) lo decide `lib/pestanas.ts`, que no depende de este
+// store: acá solo se consulta `esSentinela` al abrir, navegar y reconciliar.
 
 // ── Historial por pestaña (DEF-040) ───────────────────────────────
 

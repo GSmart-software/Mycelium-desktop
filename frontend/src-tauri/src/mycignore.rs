@@ -30,6 +30,28 @@ pub const ARCHIVO: &str = ".mycignore";
 /// `dist` escribe su propio archivo sin esa línea.
 const DEFAULT: &str = ".*/\nnode_modules/\ntarget/\ndist/\nout/";
 
+/// Cabecera explicativa de la plantilla que ofrece Configuración → Vault.
+const CABECERA_PLANTILLA: &str = "\
+# .mycignore — qué ignora Mycelium en este vault (uno por línea)
+# nombre/ = carpetas con ese nombre en cualquier nivel
+# ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario
+# .mycelium/ (índice interno) se ignora siempre.
+# Esto es el comportamiento por defecto: borrá la línea que no te sirva
+# (p. ej. si tenés notas en una carpeta llamada dist).
+";
+
+/// Plantilla que muestra el editor de `.mycignore` cuando el vault no tiene uno:
+/// la cabecera comentada + `DEFAULT`, así que guardarla sin tocar es «lo mismo
+/// que sin archivo».
+///
+/// Antes el frontend (`VaultSection.tsx`) tenía su propia copia con un «DEBE
+/// espejar `DEFAULT`» en un comentario; ahora la pide acá y hay una sola lista
+/// (auditoría del 2026-09-26, H11).
+#[tauri::command]
+pub fn mycignore_default() -> String {
+    format!("{CABECERA_PLANTILLA}{DEFAULT}\n")
+}
+
 /// Un patrón parseado del `.mycignore`.
 pub struct Patron {
     /// Termina en `/`: solo coincide con directorios (y todo su contenido).
@@ -131,6 +153,19 @@ mod tests {
         assert!(ignorada(".claude/commands/x.md", false, &p));
         assert!(!ignorada(".mycignore", false, &p)); // archivo oculto, no dir
         assert!(!ignorada("notas/a.md", false, &p));
+    }
+
+    /// Guardar la plantilla sin tocarla no debe cambiar qué se ignora.
+    #[test]
+    fn la_plantilla_equivale_al_default() {
+        let reglas = |t: &str| -> Vec<String> {
+            t.lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                .map(String::from)
+                .collect()
+        };
+        assert_eq!(reglas(&mycignore_default()), reglas(DEFAULT));
     }
 
     /// El default (sin `.mycignore` en el vault) tiene que cubrir las carpetas

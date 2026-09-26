@@ -197,7 +197,6 @@ type PreferencesState = {
   tema: Tema;
   modoOscuro: boolean;
   prefs: Preferencias;
-  hydrated: boolean;
 
   hydrateFromUser: () => void;
   setTema: (tema: Tema) => void;
@@ -248,7 +247,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   tema: "bioluminiscencia",
   modoOscuro: true, // por defecto la estética oscura bioluminiscente (legacy)
   prefs: DEFAULT_PREFS,
-  hydrated: false,
 
   hydrateFromUser() {
     const user = useAuthStore.getState().user;
@@ -256,7 +254,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const raw = (user.preferencias ?? {}) as Partial<Preferencias>;
     const prefs: Preferencias = { ...DEFAULT_PREFS, ...raw };
     const tema: Tema = user.tema === "cantarela" ? "cantarela" : "bioluminiscencia";
-    set({ tema, modoOscuro: user.modoOscuro, prefs, hydrated: true });
+    set({ tema, modoOscuro: user.modoOscuro, prefs });
     applyToDom({ tema, modoOscuro: user.modoOscuro, prefs });
   },
 

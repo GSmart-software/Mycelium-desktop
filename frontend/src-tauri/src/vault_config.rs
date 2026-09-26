@@ -1,4 +1,4 @@
-//! Registro de vaults vinculados (fase 1 del "vault en carpeta").
+//! Registro de vaults vinculados (nació en la fase 1 del "vault en carpeta").
 //!
 //! Modelo Obsidian: los vaults viven en cualquier carpeta del dispositivo y la
 //! app recuerda cuáles se han vinculado. El registro vive FUERA de los vaults
@@ -7,8 +7,9 @@
 //! y `autoAbrir` (la ruta que se abre sola al arrancar, o `null` → selector).
 //!
 //! Vincular solo REGISTRA la carpeta (no copia nada); desvincular la olvida
-//! (los archivos en disco no se tocan). La conmutación real de la capa de datos
-//! a la carpeta llega en fases posteriores (ver docs/features/vault-en-carpeta.md).
+//! (los archivos en disco no se tocan). Abrir el vault —indexar la carpeta y
+//! usarla como fuente de verdad— lo hace el frontend; este módulo solo recuerda
+//! las rutas (ver docs/features/vault-en-carpeta.md).
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};

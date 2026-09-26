@@ -21,9 +21,6 @@
  * > que `lib/frontmatter.ts` y `lib/esporas.ts`.
  */
 
-/** Extensión de los archivos de base (la de Obsidian, para interoperar). */
-export const EXTENSION_BASE = ".base";
-
 // ── Lo que el evaluador necesita saber de una nota ────────────────────────────
 
 /** Una propiedad indexada: un valor por fila (las listas dan varias). */

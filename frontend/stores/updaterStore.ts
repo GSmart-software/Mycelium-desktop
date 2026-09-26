@@ -58,7 +58,6 @@ type UpdaterState = {
   setAvanzado: (valor: boolean) => Promise<void>;
   guardarEndpoint: (valor: string | null) => Promise<void>;
   soltarFijacion: () => Promise<void>;
-  limpiarAviso: () => void;
 };
 
 /** Mensaje de un error que llega de `invoke` (Rust devuelve strings). */
@@ -248,9 +247,5 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
   async soltarFijacion() {
     await fijarVersion(null);
     await get().cargarEstado();
-  },
-
-  limpiarAviso() {
-    set({ aviso: null });
   },
 }));

@@ -202,6 +202,7 @@ pub fn run() {
             archivos::escribir_archivo_visor,
             archivos::listar_directorios,
             archivos::carpeta_no_vacia,
+            mycignore::mycignore_default,
             marco::marco_zona_maximizar,
             marco::marco_olvidar_zona,
             ventanas::registrar_vault,

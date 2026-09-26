@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 
 /**
  * Marca el grafo como desactualizado y redispara el live preview tras un cambio
@@ -56,8 +57,6 @@ type VaultState = {
   carpetas: TreeCarpeta[];
   notas: TreeNota[];
   papelera: PapeleraItem[];
-  /** Ids de carpetas compartidas (con membresías) para marcarlas en el árbol (HU-35 CA5). */
-  sharedCarpetaIds: string[];
   /** Estado expandido/colapsado por carpeta — persiste en localStorage (HU-22 CA5). */
   expanded: Record<string, boolean>;
   /** Carpeta activa: destino de "Nueva nota"/importaciones (HU-23 CA1). */
@@ -99,14 +98,6 @@ const token = () => useAuthStore.getState().accessToken;
 // solo la última iniciada puede escribir el estado. Evita que una recarga vieja
 // (que leyó antes de un move) resuelva última y revierta el árbol.
 let treeSeq = 0;
-
-// Movimientos recientes (id de nota/carpeta → carpeta/padre destino) para que una
-// lectura del árbol que aún NO refleja el cambio (réplica/caché del backend que
-// va por detrás del UPDATE) no revierta visualmente un archivo recién movido.
-// Cada entrada se confirma y limpia en cuanto el servidor refleja el destino;
-// expira por seguridad pasado el período (si el servidor nunca confirma).
-const pendingMoves = new Map<string, { parent: string | null; ts: number }>();
-const MOVE_GRACE_MS = 60_000;
 
 
 /**
@@ -155,7 +146,6 @@ export const useVaultStore = create<VaultState>()(
       carpetas: [],
       notas: [],
       papelera: [],
-      sharedCarpetaIds: [],
       expanded: {},
       activeFolderId: null,
       lastMove: null,
@@ -188,38 +178,7 @@ export const useVaultStore = create<VaultState>()(
           actualizadoEn: n.actualizado_en,
         }));
 
-        // Reconciliar con los movimientos recientes: si el árbol recibido todavía
-        // no refleja un move (lectura atrasada del backend), mantener la posición
-        // local; si ya lo refleja, dar el move por confirmado y olvidarlo.
-        const now = Date.now();
-        for (const [id, m] of pendingMoves) {
-          if (now - m.ts > MOVE_GRACE_MS) pendingMoves.delete(id);
-        }
-        for (const c of carpetas) {
-          const m = pendingMoves.get(c.id);
-          if (!m) continue;
-          if (c.padreId === m.parent) pendingMoves.delete(c.id);
-          else c.padreId = m.parent;
-        }
-        for (const n of notas) {
-          const m = pendingMoves.get(n.id);
-          if (!m) continue;
-          if (n.carpetaId === m.parent) pendingMoves.delete(n.id);
-          else n.carpetaId = m.parent;
-        }
-
         set({ vaultId, carpetas, notas });
-        // Marcador de carpetas compartidas para el árbol general (HU-35 CA5)
-        try {
-          const shared = await api<{ ids: string[] }>(
-            `/vaults/${vaultId}/carpetas-compartidas`,
-            { token: token() },
-          );
-          if (seq !== treeSeq) return;
-          set({ sharedCarpetaIds: shared.ids });
-        } catch {
-          if (seq === treeSeq) set({ sharedCarpetaIds: [] });
-        }
       },
 
       async loadPapelera() {
@@ -276,7 +235,6 @@ export const useVaultStore = create<VaultState>()(
           lastMove: { type: "carpeta", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
-        pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         let res: { id: string };
         try {
           res = await api<{ id: string }>(`/carpetas/${encodeURIComponent(id)}/mover`, {
@@ -287,7 +245,6 @@ export const useVaultStore = create<VaultState>()(
         } catch (err) {
           // Revertir si el backend rechazó el movimiento.
           console.error("[vault] fallo al mover carpeta:", err);
-          pendingMoves.delete(id);
           set((s) => ({
             carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
           }));
@@ -296,8 +253,6 @@ export const useVaultStore = create<VaultState>()(
         // Modo carpeta: mover la carpeta cambia su ruta (id) y la de su subárbol.
         if (res.id !== id) {
           useTabsStore.getState().remapCarpeta(id, res.id);
-          pendingMoves.delete(id);
-          pendingMoves.set(res.id, { parent: destinoId, ts: Date.now() });
           set((s) => ({
             lastMove:
               s.lastMove && s.lastMove.type === "carpeta" && s.lastMove.id === id
@@ -312,21 +267,11 @@ export const useVaultStore = create<VaultState>()(
       async createNota(carpetaId, tipo = "markdown", titulo) {
         const { vaultId } = get();
         if (!vaultId) throw new Error("Sin vault activo");
-        const porDefecto =
-          tipo === "excalidraw"
-            ? "Dibujo sin título"
-            : tipo === "base"
-              ? "Base sin título"
-              : tipo === "canvas"
-                ? "Lienzo sin título"
-                : tipo === "drawio"
-                  ? "Diagrama sin título"
-                  : "Sin título";
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),
           body: {
-            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : porDefecto,
+            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : TITULO_POR_DEFECTO[tipo],
             carpetaId,
             tipo,
           },
@@ -403,7 +348,6 @@ export const useVaultStore = create<VaultState>()(
           lastMove: { type: "nota", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
-        pendingMoves.set(id, { parent: destinoId, ts: Date.now() });
         let res: { id: string };
         try {
           res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}/mover`, {
@@ -414,7 +358,6 @@ export const useVaultStore = create<VaultState>()(
         } catch (err) {
           // Revertir si el backend rechazó el movimiento.
           console.error("[vault] fallo al mover nota:", err);
-          pendingMoves.delete(id);
           set((s) => ({
             notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
           }));
@@ -424,8 +367,6 @@ export const useVaultStore = create<VaultState>()(
         // apuntar deshacer/pendientes al id nuevo.
         if (res.id !== id) {
           useTabsStore.getState().remapNota(id, res.id);
-          pendingMoves.delete(id);
-          pendingMoves.set(res.id, { parent: destinoId, ts: Date.now() });
           set((s) => ({
             lastMove:
               s.lastMove && s.lastMove.type === "nota" && s.lastMove.id === id
@@ -452,7 +393,6 @@ export const useVaultStore = create<VaultState>()(
         const move = get().lastMove;
         if (!move) return;
         set({ lastMove: null });
-        pendingMoves.set(move.id, { parent: move.prevParentId, ts: Date.now() });
         if (move.type === "nota") {
           await api(`/notas/${encodeURIComponent(move.id)}/mover`, {
             method: "POST",
@@ -481,7 +421,6 @@ export const useVaultStore = create<VaultState>()(
           carpetas: [],
           notas: [],
           papelera: [],
-          sharedCarpetaIds: [],
           activeFolderId: null,
           lastMove: null,
         });

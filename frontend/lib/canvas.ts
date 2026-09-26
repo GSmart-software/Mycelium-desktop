@@ -19,8 +19,6 @@
  * > que `lib/frontmatter.ts`, `lib/esporas.ts`, `lib/bases.ts` y `lib/enlaces.ts`.
  */
 
-export const EXTENSION_CANVAS = ".canvas";
-
 /** Lados por los que una flecha se engancha a un nodo. */
 export type Lado = "top" | "right" | "bottom" | "left";
 

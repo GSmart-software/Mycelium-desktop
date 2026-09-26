@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
-import { GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { GRAPH_TAB_ID } from "@/lib/pestanas";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { IconoGrafo } from "./IconoGrafo";
 import styles from "./Rail.module.css";

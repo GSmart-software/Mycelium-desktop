@@ -10,10 +10,6 @@
   grid-area: left;
 }
 
-.panelRight {
-  grid-area: right;
-}
-
 .panelContent {
   display: flex;
   flex-direction: column;

@@ -8,11 +8,13 @@ import { CanvasView } from "@/components/canvas/CanvasView";
 import { DrawioView } from "@/components/drawio/DrawioView";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
+import { RelinkView } from "@/components/enlaces/RelinkView";
 import { GraphView } from "@/components/graph/GraphView";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
-import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
+import { nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
+import { PESTANA_SENTINELA, tipoDePestana } from "@/lib/pestanas";
+import { termIdDe } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderDrawioIn } from "@/lib/drawioRender";
@@ -21,7 +23,6 @@ import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
-import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "../workspace/SidebarDock.module.css";
 
@@ -41,8 +42,13 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
   const nota = useVaultStore((s) => s.notas.find((n) => n.id === notaId) ?? null);
   const editing = useSidebarViewerStore((s) => !!s.editing[notaId]);
   const toggleEdit = useSidebarViewerStore((s) => s.toggleEdit);
+  // Qué es lo anclado (`lib/pestanas.ts`): los sentinela tienen su propia vista;
+  // lo demás es una nota del vault.
+  const pestana = tipoDePestana(notaId);
   const tituloTerminal = useTerminalStore((s) =>
-    esTabTerminal(notaId) ? s.sesiones[termIdDe(notaId)]?.titulo ?? "Terminal" : null,
+    pestana === "terminal"
+      ? s.sesiones[termIdDe(notaId)]?.titulo ?? PESTANA_SENTINELA.terminal.titulo
+      : null,
   );
   const esExcalidraw = nota?.tipo === "excalidraw";
   // Una base anclada muestra su tabla, no el YAML crudo dentro del editor de
@@ -54,7 +60,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
 
   // Una consola también se puede anclar en el visor (FUN-L-07): se muestra la
   // TerminalView real (misma sesión), no un render de nota.
-  if (esTabTerminal(notaId)) {
+  if (pestana === "terminal") {
     return (
       <div className={styles.viewer}>
         <div className={styles.viewerHeader}>
@@ -69,7 +75,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
 
   // Un archivo que Mycelium no indexa (FUN-L-11) también se puede anclar: se
   // muestra su visor, que ya es de solo lectura, sin el botón de editar.
-  if (esTabArchivo(notaId)) {
+  if (pestana === "archivo") {
     const ruta = rutaDeTabArchivo(notaId);
     return (
       <div className={styles.viewer}>
@@ -84,11 +90,11 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
   }
 
   // El grafo de conexiones también se puede anclar (no es una nota editable).
-  if (notaId === GRAPH_TAB_ID) {
+  if (pestana === "grafo") {
     return (
       <div className={styles.viewer}>
         <div className={styles.viewerHeader}>
-          <span className={styles.viewerTitle}>Grafo de conexiones</span>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.grafo.titulo}</span>
         </div>
         <div className={styles.viewerGraph}>
           <GraphView />
@@ -97,13 +103,29 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
     );
   }
 
-  // El calendario anclado en el costado (`FUN-L-22`) usa su vista compacta: la
-  // grilla del mes no entra en el ancho de un panel.
-  if (notaId === CALENDAR_TAB_ID) {
+  // Las referencias del vault (`FUN-L-17`) también. Hasta la auditoría del
+  // 2026-09-26 este visor no las contemplaba: anclarlas caía en la rama de nota
+  // y mostraba «…» con un editor vacío.
+  if (pestana === "enlaces") {
     return (
       <div className={styles.viewer}>
         <div className={styles.viewerHeader}>
-          <span className={styles.viewerTitle}>Calendario</span>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.enlaces.titulo}</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <RelinkView />
+        </div>
+      </div>
+    );
+  }
+
+  // El calendario anclado en el costado (`FUN-L-22`) usa su vista compacta: la
+  // grilla del mes no entra en el ancho de un panel.
+  if (pestana === "calendario") {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.calendario.titulo}</span>
         </div>
         <div className={styles.viewerBody}>
           <CalendarioPanel />

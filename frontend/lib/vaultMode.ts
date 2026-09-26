@@ -1,13 +1,14 @@
 /**
- * Registro de vaults del desktop (fase 1 del "vault en carpeta").
+ * Registro de vaults del desktop (nació en la fase 1 del "vault en carpeta").
  *
  * Envuelve los comandos Rust que recuerdan qué carpetas del SO se han vinculado
  * como vaults (modelo Obsidian). El registro vive en el config-dir de la app.
  * Vincular solo registra la carpeta; desvincular la olvida (no toca archivos).
  * `autoAbrir` es la ruta que se abre sola al arrancar (o `null` → selector).
  *
- * Por ahora solo gestiona el registro; la conmutación real de la capa de datos
- * a la carpeta llega en fases posteriores (ver docs/features/vault-en-carpeta.md).
+ * Solo gestiona el registro. Abrir un vault (indexar la carpeta y conmutar la
+ * capa de datos a ella) lo hace `vaultSessionStore.abrir` (ver
+ * docs/features/vault-en-carpeta.md).
  */
 import { invoke } from "@tauri-apps/api/core";
 

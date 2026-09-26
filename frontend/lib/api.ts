@@ -21,10 +21,9 @@ import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/nota
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
 import { putPreferencias } from "@/lib/db/preferencias";
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
-import { compartido, miembros, noop } from "@/lib/db/sharing";
 import { notasParaTabla } from "@/lib/db/tabla";
 import { actualizarSnippet, borrarSnippet, crearSnippet, listarSnippets } from "@/lib/db/snippets";
-import { carpetasCompartidas, tree } from "@/lib/db/tree";
+import { tree } from "@/lib/db/tree";
 
 export class ApiError extends Error {
   status: number;
@@ -59,7 +58,7 @@ async function dispatch(
   q: URLSearchParams,
   body: Body,
 ): Promise<unknown> {
-  const [a, b, c, d, e] = seg;
+  const [a, b, c, d] = seg;
 
   // ── /auth/... (sesión local, preferencias, css) ───────────────────────────
   if (a === "auth") {
@@ -85,13 +84,9 @@ async function dispatch(
     }
   }
 
-  // ── /compartido (sharing latente) ─────────────────────────────────────────
-  if (a === "compartido" && method === "GET") return compartido();
-
   // ── /vaults/:vaultId/... ──────────────────────────────────────────────────
   if (a === "vaults" && b) {
     if (c === "tree" && method === "GET") return tree(b);
-    if (c === "carpetas-compartidas" && method === "GET") return carpetasCompartidas(b);
     if (c === "papelera" && method === "GET") return listarPapelera(b);
     if (c === "grafo" && method === "GET") return grafo(b);
     if (c === "buscar" && method === "GET") {
@@ -136,10 +131,6 @@ async function dispatch(
     if (c === "mover" && method === "POST") {
       return moverCarpeta(b, s(body.destinoId));
     }
-    // Sharing latente (no-op): miembros / compartir
-    if (c === "miembros" && !d && method === "GET") return miembros();
-    if (c === "compartir" && method === "POST") return noop();
-    if (c === "miembros" && e && (method === "PATCH" || method === "DELETE")) return noop();
   }
 
   // ── /notas/:id/... ────────────────────────────────────────────────────────
@@ -167,9 +158,6 @@ async function dispatch(
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
     if (c === "propiedades" && method === "GET") return propiedadesDeNota(b);
-    // Colaboración deshabilitada en local: sin relay. Se devuelve un objeto con
-    // `habilitada:false` (NO null) para que startCollab caiga con gracia.
-    if (c === "colaboracion" && method === "GET") return { habilitada: false };
     if (c === "contenido" && method === "GET") return getContenido(b);
     if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
     // /notas/:notaId/diagramas/:diagId

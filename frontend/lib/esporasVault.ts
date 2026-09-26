@@ -31,12 +31,6 @@ export function carpetaEsporas(): string {
   return normalizarCarpetaEsporas(bruta ?? "") ?? CARPETA_ESPORAS_DEFECTO;
 }
 
-/** ¿Existe en el vault la carpeta configurada? */
-export function existeCarpetaEsporas(): boolean {
-  const ruta = carpetaEsporas();
-  return useVaultStore.getState().carpetas.some((c) => c.id === ruta);
-}
-
 /**
  * Plantillas de la carpeta configurada, por nombre. La lista es PLANA a
  * propósito: las subcarpetas no se recorren (spec § 1). Se leen del árbol que ya
