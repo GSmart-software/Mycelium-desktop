@@ -57,8 +57,10 @@ fn tipo_de(path: &Path) -> String {
     }
 }
 
-/// `mtime` en milisegundos epoch (0 si el SO no lo expone).
-fn mtime_ms(metadata: &std::fs::Metadata) -> i64 {
+/// `mtime` en milisegundos epoch (0 si el SO no lo expone). `pub(crate)` porque
+/// `vault_fs::escribir_nota` devuelve el del archivo recién escrito, y tiene que
+/// ser el MISMO cálculo que hace el recorrido del índice para que coincidan.
+pub(crate) fn mtime_ms(metadata: &std::fs::Metadata) -> i64 {
     metadata
         .modified()
         .ok()

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import { reescribirEnlaces } from "@/lib/enlaces";
+import { EVENTO_RECARGA } from "@/lib/eventos";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -128,7 +129,8 @@ async function reescribirEnlacesEntrantes(
   viejo: string,
   nuevo: string,
   token: string | null | undefined,
-): Promise<void> {
+): Promise<number> {
+  let reescritas = 0;
   for (const { id } of entrantes) {
     try {
       const actual = await api<{ contenido: string | null }>(
@@ -143,10 +145,12 @@ async function reescribirEnlacesEntrantes(
         token,
         body: { contenido: nuevoTexto },
       });
+      reescritas++;
     } catch {
       // Una nota ilegible o un fallo de red no debe frenar al resto.
     }
   }
+  return reescritas;
 }
 
 export const useVaultStore = create<VaultState>()(
@@ -333,14 +337,21 @@ export const useVaultStore = create<VaultState>()(
         // devuelve el nombre que ya tenia, no hubo renombrado y no hay nada que
         // reescribir. El `?? titulo` es para un backend que todavia no lo mande.
         const efectivo = res.titulo ?? titulo;
+        let reescritas = 0;
         if (anterior !== null && anterior !== efectivo) {
-          await reescribirEnlacesEntrantes(entrantes, anterior, efectivo, token());
+          reescritas = await reescribirEnlacesEntrantes(entrantes, anterior, efectivo, token());
         }
         // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
         // seguir a la nota con su id nuevo antes de reconciliar el árbol.
         if (res.id !== id) useTabsStore.getState().remapNota(id, res.id);
         await get().loadTree(get().vaultId!);
         markGraphStale();
+        // Una nota reescrita puede estar abierta en un editor, que tiene que
+        // recargarla o la pisaría con los enlaces viejos en su próximo guardado.
+        // Hasta `FUN-M-38` lo avisaba el watcher; ahora ignora lo que escribe la
+        // propia app, así que avisa quien escribe —ya con las pestañas
+        // remapeadas, para que nadie pida el contenido por el id viejo—.
+        if (reescritas > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
       },
 
       async deleteNota(id) {

@@ -12,6 +12,14 @@
  * escrito por la propia app deriva en un reindex idempotente. Ver el módulo Rust
  * y `docs/features/vault-en-carpeta.md`.
  *
+ * Idempotente pero no gratis (`FUN-M-38`): cada guardado disparaba el recorrido
+ * del vault, una recarga del árbol, el grafo marcado como viejo y una recarga de
+ * todos los editores abiertos (con dos escaneos del grafo detrás). Por eso el
+ * evento trae el `mtime` de cada ruta y una ráfaga que solo contiene escrituras
+ * de la propia app —`esEscrituraPropia`, que compara ese `mtime` con el que
+ * devolvió `escribir_nota`— se descarta entera. Con una sola ruta ajena en la
+ * ráfaga se reindexa como siempre.
+ *
  * La nota abierta solo se recarga si el editor NO tiene cambios locales sin
  * guardar (el propio `NoteEditor` decide, consultando su `dirtyRef`): este módulo
  * se limita a avisar con el evento de DOM `micelio:vault-recargar`.
@@ -20,6 +28,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { indexarVault } from "@/lib/db/indexer";
+import { esEscrituraPropia } from "@/lib/db/vaultFs";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -27,6 +36,9 @@ import { useVaultStore } from "@/stores/vaultStore";
 
 /** Nombre del evento Tauri emitido por el watcher nativo. */
 const EVENTO_TAURI = "vault-cambios";
+
+/** Una ruta afectada y el `mtime` que tenía en disco al emitir el evento. */
+type CambioVault = { ruta: string; mtime: number };
 
 /**
  * Evento de DOM que los editores abiertos escuchan para recargar su nota. Se
@@ -65,6 +77,9 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   // terminar, se corre una vez más: el reindexado es incremental, así que una
   // pasada alcanza para todo lo que se acumuló mientras tanto.
   let pendiente = false;
+  // Lo que trajo la ráfaga que se está juntando (y lo que llegó mientras se
+  // procesaba la anterior): ruta → último `mtime` visto.
+  const rafaga = new Map<string, number>();
 
   const refrescar = async () => {
     // Si se salió del vault entre el evento y el debounce, no hay nada que hacer.
@@ -76,6 +91,16 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     }
     procesando = true;
     pendiente = false;
+    const cambios = [...rafaga];
+    rafaga.clear();
+    // Si TODO lo que cambió lo escribió esta app hace un momento y el archivo
+    // sigue como lo dejó, no hay nada que reindexar ni que avisar (`FUN-M-38`):
+    // el guardado ya dejó `notas.mtime` al día y el editor ya marcó el grafo.
+    if (cambios.length > 0 && cambios.every(([r, mtime]) => esEscrituraPropia(r, mtime))) {
+      procesando = false;
+      if (pendiente) void refrescar();
+      return;
+    }
     try {
       const indexado = await indexarVault(ruta); // incremental por mtime
       useVaultStore.getState().setOtros(indexado.otros);
@@ -107,7 +132,8 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   // Cuándo llegó el primer evento de la ráfaga que se está juntando.
   let desde: number | null = null;
 
-  const unlisten = await listen(EVENTO_TAURI, () => {
+  const unlisten = await listen<CambioVault[]>(EVENTO_TAURI, (evento) => {
+    for (const c of evento.payload ?? []) rafaga.set(c.ruta, c.mtime);
     const ahora = Date.now();
     desde ??= ahora;
     if (timer) clearTimeout(timer);

@@ -38,21 +38,33 @@ export async function putContenido(id: string, contenido: string | null): Promis
 
   // Modo carpeta: los archivos son la fuente de verdad. El editor ya llega con
   // debounce de 800 ms, así que se escribe en disco en cada guardado (id = ruta).
+  // El `mtime` con que quedó el archivo va a `notas.mtime` (`FUN-M-38`): sin
+  // esto, el índice seguía con el `mtime` de la última lectura, el reindexado
+  // incremental veía la nota como cambiada y la volvía a leer y a indexar.
   const vault = getVaultActual();
-  if (vault !== null) {
-    await escribirNota(vault, id, texto);
-  }
+  const mtime = vault !== null ? await escribirNota(vault, id, texto) : null;
 
   await execute(
     `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
      ON CONFLICT(nota_id) DO UPDATE SET contenido = excluded.contenido, actualizado_en = excluded.actualizado_en`,
     [id, texto, now],
   );
-  await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ? WHERE id = ?", [
-    bytes,
-    now,
-    id,
-  ]);
+  // `notas.mtime` es del índice del vault en carpeta; la base del modo SQLite
+  // clásico (`mycelium.db`, migración sqlx) no tiene esa columna.
+  if (mtime !== null) {
+    await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ? WHERE id = ?", [
+      bytes,
+      now,
+      mtime,
+      id,
+    ]);
+  } else {
+    await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ? WHERE id = ?", [
+      bytes,
+      now,
+      id,
+    ]);
+  }
   // Reindex FTS (delete + insert), como TouchNotaContenidoAsync. Lo que se indexa
   // es el CUERPO + los VALORES de las propiedades: el YAML crudo (las claves, los
   // guiones) ensuciaba la búsqueda y los fragmentos de resultado (FUN-M-04).
