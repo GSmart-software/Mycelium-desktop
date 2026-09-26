@@ -237,6 +237,12 @@ Trabajar en ramas de feature (no directamente en las principales) evita el confl
 de "rama ya usada por otro worktree" y permite revisar antes de integrar.
 
 ### 4. Delegar a subagentes (worktree)
+
+> [!important] Los subagentes corren con **Opus**, nunca con Fable
+> Regla del usuario (2026-09-26): todo subagente —de implementación, de auditoría, de
+> búsqueda— se lanza con `model: "opus"`. El orquestador puede ser Fable; los subagentes
+> no. Los agentes de `.claude/agents/` ya lo declaran en su frontmatter (`model: opus`).
+
 Lanza **un subagente por rama de feature**, con `isolation: "worktree"`, pasándole:
 la spec compartida + las notas de su versión + el **contrato del subagente** (abajo).
 Si el cambio es solo de una versión, lanza un solo subagente.
