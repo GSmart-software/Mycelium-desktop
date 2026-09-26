@@ -9,7 +9,7 @@
 import { execute, select } from "./client";
 import { ftsPoner } from "./ftsIndice";
 import { DbError } from "./errors";
-import { reindexarPropiedades, textoIndexable } from "./propiedades";
+import { derivarIndice, reindexarPropiedadesTanda } from "./propiedades";
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
 import { getVaultActual } from "./vaultContext";
@@ -29,7 +29,16 @@ export async function getContenido(id: string): Promise<ContenidoResponse> {
 
 /** `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS. */
 export async function putContenido(id: string, contenido: string | null): Promise<PutContenidoResponse> {
-  const notas = await select<{ titulo: string }>("SELECT titulo FROM notas WHERE id = ?", [id]);
+  // `mtime` y `hash_indexable` son columnas del índice del vault en carpeta; la
+  // base del modo SQLite clásico (`mycelium.db`, migración sqlx) no las tiene.
+  const vault = getVaultActual();
+  const enCarpeta = vault !== null;
+  const notas = await select<{ titulo: string; hash_indexable: string | null }>(
+    enCarpeta
+      ? "SELECT titulo, hash_indexable FROM notas WHERE id = ?"
+      : "SELECT titulo, NULL AS hash_indexable FROM notas WHERE id = ?",
+    [id],
+  );
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
 
   const texto = contenido ?? "";
@@ -41,23 +50,32 @@ export async function putContenido(id: string, contenido: string | null): Promis
   // El `mtime` con que quedó el archivo va a `notas.mtime` (`FUN-M-38`): sin
   // esto, el índice seguía con el `mtime` de la última lectura, el reindexado
   // incremental veía la nota como cambiada y la volvía a leer y a indexar.
-  const vault = getVaultActual();
-  const mtime = vault !== null ? await escribirNota(vault, id, texto) : null;
+  const mtime = enCarpeta ? await escribirNota(vault, id, texto) : null;
 
   await execute(
     `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
      ON CONFLICT(nota_id) DO UPDATE SET contenido = excluded.contenido, actualizado_en = excluded.actualizado_en`,
     [id, texto, now],
   );
-  // `notas.mtime` es del índice del vault en carpeta; la base del modo SQLite
-  // clásico (`mycelium.db`, migración sqlx) no tiene esa columna.
-  if (mtime !== null) {
-    await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ? WHERE id = ?", [
-      bytes,
-      now,
-      mtime,
-      id,
-    ]);
+  // Lo que se indexa es el CUERPO + los VALORES de las propiedades: el YAML crudo
+  // (las claves, los guiones) ensuciaba la búsqueda y los fragmentos de
+  // resultado (FUN-M-04). Y solo si cambió (`FUN-M-38`, H10): la huella de lo
+  // indexable se compara con la guardada, y si es la misma, ni `notas_fts` ni
+  // `propiedades` se reescriben —en una nota de 500 KB, cientos de ms de FTS5
+  // por cada guardado que no las tocaba—.
+  const { indexable, propiedades, huella } = derivarIndice(texto);
+  const cambioIndexable = !enCarpeta || huella !== notas[0].hash_indexable;
+  if (cambioIndexable) {
+    await ftsPoner(id, notas[0].titulo, indexable);
+    await reindexarPropiedadesTanda([{ id, propiedades }]);
+  }
+  // La huella se guarda DESPUÉS de reindexar: si `ftsPoner` o las propiedades
+  // fallan, la nota queda con la huella vieja y el próximo guardado reintenta.
+  if (enCarpeta) {
+    await execute(
+      "UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ?, hash_indexable = ? WHERE id = ?",
+      [bytes, now, mtime, huella, id],
+    );
   } else {
     await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ? WHERE id = ?", [
       bytes,
@@ -65,11 +83,6 @@ export async function putContenido(id: string, contenido: string | null): Promis
       id,
     ]);
   }
-  // Reindex FTS (delete + insert), como TouchNotaContenidoAsync. Lo que se indexa
-  // es el CUERPO + los VALORES de las propiedades: el YAML crudo (las claves, los
-  // guiones) ensuciaba la búsqueda y los fragmentos de resultado (FUN-M-04).
-  await ftsPoner(id, notas[0].titulo, textoIndexable(texto));
-  await reindexarPropiedades(id, texto);
 
   return { actualizadoEn: now };
 }

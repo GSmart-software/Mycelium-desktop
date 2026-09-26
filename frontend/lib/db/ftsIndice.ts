@@ -60,15 +60,47 @@ export async function crearFtsFilas(): Promise<void> {
   await execute("DELETE FROM notas_fts WHERE rowid NOT IN (SELECT fila FROM fts_filas)");
 }
 
+/** Lo que hace falta para poner la fila de búsqueda de una nota. */
+export type FilaFts = { id: string; titulo: string; contenido: string };
+
 /**
- * Pone (o reemplaza) la fila de búsqueda de una nota.
+ * Pone (o reemplaza) la fila de búsqueda de VARIAS notas con dos sentencias en
+ * total, sea cual sea el tamaño de la tanda (`FUN-M-38`, hallazgo H1). La tanda
+ * viaja como un único parámetro JSON que SQLite despliega con `json_each`.
  *
  * Son dos sentencias sueltas a propósito: `tauri-plugin-sql` reparte las
  * sentencias entre un pool de conexiones, así que un `BEGIN … COMMIT` no
  * garantiza caer en la misma. Por eso cada una es correcta por sí sola:
- *   1. reservar un `rowid` para la nota, si no tiene (`MAX + 1` en la MISMA
- *      sentencia, así dos inserciones concurrentes no eligen el mismo);
+ *   1. reservar un `rowid` por nota que no tenga: `MAX + posición + 1` en la
+ *      MISMA sentencia, así ni dos notas de la tanda ni dos inserciones
+ *      concurrentes eligen el mismo (una que ya lo tenía se salta y deja un
+ *      hueco, que no molesta);
  *   2. `INSERT OR REPLACE` en ese `rowid`: si ya había fila, FTS5 la reemplaza.
+ */
+export async function ftsPonerTanda(filas: FilaFts[]): Promise<void> {
+  if (filas.length === 0) return;
+  await execute(
+    `INSERT OR IGNORE INTO fts_filas (nota_id, fila)
+     SELECT value, (SELECT COALESCE(MAX(fila), 0) FROM fts_filas) + key + 1
+     FROM json_each(?)`,
+    [JSON.stringify(filas.map((f) => f.id))],
+  );
+  await execute(
+    `INSERT OR REPLACE INTO notas_fts (rowid, nota_id, titulo, contenido)
+     SELECT (SELECT fila FROM fts_filas WHERE nota_id = json_extract(j.value, '$.id')),
+            json_extract(j.value, '$.id'), json_extract(j.value, '$.titulo'),
+            json_extract(j.value, '$.contenido')
+     FROM json_each(?) AS j`,
+    [JSON.stringify(filas)],
+  );
+}
+
+/**
+ * Pone (o reemplaza) la fila de búsqueda de UNA nota: lo que usan el guardado y
+ * el renombrado. Mismas dos sentencias que la tanda, pero con parámetros
+ * sueltos: para una sola nota no hay viajes que ahorrar, y así su texto —que
+ * puede pesar cientos de KB— no se serializa a JSON ni SQLite lo vuelve a
+ * parsear.
  */
 export async function ftsPoner(id: string, titulo: string, contenido: string): Promise<void> {
   await execute(
