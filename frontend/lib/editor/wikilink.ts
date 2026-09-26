@@ -7,13 +7,12 @@ import type { EditorView } from "@codemirror/view";
 import type { TreeCarpeta, TreeNota } from "@/stores/vaultStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { sinExtensionDeNota } from "@/lib/extensionesDeTipo";
-import { partirWikilink } from "@/lib/wikilinks";
 
 /**
  * Wikilinks estilo Obsidian: `[[archivo]]`, `[[archivo|alias]]` y
- * desambiguación por ruta de carpeta `[[Carpeta/Sub/archivo]]`.
+ * desambiguación por ruta de carpeta `[[Carpeta/Sub/archivo]]`. Partir
+ * `destino|alias` es cosa de `lib/wikilinks.ts` (`partirWikilink`).
  *
- * - `parseWikilinkTarget`: separa destino (antes de `|`) del texto a mostrar.
  * - `resolveWikilink`: resuelve una referencia (con o sin ruta) a una nota.
  * - `wikilinkCompletions`: fuente de autocompletado al escribir dentro de `[[`.
  */
@@ -34,18 +33,6 @@ export function folderSegments(
     id = c.padreId;
   }
   return segs;
-}
-
-/**
- * Separa `destino|alias` → `{ target, label }` (alias opcional).
- *
- * Delega en `lib/wikilinks.ts` para que la barra escapada de las tablas
- * (`[[Destino\|alias]]`, `DEF-045`) se entienda igual acá que en el grafo, la
- * vista en vivo y la de lectura.
- */
-export function parseWikilinkTarget(inner: string): { target: string; label: string } {
-  const { destino, etiqueta } = partirWikilink(inner);
-  return { target: destino, label: etiqueta };
 }
 
 /**

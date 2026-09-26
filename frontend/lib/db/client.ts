@@ -17,7 +17,7 @@
 export type Row = Record<string, unknown>;
 
 /** Resultado de un INSERT/UPDATE/DELETE. */
-export type ExecResult = { rowsAffected: number; lastInsertId?: number };
+export type ExecResult = { rowsAffected: number };
 
 /** Puerto de acceso a SQLite. Lo implementa el plugin Tauri (y los tests). */
 export interface SqlExecutor {
@@ -51,7 +51,7 @@ async function loadTauriExecutor(dbUrl: string = DB_URL): Promise<SqlExecutor> {
     select: (sql, params = []) => db.select(sql, params),
     execute: async (sql, params = []) => {
       const r = await db.execute(sql, params);
-      return { rowsAffected: r.rowsAffected, lastInsertId: r.lastInsertId };
+      return { rowsAffected: r.rowsAffected };
     },
   };
 }

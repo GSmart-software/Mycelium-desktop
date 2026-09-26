@@ -485,12 +485,6 @@
   box-shadow: var(--mic-shadow-lg, 0 8px 24px rgb(0 0 0 / 35%));
 }
 
-.panelCabecera {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .panelTitulo {
   display: block;
   margin-top: 0.3rem;

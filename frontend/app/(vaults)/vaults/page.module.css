@@ -104,16 +104,6 @@
   white-space: nowrap;
 }
 
-.autoLabel {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.15rem;
-  font-size: 0.75rem;
-  color: var(--mic-text-muted);
-  cursor: pointer;
-}
-
 .itemActions {
   display: flex;
   align-items: center;

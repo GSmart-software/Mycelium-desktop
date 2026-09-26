@@ -22,46 +22,6 @@ export type RowUsuario = {
   preferencias_json: string | null;
 };
 
-export type RowVault = {
-  id: string;
-  nombre: string;
-  propietario_id: string;
-};
-
-export type RowCarpeta = {
-  id: string;
-  vault_id: string;
-  padre_id: string | null;
-  nombre: string;
-  creado_en: string;
-  actualizado_en: string;
-};
-
-export type RowNota = {
-  id: string;
-  vault_id: string;
-  carpeta_id: string | null;
-  titulo: string;
-  tipo: string;
-  tamano_bytes: number;
-  creado_en: string;
-  actualizado_en: string;
-};
-
-export type RowPapelera = {
-  id: string;
-  nota_id: string;
-  ruta_original: string;
-  carpeta_original_id: string | null;
-  eliminado_en: string;
-};
-
-export type RowContenido = {
-  nota_id: string;
-  contenido: string;
-  actualizado_en: string;
-};
-
 export type RowCssSnippet = {
   id: string;
   usuario_id: string;
@@ -103,9 +63,6 @@ export type ContenidoResponse = { contenido: string; actualizadoEn: string };
 
 /** `PUT /notas/{id}/contenido`. */
 export type PutContenidoResponse = { actualizadoEn: string };
-
-/** `GET /vaults/{id}/carpetas-compartidas` (no-op local → vacío). */
-export type CarpetasCompartidasResponse = { ids: string[] };
 
 /** `GET /auth/css/snippets`. */
 export type SnippetsResponse = { snippets: CssSnippetDto[] };
