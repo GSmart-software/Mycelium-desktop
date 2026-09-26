@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { api } from "@/lib/api";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
-import { getCachedNote } from "@/lib/idb";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { renderNota } from "@/lib/markdown";
@@ -29,19 +29,33 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
       setHtml("");
       return;
     }
+    let vigente = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    void getCachedNote(sourceNotaId).then((cached) => {
-      if (cached) setHtml(renderNota(cached.content));
-    });
+    // Carga inicial: el texto vivo del editor de origen si está a la vista —puede
+    // llevar cambios que todavía no se guardaron— y si no, el del disco. Antes
+    // salía de la caché de IndexedDB, que en desktop se retiró (`FUN-M-40`, D7).
+    const vivo = pane.linkedTo ? getView(pane.linkedTo) : null;
+    if (vivo) {
+      setHtml(renderNota(vivo.state.doc.toString()));
+    } else {
+      void api<{ contenido: string }>(`/notas/${encodeURIComponent(sourceNotaId)}/contenido`)
+        .then(({ contenido }) => {
+          if (vigente) setHtml(renderNota(contenido));
+        })
+        .catch(() => {
+          /* nota inaccesible: se deja vacío */
+        });
+    }
     const unsubscribe = subscribeDoc(sourceNotaId, `linked-${pane.id}`, (content) => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => setHtml(renderNota(content)), 130);
     });
     return () => {
+      vigente = false;
       if (timer) clearTimeout(timer);
       unsubscribe();
     };
-  }, [sourceNotaId, pane.id]);
+  }, [sourceNotaId, pane.id, pane.linkedTo]);
 
   // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) — solo lectura
   useEffect(() => {

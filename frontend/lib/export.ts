@@ -1,6 +1,5 @@
 import JSZip from "jszip";
 import { api } from "@/lib/api";
-import { getCachedNote } from "@/lib/idb";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { renderDrawioIn } from "@/lib/drawioRender";
@@ -27,7 +26,11 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Contenido de una nota: backend primero, IndexedDB si no hay conexión (HU-08 CA5). */
+/**
+ * Contenido de una nota, del disco. En desktop no hay «sin conexión» y por eso
+ * tampoco la caché de IndexedDB de respaldo que tenía (HU-08 CA5, retirada en
+ * `FUN-M-40`).
+ */
 export async function fetchNoteContent(notaId: string): Promise<string> {
   try {
     const data = await api<{ contenido: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
@@ -35,8 +38,6 @@ export async function fetchNoteContent(notaId: string): Promise<string> {
     });
     return data.contenido;
   } catch {
-    const cached = await getCachedNote(notaId);
-    if (cached) return cached.content;
     throw new Error("No se pudo obtener el contenido de la nota.");
   }
 }

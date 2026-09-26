@@ -186,7 +186,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
   useEffect(() => {
     let vigente = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    // Carga inicial (backend/db, con caché offline como respaldo).
+    // Carga inicial, del disco.
     void fetchNoteContent(notaId)
       .then((content) => {
         if (vigente) setHtml(renderNota(content));

@@ -97,7 +97,7 @@ export function BarraEstado() {
   const guardado =
     estado === "local" || estado === "syncing"
       ? "Guardando…"
-      : estado === "error" || estado === "offline"
+      : estado === "error"
         ? "Sin guardar"
         : ultimo
           ? `Guardado ${hora(ultimo)}`
@@ -129,7 +129,7 @@ export function BarraEstado() {
           {/* Sin role="status": cada tecla pasa por «Guardando…» y un lector de
               pantalla lo anunciaría todo el tiempo. */}
           <span
-            className={estado === "error" || estado === "offline" ? `${styles.item} ${styles.alerta}` : styles.item}
+            className={estado === "error" ? `${styles.item} ${styles.alerta}` : styles.item}
           >
             {guardado}
           </span>

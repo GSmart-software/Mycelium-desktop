@@ -41,7 +41,6 @@ import {
   olvidarGuardadoPendiente,
   registrarGuardadoPendiente,
 } from "@/lib/guardadoPendiente";
-import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { EVENTO_RECARGA } from "@/lib/vaultWatch";
 import { refUnivoca } from "@/lib/wikilinks";
 import { avisar } from "@/stores/avisosStore";
@@ -65,8 +64,7 @@ import { SearchBar } from "./SearchBar";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
-const SYNC_INTERVAL_MS = 10_000; // throttle de sync a R2 (HU-04 CA8)
-const LOCAL_SAVE_DEBOUNCE_MS = 250; // persistencia en IndexedDB < 500 ms (CA1)
+const SYNC_INTERVAL_MS = 10_000; // guardado periódico al disco (HU-04 CA8)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
 
@@ -124,6 +122,13 @@ const instanceCache = new Map<
      */
     plegadosEdicion: { from: number; to: number }[];
     plegadosLectura: Set<string>;
+    /**
+     * Si `doc` tenía cambios sin guardar al salir de la pestaña. Salir los
+     * guarda, pero en segundo plano: al volver, si ese guardado todavía no
+     * terminó (o falló), `doc` manda sobre el disco; si terminó, lo que haya en
+     * disco es lo último —incluido un cambio hecho desde fuera mientras tanto—.
+     */
+    sucio: boolean;
   }
 >();
 
@@ -233,8 +238,8 @@ function gotoMatch(view: EditorView, term: string) {
 
 /**
  * Editor de una nota (HU-01/02/04/19): CodeMirror 6 con live preview por
- * línea, modos live/split/read/raw, autoguardado en IndexedDB y sync
- * throttled con el backend. Multi-instancia: la misma nota en dos panes
+ * línea, modos live/split/read/raw y guardado al disco (periódico, al salir de
+ * la nota y al cerrar la app). Multi-instancia: la misma nota en dos panes
  * se mantiene espejada vía docBroker (HU-25/26 CA6).
  */
 export function NoteEditor({
@@ -293,7 +298,6 @@ export function NoteEditor({
     [notaId],
   );
   const [previewHtml, setPreviewHtml] = useState("");
-  const [conflict, setConflict] = useState<string | null>(null);
   // Archivo .excalidraw del vault que se edita en el modal embebido (HU-16).
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -308,9 +312,6 @@ export function NoteEditor({
   notaIdRef.current = notaId;
   const contentRef = useRef("");
   const dirtyRef = useRef(false);
-  const remoteUpdatedAtRef = useRef<string | null>(null);
-  const conflictUpdatedAtRef = useRef<string | null>(null);
-  const localSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cuánto tardó el último render del preview, para el debounce adaptativo.
   const ultimoRenderMs = useRef(0);
@@ -335,34 +336,27 @@ export function NoteEditor({
     return resolveWikilink(target, notas, carpetas) !== undefined;
   }, []);
 
-  // ── Persistencia local + sync ───────────────────────────────────
+  // ── Guardado al disco ───────────────────────────────────────────
+  //
+  // Sin caché local ni estados «offline»/«conflicto» (`FUN-M-40`, D7 ·
+  // `DEF-113`): eran de la web, donde el remoto es un servidor. En desktop el
+  // «remoto» es el propio disco, y la caché de IndexedDB —por origen, con la
+  // nota como clave y sin el vault— hacía que dos vaults con la misma ruta
+  // relativa se mostraran el contenido el uno del otro al abrir, y un aviso de
+  // conflicto que no correspondía.
 
-  const saveLocal = useCallback(() => {
-    void putCachedNote({
-      notaId,
-      content: contentRef.current,
-      savedAt: Date.now(),
-      dirty: dirtyRef.current,
-      remoteUpdatedAt: remoteUpdatedAtRef.current,
-    });
-  }, [notaId]);
-
-  const syncNow = useCallback(async () => {
-    if (!dirtyRef.current || syncingRef.current) return;
+  /** Escribe lo pendiente. `true` si quedó guardado. */
+  const syncNow = useCallback(async (): Promise<boolean> => {
+    if (!dirtyRef.current || syncingRef.current) return false;
     syncingRef.current = true;
     setSyncState("syncing");
     try {
-      const result = await api<{ actualizadoEn: string }>(
-        `/notas/${encodeURIComponent(notaId)}/contenido`,
-        {
-          method: "PUT",
-          token: useAuthStore.getState().accessToken,
-          body: { contenido: contentRef.current },
-        },
-      );
+      await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
+        method: "PUT",
+        token: useAuthStore.getState().accessToken,
+        body: { contenido: contentRef.current },
+      });
       dirtyRef.current = false;
-      remoteUpdatedAtRef.current = result.actualizadoEn;
-      saveLocal();
       setSyncState("synced");
       // El contenido (y por ende los [[enlaces]]) cambió → refrescar el grafo.
       useGraphStore.getState().markStale();
@@ -370,21 +364,20 @@ export function NoteEditor({
       // abierto en otro panel— tiene que enterarse (`DEF-086`). El `PUT` ya
       // reindexó las propiedades, así que lo que se lea ahora es lo nuevo.
       window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: { notaId } }));
+      return true;
     } catch {
-      setSyncState(navigator.onLine ? "error" : "offline");
+      setSyncState("error");
+      return false;
     } finally {
       syncingRef.current = false;
     }
-  }, [notaId, saveLocal]);
+  }, [notaId, setSyncState]);
 
   const onDocChanged = useCallback(
     (doc: string) => {
       contentRef.current = doc;
       dirtyRef.current = true;
       setSyncState("local");
-
-      if (localSaveTimer.current) clearTimeout(localSaveTimer.current);
-      localSaveTimer.current = setTimeout(saveLocal, LOCAL_SAVE_DEBOUNCE_MS);
 
       if (previewTimer.current) clearTimeout(previewTimer.current);
       // Debounce adaptativo (`FUN-M-38`, H5): `renderNota` corre entero y en el
@@ -402,7 +395,7 @@ export function NoteEditor({
         }
       }, espera);
     },
-    [saveLocal],
+    [setSyncState],
   );
 
   // ── Editor ──────────────────────────────────────────────────────
@@ -652,26 +645,19 @@ export function NoteEditor({
   const reloadFromDisk = useCallback(async () => {
     if (dirtyRef.current || !viewRef.current) return;
     try {
-      const remote = await api<{ contenido: string; actualizadoEn: string }>(
+      const remote = await api<{ contenido: string }>(
         `/notas/${encodeURIComponent(notaId)}/contenido`,
         { token: useAuthStore.getState().accessToken },
       );
       // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
       if (dirtyRef.current || !viewRef.current) return;
-      if (remote.actualizadoEn === remoteUpdatedAtRef.current) return; // sin cambios
-      if (remote.contenido === contentRef.current) {
-        remoteUpdatedAtRef.current = remote.actualizadoEn;
-        saveLocal();
-        return;
-      }
+      if (remote.contenido === contentRef.current) return; // sin cambios
       // Aplicar como cambio "remoto" (brokerApplyRef evita marcar la nota sucia).
       brokerApplyRef.current = true;
       applyContent(remote.contenido);
       brokerApplyRef.current = false;
       contentRef.current = remote.contenido;
       dirtyRef.current = false;
-      remoteUpdatedAtRef.current = remote.actualizadoEn;
-      saveLocal();
       setSyncState("synced");
       // El cambio vino de disco, así que el updateListener no publicó nada: se
       // avisa a mano para que los suscriptores (el panel de propiedades, otras
@@ -680,64 +666,58 @@ export function NoteEditor({
     } catch {
       // Best-effort: si falla la relectura, no se toca lo que hay en pantalla.
     }
-  }, [notaId, instanceId, applyContent, saveLocal, setSyncState]);
+  }, [notaId, instanceId, applyContent, setSyncState]);
 
-  // ── Carga inicial: IndexedDB primero (HU-19), remoto después ───
+  // ── Carga inicial: del disco, y listo (`FUN-M-40`, D7) ─────────
+  //
+  // Lo único que se recuerda entre montajes es el estado de la PESTAÑA
+  // (`instanceCache`): el texto, el cursor, el scroll y los plegados de esta
+  // pestaña mientras está abierta. Nada que sobreviva a cerrarla ni que se
+  // comparta entre vaults.
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const cached = await getCachedNote(notaId);
-      if (cancelled) return;
-
-      // El doc de la pestaña (si quedó cacheado) es la versión más fresca
+      // Volver a una pestaña: se pinta su texto enseguida, sin esperar al disco.
       const instance = instanceCache.get(instanceId);
-
-      if (cached) {
-        dirtyRef.current = cached.dirty;
-        remoteUpdatedAtRef.current = cached.remoteUpdatedAt;
-        createView(instance?.doc ?? cached.content);
-        setSyncState(cached.dirty ? "local" : "synced");
-      } else if (instance) {
-        createView(instance.doc);
-      }
+      if (instance) createView(instance.doc);
 
       try {
-        const remote = await api<{ contenido: string; actualizadoEn: string }>(
+        const remote = await api<{ contenido: string }>(
           `/notas/${encodeURIComponent(notaId)}/contenido`,
           { token: useAuthStore.getState().accessToken },
         );
         if (cancelled) return;
 
-        if (!cached && viewRef.current) {
-          // Solo había estado de pestaña; el remoto define la base de sync
-          remoteUpdatedAtRef.current = remote.actualizadoEn;
-          saveLocal();
-          setSyncState(dirtyRef.current ? "local" : "synced");
-        } else if (!cached) {
-          remoteUpdatedAtRef.current = remote.actualizadoEn;
+        if (!instance) {
           createView(remote.contenido);
-          saveLocal();
           setSyncState("synced");
-        } else if (remote.actualizadoEn !== cached.remoteUpdatedAt) {
-          if (!cached.dirty) {
-            // Versión remota más nueva, sin cambios locales → se aplica (HU-19 CA3)
-            remoteUpdatedAtRef.current = remote.actualizadoEn;
+        } else if (instance.sucio) {
+          // El guardado de al salir todavía no terminó o falló: lo de la
+          // pestaña manda y queda pendiente (el próximo guardado lo escribe;
+          // si el de salir sí llegó, escribe lo mismo otra vez).
+          dirtyRef.current = true;
+          setSyncState("local");
+        } else {
+          // La pestaña estaba guardada: si el disco cambió mientras tanto (un
+          // editor externo, la IA), lo del disco es lo último — salvo que se
+          // haya empezado a escribir antes de que llegara.
+          if (dirtyRef.current) return;
+          if (remote.contenido !== contentRef.current) {
+            brokerApplyRef.current = true;
             applyContent(remote.contenido);
-            dirtyRef.current = false;
-            saveLocal();
-            setSyncState("synced");
-          } else {
-            // Cambios locales + remoto más nuevo → notificación no bloqueante (HU-04 CA5)
-            conflictUpdatedAtRef.current = remote.actualizadoEn;
-            setConflict(remote.contenido);
+            brokerApplyRef.current = false;
+            contentRef.current = remote.contenido;
+            publishDoc(notaId, instanceId, remote.contenido);
           }
+          dirtyRef.current = false;
+          setSyncState("synced");
         }
       } catch {
         if (!cancelled) {
           if (!viewRef.current) createView("");
-          setSyncState(navigator.onLine ? "error" : "offline");
+          setSyncState("error");
         }
       }
     }
@@ -746,11 +726,6 @@ export function NoteEditor({
 
     return () => {
       cancelled = true;
-      // Al abandonar la nota: sync inmediato si hay cambios (HU-04 CA2)
-      if (dirtyRef.current) {
-        saveLocal();
-        void syncNow();
-      }
       soltarScrollRef.current?.();
       soltarScrollRef.current = null;
       const view = viewRef.current;
@@ -771,11 +746,20 @@ export function NoteEditor({
           previewScrollTop: previewScrollRef.current,
           plegadosEdicion,
           plegadosLectura: plegadosLecturaRef.current,
+          sucio: dirtyRef.current,
         });
         unregisterView(paneId, view);
         view.destroy();
       }
       viewRef.current = null;
+      // Al abandonar la nota: guardado inmediato si hay cambios (HU-04 CA2).
+      // Cuando termina bien, la pestaña deja de estar sucia (ver `sucio`).
+      if (dirtyRef.current) {
+        void syncNow().then((ok) => {
+          const entrada = instanceCache.get(instanceId);
+          if (ok && entrada) entrada.sucio = false;
+        });
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notaId]);
@@ -815,19 +799,20 @@ export function NoteEditor({
     });
   }, [notaId, instanceId, applyContent]);
 
-  // ── Sync periódico + reconexión + beforeunload ──────────────────
+  // ── Guardado periódico + beforeunload ───────────────────────────
 
   // Actualizar cierra la app (FUN-L-14): el updater fuerza acá el guardado
   // pendiente y ESPERA a que termine antes de lanzar el instalador. Sin esto,
   // lo escrito entre la última tecla y el debounce se perdería al reiniciar.
   useEffect(() => {
-    registrarGuardadoPendiente(`nota:${instanceId}`, syncNow);
+    registrarGuardadoPendiente(`nota:${instanceId}`, async () => {
+      await syncNow();
+    });
     return () => olvidarGuardadoPendiente(`nota:${instanceId}`);
   }, [instanceId, syncNow]);
 
   useEffect(() => {
     const interval = setInterval(() => void syncNow(), SYNC_INTERVAL_MS);
-    const onOnline = () => void syncNow();
     const onBeforeUnload = () => {
       // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
       // dispatcher local (antes era un fetch al backend .NET).
@@ -839,11 +824,9 @@ export function NoteEditor({
       }
     };
 
-    window.addEventListener("online", onOnline);
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       clearInterval(interval);
-      window.removeEventListener("online", onOnline);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [notaId, syncNow]);
@@ -1220,18 +1203,6 @@ export function NoteEditor({
     [],
   );
 
-  function resolveConflict(apply: boolean) {
-    if (apply && conflict !== null) {
-      applyContent(conflict);
-      remoteUpdatedAtRef.current = conflictUpdatedAtRef.current;
-      dirtyRef.current = false;
-      saveLocal();
-      setSyncState("synced");
-    }
-    setConflict(null);
-    conflictUpdatedAtRef.current = null;
-  }
-
   const notaTitulo = useVaultStore(
     (s) => s.notas.find((n) => n.id === notaId)?.titulo ?? "nota",
   );
@@ -1290,18 +1261,6 @@ export function NoteEditor({
           getPreview={() => previewRef.current}
           modoLectura={mode === "read"}
         />
-      )}
-
-      {conflict !== null && (
-        <div className={styles.conflictBar}>
-          <span>Hay cambios remotos disponibles para esta nota.</span>
-          <button type="button" onClick={() => resolveConflict(true)}>
-            Aplicar
-          </button>
-          <button type="button" onClick={() => resolveConflict(false)}>
-            Ignorar
-          </button>
-        </div>
       )}
 
       <div className={styles.body}>
