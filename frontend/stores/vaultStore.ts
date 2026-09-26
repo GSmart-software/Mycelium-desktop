@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
 import { reescribirEnlaces } from "@/lib/enlaces";
+import type { OtroArchivo } from "@/lib/otrosArchivos";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -57,6 +58,15 @@ type VaultState = {
   carpetas: TreeCarpeta[];
   notas: TreeNota[];
   papelera: PapeleraItem[];
+  /**
+   * Los archivos del vault que no se indexan (`FUN-S-03`), para el explorador.
+   * Los deja el indexador (`FUN-M-38`): salen del mismo recorrido del disco que
+   * las notas, así que se refrescan con cada indexado —apertura y watcher— y
+   * no con cada recarga del árbol, que antes volvía a recorrer el vault.
+   * Solo-desktop: en web queda vacío.
+   */
+  otros: OtroArchivo[];
+  setOtros: (otros: OtroArchivo[]) => void;
   /** Estado expandido/colapsado por carpeta — persiste en localStorage (HU-22 CA5). */
   expanded: Record<string, boolean>;
   /** Carpeta activa: destino de "Nueva nota"/importaciones (HU-23 CA1). */
@@ -146,9 +156,14 @@ export const useVaultStore = create<VaultState>()(
       carpetas: [],
       notas: [],
       papelera: [],
+      otros: [],
       expanded: {},
       activeFolderId: null,
       lastMove: null,
+
+      setOtros(otros) {
+        set({ otros });
+      },
 
       async loadTree(vaultId) {
         const seq = ++treeSeq;
@@ -421,6 +436,7 @@ export const useVaultStore = create<VaultState>()(
           carpetas: [],
           notas: [],
           papelera: [],
+          otros: [],
           activeFolderId: null,
           lastMove: null,
         });

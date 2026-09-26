@@ -38,6 +38,7 @@ import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
+import { useShallow } from "zustand/react/shallow";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -134,7 +135,15 @@ export function ExplorerPanel() {
   // Ruta del vault en carpeta abierto (null en modo SQLite clásico): habilita
   // "Mostrar en el explorador", que solo tiene sentido con archivos en disco.
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
-  const store = useVaultStore();
+  // Todo el store menos lo que este panel no mira (`FUN-M-38`): suscrito al
+  // store entero, cualquier `set` ajeno —cargar la papelera, por ejemplo—
+  // volvía a dibujar el árbol completo. `useShallow` compara campo a campo.
+  const store = useVaultStore(
+    useShallow(({ papelera: _papelera, vaultId: _vaultId, otros: _otros, ...resto }) => resto),
+  );
+  // Los archivos que no se indexan, del mismo recorrido que las notas: los deja
+  // el indexador en el store (apertura y watcher), no una lectura propia.
+  const otros = useVaultStore((s) => s.otros);
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
   // Destino de un arrastre de archivos DESDE el SO (DEF-036/036b): id de la
@@ -206,19 +215,34 @@ export function ExplorerPanel() {
   }, [store.carpetas]);
 
   // FUN-S-03: los archivos que Mycelium no indexa (PDF, imágenes, código…).
-  // Se piden aparte y NO se mezclan con `store.notas`: meterlos ahí los metería
+  // Van aparte y NO se mezclan con `store.notas`: meterlos ahí los metería
   // también en el autocompletado de `[[`, en la búsqueda y en el grafo, que es
-  // justo lo que no son. Se recargan cuando cambia el árbol.
-  const [otros, setOtros] = useState<OtroArchivo[]>([]);
+  // justo lo que no son. Antes se pedían acá con un recorrido del disco tras
+  // cada cambio del árbol (`FUN-M-38`, H4: 100 ms y 700 KB por recarga en un
+  // vault de 1.300 notas); ahora llegan con el indexado.
+  //
+  // Salvo cuando cambian las CARPETAS desde la app (renombrar, mover o borrar
+  // una): sus archivos cambian de ruta, y el watcher no avisa —solo mira notas—.
+  // Se detecta por la lista de ids, no por el array (que es nuevo en cada
+  // recarga), y no en la carga inicial (de vacío a lleno): esa ya la trajo el
+  // indexador.
+  const firmaCarpetas = useMemo(
+    () => store.carpetas.map((c) => c.id).join("\n"),
+    [store.carpetas],
+  );
+  const firmaPrevia = useRef("");
   useEffect(() => {
+    const previa = firmaPrevia.current;
+    firmaPrevia.current = firmaCarpetas;
+    if (previa === "" || previa === firmaCarpetas || !rutaVault) return;
     let vivo = true;
-    void listarOtrosArchivos(rutaVault ?? "").then((lista) => {
-      if (vivo) setOtros(lista);
+    void listarOtrosArchivos(rutaVault).then((lista) => {
+      if (vivo) useVaultStore.getState().setOtros(lista);
     });
     return () => {
       vivo = false;
     };
-  }, [rutaVault, store.notas, store.carpetas]);
+  }, [rutaVault, firmaCarpetas]);
 
   const otrosPorCarpeta = useMemo(() => {
     const map = new Map<string | null, OtroArchivo[]>();

@@ -77,7 +77,8 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     procesando = true;
     pendiente = false;
     try {
-      await indexarVault(ruta); // incremental por mtime
+      const indexado = await indexarVault(ruta); // incremental por mtime
+      useVaultStore.getState().setOtros(indexado.otros);
       const vaultId =
         useVaultStore.getState().vaultId ?? useAuthStore.getState().vaults[0]?.id ?? null;
       if (vaultId) await useVaultStore.getState().loadTree(vaultId);

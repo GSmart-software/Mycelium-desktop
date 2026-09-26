@@ -17,6 +17,7 @@
  *     sembrado por `ensureSeed()` para que `tree(LOCAL_VAULT_ID)` y toda la capa
  *     de datos funcionen contra el índice igual que contra `mycelium.db`.
  */
+import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
@@ -171,7 +172,7 @@ export async function crearEsquemaIndice(): Promise<void> {
 }
 
 /**
- * Metadatos de un archivo devueltos por el comando Rust `listar_archivos_meta`.
+ * Metadatos de un archivo devueltos por el comando Rust `recorrer_vault`.
  * **Sin contenido**: el texto se pide aparte con `leer_archivos`, y solo el de
  * los archivos que hay que reindexar (FUN-M-12).
  */
@@ -179,6 +180,18 @@ type ArchivoMeta = {
   rutaRelativa: string;
   mtime: number;
   tipo: string;
+};
+
+/**
+ * Lo que devuelve `recorrer_vault` (`FUN-M-13`, `FUN-M-38`): las tres listas
+ * que antes pedían tres comandos con tres recorridos del disco. `otros` no es
+ * del índice —son los archivos que Mycelium no indexa— pero sale de la misma
+ * pasada, y el explorador lo toma de acá en vez de recorrer el vault otra vez.
+ */
+type RecorridoVault = {
+  archivosMeta: ArchivoMeta[];
+  otros: { rutaRelativa: string; tipo: string }[];
+  directorios: string[];
 };
 
 /**
@@ -250,8 +263,9 @@ export function tituloDeRuta(ruta: string): string {
  *
  * Va en DOS FASES (FUN-M-12), porque antes se traía por IPC el contenido de todo
  * el vault en cada apertura para descartar casi todo comparando `mtime`:
- *   (a) `listar_archivos_meta` → solo `(ruta, mtime, tipo)`; con eso se calcula
- *       la lista de rutas a reindexar;
+ *   (a) `recorrer_vault` → solo `(ruta, mtime, tipo)` de cada nota (más los
+ *       directorios y los otros archivos, de la misma pasada); con eso se
+ *       calcula la lista de rutas a reindexar;
  *   (b) `leer_archivos(rutas)` en tandas de `TANDA`, escribiendo el índice tanda
  *       a tanda (así el progreso avanza y no se acumula todo en memoria).
  * Reabrir un vault sin cambios transfiere 0 bytes de contenido.
@@ -260,12 +274,14 @@ export function tituloDeRuta(ruta: string): string {
  * markdown (no se separan aún los `diagramas`); se simplifica así a propósito.
  *
  * @returns totales: `notas` en disco, `carpetas` derivadas, `reindexadas`
- *          (notas nuevas o modificadas que se reescribieron en el índice).
+ *          (notas nuevas o modificadas que se reescribieron en el índice) y
+ *          `otros`, los archivos no indexados que vio el recorrido (para el
+ *          explorador: `vaultStore.otros`).
  */
 export async function indexarVault(
   vaultRuta: string,
   onProgress?: (hechas: number, total: number) => void,
-): Promise<{ notas: number; carpetas: number; reindexadas: number }> {
+): Promise<{ notas: number; carpetas: number; reindexadas: number; otros: OtroArchivo[] }> {
   // ¿El índice es anterior a las propiedades (FUN-M-04)? Se pregunta ANTES de
   // crear el esquema: si la tabla todavía no existe, ninguna nota tiene sus
   // propiedades indexadas y el `mtime` no cambió, así que el reindexado
@@ -279,15 +295,14 @@ export async function indexarVault(
   await crearEsquemaIndice();
 
   const { invoke } = await import("@tauri-apps/api/core");
-  const archivos = await invoke<ArchivoMeta[]>("listar_archivos_meta", {
-    origen: vaultRuta,
-  });
-  // Directorios reales del vault (incluidos los vacíos): sin esto, una carpeta sin
-  // notas desaparecería al reindexar (solo se derivarían carpetas de las rutas de
-  // archivos). Ver `listar_directorios` (fase 7, frente 4).
-  const directorios = await invoke<string[]>("listar_directorios", {
-    origen: vaultRuta,
-  });
+  // Un solo recorrido del disco (`FUN-M-13`): las notas con sus metadatos, los
+  // directorios reales —incluidos los vacíos: sin ellos, una carpeta sin notas
+  // desaparecería al reindexar, porque solo se derivarían carpetas de las rutas
+  // de archivos— y los archivos que no se indexan, que van al explorador.
+  const recorrido = await invoke<RecorridoVault>("recorrer_vault", { origen: vaultRuta });
+  const archivos = recorrido.archivosMeta;
+  const directorios = recorrido.directorios;
+  const otros = otrosDesdeMeta(recorrido.otros);
 
   // Carpetas únicas: las derivadas de las rutas de archivos MÁS los directorios
   // reales (que cubren además las carpetas vacías). Padres antes que hijos.
@@ -439,7 +454,7 @@ export async function indexarVault(
 
   if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
 
-  return { notas: archivos.length, carpetas: carpetas.size, reindexadas };
+  return { notas: archivos.length, carpetas: carpetas.size, reindexadas, otros };
 }
 
 /**

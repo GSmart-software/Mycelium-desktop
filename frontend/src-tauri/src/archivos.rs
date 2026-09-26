@@ -193,8 +193,29 @@ fn rel_posix(base: &Path, ruta: &Path) -> Result<String, String> {
         .join("/"))
 }
 
-/// Recorre `dir` recursivamente acumulando los archivos importables con sus
-/// metadatos (`mtime`, `tipo`). Gemelo de `recorrer`, pero para el índice.
+/// Todo lo que un recorrido del vault devuelve **de una sola pasada**
+/// (`FUN-M-13` ampliado por `FUN-M-38`): las notas para el índice, los demás
+/// archivos para el explorador y los directorios (incluidos los vacíos) para
+/// que una carpeta sin notas sobreviva al reindexado.
+///
+/// Antes eran tres comandos con tres walkers gemelos —`listar_archivos_meta`,
+/// `listar_otros_archivos`, `listar_directorios`— que recorrían el mismo árbol
+/// por separado: dos veces en cada apertura y una más por cada recarga del
+/// explorador (medido: 69 + 51 + 100 ms en un vault de 1.300 notas; 6.199
+/// «otros» en uno que indexaba `.git/`). Los tres comandos siguen existiendo
+/// como envoltorios de este, para quien necesite una sola lista.
+#[derive(serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct RecorridoVault {
+    /// Notas del vault (importables), con `mtime` y su `tipo` de nota.
+    pub archivos_meta: Vec<ArchivoMeta>,
+    /// Los archivos que Mycelium no indexa (`FUN-S-03`): `tipo` es su extensión.
+    pub otros: Vec<ArchivoMeta>,
+    /// Rutas relativas POSIX de TODOS los subdirectorios no ignorados.
+    pub directorios: Vec<String>,
+}
+
+/// Recorre `dir` recursivamente acumulando notas, otros archivos y directorios.
 /// El filtrado lo deciden los patrones del `.mycignore` del vault (FUN-M-11);
 /// `.mycelium` queda excluido siempre.
 ///
@@ -204,16 +225,14 @@ fn rel_posix(base: &Path, ruta: &Path) -> Result<String, String> {
 /// Micro-optimizaciones del walker (FUN-M-12): se usa `entrada.file_type()` en
 /// vez de `ruta.is_dir()` —el tipo ya viene en la entrada del directorio, así que
 /// se ahorra un `stat` por archivo, notorio en Windows— y `rel_posix` se calcula
-/// UNA vez por entrada en lugar de dos. Contrapartida asumida: `file_type()` no
-/// sigue enlaces simbólicos, así que un symlink a una carpeta ya no se recorre
-/// (antes sí). Es lo deseable: evita ciclos y duplicados en el índice.
-fn recorrer_meta(
+/// UNA vez por entrada. Contrapartida asumida: `file_type()` no sigue enlaces
+/// simbólicos, así que un symlink a una carpeta no se recorre. Es lo deseable:
+/// evita ciclos y duplicados en el índice.
+fn recorrer_todo(
     dir: &Path,
     base: &Path,
     patrones: &[crate::mycignore::Patron],
-    incluir: &dyn Fn(&Path) -> bool,
-    etiqueta: &dyn Fn(&Path) -> String,
-    out: &mut Vec<ArchivoMeta>,
+    out: &mut RecorridoVault,
 ) -> Result<(), String> {
     let entradas =
         std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
@@ -222,23 +241,42 @@ fn recorrer_meta(
         let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
         let ruta = entrada.path();
         let es_dir = entrada.file_type().map(|t| t.is_dir()).unwrap_or(false);
-
+        let relativa = rel_posix(base, &ruta)?;
+        if crate::mycignore::ignorada(&relativa, es_dir, patrones) {
+            continue;
+        }
         if es_dir {
-            let relativa = rel_posix(base, &ruta)?;
-            if crate::mycignore::ignorada(&relativa, true, patrones) {
-                continue;
-            }
-            recorrer_meta(&ruta, base, patrones, incluir, etiqueta, out)?;
-        } else if incluir(&ruta) {
-            let relativa = rel_posix(base, &ruta)?;
-            if crate::mycignore::ignorada(&relativa, false, patrones) {
-                continue;
-            }
-            let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
-            out.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: etiqueta(&ruta) });
+            out.directorios.push(relativa);
+            recorrer_todo(&ruta, base, patrones, out)?;
+            continue;
+        }
+        let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
+        if es_importable(&ruta) {
+            out.archivos_meta.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta) });
+        } else {
+            out.otros.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: extension_de(&ruta) });
         }
     }
     Ok(())
+}
+
+/// Recorre el vault en `base` de una pasada (ver `RecorridoVault`).
+fn recorrer_vault_en(origen: &str) -> Result<RecorridoVault, String> {
+    let base = PathBuf::from(origen);
+    if !base.is_dir() {
+        return Err(format!("La carpeta de origen no existe: {origen}"));
+    }
+    let patrones = crate::mycignore::cargar(&base);
+    let mut out = RecorridoVault::default();
+    recorrer_todo(&base, &base, &patrones, &mut out)?;
+    Ok(out)
+}
+
+/// Un solo recorrido del vault para el índice, el explorador y el watcher
+/// (`FUN-M-13`, `FUN-M-38`): notas con metadatos, otros archivos y directorios.
+#[tauri::command]
+pub fn recorrer_vault(origen: String) -> Result<RecorridoVault, String> {
+    recorrer_vault_en(&origen)
 }
 
 /// Rutas ABSOLUTAS que el vault mira de verdad: las carpetas no ignoradas y los
@@ -288,20 +326,13 @@ fn recorrer_observables(
 
 /// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw`/`.base` con su ruta
 /// relativa (separador `/`), su `mtime` (ms epoch) y su `tipo` — **sin el
-/// contenido**. Es la fuente del indexador derivado (fase 2 del vault en
-/// carpeta): con esto le alcanza para decidir qué reindexar, y el texto lo pide
+/// contenido**. Con esto el indexador decide qué reindexar, y el texto lo pide
 /// después con `leer_archivos`. Qué se ignora lo decide el `.mycignore` del
-/// vault (ver el default de `mycignore::DEFAULT`).
+/// vault (ver el default de `mycignore::DEFAULT`). Envoltorio de
+/// `recorrer_vault`: el indexador ya no lo usa (pide las tres listas de una vez).
 #[tauri::command]
 pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> {
-    let base = PathBuf::from(&origen);
-    if !base.is_dir() {
-        return Err(format!("La carpeta de origen no existe: {origen}"));
-    }
-    let patrones = crate::mycignore::cargar(&base);
-    let mut out = Vec::new();
-    recorrer_meta(&base, &base, &patrones, &es_importable, &tipo_de, &mut out)?;
-    Ok(out)
+    Ok(recorrer_vault_en(&origen)?.archivos_meta)
 }
 
 /// Extensión en minúsculas, sin el punto. Cadena vacía si no tiene.
@@ -322,17 +353,11 @@ fn extension_de(path: &Path) -> String {
 /// Comparte el recorrido con `listar_archivos_meta` a propósito: con dos
 /// walkers, el `.mycignore` y las carpetas ocultas se aplicarían distinto en
 /// cada uno en cuanto alguien tocara solo uno. El `tipo` de cada entrada es su
-/// extensión, que es justo lo que el explorador necesita mostrar.
+/// extensión, que es justo lo que el explorador necesita mostrar. Envoltorio de
+/// `recorrer_vault`; el explorador toma esta lista del indexador (`FUN-M-38`).
 #[tauri::command]
 pub fn listar_otros_archivos(origen: String) -> Result<Vec<ArchivoMeta>, String> {
-    let base = PathBuf::from(&origen);
-    if !base.is_dir() {
-        return Err(format!("La carpeta de origen no existe: {origen}"));
-    }
-    let patrones = crate::mycignore::cargar(&base);
-    let mut out = Vec::new();
-    recorrer_meta(&base, &base, &patrones, &|p| !es_importable(p), &extension_de, &mut out)?;
-    Ok(out)
+    Ok(recorrer_vault_en(&origen)?.otros)
 }
 
 /// Devuelve el contenido UTF-8 de las `rutas` (relativas POSIX) pedidas dentro
@@ -542,51 +567,14 @@ pub fn escribir_archivo_visor(
     Ok(EscrituraVisor { guardado: true, mtime })
 }
 
-/// Recorre `dir` recursivamente acumulando las rutas relativas (separador `/`) de
-/// TODOS los subdirectorios reales no ignorados por el `.mycignore`. A diferencia
-/// del listado de archivos, aquí importan también los directorios VACÍOS: son la
-/// única forma de que una carpeta sin notas sobreviva a un reindex (el indexador,
-/// si solo derivara carpetas de las rutas de archivos, las perdería).
-fn recorrer_dirs(
-    dir: &Path,
-    base: &Path,
-    patrones: &[crate::mycignore::Patron],
-    out: &mut Vec<String>,
-) -> Result<(), String> {
-    let entradas =
-        std::fs::read_dir(dir).map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
-
-    for entrada in entradas {
-        let entrada = entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
-        // `file_type()` en vez de `is_dir()`: el tipo viene con la entrada del
-        // directorio y evita un `stat` por archivo (FUN-M-12).
-        if !entrada.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        let ruta = entrada.path();
-        let relativa = rel_posix(base, &ruta)?;
-        if crate::mycignore::ignorada(&relativa, true, patrones) {
-            continue;
-        }
-        out.push(relativa);
-        recorrer_dirs(&ruta, base, patrones, out)?;
-    }
-    Ok(())
-}
-
 /// Lista las rutas relativas POSIX de TODOS los subdirectorios de `origen`
-/// (incluidos los vacíos), según el `.mycignore` del vault. Es el complemento
-/// de `listar_archivos_meta` para que el índice conserve las carpetas vacías.
+/// (incluidos los vacíos), según el `.mycignore` del vault. A diferencia del
+/// listado de archivos, aquí importan también los directorios VACÍOS: son la
+/// única forma de que una carpeta sin notas sobreviva a un reindex. Envoltorio
+/// de `recorrer_vault`.
 #[tauri::command]
 pub fn listar_directorios(origen: String) -> Result<Vec<String>, String> {
-    let base = PathBuf::from(&origen);
-    if !base.is_dir() {
-        return Err(format!("La carpeta de origen no existe: {origen}"));
-    }
-    let patrones = crate::mycignore::cargar(&base);
-    let mut out = Vec::new();
-    recorrer_dirs(&base, &base, &patrones, &mut out)?;
-    Ok(out)
+    Ok(recorrer_vault_en(&origen)?.directorios)
 }
 
 /// `true` si la carpeta tiene al menos una entrada. La UI lo usa para pedir
@@ -840,6 +828,48 @@ mod tests {
         assert!(leer_archivo_visor(origen.clone(), "fantasma.txt".into(), 1024).is_err());
         assert!(leer_archivo_visor(origen.clone(), "../fuera.txt".into(), 1024).is_err());
         assert!(leer_archivo_visor(origen, "/etc/passwd".into(), 1024).is_err());
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// Un solo recorrido devuelve las tres listas (`FUN-M-38`): las notas van a
+    /// `archivos_meta`, lo que no se indexa a `otros` y las carpetas —también
+    /// las vacías— a `directorios`; nada aparece en dos listas y lo ignorado
+    /// por `.mycignore` no aparece en ninguna.
+    #[test]
+    fn recorrer_vault_separa_notas_otros_y_directorios_en_una_pasada() {
+        let base = std::env::temp_dir().join(format!("mycelium-rec-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("Proyectos/2026")).unwrap();
+        std::fs::create_dir_all(base.join("Vacía")).unwrap();
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        std::fs::create_dir_all(base.join("node_modules/x")).unwrap();
+        std::fs::write(base.join("Proyectos/2026/plan.md"), "x").unwrap();
+        std::fs::write(base.join("Proyectos/foto.PNG"), "x").unwrap();
+        std::fs::write(base.join("raiz.excalidraw"), "{}").unwrap();
+        std::fs::write(base.join("notas.txt"), "x").unwrap();
+        std::fs::write(base.join(".git/HEAD"), "x").unwrap();
+        std::fs::write(base.join("node_modules/x/README.md"), "x").unwrap();
+
+        let r = recorrer_vault(base.to_string_lossy().to_string()).unwrap();
+        let mut notas: Vec<(&str, &str)> =
+            r.archivos_meta.iter().map(|a| (a.ruta_relativa.as_str(), a.tipo.as_str())).collect();
+        notas.sort();
+        assert_eq!(notas, vec![("Proyectos/2026/plan.md", "markdown"), ("raiz.excalidraw", "excalidraw")]);
+        assert!(r.archivos_meta.iter().all(|a| a.mtime > 0));
+
+        let mut otros: Vec<(&str, &str)> =
+            r.otros.iter().map(|a| (a.ruta_relativa.as_str(), a.tipo.as_str())).collect();
+        otros.sort();
+        assert_eq!(otros, vec![("Proyectos/foto.PNG", "png"), ("notas.txt", "txt")]);
+
+        let mut dirs = r.directorios.clone();
+        dirs.sort();
+        assert_eq!(dirs, vec!["Proyectos", "Proyectos/2026", "Vacía"]);
+
+        // Los envoltorios devuelven lo mismo que la pasada única.
+        assert_eq!(listar_archivos_meta(base.to_string_lossy().to_string()).unwrap().len(), 2);
+        assert_eq!(listar_otros_archivos(base.to_string_lossy().to_string()).unwrap().len(), 2);
 
         std::fs::remove_dir_all(&base).unwrap();
     }

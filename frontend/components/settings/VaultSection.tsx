@@ -233,7 +233,8 @@ export function VaultSection() {
       });
       // Reindexar con las reglas nuevas y refrescar el árbol.
       const { indexarVault } = await import("@/lib/db/indexer");
-      await indexarVault(rutaVault);
+      const indexado = await indexarVault(rutaVault);
+      useVaultStore.getState().setOtros(indexado.otros);
       const vaultId = useVaultStore.getState().vaultId;
       if (vaultId) await useVaultStore.getState().loadTree(vaultId);
       setMycignore(null);

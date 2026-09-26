@@ -165,10 +165,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       etapa("identidad");
       await ensureSeed();
       etapa("indexando");
-      await indexarVault(ruta, (hechas, total) =>
+      const indexado = await indexarVault(ruta, (hechas, total) =>
         set({ progreso: { hechas, total }, avanceEn: Date.now() }),
       );
       set({ progreso: null }); // el indexado terminó
+      // Los archivos no indexados salen del mismo recorrido (`FUN-M-38`); el
+      // explorador los toma del store en vez de recorrer el vault otra vez.
+      useVaultStore.getState().setOtros(indexado.otros);
       // Lo que NO se deriva de los archivos —apariencia, snippets, papelera— vive
       // en `.mycelium/` y se vuelca al índice acá (`DEF-107`). La primera vez,
       // con un índice anterior, hace lo inverso: lo saca del índice a los
