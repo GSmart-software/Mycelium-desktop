@@ -7,6 +7,7 @@ import { folderPath } from "@/lib/search";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore, type NodePos } from "@/stores/graphStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { usePrefVault } from "@/stores/prefsVaultStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { GraphOptionsMenu } from "./GraphOptionsMenu";
@@ -52,9 +53,14 @@ export function GraphView() {
     router.replace(`/workspace?note=${notaId}`);
   };
 
+  // Disposición del grafo (`FUN-L-23`): preferencia del vault. La caché de
+  // posiciones y de vista del store va por disposición, así cada una recuerda
+  // lo suyo mientras la pestaña viva.
+  const disposicion = usePrefVault("disposicionGrafo");
   const savePositions = useCallback(
-    (positions: Record<string, NodePos>) => useGraphStore.getState().savePositions(positions),
-    [],
+    (positions: Record<string, NodePos>) =>
+      useGraphStore.getState().savePositions(disposicion, positions),
+    [disposicion],
   );
 
   const colorGroups = usePreferencesStore((s) => s.prefs.graphColorGroups);
@@ -211,6 +217,19 @@ export function GraphView() {
     play();
   };
 
+  // Cada nodo lleva la ruta de su carpeta (con `/`): el anillo de colonias
+  // agrupa por el primer segmento. `folderPath` devuelve " / " como separador
+  // visual, y acá se quiere la ruta limpia sin perder mayúsculas ni acentos,
+  // porque el primer segmento es el nombre que se rotula en el anillo.
+  const nodos = useMemo(
+    () =>
+      visible.nodos.map((n) => ({
+        ...n,
+        carpeta: folderPath(carpetaById.get(n.id) ?? null, carpetas).replace(/\s*\/\s*/g, "/"),
+      })),
+    [visible, carpetaById, carpetas],
+  );
+
   const hasNotes = !!data && data.nodos.length > 0;
 
   return (
@@ -234,16 +253,17 @@ export function GraphView() {
       {timelapse?.label && <div className={styles.timelapseDate}>{timelapse.label}</div>}
       {visible.nodos.length > 0 ? (
         <MiniGraph
-          nodes={visible.nodos}
+          nodes={nodos}
           edges={visible.aristas}
           centerId={null}
           onOpen={open}
-          initialPositions={useGraphStore.getState().positions}
+          initialPositions={useGraphStore.getState().positions[disposicion]}
           onPositions={savePositions}
-          getInitialView={() => useGraphStore.getState().view}
-          onView={(v) => useGraphStore.getState().saveView(v)}
+          getInitialView={() => useGraphStore.getState().view[disposicion]}
+          onView={(v) => useGraphStore.getState().saveView(disposicion, v)}
           nodeColors={nodeColors}
           revealCount={timelapse?.count ?? null}
+          disposicion={disposicion}
         />
       ) : (
         <div className={styles.empty}>

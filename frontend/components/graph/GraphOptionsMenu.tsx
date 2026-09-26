@@ -7,9 +7,37 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import {
   usePrefVault,
   usePrefsVaultStore,
+  type DisposicionGrafo,
   type ModoNombresGrafo,
 } from "@/stores/prefsVaultStore";
 import styles from "./GraphOptionsMenu.module.css";
+
+/**
+ * Cómo se disponen los nodos del grafo global (`FUN-L-23`). El cúmulo es el de
+ * siempre; los otros tres vienen de la exploración de representaciones
+ * inspiradas en el micelio.
+ */
+const DISPOSICIONES: { value: DisposicionGrafo; label: string; ayuda: string }[] = [
+  { value: "cumulo", label: "Cúmulo", ayuda: "Los nodos se repelen y los enlaces los atraen" },
+  {
+    value: "anillo",
+    label: "Anillo",
+    ayuda: "Anillo de colonias: las notas en un anillo, agrupadas por carpeta",
+  },
+  {
+    value: "crecimiento",
+    label: "Crecimiento",
+    ayuda: "Cada nota brota junto a las que ya enlazaba, en orden de creación",
+  },
+  {
+    value: "sustrato",
+    label: "Sustrato",
+    ayuda: "El cúmulo dibujado como micelio: hifas, esporas y halo",
+  },
+];
+
+/** Ayuda de las opciones que solo tienen sentido en el cúmulo. */
+const SOLO_CUMULO = "Solo aplica a la disposición «Cúmulo»";
 
 /**
  * Cuánto nombre se dibuja en el grafo (`FUN-M-21`). Con muchos nodos, todos los
@@ -73,7 +101,11 @@ export function GraphOptionsMenu() {
   // Los nombres son preferencia DEL VAULT (`FUN-M-21`): un vault de cien notas y
   // uno de cinco mil no quieren lo mismo, y quien los abre es la misma persona.
   const nombresGrafo = usePrefVault("nombresGrafo");
+  const disposicionGrafo = usePrefVault("disposicionGrafo");
   const setPrefVault = usePrefsVaultStore((s) => s.set);
+  // El indicador de dirección y el brillo de hover son del dibujo del cúmulo:
+  // las hifas ya son direccionales por forma y no llevan flujo animado.
+  const soloCumulo = disposicionGrafo !== "cumulo";
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -229,6 +261,29 @@ export function GraphOptionsMenu() {
             style={{ left: pos.x, top: pos.y, maxHeight: pos.alto || undefined }}
           >
           <div className={styles.group}>
+            <span className={styles.label}>Disposición</span>
+            <div className={styles.segmented} role="radiogroup">
+              {DISPOSICIONES.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={disposicionGrafo === d.value}
+                  title={d.ayuda}
+                  className={
+                    disposicionGrafo === d.value
+                      ? `${styles.segment} ${styles.segmentActive}`
+                      : styles.segment
+                  }
+                  onClick={() => setPrefVault("disposicionGrafo", d.value)}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.group}>
             <span className={styles.label}>Nombres</span>
             <div className={styles.segmented} role="radiogroup">
               {NOMBRES.map((m) => (
@@ -251,15 +306,20 @@ export function GraphOptionsMenu() {
             </div>
           </div>
 
-          <div className={styles.group}>
+          <div
+            className={soloCumulo ? `${styles.group} ${styles.groupDisabled}` : styles.group}
+            title={soloCumulo ? SOLO_CUMULO : undefined}
+          >
             <span className={styles.label}>Indicador de dirección</span>
-            <div className={styles.segmented} role="radiogroup">
+            <div className={styles.segmented} role="radiogroup" aria-disabled={soloCumulo}>
               {DIRECTIONS.map((d) => (
                 <button
                   key={d.value}
                   type="button"
                   role="radio"
                   aria-checked={edgeDirection === d.value}
+                  disabled={soloCumulo}
+                  title={soloCumulo ? SOLO_CUMULO : undefined}
                   className={
                     edgeDirection === d.value
                       ? `${styles.segment} ${styles.segmentActive}`
@@ -273,7 +333,10 @@ export function GraphOptionsMenu() {
             </div>
           </div>
 
-          <div className={styles.group}>
+          <div
+            className={soloCumulo ? `${styles.group} ${styles.groupDisabled}` : styles.group}
+            title={soloCumulo ? SOLO_CUMULO : undefined}
+          >
             <span className={styles.label}>
               Brillo de conexiones al apuntar
               <span className={styles.value}>{Math.round(hoverGlow * 100)}%</span>
@@ -285,6 +348,8 @@ export function GraphOptionsMenu() {
               max={2}
               step={0.1}
               value={hoverGlow}
+              disabled={soloCumulo}
+              title={soloCumulo ? SOLO_CUMULO : undefined}
               onChange={(e) => setPref("graphHoverGlow", Number(e.target.value))}
               aria-label="Intensidad del brillo de las conexiones al apuntar un nodo"
             />

@@ -2,7 +2,26 @@
 
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { usePrefVault } from "@/stores/prefsVaultStore";
+import { type DisposicionGrafo, usePrefVault } from "@/stores/prefsVaultStore";
+import {
+  type GrafoIndexado,
+  type LayoutAnillo,
+  hubsDe,
+  indexarGrafo,
+  layoutAnillo,
+  layoutCrecimiento,
+  limitesDe,
+  siembraSustrato,
+} from "./disposiciones";
+import {
+  type Camara,
+  type EscenaMicelio,
+  type FocoMicelio,
+  type PaletaMicelio,
+  conAlpha,
+  dibujarCapaEstatica,
+  dibujarSobrecapa,
+} from "./hifas";
 
 export type GraphNode = {
   id: string;
@@ -10,6 +29,8 @@ export type GraphNode = {
   conexiones: number;
   tags?: string[];
   creadoEn?: string;
+  /** Ruta de la carpeta con `/` (vacía = raíz). La usa el anillo de colonias (`FUN-L-23`). */
+  carpeta?: string;
 };
 export type GraphEdge = { source: string; target: string };
 
@@ -81,11 +102,18 @@ export function MiniGraph({
   onView,
   nodeColors,
   revealCount,
+  disposicion: disposicionProp,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   centerId: string | null;
   onOpen: (id: string) => void;
+  /**
+   * Cómo se disponen los nodos (`FUN-L-23`). Sin indicar = `cumulo`, la
+   * simulación de fuerzas de siempre; es lo que usa el mini-grafo del panel.
+   * Las otras tres se dibujan como micelio (`hifas.ts`) sobre una capa estática.
+   */
+  disposicion?: DisposicionGrafo;
   /** Color por id según los grupos de color del usuario (sobrescribe el glow). */
   nodeColors?: Map<string, string>;
   /** Construcción temporal: solo se dibujan los primeros `revealCount` nodos en
@@ -95,8 +123,9 @@ export function MiniGraph({
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
   onPositions?: (positions: Record<string, { x: number; y: number }>) => void;
-  /** Getter de la vista (zoom/pan) cacheada — se lee al (re)iniciar la simulación. */
-  getInitialView?: () => GraphView;
+  /** Getter de la vista (zoom/pan) cacheada — se lee al (re)iniciar la simulación.
+   *  `undefined` = todavía no hay: las disposiciones micelio encuadran el grafo. */
+  getInitialView?: () => GraphView | undefined;
   /** Guarda la vista actual al desmontar/recalcular, para conservar el zoom. */
   onView?: (view: GraphView) => void;
 }) {
@@ -144,12 +173,26 @@ export function MiniGraph({
   getInitialViewRef.current = getInitialView;
   const onViewRef = useRef(onView);
   onViewRef.current = onView;
+  const disposicion: DisposicionGrafo = disposicionProp ?? "cumulo";
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    // Las callbacks de guardado se capturan AHORA y no en el cleanup: al cambiar
+    // de disposición, la ref ya apunta a la callback de la disposición nueva
+    // cuando corre el cleanup de la vieja, y guardaría el layout del cúmulo
+    // bajo la clave del anillo (y su vista, que entonces no se encuadraría).
+    const guardarPosiciones = onPositionsRef.current;
+    const guardarVista = onViewRef.current;
+
+    // ── Disposición (`FUN-L-23`). `micelio` = las tres nuevas, que se dibujan
+    //    con `hifas.ts` sobre una capa estática; `fisica` = las que simulan
+    //    (cúmulo y sustrato). El cúmulo sigue su camino de siempre. ──
+    const micelio = disposicion !== "cumulo";
+    const fisica = disposicion === "cumulo" || disposicion === "sustrato";
 
     // El grafo se dibuja sobre un lienzo oscuro (estilo Obsidian) en cualquier
     // tema; los nodos usan el glow del tema y las etiquetas un gris claro.
@@ -177,13 +220,35 @@ export function MiniGraph({
     // nodo: en el dibujo de nodos y en el de etiquetas).
     const radioDe = (n: GraphNode) => {
       const base = Math.min(4 + n.conexiones * 1.6, 15);
+      // En las disposiciones micelio hay muchos más nodos en pantalla que en el
+      // mini-grafo para el que se calibró la fórmula: la mitad.
+      if (micelio) return base / 2;
       return n.id === centerId ? base + 3 : base;
     };
+    // Layout de las disposiciones micelio: el anillo y el crecimiento son
+    // deterministas y se recalculan acá (milisegundos); el sustrato solo toma la
+    // siembra inicial y después simula como el cúmulo, con su caché.
+    const g: GrafoIndexado | null = micelio ? indexarGrafo(nodes, edges) : null;
+    let anillo: LayoutAnillo | null = null;
+    let posMicelio: Float64Array | null = null;
+    if (g) {
+      if (disposicion === "anillo") {
+        anillo = layoutAnillo(g);
+        posMicelio = anillo.pos;
+      } else if (disposicion === "crecimiento") {
+        posMicelio = layoutCrecimiento(g).pos;
+      } else {
+        posMicelio = siembraSustrato(g);
+      }
+    }
     const sim: SimNode[] = nodes.map((n, i) => {
       const cached = saved?.[n.id];
-      if (cached && n.id !== centerId) {
+      if (cached && n.id !== centerId && fisica) {
         savedCount++;
         return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0, r: radioDe(n) };
+      }
+      if (posMicelio) {
+        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], vx: 0, vy: 0, r: radioDe(n) };
       }
       const a = (i / Math.max(N, 1)) * Math.PI * 2;
       const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
@@ -198,12 +263,17 @@ export function MiniGraph({
     // Rango de aparición por id: orden de creación (creadoEn, desempate por id
     // para coincidir con el orden que usa GraphView al contar). Permite revelar
     // los nodos de a uno aunque compartan la misma fecha.
-    const rankById = new Map(
-      nodes
-        .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : 0 }))
-        .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-        .map((o, i) => [o.id, i] as const),
-    );
+    // En las disposiciones micelio manda el orden del índice (`g.rango`): es el
+    // mismo que usa el layout de crecimiento, y pone las notas sin fecha al
+    // final en vez de al principio.
+    const rankById = g
+      ? new Map(g.ids.map((id, i) => [id, g.rango[i]] as const))
+      : new Map(
+          nodes
+            .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : 0 }))
+            .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+            .map((o, i) => [o.id, i] as const),
+        );
     // ¿El nodo ya "apareció"? Se muestran los primeros `revealCount` en orden de
     // creación (null = mostrar todo).
     const revealed = (n: SimNode) => {
@@ -294,7 +364,18 @@ export function MiniGraph({
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
+    /** Nodo pulsado en las disposiciones sin arrastre (anillo, crecimiento): clic = abrir. */
+    let clickNode: SimNode | null = null;
     let panning = false;
+    // Capa estática de las disposiciones micelio: se vuelve a pintar solo cuando
+    // algo la ensucia (vista, tamaño, nodos que se mueven, lo revelado, colores).
+    let sucioEstatico = true;
+    const ensuciar = () => {
+      sucioEstatico = true;
+    };
+    // Sin vista cacheada, la disposición micelio se encuadra en cuanto el lienzo
+    // tenga tamaño (la primera vez que se elige; después recuerda su vista).
+    let encuadrePendiente = micelio && !v0;
     let downAt: { x: number; y: number } | null = null;
     let alpha = initialAlpha;
     let dpr = window.devicePixelRatio || 1;
@@ -309,9 +390,16 @@ export function MiniGraph({
     let frame = 0;
     let lastEnergetic = performance.now();
     const wake = () => {
-      if (running && frame === 0) frame = requestAnimationFrame(tick);
+      if (running && frame === 0) frame = requestAnimationFrame(micelio ? tickMicelio : tick);
     };
-    wakeRef.current = wake; // permite despertar el bucle al cambiar las opciones
+    // Permite despertar el bucle al cambiar las opciones. En micelio, además,
+    // ensucia la capa estática: los colores y lo revelado viven ahí.
+    wakeRef.current = micelio
+      ? () => {
+          ensuciar();
+          wake();
+        }
+      : wake;
 
     // Movimiento reducido: el flujo animado de las aristas es un bucle infinito
     // que no se detiene nunca. Con la preferencia del sistema activa se dibuja
@@ -348,6 +436,15 @@ export function MiniGraph({
       canvas.style.width = `${parent.clientWidth}px`;
       canvas.style.height = `${parent.clientHeight}px`;
       alpha = Math.max(alpha, 0.3);
+      if (micelio) {
+        estatico.width = canvas.width;
+        estatico.height = canvas.height;
+        if (encuadrePendiente && parent.clientWidth > 0 && parent.clientHeight > 0) {
+          recentrar();
+          encuadrePendiente = false;
+        }
+        ensuciar();
+      }
       wake();
     };
 
@@ -382,8 +479,14 @@ export function MiniGraph({
       const n = pick(ev);
       downAt = { x: ev.clientX, y: ev.clientY };
       if (n) {
-        dragNode = n;
-        alpha = Math.max(alpha, 0.4);
+        // Arrastrar un nodo solo tiene sentido donde hay física; en el anillo y
+        // el crecimiento la posición es determinista y pulsar es solo abrir.
+        if (fisica) {
+          dragNode = n;
+          alpha = Math.max(alpha, 0.4);
+        } else {
+          clickNode = n;
+        }
       } else {
         panning = true;
       }
@@ -401,6 +504,7 @@ export function MiniGraph({
       } else if (panning) {
         ox += ev.movementX;
         oy += ev.movementY;
+        if (micelio) ensuciar();
         wake();
       } else {
         const n = pick(ev);
@@ -415,8 +519,10 @@ export function MiniGraph({
     const onMouseUp = (ev: MouseEvent) => {
       const moved =
         downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4;
-      if (dragNode && !moved) onOpenRef.current(dragNode.id);
+      const pulsado = dragNode ?? clickNode;
+      if (pulsado && !moved) onOpenRef.current(pulsado.id);
       dragNode = null;
+      clickNode = null;
       panning = false;
       downAt = null;
     };
@@ -431,6 +537,7 @@ export function MiniGraph({
       // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
       // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
       scale = Math.min(Math.max(scale * factor, 0.05), 4);
+      if (micelio) ensuciar();
       wake(); // un redibujo para reflejar el zoom
     };
 
@@ -441,12 +548,18 @@ export function MiniGraph({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas.parentElement ?? canvas);
 
+    // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
+    // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
+    // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
+    const k = disposicion === "sustrato" ? 45 : 80;
+    const topeRepulsion = disposicion === "sustrato" ? 6 : 8;
+    const factorRepulsion = disposicion === "sustrato" ? 0.7 : 1;
+
     const simulate = () => {
       // En construcción temporal solo simulan los nodos ya aparecidos, así el
       // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
       const tl = revealCountRef.current != null;
       const active = tl ? sim.filter((n) => activated.has(n.id)) : sim;
-      const k = 80;
       for (let i = 0; i < active.length; i++) {
         const a = active[i];
         for (let j = i + 1; j < active.length; j++) {
@@ -460,7 +573,7 @@ export function MiniGraph({
             d2 = 1;
           }
           const d = Math.sqrt(d2);
-          const f = Math.min((k * k) / d2, 8) * alpha;
+          const f = Math.min((k * k) / d2, topeRepulsion) * factorRepulsion * alpha;
           a.vx += (dx / d) * f;
           a.vy += (dy / d) * f;
           b.vx -= (dx / d) * f;
@@ -648,18 +761,162 @@ export function MiniGraph({
       }
     };
 
-    const tick = () => {
-      frame = 0;
-      if (!running || !canvas.isConnected) return;
-      // Construcción temporal: colocar los nodos recién aparecidos (en orden de
-      // creación) y dar energía para que el grafo se reacomode al crecer.
-      const rc = revealCountRef.current;
+    // Construcción temporal con física (cúmulo y sustrato): colocar los nodos
+    // recién aparecidos (en orden de creación) y dar energía para que el grafo
+    // se reacomode al crecer.
+    const avanzarConstruccion = (rc: number | null | undefined) => {
       if (rc != null) {
         if (prevRc == null) activated.clear(); // (re)inicio: crecer desde cero
         const target = Math.min(rc, orderedSim.length);
         while (activated.size < target) placeNew(orderedSim[activated.size]);
         if (rc !== prevRc) alpha = Math.max(alpha, 0.6);
       }
+    };
+
+    // ── Disposiciones micelio (`FUN-L-23`): capa estática + sobrecapa. Todo lo
+    //    de acá abajo hasta `tickMicelio` es inerte cuando `disposicion` es el
+    //    cúmulo, que sigue con `draw` y `tick` de siempre. ──
+    const estatico = document.createElement("canvas");
+    const sctx = estatico.getContext("2d");
+    // El fondo de las etiquetas es el del lienzo (oscuro en cualquier tema),
+    // semitransparente, para que el nombre se lea sobre un tapiz de hifas.
+    const fondo = getComputedStyle(canvas.parentElement ?? canvas).backgroundColor;
+    const paleta: PaletaMicelio = {
+      hifa: conAlpha(ctx, colGlow, 0.24),
+      hifaSustrato: conAlpha(ctx, colGlow, 0.2),
+      cruce: conAlpha(ctx, colGlow, 0.07),
+      halo: conAlpha(ctx, colGlow, 0.1),
+      espora: colGlow,
+      cuerpo: "#F2E4C4",
+      foco: "#EAFFF8",
+      acento: colAccent,
+      texto: colText,
+      textoFoco: colText2,
+      textoHub: "rgba(242, 228, 196, 0.9)",
+      fondoEtiqueta: conAlpha(ctx, fondo || "#0B100E", 0.75),
+      fuente: fontFamily,
+    };
+    const escena: EscenaMicelio | null =
+      g && posMicelio && disposicion !== "cumulo"
+        ? {
+            disposicion,
+            g,
+            pos: posMicelio,
+            radio: Float32Array.from(sim, (n) => n.r),
+            anillo,
+            limiteRango: Infinity,
+            // Solo en Crecimiento las hifas de lo recién revelado crecen.
+            aparicion: disposicion === "crecimiento" ? new Float64Array(g.n) : null,
+            reducido,
+            colores: nodeColorsRef.current,
+          }
+        : null;
+    const hubs = g ? hubsDe(g) : [];
+    /** Sustrato: la simulación mueve `sim`; el dibujo lee `escena.pos`. */
+    const sincronizarPos = () => {
+      if (!escena) return;
+      for (let i = 0; i < sim.length; i++) {
+        escena.pos[i * 2] = sim[i].x;
+        escena.pos[i * 2 + 1] = sim[i].y;
+      }
+    };
+    if (escena && fisica) sincronizarPos(); // con caché, `sim` ya trae lo asentado
+
+    /** Encuadra el grafo entero en el lienzo (primera vez que se elige la disposición). */
+    const recentrar = () => {
+      if (!escena) return;
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
+      const margen = anillo ? anillo.R + 95 : 0; // el anillo lleva nombres por fuera
+      const b = anillo
+        ? { minX: -margen, minY: -margen, maxX: margen, maxY: margen }
+        : limitesDe(escena.g, escena.pos);
+      const s = Math.min((W - 40) / (b.maxX - b.minX + 1), (H - 40) / (b.maxY - b.minY + 1));
+      scale = Math.min(Math.max(s, 0.05), 4);
+      ox = -((b.minX + b.maxX) / 2) * scale;
+      oy = -((b.minY + b.maxY) / 2) * scale;
+      ensuciar();
+    };
+
+    /** El foco como índices del grafo (los conjuntos de arriba son por id). */
+    const focoActual = (): FocoMicelio => {
+      const vecinosIdx = new Set<number>();
+      const refsIdx = new Set<number>();
+      if (!g || !hover) return { nodo: -1, vecinos: vecinosIdx, refs: refsIdx };
+      for (const id of vecinos) {
+        const i = g.indice.get(id);
+        if (i !== undefined) vecinosIdx.add(i);
+      }
+      for (const id of focusRefs) {
+        const i = g.indice.get(id);
+        if (i !== undefined) refsIdx.add(i);
+      }
+      return { nodo: g.indice.get(hover.id) ?? -1, vecinos: vecinosIdx, refs: refsIdx };
+    };
+
+    const dibujarMicelio = (ahora: number) => {
+      if (!escena || !sctx) return;
+      const cam: Camara = {
+        scale,
+        ox,
+        oy,
+        ancho: canvas.width / dpr,
+        alto: canvas.height / dpr,
+        dpr,
+      };
+      escena.limiteRango = revealCountRef.current ?? Infinity;
+      escena.colores = nodeColorsRef.current;
+      escena.reducido = reducido;
+      // La capa estática solo se repinta si algo la ensució; queda sucia
+      // mientras alguna hifa siga creciendo.
+      if (sucioEstatico) sucioEstatico = dibujarCapaEstatica(sctx, escena, cam, paleta, ahora);
+      dibujarSobrecapa(ctx, estatico, escena, cam, paleta, focoActual(), modoNombresRef.current, hubs);
+    };
+
+    const tickMicelio = () => {
+      frame = 0;
+      if (!running || !canvas.isConnected || !escena) return;
+      const ahora = performance.now();
+      const rc = revealCountRef.current;
+      if (fisica) avanzarConstruccion(rc);
+      if (rc !== prevRc) {
+        if (escena.aparicion) {
+          // Crecimiento: las hifas de lo recién revelado crecen desde ahora. Al
+          // (re)iniciar o terminar la construcción se parte de cero.
+          const desde = prevRc == null || rc == null || rc < prevRc ? 0 : prevRc;
+          if (desde === 0) escena.aparicion.fill(0);
+          if (rc != null) {
+            const hasta = Math.min(rc, escena.g.n);
+            for (let k = desde; k < hasta; k++) escena.aparicion[escena.g.orden[k]] = ahora;
+          }
+        }
+        ensuciar();
+      }
+      prevRc = rc ?? null;
+      let activo = false;
+      if (fisica) {
+        // Sustrato: el mismo reposo con período de gracia que el cúmulo.
+        const interacting = !!dragNode || panning;
+        if (interacting || alpha > REST) lastEnergetic = ahora;
+        activo = continuousSim || ahora - lastEnergetic <= IDLE_GRACE_MS;
+        if (activo) {
+          simulate();
+          sincronizarPos();
+          ensuciar();
+        }
+      }
+      if (visible) dibujarMicelio(ahora);
+      // Sin física activa ni hifas creciendo no hay frame siguiente: en reposo
+      // no corre `requestAnimationFrame`; la capa estática se queda como está
+      // hasta la próxima interacción.
+      if (activo || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
+    };
+
+    const tick = () => {
+      frame = 0;
+      if (!running || !canvas.isConnected) return;
+      const rc = revealCountRef.current;
+      avanzarConstruccion(rc);
       prevRc = rc ?? null;
       const now = performance.now();
       const interacting = !!dragNode || panning;
@@ -693,11 +950,16 @@ export function MiniGraph({
       if (frame) cancelAnimationFrame(frame);
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
-      onPositionsRef.current?.(positions);
-      // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
-      onViewRef.current?.({ scale, ox, oy });
+      // Solo vale para las disposiciones con física: el anillo y el crecimiento
+      // son deterministas y se recalculan en milisegundos.
+      if (fisica) {
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
+        guardarPosiciones?.(positions);
+      }
+      // Conservar el zoom/pan para el próximo (re)montaje o recálculo. Si nunca
+      // llegó a encuadrarse (el lienzo no tuvo tamaño), no hay vista que guardar.
+      if (!encuadrePendiente) guardarVista?.({ scale, ox, oy });
 
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
@@ -705,7 +967,7 @@ export function MiniGraph({
       canvas.removeEventListener("wheel", onWheel);
       ro.disconnect();
     };
-  }, [nodes, edges, centerId, continuousSim, tema, modoOscuro]);
+  }, [nodes, edges, centerId, continuousSim, tema, modoOscuro, disposicion]);
 
   return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />;
 }
