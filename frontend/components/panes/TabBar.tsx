@@ -5,28 +5,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
-import {
-  ICONO_CALENDARIO,
-  ICONO_CONSOLA,
-  ICONO_GRAFO,
-  ICONO_OTRO_ARCHIVO,
-  ICONO_POR_TIPO,
-  ICONO_REFERENCIAS,
-} from "@/lib/iconosDeTipo";
-import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
+import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
+import { iconoDePestana, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
-import {
-  allLeaves,
-  CALENDAR_TAB_ID,
-  ENLACES_TAB_ID,
-  GRAPH_TAB_ID,
-  useTabsStore,
-  type LeafPane,
-  type Tab,
-} from "@/stores/tabsStore";
+import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useWheelHScroll } from "@/lib/useWheelHScroll";
 import styles from "./panes.module.css";
@@ -73,41 +58,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
   }
 
-  function tituloDeNotaId(notaId: string) {
-    if (notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
-    if (notaId === ENLACES_TAB_ID) return "Referencias del vault";
-    if (notaId === CALENDAR_TAB_ID) return "Calendario";
-    if (esTabTerminal(notaId)) {
-      return sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal";
-    }
-    // Un archivo que no es nota (`FUN-L-11`): su nombre viene de la ruta, no
-    // del índice — no tiene fila en `notas` y nunca la va a tener.
-    if (esTabArchivo(notaId)) return nombreDeRuta(rutaDeTabArchivo(notaId));
-    return notas.find((n) => n.id === notaId)?.titulo ?? "…";
-  }
+  // Título e ícono por tipo de pestaña (`FUN-S-11`): la misma respuesta que en
+  // el dock lateral, porque sale de la misma tabla (`lib/pestanas.ts`).
+  const tituloDeNotaId = (notaId: string) => tituloDePestana(notaId, notas, sesionesTerminal);
 
   function titleOf(tab: Tab) {
     return tituloDeNotaId(tab.notaId);
   }
 
-  /**
-   * El ícono del tipo de documento de una pestaña (`FUN-S-11`).
-   *
-   * El orden importa: los ids especiales —grafo, referencias, consola, archivo
-   * no indexado— se resuelven **antes** de mirar `notas`, porque ninguno tiene
-   * fila ahí. Lo que no cae en ninguno es una nota del vault y toma el ícono de
-   * su tipo; si todavía no llegó el índice, el de markdown, que es lo que casi
-   * siempre resulta ser.
-   */
-  function iconoDeTab(notaId: string) {
-    if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
-    if (notaId === ENLACES_TAB_ID) return ICONO_REFERENCIAS;
-    if (notaId === CALENDAR_TAB_ID) return ICONO_CALENDARIO;
-    if (esTabTerminal(notaId)) return ICONO_CONSOLA;
-    if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
-    const tipo = notas.find((n) => n.id === notaId)?.tipo;
-    return ICONO_POR_TIPO[tipo ?? "markdown"];
-  }
+  const iconoDeTab = (notaId: string) => iconoDePestana(notaId, notas);
 
   /**
    * El color con el que está marcada una consola (`FUN-S-12`), o `null`.
@@ -134,13 +93,11 @@ export function TabBar({ pane }: { pane: LeafPane }) {
 
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
   function tooltipOf(tab: Tab) {
-    if (tab.notaId === GRAPH_TAB_ID) return "Grafo de conexiones";
-    if (tab.notaId === ENLACES_TAB_ID) return "Referencias del vault";
-    if (tab.notaId === CALENDAR_TAB_ID) return "Calendario";
-    if (esTabTerminal(tab.notaId)) return titleOf(tab);
+    const tipo = tipoDePestana(tab.notaId);
     // La ruta relativa completa: es lo único que ubica al archivo, porque no
     // está en el árbol de carpetas del índice.
-    if (esTabArchivo(tab.notaId)) return rutaDeTabArchivo(tab.notaId);
+    if (tipo === "archivo") return rutaDeTabArchivo(tab.notaId);
+    if (tipo !== "nota") return titleOf(tab);
     const nota = notas.find((n) => n.id === tab.notaId);
     if (!nota) return "";
     const parts: string[] = [];
@@ -278,7 +235,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <Icono size={13} className={styles.tabIcono} aria-hidden />
             )}
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
-            {tab.notaId !== GRAPH_TAB_ID && sync !== "synced" && (
+            {tipoDePestana(tab.notaId) === "nota" && sync !== "synced" && (
               <span
                 className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
                 aria-hidden

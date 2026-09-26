@@ -5,7 +5,8 @@ import { useCallback } from "react";
 import { resolveWikilink } from "@/lib/editor/wikilink";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { aDate, type Ocurrencia, type Repeticion } from "@/lib/recordatorios";
-import { CALENDAR_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { CALENDAR_TAB_ID } from "@/lib/pestanas";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /**

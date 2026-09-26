@@ -3,16 +3,9 @@
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
-import {
-  ICONO_CALENDARIO,
-  ICONO_CONSOLA,
-  ICONO_GRAFO,
-  ICONO_OTRO_ARCHIVO,
-  ICONO_POR_TIPO,
-} from "@/lib/iconosDeTipo";
-import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
+import { iconoDePestana, tituloDePestana } from "@/lib/pestanas";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
-import { CALENDAR_TAB_ID, findLeaf, GRAPH_TAB_ID, useTabsStore } from "@/stores/tabsStore";
+import { findLeaf, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
@@ -61,31 +54,10 @@ export function SidebarDock({
 
   const sesionesTerminal = useTerminalStore((s) => s.sesiones);
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
-  const tituloDe = (notaId: string) =>
-    notaId === GRAPH_TAB_ID
-      ? "Grafo de conexiones"
-      : notaId === CALENDAR_TAB_ID
-        ? "Calendario"
-        : esTabTerminal(notaId)
-        ? sesionesTerminal[termIdDe(notaId)]?.titulo ?? "Terminal"
-        : esTabArchivo(notaId)
-          ? nombreDeRuta(rutaDeTabArchivo(notaId))
-          : notas.find((n) => n.id === notaId)?.titulo ?? "…";
-
-  /**
-   * El ícono del tipo, igual que en las pestañas del área de trabajo
-   * (`FUN-S-11`). El mapa por tipo es compartido; el reparto de ids especiales
-   * está duplicado a propósito, del mismo modo que `tituloDe`: acá el dock no
-   * conoce panes ni historial, y compartir el reparto obligaría a pasarle a un
-   * módulo común cosas que solo existen en uno de los dos.
-   */
-  const iconoDe = (notaId: string) => {
-    if (notaId === GRAPH_TAB_ID) return ICONO_GRAFO;
-    if (notaId === CALENDAR_TAB_ID) return ICONO_CALENDARIO;
-    if (esTabTerminal(notaId)) return ICONO_CONSOLA;
-    if (esTabArchivo(notaId)) return ICONO_OTRO_ARCHIVO;
-    return ICONO_POR_TIPO[notas.find((n) => n.id === notaId)?.tipo ?? "markdown"];
-  };
+  // Título e ícono por tipo de pestaña, los mismos que en la barra de pestañas
+  // del área de trabajo (`FUN-S-11`): salen de la misma tabla (`lib/pestanas.ts`).
+  const tituloDe = (notaId: string) => tituloDePestana(notaId, notas, sesionesTerminal);
+  const iconoDe = (notaId: string) => iconoDePestana(notaId, notas);
 
   /** El color de la consola, atenuado si esta pestaña no es la que se ve. */
   const colorDe = (notaId: string, activa: boolean) => {

@@ -12,16 +12,10 @@ import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
-import { esTabArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
-import {
-  CALENDAR_TAB_ID,
-  ENLACES_TAB_ID,
-  GRAPH_TAB_ID,
-  useTabsStore,
-  type LeafPane,
-  type SplitEdge,
-} from "@/stores/tabsStore";
+import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
+import { tipoDePestana } from "@/lib/pestanas";
+import { termIdDe } from "@/lib/terminalBase";
+import { useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { LinkedPreviewPane } from "./LinkedPreviewPane";
@@ -51,6 +45,9 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   const activeTipo = useVaultStore((s) =>
     activeTab ? s.notas.find((n) => n.id === activeTab.notaId)?.tipo ?? "markdown" : null,
   );
+  // Qué pestaña es (`lib/pestanas.ts`): los sentinela se resuelven antes que el
+  // tipo de nota, porque ninguno tiene fila en `notas`.
+  const pestana = activeTab ? tipoDePestana(activeTab.notaId) : null;
 
   return (
     <section
@@ -65,15 +62,15 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
       <div className={styles.paneBody} data-pane-id={pane.id}>
         {pane.linkedTo !== null ? (
           <LinkedPreviewPane pane={pane} />
-        ) : activeTab && activeTab.notaId === GRAPH_TAB_ID ? (
+        ) : activeTab && pestana === "grafo" ? (
           <GraphView key={activeTab.id} />
-        ) : activeTab && activeTab.notaId === ENLACES_TAB_ID ? (
+        ) : activeTab && pestana === "enlaces" ? (
           <RelinkView key={activeTab.id} />
-        ) : activeTab && activeTab.notaId === CALENDAR_TAB_ID ? (
+        ) : activeTab && pestana === "calendario" ? (
           <CalendarioVista key={activeTab.id} />
-        ) : activeTab && esTabTerminal(activeTab.notaId) ? (
+        ) : activeTab && pestana === "terminal" ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
-        ) : activeTab && esTabArchivo(activeTab.notaId) ? (
+        ) : activeTab && pestana === "archivo" ? (
           <VisorArchivo
             key={activeTab.notaId}
             ruta={rutaDeTabArchivo(activeTab.notaId)}

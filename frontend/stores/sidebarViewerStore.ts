@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/stores/tabsStore";
+import { esSentinela } from "@/lib/pestanas";
 
 /**
  * Valor de `activeTab` que representa la pestaña del árbol de archivos. Solo se usa
@@ -94,17 +94,10 @@ export const useSidebarViewerStore = create<SidebarViewerState>()(
 
       reconcile(validIds) {
         const { tabs, activeTab } = get();
-        // El grafo, las consolas (FUN-L-07) y los visores de archivos que no se
-        // indexan (FUN-L-11) no son notas reales: nunca se descartan por esta
+        // Los sentinela (grafo, referencias, calendario, consolas, visores de
+        // archivos no indexados) no son notas reales: nunca se descartan por esta
         // reconciliación, que solo conoce las notas del índice.
-        const rest = tabs.filter(
-          (id) =>
-            id === GRAPH_TAB_ID ||
-            id === CALENDAR_TAB_ID ||
-            id.startsWith("terminal:") ||
-            id.startsWith("archivo:") ||
-            validIds.has(id),
-        );
+        const rest = tabs.filter((id) => esSentinela(id) || validIds.has(id));
         if (rest.length === tabs.length) return;
         // `EXPLORER_TAB` (árbol) siempre es un activeTab válido.
         const activaOk = activeTab === EXPLORER_TAB || rest.includes(activeTab);
