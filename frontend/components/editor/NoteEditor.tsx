@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
+import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
 import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
@@ -949,7 +950,7 @@ export function NoteEditor({
     void vault.createNota(carpetaId, "excalidraw").then((newId) => {
       const titulo =
         useVaultStore.getState().notas.find((n) => n.id === newId)?.titulo ??
-        "Dibujo sin título";
+        TITULO_POR_DEFECTO.excalidraw;
       const { from } = view.state.selection.main;
       view.dispatch({ changes: { from, insert: `![[${titulo}.excalidraw]]` } });
       setEditingFile(newId); // abrir el editor embebido del nuevo dibujo

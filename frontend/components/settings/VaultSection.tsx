@@ -207,21 +207,6 @@ export function VaultSection() {
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
 
-  // Plantilla por defecto del .mycignore: DEBE espejar `mycignore::DEFAULT` de
-  // `src-tauri/src/mycignore.rs` para que siga siendo "lo mismo que sin archivo".
-  const IGNORE_DEFAULT =
-    "# .mycignore — qué ignora Mycelium en este vault (uno por línea)\n" +
-    "# nombre/ = carpetas con ese nombre en cualquier nivel\n" +
-    "# ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario\n" +
-    "# .mycelium/ (índice interno) se ignora siempre.\n" +
-    "# Esto es el comportamiento por defecto: borrá la línea que no te sirva\n" +
-    "# (p. ej. si tenés notas en una carpeta llamada dist).\n" +
-    ".*/\n" +
-    "node_modules/\n" +
-    "target/\n" +
-    "dist/\n" +
-    "out/\n";
-
   const abrirIgnore = async () => {
     if (!rutaVault) return;
     const { invoke } = await import("@tauri-apps/api/core");
@@ -229,7 +214,9 @@ export function VaultSection() {
       vaultRuta: rutaVault,
       rutaRel: ".mycignore",
     });
-    setMycignore(actual ?? IGNORE_DEFAULT, false);
+    // Sin archivo, la plantilla sale de Rust (`mycignore::DEFAULT`): es la misma
+    // lista que se aplica sin `.mycignore`, sin una copia acá que mantener a mano.
+    setMycignore(actual ?? (await invoke<string>("mycignore_default")), false);
   };
 
   const guardarIgnore = async () => {

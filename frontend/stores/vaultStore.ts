@@ -6,6 +6,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 
 /**
  * Marca el grafo como desactualizado y redispara el live preview tras un cambio
@@ -266,21 +267,11 @@ export const useVaultStore = create<VaultState>()(
       async createNota(carpetaId, tipo = "markdown", titulo) {
         const { vaultId } = get();
         if (!vaultId) throw new Error("Sin vault activo");
-        const porDefecto =
-          tipo === "excalidraw"
-            ? "Dibujo sin título"
-            : tipo === "base"
-              ? "Base sin título"
-              : tipo === "canvas"
-                ? "Lienzo sin título"
-                : tipo === "drawio"
-                  ? "Diagrama sin título"
-                  : "Sin título";
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),
           body: {
-            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : porDefecto,
+            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : TITULO_POR_DEFECTO[tipo],
             carpetaId,
             tipo,
           },

@@ -206,17 +206,8 @@ type CarpetaDerivada = { id: string; padre_id: string | null; nombre: string };
  * `Proyectos/2026` (padre `Proyectos`). Un archivo en la raíz no deriva carpetas.
  */
 function carpetasDeRuta(ruta: string): CarpetaDerivada[] {
-  const partes = ruta.split("/");
-  partes.pop(); // quitar el nombre de archivo
-  const out: CarpetaDerivada[] = [];
-  for (let i = 0; i < partes.length; i++) {
-    out.push({
-      id: partes.slice(0, i + 1).join("/"),
-      padre_id: i === 0 ? null : partes.slice(0, i).join("/"),
-      nombre: partes[i],
-    });
-  }
-  return out;
+  const dir = carpetaDeArchivo(ruta);
+  return dir === null ? [] : carpetasDeDir(dir);
 }
 
 /**

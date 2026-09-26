@@ -3,6 +3,7 @@
  * `VaultEndpoints` (sufijo único al crear/duplicar, chequeo de mismo vault al mover,
  * copia de contenido al duplicar).
  */
+import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { ftsPoner, ftsRetitular } from "./ftsIndice";
 import { DbError } from "./errors";
@@ -64,17 +65,7 @@ export async function crearNota(
     tipo === "excalidraw" || tipo === "base" || tipo === "canvas" || tipo === "drawio"
       ? tipo
       : "markdown";
-  const defecto =
-    t === "excalidraw"
-      ? "Dibujo sin título"
-      : t === "base"
-        ? "Base sin título"
-        : t === "canvas"
-          ? "Lienzo sin título"
-          : t === "drawio"
-            ? "Diagrama sin título"
-            : "Sin título";
-  const base = titulo && titulo.trim().length > 0 ? titulo.trim() : defecto;
+  const base = titulo && titulo.trim().length > 0 ? titulo.trim() : TITULO_POR_DEFECTO[t];
   const unico = tituloUnico(base, await titulosEnCarpeta(vaultId, carpetaId));
   const now = ahoraIso();
 

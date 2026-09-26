@@ -25,6 +25,22 @@ export const EXTENSION_POR_TIPO: Record<NotaTipo, string> = {
 };
 
 /**
+ * Con qué título nace un documento de cada tipo cuando el usuario no da uno.
+ *
+ * Misma regla que la extensión: una sola tabla, con `Record<NotaTipo, …>` para
+ * que un tipo nuevo no compile hasta contestar acá. Antes estaba escrita dos
+ * veces —en `vaultStore.createNota` y en `lib/db/notas.crearNota`— y ambas
+ * tenían que coincidir a mano (auditoría del 2026-09-26, H11).
+ */
+export const TITULO_POR_DEFECTO: Record<NotaTipo, string> = {
+  markdown: "Sin título",
+  excalidraw: "Dibujo sin título",
+  base: "Base sin título",
+  canvas: "Lienzo sin título",
+  drawio: "Diagrama sin título",
+};
+
+/**
  * Todas las extensiones de nota, sin punto.
  *
  * La usan la resolución de wikilinks —para quitar la extensión de
