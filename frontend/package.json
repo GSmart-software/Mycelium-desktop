@@ -11,7 +11,6 @@
     "tauri:otra": "src-tauri/target/debug/app.exe",
     "versionar": "node scripts/versionar.mjs",
     "publicar": "node scripts/publicar.mjs",
-    "deploy:pages": "next build && npx wrangler pages deploy out --project-name=micelio",
     "preparar-drawio": "node scripts/preparar-drawio.mjs"
   },
   "dependencies": {
@@ -36,8 +35,6 @@
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-unicode-graphemes": "^0.4.0",
     "@xterm/xterm": "^6.0.0",
-    "codemirror": "^6.0.2",
-    "highlight.js": "^11.11.1",
     "jszip": "^3.10.1",
     "katex": "^0.17.0",
     "lucide-react": "^1.17.0",
@@ -54,10 +51,6 @@
     "remark-rehype": "^11.1.2",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
-    "y-codemirror.next": "^0.3.5",
-    "y-indexeddb": "^9.0.12",
-    "y-websocket": "^3.0.0",
-    "yjs": "^13.6.31",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
