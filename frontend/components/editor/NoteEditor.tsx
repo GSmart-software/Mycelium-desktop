@@ -311,6 +311,8 @@ export function NoteEditor({
   const conflictUpdatedAtRef = useRef<string | null>(null);
   const localSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cuánto tardó el último render del preview, para el debounce adaptativo.
+  const ultimoRenderMs = useRef(0);
   const syncingRef = useRef(false);
 
   const openByTitle = useCallback(
@@ -384,11 +386,20 @@ export function NoteEditor({
       localSaveTimer.current = setTimeout(saveLocal, LOCAL_SAVE_DEBOUNCE_MS);
 
       if (previewTimer.current) clearTimeout(previewTimer.current);
+      // Debounce adaptativo (`FUN-M-38`, H5): `renderNota` corre entero y en el
+      // hilo principal, y en una nota grande tarda más que el propio debounce
+      // (medido: 0,5 s en 135 KB, 1,9 s en 444 KB). Con la espera fija, cada
+      // pausa de 130 ms al escribir en split volvía a pagar ese bloqueo. Se
+      // espera al menos tres veces lo que duró el último render, así que en una
+      // nota chica no cambia nada y en una grande los bloqueos se espacian.
+      const espera = Math.max(PREVIEW_DEBOUNCE_MS, 3 * ultimoRenderMs.current);
       previewTimer.current = setTimeout(() => {
         if (modeRef.current === "split" || modeRef.current === "read") {
+          const inicio = performance.now();
           setPreviewHtml(renderNota(contentRef.current, true));
+          ultimoRenderMs.current = performance.now() - inicio;
         }
-      }, PREVIEW_DEBOUNCE_MS);
+      }, espera);
     },
     [saveLocal],
   );
