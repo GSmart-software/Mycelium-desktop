@@ -27,7 +27,31 @@ function enTauri(): boolean {
 }
 
 /**
- * Lista los archivos no indexados del vault abierto.
+ * De lo que devuelve el recorrido en Rust (`tipo` = extensión) a lo que usa el
+ * explorador. Lo comparten `listarOtrosArchivos` y el indexador, que desde
+ * `FUN-M-38` recibe esta lista de la misma pasada que las notas y la deja en
+ * `vaultStore.otros`.
+ */
+export function otrosDesdeMeta(filas: { rutaRelativa: string; tipo: string }[]): OtroArchivo[] {
+  return filas.map((f) => {
+    const corte = f.rutaRelativa.lastIndexOf("/");
+    return {
+      ruta: f.rutaRelativa,
+      nombre: f.rutaRelativa.slice(corte + 1),
+      extension: f.tipo,
+      carpetaId: corte === -1 ? null : f.rutaRelativa.slice(0, corte),
+    };
+  });
+}
+
+/**
+ * Lista los archivos no indexados del vault abierto, recorriendo el disco.
+ *
+ * El explorador ya no lo llama en cada recarga del árbol (toma
+ * `vaultStore.otros`, que el indexador rellena de la misma pasada que las
+ * notas); queda para quien necesite la lista fresca sin reindexar: la
+ * reconciliación de pestañas de visor al entrar y el explorador cuando cambian
+ * las carpetas desde la app.
  *
  * Devuelve `[]` fuera de Tauri y ante cualquier fallo: es información
  * complementaria del árbol, así que un problema acá no debe dejar al usuario
@@ -41,15 +65,7 @@ export async function listarOtrosArchivos(origen: string): Promise<OtroArchivo[]
       "listar_otros_archivos",
       { origen },
     );
-    return filas.map((f) => {
-      const corte = f.rutaRelativa.lastIndexOf("/");
-      return {
-        ruta: f.rutaRelativa,
-        nombre: f.rutaRelativa.slice(corte + 1),
-        extension: f.tipo,
-        carpetaId: corte === -1 ? null : f.rutaRelativa.slice(0, corte),
-      };
-    });
+    return otrosDesdeMeta(filas);
   } catch (error) {
     console.warn("[explorador] no se pudieron listar los otros archivos:", error);
     return [];

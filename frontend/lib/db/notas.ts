@@ -77,10 +77,12 @@ export async function crearNota(
     // nombre o cuando ya existe una carpeta con ese nombre. El título mostrado pasa
     // a ser el nombre saneado (como Obsidian). Se crea el `.md`/`.excalidraw` vacío.
     const { id, titulo } = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
-    await escribirNota(vault, id, "");
+    // El `mtime` real del archivo, no `Date.now()` (`FUN-M-38`): si difieren, el
+    // próximo reindexado incremental relee la nota recién creada sin motivo.
+    const mtime = await escribirNota(vault, id, "");
     await execute(
       "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-      [id, vaultId, carpetaId, titulo, t, Date.now(), now, now],
+      [id, vaultId, carpetaId, titulo, t, mtime, now, now],
     );
     await execute(
       "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",

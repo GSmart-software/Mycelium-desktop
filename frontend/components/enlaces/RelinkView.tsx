@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, Link2, Search, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirmar } from "@/lib/confirmar";
+import { EVENTO_RECARGA } from "@/lib/eventos";
 import {
   candidatasDe,
   compilarFormas,
@@ -160,8 +161,11 @@ export function RelinkView() {
           await recordarUltimo(manifiesto);
           setUltimo(manifiesto);
         }
-        // El contenido cambió: el grafo que estaba en caché ya no vale.
+        // El contenido cambió: el grafo que estaba en caché ya no vale, y los
+        // editores con alguna de esas notas abierta tienen que recargarla (el
+        // watcher ya no avisa de lo que escribe la propia app: `FUN-M-38`).
         useGraphStore.getState().markStale();
+        window.dispatchEvent(new Event(EVENTO_RECARGA));
         await cargar();
       }
     } catch (e) {
@@ -183,6 +187,7 @@ export function RelinkView() {
     try {
       const r = await deshacer(ultimo);
       useGraphStore.getState().markStale();
+      window.dispatchEvent(new Event(EVENTO_RECARGA));
       setResultado(null);
       setMensaje(
         `Restaurados ${r.restaurados.length} archivo(s).` +

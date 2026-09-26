@@ -10,9 +10,14 @@
 //! app escribe una nota a disco, el watcher dispara igual, pero el frontend solo
 //! llama a `indexarVault`, que SOLO LEE archivos y actualiza el índice SQLite
 //! —nunca escribe archivos— y además es incremental por `mtime`. Así el ciclo
-//! "app escribe → watcher dispara → reindexa" termina en un reindex idempotente
-//! (a lo sumo una relectura del archivo recién escrito), sin realimentación. Por
-//! eso NO hace falta rastrear los propios escritos de la app.
+//! "app escribe → watcher dispara → reindexa" termina en un reindex idempotente,
+//! sin realimentación.
+//!
+//! Aun así, ese reindex idempotente no era gratis (`FUN-M-38`): cada guardado
+//! pagaba el recorrido del vault, una recarga del árbol y dos escaneos del grafo.
+//! Por eso el evento lleva ahora el `mtime` de cada ruta: el frontend anota lo
+//! que él mismo escribió (`escribir_nota` devuelve ese `mtime`) y, si la ráfaga
+//! solo trae escrituras propias con el `mtime` que esperaba, no hace nada.
 //!
 //! Carpetas en la nube (Dropbox/OneDrive/Drive): pueden generar ráfagas de
 //! eventos y reindexados espurios. El debounce (~400 ms aquí, más ~300 ms en el
@@ -67,10 +72,20 @@ fn relativa_posix(base: &Path, path: &Path) -> Option<String> {
     )
 }
 
+/// Una ruta afectada por una ráfaga del watcher, con el `mtime` que tiene en
+/// disco al emitir el evento (0 si ya no existe o el SO no lo expone). Con él
+/// el frontend distingue un guardado propio de un cambio externo (`FUN-M-38`).
+#[derive(serde::Serialize, Clone)]
+pub struct CambioVault {
+    pub ruta: String,
+    pub mtime: i64,
+}
+
 /// Arranca (o reemplaza) el watcher sobre `vault_ruta`. Observa recursivamente y,
-/// tras el debounce, emite `vault-cambios` con las rutas relativas afectadas
-/// (payload informativo: el frontend reindexa el vault entero de forma
-/// incremental igualmente). Reemplaza cualquier watcher previo (cambio de vault).
+/// tras el debounce, emite `vault-cambios` con las rutas relativas afectadas y
+/// su `mtime` actual. El frontend decide si hay algo ajeno que reindexar; si lo
+/// hay, reindexa el vault entero de forma incremental. Reemplaza cualquier
+/// watcher previo (cambio de vault).
 #[tauri::command]
 pub fn iniciar_watcher(
     ventana: tauri::Window,
@@ -105,7 +120,7 @@ pub fn iniciar_watcher(
             // el usuario puede editarlo en cualquier momento); un cambio del
             // PROPIO `.mycignore` también dispara reindex.
             let patrones = crate::mycignore::cargar(&base_evt);
-            let mut rutas: Vec<String> = Vec::new();
+            let mut cambios: Vec<CambioVault> = Vec::new();
             for evento in &eventos {
                 let es_borrado = matches!(evento.kind, EventKind::Remove(_));
                 for path in &evento.paths {
@@ -121,14 +136,21 @@ pub fn iniciar_watcher(
                             continue;
                         }
                     }
-                    if !rutas.contains(&rel) {
-                        rutas.push(rel);
+                    if cambios.iter().any(|c| c.ruta == rel) {
+                        continue;
                     }
+                    // El `mtime` de AHORA, no el del evento: es lo que hay en
+                    // disco cuando el frontend va a decidir, y lo que
+                    // `escribir_nota` le devolvió si fue la app quien escribió.
+                    let mtime = std::fs::metadata(path)
+                        .map(|m| crate::archivos::mtime_ms(&m))
+                        .unwrap_or(0);
+                    cambios.push(CambioVault { ruta: rel, mtime });
                 }
             }
 
-            if !rutas.is_empty() {
-                let _ = destino.emit("vault-cambios", rutas);
+            if !cambios.is_empty() {
+                let _ = destino.emit("vault-cambios", cambios);
             }
         },
     )

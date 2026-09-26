@@ -28,8 +28,10 @@ export const EVENTO_RECARGA = "micelio:vault-recargar";
  * solo dice «esto cambió»: lo escucha quien muestre algo derivado de muchas notas
  * a la vez, como un archivo tabla.
  *
- * Lo emite el editor tras cada guardado que sale bien, en las dos ramas. En
- * desktop llega ANTES que el watcher —que igual dispara, porque la app escribe a
- * disco—, y en web es la única señal que existe: allá no hay carpeta que vigilar.
+ * Lo emite el editor tras cada guardado que sale bien, en las dos ramas, y es
+ * la ÚNICA señal de un guardado en las dos: en web no hay carpeta que vigilar,
+ * y en desktop el watcher descarta lo que la propia app acaba de escribir
+ * (`FUN-M-38`). Por eso lo oyen también la barra de estado y el panel de
+ * conexiones, para la nota que muestran.
  */
 export const EVENTO_NOTA_GUARDADA = "micelio:nota-guardada";

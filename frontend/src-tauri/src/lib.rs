@@ -195,6 +195,7 @@ pub fn run() {
             terminal::terminal_cerrar,
             archivos::exportar_a_carpeta,
             archivos::leer_carpeta,
+            archivos::recorrer_vault,
             archivos::listar_archivos_meta,
             archivos::listar_otros_archivos,
             archivos::leer_archivos,

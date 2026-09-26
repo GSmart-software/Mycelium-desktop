@@ -75,12 +75,22 @@ pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), St
 
 /// Escritura **atómica** de una nota. Crea los subdirectorios necesarios y
 /// sobrescribe el destino si ya existe.
+///
+/// Devuelve el `mtime` (ms epoch, el mismo cálculo que el recorrido del índice)
+/// del archivo ya escrito (`FUN-M-38`, `FUN-M-14`). El frontend lo guarda en
+/// `notas.mtime` para que el reindexado incremental vea la nota como al día, y
+/// lo anota para que el watcher reconozca el evento que esta misma escritura va
+/// a provocar y no reindexe el vault por un guardado propio. Si el SO no lo
+/// expone, 0: la nota se reindexará una vez de más, nada peor.
 #[tauri::command]
-pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<(), String> {
+pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
     asegurar_padre(&destino)?;
-    escribir_atomico(&destino, &contenido)
+    escribir_atomico(&destino, &contenido)?;
+    Ok(std::fs::metadata(&destino)
+        .map(|m| crate::archivos::mtime_ms(&m))
+        .unwrap_or(0))
 }
 
 /// Renombra o mueve un archivo O carpeta dentro del vault. Sirve tanto para

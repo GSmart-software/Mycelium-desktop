@@ -31,10 +31,58 @@ async function getInvoke() {
   return invoke;
 }
 
-/** Escritura atómica de una nota en disco (`<vault>/<rutaRel>`). */
-export async function escribirNota(vault: string, rutaRel: string, contenido: string): Promise<void> {
+/**
+ * Escrituras hechas por la propia app, `ruta relativa → mtime` con que quedó el
+ * archivo (`FUN-M-38`, hallazgo H3; amplía `FUN-M-14`). Cada guardado dispara
+ * el watcher nativo, y hasta ahora ese evento costaba un reindexado incremental
+ * completo, una recarga del árbol y dos escaneos del grafo —para una nota que
+ * la app acababa de escribir y ya tenía al día—. `lib/vaultWatch.ts` compara el
+ * `mtime` que trae el evento con el anotado acá: si coinciden, no fue nadie
+ * de afuera. Si un editor externo pisa el archivo en ese lapso, su `mtime` es
+ * otro y se reindexa como siempre.
+ *
+ * Las entradas caducan solas: pasado `VIGENCIA_ESCRITURA_MS` un `mtime` igual
+ * ya no prueba nada, y así el mapa no crece con la sesión.
+ */
+const escriturasPropias = new Map<string, { mtime: number; en: number }>();
+const VIGENCIA_ESCRITURA_MS = 60_000;
+
+function anotarEscrituraPropia(rutaRel: string, mtime: number): void {
+  const ahora = Date.now();
+  if (escriturasPropias.size >= 256) {
+    for (const [ruta, e] of escriturasPropias) {
+      if (ahora - e.en > VIGENCIA_ESCRITURA_MS) escriturasPropias.delete(ruta);
+    }
+  }
+  escriturasPropias.set(rutaRel, { mtime, en: ahora });
+}
+
+/**
+ * ¿Este cambio que reporta el watcher lo escribió la propia app? Solo si la
+ * ruta se anotó hace poco y el archivo sigue con el `mtime` de esa escritura.
+ * Un `mtime` de 0 (el SO no lo expone) nunca prueba nada.
+ */
+export function esEscrituraPropia(rutaRel: string, mtime: number): boolean {
+  const e = escriturasPropias.get(rutaRel);
+  return (
+    e !== undefined &&
+    mtime !== 0 &&
+    e.mtime === mtime &&
+    Date.now() - e.en <= VIGENCIA_ESCRITURA_MS
+  );
+}
+
+/**
+ * Escritura atómica de una nota en disco (`<vault>/<rutaRel>`). Devuelve el
+ * `mtime` (ms epoch) con que quedó el archivo —el mismo que verá el recorrido
+ * del índice—, para guardarlo en `notas.mtime` y que el reindexado incremental
+ * no vuelva a leer una nota que la app acaba de escribir.
+ */
+export async function escribirNota(vault: string, rutaRel: string, contenido: string): Promise<number> {
   const invoke = await getInvoke();
-  await invoke("escribir_nota", { vaultRuta: vault, rutaRel, contenido });
+  const mtime = await invoke<number>("escribir_nota", { vaultRuta: vault, rutaRel, contenido });
+  anotarEscrituraPropia(rutaRel, mtime);
+  return mtime;
 }
 
 /** Abre el explorador del SO mostrando el archivo/carpeta `rutaRel` del vault. */

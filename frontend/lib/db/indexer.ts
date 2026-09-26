@@ -17,10 +17,11 @@
  *     sembrado por `ensureSeed()` para que `tree(LOCAL_VAULT_ID)` y toda la capa
  *     de datos funcionen contra el índice igual que contra `mycelium.db`.
  */
+import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
-import { crearFtsFilas, enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
-import { reindexarPropiedades, textoIndexable } from "./propiedades";
+import { crearFtsFilas, enTandas, ftsBorrar, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
+import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 
 /**
@@ -41,7 +42,9 @@ const VAULT_ID = LOCAL_VAULT_ID;
  *     `notas` (`vault_id`/`carpeta_id` quedan como TEXT plano): las filas del
  *     índice se upsertan por ruta y no se quiere el coste de validar la FK.
  *   - `notas` añade una columna `mtime INTEGER` (propia del índice) para la
- *     validación incremental por fecha de modificación.
+ *     validación incremental por fecha de modificación, y `hash_indexable TEXT`
+ *     (`FUN-M-38`): la huella de lo que `notas_fts` y `propiedades` tienen de la
+ *     nota, para no reescribirlas en un guardado que no las cambia.
  *   - `papelera` añade `ruta_papelera TEXT` (fase 4): dónde quedó el archivo en
  *     `.mycelium/.trash` para poder restaurarlo (solo se usa en modo carpeta).
  * NO se usa `_sqlx_migrations`: el índice no se migra con sqlx, se crea con
@@ -97,6 +100,7 @@ const ESQUEMA_INDICE: string[] = [
      tipo           TEXT NOT NULL DEFAULT 'markdown',
      tamano_bytes   INTEGER NOT NULL DEFAULT 0,
      mtime          INTEGER NOT NULL DEFAULT 0,
+     hash_indexable TEXT,
      creado_en      TEXT NOT NULL,
      actualizado_en TEXT NOT NULL
    )`,
@@ -164,6 +168,13 @@ export async function crearEsquemaIndice(): Promise<void> {
   } catch {
     // La columna ya existe: nada que hacer.
   }
+  // Ídem `notas.hash_indexable` (`FUN-M-38`): en un índice anterior queda NULL
+  // y cada nota se reindexa una vez más al guardarla, que es lo que hacía antes.
+  try {
+    await execute("ALTER TABLE notas ADD COLUMN hash_indexable TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
   // Qué `rowid` de `notas_fts` le toca a cada nota (`DEF-105`): sin esto, borrar
   // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
   // anterior la llena a partir de lo que ya hay, una sola vez.
@@ -171,7 +182,7 @@ export async function crearEsquemaIndice(): Promise<void> {
 }
 
 /**
- * Metadatos de un archivo devueltos por el comando Rust `listar_archivos_meta`.
+ * Metadatos de un archivo devueltos por el comando Rust `recorrer_vault`.
  * **Sin contenido**: el texto se pide aparte con `leer_archivos`, y solo el de
  * los archivos que hay que reindexar (FUN-M-12).
  */
@@ -179,6 +190,18 @@ type ArchivoMeta = {
   rutaRelativa: string;
   mtime: number;
   tipo: string;
+};
+
+/**
+ * Lo que devuelve `recorrer_vault` (`FUN-M-13`, `FUN-M-38`): las tres listas
+ * que antes pedían tres comandos con tres recorridos del disco. `otros` no es
+ * del índice —son los archivos que Mycelium no indexa— pero sale de la misma
+ * pasada, y el explorador lo toma de acá en vez de recorrer el vault otra vez.
+ */
+type RecorridoVault = {
+  archivosMeta: ArchivoMeta[];
+  otros: { rutaRelativa: string; tipo: string }[];
+  directorios: string[];
 };
 
 /**
@@ -250,22 +273,33 @@ export function tituloDeRuta(ruta: string): string {
  *
  * Va en DOS FASES (FUN-M-12), porque antes se traía por IPC el contenido de todo
  * el vault en cada apertura para descartar casi todo comparando `mtime`:
- *   (a) `listar_archivos_meta` → solo `(ruta, mtime, tipo)`; con eso se calcula
- *       la lista de rutas a reindexar;
+ *   (a) `recorrer_vault` → solo `(ruta, mtime, tipo)` de cada nota (más los
+ *       directorios y los otros archivos, de la misma pasada); con eso se
+ *       calcula la lista de rutas a reindexar;
  *   (b) `leer_archivos(rutas)` en tandas de `TANDA`, escribiendo el índice tanda
  *       a tanda (así el progreso avanza y no se acumula todo en memoria).
  * Reabrir un vault sin cambios transfiere 0 bytes de contenido.
+ *
+ * Y cada tanda se escribe con **una sentencia por tabla** (`FUN-M-38`, hallazgo
+ * H1 de la auditoría): la tanda entera viaja como un parámetro JSON que SQLite
+ * despliega con `json_each`. Antes eran 5 sentencias por nota más una por
+ * propiedad —13.496 viajes por el puente IPC en un vault de 1.300 notas, a
+ * 4–5 ms cada uno—; ahora son 6 por tanda de 250. No se usa `BEGIN`/`COMMIT`:
+ * el pool de conexiones de `tauri-plugin-sql` no garantiza que caigan en la
+ * misma conexión, así que cada sentencia tiene que ser correcta por sí sola.
  *
  * Nota Excalidraw: en fase 2 su escena se guarda en `contenidos` igual que el
  * markdown (no se separan aún los `diagramas`); se simplifica así a propósito.
  *
  * @returns totales: `notas` en disco, `carpetas` derivadas, `reindexadas`
- *          (notas nuevas o modificadas que se reescribieron en el índice).
+ *          (notas nuevas o modificadas que se reescribieron en el índice) y
+ *          `otros`, los archivos no indexados que vio el recorrido (para el
+ *          explorador: `vaultStore.otros`).
  */
 export async function indexarVault(
   vaultRuta: string,
   onProgress?: (hechas: number, total: number) => void,
-): Promise<{ notas: number; carpetas: number; reindexadas: number }> {
+): Promise<{ notas: number; carpetas: number; reindexadas: number; otros: OtroArchivo[] }> {
   // ¿El índice es anterior a las propiedades (FUN-M-04)? Se pregunta ANTES de
   // crear el esquema: si la tabla todavía no existe, ninguna nota tiene sus
   // propiedades indexadas y el `mtime` no cambió, así que el reindexado
@@ -279,15 +313,14 @@ export async function indexarVault(
   await crearEsquemaIndice();
 
   const { invoke } = await import("@tauri-apps/api/core");
-  const archivos = await invoke<ArchivoMeta[]>("listar_archivos_meta", {
-    origen: vaultRuta,
-  });
-  // Directorios reales del vault (incluidos los vacíos): sin esto, una carpeta sin
-  // notas desaparecería al reindexar (solo se derivarían carpetas de las rutas de
-  // archivos). Ver `listar_directorios` (fase 7, frente 4).
-  const directorios = await invoke<string[]>("listar_directorios", {
-    origen: vaultRuta,
-  });
+  // Un solo recorrido del disco (`FUN-M-13`): las notas con sus metadatos, los
+  // directorios reales —incluidos los vacíos: sin ellos, una carpeta sin notas
+  // desaparecería al reindexar, porque solo se derivarían carpetas de las rutas
+  // de archivos— y los archivos que no se indexan, que van al explorador.
+  const recorrido = await invoke<RecorridoVault>("recorrer_vault", { origen: vaultRuta });
+  const archivos = recorrido.archivosMeta;
+  const directorios = recorrido.directorios;
+  const otros = otrosDesdeMeta(recorrido.otros);
 
   // Carpetas únicas: las derivadas de las rutas de archivos MÁS los directorios
   // reales (que cubren además las carpetas vacías). Padres antes que hijos.
@@ -314,18 +347,22 @@ export async function indexarVault(
   // su ruta POSIX, y `nombre`/`padre_id` se derivan de esa ruta, así que si el id
   // ya existe sus otras columnas no pueden haber cambiado. Reescribirlas costaba
   // un statement por carpeta en TODA apertura (4020 en un vault sobre este repo).
+  // Y en tandas de una sentencia (`FUN-M-38`): en frío, un vault con 445 carpetas
+  // eran 445 viajes por el puente IPC antes de leer la primera nota.
   const carpetasOrdenadas = [...carpetas.values()]
     .filter((c) => !idsCarpetasExistentes.has(c.id))
     .sort((a, b) => a.id.split("/").length - b.id.split("/").length);
-  for (const c of carpetasOrdenadas) {
+  for (const tanda of enTandas(carpetasOrdenadas)) {
     await execute(
       `INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en)
-       VALUES (?, ?, ?, ?, ?, ?)
+       SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.padre_id'),
+              json_extract(value, '$.nombre'), ?, ?
+       FROM json_each(?) WHERE true
        ON CONFLICT(id) DO UPDATE SET
          padre_id = excluded.padre_id,
          nombre = excluded.nombre,
          actualizado_en = excluded.actualizado_en`,
-      [c.id, VAULT_ID, c.padre_id, c.nombre, now, now],
+      [VAULT_ID, now, now, JSON.stringify(tanda)],
     );
   }
 
@@ -352,6 +389,21 @@ export async function indexarVault(
       rutas,
     });
 
+    // Las filas de la tanda, por tabla. Se arman en memoria y se escriben con
+    // una sentencia cada una: el JSON de la tanda es el único parámetro.
+    const filasNotas: {
+      id: string;
+      carpetaId: string | null;
+      titulo: string;
+      tipo: string;
+      bytes: number;
+      mtime: number;
+      huella: string;
+    }[] = [];
+    const filasContenidos: { id: string; contenido: string }[] = [];
+    const filasFts: FilaFts[] = [];
+    const entradasPropiedades: { id: string; propiedades: FilaPropiedad[] }[] = [];
+
     for (const leido of leidos) {
       const id = leido.ruta_relativa;
       // `leer_archivos` puede devolver menos entradas de las pedidas (archivo
@@ -360,38 +412,55 @@ export async function indexarVault(
       if (!meta) continue;
 
       const titulo = tituloDeRuta(id);
-      const carpetaId = carpetaDeArchivo(id);
-      const bytes = byteLen(leido.contenido);
+      // Al índice de búsqueda va el CUERPO + los VALORES de las propiedades, no
+      // el YAML crudo; la huella es lo que `putContenido` compara al guardar.
+      const { indexable, propiedades, huella } = derivarIndice(leido.contenido);
+      filasNotas.push({
+        id,
+        carpetaId: carpetaDeArchivo(id),
+        titulo,
+        tipo: meta.tipo,
+        bytes: byteLen(leido.contenido),
+        mtime: meta.mtime,
+        huella,
+      });
+      // Contenido: Excalidraw se guarda igual que el markdown (fase 2 no separa
+      // diagramas). Upsert como en `contenido.ts`.
+      filasContenidos.push({ id, contenido: leido.contenido });
+      filasFts.push({ id, titulo, contenido: indexable });
+      entradasPropiedades.push({ id, propiedades });
+      reindexadas++;
+    }
 
+    if (filasNotas.length > 0) {
       await execute(
-        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_indexable, creado_en, actualizado_en)
+         SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.carpetaId'),
+                json_extract(value, '$.titulo'), json_extract(value, '$.tipo'),
+                json_extract(value, '$.bytes'), json_extract(value, '$.mtime'),
+                json_extract(value, '$.huella'), ?, ?
+         FROM json_each(?) WHERE true
          ON CONFLICT(id) DO UPDATE SET
            carpeta_id = excluded.carpeta_id,
            titulo = excluded.titulo,
            tipo = excluded.tipo,
            tamano_bytes = excluded.tamano_bytes,
            mtime = excluded.mtime,
+           hash_indexable = excluded.hash_indexable,
            actualizado_en = excluded.actualizado_en`,
-        [id, VAULT_ID, carpetaId, titulo, meta.tipo, bytes, meta.mtime, now, now],
+        [VAULT_ID, now, now, JSON.stringify(filasNotas)],
       );
-
-      // Contenido: Excalidraw se guarda igual que el markdown (fase 2 no separa
-      // diagramas). Upsert como en `contenido.ts`.
       await execute(
-        `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
+        `INSERT INTO contenidos (nota_id, contenido, actualizado_en)
+         SELECT json_extract(value, '$.id'), json_extract(value, '$.contenido'), ?
+         FROM json_each(?) WHERE true
          ON CONFLICT(nota_id) DO UPDATE SET
            contenido = excluded.contenido,
            actualizado_en = excluded.actualizado_en`,
-        [id, leido.contenido, now],
+        [now, JSON.stringify(filasContenidos)],
       );
-
-      // Reindex FTS, como `contenido.ts`. Al índice va el CUERPO + los VALORES
-      // de las propiedades, no el YAML crudo.
-      await ftsPoner(id, titulo, textoIndexable(leido.contenido));
-      await reindexarPropiedades(id, leido.contenido);
-
-      reindexadas++;
+      await ftsPonerTanda(filasFts);
+      await reindexarPropiedadesTanda(entradasPropiedades);
     }
 
     // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
@@ -439,7 +508,7 @@ export async function indexarVault(
 
   if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
 
-  return { notas: archivos.length, carpetas: carpetas.size, reindexadas };
+  return { notas: archivos.length, carpetas: carpetas.size, reindexadas, otros };
 }
 
 /**

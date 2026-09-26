@@ -20,6 +20,27 @@ export function byteLen(texto: string): number {
 }
 
 /**
+ * Huella barata y estable de un texto (`FUN-M-38`): 64 bits en hexadecimal a
+ * partir de dos multiplicaciones enteras por carácter (cyrb53 extendido). No es
+ * criptográfica ni tiene que serlo: solo decide si lo que se va a reindexar es
+ * lo mismo que ya está indexado, y una colisión cuesta a lo sumo una búsqueda
+ * desactualizada hasta el próximo guardado. Sobre una nota de 500 KB tarda
+ * ~1 ms, contra los cientos de ms de reescribir FTS5.
+ */
+export function huellaDe(texto: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
  * Sufijo numérico incremental para títulos duplicados (HU-23 CA5):
  * "Nota" → "Nota 2" → "Nota 3". Comparación case-insensitive, igual que el backend.
  */

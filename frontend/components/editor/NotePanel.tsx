@@ -9,7 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { PropiedadesTab } from "./PropiedadesTab";
 import styles from "./NotePanel.module.css";
 
@@ -80,8 +80,17 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
       conexionesCache.delete(notaId);
       setRevision((r) => r + 1);
     }
+    // Guardar ESTA nota también cambia sus salientes. Antes llegaba solo, por el
+    // watcher; ahora el watcher ignora lo que escribe la app (`FUN-M-38`).
+    function onGuardada(e: Event) {
+      if ((e as CustomEvent<{ notaId?: string }>).detail?.notaId === notaId) onRecarga();
+    }
     window.addEventListener(EVENTO_RECARGA, onRecarga);
-    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
+    window.addEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    return () => {
+      window.removeEventListener(EVENTO_RECARGA, onRecarga);
+      window.removeEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    };
   }, [notaId]);
 
   useEffect(() => {

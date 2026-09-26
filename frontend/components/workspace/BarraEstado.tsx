@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
@@ -49,12 +49,21 @@ export function BarraEstado() {
   const [revision, setRevision] = useState(0);
 
   // Las conexiones cambian al guardar (un enlace nuevo) o cuando el vault
-  // cambia por fuera (otra nota empieza a citar a esta).
+  // cambia por fuera (otra nota empieza a citar a esta). El guardado se oye por
+  // su propio evento: el watcher ya no reacciona a lo que escribe la app
+  // (`FUN-M-38`), así que `EVENTO_RECARGA` solo llega por cambios de afuera.
   useEffect(() => {
     const onRecarga = () => setRevision((r) => r + 1);
+    const onGuardada = (e: Event) => {
+      if ((e as CustomEvent<{ notaId?: string }>).detail?.notaId === notaId) onRecarga();
+    };
     window.addEventListener(EVENTO_RECARGA, onRecarga);
-    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
-  }, []);
+    window.addEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    return () => {
+      window.removeEventListener(EVENTO_RECARGA, onRecarga);
+      window.removeEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    };
+  }, [notaId]);
 
   useEffect(() => {
     if (!esNota || !notaId) {
