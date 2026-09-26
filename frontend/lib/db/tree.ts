@@ -1,9 +1,9 @@
 /**
- * Árbol del explorer (`GET /vaults/{id}/tree`) y carpetas compartidas.
+ * Árbol del explorer (`GET /vaults/{id}/tree`).
  * Portado de `VaultRepository.GetTreeAsync`.
  */
 import { select } from "./client";
-import type { CarpetasCompartidasResponse, TreeResponse } from "./types";
+import type { TreeResponse } from "./types";
 
 /** Carpetas + notas (excluyendo papelera) de un vault, para el explorer. */
 export async function tree(vaultId: string): Promise<TreeResponse> {
@@ -24,12 +24,4 @@ export async function tree(vaultId: string): Promise<TreeResponse> {
     [vaultId],
   );
   return { carpetas, notas };
-}
-
-/**
- * Ids de carpetas con membresías compartidas (para marcarlas en el árbol,
- * HU-35 CA5). En local el sharing está latente → siempre vacío.
- */
-export async function carpetasCompartidas(_vaultId: string): Promise<CarpetasCompartidasResponse> {
-  return { ids: [] };
 }

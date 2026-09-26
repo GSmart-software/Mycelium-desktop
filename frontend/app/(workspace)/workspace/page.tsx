@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
-import { ShareModal } from "@/components/explorer/ShareModal";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
@@ -397,7 +396,6 @@ function WorkspaceShell() {
       <BarraEstado />
       <VentanaAjustes />
       <ImportDialogs />
-      <ShareModal />
       <UpdateDialog />
       <PaletaComandos />
       <Avisos />

@@ -19,7 +19,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { wrapSelection } from "@/lib/editor/commands";
-import { startCollab, type CollabHandle } from "@/lib/collab/collab";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch } from "@/lib/editor/pendingMatch";
@@ -251,13 +250,11 @@ export function NoteEditor({
   const previewRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const liveCompartment = useRef(new Compartment());
-  const collabCompartment = useRef(new Compartment());
   // Ancho de tabulación (FUN-S-02): en compartimento propio para poder
   // reconfigurarlo al vuelo, sin recrear la vista ni perder cursor y scroll.
   const tabCompartment = useRef(new Compartment());
   /** Números de línea (`FUN-M-28`): se prende y apaga sin recrear la vista. */
   const numerosCompartment = useRef(new Compartment());
-  const collabRef = useRef<CollabHandle | null>(null);
   const brokerApplyRef = useRef(false);
   // DEF-039: posición de scroll capturada EN VIVO (ver `instanceCache`).
   const scrollSnapshotRef = useRef<StateEffect<unknown> | null>(null);
@@ -521,9 +518,6 @@ export function NoteEditor({
             liveCompartment.current.of(
               modeRef.current === "live" ? liveExtensions(openByTitle, noteExists, notaId) : [],
             ),
-            // Colaboración en vivo (HU-05/06/37); vacío salvo en notas
-            // compartidas con relay disponible (cloudflare).
-            collabCompartment.current.of([]),
             tabCompartment.current.of(
               extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
             ),
@@ -572,15 +566,6 @@ export function NoteEditor({
           useVaultStore.getState().notas.find((n) => n.id === notaId)?.titulo ?? "nota";
         const show = usePreferencesStore.getState().prefs.showFileTitle;
         viewRef.current.dispatch({ effects: setDocTitle.of({ title: titulo, show }) });
-      }
-
-      // Intentar colaboración en tiempo real (inerte en local; HU-05/06/37)
-      if (!collabRef.current) {
-        void startCollab(notaId, viewRef.current, collabCompartment.current, content).then(
-          (handle) => {
-            collabRef.current = handle;
-          },
-        );
       }
 
       // El cursor y el `scrollTo` ya viajaron en la creación de la vista; queda
@@ -753,8 +738,6 @@ export function NoteEditor({
         saveLocal();
         void syncNow();
       }
-      collabRef.current?.destroy();
-      collabRef.current = null;
       soltarScrollRef.current?.();
       soltarScrollRef.current = null;
       const view = viewRef.current;

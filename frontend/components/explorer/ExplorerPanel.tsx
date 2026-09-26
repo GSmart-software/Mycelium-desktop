@@ -22,7 +22,6 @@ import {
   Folder,
   FolderPlus,
   Upload,
-  Users,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -44,10 +43,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
-import { useUiStore } from "@/stores/uiStore";
-import { HAY_COMPARTIR } from "@/lib/capacidades";
 import { avisar } from "@/stores/avisosStore";
-import { SharedSection } from "./SharedSection";
 import {
   useVaultStore,
   type NotaTipo,
@@ -153,25 +149,6 @@ export function ExplorerPanel() {
       localStorage.setItem("mic-sec-archivos", next ? "1" : "0");
       return next;
     });
-  // Colapso de "Compartido" elevado aquí para coordinar la división redimensionable
-  // (DEF-023). Misma clave localStorage que antes usaba SharedSection.
-  const [compartidosCollapsed, setCompartidosCollapsed] = useState(
-    () => typeof window !== "undefined" && localStorage.getItem("mic-sec-compartido") === "1",
-  );
-  const toggleCompartidos = () =>
-    setCompartidosCollapsed((v) => {
-      const next = !v;
-      localStorage.setItem("mic-sec-compartido", next ? "1" : "0");
-      return next;
-    });
-  // Alto (px) del panel "Compartido" cuando está expandido; ajustable con el
-  // divisor y persistido. Archivos ocupa el resto. (DEF-023)
-  const [compartidosPx, setCompartidosPx] = useState(() => {
-    if (typeof window === "undefined") return 200;
-    const v = Number(localStorage.getItem("mic-split-compartido"));
-    return Number.isFinite(v) && v > 0 ? v : 200;
-  });
-  const explorerRef = useRef<HTMLDivElement>(null);
   // El árbol de «Archivos»: una sola parada de Tab y navegación con flechas.
   const arbolRef = useRef<HTMLDivElement | null>(null);
   const onFocusFila = useFocoItineranteArbol(arbolRef);
@@ -266,8 +243,6 @@ export function ExplorerPanel() {
     return map;
   }, [store.notas]);
 
-  // Carpeta compartida si ella o algún ancestro tiene membresías (HU-35 CA5)
-  const sharedSet = useMemo(() => new Set(store.sharedCarpetaIds), [store.sharedCarpetaIds]);
   const carpetasById = useMemo(
     () => new Map(store.carpetas.map((c) => [c.id, c])),
     [store.carpetas],
@@ -295,18 +270,6 @@ export function ExplorerPanel() {
     return cadena;
   }, [carpetaDelActivo, carpetasById]);
 
-
-  const isCarpetaShared = useCallback(
-    (id: string | null): boolean => {
-      let current = id;
-      while (current) {
-        if (sharedSet.has(current)) return true;
-        current = carpetasById.get(current)?.padreId ?? null;
-      }
-      return false;
-    },
-    [sharedSet, carpetasById],
-  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -544,20 +507,6 @@ export function ExplorerPanel() {
             },
           ]
         : []),
-      ...(HAY_COMPARTIR
-        ? [
-            {
-              label: "Compartir",
-              onClick: () =>
-                useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
-            },
-            {
-              label: "Gestionar acceso",
-              onClick: () =>
-                useUiStore.getState().setShareTarget({ id: carpeta.id, nombre: carpeta.nombre }),
-            },
-          ]
-        : []),
       {
         label: "Renombrar",
         onClick: () =>
@@ -678,7 +627,6 @@ export function ExplorerPanel() {
           seleccionada={isSeleccionada}
           contieneActivo={carpetasDelActivo.has(carpeta.id)}
           dropOver={dropOver || osDropTarget === carpeta.id}
-          shared={isCarpetaShared(carpeta.id)}
           renaming={renaming?.type === "carpeta" && renaming.id === carpeta.id}
           renameValue={renaming?.valor ?? ""}
           onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
@@ -724,7 +672,6 @@ export function ExplorerPanel() {
         nota={nota}
         nivel={nivel}
         active={activeNoteId === nota.id}
-        shared={isCarpetaShared(nota.carpetaId)}
         renaming={renaming?.type === "nota" && renaming.id === nota.id}
         renameValue={renaming?.valor ?? ""}
         onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
@@ -757,31 +704,6 @@ export function ExplorerPanel() {
         useImportStore.getState().run(onlyMd, targetId, "Importación");
       }
     });
-  };
-
-  // Arrastre del divisor (DEF-023): el alto del panel Compartido = distancia del
-  // cursor al borde inferior del explorador; Archivos ocupa el resto. Clamp para
-  // dejar un mínimo a ambos. Se persiste al soltar.
-  const onDivisorPointerDown = (e: React.PointerEvent) => {
-    e.preventDefault();
-    const cont = explorerRef.current;
-    if (!cont) return;
-    const onMove = (ev: PointerEvent) => {
-      const rect = cont.getBoundingClientRect();
-      const px = Math.round(rect.bottom - ev.clientY);
-      const max = Math.max(60, rect.height - 160); // mínimo para Archivos
-      setCompartidosPx(Math.max(60, Math.min(px, max)));
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      setCompartidosPx((v) => {
-        localStorage.setItem("mic-split-compartido", String(v));
-        return v;
-      });
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
   };
 
   // Lo que se crea desde el explorador, además de «Nueva nota».
@@ -826,7 +748,6 @@ export function ExplorerPanel() {
 
   return (
     <div
-      ref={explorerRef}
       className={`${styles.explorer} ${osDropTarget === null ? styles.osDragOver : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
@@ -924,32 +845,6 @@ export function ExplorerPanel() {
             </RootDropZone>
           )}
         </div>
-
-        {/* Divisor arrastrable (DEF-023): solo con Compartido expandido. */}
-        {HAY_COMPARTIR && !compartidosCollapsed && (
-          <div
-            className={styles.divisor}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Ajustar el tamaño de Compartido"
-            onPointerDown={onDivisorPointerDown}
-          />
-        )}
-
-        {/* Panel "Compartido": alto ajustable con su propio scroll; colapsado
-            ocupa solo su cabecera. */}
-        {HAY_COMPARTIR && (
-          <div
-            className={styles.paneCompartidos}
-            style={
-              compartidosCollapsed
-                ? undefined
-                : { height: `${compartidosPx}px`, overflowY: "auto", flexShrink: 0 }
-            }
-          >
-            <SharedSection collapsed={compartidosCollapsed} onToggle={toggleCompartidos} />
-          </div>
-        )}
 
         {/* Sombra que sigue al puntero mientras se arrastra (DEF-034). */}
         <DragOverlay dropAnimation={null}>
@@ -1095,7 +990,6 @@ function FolderRow({
   active,
   seleccionada,
   contieneActivo,
-  shared,
   dropOver,
   onToggle,
   onContextMenu,
@@ -1112,7 +1006,6 @@ function FolderRow({
   seleccionada: boolean;
   /** Está en la rama que lleva al archivo abierto (`DEF-069`). */
   contieneActivo: boolean;
-  shared: boolean;
   /** Resaltado de destino: arrastre interno sobre la zona de la carpeta o
    *  archivos del SO sobre ella (DEF-036b). Lo decide `FolderDropZone`. */
   dropOver?: boolean;
@@ -1165,9 +1058,6 @@ function FolderRow({
           {carpeta.nombre}
         </span>
       )}
-      {shared && !rename.renaming && (
-        <Users size={12} className={styles.sharedIcon} aria-label="Compartida" />
-      )}
     </div>
   );
 }
@@ -1176,7 +1066,6 @@ function NoteRow({
   nota,
   nivel,
   active,
-  shared,
   onOpen,
   onOpenBackground,
   onContextMenu,
@@ -1187,7 +1076,6 @@ function NoteRow({
   /** Profundidad en el árbol, desde 1 (`aria-level`). */
   nivel: number;
   active: boolean;
-  shared: boolean;
   onOpen: () => void;
   onOpenBackground: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -1251,9 +1139,6 @@ function NoteRow({
         <span className={styles.name} title={nombreVisible}>
           {nombreVisible}
         </span>
-      )}
-      {shared && !rename.renaming && (
-        <Users size={12} className={styles.sharedIcon} aria-label="Compartido" />
       )}
     </div>
   );
