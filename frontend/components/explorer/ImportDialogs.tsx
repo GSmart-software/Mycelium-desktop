@@ -57,7 +57,7 @@ export function ImportDialogs() {
           <div className={styles.modal} role="dialog" aria-modal="true">
             <h3 className={styles.modalTitle}>Conflicto de nombre</h3>
             <p className={styles.modalText}>
-              Ya existe una nota llamada «{conflict.nombre}» en la carpeta destino.
+              Ya existe «{conflict.nombre}» en la carpeta destino.
             </p>
             <div className={styles.modalActions}>
               <button

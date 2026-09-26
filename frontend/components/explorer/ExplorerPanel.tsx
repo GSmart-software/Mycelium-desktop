@@ -725,7 +725,7 @@ export function ExplorerPanel() {
     void collectFromDataTransfer(dataTransfer).then((files) => {
       const onlyMd = files.filter((f) => /\.md$/i.test(f.path) || !/\.[^/]+$/.test(f.path));
       if (onlyMd.length > 0) {
-        useImportStore.getState().run(onlyMd, targetId, "Importación");
+        void useImportStore.getState().run({ archivos: onlyMd }, targetId, "Importación");
       }
     });
   };
@@ -802,7 +802,7 @@ export function ExplorerPanel() {
           if (e.target.files && e.target.files.length > 0) {
             void useImportStore
               .getState()
-              .run(collectFromFileList(e.target.files), importTargetRef.current, "Importación");
+              .run({ archivos: collectFromFileList(e.target.files) }, importTargetRef.current, "Importación");
           }
           e.target.value = "";
         }}

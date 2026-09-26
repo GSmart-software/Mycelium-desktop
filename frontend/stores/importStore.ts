@@ -1,12 +1,20 @@
 import { create } from "zustand";
 import {
-  importFiles,
+  importarArchivos,
+  importarCarpeta,
   type CollectedFile,
   type ConflictChoice,
   type ImportSummary,
 } from "@/lib/import";
 
 type ConflictPrompt = { nombre: string; resolve: (choice: ConflictChoice) => void };
+
+/**
+ * De dónde sale lo que se importa: una carpeta del disco (su ruta) o archivos
+ * sueltos —un .zip ya abierto, lo soltado, lo elegido—. Los dos terminan en la
+ * misma copia de árbol (`lib/import.ts`, `FUN-M-40`).
+ */
+export type FuenteImportacion = { carpeta: string } | { archivos: CollectedFile[] };
 
 type ImportState = {
   /** Progreso visible solo con más de 3 archivos (HU-07 CA7). */
@@ -16,7 +24,7 @@ type ImportState = {
   /** Etiqueta de la fuente para el resumen ("Importación", "Vault de Obsidian"). */
   titulo: string;
 
-  run: (files: CollectedFile[], destFolderId: string | null, titulo?: string) => Promise<void>;
+  run: (fuente: FuenteImportacion, destFolderId: string | null, titulo?: string) => Promise<void>;
   answerConflict: (choice: ConflictChoice) => void;
   clearSummary: () => void;
 };
@@ -27,24 +35,28 @@ export const useImportStore = create<ImportState>((set, get) => ({
   summary: null,
   titulo: "Importación",
 
-  async run(files, destFolderId, titulo = "Importación") {
-    set({ summary: null, titulo, progress: { done: 0, total: files.length } });
+  async run(fuente, destFolderId, titulo = "Importación") {
+    set({ summary: null, titulo, progress: null });
+    const opts = {
+      onProgress: (done: number, total: number) => {
+        // Solo mostramos barra para lotes grandes (CA7)
+        set({ progress: total > 3 && done < total ? { done, total } : null });
+      },
+      resolveConflict: (nombre: string) =>
+        new Promise<ConflictChoice>((resolve) => {
+          set({ conflict: { nombre, resolve } });
+        }),
+    };
     try {
-      const summary = await importFiles(files, destFolderId, {
-        onProgress: (done, total) => {
-          // Solo mostramos barra para lotes grandes (CA7)
-          set({ progress: total > 3 ? { done, total } : null });
-        },
-        resolveConflict: (nombre) =>
-          new Promise<ConflictChoice>((resolve) => {
-            set({ conflict: { nombre, resolve } });
-          }),
-      });
+      const summary =
+        "carpeta" in fuente
+          ? await importarCarpeta(fuente.carpeta, destFolderId, opts)
+          : await importarArchivos(fuente.archivos, destFolderId, opts);
       set({ summary, progress: null });
     } catch (error) {
       set({
         progress: null,
-        summary: { notas: 0, adjuntos: 0, omitidos: [(error as Error).message] },
+        summary: { notas: 0, adjuntos: 0, omitidos: [(error as Error).message ?? String(error)] },
       });
     }
   },

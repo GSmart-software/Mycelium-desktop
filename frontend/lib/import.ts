@@ -1,10 +1,27 @@
 import JSZip from "jszip";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/stores/authStore";
+import { EXTENSIONES_DE_NOTA } from "@/lib/extensionesDeTipo";
 import { useVaultStore } from "@/stores/vaultStore";
+
+/**
+ * Importar al vault (HU-07/11). Un vault de desktop **es** una carpeta, así que
+ * importar es copiar un árbol de archivos dentro de ella y reindexar
+ * (`FUN-M-40`, D9):
+ *
+ * - una carpeta del disco → `importarCarpeta`: el comando Rust `copiar_arbol`
+ *   la copia entera —notas, imágenes, PDF, lo que haya— respetando su
+ *   `.mycignore` (o el default, que deja fuera `.obsidian/` y `.git/`);
+ * - lo que no llega como carpeta —un `.zip`, archivos soltados o elegidos con
+ *   el selector— → `importarArchivos`: se baja a una carpeta temporal y sigue
+ *   el mismo camino.
+ *
+ * Antes era la tubería de la web: cada nota se creaba con `POST` + `PUT` por el
+ * dispatcher, los adjuntos se contaban como «no soportados» y «reemplazar»
+ * dejaba un duplicado.
+ */
 
 export type CollectedFile = { path: string; file: File };
 
+/** Qué hacer con un archivo cuyo nombre ya existe en el destino. */
 export type ConflictChoice = "reemplazar" | "renombrar" | "cancelar";
 
 export type ImportSummary = {
@@ -13,11 +30,16 @@ export type ImportSummary = {
   omitidos: string[];
 };
 
-const token = () => useAuthStore.getState().accessToken;
+type Opciones = {
+  /** Se llama una vez por archivo en conflicto (su nombre) y espera la decisión. */
+  resolveConflict?: (nombre: string) => Promise<ConflictChoice>;
+  onProgress?: (done: number, total: number) => void;
+};
 
-const isInsideObsidian = (path: string) => /(^|\/)\.obsidian\//.test(path);
-const isMarkdown = (path: string) => /\.md$/i.test(path);
-const ADJUNTO_RE = /\.(excalidraw|png|jpe?g|gif|svg|webp|pdf)$/i;
+async function invocar<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<T>(cmd, args);
+}
 
 /** Lee archivos sueltos o de un selector de carpeta (webkitdirectory). */
 export function collectFromFileList(files: FileList): CollectedFile[] {
@@ -57,24 +79,7 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<Collect
   return out;
 }
 
-/**
- * Lee una carpeta real del SO elegida con el diálogo nativo (escritorio). El
- * recorrido recursivo lo hace el comando Rust `leer_carpeta` (ignora directorios
- * ocultos como `.git`/`.obsidian`); aquí solo se envuelve cada resultado en un
- * `File` para que encaje con el pipeline de importación existente.
- */
-export async function collectFromNativeFolder(origen: string): Promise<CollectedFile[]> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  const archivos = await invoke<{ ruta_relativa: string; contenido: string }[]>("leer_carpeta", {
-    origen,
-  });
-  return archivos.map(({ ruta_relativa: path, contenido }) => ({
-    path,
-    file: new File([contenido], path.split("/").pop() ?? path, { type: "text/markdown" }),
-  }));
-}
-
-/** Extrae archivos de un .zip de Obsidian (HU-11 CA1). */
+/** Extrae los archivos de un .zip (p. ej. un vault de Obsidian, HU-11 CA1). */
 export async function collectFromZip(zipFile: File): Promise<CollectedFile[]> {
   const zip = await JSZip.loadAsync(zipFile);
   const out: CollectedFile[] = [];
@@ -86,111 +91,101 @@ export async function collectFromZip(zipFile: File): Promise<CollectedFile[]> {
   return out;
 }
 
+/** Si una ruta es una nota del vault (el resto son adjuntos). */
+function esNota(ruta: string): boolean {
+  const i = ruta.lastIndexOf(".");
+  return i > 0 && EXTENSIONES_DE_NOTA.includes(ruta.slice(i + 1).toLowerCase());
+}
+
+/** El vault abierto (su carpeta) y la carpeta destino relativa a él. */
+async function destino(destFolderId: string | null): Promise<{ vault: string; destinoRel: string }> {
+  const { getVaultActual } = await import("@/lib/db/vaultContext");
+  // En desktop el id de una carpeta ES su ruta relativa; `null` = la raíz.
+  return { vault: getVaultActual(), destinoRel: destFolderId ?? "" };
+}
+
 /**
- * Importa un conjunto de archivos al vault preservando la jerarquía (HU-07/11).
- * Crea las carpetas necesarias, resuelve conflictos de nombre y sincroniza el
- * contenido. Los adjuntos/diagramas se cuentan pero no se almacenan en esta
- * versión (sin subsistema de adjuntos — docs/BACKLOG.md).
+ * Copia la carpeta `origen` del disco dentro de `destFolderId` y reindexa. Los
+ * archivos que ya existen en el destino se preguntan uno por uno; «reemplazar»
+ * pisa el que estaba, «renombrar» conserva los dos (`nota 1.md`) y «cancelar»
+ * lo omite.
  */
-export async function importFiles(
+export async function importarCarpeta(
+  origen: string,
+  destFolderId: string | null,
+  opts: Opciones = {},
+): Promise<ImportSummary> {
+  const { vault, destinoRel } = await destino(destFolderId);
+  const args = { vaultRuta: vault, origen, destinoRel };
+
+  const conflictos = await invocar<string[]>("conflictos_de_copia", args);
+  const decisiones: Record<string, ConflictChoice> = {};
+  for (const ruta of conflictos) {
+    decisiones[ruta] = (await opts.resolveConflict?.(ruta)) ?? "renombrar";
+  }
+
+  const resultado = await invocar<{ copiados: string[]; omitidos: string[] }>("copiar_arbol", {
+    ...args,
+    decisiones,
+  });
+
+  // Un solo indexado para todo lo copiado (el watcher lo vería archivo por
+  // archivo), y el árbol al día sin recargar (HU-07 CA5).
+  const { indexarVault } = await import("@/lib/db/indexer");
+  const indexado = await indexarVault(vault);
+  const store = useVaultStore.getState();
+  store.setOtros(indexado.otros);
+  if (store.vaultId) await store.loadTree(store.vaultId);
+
+  const notas = resultado.copiados.filter(esNota).length;
+  return {
+    notas,
+    adjuntos: resultado.copiados.length - notas,
+    omitidos: resultado.omitidos,
+  };
+}
+
+/**
+ * Cuántos bytes se mandan por llamada al bajar archivos a la carpeta temporal.
+ * Van como un arreglo de números en el JSON del IPC (unas cuatro veces su
+ * tamaño): con tandas chicas ningún mensaje se vuelve enorme.
+ */
+const TANDA_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Importa archivos que no llegan como carpeta (un .zip, archivos soltados o
+ * elegidos): se bajan a una carpeta temporal, por tandas, y de ahí sigue
+ * `importarCarpeta`. La carpeta temporal se borra al terminar.
+ */
+export async function importarArchivos(
   files: CollectedFile[],
   destFolderId: string | null,
-  opts: {
-    onProgress?: (done: number, total: number) => void;
-    resolveConflict?: (nombre: string) => Promise<ConflictChoice>;
-  } = {},
+  opts: Opciones = {},
 ): Promise<ImportSummary> {
-  const { vaultId } = useVaultStore.getState();
-  if (!vaultId) throw new Error("Sin vault activo.");
-
-  const usables = files.filter((f) => !isInsideObsidian(f.path)); // HU-11 CA3
-  const mdFiles = usables.filter((f) => isMarkdown(f.path));
-  const adjuntos = usables.filter((f) => !isMarkdown(f.path) && ADJUNTO_RE.test(f.path));
-
-  const summary: ImportSummary = { notas: 0, adjuntos: 0, omitidos: [] };
-
-  // Adjuntos: no almacenables aún → se reportan como omitidos (honesto, HU-11 CA6)
-  for (const a of adjuntos) {
-    summary.omitidos.push(`${a.path} (adjunto no soportado)`);
+  let dir: string | null = null;
+  try {
+    let tanda: { ruta_relativa: string; bytes: number[] }[] = [];
+    let bytesTanda = 0;
+    const volcar = async () => {
+      dir = await invocar<string>("escribir_temporal_importacion", { dir, archivos: tanda });
+      tanda = [];
+      bytesTanda = 0;
+    };
+    let hechos = 0;
+    for (const f of files) {
+      const bytes = new Uint8Array(await f.file.arrayBuffer());
+      tanda.push({ ruta_relativa: f.path, bytes: Array.from(bytes) });
+      bytesTanda += bytes.length;
+      if (bytesTanda >= TANDA_BYTES) await volcar();
+      opts.onProgress?.(++hechos, files.length);
+    }
+    if (tanda.length > 0 || dir === null) await volcar();
+    return await importarCarpeta(dir!, destFolderId, opts);
+  } finally {
+    if (dir !== null) {
+      await invocar<void>("borrar_temporal_importacion", { dir }).catch(() => {
+        // Queda en el temporal del sistema, que el SO limpia: no es fatal.
+      });
+    }
   }
-
-  // Caché de carpetas creadas: ruta relativa → id (raíz = destFolderId)
-  const folderCache = new Map<string, string | null>([["", destFolderId]]);
-  const ensureFolder = async (dir: string): Promise<string | null> => {
-    if (folderCache.has(dir)) return folderCache.get(dir)!;
-    const segments = dir.split("/").filter(Boolean);
-    let parentPath = "";
-    let parentId = destFolderId;
-    for (const seg of segments) {
-      const path = parentPath ? `${parentPath}/${seg}` : seg;
-      if (folderCache.has(path)) {
-        parentId = folderCache.get(path)!;
-      } else {
-        const res = await api<{ id: string }>(`/vaults/${vaultId}/carpetas`, {
-          method: "POST",
-          token: token(),
-          body: { nombre: seg, padreId: parentId },
-        });
-        folderCache.set(path, res.id);
-        parentId = res.id;
-      }
-      parentPath = path;
-    }
-    folderCache.set(dir, parentId);
-    return parentId;
-  };
-
-  // Títulos ya existentes/creados por carpeta destino, para detectar conflictos
-  const existing = useVaultStore.getState().notas;
-  const keyOf = (cid: string | null, titulo: string) => `${cid ?? "root"}::${titulo.toLowerCase()}`;
-  const seen = new Set(existing.map((n) => keyOf(n.carpetaId, n.titulo)));
-
-  let done = 0;
-  for (const f of mdFiles) {
-    const text = await f.file.text();
-    if (text.includes("�")) {
-      summary.omitidos.push(`${f.path} (no es UTF-8)`); // HU-07 CA6
-      opts.onProgress?.(++done, mdFiles.length);
-      continue;
-    }
-
-    const parts = f.path.split("/");
-    const filename = parts.pop()!;
-    const dir = parts.join("/");
-    const carpetaId = await ensureFolder(dir);
-
-    let titulo = filename.replace(/\.md$/i, "");
-    if (seen.has(keyOf(carpetaId, titulo))) {
-      const choice = (await opts.resolveConflict?.(titulo)) ?? "renombrar";
-      if (choice === "cancelar") {
-        summary.omitidos.push(`${f.path} (cancelado por conflicto)`);
-        opts.onProgress?.(++done, mdFiles.length);
-        continue;
-      }
-      if (choice === "renombrar") {
-        let i = 1;
-        while (seen.has(keyOf(carpetaId, `${titulo}-${i}`))) i++;
-        titulo = `${titulo}-${i}`;
-      }
-      // "reemplazar": se crea igual; el título queda duplicado lógico, pero el
-      // contenido nuevo entra como nota nueva (no hay merge destructivo).
-    }
-
-    const created = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
-      method: "POST",
-      token: token(),
-      body: { titulo, carpetaId },
-    });
-    await api(`/notas/${encodeURIComponent(created.id)}/contenido`, {
-      method: "PUT",
-      token: token(),
-      body: { contenido: text },
-    });
-    seen.add(keyOf(carpetaId, titulo));
-    summary.notas++;
-    opts.onProgress?.(++done, mdFiles.length);
-  }
-
-  await useVaultStore.getState().loadTree(vaultId); // disponible sin recargar (CA5)
-  return summary;
 }

@@ -8,7 +8,7 @@ import {
   generarFramework,
   versionInstalada,
 } from "@/lib/ia/framework";
-import { collectFromNativeFolder, collectFromZip } from "@/lib/import";
+import { collectFromZip } from "@/lib/import";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { useBorradoresStore } from "@/stores/borradoresStore";
@@ -252,12 +252,9 @@ export function VaultSection() {
     try {
       const origen = await elegirCarpeta("Elegí la carpeta del vault a importar");
       if (!origen) return;
-      const archivos = await collectFromNativeFolder(origen);
-      if (archivos.length === 0) {
-        setError("No se encontraron notas (.md o .excalidraw) en esa carpeta.");
-        return;
-      }
-      await useImportStore.getState().run(archivos, activeFolder(), "Vault de Obsidian");
+      // Se copia la carpeta entera —adjuntos incluidos— respetando su
+      // `.mycignore` (`FUN-M-40`); lo vacío se ve en el resumen.
+      await useImportStore.getState().run({ carpeta: origen }, activeFolder(), "Vault de Obsidian");
     } catch (e) {
       fallar((e as Error).message ?? String(e));
     }
@@ -417,8 +414,8 @@ export function VaultSection() {
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) {
-              void collectFromZip(file).then((files) =>
-                useImportStore.getState().run(files, activeFolder(), "Vault de Obsidian"),
+              void collectFromZip(file).then((archivos) =>
+                useImportStore.getState().run({ archivos }, activeFolder(), "Vault de Obsidian"),
               );
             }
             e.target.value = "";

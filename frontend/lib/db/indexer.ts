@@ -164,8 +164,8 @@ type RecorridoVault = {
 /**
  * Contenido de un archivo devuelto por el comando Rust `leer_archivos`.
  * OJO: sus campos van en `snake_case`: la struct `ArchivoLeido` de Rust no lleva
- * `rename_all` —a diferencia de `ArchivoMeta`— porque la comparte con
- * `leer_carpeta` (importar una carpeta externa, `lib/import.ts`), que la lee así.
+ * `rename_all`, a diferencia de `ArchivoMeta` (la compartía con el walker de la
+ * importación, que la leía así; desde `FUN-M-40` importar es `copiar_arbol`).
  */
 type ArchivoLeido = { ruta_relativa: string; contenido: string };
 
