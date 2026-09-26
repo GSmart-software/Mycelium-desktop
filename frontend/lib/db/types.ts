@@ -1,35 +1,12 @@
 /**
  * Tipos de la capa de datos del desktop.
  *
- * Dos familias:
- *   - `Row*`: filas tal cual salen de SQLite (snake_case).
- *   - DTOs de respuesta: la forma EXACTA que cada call-site del frontend ya
- *     espera de `api()` hoy (no se cambia ningún consumidor). Ver los stores/
- *     componentes que mapean estas respuestas (vaultStore, authStore, etc.).
+ * DTOs de respuesta: la forma EXACTA que cada call-site del frontend ya espera
+ * de `api()` (la misma que devuelve el backend de web). Ver los stores y
+ * componentes que mapean estas respuestas (vaultStore, graphStore, etc.).
  */
 
 export type NotaTipo = "markdown" | "excalidraw" | "base" | "canvas" | "drawio";
-
-// ── Filas SQLite ────────────────────────────────────────────────────────────
-
-export type RowUsuario = {
-  id: string;
-  email: string;
-  nombre: string;
-  avatar_url: string | null;
-  tema: string;
-  modo_oscuro: number;
-  preferencias_json: string | null;
-};
-
-export type RowCssSnippet = {
-  id: string;
-  usuario_id: string;
-  nombre: string;
-  activo: number;
-  contenido: string;
-  creado_en: string;
-};
 
 // ── DTOs de respuesta (forma que espera el frontend) ──────────────────────────
 
@@ -63,46 +40,6 @@ export type ContenidoResponse = { contenido: string; actualizadoEn: string };
 
 /** `PUT /notas/{id}/contenido`. */
 export type PutContenidoResponse = { actualizadoEn: string };
-
-/** `GET /auth/css/snippets`. */
-export type SnippetsResponse = { snippets: CssSnippetDto[] };
-
-/** Snippet tal como lo consume cssStore. */
-export type CssSnippetDto = {
-  id: string;
-  nombre: string;
-  activo: boolean;
-  contenido: string;
-};
-
-/** Usuario tal como lo consume authStore. */
-export type UserDto = {
-  id: string;
-  email: string;
-  nombre: string;
-  avatarUrl: string | null;
-  tema: string;
-  modoOscuro: boolean;
-  preferencias?: Record<string, unknown>;
-};
-
-/** Vault tal como lo consume authStore. */
-export type VaultDto = {
-  id: string;
-  nombre: string;
-  propietario_id: string;
-  rol: "lector" | "editor" | "propietario";
-};
-
-/** `POST /auth/refresh` (sesión fija del vault local). */
-export type SessionResponse = {
-  accessToken: string;
-  expiresInMinutes: number;
-  user: UserDto;
-};
-
-/** `GET /auth/me`. */
-export type MeResponse = { user: UserDto; vaults: VaultDto[] };
 
 /** `GET /vaults/{id}/buscar`. */
 export type SearchResponse = {

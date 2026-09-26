@@ -5,9 +5,8 @@ import {
   atmosferaValida,
   type Atmosfera,
 } from "@/lib/atmosferas";
-import { api } from "@/lib/api";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
-import { useAuthStore } from "@/stores/authStore";
+import { sanearContraDefectos, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 
 export type FontOption = { label: string; value: string };
 
@@ -228,19 +227,21 @@ function applyToDom(s: Pick<PreferencesState, "tema" | "modoOscuro" | "prefs">) 
   html.style.setProperty("--mic-tab-width", String(anchoTabValido(s.prefs.tabWidth)));
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-/** Persiste tema/modo/tipografía en el backend con debounce (HU-12 CA5, HU-14 CA5). */
+/**
+ * Persiste tema/modo/tipografía (HU-12 CA5, HU-14 CA5).
+ *
+ * **Diverge de web** (`FUN-L-24`): en desktop todo esto es del vault (decisión
+ * D3), así que se guarda en `.mycelium/preferencias.json` a través de
+ * `prefsVaultStore`, que ya difiere el guardado 400 ms. En web va a la cuenta
+ * (por el backend). Esta función y `hydrateFromUser` son lo único que
+ * cambia entre las dos ramas.
+ */
 function persistPrefs(get: () => PreferencesState) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const { tema, modoOscuro, prefs } = get();
-    void api("/auth/preferencias", {
-      method: "PUT",
-      token: useAuthStore.getState().accessToken,
-      body: { tema, modoOscuro, preferencias: prefs },
-    }).catch(() => undefined);
-  }, 400);
+  const { tema, modoOscuro, prefs } = get();
+  const vault = usePrefsVaultStore.getState();
+  vault.set("tema", tema);
+  vault.set("modoOscuro", modoOscuro);
+  vault.set("preferencias", prefs);
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
@@ -248,14 +249,19 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   modoOscuro: true, // por defecto la estética oscura bioluminiscente (legacy)
   prefs: DEFAULT_PREFS,
 
+  /**
+   * Carga la apariencia guardada. En desktop sale de las preferencias **del
+   * vault** ya cargadas por `prefsVaultStore` (ver `persistPrefs`); el nombre se
+   * conserva por la forma compartida con web, donde sí sale del usuario.
+   */
   hydrateFromUser() {
-    const user = useAuthStore.getState().user;
-    if (!user) return;
-    const raw = (user.preferencias ?? {}) as Partial<Preferencias>;
-    const prefs: Preferencias = { ...DEFAULT_PREFS, ...raw };
-    const tema: Tema = user.tema === "cantarela" ? "cantarela" : "bioluminiscencia";
-    set({ tema, modoOscuro: user.modoOscuro, prefs });
-    applyToDom({ tema, modoOscuro: user.modoOscuro, prefs });
+    const { tema, modoOscuro, preferencias } = usePrefsVaultStore.getState().prefs;
+    const prefs: Preferencias = {
+      ...DEFAULT_PREFS,
+      ...sanearContraDefectos(preferencias, DEFAULT_PREFS),
+    };
+    set({ tema, modoOscuro, prefs });
+    applyToDom({ tema, modoOscuro, prefs });
   },
 
   setTema(tema) {

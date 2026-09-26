@@ -1,87 +1,57 @@
 /**
- * Indexador del "vault en carpeta" (fase 2): reconstruye el índice derivado
- * (SQLite) releyendo los archivos de la carpeta del vault. El índice NO es la
- * fuente de verdad —lo son los archivos en disco—; es un caché reconstruible
- * para que la búsqueda FTS5 y el grafo (que siguen resolviéndose en SQL) sigan
- * funcionando. Ver `docs/features/vault-en-carpeta.md`.
+ * Indexador del vault en carpeta: reconstruye el índice derivado (SQLite)
+ * releyendo los archivos de la carpeta del vault. El índice NO es la fuente de
+ * verdad —lo son los archivos en disco—; es un caché reconstruible para que la
+ * búsqueda FTS5, el grafo, las propiedades y las bases se resuelvan en SQL. La
+ * única excepción es la tabla `papelera`, que se respalda en
+ * `.mycelium/papelera.json` (ver `estadoVault.ts`). Ver
+ * `docs/features/vault-en-carpeta.md` y `docs/arquitectura/Capa de datos del desktop.md`.
  *
- * Esta fase construye SOLO la infraestructura del índice: nada de esto se activa
- * todavía (el arranque y el dispatcher siguen usando `mycelium.db`).
- *
- * Convenciones del índice (decididas en la spec):
+ * Convenciones del índice:
  *   - `notas.id` = ruta relativa POSIX del archivo (`Proyectos/2026/plan.md`).
  *   - `titulo`   = nombre del archivo sin extensión.
- *   - `tipo`     = `markdown` | `excalidraw` | `base` según la extensión.
+ *   - `tipo`     = `markdown` | `excalidraw` | `base` | `canvas` | `drawio`
+ *     según la extensión.
  *   - `carpetas.id` = ruta POSIX de la carpeta; `padre_id` = carpeta padre o NULL.
- *   - `vault_id`  = `LOCAL_VAULT_ID` (fase 3): el índice reutiliza el vault
- *     sembrado por `ensureSeed()` para que `tree(LOCAL_VAULT_ID)` y toda la capa
- *     de datos funcionen contra el índice igual que contra `mycelium.db`.
+ *   - `vault_id`  = `LOCAL_VAULT_ID`: cada vault tiene su propio índice, así que
+ *     dentro de uno es una constante (la que las rutas `/vaults/:id/...` de
+ *     `api()` reciben de `authStore`).
  */
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
-import { LOCAL_VAULT_ID } from "./auth";
 import { execute, select } from "./client";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
+import { LOCAL_VAULT_ID } from "./vaultContext";
 
-/**
- * Id del vault en el índice. Coincide con el vault sembrado (`LOCAL_VAULT_ID`)
- * para que `tree(LOCAL_VAULT_ID)` devuelva las notas indexadas. Antes era la
- * constante `"vault"`; se reconcilió en fase 3.
- */
+/** Id del vault en el índice (ver la cabecera). */
 const VAULT_ID = LOCAL_VAULT_ID;
 
 /**
- * Esquema del índice. ESPEJA `frontend/src-tauri/migrations/001_init.sql`
- * (esquema COMPLETO desde fase 3) y DEBE mantenerse en sync con él, para que
- * TODA la capa de datos (`session`/`me`/`tree`/CSS…) funcione contra el índice
- * igual que contra `mycelium.db`. Incluye `usuarios`/`vaults`/`membresias`/
- * `css_snippets`, que `ensureSeed()` puebla antes de indexar. Diferencias
- * intencionadas respecto a 001_init:
- *   - Se omiten las claves foráneas hacia `vaults`/`usuarios` en `carpetas`/
- *     `notas` (`vault_id`/`carpeta_id` quedan como TEXT plano): las filas del
- *     índice se upsertan por ruta y no se quiere el coste de validar la FK.
- *   - `notas` añade una columna `mtime INTEGER` (propia del índice) para la
- *     validación incremental por fecha de modificación, y `hash_indexable TEXT`
- *     (`FUN-M-38`): la huella de lo que `notas_fts` y `propiedades` tienen de la
- *     nota, para no reescribirlas en un guardado que no las cambia.
- *   - `papelera` añade `ruta_papelera TEXT` (fase 4): dónde quedó el archivo en
- *     `.mycelium/.trash` para poder restaurarlo (solo se usa en modo carpeta).
- * NO se usa `_sqlx_migrations`: el índice no se migra con sqlx, se crea con
- * estos `CREATE TABLE IF NOT EXISTS`.
+ * Esquema del índice. Se crea con estos `CREATE TABLE IF NOT EXISTS` al abrir el
+ * vault; NO hay migraciones sqlx (`_sqlx_migrations`) ni ningún otro esquema que
+ * espejar. Un cambio de columnas va como `ALTER TABLE` defensivo en
+ * `crearEsquemaIndice`, que es lo que hace abrir sin error un índice creado por
+ * una versión anterior.
+ *
+ * - `carpetas` y `notas` no llevan claves foráneas hacia ninguna tabla de vaults
+ *   o usuarios: `vault_id` es TEXT plano.
+ * - `notas.mtime` es la validación incremental por fecha de modificación, y
+ *   `hash_indexable` (`FUN-M-38`) la huella de lo que `notas_fts` y `propiedades`
+ *   tienen de la nota, para no reescribirlas en un guardado que no las cambia.
+ * - `papelera.ruta_papelera`: dónde quedó el archivo en `.mycelium/.trash` para
+ *   poder restaurarlo.
+ *
+ * > [!info] Tablas que un índice viejo tiene de más
+ * > Hasta `FUN-L-24` (2026-09-26) el esquema incluía `usuarios`, `vaults`,
+ * > `membresias` y `css_snippets`: la identidad interna heredada de web y la
+ * > copia de la apariencia y los snippets. Un índice creado antes las conserva
+ * > —`CREATE TABLE IF NOT EXISTS` no borra nada— y nadie las lee, salvo la
+ * > migración única de `lib/db/legado.ts`, que saca de ahí la apariencia y los
+ * > snippets de quien actualiza desde la 2.1.0. No se hace `DROP TABLE`: ver
+ * > esa migración.
  */
 const ESQUEMA_INDICE: string[] = [
-  `CREATE TABLE IF NOT EXISTS usuarios (
-     id                TEXT PRIMARY KEY,
-     email             TEXT NOT NULL UNIQUE,
-     nombre            TEXT NOT NULL,
-     password_hash     TEXT,
-     github_id         TEXT,
-     avatar_url        TEXT,
-     email_verificado  INTEGER NOT NULL DEFAULT 0,
-     tema              TEXT NOT NULL DEFAULT 'bioluminiscencia',
-     modo_oscuro       INTEGER NOT NULL DEFAULT 1,
-     preferencias_json TEXT,
-     creado_en         TEXT NOT NULL,
-     actualizado_en    TEXT NOT NULL
-   )`,
-  `CREATE TABLE IF NOT EXISTS vaults (
-     id             TEXT PRIMARY KEY,
-     nombre         TEXT NOT NULL,
-     propietario_id TEXT NOT NULL REFERENCES usuarios(id),
-     creado_en      TEXT NOT NULL
-   )`,
-  `CREATE TABLE IF NOT EXISTS membresias (
-     id           TEXT PRIMARY KEY,
-     usuario_id   TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-     recurso_tipo TEXT NOT NULL CHECK (recurso_tipo IN ('vault', 'carpeta')),
-     recurso_id   TEXT NOT NULL,
-     rol          TEXT NOT NULL CHECK (rol IN ('lector', 'editor', 'propietario')),
-     creado_en    TEXT NOT NULL,
-     UNIQUE (usuario_id, recurso_tipo, recurso_id)
-   )`,
-  `CREATE INDEX IF NOT EXISTS idx_membresias_usuario ON membresias(usuario_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_membresias_recurso ON membresias(recurso_tipo, recurso_id)`,
   `CREATE TABLE IF NOT EXISTS carpetas (
      id             TEXT PRIMARY KEY,
      vault_id       TEXT NOT NULL,
@@ -133,8 +103,7 @@ const ESQUEMA_INDICE: string[] = [
    )`,
   // Propiedades del frontmatter YAML (FUN-M-04). Una fila POR ELEMENTO de lista
   // (`orden` = posición; 0 si es escalar), para poder filtrar con `=` en vez de
-  // `LIKE`. Es una tabla NUEVA del índice: no existe en `001_init.sql`, porque
-  // se deriva del contenido igual que `notas_fts`.
+  // `LIKE`. Se deriva del contenido igual que `notas_fts`.
   `CREATE TABLE IF NOT EXISTS propiedades (
      nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
      clave   TEXT NOT NULL,
@@ -144,15 +113,6 @@ const ESQUEMA_INDICE: string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_nota  ON propiedades(nota_id)`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_clave ON propiedades(clave, valor)`,
-  `CREATE TABLE IF NOT EXISTS css_snippets (
-     id          TEXT PRIMARY KEY,
-     usuario_id  TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-     nombre      TEXT NOT NULL,
-     activo      INTEGER NOT NULL DEFAULT 1,
-     contenido   TEXT NOT NULL DEFAULT '',
-     creado_en   TEXT NOT NULL
-   )`,
-  `CREATE INDEX IF NOT EXISTS idx_css_snippets_usuario ON css_snippets(usuario_id)`,
 ];
 
 /** Crea el esquema del índice (idempotente) contra el executor activo. */
@@ -206,9 +166,9 @@ type RecorridoVault = {
 
 /**
  * Contenido de un archivo devuelto por el comando Rust `leer_archivos`.
- * OJO: sus campos van en `snake_case` (la struct `ArchivoLeido` de Rust no lleva
- * `rename_all`, a diferencia de `ArchivoMeta`); se respeta para no romper
- * `leer_carpeta`, que comparte la struct.
+ * OJO: sus campos van en `snake_case`: la struct `ArchivoLeido` de Rust no lleva
+ * `rename_all` —a diferencia de `ArchivoMeta`— porque la comparte con
+ * `leer_carpeta` (importar una carpeta externa, `lib/import.ts`), que la lee así.
  */
 type ArchivoLeido = { ruta_relativa: string; contenido: string };
 

@@ -12,7 +12,7 @@ const WARN_BYTES = 50 * 1024; // HU-15 CA5
 
 /**
  * Gestor de snippets de CSS personalizado (estilo Obsidian, HU-13/15): lista de
- * snippets guardados en el índice local del vault abierto, cada uno con switch
+ * snippets guardados en el vault abierto (`.mycelium/snippets.json`), cada uno con switch
  * para activar/desactivar,
  * exportar y eliminar; botón general para importar un .css. Los cambios se
  * aplican en vivo, sin recargar.
@@ -137,8 +137,8 @@ export function CustomCssSection() {
       </div>
 
       <p className={styles.hint}>
-        Tus snippets se guardan en esta máquina, junto al vault abierto: al abrir
-        otro vault verás los suyos. Activá los que quieras; el estilo se
+        Tus snippets se guardan dentro del vault abierto y viajan con su carpeta:
+        al abrir otro vault verás los suyos. Activá los que quieras; el estilo se
         actualiza al instante.
       </p>
 

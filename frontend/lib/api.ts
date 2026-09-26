@@ -3,14 +3,15 @@
  *
  * ANTES: cliente HTTP contra el backend .NET (`fetch` a localhost:5279).
  * AHORA: enruta `(method, path)` a las funciones de la capa de datos
- * (`lib/db/*`), que consultan SQLite nativo vía `tauri-plugin-sql`. Los ~53
- * call-sites que usan `api<T>(path, {method, body, token})` NO cambian: la firma
- * y `ApiError` se conservan. El `token` se ignora (sesión local, sin JWT).
+ * (`lib/db/*`), que consultan el índice SQLite del vault vía `tauri-plugin-sql`
+ * y escriben en su carpeta. Los call-sites que usan `api<T>(path, {method, body,
+ * token})` son los mismos que en web: la firma y `ApiError` se conservan.
  *
- * No hay usuarios ni login en desktop: `/auth/refresh` y `/auth/me` devuelven
- * la sesión fija del vault local. Las rutas no implementadas devuelven 501.
+ * No hay usuarios, sesión ni login en desktop, y por eso tampoco rutas de
+ * autenticación: la identidad es una constante (`authStore`), y la apariencia y los
+ * snippets CSS se guardan directo en `.mycelium/` del vault, sin pasar por acá
+ * (`FUN-L-24`). Las rutas no implementadas devuelven 501.
  */
-import { me, session } from "@/lib/db/auth";
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
@@ -19,10 +20,8 @@ import { DbError } from "@/lib/db/errors";
 import { conexiones, grafo } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
-import { putPreferencias } from "@/lib/db/preferencias";
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
 import { notasParaTabla } from "@/lib/db/tabla";
-import { actualizarSnippet, borrarSnippet, crearSnippet, listarSnippets } from "@/lib/db/snippets";
 import { tree } from "@/lib/db/tree";
 
 export class ApiError extends Error {
@@ -37,6 +36,10 @@ export class ApiError extends Error {
 type ApiOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
+  /**
+   * Ignorado en desktop: no hay sesión. Se acepta para que los componentes
+   * compartidos con web (que sí lo mandan) no tengan que distinguir.
+   */
   token?: string | null;
 };
 
@@ -59,30 +62,6 @@ async function dispatch(
   body: Body,
 ): Promise<unknown> {
   const [a, b, c, d] = seg;
-
-  // ── /auth/... (sesión local, preferencias, css) ───────────────────────────
-  if (a === "auth") {
-    if (b === "refresh" && method === "POST") return session();
-    if (b === "me" && method === "GET") return me();
-    if (b === "preferencias" && method === "PUT") {
-      return putPreferencias(s(body.tema), Boolean(body.modoOscuro), body.preferencias);
-    }
-    // /auth/css/snippets[/:id]
-    if (b === "css" && c === "snippets") {
-      if (!d && method === "GET") return listarSnippets();
-      if (!d && method === "POST") {
-        return crearSnippet(String(body.nombre ?? ""), String(body.contenido ?? ""));
-      }
-      if (d && method === "PATCH") {
-        return actualizarSnippet(d, {
-          nombre: body.nombre === undefined ? undefined : String(body.nombre),
-          contenido: body.contenido === undefined ? undefined : String(body.contenido),
-          activo: body.activo === undefined ? undefined : Boolean(body.activo),
-        });
-      }
-      if (d && method === "DELETE") return borrarSnippet(d);
-    }
-  }
 
   // ── /vaults/:vaultId/... ──────────────────────────────────────────────────
   if (a === "vaults" && b) {
@@ -119,8 +98,8 @@ async function dispatch(
 
   // ── /carpetas/:id/... ─────────────────────────────────────────────────────
   if (a === "carpetas" && b) {
-    // Renombrar/mover puede cambiar el id (=ruta) en modo carpeta: se devuelve el
-    // id NUEVO que calcula el repo (en clásico coincide con `b`).
+    // Renombrar/mover cambia el id (=ruta): se devuelve el id NUEVO que calcula
+    // el repo, y quien llamó remapea sus pestañas con él.
     if (!c && method === "PATCH") {
       return renombrarCarpeta(b, String(body.nombre ?? ""));
     }
@@ -135,8 +114,8 @@ async function dispatch(
 
   // ── /notas/:id/... ────────────────────────────────────────────────────────
   if (a === "notas" && b) {
-    // Renombrar/mover puede cambiar el id (=ruta) en modo carpeta: se devuelve el
-    // id NUEVO que calcula el repo (en clásico coincide con `b`).
+    // Renombrar/mover cambia el id (=ruta): se devuelve el id NUEVO que calcula
+    // el repo, y quien llamó remapea sus pestañas con él.
     if (!c && method === "PATCH") {
       return renombrarNota(b, String(body.titulo ?? ""));
     }

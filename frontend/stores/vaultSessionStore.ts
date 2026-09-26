@@ -2,23 +2,24 @@
  * Sesión del vault en carpeta (fase 3 del "vault en carpeta", solo-desktop).
  *
  * Distinto del registro de vaults (`lib/vaultMode.ts`, qué carpetas conoce la
- * app) y del `authStore` (identidad interna sembrada): este store guarda el
- * estado de runtime de QUÉ carpeta usa la sesión actual. Abrir un vault:
+ * app): este store guarda el estado de runtime de QUÉ carpeta usa la sesión
+ * actual. Sin vault abierto no hay capa de datos (el workspace redirige a la
+ * selección). Abrir un vault:
  *   1. abre/crea su índice SQLite y lo deja como executor activo,
- *   2. siembra la identidad interna (`ensureSeed`) en ese índice,
- *   3. lo indexa releyendo la carpeta,
+ *   2. lo indexa releyendo la carpeta,
+ *   3. carga lo que es del vault y vive en `.mycelium/`: la papelera, las
+ *      preferencias con la apariencia, los snippets CSS,
  *   4. marca el acceso (para el orden por reciente del selector).
  *
  * La ruta abierta se persiste en `sessionStorage` para sobrevivir a las
  * recargas del webview (el arranque y el guard la releen con
- * `rutaVaultPersistida()`). `salir()` vuelve al executor por defecto
- * (`mycelium.db`, modo SQLite clásico) y limpia la ruta.
+ * `rutaVaultPersistida()`). `salir()` suelta el índice y limpia la ruta.
  */
 import { create } from "zustand";
 import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
-import { ensureSeed } from "@/lib/db/auth";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { restaurarEstadoVault } from "@/lib/db/estadoVault";
+import { migrarEstadoLegado } from "@/lib/db/legado";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import {
   marcarAcceso,
@@ -26,7 +27,7 @@ import {
   registrarVaultDeVentana,
   soltarVaultDeVentana,
 } from "@/lib/vaultMode";
-import { useAuthStore } from "@/stores/authStore";
+import { useCssStore } from "@/stores/cssStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
@@ -65,7 +66,6 @@ async function soltarConsolasSiHay(): Promise<void> {
  */
 export const ETAPAS = [
   "indice",
-  "identidad",
   "indexando",
   "ajustes",
   "watcher",
@@ -74,14 +74,13 @@ export type EtapaApertura = (typeof ETAPAS)[number];
 
 export const ETIQUETA_ETAPA: Record<EtapaApertura, string> = {
   indice: "Abriendo el índice del vault",
-  identidad: "Preparando el vault",
   indexando: "Leyendo los archivos de la carpeta",
   ajustes: "Cargando tus ajustes",
   watcher: "Vigilando los cambios de la carpeta",
 };
 
 type VaultSessionState = {
-  /** Carpeta del vault abierto, o `null` en modo SQLite clásico. */
+  /** Carpeta del vault abierto, o `null` si no hay ninguno. */
   rutaActual: string | null;
   /** true mientras se abre/indexa un vault. */
   abriendo: boolean;
@@ -103,9 +102,9 @@ type VaultSessionState = {
   progreso: { hechas: number; total: number } | null;
   /** Detalle del último fallo de `abrir()` (null si no hubo). */
   error: string | null;
-  /** Abre un vault (índice + seed + indexado). Devuelve true si quedó listo. */
+  /** Abre un vault (índice + indexado + ajustes). Devuelve true si quedó listo. */
   abrir: (ruta: string) => Promise<boolean>;
-  /** Cierra el vault: vuelve al executor por defecto y limpia el estado. */
+  /** Cierra el vault: suelta su índice y limpia el estado. */
   salir: () => Promise<void>;
 };
 
@@ -157,13 +156,11 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // en la barra de tareas ni con Alt+Tab.
       void ponerTituloDeVentana(ruta);
       await abrirIndiceDeVault(ruta);
-      // El índice recién abierto puede estar vacío: hay que crear el esquema
-      // ANTES de sembrar, porque `ensureSeed()` consulta la tabla `usuarios`.
+      // El índice recién abierto puede estar vacío (o venir de una versión
+      // anterior, sin las columnas nuevas): el esquema va antes que nada.
       await crearEsquemaIndice();
-      // A partir de aquí los repos escriben también en disco (modo carpeta).
+      // A partir de aquí los repos saben sobre qué carpeta operan.
       setVaultActual(ruta);
-      etapa("identidad");
-      await ensureSeed();
       etapa("indexando");
       const indexado = await indexarVault(ruta, (hechas, total) =>
         set({ progreso: { hechas, total }, avanceEn: Date.now() }),
@@ -172,19 +169,21 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // Los archivos no indexados salen del mismo recorrido (`FUN-M-38`); el
       // explorador los toma del store en vez de recorrer el vault otra vez.
       useVaultStore.getState().setOtros(indexado.otros);
-      // Lo que NO se deriva de los archivos —apariencia, snippets, papelera— vive
-      // en `.mycelium/` y se vuelca al índice acá (`DEF-107`). La primera vez,
-      // con un índice anterior, hace lo inverso: lo saca del índice a los
-      // archivos, antes de que nada pueda perderlo.
+      // El registro de la papelera NO se deriva de los archivos: vive en
+      // `.mycelium/papelera.json` y se vuelca al índice acá (`DEF-107`). La
+      // primera vez, con un índice anterior, hace lo inverso.
       await restaurarEstadoVault(ruta);
       await marcarAcceso(ruta);
       etapa("ajustes");
-      // Recargar la sesión (usuario/vaults) y las preferencias DESDE ESTE índice:
-      // cada vault tiene sus propios ajustes (grafo, tipografía, tema…). Sin esto,
-      // al cambiar de vault el WorkspaceGuard no re-ejecuta restore() (initialized
-      // ya es true) y quedarían los ajustes del vault anterior.
-      await useAuthStore.getState().restore();
+      // Los ajustes son de ESTE vault (decisión D3): preferencias, tema,
+      // tipografía y snippets viven en su `.mycelium/`. Primero la migración
+      // única de lo que una versión anterior dejó en otro lado (`FUN-L-24`);
+      // después se cargan, y la apariencia se aplica ANTES de mostrar el
+      // workspace, para que no parpadee con la del vault anterior.
+      await migrarEstadoLegado(ruta);
+      await usePrefsVaultStore.getState().cargar(ruta);
       usePreferencesStore.getState().hydrateFromUser();
+      await useCssStore.getState().load();
       // Las pestañas también son de ESTE vault (`DEF-044`): antes seguían
       // abiertas las del anterior, apuntando a archivos que acá son otros o no
       // existen. En modo carpeta el id interno es común a todos los vaults, así
@@ -214,11 +213,6 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // workspace se lleve la página. Si se borraran, esos milisegundos se verían
       // como un salto a una pantalla con todas las etapas otra vez pendientes.
       // Las limpia el siguiente `abrir()` (que las reinicia) o `salir()`.
-      // Preferencias del vault (`FUN-M-28`/`FUN-M-21`): viven dentro de él, así
-      // que se cargan acá y no al arrancar la app. No se espera el resultado: si
-      // tardan o fallan, el vault se abre igual con los valores por defecto —un
-      // ajuste de aspecto no puede demorar la apertura.
-      void usePrefsVaultStore.getState().cargar(ruta);
       // Los recordatorios del calendario (`FUN-L-22`) también son del vault: se
       // cargan acá, y al cargarlos arranca el programador, que avisa en el acto
       // lo que venció con la app cerrada. Sin esperar, por lo mismo que arriba.
@@ -266,8 +260,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // Soltar el vault para que otra ventana pueda abrirlo (`FUN-L-16`).
     await soltarVaultDeVentana().catch(() => undefined);
     void ponerTituloDeVentana(null);
-    setExecutor(null); // vuelve al executor Tauri por defecto (mycelium.db)
-    setVaultActual(null); // los repos vuelven al modo SQLite clásico (sin disco)
+    setExecutor(null); // sin vault no hay índice
+    setVaultActual(null); // ni carpeta sobre la que operar
     useGraphStore.getState().reset(); // no arrastrar el grafo del vault que se cierra
     try {
       sessionStorage.removeItem(CLAVE_VAULT_ABIERTO);
@@ -277,6 +271,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // Las preferencias del vault que se cierra no deben quedar puestas: el
     // siguiente vault trae las suyas, y mientras tanto valen las por defecto.
     void usePrefsVaultStore.getState().cargar(null);
+    // Ni sus snippets CSS: sin vault, `load` los deja vacíos y quita el <style>.
+    void useCssStore.getState().load();
     // Y sus recordatorios: fuera del vault no se muestran ni avisan (`FUN-L-22`).
     // Vaciar el store detiene también el programador.
     void useRecordatoriosStore.getState().cargar(null);

@@ -1,17 +1,23 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
+import type { Tema } from "@/stores/preferencesStore";
 
 /**
  * Preferencias **de un vault**, no del usuario (`FUN-M-28` / `FUN-M-21`).
  *
- * `preferencesStore` guarda lo que es de la persona —tema, tipografía, ancho de
- * tabulación— y vale para todo. Acá van los ajustes que pertenecen al vault: si
- * se ven los números de línea, cómo se muestran los nombres en el grafo. Abrir
- * otro vault trae los suyos.
+ * Acá van los ajustes que pertenecen al vault: si se ven los números de línea,
+ * cómo se muestran los nombres en el grafo. Abrir otro vault trae los suyos.
+ *
+ * En desktop **todo** es del vault (decisión D3, 2026-09-26): también el tema,
+ * el modo oscuro, la atmósfera y la tipografía que maneja `preferencesStore`,
+ * que en web son de la persona. Desde `FUN-L-24` viajan en este mismo archivo
+ * (`tema`, `modoOscuro`, `preferencias`) y `preferencesStore` delega acá su
+ * persistencia; antes iban por un segundo camino —la fila `usuarios` del índice
+ * y un archivo de apariencia aparte— con seis saltos para el mismo alcance.
  *
  * Viven en `.mycelium/preferencias.json` **dentro del vault**, así que viajan
  * con él: copiar la carpeta a otra máquina se lleva también sus ajustes. En web
- * no hay carpeta, y ahí este módulo divergirá — ver la nota de abajo.
+ * no hay carpeta, y ahí este módulo diverge (`localStorage`).
  *
  * > [!important] Los valores por defecto están en UN solo sitio
  * > `POR_DEFECTO`. Un vault sin archivo, con el archivo corrupto, o con una
@@ -62,6 +68,18 @@ export type PrefsVault = {
   disposicionGrafo: DisposicionGrafo;
   /** Ancho de las columnas de cada archivo tabla (`FUN-M-25`). */
   anchosTabla: AnchosTabla;
+  /** Tema de color (HU-12). Solo-desktop: en web es de la persona. */
+  tema: Tema;
+  /** Modo oscuro (HU-12). Solo-desktop, como `tema`. */
+  modoOscuro: boolean;
+  /**
+   * El resto de `preferencesStore` —tipografía, atmósferas, ancho de
+   * tabulación, opciones del grafo y de la búsqueda…—, tal como lo guarda él.
+   * Acá solo se garantiza que sea un objeto: cada clave la sanea
+   * `preferencesStore` contra sus propios valores por defecto
+   * (`sanearContraDefectos`), que es quien los conoce. Solo-desktop.
+   */
+  preferencias: Record<string, unknown>;
 };
 
 /**
@@ -77,7 +95,16 @@ export const POR_DEFECTO: PrefsVault = {
   nombresGrafo: "todos",
   disposicionGrafo: "cumulo",
   anchosTabla: {},
+  // Los mismos con que arranca `preferencesStore` (la estética oscura
+  // bioluminiscente de siempre); `preferencias` vacío = todas por defecto.
+  tema: "bioluminiscencia",
+  modoOscuro: true,
+  preferencias: {},
 };
+
+/** Si `v` es un objeto plano (no `null`, no una lista). */
+const esObjeto = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
 
 /**
  * Mezcla lo leído del disco con los valores por defecto, quedándose solo con lo
@@ -104,7 +131,39 @@ export function normalizar(crudo: unknown): PrefsVault {
       ? o.disposicionGrafo
       : POR_DEFECTO.disposicionGrafo,
     anchosTabla: normalizarAnchos(o.anchosTabla),
+    tema: o.tema === "bioluminiscencia" || o.tema === "cantarela" ? o.tema : POR_DEFECTO.tema,
+    modoOscuro: typeof o.modoOscuro === "boolean" ? o.modoOscuro : POR_DEFECTO.modoOscuro,
+    preferencias: esObjeto(o.preferencias) ? { ...o.preferencias } : {},
   };
+}
+
+/**
+ * Se queda con las claves de `crudo` que existen en `defectos` y tienen su mismo
+ * tipo (un número finito donde va un número, una lista donde va una lista…); el
+ * resto se descarta y el llamador cae al valor por defecto.
+ *
+ * Es el saneo de `PrefsVault.preferencias`, que la usa `preferencesStore` con sus
+ * propios defaults al cargarlas: el archivo se puede editar a mano, y un tamaño
+ * de letra `"grande"` o una lista de reglas del grafo que no es una lista no
+ * deben llegar hasta el CSS ni hasta el componente que las recorre.
+ */
+export function sanearContraDefectos<T extends object>(crudo: unknown, defectos: T): Partial<T> {
+  if (!esObjeto(crudo)) return {};
+  const salida: Partial<T> = {};
+  for (const clave of Object.keys(defectos) as (keyof T & string)[]) {
+    if (!(clave in crudo)) continue;
+    const valor = crudo[clave];
+    const defecto = defectos[clave];
+    const mismoTipo = Array.isArray(defecto)
+      ? Array.isArray(valor)
+      : typeof defecto === "number"
+        ? typeof valor === "number" && Number.isFinite(valor)
+        : typeof defecto === "object" && defecto !== null
+          ? esObjeto(valor)
+          : typeof valor === typeof defecto;
+    if (mismoTipo) salida[clave] = valor as T[typeof clave];
+  }
+  return salida;
 }
 
 /** Ancho mínimo de una columna, en píxeles. Por debajo no se lee nada. */
@@ -149,6 +208,9 @@ type EstadoPrefsVault = {
  * varias veces seguidas mientras se busca el que gusta.
  */
 const ESPERA_GUARDADO_MS = 400;
+
+/** El archivo, dentro de `.mycelium/` (lo resuelve `leer/escribir_estado_vault`). */
+const ARCHIVO = "preferencias.json";
 let temporizador: ReturnType<typeof setTimeout> | null = null;
 
 function guardarDiferido(ruta: string | null, prefs: PrefsVault) {
@@ -159,8 +221,9 @@ function guardarDiferido(ruta: string | null, prefs: PrefsVault) {
     // Si falla, se pierde la preferencia y no pasa nada más: no se avisa porque
     // no hay nada que el usuario pueda hacer, y un cartel por un ajuste de
     // aspecto sería más molesto que el propio fallo.
-    void invoke("escribir_prefs_vault", {
+    void invoke("escribir_estado_vault", {
       ruta,
+      nombre: ARCHIVO,
       contenido: JSON.stringify(prefs, null, 2),
     }).catch(() => {});
   }, ESPERA_GUARDADO_MS);
@@ -178,7 +241,7 @@ export const usePrefsVaultStore = create<EstadoPrefsVault>((set, get) => ({
     }
     let crudo: unknown = null;
     try {
-      const texto = await invoke<string | null>("leer_prefs_vault", { ruta });
+      const texto = await invoke<string | null>("leer_estado_vault", { ruta, nombre: ARCHIVO });
       crudo = texto === null ? null : JSON.parse(texto);
     } catch {
       // Ni un archivo ausente ni uno corrupto deben impedir abrir el vault: se

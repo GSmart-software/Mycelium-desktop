@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
@@ -18,8 +18,6 @@ import { UpdateDialog } from "@/components/workspace/UpdateDialog";
 import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
-import { useCssStore } from "@/stores/cssStore";
-import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useUiStore } from "@/stores/uiStore";
 import { allLeaves, useTabsStore } from "@/stores/tabsStore";
 import { useRecientesStore } from "@/stores/recientesStore";
@@ -40,99 +38,51 @@ export default function WorkspacePage() {
 }
 
 /**
- * Guard del vault local: prepara la sesión al cargar. En modo carpeta (fase 3),
- * si se entra directo a `/workspace` tras una recarga y no hay vault abierto en
- * runtime pero sí uno persistido, primero reabre ese vault (abre su índice) y
- * LUEGO restaura la sesión, para que la capa de datos apunte a la carpeta y no
- * a `mycelium.db`. Si no hay vault ni sesión disponible, ofrece elegir uno.
+ * Guard del workspace: sin un vault abierto no hay nada que mostrar, porque sin
+ * vault no hay capa de datos. Si se entra directo a `/workspace` tras una recarga
+ * (o en una ventana nueva, `?vault=`) y no hay vault abierto en runtime, primero
+ * se reabre ese vault; si no hay ninguno que reabrir, o no se pudo, se va a la
+ * selección de vaults. Hasta el 2026-09-26 ese caso caía en un workspace vacío,
+ * sin carpeta: el «modo SQLite clásico», ya retirado.
  */
 function WorkspaceGuard() {
   const router = useRouter();
-  const { user, initialized, error, restore } = useAuthStore();
-  const [retrying, setRetrying] = useState(false);
-  const [preparando, setPreparando] = useState(true);
   const bootstrapRef = useRef(false);
   // Suscrito, no leído con `getState()`: si no, al cambiar `abriendo` este
   // componente no se volvería a pintar y la pantalla de carga no aparecería (ni
   // se iría) nunca.
   const abriendoVault = useVaultSessionStore((s) => s.abriendo);
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
   useEffect(() => {
     if (bootstrapRef.current) return;
     bootstrapRef.current = true;
     let cancelado = false;
     void (async () => {
-      // Reabrir el vault si no hay uno abierto. Debe ocurrir ANTES de restore()
-      // para fijar el executor.
+      // Reabrir el vault si no hay uno abierto.
       //
       // Dos orígenes, y el orden importa: `?vault=` lo pone la ventana NUEVA que
       // abre `FUN-L-16` —arranca con su `sessionStorage` vacío, así que el vault
       // tiene que viajar en la URL— y manda sobre lo persistido, que es de esta
       // ventana y de una sesión anterior.
-      if (useVaultSessionStore.getState().rutaActual === null) {
-        const pedido = new URLSearchParams(window.location.search).get("vault");
-        const ruta = pedido ?? rutaVaultPersistida();
-        if (ruta) {
-          const ok = await useVaultSessionStore.getState().abrir(ruta);
-          // Si no se pudo abrir, lo mas probable es que ya lo tenga otra
-          // ventana (`FUN-L-16`): reclamarlo falla a proposito. En vez de
-          // quedarse en un workspace sin vault, se va al selector para elegir
-          // otro — que es lo unico util que se puede hacer desde aca.
-          if (!ok && !cancelado) {
-            router.replace("/vaults");
-            return;
-          }
-        }
-      }
-      if (!cancelado && !useAuthStore.getState().initialized) {
-        await useAuthStore.getState().restore();
-      }
-      if (!cancelado) setPreparando(false);
+      if (useVaultSessionStore.getState().rutaActual !== null) return;
+      const pedido = new URLSearchParams(window.location.search).get("vault");
+      const ruta = pedido ?? rutaVaultPersistida();
+      // Si no hay vault que reabrir, o no se pudo —lo mas probable es que ya lo
+      // tenga otra ventana (`FUN-L-16`): reclamarlo falla a proposito—, se va al
+      // selector para elegir otro: es lo unico util que se puede hacer desde aca.
+      const ok = ruta !== null && (await useVaultSessionStore.getState().abrir(ruta));
+      if (!ok && !cancelado) router.replace("/vaults");
     })();
     return () => {
       cancelado = true;
     };
   }, []);
 
-  // Aplicar tema, modo oscuro, tipografía y CSS propio al abrir el vault (HU-12/14/13)
-  useEffect(() => {
-    if (user) {
-      usePreferencesStore.getState().hydrateFromUser();
-      void useCssStore.getState().load();
-    }
-  }, [user]);
+  // El tema, la tipografía y el CSS propio (HU-12/14/13) los aplica
+  // `vaultSessionStore.abrir` al cargar los ajustes del vault: son del vault.
 
-  if (!user) {
-    if (initialized && !preparando) {
-      return (
-        <main className={styles.loading}>
-          <div className={styles.errorBox} role="alert">
-            <p className={styles.errorTitle}>No se pudo abrir el vault local.</p>
-            {error && <p className={styles.errorDetail}>{error}</p>}
-            <div className={styles.errorActions}>
-              <button
-                type="button"
-                className={styles.retryButton}
-                disabled={retrying}
-                onClick={() => {
-                  setRetrying(true);
-                  void restore().finally(() => setRetrying(false));
-                }}
-              >
-                {retrying ? "Reintentando…" : "Reintentar"}
-              </button>
-              <button
-                type="button"
-                className={styles.retryButton}
-                onClick={() => router.replace("/vaults")}
-              >
-                Elegir vault
-              </button>
-            </div>
-          </div>
-        </main>
-      );
-    }
+  if (rutaVault === null) {
     // El vault también se abre solo al arrancar (ajuste "abrir el último"), y
     // ese camino mostraba un «Cargando…» mudo: el defecto pedía la misma
     // pantalla de carga en los dos (`DEF-042`).
@@ -161,7 +111,7 @@ function WorkspaceShell() {
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
   const archivosReconciliadosRef = useRef(false);
-  // Solo en modo carpeta (fase 5) hay watcher; en SQLite clásico `rutaActual` es null.
+  // La carpeta abierta: el guard no monta el shell sin ella.
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
   // Escuchar cambios EXTERNOS del vault en carpeta: el watcher nativo emite

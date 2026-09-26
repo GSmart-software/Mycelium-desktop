@@ -1,21 +1,27 @@
 /**
- * Sesión del vault local (desktop). No hay usuarios ni login: al arrancar,
- * `restore()` abre la base SQLite local (sembrando la identidad interna y el
- * vault por defecto si hace falta) y deja en memoria `user` y `vaults`.
- * El `accessToken` es un marcador ("local"): muchos módulos lo leen para
- * pasarlo a `api()`, que lo ignora. La sesión local no expira.
+ * Identidad del desktop: **constantes**, no una sesión.
+ *
+ * En desktop no hay usuarios ni login (`desktop-sin-login`), y desde `FUN-L-24`
+ * (2026-09-26) tampoco una identidad interna sembrada en SQLite: cada vault tiene
+ * su propio índice y dentro de él el vault es siempre `LOCAL_VAULT_ID`. Este
+ * store existe solo para que los componentes compartidos con web —que leen
+ * `vaults[0].id` y pasan `accessToken` a `api()`— sigan siendo el mismo archivo
+ * en las dos ramas. Por eso conserva la forma del de web, con valores fijos:
+ *
+ *   - `user` fijo, `vaults` = el vault del índice abierto, `accessToken` =
+ *     `"local"` (`api()` lo ignora), `initialized` = true desde el arranque;
+ *   - `restore()` no hace nada: no hay nada que restaurar.
+ *
+ * Lo que decide si hay un vault abierto es `vaultSessionStore`, no este store.
  */
 import { create } from "zustand";
-import { api } from "@/lib/api";
+import { LOCAL_VAULT_ID } from "@/lib/db/vaultContext";
 
 export type User = {
   id: string;
   email: string;
   nombre: string;
   avatarUrl: string | null;
-  tema: string;
-  modoOscuro: boolean;
-  preferencias?: Record<string, unknown>;
 };
 
 export type Vault = {
@@ -25,49 +31,37 @@ export type Vault = {
   rol: "lector" | "editor" | "propietario";
 };
 
-type SessionResponse = {
-  accessToken: string;
-  expiresInMinutes: number;
-  user: User;
+const USUARIO_LOCAL: User = {
+  id: "local-user",
+  email: "local@mycelium.app",
+  nombre: "Yo",
+  avatarUrl: null,
+};
+
+const VAULT_LOCAL: Vault = {
+  id: LOCAL_VAULT_ID,
+  nombre: "Mi Vault",
+  propietario_id: USUARIO_LOCAL.id,
+  rol: "propietario",
 };
 
 type AuthState = {
-  user: User | null;
+  user: User;
   vaults: Vault[];
-  accessToken: string | null;
-  /** true cuando ya se intentó abrir la sesión local al cargar */
+  accessToken: string;
+  /** Siempre true: no hay nada que esperar. */
   initialized: boolean;
-  /** Detalle del último fallo de `restore()` (null si no hubo). */
+  /** Siempre null: una constante no falla. */
   error: string | null;
-  /** Abre la sesión del vault local. Devuelve true si quedó lista. */
+  /** Sin efecto; se conserva por la forma compartida con web. */
   restore: () => Promise<boolean>;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  vaults: [],
-  accessToken: null,
-  initialized: false,
+export const useAuthStore = create<AuthState>(() => ({
+  user: USUARIO_LOCAL,
+  vaults: [VAULT_LOCAL],
+  accessToken: "local",
+  initialized: true,
   error: null,
-
-  async restore() {
-    try {
-      const session = await api<SessionResponse>("/auth/refresh", { method: "POST" });
-      set({
-        user: session.user,
-        accessToken: session.accessToken,
-        initialized: true,
-        error: null,
-      });
-      const me = await api<{ user: User; vaults: Vault[] }>("/auth/me", {
-        token: session.accessToken,
-      });
-      set({ vaults: me.vaults });
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Error desconocido";
-      set({ user: null, accessToken: null, initialized: true, error: message });
-      return false;
-    }
-  },
+  restore: async () => true,
 }));
