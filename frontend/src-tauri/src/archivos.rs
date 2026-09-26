@@ -1,11 +1,13 @@
-//! Acceso nativo al sistema de archivos para exportar/importar el vault contra
-//! una carpeta real del SO.
+//! Acceso nativo al sistema de archivos para recorrer y leer el vault (el
+//! indexador, el explorador y el visor de archivos no indexados) y para
+//! exportar/importar contra una carpeta real del SO.
 //!
 //! La E/S se hace aquí (Rust) y NO con `tauri-plugin-fs` desde JS: el scope del
 //! plugin fs en Tauri v2 no cubre bien rutas arbitrarias elegidas por el usuario
 //! en tiempo de ejecución. Desde Rust el acceso es directo y la superficie queda
-//! acotada a estos tres comandos. Del lado JS solo se usa el plugin `dialog`
-//! para los selectores de carpeta.
+//! acotada a los comandos `#[tauri::command]` de este módulo, registrados uno a
+//! uno en `lib.rs`. Del lado JS solo se usa el plugin `dialog` para los
+//! selectores de carpeta.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -17,6 +19,10 @@ pub struct ArchivoExport {
 }
 
 /// Archivo leído de una carpeta del SO, con su ruta relativa al origen.
+///
+/// Sin `rename_all`, a diferencia de `ArchivoMeta`: la devuelven `leer_carpeta`
+/// (importar una carpeta, `lib/import.ts`) y `leer_archivos` (el indexador), y
+/// los dos lados de JS la leen en `snake_case`. Renombrarla obliga a tocar ambos.
 #[derive(serde::Serialize)]
 pub struct ArchivoLeido {
     pub ruta_relativa: String,

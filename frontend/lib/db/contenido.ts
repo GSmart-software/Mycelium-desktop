@@ -1,7 +1,8 @@
 /**
  * Contenido de notas (HU-04) + reindex FTS5 (HU-21). Portado de
- * `NoteContentEndpoints` + `VaultRepository.TouchNotaContenidoAsync`. En el modelo
- * desktop el contenido vive en la tabla `contenidos` (antes blob en disco).
+ * `NoteContentEndpoints` + `VaultRepository.TouchNotaContenidoAsync`. El archivo
+ * en disco es la fuente de verdad; la tabla `contenidos` del índice es su copia
+ * para búsqueda, grafo y bases.
  *
  * `actualizadoEn` que ve el cliente es SIEMPRE `notas.actualizado_en` (no el de la
  * tabla de contenido), igual que en el backend.
@@ -29,14 +30,9 @@ export async function getContenido(id: string): Promise<ContenidoResponse> {
 
 /** `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS. */
 export async function putContenido(id: string, contenido: string | null): Promise<PutContenidoResponse> {
-  // `mtime` y `hash_indexable` son columnas del índice del vault en carpeta; la
-  // base del modo SQLite clásico (`mycelium.db`, migración sqlx) no las tiene.
   const vault = getVaultActual();
-  const enCarpeta = vault !== null;
   const notas = await select<{ titulo: string; hash_indexable: string | null }>(
-    enCarpeta
-      ? "SELECT titulo, hash_indexable FROM notas WHERE id = ?"
-      : "SELECT titulo, NULL AS hash_indexable FROM notas WHERE id = ?",
+    "SELECT titulo, hash_indexable FROM notas WHERE id = ?",
     [id],
   );
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
@@ -45,12 +41,12 @@ export async function putContenido(id: string, contenido: string | null): Promis
   const bytes = byteLen(texto);
   const now = ahoraIso();
 
-  // Modo carpeta: los archivos son la fuente de verdad. El editor ya llega con
-  // debounce de 800 ms, así que se escribe en disco en cada guardado (id = ruta).
-  // El `mtime` con que quedó el archivo va a `notas.mtime` (`FUN-M-38`): sin
-  // esto, el índice seguía con el `mtime` de la última lectura, el reindexado
-  // incremental veía la nota como cambiada y la volvía a leer y a indexar.
-  const mtime = enCarpeta ? await escribirNota(vault, id, texto) : null;
+  // Los archivos son la fuente de verdad. El editor ya llega con debounce de
+  // 800 ms, así que se escribe en disco en cada guardado (id = ruta). El `mtime`
+  // con que quedó el archivo va a `notas.mtime` (`FUN-M-38`): sin esto, el índice
+  // seguía con el `mtime` de la última lectura, el reindexado incremental veía la
+  // nota como cambiada y la volvía a leer y a indexar.
+  const mtime = await escribirNota(vault, id, texto);
 
   await execute(
     `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
@@ -64,25 +60,16 @@ export async function putContenido(id: string, contenido: string | null): Promis
   // `propiedades` se reescriben —en una nota de 500 KB, cientos de ms de FTS5
   // por cada guardado que no las tocaba—.
   const { indexable, propiedades, huella } = derivarIndice(texto);
-  const cambioIndexable = !enCarpeta || huella !== notas[0].hash_indexable;
-  if (cambioIndexable) {
+  if (huella !== notas[0].hash_indexable) {
     await ftsPoner(id, notas[0].titulo, indexable);
     await reindexarPropiedadesTanda([{ id, propiedades }]);
   }
   // La huella se guarda DESPUÉS de reindexar: si `ftsPoner` o las propiedades
   // fallan, la nota queda con la huella vieja y el próximo guardado reintenta.
-  if (enCarpeta) {
-    await execute(
-      "UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ?, hash_indexable = ? WHERE id = ?",
-      [bytes, now, mtime, huella, id],
-    );
-  } else {
-    await execute("UPDATE notas SET tamano_bytes = ?, actualizado_en = ? WHERE id = ?", [
-      bytes,
-      now,
-      id,
-    ]);
-  }
+  await execute(
+    "UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ?, hash_indexable = ? WHERE id = ?",
+    [bytes, now, mtime, huella, id],
+  );
 
   return { actualizadoEn: now };
 }

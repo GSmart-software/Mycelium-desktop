@@ -110,63 +110,45 @@ export async function crearCarpeta(
   const now = ahoraIso();
 
   const vault = getVaultActual();
-  if (vault !== null) {
-    // Modo carpeta: la identidad es la ruta; se crea el directorio real. Se sanea
-    // y se desambigua con sufijo incremental si ya existe otra carpeta/nota con
-    // ese nombre en el mismo padre (estilo Obsidian: "Carpeta", "Carpeta 1"…).
-    const { id, nombre: nombreFs } = await nombreCarpetaLibre(padreId, limpio);
-    await crearDirectorio(vault, id);
-    await execute(
-      "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
-      [id, vaultId, padreId, nombreFs, now, now],
-    );
-    return { id };
-  }
-
-  const id = nuevoId();
+  // La identidad es la ruta; se crea el directorio real. Se sanea y se desambigua
+  // con sufijo incremental si ya existe otra carpeta/nota con ese nombre en el
+  // mismo padre (estilo Obsidian: "Carpeta", "Carpeta 1"…).
+  const { id, nombre: nombreFs } = await nombreCarpetaLibre(padreId, limpio);
+  await crearDirectorio(vault, id);
   await execute(
-    "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?)",
-    [id, vaultId, padreId, limpio, now, now],
+    "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+    [id, vaultId, padreId, nombreFs, now, now],
   );
   return { id };
 }
 
 /**
- * `PATCH /carpetas/{id}` (renombrar). En modo carpeta cambia la ruta (id) de la
- * carpeta y de TODO su subárbol; se devuelve el id NUEVO. En clásico, el mismo id.
+ * `PATCH /carpetas/{id}` (renombrar). Cambia la ruta (id) de la carpeta y de
+ * TODO su subárbol; se devuelve el id NUEVO.
  */
 export async function renombrarCarpeta(id: string, nombre: string): Promise<CreatedResponse> {
   const limpio = nombre.trim();
   if (limpio.length === 0) throw new DbError(400, "El nombre no puede estar vacío.");
 
   const vault = getVaultActual();
-  if (vault !== null) {
-    const existe = await vaultIdOfCarpeta(id);
-    if (existe === null) throw new DbError(404, "La carpeta no existe.");
-    const padre = carpetaDeArchivo(id); // carpeta padre (o null en raíz)
-    const nombreFs = sanearNombre(limpio, "Sin nombre");
-    const newId = unir(padre, nombreFs);
-    if (newId !== id) {
-      if (await rutaOcupada(newId, id)) {
-        throw new DbError(409, "Ya existe una carpeta o nota con ese nombre aquí.");
-      }
-      await moverRuta(vault, id, newId);
-      await reindexarSubarbol(id, newId, nombreFs, padre);
+  const existe = await vaultIdOfCarpeta(id);
+  if (existe === null) throw new DbError(404, "La carpeta no existe.");
+  const padre = carpetaDeArchivo(id); // carpeta padre (o null en raíz)
+  const nombreFs = sanearNombre(limpio, "Sin nombre");
+  const newId = unir(padre, nombreFs);
+  if (newId !== id) {
+    if (await rutaOcupada(newId, id)) {
+      throw new DbError(409, "Ya existe una carpeta o nota con ese nombre aquí.");
     }
-    return { id: newId };
+    await moverRuta(vault, id, newId);
+    await reindexarSubarbol(id, newId, nombreFs, padre);
   }
-
-  await execute("UPDATE carpetas SET nombre = ?, actualizado_en = ? WHERE id = ?", [
-    limpio,
-    ahoraIso(),
-    id,
-  ]);
-  return { id };
+  return { id: newId };
 }
 
 /**
- * `POST /carpetas/{id}/mover`. Valida anti-ciclo y mismo vault. En modo carpeta
- * la ruta (id) de la carpeta y su subárbol cambia; se devuelve el id NUEVO.
+ * `POST /carpetas/{id}/mover`. Valida anti-ciclo y mismo vault. La ruta (id) de
+ * la carpeta y su subárbol cambia; se devuelve el id NUEVO.
  */
 export async function moverCarpeta(
   id: string,
@@ -187,25 +169,16 @@ export async function moverCarpeta(
   }
 
   const vault = getVaultActual();
-  if (vault !== null) {
-    const nombre = basenameDe(id); // el nombre no cambia al mover
-    const newId = unir(destinoId, nombre);
-    if (newId !== id) {
-      if (await rutaOcupada(newId, id)) {
-        throw new DbError(409, "Ya existe una carpeta o nota con ese nombre en el destino.");
-      }
-      await moverRuta(vault, id, newId);
-      await reindexarSubarbol(id, newId, nombre, destinoId);
+  const nombre = basenameDe(id); // el nombre no cambia al mover
+  const newId = unir(destinoId, nombre);
+  if (newId !== id) {
+    if (await rutaOcupada(newId, id)) {
+      throw new DbError(409, "Ya existe una carpeta o nota con ese nombre en el destino.");
     }
-    return { id: newId };
+    await moverRuta(vault, id, newId);
+    await reindexarSubarbol(id, newId, nombre, destinoId);
   }
-
-  await execute("UPDATE carpetas SET padre_id = ?, actualizado_en = ? WHERE id = ?", [
-    destinoId,
-    ahoraIso(),
-    id,
-  ]);
-  return { id };
+  return { id: newId };
 }
 
 /**
@@ -236,28 +209,16 @@ export async function borrarCarpeta(id: string): Promise<void> {
   const now = ahoraIso();
   const vault = getVaultActual();
 
-  // Modo carpeta: se mueve la carpeta ENTERA a la papelera de disco. Cada nota
-  // recibe su ruta dentro de la papelera (prefijo de la carpeta + resto de su id)
-  // para poder restaurarla individualmente.
-  let trashCarpetaRel: string | null = null;
-  if (vault !== null) {
-    trashCarpetaRel = await borrarAPapelera(vault, id);
-  }
+  // Se mueve la carpeta ENTERA a la papelera de disco. Cada nota recibe su ruta
+  // dentro de la papelera (prefijo de la carpeta + resto de su id) para poder
+  // restaurarla individualmente: la columna `ruta_papelera` guarda dónde quedó.
+  const trashCarpetaRel = await borrarAPapelera(vault, id);
 
   for (const n of notas) {
-    if (trashCarpetaRel !== null) {
-      // Modo carpeta: la columna `ruta_papelera` (extra del índice) guarda dónde
-      // quedó el archivo en disco para poder restaurarlo.
-      await execute(
-        "INSERT OR IGNORE INTO papelera (id, nota_id, ruta_original, carpeta_original_id, eliminado_en, ruta_papelera) VALUES (?, ?, ?, ?, ?, ?)",
-        [nuevoId(), n.id, rutaDe(rutas, n.carpeta_id), n.carpeta_id, now, trashCarpetaRel + n.id.slice(id.length)],
-      );
-    } else {
-      await execute(
-        "INSERT OR IGNORE INTO papelera (id, nota_id, ruta_original, carpeta_original_id, eliminado_en) VALUES (?, ?, ?, ?, ?)",
-        [nuevoId(), n.id, rutaDe(rutas, n.carpeta_id), n.carpeta_id, now],
-      );
-    }
+    await execute(
+      "INSERT OR IGNORE INTO papelera (id, nota_id, ruta_original, carpeta_original_id, eliminado_en, ruta_papelera) VALUES (?, ?, ?, ?, ?, ?)",
+      [nuevoId(), n.id, rutaDe(rutas, n.carpeta_id), n.carpeta_id, now, trashCarpetaRel + n.id.slice(id.length)],
+    );
   }
   // ON DELETE CASCADE borra las carpetas hijas; las notas quedan (carpeta_id → NULL)
   // pero ya están en papelera, así que el árbol no las muestra.

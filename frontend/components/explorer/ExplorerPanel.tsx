@@ -132,8 +132,8 @@ export function ExplorerPanel() {
   const activeNoteId = searchParams.get("note");
 
   const vaults = useAuthStore((s) => s.vaults);
-  // Ruta del vault en carpeta abierto (null en modo SQLite clásico): habilita
-  // "Mostrar en el explorador", que solo tiene sentido con archivos en disco.
+  // Ruta del vault abierto (null mientras no hay ninguno): habilita
+  // "Mostrar en el explorador", que abre la carpeta en el sistema.
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   // Todo el store menos lo que este panel no mira (`FUN-M-38`): suscrito al
   // store entero, cualquier `set` ajeno —cargar la papelera, por ejemplo—

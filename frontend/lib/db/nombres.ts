@@ -4,10 +4,9 @@
  * poder probarlo headless (`scripts/test-nombres.mjs`) y reutilizarlo desde
  * `vaultFs.ts` (que sí toca la DB) sin arrastrar dependencias de Tauri.
  *
- * Contexto: en modo carpeta el nombre de una nota/carpeta se convierte en un
- * nombre de archivo/directorio REAL en disco, así que debe respetar las reglas del
- * sistema de archivos (sobre todo Windows). En modo SQLite clásico NADA de esto
- * aplica: los nombres son solo texto en la BD.
+ * Contexto: el nombre de una nota/carpeta se convierte en un nombre de
+ * archivo/directorio REAL en disco, así que debe respetar las reglas del sistema
+ * de archivos (sobre todo Windows).
  */
 
 /**

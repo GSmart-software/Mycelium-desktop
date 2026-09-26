@@ -65,8 +65,9 @@ export async function notasParaTabla(vaultId: string): Promise<{ notas: NotaTabl
   const notas = filas.map<NotaTabla>((f) => ({
     id: f.id,
     nombre: f.titulo,
-    // En modo carpeta el id ES la ruta relativa; en modo SQLite clásico no hay
-    // ruta, así que se compone una equivalente para que `file.path` diga algo.
+    // El id ES la ruta relativa con extensión; `file.path` se compone con la
+    // carpeta y el título (sin extensión), que es lo que las bases ya guardadas
+    // esperan comparar.
     ruta: f.carpeta_id ? `${f.carpeta_id}/${f.titulo}` : f.titulo,
     carpeta: f.carpeta_id ?? "",
     ext: (extDe(f.id) || ".md").slice(1),

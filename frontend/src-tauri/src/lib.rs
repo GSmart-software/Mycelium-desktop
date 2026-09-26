@@ -1,7 +1,6 @@
 use std::sync::Mutex;
 
 use tauri::Manager;
-use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod actualizador;
 mod archivos;
@@ -15,11 +14,6 @@ mod vault_config;
 mod vault_fs;
 mod vault_watch;
 mod ventanas;
-
-/// URL de la base local. `tauri-plugin-sql` la resuelve dentro del app-data dir
-/// del SO. El frontend usa la MISMA URL con `Database.load()` para obtener la DB
-/// ya migrada.
-const DB_URL: &str = "sqlite:mycelium.db";
 
 // Sin menú nativo: todas las acciones (nueva nota/carpeta, buscar, alternar
 // paneles, exportar) ya existen en la propia UI, así que no se añade barra de
@@ -101,13 +95,6 @@ fn alternar_devtools(webview: tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "esquema inicial",
-        sql: include_str!("../migrations/001_init.sql"),
-        kind: MigrationKind::Up,
-    }];
-
     let pendientes: Vec<String> = args_de_nota(&std::env::args().collect::<Vec<_>>());
 
     let mut builder = tauri::Builder::default();
@@ -151,11 +138,12 @@ pub fn run() {
     }
 
     builder
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations(DB_URL, migrations)
-                .build(),
-        )
+        // SQLite para el índice de cada vault (`index-<hash>.db` en el app-data).
+        // Sin migraciones: el frontend crea el esquema con `CREATE TABLE IF NOT
+        // EXISTS` al abrir el vault (`lib/db/indexer.ts`). No hay otra base: la
+        // del modo SQLite clásico, que dejaron las instalaciones anteriores al
+        // 2026-09-26, queda en el app-data sin que nadie la abra ni la borre.
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         // Abrir enlaces en el navegador del sistema (`FUN-S-20`).
         .plugin(tauri_plugin_opener::init())

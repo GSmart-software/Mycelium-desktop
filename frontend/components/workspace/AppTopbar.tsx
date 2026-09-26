@@ -24,8 +24,8 @@ import styles from "./AppTopbar.module.css";
 export function AppTopbar() {
   const router = useRouter();
   const setPaleta = useUiStore((s) => s.setPaleta);
-  // Solo hay vault en carpeta (fase 3) cuando la sesión tiene ruta abierta; en
-  // modo SQLite clásico `rutaActual` es null y no se muestra "Salir del vault".
+  // Ruta del vault abierto; mientras no hay ninguno es null y no se muestra
+  // "Salir del vault".
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
   async function salirDelVault() {

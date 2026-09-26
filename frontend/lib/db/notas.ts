@@ -1,15 +1,16 @@
 /**
  * CRUD de notas (HU-23). Portado de `VaultRepository` + orquestación de
  * `VaultEndpoints` (sufijo único al crear/duplicar, chequeo de mismo vault al mover,
- * copia de contenido al duplicar).
+ * copia de contenido al duplicar). La identidad de una nota es su ruta relativa en
+ * el vault: cada operación toca primero el disco y después el índice.
  */
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
-import { ftsPoner, ftsRetitular } from "./ftsIndice";
+import { ftsPoner } from "./ftsIndice";
 import { DbError } from "./errors";
 import { carpetaDeArchivo, tituloDeRuta } from "./indexer";
 import type { CreatedResponse, NotaTipo } from "./types";
-import { ahoraIso, nuevoId, tituloUnico } from "./util";
+import { ahoraIso } from "./util";
 import { getVaultActual } from "./vaultContext";
 import {
   basenameDe,
@@ -39,21 +40,6 @@ async function vaultIdOfCarpeta(carpetaId: string): Promise<string | null> {
   return rows.length > 0 ? rows[0].vault_id : null;
 }
 
-/** Títulos de notas (no en papelera) hermanas, para el sufijo único. */
-async function titulosEnCarpeta(vaultId: string, carpetaId: string | null): Promise<string[]> {
-  const rows =
-    carpetaId === null
-      ? await select<{ titulo: string }>(
-          "SELECT titulo FROM notas WHERE vault_id = ? AND carpeta_id IS NULL AND id NOT IN (SELECT nota_id FROM papelera)",
-          [vaultId],
-        )
-      : await select<{ titulo: string }>(
-          "SELECT titulo FROM notas WHERE vault_id = ? AND carpeta_id = ? AND id NOT IN (SELECT nota_id FROM papelera)",
-          [vaultId, carpetaId],
-        );
-  return rows.map((r) => r.titulo);
-}
-
 /** `POST /vaults/{id}/notas`. */
 export async function crearNota(
   vaultId: string,
@@ -66,44 +52,34 @@ export async function crearNota(
       ? tipo
       : "markdown";
   const base = titulo && titulo.trim().length > 0 ? titulo.trim() : TITULO_POR_DEFECTO[t];
-  const unico = tituloUnico(base, await titulosEnCarpeta(vaultId, carpetaId));
+  const vault = getVaultActual();
   const now = ahoraIso();
 
-  const vault = getVaultActual();
-  if (vault !== null) {
-    // Modo carpeta: la identidad es la ruta. El saneo + desambiguación por sufijo
-    // se hace a nivel de NOMBRE DE ARCHIVO (`nombreNotaLibre`), no de título: así
-    // se evita pisar un archivo real cuando dos títulos distintos sanean al mismo
-    // nombre o cuando ya existe una carpeta con ese nombre. El título mostrado pasa
-    // a ser el nombre saneado (como Obsidian). Se crea el `.md`/`.excalidraw` vacío.
-    const { id, titulo } = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
-    // El `mtime` real del archivo, no `Date.now()` (`FUN-M-38`): si difieren, el
-    // próximo reindexado incremental relee la nota recién creada sin motivo.
-    const mtime = await escribirNota(vault, id, "");
-    await execute(
-      "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-      [id, vaultId, carpetaId, titulo, t, mtime, now, now],
-    );
-    await execute(
-      "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",
-      [id, now],
-    );
-    await ftsPoner(id, titulo, "");
-    return { id };
-  }
-
-  const id = nuevoId();
+  // La identidad es la ruta. El saneo + desambiguación por sufijo se hace a nivel
+  // de NOMBRE DE ARCHIVO (`nombreNotaLibre`), no de título: así se evita pisar un
+  // archivo real cuando dos títulos distintos sanean al mismo nombre o cuando ya
+  // existe una carpeta con ese nombre. El título mostrado pasa a ser el nombre
+  // saneado (como Obsidian). Se crea el archivo vacío.
+  const libre = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
+  // El `mtime` real del archivo, no `Date.now()` (`FUN-M-38`): si difieren, el
+  // próximo reindexado incremental relee la nota recién creada sin motivo.
+  const mtime = await escribirNota(vault, libre.id, "");
   await execute(
-    "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
-    [id, vaultId, carpetaId, unico, t, now, now],
+    "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
+    [libre.id, vaultId, carpetaId, libre.titulo, t, mtime, now, now],
   );
-  return { id };
+  await execute(
+    "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",
+    [libre.id, now],
+  );
+  await ftsPoner(libre.id, libre.titulo, "");
+  return { id: libre.id };
 }
 
 /**
- * `PATCH /notas/{id}` (renombrar). En modo carpeta la identidad es la ruta, así
- * que renombrar CAMBIA el id: se devuelve el id NUEVO. En modo clásico el id no
- * cambia y se devuelve el mismo. No reindexa contenido (no cambió), solo el título.
+ * `PATCH /notas/{id}` (renombrar). La identidad es la ruta, así que renombrar
+ * CAMBIA el id: se devuelve el id NUEVO. No reindexa contenido (no cambió), solo
+ * el título.
  *
  * > [!important] Devuelve también el título que el archivo OBTUVO (`DEF-084`)
  * > No es el mismo que el pedido: `sanearNombre` sustituye lo que un nombre de
@@ -119,37 +95,26 @@ export async function renombrarNota(
   if (limpio.length === 0) throw new DbError(400, "El título no puede estar vacío.");
 
   const vault = getVaultActual();
-  if (vault !== null) {
-    const existe = await select<{ id: string }>("SELECT id FROM notas WHERE id = ?", [id]);
-    if (existe.length === 0) throw new DbError(404, "La nota no existe.");
-    const carpeta = carpetaDeArchivo(id); // misma carpeta, distinto nombre
-    const nuevoTitulo = sanearNombre(limpio);
-    const newId = unir(carpeta, nuevoTitulo + extDe(id));
-    if (newId !== id) {
-      // Renombrar NO desambigua: si ya hay algo con ese nombre en la carpeta, se
-      // rechaza (a diferencia de crear/duplicar, que sí añaden sufijo).
-      if (await rutaOcupada(newId, id)) {
-        throw new DbError(409, "Ya existe una nota o carpeta con ese nombre aquí.");
-      }
-      await moverRuta(vault, id, newId);
-      await rekeyIndice([], [{ oldId: id, newId, newCarpetaId: carpeta, newTitulo: nuevoTitulo }]);
+  const existe = await select<{ id: string }>("SELECT id FROM notas WHERE id = ?", [id]);
+  if (existe.length === 0) throw new DbError(404, "La nota no existe.");
+  const carpeta = carpetaDeArchivo(id); // misma carpeta, distinto nombre
+  const nuevoTitulo = sanearNombre(limpio);
+  const newId = unir(carpeta, nuevoTitulo + extDe(id));
+  if (newId !== id) {
+    // Renombrar NO desambigua: si ya hay algo con ese nombre en la carpeta, se
+    // rechaza (a diferencia de crear/duplicar, que sí añaden sufijo).
+    if (await rutaOcupada(newId, id)) {
+      throw new DbError(409, "Ya existe una nota o carpeta con ese nombre aquí.");
     }
-    return { id: newId, titulo: nuevoTitulo };
+    await moverRuta(vault, id, newId);
+    await rekeyIndice([], [{ oldId: id, newId, newCarpetaId: carpeta, newTitulo: nuevoTitulo }]);
   }
-
-  await execute("UPDATE notas SET titulo = ?, actualizado_en = ? WHERE id = ?", [
-    limpio,
-    ahoraIso(),
-    id,
-  ]);
-  // Mantener el título del índice FTS en sincronía si la nota ya está indexada.
-  await ftsRetitular(id, limpio);
-  return { id, titulo: limpio };
+  return { id: newId, titulo: nuevoTitulo };
 }
 
 /**
- * `POST /notas/{id}/mover`. Valida mismo vault. En modo carpeta la ruta (id)
- * cambia al mover de carpeta: se devuelve el id NUEVO. En clásico, el mismo id.
+ * `POST /notas/{id}/mover`. Valida mismo vault. La ruta (id) cambia al mover de
+ * carpeta: se devuelve el id NUEVO.
  */
 export async function moverNota(
   id: string,
@@ -166,29 +131,20 @@ export async function moverNota(
   }
 
   const vault = getVaultActual();
-  if (vault !== null) {
-    const existe = await select<{ id: string }>("SELECT id FROM notas WHERE id = ?", [id]);
-    if (existe.length === 0) throw new DbError(404, "La nota no existe.");
-    const newId = unir(destinoId, basenameDe(id)); // mismo archivo, otra carpeta
-    if (newId !== id) {
-      if (await rutaOcupada(newId, id)) {
-        throw new DbError(409, "Ya existe una nota o carpeta con ese nombre en el destino.");
-      }
-      await moverRuta(vault, id, newId);
-      await rekeyIndice(
-        [],
-        [{ oldId: id, newId, newCarpetaId: destinoId, newTitulo: tituloDeRuta(id) }],
-      );
+  const existe = await select<{ id: string }>("SELECT id FROM notas WHERE id = ?", [id]);
+  if (existe.length === 0) throw new DbError(404, "La nota no existe.");
+  const newId = unir(destinoId, basenameDe(id)); // mismo archivo, otra carpeta
+  if (newId !== id) {
+    if (await rutaOcupada(newId, id)) {
+      throw new DbError(409, "Ya existe una nota o carpeta con ese nombre en el destino.");
     }
-    return { id: newId };
+    await moverRuta(vault, id, newId);
+    await rekeyIndice(
+      [],
+      [{ oldId: id, newId, newCarpetaId: destinoId, newTitulo: tituloDeRuta(id) }],
+    );
   }
-
-  await execute("UPDATE notas SET carpeta_id = ?, actualizado_en = ? WHERE id = ?", [
-    destinoId,
-    ahoraIso(),
-    id,
-  ]);
-  return { id };
+  return { id: newId };
 }
 
 /** `POST /notas/{id}/duplicar`: copia nota + contenido + diagramas con título único. */
@@ -206,30 +162,18 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
   const now = ahoraIso();
   const vault = getVaultActual();
 
-  // En modo carpeta el sufijo por defecto es "(copia)" (estilo Obsidian) y la
-  // desambiguación se hace a nivel de nombre de archivo (`nombreNotaLibre`); en
-  // clásico se conserva el sufijo numérico del backend sobre el título.
-  let nuevo: string;
-  let titulo: string;
-  if (vault !== null) {
-    ({ id: nuevo, titulo } = await nombreNotaLibre(
-      nota.carpeta_id,
-      `${nota.titulo} (copia)`,
-      extDeTipo(nota.tipo),
-    ));
-    await copiarArchivo(vault, id, nuevo);
-    await execute(
-      "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [nuevo, nota.vault_id, nota.carpeta_id, titulo, nota.tipo, nota.tamano_bytes, Date.now(), now, now],
-    );
-  } else {
-    titulo = tituloUnico(nota.titulo, await titulosEnCarpeta(nota.vault_id, nota.carpeta_id));
-    nuevo = nuevoId();
-    await execute(
-      "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [nuevo, nota.vault_id, nota.carpeta_id, titulo, nota.tipo, nota.tamano_bytes, now, now],
-    );
-  }
+  // El sufijo por defecto es "(copia)" (estilo Obsidian) y la desambiguación se
+  // hace a nivel de nombre de archivo (`nombreNotaLibre`).
+  const { id: nuevo, titulo } = await nombreNotaLibre(
+    nota.carpeta_id,
+    `${nota.titulo} (copia)`,
+    extDeTipo(nota.tipo),
+  );
+  await copiarArchivo(vault, id, nuevo);
+  await execute(
+    "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [nuevo, nota.vault_id, nota.carpeta_id, titulo, nota.tipo, nota.tamano_bytes, Date.now(), now, now],
+  );
 
   // Copia del contenido (si existe) y reindex FTS de la copia.
   const cont = await select<{ contenido: string }>(

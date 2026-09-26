@@ -78,8 +78,3 @@ windows = { version = "0.61", features = [
 # El toast de un recordatorio con manejador de clic (`FUN-L-22`, src/recordatorios.rs).
 # Misma versión que trae `tauri-plugin-notification` por debajo: no se compila dos veces.
 tauri-winrt-notification = "0.7"
-
-# Solo para el test headless del data layer (misma sqlx/SQLite que usa el plugin).
-[dev-dependencies]
-sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

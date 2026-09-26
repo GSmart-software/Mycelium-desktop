@@ -1,16 +1,21 @@
 /**
- * Capa de datos del desktop (Tauri): acceso a SQLite nativo vía `tauri-plugin-sql`.
+ * Capa de datos del desktop (Tauri): acceso al índice SQLite del vault abierto
+ * vía `tauri-plugin-sql`.
  *
  * Los repos (`lib/db/*`) NO importan el plugin directamente: hablan con un
- * `SqlExecutor` que se resuelve de forma perezosa. Eso mantiene los repos como
- * lógica pura y **testeable**: se les puede inyectar un executor sobre cualquier
- * SQLite en un test headless (`scripts/test-*.mjs`). La web no pasa por acá: es
- * otra rama (`web-cloud`) con su propio backend.
+ * `SqlExecutor` que fija `abrirIndiceDeVault` al abrir el vault. Eso mantiene los
+ * repos como lógica pura y **testeable**: un test headless les inyecta un
+ * executor sobre cualquier SQLite con `setExecutor`.
+ *
+ * No hay executor por defecto: sin un índice abierto no hay capa de datos, y
+ * `getExecutor()` lo dice en vez de caer en otra base. (Hasta el 2026-09-26 caía
+ * en la base propia del «modo SQLite clásico», ya retirado.)
  *
  * SQL portable: se usan placeholders posicionales `?` (los acepta tanto el
  * sqlx-SQLite del plugin —confirmado en el smoke test de fase 0— como los
  * SQLite de test). NUNCA `$1`.
  */
+import { DbError } from "./errors";
 
 /** Fila genérica devuelta por un SELECT. */
 export type Row = Record<string, unknown>;
@@ -24,26 +29,18 @@ export interface SqlExecutor {
   execute(sql: string, params?: unknown[]): Promise<ExecResult>;
 }
 
-/** URL de la base local; debe coincidir con `DB_URL` de `src-tauri/src/lib.rs`. */
-const DB_URL = "sqlite:mycelium.db";
-
-let injected: SqlExecutor | null = null;
-let loading: Promise<SqlExecutor> | null = null;
+let activo: SqlExecutor | null = null;
 
 /**
- * Inyecta un executor (para tests o para el adaptador web futuro). Si se pasa
- * `null`, se vuelve al executor Tauri por defecto.
+ * Fija el executor activo: el índice del vault que se acaba de abrir, o el de un
+ * test. `null` al cerrar el vault.
  */
 export function setExecutor(executor: SqlExecutor | null): void {
-  injected = executor;
-  loading = null;
+  activo = executor;
 }
 
-/**
- * Crea un executor sobre `tauri-plugin-sql` (carga perezosa). Por defecto abre
- * `mycelium.db`; se le puede pasar otra URL (p. ej. el índice de un vault).
- */
-async function loadTauriExecutor(dbUrl: string = DB_URL): Promise<SqlExecutor> {
+/** Crea un executor sobre `tauri-plugin-sql` para la base `dbUrl` (carga perezosa). */
+async function loadTauriExecutor(dbUrl: string): Promise<SqlExecutor> {
   const { default: Database } = await import("@tauri-apps/plugin-sql");
   const db = await Database.load(dbUrl);
   return {
@@ -75,9 +72,6 @@ async function hashRuta(ruta: string): Promise<string> {
  * la app —NO dentro del vault—, un archivo por vault: `sqlite:index-<hash>.db`,
  * donde `<hash>` deriva de la ruta absoluta del vault. Nombre relativo → el
  * plugin lo resuelve dentro del app-data. El índice es desechable/reconstruible.
- *
- * Devuelve el executor y lo inyecta con `setExecutor`; sin llamar a esta función
- * todo sigue usando `mycelium.db` (el comportamiento por defecto no cambia).
  */
 export async function abrirIndiceDeVault(vaultRuta: string): Promise<SqlExecutor> {
   const hash = await hashRuta(vaultRuta);
@@ -101,11 +95,12 @@ export async function abrirIndiceDeVault(vaultRuta: string): Promise<SqlExecutor
   return executor;
 }
 
-/** Devuelve el executor activo (inyectado o Tauri), cacheado. */
+/** Devuelve el executor activo. Lanza si no hay un índice abierto. */
 export async function getExecutor(): Promise<SqlExecutor> {
-  if (injected) return injected;
-  if (!loading) loading = loadTauriExecutor();
-  return loading;
+  if (activo === null) {
+    throw new DbError(409, "No hay ningún índice de vault abierto.");
+  }
+  return activo;
 }
 
 /** Atajo: SELECT contra el executor activo. */

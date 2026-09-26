@@ -116,14 +116,6 @@ export async function ftsPoner(id: string, titulo: string, contenido: string): P
   );
 }
 
-/** Cambia solo el título indexado de una nota. */
-export async function ftsRetitular(id: string, titulo: string): Promise<void> {
-  await execute(
-    "UPDATE notas_fts SET titulo = ? WHERE rowid = (SELECT fila FROM fts_filas WHERE nota_id = ?)",
-    [titulo, id],
-  );
-}
-
 /** Borra las filas de búsqueda de estas notas, por tandas. */
 export async function ftsBorrar(ids: string[]): Promise<void> {
   for (const tanda of enTandas(ids)) {

@@ -1,10 +1,13 @@
 /**
  * Utilidades puras de la capa de datos (sin acceso a DB): ids, fechas, tamaño en
- * bytes, sufijo único de título y rutas de carpeta. Portado 1:1 de la lógica del
- * backend (`VaultEndpoints.EnsureUniqueTituloAsync`, `BuildRutaLookupAsync`).
+ * bytes, huella y rutas de carpeta. Portado de la lógica del backend
+ * (`BuildRutaLookupAsync`).
  */
 
-/** Id nuevo (equivale a `Guid.NewGuid().ToString()` del backend). */
+/**
+ * Id nuevo (equivale a `Guid.NewGuid().ToString()` del backend). Lo usan las
+ * filas de la papelera: las notas y carpetas se identifican por su ruta.
+ */
 export function nuevoId(): string {
   return crypto.randomUUID();
 }
@@ -38,28 +41,6 @@ export function huellaDe(texto: string): string {
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (h2 >>> 0).toString(16).padStart(8, "0") + (h1 >>> 0).toString(16).padStart(8, "0");
-}
-
-/**
- * Sufijo numérico incremental para títulos duplicados (HU-23 CA5):
- * "Nota" → "Nota 2" → "Nota 3". Comparación case-insensitive, igual que el backend.
- */
-export function tituloUnico(titulo: string, existentes: Iterable<string>): string {
-  const set = new Set<string>();
-  for (const t of existentes) set.add(t.toLowerCase());
-  if (!set.has(titulo.toLowerCase())) return titulo;
-
-  // Base sin sufijo numérico: "Nota 2" → "Nota".
-  const partes = titulo.split(" ");
-  const ultimo = partes[partes.length - 1];
-  const baseTitulo =
-    partes.length > 1 && /^\d+$/.test(ultimo)
-      ? partes.slice(0, -1).join(" ")
-      : titulo;
-
-  let n = 2;
-  while (set.has(`${baseTitulo} ${n}`.toLowerCase())) n++;
-  return `${baseTitulo} ${n}`;
 }
 
 /** Carpeta mínima para calcular rutas. */

@@ -60,7 +60,6 @@ export async function inventario(vaultId: string): Promise<Inventario> {
 /** Lee el léxico del vault. Es el mismo archivo que usan los comandos de la IA. */
 export async function cargarLexico(): Promise<Lexico> {
   const vault = getVaultActual();
-  if (vault === null) return leerLexico(null);
   try {
     return leerLexico(await leerArchivoTexto(vault, RUTA_LEXICO));
   } catch {
@@ -73,13 +72,7 @@ export async function cargarLexico(): Promise<Lexico> {
  * visible (`.claude/`), así que no altera ningún documento.
  */
 export async function guardarLexico(lexico: Lexico): Promise<void> {
-  const vault = getVaultActual();
-  if (vault === null) {
-    throw new Error(
-      "El léxico se guarda en la carpeta del vault, y este vault no está abierto en modo carpeta.",
-    );
-  }
-  await escribirNota(vault, RUTA_LEXICO, escribirLexico(lexico));
+  await escribirNota(getVaultActual(), RUTA_LEXICO, escribirLexico(lexico));
 }
 
 // ── Aplicación ────────────────────────────────────────────────────────────────
@@ -134,11 +127,6 @@ export async function aplicar(
   if (formas.length === 0) {
     throw new Error("El léxico está vacío: no hay ninguna forma que aplicar todavía.");
   }
-  if (!simulacro && vault === null) {
-    throw new Error(
-      "El re-enlazado necesita la carpeta del vault para poder respaldar antes de escribir.",
-    );
-  }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dirRespaldo = `${DIR_RESPALDOS}-${timestamp}`;
@@ -157,7 +145,7 @@ export async function aplicar(
 
     if (!simulacro) {
       // Respaldo ANTES de escribir. Si esto falla, el documento no se toca.
-      await copiarArchivo(vault!, doc.id, `${dirRespaldo}/${doc.id}`);
+      await copiarArchivo(vault, doc.id, `${dirRespaldo}/${doc.id}`);
       await putContenido(doc.id, texto);
     }
     archivos.push(cambio);
@@ -166,7 +154,7 @@ export async function aplicar(
   if (!simulacro && archivos.length > 0) {
     const manifiesto: Manifiesto = { version: 1, timestamp, archivos };
     await escribirNota(
-      vault!,
+      vault,
       `${dirRespaldo}/manifiesto.json`,
       `${JSON.stringify(manifiesto, null, 2)}\n`,
     );
@@ -190,7 +178,6 @@ export type ResultadoDeshacer = {
 /** Los respaldos disponibles, del más reciente al más viejo. */
 export async function respaldos(): Promise<Manifiesto[]> {
   const vault = getVaultActual();
-  if (vault === null) return [];
   const encontrados: Manifiesto[] = [];
   // No hay `listar_directorios` acotado a `.mycelium/`, así que se recuerda el
   // último aplicado en el propio vault: alcanza para el caso real (deshacer lo
@@ -217,7 +204,6 @@ export async function respaldos(): Promise<Manifiesto[]> {
  */
 export async function deshacer(manifiesto: Manifiesto): Promise<ResultadoDeshacer> {
   const vault = getVaultActual();
-  if (vault === null) throw new Error("Deshacer necesita la carpeta del vault.");
 
   const dirRespaldo = `${DIR_RESPALDOS}-${manifiesto.timestamp}`;
   const restaurados: string[] = [];
@@ -247,10 +233,8 @@ export async function deshacer(manifiesto: Manifiesto): Promise<ResultadoDeshace
 
 /** Recuerda el último manifiesto, para poder ofrecer deshacerlo. */
 export async function recordarUltimo(manifiesto: Manifiesto): Promise<void> {
-  const vault = getVaultActual();
-  if (vault === null) return;
   await escribirNota(
-    vault,
+    getVaultActual(),
     `${DIR_RESPALDOS}-ultimo.json`,
     `${JSON.stringify(manifiesto, null, 2)}\n`,
   );
