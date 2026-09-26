@@ -15,7 +15,6 @@
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
-import { getDiagrama, putDiagrama } from "@/lib/db/diagramas";
 import { DbError } from "@/lib/db/errors";
 import { conexiones, grafo } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
@@ -139,11 +138,6 @@ async function dispatch(
     if (c === "propiedades" && method === "GET") return propiedadesDeNota(b);
     if (c === "contenido" && method === "GET") return getContenido(b);
     if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
-    // /notas/:notaId/diagramas/:diagId
-    if (c === "diagramas" && d) {
-      if (method === "GET") return getDiagrama(b, d);
-      if (method === "PUT") return putDiagrama(b, d, String(body.contenido ?? body.json ?? ""));
-    }
   }
 
   throw new DbError(501, `Ruta no implementada: ${method} /${seg.join("/")}`);

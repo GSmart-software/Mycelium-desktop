@@ -1,7 +1,10 @@
 /**
- * Migración única de la apariencia y los snippets CSS a su lugar actual
- * (`FUN-L-24`, 2026-09-26). Corre al abrir cada vault y no hace nada una vez
- * hecha.
+ * Migraciones únicas de lo que una versión anterior guardaba fuera de su lugar
+ * actual. Corren al abrir cada vault y no hacen nada una vez hechas:
+ *
+ *   - la apariencia y los snippets CSS (`FUN-L-24`, 2026-09-26), abajo;
+ *   - los dibujos de Excalidraw «embebidos» de la tabla `diagramas`
+ *     (`FUN-M-40`, `DEF-112`), en `migrarDiagramasEmbebidos`.
  *
  * Desde `FUN-L-24` la apariencia (tema, modo oscuro, atmósferas, tipografía y
  * el resto de `preferencesStore`) vive en `.mycelium/preferencias.json` —claves
@@ -26,7 +29,8 @@
  * Todo es best-effort: un fallo acá se registra y el vault abre igual, con los
  * valores por defecto — un ajuste de aspecto no puede impedir abrir un vault.
  */
-import { select } from "./client";
+import { execute, select } from "./client";
+import { desambiguar, sanearNombre } from "./nombres";
 
 /** Lo que se busca en cualquiera de los dos orígenes. */
 export type Apariencia = {
@@ -100,7 +104,7 @@ export function fusionarApariencia(prefs: unknown, apariencia: Apariencia): Reco
   };
 }
 
-/** Si el índice abierto tiene esta tabla (solo los de la 2.1.0 y anteriores). */
+/** Si el índice abierto tiene esta tabla (las viejas solo están en índices anteriores). */
 async function hayTabla(nombre: string): Promise<boolean> {
   const filas = await select<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -174,5 +178,154 @@ export async function migrarEstadoLegado(vault: string): Promise<void> {
     await migrarSnippets(vault);
   } catch (e) {
     console.error("[Mycelium] migración · no se pudieron migrar los snippets a snippets.json", e);
+  }
+}
+
+// ── Dibujos de Excalidraw «embebidos» (`FUN-M-40`, `DEF-112`) ─────────────────
+//
+// Hasta la 2.1.0, soltar un `.excalidraw` sobre el editor guardaba la escena en
+// la tabla `diagramas` del índice, colgada de la nota (`nota_id`, `diag_id`), y
+// escribía `![[<diag_id>.excalidraw]]` en el texto. Ese dibujo no existía en
+// disco: reconstruir el índice lo borraba sin aviso. Ahora un dibujo es siempre
+// un archivo del vault, así que lo que quede en la tabla se exporta a archivos
+// `.excalidraw` junto a su nota, se reescribe el embed para que apunte al
+// archivo y la tabla se borra.
+
+/** Una fila de la tabla `diagramas` de un índice anterior a `FUN-M-40`. */
+type DiagramaLegado = { diagId: string; contenido: string };
+
+/** Carpeta (ruta POSIX) de una ruta de archivo, o `null` en la raíz. Pura. */
+function carpetaDe(ruta: string): string | null {
+  const i = ruta.lastIndexOf("/");
+  return i < 0 ? null : ruta.slice(0, i);
+}
+
+/** Nombre sin carpeta ni extensión (`Proyectos/plan.md` → `plan`). Pura. */
+function tituloDe(ruta: string): string {
+  const nombre = ruta.slice(ruta.lastIndexOf("/") + 1);
+  const i = nombre.lastIndexOf(".");
+  return i > 0 ? nombre.slice(0, i) : nombre;
+}
+
+const unirRuta = (carpeta: string | null, nombre: string) =>
+  carpeta === null ? nombre : `${carpeta}/${nombre}`;
+
+/**
+ * Dónde queda el dibujo de una nota: en la carpeta de la nota, con el nombre
+ * `«título de la nota» - dibujo` desambiguado por sufijo como cualquier
+ * creación (`… - dibujo 1`, `… - dibujo 2`). `ocupada` recibe una ruta relativa
+ * **en minúsculas** —Windows no distingue— y dice si ya hay algo ahí. Devuelve
+ * la ruta del archivo y la referencia para el embed: con la carpeta delante,
+ * para que dos notas homónimas en carpetas distintas no apunten al mismo
+ * dibujo. Pura.
+ */
+export function destinoDeDiagrama(
+  notaId: string,
+  ocupada: (rutaMinusculas: string) => boolean,
+): { ruta: string; ref: string } {
+  const carpeta = carpetaDe(notaId);
+  const base = sanearNombre(`${tituloDe(notaId)} - dibujo`);
+  const stem = desambiguar(base, (cand) => {
+    const ruta = unirRuta(carpeta, cand).toLowerCase();
+    return ocupada(`${ruta}.excalidraw`) || ocupada(ruta);
+  });
+  return { ruta: unirRuta(carpeta, `${stem}.excalidraw`), ref: unirRuta(carpeta, stem) };
+}
+
+/** El embed `![[<diagId>.excalidraw]]`, sin distinguir mayúsculas en el uuid. */
+function embedDeDiagrama(diagId: string): RegExp {
+  const escapado = diagId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`!\\[\\[${escapado}\\.excalidraw\\]\\]`, "gi");
+}
+
+/** Si `texto` muestra el dibujo `diagId`. Pura. */
+export function usaDiagrama(texto: string, diagId: string): boolean {
+  return embedDeDiagrama(diagId).test(texto);
+}
+
+/**
+ * Reescribe en `texto` cada `![[<diagId>.excalidraw]]` para que apunte a `ref`.
+ * El uuid se compara sin distinguir mayúsculas; lo demás del texto no se toca.
+ * Pura.
+ */
+export function reescribirEmbedDeDiagrama(texto: string, diagId: string, ref: string): string {
+  return texto.replace(embedDeDiagrama(diagId), () => `![[${ref}.excalidraw]]`);
+}
+
+const leerTexto = (vault: string, rutaRel: string) =>
+  invocar<string | null>("leer_archivo_texto", { vaultRuta: vault, rutaRel });
+
+const escribirTexto = (vault: string, rutaRel: string, contenido: string) =>
+  invocar<number>("escribir_nota", { vaultRuta: vault, rutaRel, contenido });
+
+/**
+ * Exporta a archivos los dibujos de la tabla `diagramas` y la borra. Va
+ * **antes** de indexar: trabaja sobre el disco, y el indexado que sigue ve los
+ * archivos nuevos y las notas reescritas como cualquier cambio.
+ *
+ * - Cada fila se escribe en `destinoDeDiagrama` y el embed de su nota se
+ *   reescribe; la nota se guarda una vez, con todos sus embeds nuevos.
+ * - Las filas de una nota se borran de la tabla **en cuanto** esa nota quedó
+ *   escrita: si algo falla a mitad de camino, lo ya migrado no se vuelve a
+ *   exportar la próxima vez, y lo que falta sigue en la tabla.
+ * - Una fila cuya nota ya no está en disco no se exporta: el indexado la habría
+ *   borrado igual (la tabla la tenía con `ON DELETE CASCADE`), que es lo que
+ *   pasaba hasta ahora.
+ * - Tampoco una cuya nota ya no la muestra: borrar el embed nunca borraba la
+ *   fila, así que la tabla guarda dibujos que nadie ve. Exportarlos llenaría la
+ *   carpeta de archivos sueltos, y es además lo que hace que reintentar tras un
+ *   corte no duplique lo que ya se exportó (su embed ya no es el uuid).
+ * - `DROP TABLE` al final, con la tabla ya vacía.
+ *
+ * Best-effort, como el resto: un fallo se registra y el vault abre igual, con lo
+ * que falte todavía en la tabla para el próximo intento.
+ */
+export async function migrarDiagramasEmbebidos(vault: string): Promise<void> {
+  try {
+    if (!(await hayTabla("diagramas"))) return;
+    const filas = await select<{ nota_id: string; diag_id: string; contenido: string }>(
+      "SELECT nota_id, diag_id, contenido FROM diagramas ORDER BY nota_id, diag_id",
+    );
+
+    // Lo ocupado según el índice (el de la sesión anterior); el disco se
+    // comprueba igual antes de escribir cada archivo.
+    const ocupadas = new Set<string>();
+    for (const tabla of ["notas", "carpetas"]) {
+      for (const f of await select<{ id: string }>(`SELECT id FROM ${tabla}`)) {
+        ocupadas.add(f.id.toLowerCase());
+      }
+    }
+    const libre = (notaId: string) => destinoDeDiagrama(notaId, (r) => ocupadas.has(r));
+
+    const porNota = new Map<string, DiagramaLegado[]>();
+    for (const f of filas) {
+      const lista = porNota.get(f.nota_id) ?? [];
+      lista.push({ diagId: f.diag_id, contenido: f.contenido });
+      porNota.set(f.nota_id, lista);
+    }
+
+    for (const [notaId, diagramas] of porNota) {
+      const original = await leerTexto(vault, notaId);
+      if (original !== null) {
+        let texto = original;
+        for (const d of diagramas) {
+          if (!usaDiagrama(texto, d.diagId)) continue;
+          let destino = libre(notaId);
+          while ((await leerTexto(vault, destino.ruta)) !== null) {
+            ocupadas.add(destino.ruta.toLowerCase());
+            destino = libre(notaId);
+          }
+          await escribirTexto(vault, destino.ruta, d.contenido);
+          ocupadas.add(destino.ruta.toLowerCase());
+          texto = reescribirEmbedDeDiagrama(texto, d.diagId, destino.ref);
+        }
+        if (texto !== original) await escribirTexto(vault, notaId, texto);
+      }
+      await execute("DELETE FROM diagramas WHERE nota_id = ?", [notaId]);
+    }
+
+    await execute("DROP TABLE diagramas");
+  } catch (e) {
+    console.error("[Mycelium] migración · no se pudieron exportar los dibujos embebidos", e);
   }
 }

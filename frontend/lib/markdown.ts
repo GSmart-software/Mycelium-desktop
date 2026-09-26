@@ -17,7 +17,7 @@ import {
   type VideoEmbebido,
 } from "@/lib/video";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
-import { partirWikilink } from "@/lib/wikilinks";
+import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
 
 type MdNode = {
   type: string;
@@ -32,7 +32,6 @@ type MdNode = {
   };
 };
 
-const EXCALIDRAW = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 const WIKILINK = /\[\[([^[\]]+)\]\]/g;
 const TAG = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
@@ -53,7 +52,7 @@ function remarkMicelio() {
 
       // Diagramas Excalidraw embebidos (HU-16 CA2): placeholder que el
       // cliente reemplaza por el SVG renderizado.
-      for (const match of value.matchAll(EXCALIDRAW)) {
+      for (const match of value.matchAll(EXCALIDRAW_RE)) {
         matches.push({
           start: match.index,
           end: match.index + match[0].length,

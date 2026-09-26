@@ -2,13 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import {
-  loadDiagram,
-  loadNotaScene,
-  saveDiagram,
-  saveNotaScene,
-  type ExcalidrawScene,
-} from "@/lib/excalidraw";
+import { loadNotaScene, saveNotaScene, type ExcalidrawScene } from "@/lib/excalidraw";
 import styles from "./ExcalidrawModal.module.css";
 
 const Excalidraw = dynamic(
@@ -24,18 +18,13 @@ type ExcalidrawApi = {
 /**
  * Editor Excalidraw en modal (HU-16 CA3/CA5): se abre al crear o al clicar un
  * diagrama renderizado; al cerrar guarda automáticamente. Edita un archivo
- * .excalidraw del vault (`fileId`, contenido de la nota) o, en su defecto, un
- * diagrama embebido legado (`notaId`+`diagId`).
+ * .excalidraw del vault (`fileId`): su contenido es la escena.
  */
 export function ExcalidrawModal({
-  notaId,
-  diagId,
   fileId,
   onClose,
 }: {
-  notaId?: string;
-  diagId?: string;
-  fileId?: string;
+  fileId: string;
   onClose: () => void;
 }) {
   const apiRef = useRef<ExcalidrawApi | null>(null);
@@ -44,13 +33,8 @@ export function ExcalidrawModal({
   );
 
   useEffect(() => {
-    const load = fileId
-      ? loadNotaScene(fileId)
-      : notaId && diagId
-        ? loadDiagram(notaId, diagId)
-        : Promise.resolve<ExcalidrawScene | null>({ elements: [] });
-    void load.then((scene) => setInitialScene(scene ?? { elements: [] }));
-  }, [fileId, notaId, diagId]);
+    void loadNotaScene(fileId).then((scene) => setInitialScene(scene ?? { elements: [] }));
+  }, [fileId]);
 
   async function saveAndClose() {
     const api = apiRef.current;
@@ -60,8 +44,7 @@ export function ExcalidrawModal({
         appState: {},
         files: api.getFiles(),
       };
-      if (fileId) await saveNotaScene(fileId, scene);
-      else if (notaId && diagId) await saveDiagram(notaId, diagId, scene);
+      await saveNotaScene(fileId, scene);
     }
     onClose();
   }

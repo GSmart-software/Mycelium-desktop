@@ -67,7 +67,6 @@ export function EditorDetalle({
           liveExtensions(
             (titulo) => abrirRef.current(titulo),
             (titulo) => existeRef.current(titulo),
-            null,
           ),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) onCambioRef.current(u.state.doc.toString());

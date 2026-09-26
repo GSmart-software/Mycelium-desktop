@@ -50,6 +50,10 @@ const VAULT_ID = LOCAL_VAULT_ID;
  * > migración única de `lib/db/legado.ts`, que saca de ahí la apariencia y los
  * > snippets de quien actualiza desde la 2.1.0. No se hace `DROP TABLE`: ver
  * > esa migración.
+ * >
+ * > `diagramas` (los dibujos de Excalidraw «embebidos» en una nota) salió del
+ * > esquema con `FUN-M-40`: esa sí la borra la migración de `legado.ts`, después
+ * > de exportar cada fila a un archivo `.excalidraw` del vault.
  */
 const ESQUEMA_INDICE: string[] = [
   `CREATE TABLE IF NOT EXISTS carpetas (
@@ -80,13 +84,6 @@ const ESQUEMA_INDICE: string[] = [
      nota_id        TEXT PRIMARY KEY REFERENCES notas(id) ON DELETE CASCADE,
      contenido      TEXT NOT NULL DEFAULT '',
      actualizado_en TEXT NOT NULL
-   )`,
-  `CREATE TABLE IF NOT EXISTS diagramas (
-     nota_id        TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
-     diag_id        TEXT NOT NULL,
-     contenido      TEXT NOT NULL DEFAULT '',
-     actualizado_en TEXT NOT NULL,
-     PRIMARY KEY (nota_id, diag_id)
    )`,
   `CREATE TABLE IF NOT EXISTS papelera (
      id                  TEXT PRIMARY KEY,
@@ -248,8 +245,7 @@ export function tituloDeRuta(ruta: string): string {
  * el pool de conexiones de `tauri-plugin-sql` no garantiza que caigan en la
  * misma conexión, así que cada sentencia tiene que ser correcta por sí sola.
  *
- * Nota Excalidraw: en fase 2 su escena se guarda en `contenidos` igual que el
- * markdown (no se separan aún los `diagramas`); se simplifica así a propósito.
+ * Un `.excalidraw` se indexa como cualquier nota: su escena va a `contenidos`.
  *
  * @returns totales: `notas` en disco, `carpetas` derivadas, `reindexadas`
  *          (notas nuevas o modificadas que se reescribieron en el índice) y
@@ -384,8 +380,8 @@ export async function indexarVault(
         mtime: meta.mtime,
         huella,
       });
-      // Contenido: Excalidraw se guarda igual que el markdown (fase 2 no separa
-      // diagramas). Upsert como en `contenido.ts`.
+      // Contenido: Excalidraw se guarda igual que el markdown. Upsert como en
+      // `contenido.ts`.
       filasContenidos.push({ id, contenido: leido.contenido });
       filasFts.push({ id, titulo, contenido: indexable });
       entradasPropiedades.push({ id, propiedades });
@@ -457,7 +453,6 @@ export async function indexarVault(
     const q = marcadores(tanda.length);
     await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM contenidos WHERE nota_id IN (${q})`, tanda);
-    await execute(`DELETE FROM diagramas WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM papelera WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM notas WHERE id IN (${q})`, tanda);
   }

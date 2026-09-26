@@ -210,7 +210,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
   useEffect(() => {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
-      void renderExcalidrawIn(containerRef.current, notaId);
+      void renderExcalidrawIn(containerRef.current);
       void renderDrawioIn(containerRef.current);
     }
   }, [html, notaId]);

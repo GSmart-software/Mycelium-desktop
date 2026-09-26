@@ -147,7 +147,7 @@ export async function moverNota(
   return { id: newId };
 }
 
-/** `POST /notas/{id}/duplicar`: copia nota + contenido + diagramas con título único. */
+/** `POST /notas/{id}/duplicar`: copia archivo + contenido con título único. */
 export async function duplicarNota(id: string): Promise<CreatedResponse> {
   const rows = await select<{
     vault_id: string;
@@ -187,18 +187,6 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
       now,
     ]);
     await ftsPoner(nuevo, titulo, cont[0].contenido);
-  }
-
-  // Copia de diagramas excalidraw embebidos.
-  const diags = await select<{ diag_id: string; contenido: string }>(
-    "SELECT diag_id, contenido FROM diagramas WHERE nota_id = ?",
-    [id],
-  );
-  for (const d of diags) {
-    await execute(
-      "INSERT INTO diagramas (nota_id, diag_id, contenido, actualizado_en) VALUES (?, ?, ?, ?)",
-      [nuevo, d.diag_id, d.contenido, now],
-    );
   }
 
   return { id: nuevo };

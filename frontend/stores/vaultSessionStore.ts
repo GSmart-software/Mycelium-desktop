@@ -19,7 +19,7 @@ import { create } from "zustand";
 import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { restaurarEstadoVault } from "@/lib/db/estadoVault";
-import { migrarEstadoLegado } from "@/lib/db/legado";
+import { migrarDiagramasEmbebidos, migrarEstadoLegado } from "@/lib/db/legado";
 import { setVaultActual } from "@/lib/db/vaultContext";
 import {
   marcarAcceso,
@@ -162,6 +162,10 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // A partir de aquí los repos saben sobre qué carpeta operan.
       setVaultActual(ruta);
       etapa("indexando");
+      // Los dibujos que una versión anterior guardaba solo en el índice pasan a
+      // ser archivos (`FUN-M-40`, `DEF-112`). Antes de indexar: escribe en disco,
+      // y el indexado de abajo ya ve los archivos nuevos y las notas reescritas.
+      await migrarDiagramasEmbebidos(ruta);
       const indexado = await indexarVault(ruta, (hechas, total) =>
         set({ progreso: { hechas, total }, avanceEn: Date.now() }),
       );

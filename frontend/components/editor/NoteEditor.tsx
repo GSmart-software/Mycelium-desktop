@@ -36,13 +36,15 @@ import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
-import { exportDiagram, renderExcalidrawIn, saveDiagram } from "@/lib/excalidraw";
+import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
   registrarGuardadoPendiente,
 } from "@/lib/guardadoPendiente";
 import { getCachedNote, putCachedNote } from "@/lib/idb";
 import { EVENTO_RECARGA } from "@/lib/vaultWatch";
+import { refUnivoca } from "@/lib/wikilinks";
+import { avisar } from "@/stores/avisosStore";
 import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -292,7 +294,6 @@ export function NoteEditor({
   );
   const [previewHtml, setPreviewHtml] = useState("");
   const [conflict, setConflict] = useState<string | null>(null);
-  const [editingDiag, setEditingDiag] = useState<string | null>(null);
   // Archivo .excalidraw del vault que se edita en el modal embebido (HU-16).
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -528,7 +529,7 @@ export function NoteEditor({
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
-              modeRef.current === "live" ? liveExtensions(openByTitle, noteExists, notaId) : [],
+              modeRef.current === "live" ? liveExtensions(openByTitle, noteExists) : [],
             ),
             tabCompartment.current.of(
               extensionesTab(usePreferencesStore.getState().prefs.tabWidth),
@@ -876,7 +877,7 @@ export function NoteEditor({
       window.localStorage.setItem(`micelio-mode-${notaId}`, next);
       viewRef.current?.dispatch({
         effects: liveCompartment.current.reconfigure(
-          next === "live" ? liveExtensions(openByTitle, noteExists, notaId) : [],
+          next === "live" ? liveExtensions(openByTitle, noteExists) : [],
         ),
       });
       if (next === "split" || next === "read") {
@@ -919,7 +920,7 @@ export function NoteEditor({
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
-      void renderExcalidrawIn(previewRef.current, notaId);
+      void renderExcalidrawIn(previewRef.current);
       void renderDrawioIn(previewRef.current);
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
@@ -948,25 +949,75 @@ export function NoteEditor({
   }, [previewHtml, mode, previewTick, vaultNotas, vaultCarpetas]);
 
   /**
-   * Crea un archivo .excalidraw REAL en la carpeta de la nota actual (aparece en
-   * el explorador y es manipulable como cualquier nota), inserta su embed por
-   * título y abre el panel de edición embebido (modal) para dibujar enseguida,
-   * sin salir del markdown (HU-16 CA1a).
+   * Inserta en el cursor el embed del dibujo `id`, recién creado. Por título, y
+   * con la carpeta delante si otro archivo se llama igual: el nombre solo se
+   * desambigua dentro de la carpeta, y `![[Dibujo sin título.excalidraw]]` a
+   * secas resolvería al de la raíz (`refUnivoca`).
    */
-  const insertDiagram = useCallback(() => {
+  const insertarEmbedDeDibujo = useCallback((id: string) => {
     const view = viewRef.current;
     if (!view) return;
+    const { notas, carpetas } = useVaultStore.getState();
+    const nota = notas.find((n) => n.id === id);
+    const ref = nota ? refUnivoca(nota, notas, carpetas) : TITULO_POR_DEFECTO.excalidraw;
+    const { from } = view.state.selection.main;
+    view.dispatch({ changes: { from, insert: `![[${ref}.excalidraw]]` } });
+  }, []);
+
+  /**
+   * Crea un archivo .excalidraw REAL en la carpeta de la nota actual (aparece en
+   * el explorador y es manipulable como cualquier nota), inserta su embed y abre
+   * el panel de edición embebido (modal) para dibujar enseguida, sin salir del
+   * markdown (HU-16 CA1a).
+   */
+  const insertDiagram = useCallback(() => {
+    if (!viewRef.current) return;
     const vault = useVaultStore.getState();
     const carpetaId = vault.notas.find((n) => n.id === notaId)?.carpetaId ?? null;
     void vault.createNota(carpetaId, "excalidraw").then((newId) => {
-      const titulo =
-        useVaultStore.getState().notas.find((n) => n.id === newId)?.titulo ??
-        TITULO_POR_DEFECTO.excalidraw;
-      const { from } = view.state.selection.main;
-      view.dispatch({ changes: { from, insert: `![[${titulo}.excalidraw]]` } });
+      insertarEmbedDeDibujo(newId);
       setEditingFile(newId); // abrir el editor embebido del nuevo dibujo
     });
-  }, [notaId]);
+  }, [notaId, insertarEmbedDeDibujo]);
+
+  /**
+   * Un `.excalidraw` soltado sobre el editor (HU-16 CA1b) se vuelve un archivo
+   * del vault, en la carpeta de la nota y con el nombre del archivo soltado
+   * (desambiguado como cualquier creación), y se inserta su embed: lo mismo que
+   * hace la barra de herramientas (`FUN-M-40`, D6).
+   *
+   * Antes la escena se guardaba en una tabla `diagramas` del índice, colgada de
+   * la nota, con un embed `![[<uuid>.excalidraw]]` (`DEF-112`): no había
+   * archivo, así que reconstruir el índice la perdía sin aviso.
+   */
+  const soltarDibujo = useCallback(
+    async (file: File) => {
+      const texto = await file.text();
+      try {
+        JSON.parse(texto);
+      } catch {
+        avisar(`«${file.name}» no es un dibujo de Excalidraw válido`);
+        return;
+      }
+      try {
+        const vault = useVaultStore.getState();
+        const carpetaId =
+          vault.notas.find((n) => n.id === notaIdRef.current)?.carpetaId ?? null;
+        const nombre = file.name.replace(/\.excalidraw$/i, "");
+        const nuevoId = await vault.createNota(carpetaId, "excalidraw", nombre);
+        // El contenido se guarda tal cual vino: es el archivo del usuario.
+        await api(`/notas/${encodeURIComponent(nuevoId)}/contenido`, {
+          method: "PUT",
+          body: { contenido: texto },
+        });
+        insertarEmbedDeDibujo(nuevoId);
+      } catch (e) {
+        console.error("[Mycelium] no se pudo importar el dibujo soltado", e);
+        avisar(`No se pudo importar «${file.name}»`);
+      }
+    },
+    [insertarEmbedDeDibujo],
+  );
 
   // DEF-039 CA2: en modo lectura (y en dividido) el scroller VISIBLE no es el de
   // CodeMirror sino el del preview, así que hay que seguirlo aparte. Mientras
@@ -1108,15 +1159,11 @@ export function NoteEditor({
       }
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
       if (diagram) {
+        // Archivo .excalidraw del vault → editarlo en el modal embebido, sin
+        // salir del markdown (HU-16 CA3). Sin `data-nota`, el embed no nombra
+        // ningún dibujo y ya muestra su aviso: no hay nada que abrir.
         const targetNota = diagram.getAttribute("data-nota");
-        if (targetNota) {
-          // Archivo .excalidraw del vault → editarlo en el modal embebido, sin
-          // salir del markdown (HU-16 CA3).
-          setEditingFile(targetNota);
-        } else {
-          // Diagrama embebido (legado) → editor Excalidraw en modal.
-          setEditingDiag(diagram.getAttribute("data-diag"));
-        }
+        if (targetNota) setEditingFile(targetNota);
         return;
       }
       // Un diagrama de draw.io embebido es una vista previa, no un editor: el
@@ -1153,24 +1200,24 @@ export function NoteEditor({
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
       if (!diagram) return;
       event.preventDefault();
-      const diagId = diagram.getAttribute("data-diag");
-      if (!diagId) return;
+      const ref = diagram.getAttribute("data-diag");
+      if (!ref) return;
       setDiagMenu({
         x: event.clientX,
         y: event.clientY,
         items: [
           {
             label: "Exportar como PNG",
-            onClick: () => void exportDiagram(notaId, diagId, "png"),
+            onClick: () => void exportDiagram(ref, "png"),
           },
           {
             label: "Exportar como SVG",
-            onClick: () => void exportDiagram(notaId, diagId, "svg"),
+            onClick: () => void exportDiagram(ref, "svg"),
           },
         ],
       });
     },
-    [notaId],
+    [],
   );
 
   function resolveConflict(apply: boolean) {
@@ -1273,24 +1320,11 @@ export function NoteEditor({
           onDrop={(e) => {
             // Drag & drop de archivos .excalidraw sobre el editor (HU-16 CA1b)
             const file = Array.from(e.dataTransfer.files).find((f) =>
-              f.name.endsWith(".excalidraw"),
+              f.name.toLowerCase().endsWith(".excalidraw"),
             );
             if (!file) return;
             e.preventDefault();
-            void file.text().then(async (text) => {
-              const view = viewRef.current;
-              if (!view) return;
-              const diagId = crypto.randomUUID();
-              try {
-                await saveDiagram(notaId, diagId, JSON.parse(text));
-              } catch {
-                return;
-              }
-              const { from } = view.state.selection.main;
-              view.dispatch({
-                changes: { from, insert: `![[${diagId}.excalidraw]]` },
-              });
-            });
+            void soltarDibujo(file);
           }}
         />
         {(mode === "split" || mode === "read") && (
@@ -1319,17 +1353,6 @@ export function NoteEditor({
       </div>
 
       {diagMenu && <ContextMenu {...diagMenu} onClose={() => setDiagMenu(null)} />}
-
-      {editingDiag && (
-        <ExcalidrawModal
-          notaId={notaId}
-          diagId={editingDiag}
-          onClose={() => {
-            setEditingDiag(null);
-            setPreviewTick((t) => t + 1); // re-render del SVG embebido
-          }}
-        />
-      )}
 
       {editingFile && (
         <ExcalidrawModal

@@ -47,7 +47,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   useEffect(() => {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
-      if (sourceNotaId) void renderExcalidrawIn(containerRef.current, sourceNotaId);
+      void renderExcalidrawIn(containerRef.current);
       void renderDrawioIn(containerRef.current);
     }
   }, [html, sourceNotaId]);

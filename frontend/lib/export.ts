@@ -5,13 +5,12 @@ import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { buildPrintCss, type PdfPrintOpts } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePdfExportStore } from "@/stores/pdfExportStore";
 import { useVaultStore } from "@/stores/vaultStore";
-
-const EXCALIDRAW_RE = /!\[\[([0-9a-f-]+)\.excalidraw\]\]/gi;
 
 /** Nombre de archivo seguro a partir del título de la nota. */
 function safeName(titulo: string): string {
@@ -66,41 +65,30 @@ function notePath(carpetaId: string | null): string {
 export type ArchivoVault = { rutaRelativa: string; contenido: string };
 
 /**
- * Recolecta todo el vault como una lista de archivos de texto: una entrada `.md`
- * por nota (preservando la estructura de carpetas) más los diagramas Excalidraw
- * referenciados en `adjuntos/` (HU-09 CA3). Es la fuente común del export a ZIP
- * y del export a carpeta nativa.
+ * Recolecta todo el vault como una lista de archivos de texto: una entrada por
+ * nota, con la extensión de su tipo y preservando la estructura de carpetas. Es
+ * la fuente común del export a ZIP y del export a carpeta nativa.
+ *
+ * Los dibujos de Excalidraw son archivos del vault como cualquier otro y salen
+ * en su carpeta, con su nombre: el embed `![[título.excalidraw]]` sigue
+ * resolviendo en el destino. Antes se buscaban aparte los del mecanismo
+ * «embebido» (tabla `diagramas`, retirada en `FUN-M-40`) y se copiaban a
+ * `adjuntos/` (HU-09 CA3).
  */
 export async function recolectarArchivosVault(
   onProgress?: (done: number, total: number) => void,
 ): Promise<ArchivoVault[]> {
   const { notas } = useVaultStore.getState();
   const out: ArchivoVault[] = [];
-  const adjuntos = new Set<string>();
   let done = 0;
 
   for (const nota of notas) {
     const contenido = await fetchNoteContent(nota.id);
     out.push({
-      rutaRelativa: `${notePath(nota.carpetaId)}${safeName(nota.titulo)}.md`,
+      rutaRelativa: `${notePath(nota.carpetaId)}${safeName(nota.titulo)}.${EXTENSION_POR_TIPO[nota.tipo]}`,
       contenido,
     });
-
-    for (const match of contenido.matchAll(EXCALIDRAW_RE)) {
-      adjuntos.add(`${nota.id}:${match[1]}`);
-    }
     onProgress?.(++done, notas.length);
-  }
-
-  // Diagramas Excalidraw referenciados → adjuntos/ (HU-09 CA3)
-  for (const ref of adjuntos) {
-    const [notaId, diagId] = ref.split(":");
-    try {
-      const json = await api<string>(`/notas/${encodeURIComponent(notaId)}/diagramas/${diagId}`);
-      out.push({ rutaRelativa: `adjuntos/${diagId}.excalidraw`, contenido: json });
-    } catch {
-      // adjunto inaccesible → se omite
-    }
   }
 
   return out;
@@ -108,7 +96,7 @@ export async function recolectarArchivosVault(
 
 /**
  * Exporta todo el vault como ZIP en el cliente (HU-09): preserva la estructura
- * de carpetas y agrega los diagramas referenciados en `adjuntos/`. La rama
+ * de carpetas. La rama
  * servidor para vaults ≥ 200 MB queda diferida (docs/BACKLOG.md).
  */
 export async function exportVaultZip(
@@ -160,7 +148,7 @@ async function renderNoteHtml(notaId: string): Promise<string> {
   document.body.appendChild(container);
   try {
     await renderMermaidIn(container);
-    await renderExcalidrawIn(container, notaId);
+    await renderExcalidrawIn(container);
     // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
     // saldrian como un hueco en el PDF.
     await renderDrawioIn(container);

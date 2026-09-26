@@ -57,7 +57,7 @@ import { dibujarDrawioEn } from "@/lib/drawioRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
-import { partirWikilink } from "@/lib/wikilinks";
+import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
 
@@ -605,7 +605,6 @@ const frontmatterField = StateField.define<FrontmatterState>({
 export function liveExtensions(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
-  notaId: string | null = null,
 ): Extension {
   return [
     syntaxHighlighting(micelioHighlight),
@@ -631,7 +630,7 @@ export function liveExtensions(
     // queda escribiendo a ciegas dentro de una fórmula dibujada.
     formulasField,
     navegarPorTitulo.of(onWikilinkClick),
-    livePreview(onWikilinkClick, noteExists, notaId),
+    livePreview(onWikilinkClick, noteExists),
   ];
 }
 
@@ -641,9 +640,6 @@ const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
  * (`FUN-S-21`), que mira si la `url` es de YouTube o Vimeo.
  */
 const EMBED_IMAGEN_RE = /!\[[^\]]*\]\(([^)\s]+)\)/g;
-
-/** Embed de un diagrama/archivo excalidraw: `![[ref.excalidraw]]`. */
-const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` (con `>` anidados para callouts dentro de
@@ -756,14 +752,13 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
 export function livePreview(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
-  notaId: string | null = null,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, noteExists, notaId);
+        this.decorations = buildDecorations(view, noteExists);
       }
 
       update(update: ViewUpdate) {
@@ -781,7 +776,7 @@ export function livePreview(
           arbolNuevo ||
           refreshed
         ) {
-          this.decorations = buildDecorations(update.view, noteExists, notaId);
+          this.decorations = buildDecorations(update.view, noteExists);
         }
       }
     },
@@ -825,7 +820,6 @@ export function livePreview(
 class ExcalidrawWidget extends WidgetType {
   constructor(
     readonly ref: string,
-    readonly notaId: string | null,
     readonly pos: number,
     readonly gen: number,
   ) {
@@ -833,7 +827,7 @@ class ExcalidrawWidget extends WidgetType {
   }
 
   eq(other: ExcalidrawWidget) {
-    return other.ref === this.ref && other.notaId === this.notaId && other.gen === this.gen;
+    return other.ref === this.ref && other.gen === this.gen;
   }
 
   toDOM(view: EditorView) {
@@ -845,7 +839,7 @@ class ExcalidrawWidget extends WidgetType {
       view.dispatch({ selection: { anchor: this.pos } });
       view.focus();
     });
-    void renderExcalidrawInto(block, this.ref, this.notaId);
+    void renderExcalidrawInto(block, this.ref);
     return block;
   }
 
@@ -980,7 +974,6 @@ type PendingDeco = { from: number; to: number; deco: Decoration };
 function buildDecorations(
   view: EditorView,
   noteExists: (target: string) => boolean,
-  notaId: string | null = null,
 ): DecorationSet {
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
@@ -1362,7 +1355,7 @@ function buildDecorations(
             from: line.from,
             to: line.to,
             deco: Decoration.replace({
-              widget: new ExcalidrawWidget(match[1], notaId, line.from, liveGen),
+              widget: new ExcalidrawWidget(match[1], line.from, liveGen),
             }),
           });
         }

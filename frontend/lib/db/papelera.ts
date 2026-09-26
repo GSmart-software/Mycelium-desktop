@@ -131,7 +131,7 @@ export async function borrarPermanente(id: string): Promise<void> {
 
   await execute("DELETE FROM papelera WHERE nota_id = ?", [id]);
   await ftsBorrar([id]);
-  // contenidos y diagramas se borran en cascada (FK ON DELETE CASCADE).
+  // contenidos y propiedades se borran en cascada (FK ON DELETE CASCADE).
   await execute("DELETE FROM notas WHERE id = ?", [id]);
   await respaldarPapelera();
 }

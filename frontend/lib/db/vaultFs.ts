@@ -279,7 +279,7 @@ function profundidad(ruta: string): number {
  * se repuntan los hijos al id nuevo y se borra la fila vieja. Orden:
  *   1. carpetas nuevas (menos profundas primero: el padre existe antes que el hijo),
  *   2. notas nuevas (su carpeta ya existe),
- *   3. repunte de contenido/diagramas/papelera + reindex FTS al id nuevo,
+ *   3. repunte de contenido/papelera + reindex FTS al id nuevo,
  *   4. borrado de notas viejas,
  *   5. borrado de carpetas viejas (el CASCADE limpia descendientes ya vacíos).
  */
@@ -315,7 +315,6 @@ export async function rekeyIndice(
       [n.oldId],
     );
     await execute("UPDATE contenidos SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
-    await execute("UPDATE diagramas SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE papelera SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await ftsBorrar([n.oldId]);
     await ftsPoner(n.newId, n.newTitulo, cont[0]?.contenido ?? "");

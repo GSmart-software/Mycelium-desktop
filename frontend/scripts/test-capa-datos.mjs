@@ -110,8 +110,10 @@ function indice(tablas = {}) {
 const ERRORS = await fuente("../lib/db/errors.ts");
 const CLIENT = await fuente("../lib/db/client.ts", { "./errors": ERRORS });
 const CONTEXTO = await fuente("../lib/db/vaultContext.ts", { "./errors": ERRORS });
+const NOMBRES = await fuente("../lib/db/nombres.ts");
 const LEGADO = await fuente("../lib/db/legado.ts", {
   "./client": CLIENT,
+  "./nombres": NOMBRES,
   "@tauri-apps/api/core": TAURI,
 });
 const PREFS_VAULT = await fuente("../stores/prefsVaultStore.ts", {
