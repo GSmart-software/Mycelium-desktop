@@ -68,10 +68,10 @@ async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
   // primera nota con ese título» en el orden de esta consulta, así que con dos
   // homónimas el clic iba a una y la arista a otra, y `![[x.excalidraw]]` no
   // llegaba al grafo.
-  const porTitulo = indexarPorTitulo<NotaEnlazable>(
+  const indice = indexarPorTitulo<NotaEnlazable>(
     filas.map((f) => ({ id: f.id, titulo: f.titulo, carpetaId: f.carpeta_id })),
   );
-  const resolver = (ref: string) => resolveWikilinkEnIndice(ref, porTitulo, carpetas)?.id;
+  const resolver = (ref: string) => resolveWikilinkEnIndice(ref, indice, carpetas)?.id;
   const titulosPorId = new Map<string, string>();
   const contenidos = new Map<string, string>();
   /** Canvas por id: su contenido se interpreta aparte, no como prosa. */
