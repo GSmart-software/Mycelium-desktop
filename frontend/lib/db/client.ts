@@ -2,11 +2,10 @@
  * Capa de datos del desktop (Tauri): acceso a SQLite nativo vía `tauri-plugin-sql`.
  *
  * Los repos (`lib/db/*`) NO importan el plugin directamente: hablan con un
- * `SqlExecutor` que se resuelve de forma perezosa. Esto:
- *   - mantiene los repos como lógica pura y **testeable** (se les puede inyectar
- *     un executor sobre cualquier SQLite en un test headless), y
- *   - encaja con el seam web/desktop (fase 4): la web podría inyectar otro
- *     executor sin tocar los repos.
+ * `SqlExecutor` que se resuelve de forma perezosa. Eso mantiene los repos como
+ * lógica pura y **testeable**: se les puede inyectar un executor sobre cualquier
+ * SQLite en un test headless (`scripts/test-*.mjs`). La web no pasa por acá: es
+ * otra rama (`web-cloud`) con su propio backend.
  *
  * SQL portable: se usan placeholders posicionales `?` (los acepta tanto el
  * sqlx-SQLite del plugin —confirmado en el smoke test de fase 0— como los

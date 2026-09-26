@@ -13,8 +13,8 @@ import styles from "./AppTopbar.module.css";
  * comandos, y salir del vault. Siempre visible.
  *
  * El centro era un campo «Buscar en Mycelium…» que no buscaba nada (`DEF-090`)
- * y a la derecha estaba «Compartir», que en desktop no existe (ver
- * `lib/capacidades.ts`). Rediseño del cascarón, 2026-09-19.
+ * y a la derecha estaba «Compartir», que en desktop no existe (se quitó del
+ * todo en `FUN-M-39`: es de la versión web). Rediseño del cascarón, 2026-09-19.
  *
  * Además es la barra de título: la ventana va sin la del sistema (`FUN-M-31`),
  * así que el fondo libre de esta barra arrastra la ventana
