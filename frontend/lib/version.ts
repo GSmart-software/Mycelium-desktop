@@ -116,4 +116,4 @@
  * framework va por **1.6.0**: la IA tiene que saber que existe `.drawio` y que
  * no se edita a mano.
  */
-export const APP_VERSION = "2.1.0";
+export const APP_VERSION = "2.2.0";
