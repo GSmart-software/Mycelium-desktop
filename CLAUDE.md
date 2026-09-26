@@ -131,15 +131,21 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **1.7.0** | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
-| **Web** | `web-cloud` | **1.3.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
+| **Desktop** | `desktop-tauri` | **2.1.0** (publicada el 2026-09-23; la próxima es `2.2.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
+
+> [!warning] La versión vigente se lee del disco, no de esta tabla
+> `frontend/lib/version.ts` (`APP_VERSION`) y [[Estado del proyecto]] son la verdad; esta
+> tabla se actualiza a mano y ya quedó vieja una vez (decía `1.7.0` cuando el disco decía
+> `2.1.0`). Las dos líneas **no comparten numeración** aunque hoy coincidan.
 
 Ambas comparten el frontend (React/CodeMirror/Excalidraw/grafo/stores).
 
 > [!important] Las dos líneas se separaron en 1.1.0
 > Todo lo que entró después de 1.0.0 es **solo-desktop** (terminal integrada,
 > framework de IA del vault, `.mycignore`, rendimiento del grafo, devtools en
-> producción), así que web avanza mucho más lento (`1.3.0` contra `1.7.0`). La regla
+> producción), así que web avanza mucho más lento (venía de `1.3.0` contra `1.7.0` cuando
+> las dos saltaron a `2.0.0`). La regla
 > "si se puede en las dos, se hace en las dos" **sigue vigente**, pero el foco actual —la línea de IA sobre el vault—
 > por naturaleza no aplica a web. Ver [[Diferencias funcionales aceptadas entre versiones]].
 
