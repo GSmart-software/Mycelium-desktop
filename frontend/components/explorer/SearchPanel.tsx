@@ -40,6 +40,15 @@ type Resultado = {
 const DEBOUNCE_MS = 200;
 
 /**
+ * Con menos caracteres no se consulta (`FUN-M-38`, hallazgo H2). Una letra
+ * sola coincide con casi todas las notas, y FTS5 calcula el `snippet()` de
+ * TODAS antes de quedarse con las 50 mejores: medido, `"e"*` tardaba 2,3 s en
+ * un vault de 1.300 notas contra 80 ms de `"pr"*`. Y como la primera letra
+ * siempre llega antes que la segunda, esa consulta era la lenta de todas.
+ */
+const MINIMO_CARACTERES = 2;
+
+/**
  * Los tres modos de búsqueda, en el orden en que los recorre el botón
  * (`FUN-M-20`).
  *
@@ -77,6 +86,11 @@ export function SearchPanel() {
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [loading, setLoading] = useState(false);
   const [buscado, setBuscado] = useState(false);
+  // Número de la última consulta lanzada (`DEF-111`). Limpiar el debounce no
+  // cancela la petición en vuelo, y una respuesta lenta —`"e"` en 2,3 s— podía
+  // llegar después que la de `"es"` y pisarla con resultados viejos. Cada
+  // consulta anota su número y, si al volver ya hay otra más nueva, se descarta.
+  const consultaRef = useRef(0);
   // Cómo se busca y cómo se ven los resultados: los tres son preferencias DEL
   // USUARIO y no del vault —describen cómo se busca, no qué contiene—, y ninguno
   // puede ser estado local: este panel se desmonta al cambiar de sección del
@@ -106,25 +120,33 @@ export function SearchPanel() {
   // Búsqueda con debounce (CA3, CA6, CA7)
   useEffect(() => {
     const term = query.trim();
-    if (term.length === 0) {
+    if (term.length < MINIMO_CARACTERES) {
+      // Invalida lo que esté en vuelo: si el usuario borró hasta una letra, la
+      // respuesta de la consulta anterior ya no tiene dónde caer.
+      consultaRef.current++;
       setResultados([]);
       setBuscado(false);
+      setLoading(false);
       return;
     }
     const handle = setTimeout(async () => {
       if (!vaultId) return;
+      const consulta = ++consultaRef.current;
       setLoading(true);
       try {
         const data = await api<{ resultados: Resultado[] }>(
           `/vaults/${vaultId}/buscar?q=${encodeURIComponent(term)}&exacto=${exacto}&campo=${campo}`,
           { token: useAuthStore.getState().accessToken },
         );
+        if (consulta !== consultaRef.current) return; // ya hay una más nueva
         setResultados(data.resultados);
       } catch {
-        setResultados([]);
+        if (consulta === consultaRef.current) setResultados([]);
       } finally {
-        setLoading(false);
-        setBuscado(true);
+        if (consulta === consultaRef.current) {
+          setLoading(false);
+          setBuscado(true);
+        }
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(handle);
@@ -223,6 +245,12 @@ export function SearchPanel() {
         AND implícito · <code>&quot;frase exacta&quot;</code> ·{" "}
         <code>tag:nombre</code> · <code>clave:valor</code>
       </p>
+
+      {query.trim().length > 0 && query.trim().length < MINIMO_CARACTERES && (
+        <p className={styles.status}>
+          Escribí al menos {MINIMO_CARACTERES} caracteres para buscar.
+        </p>
+      )}
 
       {loading && resultados.length === 0 && (
         <p className={styles.status}>Buscando…</p>
