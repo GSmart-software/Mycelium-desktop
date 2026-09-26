@@ -58,7 +58,33 @@ pub struct Patron {
     solo_dir: bool,
     /// Contiene `/` interno: se compara desde la raíz del vault.
     anclado: bool,
-    segmentos: Vec<String>,
+    segmentos: Vec<Segmento>,
+}
+
+/// Un segmento del patrón, **precompilado** al cargar el archivo
+/// (`FUN-M-38`, hallazgo H9 de la auditoría de eficiencia).
+///
+/// Antes cada comparación hacía `chars().collect::<Vec<_>>()` del patrón y de
+/// la ruta —dos reservas de memoria por patrón y por segmento— para todas las
+/// rutas de todos los recorridos: en un vault chico con 13 patrones era la
+/// mitad del tiempo del recorrido. Ahora el patrón se descompone una sola vez
+/// y, si no tiene comodines (`node_modules`, `.git`), la comparación es un
+/// `==` de cadenas sin reservar nada.
+enum Segmento {
+    /// Sin `*` ni `?`: se compara por igualdad.
+    Literal(String),
+    /// Con comodines: se hace glob sobre los caracteres ya separados.
+    Glob(Vec<char>),
+}
+
+impl Segmento {
+    fn compilar(texto: &str) -> Segmento {
+        if texto.contains(['*', '?']) {
+            Segmento::Glob(texto.chars().collect())
+        } else {
+            Segmento::Literal(texto.to_string())
+        }
+    }
 }
 
 /// Carga los patrones del vault (o el default si no hay `.mycignore`).
@@ -82,23 +108,42 @@ pub fn parsear(texto: &str) -> Vec<Patron> {
                 return None;
             }
             let anclado = cuerpo.contains('/');
-            let segmentos: Vec<String> = cuerpo.split('/').map(str::to_string).collect();
+            let segmentos: Vec<Segmento> = cuerpo.split('/').map(Segmento::compilar).collect();
             Some(Patron { solo_dir, anclado, segmentos })
         })
         .collect()
 }
 
-/// Glob de un segmento: `*` = cualquier tramo (sin `/`), `?` = un carácter.
-fn glob_seg(patron: &str, seg: &str) -> bool {
-    fn glob(p: &[char], s: &[char]) -> bool {
+/// ¿El segmento del patrón coincide con este componente de la ruta?
+///
+/// El literal es un `==`. El glob (`*` = cualquier tramo sin `/`, `?` = un
+/// carácter) avanza sobre la ruta como `&str` —por límites de carácter, sin
+/// convertirla a `Vec<char>`—, así que tampoco reserva memoria por llamada.
+fn glob_seg(patron: &Segmento, seg: &str) -> bool {
+    fn glob(p: &[char], s: &str) -> bool {
         match p.first() {
             None => s.is_empty(),
-            Some('*') => (0..=s.len()).any(|i| glob(&p[1..], &s[i..])),
-            Some('?') => !s.is_empty() && glob(&p[1..], &s[1..]),
-            Some(c) => s.first() == Some(c) && glob(&p[1..], &s[1..]),
+            Some('*') => {
+                // Probar cada corte válido de `s` (incluido el vacío y el total).
+                glob(&p[1..], s)
+                    || s
+                        .char_indices()
+                        .any(|(i, c)| glob(&p[1..], &s[i + c.len_utf8()..]))
+            }
+            Some('?') => match s.chars().next() {
+                Some(c) => glob(&p[1..], &s[c.len_utf8()..]),
+                None => false,
+            },
+            Some(c) => match s.chars().next() {
+                Some(d) if d == *c => glob(&p[1..], &s[d.len_utf8()..]),
+                _ => false,
+            },
         }
     }
-    glob(&patron.chars().collect::<Vec<_>>(), &seg.chars().collect::<Vec<_>>())
+    match patron {
+        Segmento::Literal(texto) => texto == seg,
+        Segmento::Glob(chars) => glob(chars, seg),
+    }
 }
 
 /// ¿Un patrón coincide con la ruta (segmentos) dada?
@@ -213,5 +258,27 @@ mod tests {
         let p = parsear(".git/\n.obsidian/\n");
         assert!(ignorada(".git/config", false, &p));
         assert!(!ignorada(".claude/commands/x.md", false, &p)); // ya no ignorado
+    }
+
+    /// Los segmentos precompilados (`FUN-M-38`) dan lo mismo que el glob de
+    /// antes: `*` vacío, al principio, al medio y al final; `?` como UN carácter
+    /// —también uno de varios bytes—; y un literal que solo es prefijo no cae.
+    #[test]
+    fn comodines_precompilados_con_caracteres_de_varios_bytes() {
+        let p = parsear("bor?ador/\n*.log\nñ*/\nfoto-*-final.png\narchivo\n");
+        assert!(ignorada("borrador", true, &p));
+        assert!(ignorada("borñador/x.md", false, &p)); // `?` = un carácter de 2 bytes
+        assert!(!ignorada("borador", true, &p)); // `?` no es opcional
+        assert!(ignorada("a/b/.log", false, &p)); // `*` vacío
+        assert!(ignorada("error.log", false, &p));
+        assert!(!ignorada("error.log.md", false, &p));
+        assert!(ignorada("ñandú/x.md", false, &p));
+        assert!(ignorada("ñ", true, &p));
+        assert!(!ignorada("nandu/x.md", false, &p));
+        assert!(ignorada("fotos/foto-2026-final.png", false, &p));
+        assert!(ignorada("foto--final.png", false, &p));
+        assert!(!ignorada("foto-2026-final.jpg", false, &p));
+        assert!(ignorada("archivo", false, &p)); // literal exacto
+        assert!(!ignorada("archivos", false, &p)); // no por prefijo
     }
 }
