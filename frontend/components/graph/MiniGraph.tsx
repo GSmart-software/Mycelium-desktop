@@ -88,6 +88,13 @@ const RECALCULO_LOCAL_K = 1;
  * recorrido eran varios por segundo).
  */
 const MAX_DIBUJADOS_K = 2;
+/**
+ * Al soltar un arrastre local: `true` = relajación global corta con energía
+ * baja, un paso por frame (la residual de la Parte E), que disipa la tensión
+ * que quedó entre activos y congelados; `false` = la física se detiene y todo
+ * queda donde se soltó.
+ */
+const RELAJAR_AL_SOLTAR = true;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
@@ -710,11 +717,17 @@ export function MiniGraph({
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
         motor?.soltar();
-        if (local) terminarLocal();
+        const eraLocal = local !== null;
+        if (eraLocal) terminarLocal();
         // Al soltar, de vuelta a la residual (Parte E): relajación corta con
         // energía baja, a un paso por frame. Antes bajaba desde 0,3 (248
         // pasos) con el worker libre. La construcción temporal sigue libre.
-        if (revealCountRef.current == null) motor?.residual(ALPHA_CACHE);
+        // Tras un arrastre local, la relajación se puede apagar
+        // (`RELAJAR_AL_SOLTAR`): la física se detiene donde quedó.
+        if (revealCountRef.current == null) {
+          if (eraLocal && !RELAJAR_AL_SOLTAR) motor?.parar();
+          else motor?.residual(ALPHA_CACHE);
+        }
       }
       dragNode = null;
       if (panning) {
