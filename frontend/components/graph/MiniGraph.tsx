@@ -13,7 +13,7 @@ import {
   limitesDe,
   siembraSustrato,
 } from "./disposiciones";
-import { ALPHA_CACHE, ALPHA_NUEVOS } from "./cicloFisica";
+import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesDe, crearEstado } from "./fisica";
 import { type MotorFisica, crearMotor } from "./motorFisica";
 import {
@@ -260,6 +260,8 @@ export function MiniGraph({
         posMicelio = siembraSustrato(g);
       }
     }
+    /** Nodos sin posición (ni caché ni siembra de micelio): los siembra el cúmulo. */
+    const sinSembrar: number[] = [];
     const sim: SimNode[] = nodes.map((n, i) => {
       const cached = saved?.[n.id];
       if (cached && n.id !== centerId && fisica) {
@@ -269,9 +271,8 @@ export function MiniGraph({
       if (posMicelio) {
         return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], i, r: radioDe(n) };
       }
-      const a = (i / Math.max(N, 1)) * Math.PI * 2;
-      const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
-      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, i, r: radioDe(n) };
+      sinSembrar.push(i); // el cúmulo lo siembra más abajo (filotaxis)
+      return { ...n, x: 0, y: 0, i, r: radioDe(n) };
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
@@ -311,6 +312,53 @@ export function MiniGraph({
     // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
     // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
     const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
+
+    // ── Siembra (`FUN-L-25` · Parte C). Los nodos sin caché que tienen algún
+    //    vecino con posición nacen junto a ellos (como en la construcción
+    //    temporal); el resto, en filotaxis alrededor del origen, con el nodo
+    //    central primero y después los de más enlaces. Antes nacían todos en un
+    //    anillo de radio 50–140 y el grafo pasaba cientos de pasos
+    //    expandiéndose a empujones. ──
+    if (sinSembrar.length > 0) {
+      const conPosicion = new Uint8Array(N).fill(1);
+      for (const i of sinSembrar) conPosicion[i] = 0;
+      const vecinosIdx: number[][] = Array.from({ length: N }, () => []);
+      for (const e of simEdges) {
+        vecinosIdx[e.s.i].push(e.t.i);
+        vecinosIdx[e.t.i].push(e.s.i);
+      }
+      const enFilotaxis: number[] = [];
+      for (const i of sinSembrar) {
+        let sx = 0;
+        let sy = 0;
+        let cuantos = 0;
+        for (const j of vecinosIdx[i]) {
+          if (!conPosicion[j]) continue;
+          sx += sim[j].x;
+          sy += sim[j].y;
+          cuantos++;
+        }
+        if (cuantos === 0 || sim[i].id === centerId) {
+          enFilotaxis.push(i);
+          continue;
+        }
+        const jitter = constantes.k / 4;
+        sim[i].x = sx / cuantos + (Math.random() - 0.5) * jitter;
+        sim[i].y = sy / cuantos + (Math.random() - 0.5) * jitter;
+      }
+      enFilotaxis.sort(
+        (a, b) =>
+          Number(sim[b].id === centerId) - Number(sim[a].id === centerId) ||
+          sim[b].conexiones - sim[a].conexiones ||
+          a - b,
+      );
+      const semilla = new Float64Array(N * 2);
+      sembrarFilotaxis(semilla, enFilotaxis, constantes.k);
+      for (const i of enFilotaxis) {
+        sim[i].x = semilla[i * 2];
+        sim[i].y = semilla[i * 2 + 1];
+      }
+    }
 
     // ── Motor de fuerzas (`fisica.ts`, `FUN-L-25` · B3): posiciones y
     //    velocidades en arrays tipados; `sim[i].x/y` es la copia que se dibuja.
