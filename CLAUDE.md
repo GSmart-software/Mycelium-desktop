@@ -312,6 +312,19 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 
 ---
 
+## Agentes auditores y sus notas de contexto
+
+En `.claude/agents/` hay cinco auditores **genéricos**, de solo lectura, que sirven en
+cualquier proyecto: `auditor-complejidad`, `auditor-eficiencia`, `auditor-codigo-muerto`,
+`auditor-robustez`, `auditor-seguridad`. Lo que saben de **este** proyecto no vive en ellos
+sino en **una nota de contexto por agente** en `.claude/docs/<nombre-del-agente>.md`
+(convención del usuario, 2026-09-27): trampas del repo, datos de prueba, defensas ya
+adoptadas, corridas anteriores y falsos positivos. Cada agente la busca al arrancar; **si no
+existe, significa que esa auditoría nunca se hizo acá o que no hubo nada especial que
+registrar**, y el agente lo dice y trabaja con sus valores por defecto. Después de cada
+corrida, el orquestador vuelca en esa nota la sección «Para tu nota de contexto» del
+informe. Para llevar los agentes a otro proyecto se copia `.claude/agents/`; las notas no.
+
 ## Cuándo NO orquestar (hazlo tú directo)
 - Cambios triviales de **una sola** versión (un typo, un ajuste de CSS): edítalo en la
   rama correspondiente sin subagente.
