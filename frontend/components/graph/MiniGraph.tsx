@@ -34,14 +34,22 @@ type SimEdge = { s: SimNode; t: SimNode };
 /**
  * Flujo animado acotado (`FUN-L-25` · B2, `DEF-109`). Por debajo de este zoom
  * los guiones no se distinguen: es el mismo umbral que ya apaga los nombres.
+ *
+ * `DEF-115`: con 0,5 y un techo de 1.500 aristas, en un vault de 3.275 aristas
+ * el flujo no aparecía nunca (casi cualquier encuadre supera el techo). Desde la
+ * Parte E el reposo solo copia capas y dibuja el flujo encima, así que el costo
+ * por frame es el del flujo solo (~17 ms con 2.500 aristas, medido en la Parte
+ * C); el umbral baja a 0,25 y el techo sube a 4.000.
  */
-const FLUJO_ZOOM_MIN = 0.5;
+const FLUJO_ZOOM_MIN = 0.25;
 /**
  * Techo de aristas visibles con flujo. Medido en `DEF-109`: con miles de
  * trazos por frame el canvas cae a un régimen decenas de veces más lento
- * (719 ms/frame a 2.000 nodos con todo a la vista). Por encima, sin guiones.
+ * (719 ms/frame a 2.000 nodos con todo a la vista), pero eso era con TODO el
+ * grafo redibujado en cada frame; con las capas del reposo, el flujo solo. Por
+ * encima del techo, sin guiones.
  */
-const FLUJO_MAX_ARISTAS = 1500;
+const FLUJO_MAX_ARISTAS = 4000;
 
 /**
  * Construcción temporal (worker libre): si un frame de dibujo en movimiento

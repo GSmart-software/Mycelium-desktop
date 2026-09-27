@@ -43,10 +43,13 @@ test("suavizar: de 0 a 1, creciente, sale rápido y se frena al final", () => {
 });
 
 test("progresoRevelado: proporcional al tiempo y acotado", () => {
-  assert.equal(R.DURACION_REVELADO_MS, 600);
+  // La duración es una decisión de producto (el usuario la subió de 600 a 1.500 ms
+  // el 2026-09-27); el test prueba la proporción, no el número.
+  const D = R.DURACION_REVELADO_MS;
+  assert.ok(D >= 600);
   assert.equal(R.progresoRevelado(0), 0);
-  assert.equal(R.progresoRevelado(300), 0.5);
-  assert.equal(R.progresoRevelado(600), 1);
+  assert.equal(R.progresoRevelado(D / 2), 0.5);
+  assert.equal(R.progresoRevelado(D), 1);
   assert.equal(R.progresoRevelado(5000), 1);
   assert.equal(R.progresoRevelado(-10), 0);
   assert.equal(R.progresoRevelado(10, 0), 1); // sin duración: revelado inmediato

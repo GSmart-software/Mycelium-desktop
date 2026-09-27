@@ -14,8 +14,11 @@
 //
 // Módulo PURO (sin DOM): la geometría y el tiempo del revelado, para los tests.
 
-/** Duración del fundido. */
-export const DURACION_REVELADO_MS = 600;
+/**
+ * Duración del fundido. Eran 600 ms; el usuario probó la Parte E en la app y
+ * pidió extenderlo porque «pasa tan rápido que uno no lo nota» (2026-09-27).
+ */
+export const DURACION_REVELADO_MS = 1500;
 /** Ancho del borde difuso, como fracción del radio que tiene que cubrir. */
 export const BANDA_NIEBLA = 0.35;
 /** Anillos del borde difuso (el disco interior, opaco, es el primero). */
