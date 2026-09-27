@@ -12,6 +12,9 @@
 //   → { tipo: "iniciar", n, pos, aristas, centro, constantes, continuo, buffers }
 //   → { tipo: "correr", alpha }            darle energía (arranque, nodos nuevos)
 //   → { tipo: "precalcular", alpha }       a ciegas hasta asentarse (Parte E)
+//   → { tipo: "residual", alpha }          energía baja, a un paso por pedido (Parte E)
+//   → { tipo: "ritmo", ritmo }             "libre" (tandas propias) o "pedido"
+//   → { tipo: "paso" }                     un paso y su publicación (ritmo "pedido")
 //   → { tipo: "parar" }
 //   → { tipo: "fijar", i, x, y, seq }      arrastre (sube `alphaObjetivo` a 0,3)
 //   → { tipo: "soltar" }
@@ -23,7 +26,12 @@
 // Precálculo a ciegas (Parte E): sin caché de posiciones, el grafo se calcula
 // ENTERO antes de dibujarse. Mientras dura, el worker no publica nada
 // intermedio —el hilo principal no tiene qué dibujar—; solo el resultado final,
-// con `asentado: true`. Después se vuelve a correr libre.
+// con `asentado: true`.
+//
+// Ritmo (Parte E): después del revelado el worker deja de correr libre y da
+// UN paso por cada pedido del hilo principal, que pide uno por frame dibujado.
+// Así cada paso se ve y ninguno se saltea: el movimiento residual y el del
+// arrastre no dan saltos. La construcción temporal sigue corriendo libre.
 //
 // Posiciones: como mucho una publicación cada 16 ms, en un `Float32Array`
 // transferido. Hay DOS buffers que van y vuelven (ping-pong): el principal
@@ -39,6 +47,7 @@ import {
   crearCiclo,
   fijar,
   precalcular,
+  residual,
   soltar,
 } from "./cicloFisica";
 import { type ConstantesFisica, crearEstado } from "./fisica";
@@ -57,12 +66,18 @@ export type MensajeAlWorker =
     }
   | { tipo: "correr"; alpha: number }
   | { tipo: "precalcular"; alpha: number }
+  | { tipo: "residual"; alpha: number }
+  | { tipo: "ritmo"; ritmo: Ritmo }
+  | { tipo: "paso" }
   | { tipo: "parar" }
   | { tipo: "fijar"; i: number; x: number; y: number; seq: number }
   | { tipo: "soltar" }
   | { tipo: "colocar"; datos: Float64Array; seq: number }
   | { tipo: "activos"; mascara: Uint8Array | null }
   | { tipo: "devolver"; buffer: Float32Array };
+
+/** Quién marca los pasos: el worker solo (`libre`) o el hilo principal, de a uno (`pedido`). */
+export type Ritmo = "libre" | "pedido";
 
 export type MensajeDelWorker = {
   tipo: "posiciones";
@@ -93,12 +108,16 @@ const RITMO_CONTINUO_MS = 16;
 let ciclo: Ciclo | null = null;
 const libres: Float32Array[] = [];
 let ultimaPublicacion = 0;
-/** El asentamiento se publica sí o sí: si no había buffer, queda pendiente. */
-let asentadoPendiente = false;
+/**
+ * Publicación que no encontró buffer y se debe igual (el asentamiento, o la
+ * respuesta a un pedido de paso): `true`/`false` = con qué `asentado`.
+ */
+let pendiente: boolean | null = null;
 let seqAplicado = 0;
 let programado = false;
 /** Precálculo a ciegas en curso: no se publica nada hasta asentarse. */
 let aCiegas = false;
+let ritmo: Ritmo = "libre";
 
 // `MessageChannel` para ceder entre tandas: `setTimeout(0)` se va a 4 ms de
 // espera tras unas cuantas vueltas anidadas; esto vuelve enseguida, después de
@@ -137,11 +156,12 @@ function bucle() {
   programado = false;
   const c = ciclo;
   if (!c || !c.corriendo) return;
+  if (ritmo === "pedido" && !aCiegas) return; // los pasos los pide el hilo principal
   const lento = !aCiegas && c.continuo && c.alpha < 0.01;
   avanzarCiclo(c, TANDA_MS, () => performance.now(), lento ? 1 : Infinity);
   if (!c.corriendo) {
     aCiegas = false;
-    if (!publicar(true)) asentadoPendiente = true;
+    if (!publicar(true)) pendiente = true;
     return;
   }
   if (!aCiegas && performance.now() - ultimaPublicacion >= PUBLICAR_MS) publicar(false);
@@ -149,8 +169,14 @@ function bucle() {
 }
 
 function arrancar() {
-  asentadoPendiente = false;
-  programar();
+  pendiente = null;
+  if (ritmo === "libre" || aCiegas) programar();
+}
+
+/** Un paso pedido por el hilo principal, y su publicación (siempre hay respuesta). */
+function pasoPedido(c: Ciclo) {
+  if (c.corriendo) avanzarCiclo(c, 0, () => performance.now(), 1);
+  if (!publicar(!c.corriendo)) pendiente = !c.corriendo;
 }
 
 ambito.onmessage = (ev) => {
@@ -163,7 +189,7 @@ ambito.onmessage = (ev) => {
   }
   if (m.tipo === "devolver") {
     if (m.buffer.length === (ciclo?.estado.n ?? 0) * 2) libres.push(m.buffer);
-    if (asentadoPendiente && publicar(true)) asentadoPendiente = false;
+    if (pendiente !== null && publicar(pendiente)) pendiente = null;
     return;
   }
   const c = ciclo;
@@ -172,6 +198,17 @@ ambito.onmessage = (ev) => {
     case "correr":
       calentar(c, m.alpha);
       arrancar();
+      break;
+    case "residual":
+      residual(c, m.alpha);
+      ritmo = "pedido";
+      break;
+    case "ritmo":
+      ritmo = m.ritmo;
+      if (c.corriendo) arrancar();
+      break;
+    case "paso":
+      pasoPedido(c);
       break;
     case "precalcular":
       precalcular(c, m.alpha);

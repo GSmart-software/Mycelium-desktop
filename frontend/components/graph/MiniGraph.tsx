@@ -701,8 +701,19 @@ export function MiniGraph({
         arrancarCorrida();
         motor.precalcular(initialAlpha);
       } else {
-        calentarMotor(initialAlpha);
+        // Con caché: se muestra ya y se retoca con la física residual, a un
+        // paso por frame dibujado (Parte E).
+        arrancarCorrida();
+        motor.residual(initialAlpha);
       }
+    }
+    /**
+     * Física residual (Parte E): energía baja y un paso por frame dibujado,
+     * sin saltos. Tras el revelado y al soltar un nodo.
+     */
+    function aResidual(alpha: number) {
+      arrancarCorrida();
+      motor?.residual(alpha);
     }
 
     /**
@@ -1338,6 +1349,8 @@ export function MiniGraph({
       fase = "vivo";
       inicioRevelado = null;
       lienzoAlDia = false;
+      // El grafo sigue apenas vivo (movimiento residual casi imperceptible).
+      if (revealCountRef.current == null) aResidual(ALPHA_CACHE);
     }
 
     // Construcción temporal: colocar los nodos
@@ -1356,12 +1369,14 @@ export function MiniGraph({
           // Solo simulan los nodos ya aparecidos, así el grafo se reacomoda
           // mientras crece (en vez de estar todo prefijado).
           motor?.activos(mascaraActivos);
+          // Mientras crece, el worker corre libre (como antes de la Parte E).
+          motor?.ritmo("libre");
           calentarMotor(ALPHA_NUEVOS);
         }
       } else if (prevRc != null) {
         // Fin de la construcción: vuelven a participar todos.
         motor?.activos(null);
-        calentarMotor(ALPHA_NUEVOS);
+        aResidual(ALPHA_NUEVOS);
       }
     };
 
@@ -1425,9 +1440,11 @@ export function MiniGraph({
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
       if (visible) {
-        // En movimiento, fidelidad reducida; la simulación continua, ya casi
-        // quieta, vuelve a la completa (si no, no se vería nunca).
-        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
+        // En movimiento, fidelidad reducida (arrastre, construcción, nodos
+        // nuevos); con la energía residual (Parte E) o la simulación continua
+        // ya casi quieta, la completa: el movimiento es apenas perceptible y
+        // los nombres no deben desaparecer y volver.
+        const casiQuieto = !dragNode && (motor?.alpha ?? 0) <= ALPHA_CACHE;
         const modo = !moviendo ? "reposo" : reducible && !casiQuieto ? "rapido" : "directo";
         if (movio && saltarDibujo && modo !== "reposo") {
           // Presupuesto adaptativo: el dibujo anterior fue lento, así que este

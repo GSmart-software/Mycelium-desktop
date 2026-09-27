@@ -103,6 +103,19 @@ export function precalcular(c: Ciclo, alpha: number) {
   calentar(c, alpha);
 }
 
+/**
+ * Física residual (Parte E): energía baja fijada en `alpha` (no se suma a la
+ * que tuviera: tras un arrastre también BAJA) con el objetivo de siempre. Es
+ * lo que corre después del revelado y al soltar un nodo, a un paso por frame
+ * dibujado (`paso` por pedido del hilo principal).
+ */
+export function residual(c: Ciclo, alpha: number) {
+  if (!c.corriendo) c.pasos = 0;
+  c.objetivo = c.continuo ? ALPHA_CONTINUO : 0;
+  c.alpha = alpha;
+  c.corriendo = true;
+}
+
 /** Un nodo que el hilo principal movió a mano (aparición): velocidad a 0. */
 export function colocarEn(c: Ciclo, i: number, x: number, y: number) {
   const e = c.estado;
