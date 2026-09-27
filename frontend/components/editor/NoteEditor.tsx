@@ -468,8 +468,8 @@ export function NoteEditor({
             // Autocierre de pares ()[]{}""''``** __ con envoltura de la selección;
             // se consulta la preferencia en cada pulsación (toggle en vivo).
             autoPairs(() => usePreferencesStore.getState().prefs.autoCloseBrackets),
-            // Corrector ortográfico del sistema (`FUN-L-12`), con lo que no es
-            // prosa —código, enlaces, fórmulas— excluido. Se lee en cada
+            // Corrector ortográfico con motor propio (`FUN-L-12`), con lo que no
+            // es prosa —código, enlaces, fórmulas— excluido. Se lee en cada
             // actualización: el interruptor de Configuración rige al instante.
             correctorOrtografico(() => usePreferencesStore.getState().prefs.correctorOrtografico),
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo

@@ -54,6 +54,12 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 # Con `rustls-no-provider` el backend criptográfico NO se autoinstala: hay que
 # fijar el proveedor por defecto del proceso antes del primer TLS propio.
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# Diccionarios del corrector ortográfico (`FUN-L-12`, src/diccionarios.rs): se
+# publican en gzip y se descomprimen mientras bajan, verificando el sha256 de
+# lo descomprimido. Las dos ya estaban en el árbol (updater, zip): no se
+# compila nada nuevo.
+flate2 = "1"
+sha2 = "0.10"
 trash = "5.2.3"
 # Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
 # la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.

@@ -1,170 +1,262 @@
 /**
- * Corrector ortográfico del editor (`FUN-L-12`).
+ * Corrector ortográfico del editor (`FUN-L-12`), con **motor propio**.
  *
- * **Usa el corrector del sistema**, no uno propio: el de WebView2 en desktop y
- * el del navegador en web. Subraya, sugiere en el clic derecho nativo y ofrece
- * «Agregar al diccionario», que guarda en el diccionario del sistema. El idioma
- * es el del sistema operativo: WebView2 no deja elegirlo desde la app. Lo
- * decidió el usuario el 2026-09-27, al ver que un motor propio —diccionarios,
- * licencias, sugerencias, idiomas elegibles— era mucho más trabajo para lo que
- * se ganaba. Ver `docs/features/corrector-ortografico.md`.
+ * Primero se usó el corrector del sistema, pero Edge/WebView2 solo revisa lo
+ * que se tipea: una nota abierta no mostraba ningún error hasta editar cada
+ * renglón (spec § H5). Ahora las palabras las revisa spellbook, en un worker
+ * (`lib/ortografia/corrector.ts`), con diccionarios Hunspell que el usuario
+ * descarga. Ver `docs/features/corrector-ortografico.md`.
  *
- * Lo que hace Mycelium son dos cosas:
+ * Lo que hace esta extensión:
  *
- *   1. **Encenderlo**: CodeMirror pone \`spellcheck="false"\` en su área editable
- *      por defecto, y por eso no había subrayados. Acá se pisa según la
- *      preferencia, que se consulta en cada actualización de la vista.
- *   2. **Excluir lo que no es texto**: el código, las URLs, los \`[[enlaces]]\`,
- *      las etiquetas, las fórmulas y el frontmatter se marcan con
- *      \`spellcheck="false"\`. Sin esto, un bloque de código o un nombre de nota
- *      se llenaría de subrayados.
+ *   1. **Apaga el del sistema** siempre (`spellcheck="false"`), para que no haya
+ *      dos subrayados.
+ *   2. **Revisa lo visible** —con un margen— ~300 ms después de escribir o de
+ *      desplazarse, y enseguida al abrir la nota: extrae las palabras, descarta
+ *      las que caen en lo que no es prosa (`rangosExcluidos`) y le pregunta al
+ *      worker solo por las únicas que el caché no conoce.
+ *   3. **Subraya** las mal escritas (`.mic-error-ortografico`).
+ *   4. **Menú propio** al hacer clic derecho sobre una marca: sugerencias,
+ *      «Agregar al diccionario del vault» e «Ignorar». Sobre cualquier otra cosa,
+ *      el menú de siempre.
  */
 import { syntaxTree } from "@codemirror/language";
-import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import { RangeSetBuilder, StateEffect, type Extension } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
   ViewPlugin,
   type DecorationSet,
+  type PluginValue,
   type ViewUpdate,
 } from "@codemirror/view";
 import { getAllViews } from "@/lib/editor/viewRegistry";
-import { formulasEnLinea } from "@/lib/editor/matematicas";
+import { rangosExcluidos } from "@/lib/editor/ortografiaExclusiones";
+import * as corrector from "@/lib/ortografia/corrector";
+import { vaultActual } from "@/lib/ortografia/diccionarios";
+import { extraerPalabras, fueraDeExcluidos, normalizarPalabra, type Palabra } from "@/lib/ortografia/palabras";
+import type { MenuItem } from "@/components/explorer/ContextMenu";
 
-/** Marca un tramo como «no corregir». */
-const noCorregir = Decoration.mark({ attributes: { spellcheck: "false" } });
-/** Lo mismo para un renglón entero (bloques de código, frontmatter). */
-const lineaSinCorregir = Decoration.line({ attributes: { spellcheck: "false" } });
+/** Espera tras escribir o desplazarse antes de revisar. */
+const ESPERA_MS = 300;
+/**
+ * Caracteres que se revisan antes y después de lo visible: desplazarse un poco
+ * no deja palabras sin marcar mientras corre la espera. Con ~5.000 palabras en
+ * 25 ms en el worker, revisar de más cuesta poco; y el caché hace que lo ya visto
+ * no vuelva a viajar.
+ */
+const MARGEN = 3000;
 
-/** Nodos del árbol de markdown que no son prosa. */
-const NODOS_SIN_CORREGIR = new Set([
-  "InlineCode",
-  "URL",
-  "Autolink",
-  "HTMLTag",
-  "HTMLBlock",
-  "CommentBlock",
-  "Comment",
-]);
-/** Bloques que se excluyen renglón por renglón. */
-const BLOQUES_SIN_CORREGIR = new Set(["FencedCode", "CodeBlock", "HTMLBlock"]);
+const marca = Decoration.mark({ class: "mic-error-ortografico" });
 
-const WIKILINK_RE = /!?\[\[[^[\]]*\]\]/g;
-const TAG_RE = /(^|[\s(])(#[\p{L}\p{N}_/-]+)/gu;
-/** Abre un bloque `$$` (sin cerrarlo en el mismo renglón), como en `matematicas.ts`. */
-const APERTURA_FORMULA_RE = /^ {0,3}\${2,}[^$]*$/;
-/** Cierra un bloque `$$`. */
-const CIERRE_FORMULA_RE = /^ {0,3}\${2,}\s*$/;
-/** Hasta cuántos renglones se busca el cierre del frontmatter. */
-const MAX_FRONTMATTER = 400;
+/** Transacción vacía que solo avisa «llegaron respuestas: redibujá». */
+const redibujar = StateEffect.define<null>();
 
-/** Los renglones del frontmatter (del `---` inicial al que lo cierra), o 0. */
-function renglonesFrontmatter(view: EditorView): number {
-  const doc = view.state.doc;
-  if (doc.line(1).text.trim() !== "---") return 0;
-  for (let n = 2; n <= Math.min(doc.lines, MAX_FRONTMATTER); n++) {
-    const t = doc.line(n).text.trim();
-    if (t === "---" || t === "...") return n;
-  }
-  return 0;
-}
-
-type Tramo = { desde: number; hasta: number; linea: boolean };
-
-function exclusiones(view: EditorView): DecorationSet {
-  const doc = view.state.doc;
-  const tramos: Tramo[] = [];
-
-  // El frontmatter: son claves y valores, no prosa. En vivo casi siempre está
-  // reemplazado por la tarjeta de propiedades, pero en crudo se ve.
-  const frontmatter = renglonesFrontmatter(view);
-  for (let n = 1; n <= frontmatter; n++) {
-    tramos.push({ desde: doc.line(n).from, hasta: doc.line(n).from, linea: true });
-  }
-
+/** Lo visible, con el margen, fundido en rangos que no se pisan. */
+function rangosARevisar(view: EditorView): { from: number; to: number }[] {
+  const largo = view.state.doc.length;
+  const rangos: { from: number; to: number }[] = [];
   for (const { from, to } of view.visibleRanges) {
-    syntaxTree(view.state).iterate({
-      from,
-      to,
-      enter(nodo) {
-        if (BLOQUES_SIN_CORREGIR.has(nodo.name)) {
-          const primera = doc.lineAt(nodo.from).number;
-          const ultima = doc.lineAt(nodo.to).number;
-          for (let n = primera; n <= ultima; n++) {
-            const l = doc.line(n);
-            tramos.push({ desde: l.from, hasta: l.from, linea: true });
-          }
-          return false;
-        }
-        if (NODOS_SIN_CORREGIR.has(nodo.name) && nodo.from < nodo.to) {
-          tramos.push({ desde: nodo.from, hasta: nodo.to, linea: false });
-          return false;
-        }
-        return undefined;
-      },
-    });
-
-    // Lo que se reconoce por renglón: enlaces, etiquetas y fórmulas. Un bloque
-    // `$$` —el cerco y todo lo que encierra— es LaTeX, no prosa. (Si el bloque
-    // empezó antes de lo visible, no se sabe: queda corregible hasta su cierre.)
-    let dentroDeFormula = false;
-    for (let pos = from; pos <= to; ) {
-      const linea = doc.lineAt(pos);
-      const texto = linea.text;
-      if (!dentroDeFormula && APERTURA_FORMULA_RE.test(texto)) {
-        tramos.push({ desde: linea.from, hasta: linea.from, linea: true });
-        dentroDeFormula = true;
-      } else if (dentroDeFormula) {
-        tramos.push({ desde: linea.from, hasta: linea.from, linea: true });
-        if (CIERRE_FORMULA_RE.test(texto)) dentroDeFormula = false;
-      } else {
-        for (const m of texto.matchAll(WIKILINK_RE)) {
-          tramos.push({ desde: linea.from + m.index, hasta: linea.from + m.index + m[0].length, linea: false });
-        }
-        for (const m of texto.matchAll(TAG_RE)) {
-          const inicio = linea.from + m.index + m[1].length;
-          tramos.push({ desde: inicio, hasta: inicio + m[2].length, linea: false });
-        }
-        for (const f of formulasEnLinea(texto)) {
-          tramos.push({ desde: linea.from + f.desde, hasta: linea.from + f.hasta, linea: false });
-        }
-      }
-      if (linea.to >= to) break;
-      pos = linea.to + 1;
-    }
+    const r = { from: Math.max(0, from - MARGEN), to: Math.min(largo, to + MARGEN) };
+    const ultimo = rangos[rangos.length - 1];
+    if (ultimo && r.from <= ultimo.to) ultimo.to = Math.max(ultimo.to, r.to);
+    else rangos.push(r);
   }
-
-  // RangeSetBuilder exige orden: por posición, y las de renglón (vacías)
-  // antes que las marcas que empiezan en el mismo lugar.
-  tramos.sort((a, b) => a.desde - b.desde || Number(b.linea) - Number(a.linea) || a.hasta - b.hasta);
-  const builder = new RangeSetBuilder<Decoration>();
-  let ultimaLinea = -1;
-  for (const t of tramos) {
-    if (t.linea) {
-      if (t.desde === ultimaLinea) continue; // el mismo renglón, dos veces
-      ultimaLinea = t.desde;
-      builder.add(t.desde, t.desde, lineaSinCorregir);
-    } else if (t.desde < t.hasta) {
-      builder.add(t.desde, t.hasta, noCorregir);
-    }
-  }
-  return builder.finish();
+  return rangos;
 }
 
-const exclusionesPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = exclusiones(view);
+/** Las palabras de lo que se revisa, sin las excluidas, con su forma normalizada. */
+function palabrasARevisar(view: EditorView): (Palabra & { clave: string })[] {
+  const rangos = rangosARevisar(view);
+  const excluidos = rangosExcluidos(view.state, rangos);
+  const doc = view.state.doc;
+  const lista: (Palabra & { clave: string })[] = [];
+  for (const { from, to } of rangos) {
+    const palabras = fueraDeExcluidos(extraerPalabras(doc.sliceString(from, to), from), excluidos);
+    for (const p of palabras) lista.push({ ...p, clave: normalizarPalabra(p.texto) });
+  }
+  return lista;
+}
+
+class Revisor implements PluginValue {
+  decorations: DecorationSet = Decoration.none;
+  private temporizador: ReturnType<typeof setTimeout> | null = null;
+  private readonly baja: () => void;
+  private encendido = false;
+  private destruido = false;
+
+  constructor(
+    private readonly view: EditorView,
+    private readonly activo: () => boolean,
+  ) {
+    // Cuando el worker contesta, o se vacía el caché (un diccionario nuevo, una
+    // palabra agregada), se vuelve a revisar enseguida: lo que falte se pide y
+    // lo que ya se sabe se dibuja.
+    this.baja = corrector.suscribir(() => this.programar(0));
+    this.sincronizar();
+  }
+
+  /** Prende o apaga según la preferencia. Devuelve si está activo. */
+  private sincronizar(): boolean {
+    const activo = this.activo();
+    if (activo && !this.encendido) {
+      this.encendido = true;
+      corrector.asegurar();
+      // Al abrir la nota, lo visible se revisa ya, sin la espera.
+      this.programar(0);
+    } else if (!activo && this.encendido) {
+      this.encendido = false;
+      this.cancelar();
+      this.decorations = Decoration.none;
+      // Apagado con el interruptor: sin worker (criterio 13). La preferencia
+      // es una para toda la ventana, así que el primer editor que se entera
+      // apaga el corrector de todos.
+      if (corrector.encendido()) corrector.apagar();
     }
-    update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) {
-        this.decorations = exclusiones(u.view);
-      }
+    return activo;
+  }
+
+  update(u: ViewUpdate) {
+    if (u.docChanged) {
+      // Una marca sobre algo que se acaba de editar se quita ya —la palabra
+      // está cambiando— y se vuelve a decidir al dejar de tipear.
+      const tocados: [number, number][] = [];
+      u.changes.iterChangedRanges((_a, _b, desde, hasta) => tocados.push([desde, hasta]));
+      this.decorations = this.decorations.map(u.changes).update({
+        filter: (from, to) => !tocados.some(([d, h]) => from <= h && to >= d),
+      });
     }
-  },
-  { decorations: (v) => v.decorations },
-);
+    if (!this.sincronizar()) return;
+    if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) {
+      this.programar(ESPERA_MS);
+    }
+  }
+
+  private cancelar() {
+    if (this.temporizador !== null) clearTimeout(this.temporizador);
+    this.temporizador = null;
+  }
+
+  private programar(ms: number) {
+    if (!this.encendido || this.destruido) return;
+    this.cancelar();
+    this.temporizador = setTimeout(() => {
+      this.temporizador = null;
+      void this.revisar();
+    }, ms);
+  }
+
+  private async revisar() {
+    if (!this.encendido || this.destruido) return;
+    const doc = this.view.state.doc;
+    const palabras = palabrasARevisar(this.view);
+    const faltan = corrector.pendientes(palabras.map((p) => p.clave));
+    if (faltan.length > 0) {
+      // La respuesta llega por `suscribir` si se guardó; si el corrector se
+      // recargó mientras tanto, también avisa. En los dos casos se vuelve a
+      // entrar acá y ya no falta nada.
+      if (await corrector.revisar(faltan)) this.programar(0);
+      return;
+    }
+    // Si el documento cambió mientras tanto, las posiciones ya no valen: la
+    // edición ya programó otra revisión.
+    if (this.destruido || this.view.state.doc !== doc) return;
+    const builder = new RangeSetBuilder<Decoration>();
+    for (const p of palabras) {
+      if (corrector.consultar(p.clave) === false) builder.add(p.desde, p.hasta, marca);
+    }
+    const nuevas = builder.finish();
+    if (mismasMarcas(nuevas, this.decorations)) return;
+    this.decorations = nuevas;
+    this.view.dispatch({ effects: redibujar.of(null) });
+  }
+
+  destroy() {
+    this.destruido = true;
+    this.cancelar();
+    this.baja();
+  }
+
+  /** La palabra marcada en `pos`, si hay una. */
+  marcaEn(pos: number): { desde: number; hasta: number } | null {
+    let hallada: { desde: number; hasta: number } | null = null;
+    this.decorations.between(pos, pos, (from, to) => {
+      hallada = { desde: from, hasta: to };
+      return false;
+    });
+    return hallada;
+  }
+}
+
+function mismasMarcas(a: DecorationSet, b: DecorationSet): boolean {
+  if (a.size !== b.size) return false;
+  const ia = a.iter();
+  const ib = b.iter();
+  while (ia.value && ib.value) {
+    if (ia.from !== ib.from || ia.to !== ib.to) return false;
+    ia.next();
+    ib.next();
+  }
+  return !ia.value && !ib.value;
+}
+
+/** El menú del clic derecho sobre una palabra marcada. */
+async function abrirMenu(view: EditorView, desde: number, hasta: number, x: number, y: number) {
+  const palabra = view.state.doc.sliceString(desde, hasta);
+  const sugerencias = await corrector.sugerir(palabra);
+  const hayVault = vaultActual() !== null;
+  const items: MenuItem[] = [
+    ...(sugerencias.length > 0
+      ? sugerencias.map((s) => ({
+          label: s,
+          onClick: () => {
+            // Solo si la palabra sigue ahí: entre el clic y la elección el
+            // documento pudo cambiar.
+            if (view.state.doc.sliceString(desde, hasta) !== palabra) return;
+            view.dispatch({ changes: { from: desde, to: hasta, insert: s }, userEvent: "input.corrector" });
+            view.focus();
+          },
+        }))
+      : [{ label: "Sin sugerencias", disabled: true }]),
+    {
+      label: "Agregar al diccionario del vault",
+      disabled: !hayVault,
+      title: hayVault
+        ? "Deja de marcarla en todas las notas de este vault"
+        : "Abrí un vault para tener un diccionario propio",
+      onClick: () => {
+        corrector.agregarAlVault(palabra).catch((e) => {
+          console.error("[Mycelium] corrector · no se pudo guardar la palabra", e);
+        });
+      },
+    },
+    {
+      label: "Ignorar",
+      title: "No la marca más hasta cerrar la app",
+      onClick: () => corrector.ignorar(palabra),
+    },
+  ];
+  const { abrirMenuOrtografia } = await import("@/components/editor/MenuOrtografia");
+  abrirMenuOrtografia(x, y, items);
+}
+
+function crearPlugin(activo: () => boolean) {
+  const plugin = ViewPlugin.define((view) => new Revisor(view, activo), {
+    decorations: (v) => v.decorations,
+    eventHandlers: {
+      contextmenu(e: MouseEvent, view: EditorView) {
+        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
+        if (pos === null) return false;
+        const hallada = this.marcaEn(pos);
+        if (!hallada) return false; // el menú de siempre
+        e.preventDefault();
+        void abrirMenu(view, hallada.desde, hallada.hasta, e.clientX, e.clientY);
+        return true;
+      },
+    },
+  });
+  return plugin;
+}
 
 /**
  * El corrector, encendido o apagado según `activo()`, que se lee en cada
@@ -174,12 +266,17 @@ const exclusionesPlugin = ViewPlugin.fromClass(
  */
 export function correctorOrtografico(activo: () => boolean): Extension {
   return [
-    EditorView.contentAttributes.of(() => ({ spellcheck: activo() ? "true" : "false" })),
-    exclusionesPlugin,
+    // El del sistema, apagado siempre: el subrayado es el propio.
+    EditorView.contentAttributes.of({ spellcheck: "false" }),
+    crearPlugin(activo),
   ];
 }
 
-/** Aplica ya un cambio de la preferencia a todos los editores abiertos. */
-export function refrescarCorrector(): void {
+/**
+ * Aplica ya un cambio de la preferencia a todos los editores abiertos. Al
+ * apagarla, además, termina el worker.
+ */
+export function refrescarCorrector(activo: boolean): void {
+  if (!activo) corrector.apagar();
   for (const view of getAllViews()) view.dispatch({});
 }

@@ -41,11 +41,15 @@ const DIR: &str = ".mycelium";
 /// - `papelera.json`: el registro de la papelera (`DEF-107`); el índice lo
 ///   copia en la tabla `papelera`, pero la verdad es el archivo.
 /// - `recordatorios.json`: el calendario del vault (`FUN-L-22`).
+/// - `diccionario.txt`: el diccionario personal del corrector ortográfico
+///   (`FUN-L-12`), una palabra por renglón. Es del vault y viaja con él:
+///   «Agregar al diccionario» en un vault no afecta a los demás.
 const ESTADOS: &[&str] = &[
     "preferencias.json",
     "snippets.json",
     "papelera.json",
     "recordatorios.json",
+    "diccionario.txt",
 ];
 
 /// Archivos de estado de versiones anteriores que solo se **leen y borran** una
@@ -178,6 +182,23 @@ mod tests {
         escribir(&v, "recordatorios.json", r#"{"version":1}"#).unwrap();
         assert!(Path::new(&v).join(DIR).join("recordatorios.json").is_file());
         assert_eq!(leer(&v, "recordatorios.json").as_deref(), Some(r#"{"version":1}"#));
+    }
+
+    #[test]
+    fn el_diccionario_del_vault_es_un_estado_valido() {
+        // «Agregar al diccionario del vault» (`FUN-L-12`) escribe acá: sin el
+        // nombre en la lista, la palabra se perdería al cerrar la app.
+        let v = vault_temporal("diccionario");
+        assert_eq!(leer(&v, "diccionario.txt"), None);
+        escribir(&v, "diccionario.txt", "Mycelium
+vault
+").unwrap();
+        assert!(Path::new(&v).join(DIR).join("diccionario.txt").is_file());
+        assert_eq!(leer(&v, "diccionario.txt").as_deref(), Some("Mycelium
+vault
+"));
+        // Y no se puede borrar desde la webview: quitar palabras es reescribirlo.
+        assert!(borrar_estado_vault(v, "diccionario.txt".into()).is_err());
     }
 
     #[test]

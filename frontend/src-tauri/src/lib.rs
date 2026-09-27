@@ -4,6 +4,7 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod diccionarios;
 mod marco;
 mod mycignore;
 mod navegacion;
@@ -163,6 +164,8 @@ pub fn run() {
         .manage(vault_watch::WatcherState::default())
         .manage(terminal::TerminalesState::default())
         .manage(actualizador::DescargaState::default())
+        // Descargas de diccionarios del corrector en curso (`FUN-L-12`).
+        .manage(diccionarios::DescargasState::default())
         .manage(ventanas::VentanasState::default())
         // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
         // watcher, sus terminales y el vault que tenía abierto. Sin esto el vault
@@ -203,6 +206,14 @@ pub fn run() {
             prefs_vault::leer_estado_vault,
             prefs_vault::escribir_estado_vault,
             prefs_vault::borrar_estado_vault,
+            diccionarios::diccionarios_manifiesto,
+            diccionarios::diccionarios_listar,
+            diccionarios::diccionarios_descargar,
+            diccionarios::diccionarios_cancelar,
+            diccionarios::diccionarios_borrar,
+            diccionarios::diccionarios_leer,
+            diccionarios::diccionarios_config_leer,
+            diccionarios::diccionarios_config_escribir,
             recordatorios::notificar_recordatorio,
             vault_config::listar_vaults,
             vault_config::vincular_vault,
