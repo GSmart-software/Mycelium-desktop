@@ -152,7 +152,17 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
  * `margin: 0` para que el navegador NO dibuje su encabezado/pie de fecha/título).
  */
 export function buildPrintCss(o: PdfPrintOpts): string {
-  const partes: string[] = [o.estilosMycelium ? PRINT_CSS : PRINT_CSS_MINIMO];
+  const partes: string[] = [
+    // Imprimir los colores TAL CUAL (`DEF-116`). Sin esto, Chromium —el motor de
+    // la ventana de Mycelium— imprime en modo ahorro: no dibuja ningún fondo y
+    // oscurece los colores claros del texto. Así ninguna opción de estilo se
+    // veía en el PDF: el fondo del tema, la caja de los callouts, el bloque de
+    // código y los colores de acento salían en blanco y negro. Las opciones de
+    // `DEF-024` dependían en silencio de que el usuario tildara «Gráficos de
+    // fondo» en el diálogo de impresión.
+    "html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }",
+    o.estilosMycelium ? PRINT_CSS : PRINT_CSS_MINIMO,
+  ];
   // Los márgenes los da `@page { margin }` (márgenes por página); no se añade
   // padding al contenido (ver nota en `export.ts` sobre el encabezado del navegador).
 
