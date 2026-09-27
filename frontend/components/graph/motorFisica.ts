@@ -12,6 +12,8 @@
 //   fijar/soltar    → arrastre de un nodo (sube la energía mientras dura)
 //   colocar()       → el hilo principal movió un nodo a mano (aparición)
 //   activos()       → qué nodos participan (construcción temporal)
+//   moviles()       → arrastre local (Parte F): solo esos se integran; el
+//                     resto queda congelado, pero sigue empujando y tirando
 //   avanzar()       → en el hilo principal, los pasos de este frame (6 ms);
 //                     con el worker no hace nada: el worker corre solo
 //   tomar()         → posiciones nuevas desde la última vez (o `null`)
@@ -53,6 +55,8 @@ export type MotorFisica = {
   soltar(): void;
   colocar(i: number, x: number, y: number): void;
   activos(mascara: Uint8Array | null): void;
+  /** Arrastre local: qué nodos se integran (`null` = todos). Se copia al enviarla. */
+  moviles(mascara: Uint8Array | null): void;
   avanzar(): void;
   tomar(): ArrayLike<number> | null;
   cerrar(): void;
@@ -130,6 +134,9 @@ function motorLocal(
     },
     activos(mascara) {
       estado.activos = mascara;
+    },
+    moviles(mascara) {
+      estado.moviles = mascara;
     },
     avanzar() {
       if (!ciclo.corriendo) return;
@@ -297,6 +304,11 @@ export function crearMotor(
       estado.activos = mascara;
       if (local) return;
       enviar({ tipo: "activos", mascara: mascara ? mascara.slice() : null });
+    },
+    moviles(mascara) {
+      estado.moviles = mascara; // el respaldo, si el worker cae, sigue igual
+      if (local) return;
+      enviar({ tipo: "moviles", mascara: mascara ? mascara.slice() : null });
     },
     avanzar() {
       if (local) return local.avanzar();
