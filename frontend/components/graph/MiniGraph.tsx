@@ -53,6 +53,18 @@ const spriteCache = new Map<SpriteKey, HTMLCanvasElement>();
 /** Techo del caché: el zoom continuo genera radios nuevos; evita crecer sin fin. */
 const SPRITE_CACHE_MAX = 400;
 
+/**
+ * Flujo animado acotado (`FUN-L-25` · B2, `DEF-109`). Por debajo de este zoom
+ * los guiones no se distinguen: es el mismo umbral que ya apaga los nombres.
+ */
+const FLUJO_ZOOM_MIN = 0.5;
+/**
+ * Techo de aristas visibles con flujo. Medido en `DEF-109`: con miles de
+ * trazos por frame el canvas cae a un régimen decenas de veces más lento
+ * (719 ms/frame a 2.000 nodos con todo a la vista). Por encima, sin guiones.
+ */
+const FLUJO_MAX_ARISTAS = 1500;
+
 function nodeSprite(
   fill: string,
   shadow: string,
@@ -740,7 +752,12 @@ export function MiniGraph({
           nctx.fill();
         }
       }
-      conFlujo = showFlow && nFlujo > 0;
+      // Flujo acotado (`FUN-L-25` · B2): alejado o con demasiadas aristas a la
+      // vista, solo queda el trazo base (y la flecha, si la opción la pide). La
+      // opción no cambia de valor: el flujo vuelve en cuanto el zoom o el
+      // recorte lo permiten.
+      conFlujo =
+        showFlow && nFlujo > 0 && scale >= FLUJO_ZOOM_MIN && nFlujo <= FLUJO_MAX_ARISTAS;
 
       // Nodos: se dibujan como SPRITE cacheado (círculo + glow ya rasterizados) en
       // vez de aplicar `shadowBlur` en cada `fill()`. El sprite se genera a la
