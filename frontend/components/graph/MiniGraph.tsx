@@ -13,6 +13,7 @@ import {
   limitesDe,
   siembraSustrato,
 } from "./disposiciones";
+import { type EstadoFisica, constantesDe, crearEstado, enfriar, paso } from "./fisica";
 import {
   type Camara,
   type EscenaMicelio,
@@ -34,8 +35,12 @@ export type GraphNode = {
 };
 export type GraphEdge = { source: string; target: string };
 
-/** `r` = radio del nodo, precalculado (depende solo de `conexiones` y del centro). */
-type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number; r: number };
+/**
+ * `r` = radio del nodo, precalculado (depende solo de `conexiones` y del centro).
+ * `i` = su índice en los arrays del motor de fuerzas (`fisica.ts`), que son los
+ * que tienen la posición y la velocidad de verdad; `x`/`y` son la copia que dibuja.
+ */
+type SimNode = GraphNode & { x: number; y: number; i: number; r: number };
 type SimEdge = { s: SimNode; t: SimNode };
 
 /**
@@ -257,14 +262,14 @@ export function MiniGraph({
       const cached = saved?.[n.id];
       if (cached && n.id !== centerId && fisica) {
         savedCount++;
-        return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0, r: radioDe(n) };
+        return { ...n, x: cached.x, y: cached.y, i, r: radioDe(n) };
       }
       if (posMicelio) {
-        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], vx: 0, vy: 0, r: radioDe(n) };
+        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], i, r: radioDe(n) };
       }
       const a = (i / Math.max(N, 1)) * Math.PI * 2;
       const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
-      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, r: radioDe(n) };
+      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, i, r: radioDe(n) };
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
@@ -299,6 +304,27 @@ export function MiniGraph({
       if (s && t) simEdges.push({ s, t });
     }
 
+    // ── Motor de fuerzas (`fisica.ts`, `FUN-L-25` · B3): posiciones y
+    //    velocidades en arrays tipados; `sim[i].x/y` es la copia que se dibuja.
+    //    Lo que el hilo principal mueve a mano (arrastre, nodos que aparecen)
+    //    pasa por `colocar`, que actualiza las dos. ──
+    const estado: EstadoFisica = crearEstado(
+      N,
+      Float64Array.from({ length: N * 2 }, (_, j) => (j & 1 ? sim[j >> 1].y : sim[j >> 1].x)),
+      Int32Array.from(simEdges.flatMap((e) => [e.s.i, e.t.i])),
+      centerId ? sim.findIndex((n) => n.id === centerId) : -1,
+    );
+    /** Nodos que ya participan en la construcción temporal (espejo de `activated`). */
+    const mascaraActivos = new Uint8Array(N);
+    const colocar = (n: SimNode, x: number, y: number) => {
+      n.x = x;
+      n.y = y;
+      estado.pos[n.i * 2] = x;
+      estado.pos[n.i * 2 + 1] = y;
+      estado.vel[n.i * 2] = 0;
+      estado.vel[n.i * 2 + 1] = 0;
+    };
+
     // ── Construcción temporal: el grafo CRECE. Solo los nodos ya "aparecidos"
     //    participan en la simulación; al aparecer, cada nodo se coloca cerca de
     //    sus vecinos ya presentes y el layout se readapta (estilo Obsidian). ──
@@ -327,17 +353,18 @@ export function MiniGraph({
           sx += m.x;
           sy += m.y;
         }
-        n.x = sx / nbrs.length + (Math.random() - 0.5) * 24;
-        n.y = sy / nbrs.length + (Math.random() - 0.5) * 24;
+        colocar(
+          n,
+          sx / nbrs.length + (Math.random() - 0.5) * 24,
+          sy / nbrs.length + (Math.random() - 0.5) * 24,
+        );
       } else {
         const ang = Math.random() * Math.PI * 2;
         const rad = 16 + Math.random() * 28;
-        n.x = Math.cos(ang) * rad;
-        n.y = Math.sin(ang) * rad;
+        colocar(n, Math.cos(ang) * rad, Math.sin(ang) * rad);
       }
-      n.vx = 0;
-      n.vy = 0;
       activated.add(n.id);
+      mascaraActivos[n.i] = 1;
     };
     let prevRc: number | null = null;
 
@@ -510,10 +537,7 @@ export function MiniGraph({
     const onMouseMove = (ev: MouseEvent) => {
       if (dragNode) {
         const p = toWorld(ev);
-        dragNode.x = p.x;
-        dragNode.y = p.y;
-        dragNode.vx = 0;
-        dragNode.vy = 0;
+        colocar(dragNode, p.x, p.y);
         alpha = Math.max(alpha, 0.4);
         wake();
       } else if (panning) {
@@ -569,61 +593,25 @@ export function MiniGraph({
     // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
     // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
     // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
-    const k = disposicion === "sustrato" ? 45 : 80;
-    const topeRepulsion = disposicion === "sustrato" ? 6 : 8;
-    const factorRepulsion = disposicion === "sustrato" ? 0.7 : 1;
+    const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
 
+    /**
+     * Un paso de la simulación (`fisica.ts`: Barnes-Hut en vez de todos los
+     * pares, mismas fuerzas) y copia de las posiciones para el dibujo.
+     */
     const simulate = () => {
       // En construcción temporal solo simulan los nodos ya aparecidos, así el
       // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
-      const tl = revealCountRef.current != null;
-      const active = tl ? sim.filter((n) => activated.has(n.id)) : sim;
-      for (let i = 0; i < active.length; i++) {
-        const a = active[i];
-        for (let j = i + 1; j < active.length; j++) {
-          const b = active[j];
-          let dx = a.x - b.x;
-          let dy = a.y - b.y;
-          let d2 = dx * dx + dy * dy;
-          if (d2 < 1) {
-            dx = Math.random() - 0.5;
-            dy = Math.random() - 0.5;
-            d2 = 1;
-          }
-          const d = Math.sqrt(d2);
-          const f = Math.min((k * k) / d2, topeRepulsion) * factorRepulsion * alpha;
-          a.vx += (dx / d) * f;
-          a.vy += (dy / d) * f;
-          b.vx -= (dx / d) * f;
-          b.vy -= (dy / d) * f;
-        }
+      estado.activos = revealCountRef.current != null ? mascaraActivos : null;
+      estado.fijo = dragNode ? dragNode.i : -1;
+      paso(estado, constantes, alpha);
+      const pos = estado.pos;
+      for (const n of sim) {
+        if (n === dragNode) continue; // manda el ratón
+        n.x = pos[n.i * 2];
+        n.y = pos[n.i * 2 + 1];
       }
-      for (const e of simEdges) {
-        if (tl && (!activated.has(e.s.id) || !activated.has(e.t.id))) continue;
-        const dx = e.t.x - e.s.x;
-        const dy = e.t.y - e.s.y;
-        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1); // sqrt < hypot en bucles
-        const f = ((d - k) / d) * 0.02 * alpha * 10;
-        e.s.vx += dx * f * 0.05;
-        e.s.vy += dy * f * 0.05;
-        e.t.vx -= dx * f * 0.05;
-        e.t.vy -= dy * f * 0.05;
-      }
-      for (const n of active) {
-        n.vx -= n.x * 0.004 * alpha;
-        n.vy -= n.y * 0.004 * alpha;
-        if (n === dragNode) continue;
-        // El nodo central tira hacia el origen para quedar al medio.
-        if (n.id === centerId) {
-          n.vx -= n.x * 0.05;
-          n.vy -= n.y * 0.05;
-        }
-        n.vx *= 0.85;
-        n.vy *= 0.85;
-        n.x += n.vx;
-        n.y += n.vy;
-      }
-      alpha = Math.max(alpha * 0.995, 0.02);
+      alpha = enfriar(alpha);
     };
 
     // ── Cúmulo con capa estática y reposo real (`FUN-L-25` · B1, `DEF-109`).
@@ -859,7 +847,11 @@ export function MiniGraph({
     // se reacomode al crecer.
     const avanzarConstruccion = (rc: number | null | undefined) => {
       if (rc != null) {
-        if (prevRc == null) activated.clear(); // (re)inicio: crecer desde cero
+        if (prevRc == null) {
+          // (re)inicio: crecer desde cero
+          activated.clear();
+          mascaraActivos.fill(0);
+        }
         const target = Math.min(rc, orderedSim.length);
         while (activated.size < target) placeNew(orderedSim[activated.size]);
         if (rc !== prevRc) alpha = Math.max(alpha, 0.6);
