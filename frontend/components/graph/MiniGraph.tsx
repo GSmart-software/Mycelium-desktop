@@ -591,6 +591,7 @@ export function MiniGraph({
         if (fisica) {
           dragNode = n;
           // El motor sube la energía mientras dure (`alphaObjetivo` 0,3).
+          arrancarCorrida();
           motor?.fijar(n.i, n.x, n.y);
         } else {
           clickNode = n;
@@ -631,7 +632,10 @@ export function MiniGraph({
         downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4;
       const pulsado = dragNode ?? clickNode;
       if (pulsado && !moved) onOpenRef.current(pulsado.id);
-      if (dragNode) motor?.soltar();
+      if (dragNode) {
+        inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
+        motor?.soltar();
+      }
       dragNode = null;
       clickNode = null;
       panning = false;
@@ -662,18 +666,36 @@ export function MiniGraph({
     // La física, en un worker si se puede (`motorFisica.ts`); si no, acá mismo.
     // Con el worker corre libre (Parte C): el hilo principal dibuja lo último
     // que llegó y el motor avisa cuando el grafo se asienta.
+    // Solo el grafo global (sin nodo central) lo cuenta en la consola: el
+    // mini-grafo del panel se reconstruye con cada nota que se abre.
+    const informar = fisica && centerId === null;
+    let inicioCorrida = performance.now();
     if (fisica) {
       motor = crearMotor(estado, constantes, {
         continuo: continuousSim,
         alRecibir: () => wake(),
-        alAsentar: () => {
+        alAsentar: (pasos) => {
+          if (informar) {
+            const seg = (performance.now() - inicioCorrida) / 1000;
+            console.info(`grafo: asentado en ${seg.toFixed(1)} s, ${pasos} pasos`);
+          }
           // El primer frame quieto se pinta a fidelidad completa.
           ensuciar();
           wake();
         },
       });
+      if (informar) {
+        console.info(
+          `grafo: física en ${motor.enWorker ? "worker" : "hilo principal"}, ${N} nodos, ${simEdges.length} aristas`,
+        );
+      }
+    }
+    /** Un arranque nuevo (el grafo estaba quieto): desde acá se cuenta el asentamiento. */
+    function arrancarCorrida() {
+      if (motor && !motor.corriendo) inicioCorrida = performance.now();
     }
     function calentarMotor(a: number) {
+      arrancarCorrida();
       motor?.correr(a);
     }
     if (revealCountRef.current == null) calentarMotor(initialAlpha);
