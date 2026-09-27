@@ -13,7 +13,8 @@ import {
   limitesDe,
   siembraSustrato,
 } from "./disposiciones";
-import { type EstadoFisica, constantesDe, crearEstado, enfriar, paso } from "./fisica";
+import { type EstadoFisica, constantesDe, crearEstado, enfriar } from "./fisica";
+import { type MotorFisica, crearMotor } from "./motorFisica";
 import {
   type Camara,
   type EscenaMicelio,
@@ -307,7 +308,9 @@ export function MiniGraph({
     // ── Motor de fuerzas (`fisica.ts`, `FUN-L-25` · B3): posiciones y
     //    velocidades en arrays tipados; `sim[i].x/y` es la copia que se dibuja.
     //    Lo que el hilo principal mueve a mano (arrastre, nodos que aparecen)
-    //    pasa por `colocar`, que actualiza las dos. ──
+    //    pasa por `colocar`, que actualiza las dos y avisa al motor (que puede
+    //    estar en un worker, `B4`: se crea más abajo, con las constantes). ──
+    let motor: MotorFisica | null = null;
     const estado: EstadoFisica = crearEstado(
       N,
       Float64Array.from({ length: N * 2 }, (_, j) => (j & 1 ? sim[j >> 1].y : sim[j >> 1].x)),
@@ -323,6 +326,7 @@ export function MiniGraph({
       estado.pos[n.i * 2 + 1] = y;
       estado.vel[n.i * 2] = 0;
       estado.vel[n.i * 2 + 1] = 0;
+      motor?.colocar(n.i, x, y);
     };
 
     // ── Construcción temporal: el grafo CRECE. Solo los nodos ya "aparecidos"
@@ -538,6 +542,7 @@ export function MiniGraph({
       if (dragNode) {
         const p = toWorld(ev);
         colocar(dragNode, p.x, p.y);
+        ensuciar(); // con el worker, el paso siguiente puede no llegar en este frame
         alpha = Math.max(alpha, 0.4);
         wake();
       } else if (panning) {
@@ -594,24 +599,33 @@ export function MiniGraph({
     // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
     // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
     const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
+    // La física, en un worker si se puede (`motorFisica.ts`); si no, acá mismo.
+    // Cuando llegan posiciones con el bucle detenido, lo despierta para verlas.
+    if (fisica) motor = crearMotor(estado, constantes, () => wake());
 
     /**
-     * Un paso de la simulación (`fisica.ts`: Barnes-Hut en vez de todos los
-     * pares, mismas fuerzas) y copia de las posiciones para el dibujo.
+     * Aplica las posiciones nuevas del motor (si llegaron) y, si la simulación
+     * está activa, pide el paso siguiente (`fisica.ts`: Barnes-Hut en vez de
+     * todos los pares, mismas fuerzas). Devuelve si los nodos se movieron.
      */
-    const simulate = () => {
-      // En construcción temporal solo simulan los nodos ya aparecidos, así el
-      // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
-      estado.activos = revealCountRef.current != null ? mascaraActivos : null;
-      estado.fijo = dragNode ? dragNode.i : -1;
-      paso(estado, constantes, alpha);
-      const pos = estado.pos;
+    const simulate = (activa: boolean): boolean => {
+      if (!motor) return false;
+      if (activa) {
+        // En construcción temporal solo simulan los nodos ya aparecidos, así el
+        // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
+        const activos = revealCountRef.current != null ? mascaraActivos : null;
+        // Con el worker, si el paso anterior sigue en vuelo no se encarga otro
+        // (ni se enfría): la energía baja un escalón por paso dado, como antes.
+        if (motor.avanzar(alpha, dragNode ? dragNode.i : -1, activos)) alpha = enfriar(alpha);
+      }
+      const pos = motor.tomar();
+      if (!pos) return false;
       for (const n of sim) {
         if (n === dragNode) continue; // manda el ratón
         n.x = pos[n.i * 2];
         n.y = pos[n.i * 2 + 1];
       }
-      alpha = enfriar(alpha);
+      return true;
     };
 
     // ── Cúmulo con capa estática y reposo real (`FUN-L-25` · B1, `DEF-109`).
@@ -984,8 +998,7 @@ export function MiniGraph({
         const interacting = !!dragNode || panning;
         if (interacting || alpha > REST) lastEnergetic = ahora;
         activo = continuousSim || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (activo) {
-          simulate();
+        if (simulate(activo)) {
           sincronizarPos();
           ensuciar();
         }
@@ -1011,10 +1024,9 @@ export function MiniGraph({
       // detiene. Con `continuousSim` el bloqueo está desactivado: nunca para.
       const idle = !continuousSim && now - lastEnergetic > IDLE_GRACE_MS;
       const active = !idle;
-      if (active) {
-        simulate();
-        ensuciar(); // los nodos se movieron: la capa estática ya no vale
-      }
+      // Los nodos se movieron (paso local, o respuesta del worker que llegó,
+      // incluso con el bucle ya en reposo): la capa estática ya no vale.
+      if (simulate(active)) ensuciar();
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
@@ -1036,6 +1048,7 @@ export function MiniGraph({
       observador.disconnect();
       if (wakeRef.current === despertar) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
+      motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
       // Solo vale para las disposiciones con física: el anillo y el crecimiento
