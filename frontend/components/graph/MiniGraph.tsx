@@ -77,6 +77,9 @@ const PRESUPUESTO_DIBUJO_MS = 12;
 /** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
 const HUBS_CON_NOMBRE = 24;
 
+/** Sustrato en movimiento: la capa se repinta como mucho a ~30 fps. */
+const INTERVALO_SUSTRATO_MS = 33;
+
 function nodeSprite(
   fill: string,
   shadow: string,
@@ -477,6 +480,8 @@ export function MiniGraph({
     const ensuciar = () => {
       sucioEstatico = true;
     };
+    /** Posiciones que el ratón movió a mano (arrastre): van con el próximo lote. */
+    let movidoAMano = false;
     // Sin vista cacheada, la disposición micelio se encuadra en cuanto el lienzo
     // tenga tamaño (la primera vez que se elige; después recuerda su vista).
     let encuadrePendiente = micelio && !v0;
@@ -607,7 +612,10 @@ export function MiniGraph({
         dragNode.x = p.x;
         dragNode.y = p.y;
         motor?.fijar(dragNode.i, p.x, p.y);
-        ensuciar(); // con el worker, las posiciones siguientes pueden no llegar en este frame
+        // Con el worker, las posiciones siguientes pueden no llegar en este
+        // frame: el nodo arrastrado va con el próximo lote que se pinte (con
+        // el mismo presupuesto que las posiciones del motor).
+        movidoAMano = true;
         wake();
       } else if (panning) {
         ox += ev.movementX;
@@ -1249,6 +1257,10 @@ export function MiniGraph({
     const sctx = estatico.getContext("2d");
     /** Sustrato: lo último de la capa estática se pintó con fidelidad de movimiento. */
     let capaRapida = false;
+    /** Sustrato: llegaron posiciones que la capa todavía no muestra. */
+    let posNuevas = false;
+    /** Sustrato en movimiento: cuándo se repintó la capa por última vez. */
+    let ultimoRepintado = -Infinity;
     /**
      * Fidelidad de movimiento mientras el grafo se mueve (Partes C y D): solo
      * en grafos grandes. En el mini-grafo del panel el asentamiento dura unos
@@ -1350,6 +1362,7 @@ export function MiniGraph({
       // La capa estática solo se repinta si algo la ensució; queda sucia
       // mientras alguna hifa siga creciendo.
       if (sucioEstatico) {
+        if (fisica) sincronizarPos();
         escena.rapido = rapido;
         sucioEstatico = dibujarCapaEstatica(sctx, escena, cam, paleta, ahora);
         capaRapida = rapido;
@@ -1385,24 +1398,47 @@ export function MiniGraph({
         const moviendo = !!dragNode || !!motor?.corriendo;
         if (interacting || moviendo) lastEnergetic = ahora;
         activo = moviendo || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (simulate()) {
-          sincronizarPos();
-          ensuciar();
-        }
+        if (simulate() || movidoAMano) posNuevas = true;
+        movidoAMano = false;
         // En movimiento, fidelidad de movimiento (Parte D); la simulación
         // continua, ya casi quieta, vuelve a la completa (si no, no se vería).
         const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
         rapido = moviendo && reducible && !casiQuieto;
+        if (posNuevas) {
+          if (!rapido) {
+            ensuciar();
+          } else if (ahora - ultimoRepintado >= INTERVALO_SUSTRATO_MS) {
+            // Repintado acotado (Parte D): como mucho ~30 fps, y si el último
+            // pasó el presupuesto este lote se salta (la física no se entera:
+            // sigue en el worker). Entre repintados el hilo principal no dibuja.
+            if (saltarDibujo) {
+              saltarDibujo = false;
+              ultimoRepintado = ahora;
+            } else {
+              ensuciar();
+            }
+          }
+        }
         // Lo último se pintó en movimiento y ya no se mueve: fidelidad completa.
         if (capaRapida && !rapido) ensuciar();
       }
-      if (visible) dibujarMicelio(ahora, rapido);
+      if (visible) {
+        const repinta = sucioEstatico;
+        const t0 = performance.now();
+        dibujarMicelio(ahora, rapido);
+        if (repinta) {
+          posNuevas = false;
+          if (rapido) {
+            ultimoRepintado = ahora;
+            saltarDibujo = performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
+          }
+        }
+      }
       // Sin física activa ni hifas creciendo no hay frame siguiente: en reposo
       // no corre `requestAnimationFrame`; la capa estática se queda como está
       // hasta la próxima interacción.
-      if (activo || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
+      if (activo || posNuevas || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
     };
-
 
     const tick = () => {
       frame = 0;
@@ -1420,9 +1456,11 @@ export function MiniGraph({
       // período de gracia, se detiene. Con `continuousSim` el motor no se
       // asienta nunca: nunca para.
       const active = moviendo || now - lastEnergetic <= IDLE_GRACE_MS;
-      // Los nodos se movieron (pasos locales, o posiciones del worker que
-      // llegaron, incluso con el bucle ya en reposo): la capa ya no vale.
-      const movio = simulate();
+      // Los nodos se movieron (pasos locales, posiciones del worker que
+      // llegaron —incluso con el bucle ya en reposo— o el nodo arrastrado): la
+      // capa ya no vale.
+      const movio = simulate() || movidoAMano;
+      movidoAMano = false;
       if (movio) ensuciar();
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
