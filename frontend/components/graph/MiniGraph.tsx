@@ -755,9 +755,9 @@ export function MiniGraph({
      * principal, antes da los pasos de este frame). Devuelve si los nodos se
      * movieron.
      */
-    const simulate = (): boolean => {
+    /** Aplica las posiciones que el motor ya tenga listas, sin pedirle un paso. */
+    const aplicarPosiciones = (): boolean => {
       if (!motor) return false;
-      motor.avanzar();
       const pos = motor.tomar();
       if (!pos) return false;
       for (const n of sim) {
@@ -766,6 +766,11 @@ export function MiniGraph({
         n.y = pos[n.i * 2 + 1];
       }
       return true;
+    };
+    const simulate = (): boolean => {
+      if (!motor) return false;
+      motor.avanzar();
+      return aplicarPosiciones();
     };
 
     // ── Cúmulo con capa estática y reposo real (`FUN-L-25` · B1, `DEF-109`).
@@ -1440,7 +1445,13 @@ export function MiniGraph({
         return;
       }
       if (fase === "revelado") {
-        if (simulate()) ensuciar(); // las posiciones finales del precálculo
+        // Solo las posiciones finales del precálculo, UNA vez, antes del primer
+        // frame. Acá antes se llamaba a `simulate()`, que además PIDE un paso al
+        // motor: en cada frame llegaban posiciones nuevas, la capa se ensuciaba y
+        // `prepararCapas` la repintaba entera (150 ms a zoom 1) antes de aplicar
+        // la niebla, así que el fundido de 1,5 s eran diez frames a saltos y se
+        // veía pasar «de nada a todo». La física residual arranca al terminar.
+        if (inicioRevelado === null && aplicarPosiciones()) ensuciar();
         // Oculto (o sin tamaño) el revelado espera: el observador o el
         // `resize` lo despiertan, y el fundido empieza cuando se ve.
         if (!visible) return;
