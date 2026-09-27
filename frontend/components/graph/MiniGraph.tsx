@@ -13,7 +13,8 @@ import {
   limitesDe,
   siembraSustrato,
 } from "./disposiciones";
-import { type EstadoFisica, constantesDe, crearEstado, enfriar } from "./fisica";
+import { ALPHA_CACHE, ALPHA_NUEVOS } from "./cicloFisica";
+import { type EstadoFisica, constantesDe, crearEstado } from "./fisica";
 import { type MotorFisica, crearMotor } from "./motorFisica";
 import {
   type Camara,
@@ -274,9 +275,10 @@ export function MiniGraph({
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
-    // integrarlos suavemente; si todo es nuevo, simulación completa.
+    // integrarlos suavemente; si todo es nuevo, simulación completa (como
+    // `d3-force`: 0,05, 0,3 y 1; el ciclo está en `cicloFisica.ts`).
     const cachedRatio = N > 0 ? savedCount / N : 0;
-    const initialAlpha = cachedRatio >= 0.999 ? 0.05 : cachedRatio > 0 ? 0.4 : 1;
+    const initialAlpha = cachedRatio >= 0.999 ? ALPHA_CACHE : cachedRatio > 0 ? ALPHA_NUEVOS : 1;
     const byId = new Map(sim.map((n) => [n.id, n]));
     // Rango de aparición por id: orden de creación (creadoEn, desempate por id
     // para coincidir con el orden que usa GraphView al contar). Permite revelar
@@ -304,6 +306,11 @@ export function MiniGraph({
       const t = byId.get(e.target);
       if (s && t) simEdges.push({ s, t });
     }
+
+    // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
+    // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
+    // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
+    const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
 
     // ── Motor de fuerzas (`fisica.ts`, `FUN-L-25` · B3): posiciones y
     //    velocidades en arrays tipados; `sim[i].x/y` es la copia que se dibuja.
@@ -421,16 +428,15 @@ export function MiniGraph({
     // tenga tamaño (la primera vez que se elige; después recuerda su vista).
     let encuadrePendiente = micelio && !v0;
     let downAt: { x: number; y: number } | null = null;
-    let alpha = initialAlpha;
     let dpr = window.devicePixelRatio || 1;
     let running = true;
-    // Reposo: cuando el grafo se asienta (alpha bajo y sin interacción) se deja
-    // de simular/redibujar para no consumir CPU con muchos nodos. Cualquier
+    // Reposo: cuando el grafo se asienta (el motor avisa) y no hay interacción
+    // se deja de redibujar para no consumir CPU con muchos nodos. Cualquier
     // interacción (drag, hover, zoom, resize) lo despierta. `frame` = rAF pendiente.
-    // Si `continuousSim`, nunca se bloquea (corre en cada frame). Tras asentarse
-    // sigue simulando IDLE_GRACE_MS antes de bloquearse.
-    const REST = 0.03;
-    const IDLE_GRACE_MS = 5000;
+    // Si `continuousSim`, el motor nunca se asienta. Tras la última
+    // interacción el bucle sigue IDLE_GRACE_MS antes de detenerse (antes eran
+    // 5 s simulando con energía residual; la Parte C lo bajó a 1 s).
+    const IDLE_GRACE_MS = 1000;
     let frame = 0;
     let lastEnergetic = performance.now();
     const wake = () => {
@@ -478,7 +484,9 @@ export function MiniGraph({
       canvas.height = parent.clientHeight * dpr;
       canvas.style.width = `${parent.clientWidth}px`;
       canvas.style.height = `${parent.clientHeight}px`;
-      alpha = Math.max(alpha, 0.3);
+      // (Ya no le da energía a la simulación: el tamaño del lienzo no cambia
+      // el layout, solo la vista. Con la caché, eso volvía a mover el grafo
+      // entero cada vez que se abría la pestaña, porque montar dispara resize.)
       if (micelio) {
         estatico.width = canvas.width;
         estatico.height = canvas.height;
@@ -529,7 +537,8 @@ export function MiniGraph({
         // el crecimiento la posición es determinista y pulsar es solo abrir.
         if (fisica) {
           dragNode = n;
-          alpha = Math.max(alpha, 0.4);
+          // El motor sube la energía mientras dure (`alphaObjetivo` 0,3).
+          motor?.fijar(n.i, n.x, n.y);
         } else {
           clickNode = n;
         }
@@ -541,9 +550,10 @@ export function MiniGraph({
     const onMouseMove = (ev: MouseEvent) => {
       if (dragNode) {
         const p = toWorld(ev);
-        colocar(dragNode, p.x, p.y);
-        ensuciar(); // con el worker, el paso siguiente puede no llegar en este frame
-        alpha = Math.max(alpha, 0.4);
+        dragNode.x = p.x;
+        dragNode.y = p.y;
+        motor?.fijar(dragNode.i, p.x, p.y);
+        ensuciar(); // con el worker, las posiciones siguientes pueden no llegar en este frame
         wake();
       } else if (panning) {
         ox += ev.movementX;
@@ -568,6 +578,7 @@ export function MiniGraph({
         downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4;
       const pulsado = dragNode ?? clickNode;
       if (pulsado && !moved) onOpenRef.current(pulsado.id);
+      if (dragNode) motor?.soltar();
       dragNode = null;
       clickNode = null;
       panning = false;
@@ -595,29 +606,33 @@ export function MiniGraph({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas.parentElement ?? canvas);
 
-    // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
-    // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
-    // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
-    const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
     // La física, en un worker si se puede (`motorFisica.ts`); si no, acá mismo.
-    // Cuando llegan posiciones con el bucle detenido, lo despierta para verlas.
-    if (fisica) motor = crearMotor(estado, constantes, () => wake());
+    // Con el worker corre libre (Parte C): el hilo principal dibuja lo último
+    // que llegó y el motor avisa cuando el grafo se asienta.
+    if (fisica) {
+      motor = crearMotor(estado, constantes, {
+        continuo: continuousSim,
+        alRecibir: () => wake(),
+        alAsentar: () => {
+          // El primer frame quieto se pinta a fidelidad completa.
+          ensuciar();
+          wake();
+        },
+      });
+    }
+    function calentarMotor(a: number) {
+      motor?.correr(a);
+    }
+    if (revealCountRef.current == null) calentarMotor(initialAlpha);
 
     /**
-     * Aplica las posiciones nuevas del motor (si llegaron) y, si la simulación
-     * está activa, pide el paso siguiente (`fisica.ts`: Barnes-Hut en vez de
-     * todos los pares, mismas fuerzas). Devuelve si los nodos se movieron.
+     * Aplica las posiciones nuevas del motor, si llegaron (en el hilo
+     * principal, antes da los pasos de este frame). Devuelve si los nodos se
+     * movieron.
      */
-    const simulate = (activa: boolean): boolean => {
+    const simulate = (): boolean => {
       if (!motor) return false;
-      if (activa) {
-        // En construcción temporal solo simulan los nodos ya aparecidos, así el
-        // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
-        const activos = revealCountRef.current != null ? mascaraActivos : null;
-        // Con el worker, si el paso anterior sigue en vuelo no se encarga otro
-        // (ni se enfría): la energía baja un escalón por paso dado, como antes.
-        if (motor.avanzar(alpha, dragNode ? dragNode.i : -1, activos)) alpha = enfriar(alpha);
-      }
+      motor.avanzar();
       const pos = motor.tomar();
       if (!pos) return false;
       for (const n of sim) {
@@ -905,7 +920,16 @@ export function MiniGraph({
         }
         const target = Math.min(rc, orderedSim.length);
         while (activated.size < target) placeNew(orderedSim[activated.size]);
-        if (rc !== prevRc) alpha = Math.max(alpha, 0.6);
+        if (rc !== prevRc) {
+          // Solo simulan los nodos ya aparecidos, así el grafo se reacomoda
+          // mientras crece (en vez de estar todo prefijado).
+          motor?.activos(mascaraActivos);
+          calentarMotor(ALPHA_NUEVOS);
+        }
+      } else if (prevRc != null) {
+        // Fin de la construcción: vuelven a participar todos.
+        motor?.activos(null);
+        calentarMotor(ALPHA_NUEVOS);
       }
     };
 
@@ -1033,9 +1057,10 @@ export function MiniGraph({
       if (fisica) {
         // Sustrato: el mismo reposo con período de gracia que el cúmulo.
         const interacting = !!dragNode || panning;
-        if (interacting || alpha > REST) lastEnergetic = ahora;
-        activo = continuousSim || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (simulate(activo)) {
+        const moviendo = interacting || !!motor?.corriendo;
+        if (moviendo) lastEnergetic = ahora;
+        activo = moviendo || ahora - lastEnergetic <= IDLE_GRACE_MS;
+        if (simulate()) {
           sincronizarPos();
           ensuciar();
         }
@@ -1055,15 +1080,18 @@ export function MiniGraph({
       prevRc = rc ?? null;
       const now = performance.now();
       const interacting = !!dragNode || panning;
-      // Mientras haya energía o interacción, se reinicia el contador de reposo.
-      if (interacting || alpha > REST) lastEnergetic = now;
-      // Bloqueo (por defecto): tras asentarse y pasar el período de gracia, se
-      // detiene. Con `continuousSim` el bloqueo está desactivado: nunca para.
-      const idle = !continuousSim && now - lastEnergetic > IDLE_GRACE_MS;
-      const active = !idle;
-      // Los nodos se movieron (paso local, o respuesta del worker que llegó,
-      // incluso con el bucle ya en reposo): la capa estática ya no vale.
-      if (simulate(active)) ensuciar();
+      // El motor simula (worker o hilo principal) o se arrastra un nodo.
+      const moviendo = !!dragNode || !!motor?.corriendo;
+      // Mientras haya movimiento o interacción, se reinicia el contador de reposo.
+      if (interacting || moviendo) lastEnergetic = now;
+      // Bloqueo (por defecto): tras asentarse (el motor avisa) y pasar el
+      // período de gracia, se detiene. Con `continuousSim` el motor no se
+      // asienta nunca: nunca para.
+      const active = moviendo || now - lastEnergetic <= IDLE_GRACE_MS;
+      // Los nodos se movieron (pasos locales, o posiciones del worker que
+      // llegaron, incluso con el bucle ya en reposo): la capa ya no vale.
+      const movio = simulate();
+      if (movio) ensuciar();
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.

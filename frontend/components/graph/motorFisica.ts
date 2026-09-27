@@ -1,24 +1,55 @@
-// Motor de la simulación del grafo (`FUN-L-25` · B4, `DEF-109`): la misma
-// física (`fisica.ts`) en un Web Worker (`sim.worker.ts`) o, si no se puede, en
-// el hilo principal. `MiniGraph.tsx` lo usa igual en los dos casos:
+// Motor de la simulación del grafo (`FUN-L-25` · B4 y Parte C, `DEF-109`): la
+// misma física (`fisica.ts` + `cicloFisica.ts`) en un Web Worker
+// (`sim.worker.ts`) o, si no se puede, en el hilo principal. `MiniGraph.tsx`
+// lo usa igual en los dos casos:
 //
-//   tomar()    → posiciones nuevas desde la última vez (o `null`)
-//   avanzar()  → pide un paso con esta energía; `true` si lo dio o lo encargó
-//   colocar()  → el hilo principal movió un nodo a mano (arrastre, aparición)
+//   correr(alpha)   → darle energía (arranque, nodos nuevos)
+//   fijar/soltar    → arrastre de un nodo (sube la energía mientras dura)
+//   colocar()       → el hilo principal movió un nodo a mano (aparición)
+//   activos()       → qué nodos participan (construcción temporal)
+//   avanzar()       → en el hilo principal, los pasos de este frame (6 ms);
+//                     con el worker no hace nada: el worker corre solo
+//   tomar()         → posiciones nuevas desde la última vez (o `null`)
 //
-// Con el worker, `avanzar` no bloquea: manda el pedido y la respuesta llega en
-// un frame posterior (como mucho uno en vuelo). En el hilo principal, el paso
-// corre ahí mismo y `tomar` lo devuelve enseguida.
-import { type ConstantesFisica, type EstadoFisica, paso } from "./fisica";
+// Con el worker la física va LIBRE (Parte C): el hilo principal no marca el
+// ritmo ni lleva la energía; dibuja lo último que llegó y se entera por
+// `corriendo` y `alAsentar` de cuándo el grafo se quedó quieto.
+import {
+  type Ciclo,
+  avanzarCiclo,
+  calentar,
+  colocarEn,
+  crearCiclo,
+  fijar,
+  soltar,
+} from "./cicloFisica";
+import type { ConstantesFisica, EstadoFisica } from "./fisica";
 import type { MensajeAlWorker, MensajeDelWorker } from "./sim.worker";
 
 export type MotorFisica = {
   /** `true` si la física corre en el worker. */
   readonly enWorker: boolean;
-  tomar(): ArrayLike<number> | null;
-  avanzar(alpha: number, fijo: number, activos: Uint8Array | null): boolean;
+  /** `false` cuando el grafo se asentó (y nadie lo volvió a calentar). */
+  readonly corriendo: boolean;
+  /** La energía de lo último que se tomó. */
+  readonly alpha: number;
+  correr(alpha: number): void;
+  fijar(i: number, x: number, y: number): void;
+  soltar(): void;
   colocar(i: number, x: number, y: number): void;
+  activos(mascara: Uint8Array | null): void;
+  avanzar(): void;
+  tomar(): ArrayLike<number> | null;
   cerrar(): void;
+};
+
+export type OpcionesMotor = {
+  /** Simulación continua (preferencia `graphContinuousSim`): nunca se asienta. */
+  continuo: boolean;
+  /** Llegaron posiciones (para despertar el bucle de dibujo). */
+  alRecibir: () => void;
+  /** El grafo se asentó: `pasos` desde el último arranque. */
+  alAsentar: (pasos: number) => void;
 };
 
 /**
@@ -27,25 +58,56 @@ export type MotorFisica = {
  */
 export const MIN_NODOS_WORKER = 200;
 
+/** Presupuesto de física por frame en el hilo principal (el respaldo). */
+const PRESUPUESTO_LOCAL_MS = 6;
+
 /** La física en el hilo principal, sobre el mismo `estado` que usa el dibujo. */
-function motorLocal(estado: EstadoFisica, constantes: ConstantesFisica): MotorFisica {
+function motorLocal(
+  estado: EstadoFisica,
+  constantes: ConstantesFisica,
+  op: OpcionesMotor,
+  heredado?: Ciclo,
+): MotorFisica {
+  const ciclo = crearCiclo(estado, constantes, op.continuo);
+  if (heredado) {
+    ciclo.alpha = heredado.alpha;
+    ciclo.objetivo = heredado.objetivo;
+    ciclo.corriendo = heredado.corriendo;
+  }
   let nuevo = false;
   return {
     enWorker: false,
+    get corriendo() {
+      return ciclo.corriendo;
+    },
+    get alpha() {
+      return ciclo.alpha;
+    },
+    correr(alpha) {
+      calentar(ciclo, alpha);
+    },
+    fijar(i, x, y) {
+      fijar(ciclo, i, x, y);
+    },
+    soltar() {
+      soltar(ciclo);
+    },
+    colocar() {
+      // `estado` es el mismo que el del dibujo: ya lo movió quien llama.
+    },
+    activos(mascara) {
+      estado.activos = mascara;
+    },
+    avanzar() {
+      if (!ciclo.corriendo) return;
+      avanzarCiclo(ciclo, PRESUPUESTO_LOCAL_MS, () => performance.now());
+      nuevo = true;
+      if (!ciclo.corriendo) op.alAsentar(ciclo.pasos);
+    },
     tomar() {
       if (!nuevo) return null;
       nuevo = false;
       return estado.pos;
-    },
-    avanzar(alpha, fijo, activos) {
-      estado.activos = activos;
-      estado.fijo = fijo;
-      paso(estado, constantes, alpha);
-      nuevo = true;
-      return true;
-    },
-    colocar() {
-      // `estado` es el mismo que el del dibujo: ya lo movió quien llama.
     },
     cerrar() {},
   };
@@ -54,108 +116,141 @@ function motorLocal(estado: EstadoFisica, constantes: ConstantesFisica): MotorFi
 /**
  * Crea el motor. Usa el worker si el navegador lo permite, el grafo es lo
  * bastante grande y no se pidió movimiento reducido; si no —o si el worker
- * falla al cargar o en marcha— cae al hilo principal con el mismo módulo, sin
- * perder las posiciones (el `estado` del hilo principal se mantiene espejado).
- * `alRecibir` avisa que llegaron posiciones (para despertar el bucle).
+ * falla al cargar o en marcha— cae al hilo principal con los mismos módulos,
+ * sin perder las posiciones (el `estado` del hilo principal se mantiene
+ * espejado con lo último que llegó).
  */
 export function crearMotor(
   estado: EstadoFisica,
   constantes: ConstantesFisica,
-  alRecibir: () => void,
+  op: OpcionesMotor,
 ): MotorFisica {
   const reducido =
     typeof window !== "undefined" &&
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (typeof Worker === "undefined" || reducido || estado.n < MIN_NODOS_WORKER) {
-    return motorLocal(estado, constantes);
+    return motorLocal(estado, constantes, op);
   }
   let worker: Worker;
   try {
     worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
   } catch {
-    return motorLocal(estado, constantes);
+    return motorLocal(estado, constantes, op);
   }
 
   let local: MotorFisica | null = null; // respaldo, si el worker falla en marcha
-  let enVuelo = false;
+  /** Lo que el hilo principal sabe del ciclo del worker (para el respaldo y el dibujo). */
+  const espejo: Ciclo = crearCiclo(estado, constantes, op.continuo);
   let recibido: Float32Array | null = null;
-  /** Buffer ya aplicado, para devolvérselo al worker con el próximo pedido. */
-  let libre: Float32Array | null = null;
-  /** Colocados desde el último pedido: `[i, x, y, …]`. */
-  let colocados: number[] = [];
-  /** Índices colocados que el worker todavía no vio: su respuesta no los pisa. */
-  const pendientes = new Set<number>();
+  /** Índice movido a mano → `seq` del mensaje que lo movió. */
+  const pendientes = new Map<number, number>();
+  let seq = 0;
+
+  const enviar = (m: MensajeAlWorker, transferir: Transferable[] = []) => {
+    if (!local) worker.postMessage(m, transferir);
+  };
+  const devolver = (buf: Float32Array) => enviar({ tipo: "devolver", buffer: buf }, [buf.buffer]);
 
   const caer = () => {
     if (local) return;
     worker.terminate();
-    local = motorLocal(estado, constantes);
-    enVuelo = false;
+    local = motorLocal(estado, constantes, op, espejo);
     recibido = null;
   };
   worker.onmessage = (ev: MessageEvent<MensajeDelWorker>) => {
-    enVuelo = false;
-    recibido = ev.data.pos;
-    alRecibir();
+    const m = ev.data;
+    // Si el anterior no se llegó a dibujar, se descarta y vuelve al worker.
+    if (recibido) devolver(recibido);
+    recibido = m.pos;
+    espejo.alpha = m.alpha;
+    espejo.pasos = m.pasos;
+    for (const [i, s] of pendientes) if (s <= m.seq) pendientes.delete(i);
+    if (m.asentado) {
+      espejo.corriendo = false;
+      op.alAsentar(m.pasos);
+    }
+    op.alRecibir();
   };
   worker.onerror = (ev) => {
     ev.preventDefault();
     caer();
-    alRecibir();
+    op.alRecibir();
   };
-  const iniciar: MensajeAlWorker = {
-    tipo: "iniciar",
-    n: estado.n,
-    pos: Float64Array.from(estado.pos),
-    aristas: estado.aristas,
-    centro: estado.centro,
-    constantes,
-  };
-  worker.postMessage(iniciar);
+  const n2 = estado.n * 2;
+  const buffers = [new Float32Array(n2), new Float32Array(n2)];
+  enviar(
+    {
+      tipo: "iniciar",
+      n: estado.n,
+      pos: Float64Array.from(estado.pos),
+      aristas: estado.aristas,
+      centro: estado.centro,
+      constantes,
+      continuo: op.continuo,
+      buffers,
+    },
+    buffers.map((b) => b.buffer),
+  );
 
   return {
     get enWorker() {
       return local === null;
+    },
+    get corriendo() {
+      return local ? local.corriendo : espejo.corriendo;
+    },
+    get alpha() {
+      return local ? local.alpha : espejo.alpha;
+    },
+    correr(alpha) {
+      if (local) return local.correr(alpha);
+      calentar(espejo, alpha);
+      enviar({ tipo: "correr", alpha });
+    },
+    fijar(i, x, y) {
+      if (local) return local.fijar(i, x, y);
+      fijar(espejo, i, x, y); // también mueve `estado`, que es el del dibujo
+      pendientes.set(i, ++seq);
+      enviar({ tipo: "fijar", i, x, y, seq });
+    },
+    soltar() {
+      if (local) return local.soltar();
+      soltar(espejo);
+      enviar({ tipo: "soltar" });
+    },
+    colocar(i, x, y) {
+      if (local) return;
+      colocarEn(espejo, i, x, y);
+      pendientes.set(i, ++seq);
+      enviar({ tipo: "colocar", datos: Float64Array.of(i, x, y), seq });
+    },
+    activos(mascara) {
+      estado.activos = mascara;
+      if (local) return;
+      enviar({ tipo: "activos", mascara: mascara ? mascara.slice() : null });
+    },
+    avanzar() {
+      local?.avanzar();
     },
     tomar() {
       if (local) return local.tomar();
       const r = recibido;
       if (!r) return null;
       recibido = null;
-      // Espejo en el hilo principal (el respaldo y `colocar` parten de acá),
-      // salvo lo que se movió a mano después del pedido.
+      // Espejo en el hilo principal (el respaldo y el dibujo parten de acá),
+      // salvo lo que se movió a mano y el worker todavía no vio.
       const pos = estado.pos;
-      for (let i = 0; i < estado.n; i++) {
-        if (pendientes.has(i)) continue;
-        pos[i * 2] = r[i * 2];
-        pos[i * 2 + 1] = r[i * 2 + 1];
+      if (pendientes.size === 0) {
+        for (let j = 0; j < n2; j++) pos[j] = r[j];
+      } else {
+        for (let i = 0; i < estado.n; i++) {
+          if (pendientes.has(i)) continue;
+          pos[i * 2] = r[i * 2];
+          pos[i * 2 + 1] = r[i * 2 + 1];
+        }
       }
-      libre = r;
+      devolver(r); // ya está copiado: el worker puede escribir en él
       return pos;
-    },
-    avanzar(alpha, fijo, activos) {
-      if (local) return local.avanzar(alpha, fijo, activos);
-      if (enVuelo) return false;
-      const buffer = libre;
-      libre = null;
-      const msg: MensajeAlWorker = {
-        tipo: "paso",
-        alpha,
-        fijo,
-        activos: activos ? activos.slice() : null,
-        colocados: colocados.length ? Float64Array.from(colocados) : null,
-        buffer,
-      };
-      colocados = [];
-      pendientes.clear();
-      enVuelo = true;
-      worker.postMessage(msg, buffer ? [buffer.buffer] : []);
-      return true;
-    },
-    colocar(i, x, y) {
-      if (local) return;
-      colocados.push(i, x, y);
-      pendientes.add(i);
     },
     cerrar() {
       if (!local) worker.terminate();
