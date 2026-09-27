@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
+import { adyacencia, conjuntoActivo } from "./arrastreLocal";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
@@ -57,6 +58,16 @@ const HUBS_CON_NOMBRE = 24;
  * repinta: el dibujo sería idéntico. Al asentarse se pinta igual, exacto.
  */
 const RESIDUAL_MIN_PX = 0.5;
+
+/**
+ * Arrastre local (Parte F): al arrastrar un nodo solo se mueven él, sus
+ * vecinos a uno y dos saltos y los que están a menos de `RADIO_LOCAL_K · k`;
+ * el resto queda congelado (ver `arrastreLocal.ts`). El conjunto se recalcula
+ * cuando el nodo arrastrado se aleja `RECALCULO_LOCAL_K · k` de donde se
+ * calculó.
+ */
+const RADIO_LOCAL_K = 3;
+const RECALCULO_LOCAL_K = 1;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
@@ -432,6 +443,16 @@ export function MiniGraph({
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
+    // ── Arrastre local (`FUN-L-25` · Parte F). Mientras dura, `local` es la
+    //    máscara de los activos (1 = se integra); los congelados no se mueven
+    //    (`EstadoFisica.moviles`). ──
+    const ady = adyacencia(N, estado.aristas);
+    const mascaraLocal = new Uint8Array(N);
+    /** Máscara de la física (los que se integran), o `null` sin arrastre local. */
+    let local: Uint8Array | null = null;
+    /** Dónde estaba el nodo arrastrado al calcular el conjunto. */
+    let puntoLocalX = 0;
+    let puntoLocalY = 0;
     /**
      * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
      * se calcula entero ANTES de dibujarse (`precalculo`: el lienzo queda
@@ -598,6 +619,10 @@ export function MiniGraph({
         // El motor sube la energía mientras dure (`alphaObjetivo` 0,3).
         arrancarCorrida();
         motor?.fijar(n.i, n.x, n.y);
+        // Arrastre local (Parte F), solo en grafos grandes y fuera de la
+        // construcción temporal (que ya usa su propia máscara de activos). En
+        // el mini-grafo del panel el arrastre sigue siendo global.
+        if (reducible && revealCountRef.current == null) calcularLocal(n);
       } else {
         panning = true;
       }
@@ -609,6 +634,13 @@ export function MiniGraph({
         dragNode.x = p.x;
         dragNode.y = p.y;
         motor?.fijar(dragNode.i, p.x, p.y);
+        // Se alejó `k` de donde se calculó el conjunto activo: otro conjunto.
+        if (local) {
+          const lejos = RECALCULO_LOCAL_K * constantes.k;
+          const dx = p.x - puntoLocalX;
+          const dy = p.y - puntoLocalY;
+          if (dx * dx + dy * dy > lejos * lejos) calcularLocal(dragNode);
+        }
         // Con el worker, las posiciones siguientes pueden no llegar en este
         // frame: el nodo arrastrado va con el próximo lote que se pinte (con
         // el mismo presupuesto que las posiciones del motor).
@@ -638,6 +670,7 @@ export function MiniGraph({
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
         motor?.soltar();
+        if (local) terminarLocal();
         // Al soltar, de vuelta a la residual (Parte E): relajación corta con
         // energía baja, a un paso por frame. Antes bajaba desde 0,3 (248
         // pasos) con el worker libre. La construcción temporal sigue libre.
@@ -740,6 +773,24 @@ export function MiniGraph({
     function aResidual(alpha: number) {
       arrancarCorrida();
       motor?.residual(alpha);
+    }
+
+    /**
+     * (Re)calcula el conjunto activo alrededor de `n` (Parte F, cambio 1) y se
+     * lo pasa al motor: desde el próximo paso solo se integran esos.
+     */
+    function calcularLocal(n: SimNode) {
+      conjuntoActivo(n.i, ady, estado.pos, N, RADIO_LOCAL_K * constantes.k, mascaraLocal);
+      local = mascaraLocal;
+      puntoLocalX = n.x;
+      puntoLocalY = n.y;
+      motor?.moviles(mascaraLocal);
+    }
+
+    /** Fin del arrastre local: todos vuelven a moverse. */
+    function terminarLocal() {
+      local = null;
+      motor?.moviles(null);
     }
 
     /**
