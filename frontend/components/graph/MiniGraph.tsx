@@ -665,6 +665,10 @@ export function MiniGraph({
       alAsentar: (pasos) => {
         if (fase === "precalculo") {
           // El layout está calculado: se revela, ya ubicado.
+          if (informar) {
+            const seg = (performance.now() - inicioCorrida) / 1000;
+            console.info(`grafo: layout calculado en ${seg.toFixed(1)} s, ${pasos} pasos`);
+          }
           fase = "revelado";
           inicioRevelado = null;
           ensuciar();
@@ -1345,6 +1349,7 @@ export function MiniGraph({
 
     /** Fin del fundido: el grafo queda vivo y el próximo dibujo es el reposo normal. */
     function terminarRevelado() {
+      if (informar) console.info("grafo: revelado");
       fase = "vivo";
       inicioRevelado = null;
       lienzoAlDia = false;
