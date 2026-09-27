@@ -645,11 +645,13 @@ export function MiniGraph({
       if (dragNode && !moved) onOpenRef.current(dragNode.id);
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
+        // Al soltar, solo baja el OBJETIVO a 0 y la energía decae sola desde
+        // los 0,3 del arrastre (unos 250 pasos, uno por frame), como en
+        // d3-force y Obsidian. Antes se fijaba de golpe en 0,05 con
+        // `residual(ALPHA_CACHE)`, y el usuario lo notó: «al soltar, las
+        // físicas parecen apagarse» (2026-09-27). El movimiento ahora termina
+        // en vez de cortarse.
         motor?.soltar();
-        // Al soltar, de vuelta a la residual (Parte E): relajación corta con
-        // energía baja, a un paso por frame. Antes bajaba desde 0,3 (248
-        // pasos) con el worker libre. La construcción temporal sigue libre.
-        if (revealCountRef.current == null) motor?.residual(ALPHA_CACHE);
       }
       dragNode = null;
       if (panning) {
