@@ -122,13 +122,6 @@ export type EstadoFisica = {
   aristas: Int32Array;
   /** Nodos que participan (construcción temporal); `null` = todos. */
   activos: Uint8Array | null;
-  /**
-   * Arrastre local (Parte F): solo estos se integran; `null` = todos. Los
-   * demás quedan CONGELADOS: no reciben fuerzas ni se mueven, pero siguen en
-   * el árbol (empujan a los móviles) y sus resortes siguen tirando de los
-   * móviles. A diferencia de `activos`, no saca a nadie del grafo.
-   */
-  moviles: Uint8Array | null;
   /** Nodo que se está arrastrando (no se integra); −1 = ninguno. */
   fijo: number;
   /** Nodo central del mini-grafo (tira hacia el origen); −1 = ninguno. */
@@ -170,7 +163,6 @@ export function crearEstado(
     vel: new Float64Array(n * 2),
     aristas,
     activos: null,
-    moviles: null,
     fijo: -1,
     centro,
     arbol: crearArbol(n, Math.max(16, n * 2)),
@@ -330,7 +322,7 @@ export function repulsionBarnesHut(
   azar: () => number = Math.random,
 ) {
   construirArbol(e);
-  const { n, pos, vel, activos, moviles } = e;
+  const { n, pos, vel, activos } = e;
   const a = e.arbol;
   const kk = c.k * c.k;
   const tope = c.topeRepulsion;
@@ -342,9 +334,6 @@ export function repulsionBarnesHut(
   if (a.masa[0] === 0) return;
   for (let i = 0; i < n; i++) {
     if (activos && !activos[i]) continue;
-    // Congelado (Parte F): está en el árbol —empuja a los demás— pero no
-    // recibe fuerza. El costo pasa a ser O(a log n) con `a` móviles.
-    if (moviles && !moviles[i]) continue;
     const xi = pos[i * 2];
     const yi = pos[i * 2 + 1];
     let fx = 0;
@@ -471,7 +460,7 @@ export function paso(
   const a = alpha * c.ganancia;
   const retiene = 1 - c.rozamiento;
   const vmax2 = c.velocidadMax * c.velocidadMax;
-  const { n, pos, vel, v0, grado, aristas, activos, moviles, fijo, centro } = e;
+  const { n, pos, vel, v0, grado, aristas, activos, fijo, centro } = e;
   v0.set(vel);
   repulsion(e, c, a, azar);
   const k = c.k;
@@ -480,29 +469,18 @@ export function paso(
     const s = aristas[j];
     const t = aristas[j + 1];
     if (activos && (!activos[s] || !activos[t])) continue;
-    // Arrastre local (Parte F): el resorte solo empuja a los extremos móviles.
-    // La velocidad de un congelado no se toca: si se acumulara, al soltar
-    // saldría disparado.
-    const ms = !moviles || moviles[s] === 1;
-    const mt = !moviles || moviles[t] === 1;
-    if (!ms && !mt) continue;
     const dx = pos[t * 2] - pos[s * 2];
     const dy = pos[t * 2 + 1] - pos[s * 2 + 1];
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
     const f = ((d - k) / d) * 0.02 * a * 10 * 0.05;
-    if (ms) {
-      vel[s * 2] += dx * f;
-      vel[s * 2 + 1] += dy * f;
-    }
-    if (mt) {
-      vel[t * 2] -= dx * f;
-      vel[t * 2 + 1] -= dy * f;
-    }
+    vel[s * 2] += dx * f;
+    vel[s * 2 + 1] += dy * f;
+    vel[t * 2] -= dx * f;
+    vel[t * 2 + 1] -= dy * f;
   }
   // Gravedad hacia el origen, rozamiento e integración.
   for (let i = 0; i < n; i++) {
     if (activos && !activos[i]) continue;
-    if (moviles && !moviles[i]) continue; // congelado: ni gravedad ni integración
     const ix = i * 2;
     const iy = ix + 1;
     vel[ix] -= pos[ix] * 0.004 * a;

@@ -281,56 +281,6 @@ test("activos, fijo y centro: solo se mueve lo que participa", () => {
   assert.ok(e.pos[0] !== pos[0], "los activos se mueven");
 });
 
-test("moviles (Parte F): los congelados no se mueven ni acumulan velocidad", () => {
-  const { pos, aristas } = grafoAzar(80, 300, 21);
-  const e = F.crearEstado(80, Float64Array.from(pos), aristas);
-  e.vel.fill(0.25); // velocidad previa: la de un congelado se conserva tal cual
-  e.moviles = new Uint8Array(80);
-  for (let i = 0; i < 20; i++) e.moviles[i] = 1;
-  for (let s = 0; s < 40; s++) F.paso(e, cumulo, 0.3, azarCon(s));
-  for (let i = 20; i < 80; i++) {
-    assert.equal(e.pos[i * 2], pos[i * 2], `congelado ${i} quieto`);
-    assert.equal(e.pos[i * 2 + 1], pos[i * 2 + 1]);
-    assert.equal(e.vel[i * 2], 0.25, `congelado ${i} sin fuerzas`);
-    assert.equal(e.vel[i * 2 + 1], 0.25);
-  }
-  let movidos = 0;
-  for (let i = 0; i < 20; i++) if (e.pos[i * 2] !== pos[i * 2]) movidos++;
-  assert.equal(movidos, 20, "los móviles se mueven");
-});
-
-test("moviles (Parte F): un móvil recibe la MISMA fuerza que sin congelar (repulsión de todos y resortes a congelados)", () => {
-  // En un paso, lo que le pasa a un móvil depende solo de las posiciones de
-  // partida: congelar a los demás no le cambia nada en ese paso.
-  const { pos, aristas } = grafoAzar(300, 500, 5, 2);
-  const todos = F.crearEstado(300, Float64Array.from(pos), aristas);
-  F.paso(todos, cumulo, 0.3, azarCon(9));
-  const local = F.crearEstado(300, Float64Array.from(pos), aristas);
-  local.moviles = new Uint8Array(300);
-  const moviles = [0, 1, 2, 17, 42, 150, 299];
-  for (const i of moviles) local.moviles[i] = 1;
-  F.paso(local, cumulo, 0.3, azarCon(9));
-  for (const i of moviles) {
-    assert.ok(Math.abs(local.pos[i * 2] - todos.pos[i * 2]) < 1e-9, `x de ${i}`);
-    assert.ok(Math.abs(local.pos[i * 2 + 1] - todos.pos[i * 2 + 1]) < 1e-9, `y de ${i}`);
-  }
-  // Y el móvil se movió: no es un paso vacío.
-  assert.ok(local.pos[0] !== pos[0] || local.pos[1] !== pos[1]);
-});
-
-test("moviles (Parte F) con el arrastrado fijo: solo el vecindario se acomoda", () => {
-  const { pos, aristas } = grafoAzar(60, 250, 3);
-  const e = F.crearEstado(60, Float64Array.from(pos), aristas);
-  e.moviles = new Uint8Array(60);
-  e.moviles[0] = e.moviles[1] = e.moviles[2] = 1;
-  e.fijo = 0;
-  e.pos[0] += 200; // el ratón lo llevó lejos
-  for (let s = 0; s < 20; s++) F.paso(e, cumulo, 0.3, azarCon(s));
-  assert.equal(e.pos[0], pos[0] + 200, "el arrastrado lo pone el ratón");
-  for (let i = 3; i < 60; i++) assert.equal(e.pos[i * 2], pos[i * 2]);
-  assert.ok(e.pos[2] !== pos[2], "un móvil se mueve");
-});
-
 test("el árbol crece: miles de nodos apretados y uno lejísimos", () => {
   const n = 5000;
   const azar = azarCon(8);

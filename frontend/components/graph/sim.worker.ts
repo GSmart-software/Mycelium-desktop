@@ -20,7 +20,6 @@
 //   → { tipo: "soltar" }
 //   → { tipo: "colocar", datos, seq }      nodos movidos a mano: `[i, x, y, …]`
 //   → { tipo: "activos", mascara }         construcción temporal (`null` = todos)
-//   → { tipo: "moviles", mascara }         arrastre local: solo esos se integran (Parte F)
 //   → { tipo: "devolver", buffer }         el principal ya copió esas posiciones
 //   ← { tipo: "posiciones", pos, alpha, asentado, pasos, seq }
 //
@@ -75,7 +74,6 @@ export type MensajeAlWorker =
   | { tipo: "soltar" }
   | { tipo: "colocar"; datos: Float64Array; seq: number }
   | { tipo: "activos"; mascara: Uint8Array | null }
-  | { tipo: "moviles"; mascara: Uint8Array | null }
   | { tipo: "devolver"; buffer: Float32Array };
 
 /** Quién marca los pasos: el worker solo (`libre`) o el hilo principal, de a uno (`pedido`). */
@@ -234,9 +232,6 @@ ambito.onmessage = (ev) => {
       break;
     case "activos":
       c.estado.activos = m.mascara;
-      break;
-    case "moviles":
-      c.estado.moviles = m.mascara;
       break;
   }
 };
