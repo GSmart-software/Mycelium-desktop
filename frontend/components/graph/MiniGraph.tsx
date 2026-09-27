@@ -6,6 +6,13 @@ import { usePrefVault } from "@/stores/prefsVaultStore";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
+import {
+  BANDA_NIEBLA,
+  anillosNiebla,
+  progresoRevelado,
+  radioMaximo,
+  suavizar,
+} from "./revelado";
 
 export type GraphNode = {
   id: string;
@@ -36,20 +43,28 @@ const FLUJO_ZOOM_MIN = 0.5;
  */
 const FLUJO_MAX_ARISTAS = 1500;
 
-/** Si un frame de dibujo en movimiento pasó de esto, el siguiente se salta. */
+/**
+ * Construcción temporal (worker libre): si un frame de dibujo en movimiento
+ * pasó de esto, el siguiente se salta. Con el ritmo «pedido» de la Parte E
+ * (residual y arrastre) no se saltea nada: cada paso de física es un frame.
+ */
 const PRESUPUESTO_DIBUJO_MS = 12;
 /** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
 const HUBS_CON_NOMBRE = 24;
+/**
+ * Física residual (Parte E): por debajo de este desplazamiento en pantalla
+ * (ningún nodo se movió medio píxel desde el último dibujo) el paso no se
+ * repinta: el dibujo sería idéntico. Al asentarse se pinta igual, exacto.
+ */
+const RESIDUAL_MIN_PX = 0.5;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
- * Mientras dura un paneo o un zoom con rueda el lienzo solo copia las capas
- * desplazadas o escaladas; el margen es lo que se ve en los bordes en vez de un
- * hueco vacío, hasta el repintado del final del gesto.
+ * Mientras dura un paneo el lienzo solo copia las capas desplazadas; el margen
+ * es lo que se ve en los bordes en vez de un hueco vacío, hasta el repintado
+ * del final del gesto.
  */
 const MARGEN_CAPA = 0.25;
-/** Tras el último evento de rueda, cuánto se espera para repintar a fidelidad completa. */
-const RUEDA_REPOSO_MS = 150;
 
 /** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
 type Vista = { scale: number; ox: number; oy: number };
@@ -417,6 +432,18 @@ export function MiniGraph({
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
+    /**
+     * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
+     * se calcula entero ANTES de dibujarse (`precalculo`: el lienzo queda
+     * vacío y el motor no entrega posiciones intermedias) y recién ahí se
+     * muestra, ya ubicado, con un fundido radial desde el centro (`revelado`,
+     * ver `revelado.ts`). Antes se dibujaba cada lote del asentamiento, y ese
+     * movimiento masivo era lo caro y lo que se veía mal. Con caché (aunque
+     * sea parcial) se arranca directo en `vivo`, sin fundido.
+     */
+    let fase: "precalculo" | "revelado" | "vivo" = "vivo";
+    /** Cuándo empezó el fundido (tras pintar la capa), o `null` si todavía no. */
+    let inicioRevelado: number | null = null;
     let panning = false;
     // Capas estáticas (`FUN-L-25`): se vuelven a pintar solo cuando algo las
     // ensucia (vista, tamaño, nodos que se mueven, el foco, lo revelado,
@@ -427,23 +454,39 @@ export function MiniGraph({
     };
     // ── La cámara nunca repinta a mitad de gesto (`FUN-L-25` · Parte D). Las
     //    capas llevan un margen por lado (`margenX`/`margenY`, en px CSS) y recuerdan
-    //    la vista con que se pintaron; mientras se panea o se gira la rueda, el
-    //    lienzo las copia llevadas a la vista de ahora (`copiarCapa`) y el
-    //    repintado completo llega al terminar el gesto: al soltar el paneo, o
-    //    `RUEDA_REPOSO_MS` después del último evento de rueda. Antes cada evento
-    //    de paneo o de rueda repintaba el grafo entero. ──
+    //    la vista con que se pintaron; mientras se panea, el lienzo las copia
+    //    desplazadas a la vista de ahora (`copiarCapa`) y el repintado completo
+    //    llega al soltar. Antes cada evento de paneo repintaba el grafo entero.
+    //    El zoom con rueda, en cambio, repinta nítido en cada paso (Parte E,
+    //    decisión del usuario): la copia escalada de la Parte D se veía borrosa
+    //    hasta 150 ms después del último paso. ──
     let margenX = 0;
     let margenY = 0;
     /** Vista con que se pintó lo último (las capas, o el lienzo en movimiento). */
     let vistaPintada: Vista = { scale, ox, oy };
-    let ruedaActiva = false;
-    let temporizadorRueda: ReturnType<typeof setTimeout> | undefined;
-    const enGesto = () => panning || ruedaActiva;
+    const enGesto = () => panning;
     const camaraMovida = () =>
       scale !== vistaPintada.scale || ox !== vistaPintada.ox || oy !== vistaPintada.oy;
-    /** Lo pintado pasa a ser lo de la vista de ahora. */
+    /** Posiciones de los nodos en el último dibujo (`[x0, y0, …]` por índice del motor). */
+    const posPintadas = new Float64Array(N * 2);
+    /** Lo pintado pasa a ser lo de la vista de ahora (y las posiciones de ahora). */
     const marcarVistaPintada = () => {
       vistaPintada = { scale, ox, oy };
+      for (const n of sim) {
+        posPintadas[n.i * 2] = n.x;
+        posPintadas[n.i * 2 + 1] = n.y;
+      }
+    };
+    /** ¿Algún nodo se movió `RESIDUAL_MIN_PX` en pantalla desde el último dibujo? */
+    const movidoALaVista = () => {
+      const u = RESIDUAL_MIN_PX / scale;
+      const u2 = u * u;
+      for (const n of sim) {
+        const dx = n.x - posPintadas[n.i * 2];
+        const dy = n.y - posPintadas[n.i * 2 + 1];
+        if (dx * dx + dy * dy >= u2) return true;
+      }
+      return false;
     };
     /** Posiciones que el ratón movió a mano (arrastre): van con el próximo lote. */
     let movidoAMano = false;
@@ -547,7 +590,8 @@ export function MiniGraph({
     };
 
     const onMouseDown = (ev: MouseEvent) => {
-      const n = pick(ev);
+      // Mientras se precalcula no hay nodos a la vista: solo se puede panear.
+      const n = fase === "vivo" ? pick(ev) : null;
       downAt = { x: ev.clientX, y: ev.clientY };
       if (n) {
         dragNode = n;
@@ -575,7 +619,7 @@ export function MiniGraph({
         ox += ev.movementX;
         oy += ev.movementY;
         wake();
-      } else {
+      } else if (fase === "vivo") {
         const n = pick(ev);
         if (n !== hover) {
           hover = n;
@@ -594,6 +638,10 @@ export function MiniGraph({
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
         motor?.soltar();
+        // Al soltar, de vuelta a la residual (Parte E): relajación corta con
+        // energía baja, a un paso por frame. Antes bajaba desde 0,3 (248
+        // pasos) con el worker libre. La construcción temporal sigue libre.
+        if (revealCountRef.current == null) motor?.residual(ALPHA_CACHE);
       }
       dragNode = null;
       if (panning) {
@@ -615,14 +663,8 @@ export function MiniGraph({
       // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
       // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
       scale = Math.min(Math.max(scale * factor, 0.05), 4);
-      // Durante el gesto el frame copia las capas escaladas alrededor del
-      // puntero (Parte D); el repintado completo, cuando la rueda se detiene.
-      ruedaActiva = true;
-      clearTimeout(temporizadorRueda);
-      temporizadorRueda = setTimeout(() => {
-        ruedaActiva = false;
-        wake();
-      }, RUEDA_REPOSO_MS);
+      // Repintado nítido en el próximo frame: la cámara movida fuera de un
+      // paneo ensucia las capas (Parte E; ya no se copian escaladas).
       wake();
     };
 
@@ -644,6 +686,18 @@ export function MiniGraph({
       continuo: continuousSim,
       alRecibir: () => wake(),
       alAsentar: (pasos) => {
+        if (fase === "precalculo") {
+          // El layout está calculado: se revela, ya ubicado.
+          if (informar) {
+            const seg = (performance.now() - inicioCorrida) / 1000;
+            console.info(`grafo: layout calculado en ${seg.toFixed(1)} s, ${pasos} pasos`);
+          }
+          fase = "revelado";
+          inicioRevelado = null;
+          ensuciar();
+          wake();
+          return;
+        }
         if (informar) {
           const seg = (performance.now() - inicioCorrida) / 1000;
           console.info(`grafo: asentado en ${seg.toFixed(1)} s, ${pasos} pasos`);
@@ -666,7 +720,27 @@ export function MiniGraph({
       arrancarCorrida();
       motor?.correr(a);
     }
-    if (revealCountRef.current == null) calentarMotor(initialAlpha);
+    if (revealCountRef.current == null) {
+      if (savedCount === 0) {
+        // Sin caché: a ciegas hasta converger (Parte E).
+        fase = "precalculo";
+        arrancarCorrida();
+        motor.precalcular(initialAlpha);
+      } else {
+        // Con caché: se muestra ya y se retoca con la física residual, a un
+        // paso por frame dibujado (Parte E).
+        arrancarCorrida();
+        motor.residual(initialAlpha);
+      }
+    }
+    /**
+     * Física residual (Parte E): energía baja y un paso por frame dibujado,
+     * sin saltos. Tras el revelado y al soltar un nodo.
+     */
+    function aResidual(alpha: number) {
+      arrancarCorrida();
+      motor?.residual(alpha);
+    }
 
     /**
      * Aplica las posiciones nuevas del motor, si llegaron (en el hilo
@@ -1148,7 +1222,7 @@ export function MiniGraph({
      * - `"directo"`: simulación activa sin fidelidad reducida (grafos chicos,
      *   simulación continua ya casi quieta): directo, completo, sin capas.
      * - `"reposo"`: nada se mueve: las capas, a fidelidad completa. Durante un
-     *   paneo o un zoom con rueda solo se copian (Parte D).
+     *   paneo solo se copian (Parte D); el zoom repinta (Parte E).
      */
     const draw = (modo: "rapido" | "directo" | "reposo") => {
       const w = canvas.width;
@@ -1177,10 +1251,31 @@ export function MiniGraph({
         lienzoAlDia = false;
         return;
       }
-      if (!actx || !nctx) return;
-      // Reposo. Fuera de un gesto, la cámara movida (fin de un paneo o de la
-      // rueda) es un repintado completo; dentro, las capas se copian llevadas
-      // a la vista de ahora, sin el flujo, y nada se repinta (Parte D).
+      if (!prepararCapas()) return;
+      const gesto = enGesto();
+      // El flujo solo se anima con el lienzo en la vista de las capas.
+      const flujo = conFlujo && !gesto && !camaraMovida();
+      if (
+        !flujo &&
+        lienzoAlDia &&
+        lienzoVista.scale === scale &&
+        lienzoVista.ox === ox &&
+        lienzoVista.oy === oy
+      ) {
+        return; // el lienzo ya muestra las capas en esta vista y nada se anima
+      }
+      componerCapas(flujo);
+    };
+
+    /**
+     * Deja las capas del reposo al día (las repinta si algo las ensució).
+     * Fuera de un paneo, la cámara movida (su final, o cada paso de rueda) es
+     * un repintado completo; durante el paneo, las capas se copian llevadas a
+     * la vista de ahora, sin el flujo, y nada se repinta (Parte D). `false` si no hay
+     * contextos.
+     */
+    function prepararCapas(): boolean {
+      if (!actx || !nctx) return false;
       const gesto = enGesto();
       if (!gesto && camaraMovida()) ensuciar();
       if (sucioEstatico || !capasVigentes) {
@@ -1212,19 +1307,78 @@ export function MiniGraph({
         capasVigentes = true;
         lienzoAlDia = false;
       }
-      // El flujo solo se anima con el lienzo en la vista de las capas.
-      const flujo = conFlujo && !gesto && !camaraMovida();
-      if (
-        !flujo &&
-        lienzoAlDia &&
-        lienzoVista.scale === scale &&
-        lienzoVista.ox === ox &&
-        lienzoVista.oy === oy
-      ) {
-        return; // el lienzo ya muestra las capas en esta vista y nada se anima
+      return true;
+    }
+
+    /**
+     * Un frame del revelado (Parte E): las capas —pintadas una vez— copiadas
+     * dentro de un disco que crece desde el centro del grafo, con el borde
+     * difuso en anillos de opacidad decreciente (`revelado.ts`). Nada más se
+     * dibuja: son copias. `avance`: 0–1, sin suavizar.
+     */
+    const componerConNiebla = (avance: number) => {
+      const W = canvas.width;
+      const H = canvas.height;
+      const ahora: Vista = { scale, ox, oy };
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      // El centro del grafo (el origen del mundo, adonde tira la gravedad) en
+      // píxeles del lienzo.
+      const cx = (W / dpr / 2 + ox) * dpr;
+      const cy = (H / dpr / 2 + oy) * dpr;
+      const rMax = radioMaximo(cx, cy, W, H);
+      for (const a of anillosNiebla(suavizar(avance), rMax, rMax * BANDA_NIEBLA)) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, a.exterior, 0, Math.PI * 2);
+        if (a.interior > 0) ctx.arc(cx, cy, a.interior, 0, Math.PI * 2, true);
+        ctx.clip();
+        ctx.globalAlpha = a.alfa;
+        const w = W / dpr;
+        const h = H / dpr;
+        if (!capaUnica) copiarCapa(ctx, capaAristas, vistaPintada, ahora, w, h, margenX, margenY, dpr);
+        copiarCapa(ctx, capaNodos, vistaPintada, ahora, w, h, margenX, margenY, dpr);
+        ctx.restore();
       }
-      componerCapas(flujo);
+      lienzoAlDia = false;
     };
+
+    /**
+     * Avanza el revelado un frame. El primero pinta las capas (el único dibujo
+     * caro) y recién después arranca el reloj, así el fundido no empieza
+     * adelantado. Con movimiento reducido no hay fundido: se muestra de una.
+     * Devuelve `"sigue"`, `"espera"` (lienzo sin tamaño: el `resize` lo
+     * despierta) o `"fin"`.
+     */
+    const pasoRevelado = (): "sigue" | "espera" | "fin" => {
+      if (reducido) {
+        terminarRevelado();
+        return "fin";
+      }
+      if (canvas.width === 0 || canvas.height === 0 || !prepararCapas()) return "espera";
+      if (inicioRevelado === null) {
+        inicioRevelado = performance.now();
+        componerConNiebla(0);
+        return "sigue";
+      }
+      const avance = progresoRevelado(performance.now() - inicioRevelado);
+      if (avance >= 1) {
+        terminarRevelado();
+        return "fin";
+      }
+      componerConNiebla(avance);
+      return "sigue";
+    };
+
+    /** Fin del fundido: el grafo queda vivo y el próximo dibujo es el reposo normal. */
+    function terminarRevelado() {
+      if (informar) console.info("grafo: revelado");
+      fase = "vivo";
+      inicioRevelado = null;
+      lienzoAlDia = false;
+      // El grafo sigue apenas vivo (movimiento residual casi imperceptible).
+      if (revealCountRef.current == null) aResidual(ALPHA_CACHE);
+    }
 
     // Construcción temporal: colocar los nodos
     // recién aparecidos (en orden de creación) y dar energía para que el grafo
@@ -1242,12 +1396,14 @@ export function MiniGraph({
           // Solo simulan los nodos ya aparecidos, así el grafo se reacomoda
           // mientras crece (en vez de estar todo prefijado).
           motor?.activos(mascaraActivos);
+          // Mientras crece, el worker corre libre (como antes de la Parte E).
+          motor?.ritmo("libre");
           calentarMotor(ALPHA_NUEVOS);
         }
       } else if (prevRc != null) {
         // Fin de la construcción: vuelven a participar todos.
         motor?.activos(null);
-        calentarMotor(ALPHA_NUEVOS);
+        aResidual(ALPHA_NUEVOS);
       }
     };
 
@@ -1257,12 +1413,37 @@ export function MiniGraph({
      * pocos frames y alternar nombres y flujo se vería como un parpadeo.
      */
     const reducible = N >= MIN_NODOS_WORKER;
-    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
+    /** El dibujo anterior pasó el presupuesto: el próximo lote se salta (solo construcción). */
     let saltarDibujo = false;
 
     const tick = () => {
       frame = 0;
       if (!running || !canvas.isConnected) return;
+      if (fase === "precalculo") {
+        // Nada que dibujar: el lienzo queda vacío hasta que el layout converja.
+        // Con el worker ni siquiera hace falta el frame (el aviso de
+        // `alAsentar` lo despierta); en el hilo principal, cada frame da los
+        // pasos de su presupuesto.
+        if (motor && !motor.enWorker) {
+          motor.avanzar();
+          if (fase === "precalculo") frame = requestAnimationFrame(tick);
+          else wake();
+        }
+        return;
+      }
+      if (fase === "revelado") {
+        if (simulate()) ensuciar(); // las posiciones finales del precálculo
+        // Oculto (o sin tamaño) el revelado espera: el observador o el
+        // `resize` lo despiertan, y el fundido empieza cuando se ve.
+        if (!visible) return;
+        const r = pasoRevelado();
+        if (r === "espera") return;
+        if (r === "sigue") {
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        lastEnergetic = performance.now();
+      }
       const rc = revealCountRef.current;
       avanzarConstruccion(rc);
       prevRc = rc ?? null;
@@ -1279,26 +1460,39 @@ export function MiniGraph({
       // Los nodos se movieron (pasos locales, posiciones del worker que
       // llegaron —incluso con el bucle ya en reposo— o el nodo arrastrado): la
       // capa ya no vale.
-      const movio = simulate() || movidoAMano;
+      const aMano = movidoAMano;
+      const movio = simulate() || aMano;
       movidoAMano = false;
-      if (movio) ensuciar();
+      if (movio) {
+        // En la residual el grafo se mueve fracciones de píxel por paso: si
+        // ningún nodo se movió medio píxel desde el último dibujo, repintar
+        // daría lo mismo. El paso de física se dio igual (Parte E).
+        const residual =
+          !aMano && !dragNode && revealCountRef.current == null && (motor?.alpha ?? 1) <= ALPHA_CACHE;
+        if (!residual || movidoALaVista()) ensuciar();
+      }
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
       if (visible) {
-        // En movimiento, fidelidad reducida; la simulación continua, ya casi
-        // quieta, vuelve a la completa (si no, no se vería nunca).
-        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
+        // En movimiento, fidelidad reducida (arrastre, construcción, nodos
+        // nuevos); con la energía residual (Parte E) o la simulación continua
+        // ya casi quieta, la completa: el movimiento es apenas perceptible y
+        // los nombres no deben desaparecer y volver.
+        const casiQuieto = !dragNode && (motor?.alpha ?? 0) <= ALPHA_CACHE;
         const modo = !moviendo ? "reposo" : reducible && !casiQuieto ? "rapido" : "directo";
-        if (movio && saltarDibujo && modo !== "reposo") {
-          // Presupuesto adaptativo: el dibujo anterior fue lento, así que este
-          // lote de posiciones no se pinta (queda sucio: va en el próximo). La
-          // física no se entera: sigue libre en el worker.
+        // Presupuesto adaptativo solo en la construcción temporal (worker
+        // libre): el dibujo anterior fue lento, así que este lote no se pinta
+        // (queda sucio: va en el próximo). En el arrastre y la residual el
+        // worker da un paso por frame y todos se dibujan (Parte E).
+        const libre = revealCountRef.current != null;
+        if (movio && saltarDibujo && libre && modo !== "reposo") {
           saltarDibujo = false;
         } else {
           const t0 = performance.now();
           draw(modo);
-          saltarDibujo = modo !== "reposo" && performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
+          saltarDibujo =
+            libre && modo !== "reposo" && performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
         }
       }
       // Flujo animado sobre la capa → mantener el redibujo aunque la simulación
@@ -1318,13 +1512,16 @@ export function MiniGraph({
       observador.disconnect();
       if (wakeRef.current === despertar) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
-      clearTimeout(temporizadorRueda);
       motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
-      guardarPosiciones?.(positions);
+      // A mitad del precálculo no hay layout que guardar: lo que tiene `sim`
+      // es la siembra, y guardarlo haría arrancar desde ahí creyéndolo asentado.
+      if (fase !== "precalculo") {
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
+        guardarPosiciones?.(positions);
+      }
       // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
       guardarVista?.({ scale, ox, oy });
 

@@ -11,6 +11,9 @@
 // - `avanzarCiclo` da tantos pasos como quepan en un presupuesto de tiempo. El
 //   worker lo llama en bucle, libre; el respaldo del hilo principal, una vez
 //   por frame con 6 ms.
+// - Precálculo a ciegas (Parte E): sin caché de posiciones, el grafo corre a
+//   convergencia antes de dibujarse (`precalcular`), aunque la simulación sea
+//   continua; después se revela ya ubicado.
 //
 // Módulo PURO (sin DOM): lo importan el worker, el respaldo del hilo principal
 // y los tests headless. Aquí vive también la siembra en filotaxis.
@@ -90,6 +93,29 @@ export function soltar(c: Ciclo) {
   c.pasos = 0; // el asentamiento se cuenta desde que se suelta
 }
 
+/**
+ * Precálculo a ciegas (Parte E): energía `alpha` y objetivo 0, así el ciclo
+ * se asienta solo aunque la simulación sea continua (que nunca baja de
+ * `ALPHA_CONTINUO`). Nadie dibuja mientras tanto.
+ */
+export function precalcular(c: Ciclo, alpha: number) {
+  c.objetivo = 0;
+  calentar(c, alpha);
+}
+
+/**
+ * Física residual (Parte E): energía baja fijada en `alpha` (no se suma a la
+ * que tuviera: tras un arrastre también BAJA) con el objetivo de siempre. Es
+ * lo que corre después del revelado y al soltar un nodo, a un paso por frame
+ * dibujado (`paso` por pedido del hilo principal).
+ */
+export function residual(c: Ciclo, alpha: number) {
+  if (!c.corriendo) c.pasos = 0;
+  c.objetivo = c.continuo ? ALPHA_CONTINUO : 0;
+  c.alpha = alpha;
+  c.corriendo = true;
+}
+
 /** Un nodo que el hilo principal movió a mano (aparición): velocidad a 0. */
 export function colocarEn(c: Ciclo, i: number, x: number, y: number) {
   const e = c.estado;
@@ -118,7 +144,8 @@ export function avanzarCiclo(
     c.alpha = enfriar(c.alpha, c.objetivo);
     c.pasos++;
     dados++;
-    if (!c.continuo && c.objetivo === 0 && c.alpha < ALPHA_MIN) {
+    // Objetivo 0 solo lo tiene la simulación continua durante el precálculo.
+    if (c.objetivo === 0 && c.alpha < ALPHA_MIN) {
       c.corriendo = false;
       break;
     }

@@ -208,3 +208,76 @@ test("el layout asentado es del mismo tipo que el del ciclo de antes (radio ±5 
   const rn = radio(c.estado.pos);
   assert.ok(Math.abs(rn / rv - 1) < 0.05, `radio antes ${rv.toFixed(0)}, ahora ${rn.toFixed(0)}`);
 });
+
+// ── Parte E: precálculo a ciegas y física residual ──
+
+test("precalcular: se asienta en ~300 pasos aunque la simulación sea continua", () => {
+  const aristas = grafoVault(60, 11);
+  for (const continuo of [false, true]) {
+    const c = cicloDe(60, aristas, 0, continuo);
+    c.corriendo = false;
+    C.precalcular(c, 1);
+    const dados = C.avanzarCiclo(c, 1, relojQuieto, 5000);
+    assert.equal(c.corriendo, false, `continuo=${continuo}: termina`);
+    assert.ok(Math.abs(dados - 300) <= 2, `${dados} pasos`);
+  }
+});
+
+test("residual: fija la energía (también la baja) y vuelve al objetivo de siempre", () => {
+  const c = cicloDe(40, grafoVault(40, 12), 1);
+  C.fijar(c, 3, 100, 100);
+  C.avanzarCiclo(c, 1, relojQuieto, 50);
+  C.soltar(c);
+  C.residual(c, C.ALPHA_CACHE);
+  assert.equal(c.alpha, C.ALPHA_CACHE, "tras el arrastre la baja a 0,05");
+  assert.equal(c.objetivo, 0);
+  const dados = C.avanzarCiclo(c, 1, relojQuieto);
+  assert.ok(Math.abs(dados - 170) <= 2, `${dados} pasos desde 0,05`);
+  // Quieto, la sube y cuenta de nuevo.
+  C.residual(c, C.ALPHA_CACHE);
+  assert.equal(c.corriendo, true);
+  assert.equal(c.pasos, 0);
+  // Con la simulación continua, el objetivo es su piso y no se asienta.
+  const k = cicloDe(40, grafoVault(40, 13), 0, true);
+  C.precalcular(k, 1);
+  C.avanzarCiclo(k, 1, relojQuieto, 5000);
+  C.residual(k, C.ALPHA_CACHE);
+  assert.equal(k.objetivo, C.ALPHA_CONTINUO);
+  C.avanzarCiclo(k, 1, relojQuieto, 1000);
+  assert.equal(k.corriendo, true);
+});
+
+test("residual tras el precálculo: movimiento apenas perceptible, sin saltos entre pasos", () => {
+  // Criterio 2 de la Parte E: después del revelado el grafo se mueve poco,
+  // y a un paso por frame ningún paso es un salto. Medido (1.000 nodos):
+  // 170 pasos, salto máximo 3,1 px por paso (k = 80: a zoom 0,35, un píxel
+  // de pantalla por frame), desplazamiento medio 16 px en 2,8 s a 60 fps. El
+  // precálculo se detiene al enfriarse, no en el equilibrio exacto: lo que
+  // queda lo recorre la residual, despacio.
+  const n = 1000;
+  const c = cicloDe(n, grafoVault(n, 14), 0);
+  c.corriendo = false;
+  C.precalcular(c, 1);
+  C.avanzarCiclo(c, 1, relojQuieto);
+  const inicio = Float64Array.from(c.estado.pos);
+  C.residual(c, C.ALPHA_CACHE);
+  let saltoMax = 0;
+  let previo = Float64Array.from(c.estado.pos);
+  let pasos = 0;
+  while (c.corriendo) {
+    C.avanzarCiclo(c, 0, relojQuieto, 1); // lo que hace un pedido del hilo principal
+    pasos++;
+    const p = c.estado.pos;
+    for (let i = 0; i < n; i++) {
+      saltoMax = Math.max(saltoMax, Math.hypot(p[i * 2] - previo[i * 2], p[i * 2 + 1] - previo[i * 2 + 1]));
+    }
+    previo = Float64Array.from(p);
+  }
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    total += Math.hypot(previo[i * 2] - inicio[i * 2], previo[i * 2 + 1] - inicio[i * 2 + 1]);
+  }
+  assert.ok(Math.abs(pasos - 170) <= 2);
+  assert.ok(saltoMax < 5, `salto máximo ${saltoMax.toFixed(2)} px por paso`);
+  assert.ok(total / n < 25, `desplazamiento medio ${(total / n).toFixed(2)} px`);
+});

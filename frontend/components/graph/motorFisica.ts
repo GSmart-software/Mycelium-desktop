@@ -4,6 +4,11 @@
 // lo usa igual en los dos casos:
 //
 //   correr(alpha)   → darle energía (arranque, nodos nuevos)
+//   precalcular(a)  → a ciegas hasta asentarse, sin posiciones intermedias
+//                     (Parte E: sin caché, el grafo se calcula antes de verse)
+//   residual(a)     → energía baja y ritmo «pedido»: un paso por frame
+//   ritmo(r)        → «libre» (el worker corre solo) o «pedido» (un paso por
+//                     cada `avanzar`, o sea por frame dibujado)
 //   fijar/soltar    → arrastre de un nodo (sube la energía mientras dura)
 //   colocar()       → el hilo principal movió un nodo a mano (aparición)
 //   activos()       → qué nodos participan (construcción temporal)
@@ -21,10 +26,12 @@ import {
   colocarEn,
   crearCiclo,
   fijar,
+  precalcular,
+  residual,
   soltar,
 } from "./cicloFisica";
 import type { ConstantesFisica, EstadoFisica } from "./fisica";
-import type { MensajeAlWorker, MensajeDelWorker } from "./sim.worker";
+import type { MensajeAlWorker, MensajeDelWorker, Ritmo } from "./sim.worker";
 
 export type MotorFisica = {
   /** `true` si la física corre en el worker. */
@@ -34,6 +41,14 @@ export type MotorFisica = {
   /** La energía de lo último que se tomó. */
   readonly alpha: number;
   correr(alpha: number): void;
+  /**
+   * Precálculo a ciegas: corre hasta asentarse y solo entonces entrega
+   * posiciones (`tomar`), avisando con `alAsentar`.
+   */
+  precalcular(alpha: number): void;
+  /** Física residual: energía `alpha` (fijada, no sumada) y un paso por frame. */
+  residual(alpha: number): void;
+  ritmo(r: Ritmo): void;
   fijar(i: number, x: number, y: number): void;
   soltar(): void;
   colocar(i: number, x: number, y: number): void;
@@ -60,21 +75,28 @@ export const MIN_NODOS_WORKER = 200;
 
 /** Presupuesto de física por frame en el hilo principal (el respaldo). */
 const PRESUPUESTO_LOCAL_MS = 6;
+/**
+ * Durante el precálculo a ciegas no se dibuja nada: el frame entero es de la
+ * física, con margen para que siga por debajo de 16 ms.
+ */
+const PRESUPUESTO_LOCAL_CIEGO_MS = 12;
 
 /** La física en el hilo principal, sobre el mismo `estado` que usa el dibujo. */
 function motorLocal(
   estado: EstadoFisica,
   constantes: ConstantesFisica,
   op: OpcionesMotor,
-  heredado?: Ciclo,
+  heredado?: { ciclo: Ciclo; aCiegas: boolean; ritmo: Ritmo },
 ): MotorFisica {
   const ciclo = crearCiclo(estado, constantes, op.continuo);
   if (heredado) {
-    ciclo.alpha = heredado.alpha;
-    ciclo.objetivo = heredado.objetivo;
-    ciclo.corriendo = heredado.corriendo;
+    ciclo.alpha = heredado.ciclo.alpha;
+    ciclo.objetivo = heredado.ciclo.objetivo;
+    ciclo.corriendo = heredado.ciclo.corriendo;
   }
   let nuevo = false;
+  let aCiegas = heredado?.aCiegas ?? false;
+  let ritmo: Ritmo = heredado?.ritmo ?? "libre";
   return {
     enWorker: false,
     get corriendo() {
@@ -85,6 +107,17 @@ function motorLocal(
     },
     correr(alpha) {
       calentar(ciclo, alpha);
+    },
+    precalcular(alpha) {
+      precalcular(ciclo, alpha);
+      aCiegas = true;
+    },
+    residual(alpha) {
+      residual(ciclo, alpha);
+      ritmo = "pedido";
+    },
+    ritmo(r) {
+      ritmo = r;
     },
     fijar(i, x, y) {
       fijar(ciclo, i, x, y);
@@ -100,7 +133,14 @@ function motorLocal(
     },
     avanzar() {
       if (!ciclo.corriendo) return;
-      avanzarCiclo(ciclo, PRESUPUESTO_LOCAL_MS, () => performance.now());
+      if (ritmo === "pedido" && !aCiegas) {
+        avanzarCiclo(ciclo, 0, () => performance.now(), 1); // un paso por frame
+      } else {
+        const presupuesto = aCiegas ? PRESUPUESTO_LOCAL_CIEGO_MS : PRESUPUESTO_LOCAL_MS;
+        avanzarCiclo(ciclo, presupuesto, () => performance.now());
+      }
+      if (ciclo.corriendo && aCiegas) return; // a ciegas: nada que entregar todavía
+      aCiegas = false;
       nuevo = true;
       if (!ciclo.corriendo) op.alAsentar(ciclo.pasos);
     },
@@ -145,6 +185,11 @@ export function crearMotor(
   /** Índice movido a mano → `seq` del mensaje que lo movió. */
   const pendientes = new Map<number, number>();
   let seq = 0;
+  /** Precálculo a ciegas en curso en el worker (si cae, el respaldo lo sigue igual). */
+  let aCiegas = false;
+  let ritmo: Ritmo = "libre";
+  /** Con ritmo «pedido»: se pidió un paso y su respuesta todavía no llegó. */
+  let pedidoEnCurso = false;
 
   const enviar = (m: MensajeAlWorker, transferir: Transferable[] = []) => {
     if (!local) worker.postMessage(m, transferir);
@@ -154,11 +199,12 @@ export function crearMotor(
   const caer = () => {
     if (local) return;
     worker.terminate();
-    local = motorLocal(estado, constantes, op, espejo);
+    local = motorLocal(estado, constantes, op, { ciclo: espejo, aCiegas, ritmo });
     recibido = null;
   };
   worker.onmessage = (ev: MessageEvent<MensajeDelWorker>) => {
     const m = ev.data;
+    pedidoEnCurso = false;
     // Si el anterior no se llegó a dibujar, se descarta y vuelve al worker.
     if (recibido) devolver(recibido);
     recibido = m.pos;
@@ -166,8 +212,13 @@ export function crearMotor(
     espejo.pasos = m.pasos;
     for (const [i, s] of pendientes) if (s <= m.seq) pendientes.delete(i);
     if (m.asentado) {
-      espejo.corriendo = false;
-      op.alAsentar(m.pasos);
+      aCiegas = false;
+      // Solo una vez por corrida: a un pedido llegado tarde (el grafo ya se
+      // había asentado) el worker también responde `asentado`.
+      if (espejo.corriendo) {
+        espejo.corriendo = false;
+        op.alAsentar(m.pasos);
+      }
     }
     op.alRecibir();
   };
@@ -207,6 +258,24 @@ export function crearMotor(
       calentar(espejo, alpha);
       enviar({ tipo: "correr", alpha });
     },
+    precalcular(alpha) {
+      if (local) return local.precalcular(alpha);
+      precalcular(espejo, alpha);
+      aCiegas = true;
+      enviar({ tipo: "precalcular", alpha });
+    },
+    residual(alpha) {
+      if (local) return local.residual(alpha);
+      residual(espejo, alpha);
+      ritmo = "pedido";
+      enviar({ tipo: "residual", alpha });
+    },
+    ritmo(r) {
+      if (local) return local.ritmo(r);
+      if (r === ritmo) return;
+      ritmo = r;
+      enviar({ tipo: "ritmo", ritmo: r });
+    },
     fijar(i, x, y) {
       if (local) return local.fijar(i, x, y);
       fijar(espejo, i, x, y); // también mueve `estado`, que es el del dibujo
@@ -230,7 +299,12 @@ export function crearMotor(
       enviar({ tipo: "activos", mascara: mascara ? mascara.slice() : null });
     },
     avanzar() {
-      local?.avanzar();
+      if (local) return local.avanzar();
+      // Ritmo «pedido»: un paso por frame, y el siguiente recién cuando llegó
+      // la respuesta del anterior (mientras se dibuja, el worker calcula).
+      if (ritmo !== "pedido" || aCiegas || !espejo.corriendo || pedidoEnCurso) return;
+      pedidoEnCurso = true;
+      enviar({ tipo: "paso" });
     },
     tomar() {
       if (local) return local.tomar();
