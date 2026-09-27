@@ -43,7 +43,11 @@ const FLUJO_ZOOM_MIN = 0.5;
  */
 const FLUJO_MAX_ARISTAS = 1500;
 
-/** Si un frame de dibujo en movimiento pasó de esto, el siguiente se salta. */
+/**
+ * Construcción temporal (worker libre): si un frame de dibujo en movimiento
+ * pasó de esto, el siguiente se salta. Con el ritmo «pedido» de la Parte E
+ * (residual y arrastre) no se saltea nada: cada paso de física es un frame.
+ */
 const PRESUPUESTO_DIBUJO_MS = 12;
 /** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
 const HUBS_CON_NOMBRE = 24;
@@ -614,6 +618,10 @@ export function MiniGraph({
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
         motor?.soltar();
+        // Al soltar, de vuelta a la residual (Parte E): relajación corta con
+        // energía baja, a un paso por frame. Antes bajaba desde 0,3 (248
+        // pasos) con el worker libre. La construcción temporal sigue libre.
+        if (revealCountRef.current == null) motor?.residual(ALPHA_CACHE);
       }
       dragNode = null;
       if (panning) {
@@ -1386,7 +1394,7 @@ export function MiniGraph({
      * pocos frames y alternar nombres y flujo se vería como un parpadeo.
      */
     const reducible = N >= MIN_NODOS_WORKER;
-    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
+    /** El dibujo anterior pasó el presupuesto: el próximo lote se salta (solo construcción). */
     let saltarDibujo = false;
 
     const tick = () => {
@@ -1446,15 +1454,18 @@ export function MiniGraph({
         // los nombres no deben desaparecer y volver.
         const casiQuieto = !dragNode && (motor?.alpha ?? 0) <= ALPHA_CACHE;
         const modo = !moviendo ? "reposo" : reducible && !casiQuieto ? "rapido" : "directo";
-        if (movio && saltarDibujo && modo !== "reposo") {
-          // Presupuesto adaptativo: el dibujo anterior fue lento, así que este
-          // lote de posiciones no se pinta (queda sucio: va en el próximo). La
-          // física no se entera: sigue libre en el worker.
+        // Presupuesto adaptativo solo en la construcción temporal (worker
+        // libre): el dibujo anterior fue lento, así que este lote no se pinta
+        // (queda sucio: va en el próximo). En el arrastre y la residual el
+        // worker da un paso por frame y todos se dibujan (Parte E).
+        const libre = revealCountRef.current != null;
+        if (movio && saltarDibujo && libre && modo !== "reposo") {
           saltarDibujo = false;
         } else {
           const t0 = performance.now();
           draw(modo);
-          saltarDibujo = modo !== "reposo" && performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
+          saltarDibujo =
+            libre && modo !== "reposo" && performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
         }
       }
       // Flujo animado sobre la capa → mantener el redibujo aunque la simulación
