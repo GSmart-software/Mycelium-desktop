@@ -9,9 +9,14 @@
  *   offscreen. Solo se repinta cuando cambia la vista, se mueven los nodos
  *   (Sustrato mientras no está en reposo), cambia lo revelado o cambia la
  *   preferencia. Es la propuesta 1 de `DEF-109` aplicada a estas disposiciones.
- * - **Sobrecapa** (`dibujarSobrecapa`): copia la estática y encima pinta el foco
- *   (el nodo apuntado, sus hifas y quienes lo referencian) y los nombres. Es lo
- *   único que se redibuja al mover el cursor.
+ * - **Sobrecapa** (`dibujarSobrecapa`): otro canvas offscreen, transparente, con
+ *   el foco (el nodo apuntado, sus hifas y quienes lo referencian) y los nombres.
+ *   Es lo único que se repinta al mover el cursor.
+ *
+ * Las dos capas son más grandes que el lienzo (un margen por lado) y el lienzo
+ * visible solo las **copia** (`copiarCapa`): mientras dura un paneo o un zoom con
+ * rueda se copian desplazadas o escaladas, sin repintar nada; el repintado
+ * completo llega al terminar el gesto (`FUN-L-25` · Parte D).
  *
  * Mientras los nodos se mueven (Sustrato asentándose o un arrastre) la capa
  * estática se pinta con **fidelidad de movimiento** (`EscenaMicelio.rapido`):
@@ -103,6 +108,57 @@ export type EscenaMicelio = {
    */
   rapido: boolean;
 };
+
+/** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
+export type Vista = { scale: number; ox: number; oy: number };
+
+/**
+ * Copia una capa con margen al lienzo visible, llevándola de la vista con que se
+ * pintó a la de ahora: desplazada si cambió el desplazamiento, escalada alrededor
+ * del mismo punto del mundo si cambió el zoom. Con las dos vistas iguales es una
+ * copia exacta, píxel a píxel (el margen es un número entero de píxeles reales).
+ *
+ * `ancho`/`alto` son los del lienzo visible en píxeles CSS; `mx`/`my`, el margen
+ * de la capa por lado, también en píxeles CSS.
+ */
+export function copiarCapa(
+  c: CanvasRenderingContext2D,
+  capa: HTMLCanvasElement,
+  pintada: Vista,
+  ahora: Vista,
+  ancho: number,
+  alto: number,
+  mx: number,
+  my: number,
+  dpr: number,
+) {
+  // Un punto de la capa en (lx, ly) cae, con la vista pintada, en el píxel
+  // (lx − mx·dpr) del lienzo; de ahí se lleva a la vista de ahora.
+  const k = ahora.scale / pintada.scale;
+  const tx = dpr * (ancho / 2 + ahora.ox) - k * dpr * (ancho / 2 + pintada.ox + mx);
+  const ty = dpr * (alto / 2 + ahora.oy) - k * dpr * (alto / 2 + pintada.oy + my);
+  // Solo el trozo de la capa que cae en el lienzo: copiar la capa entera, con
+  // su margen, es mover más del doble de píxeles para nada.
+  const w = c.canvas.width;
+  const h = c.canvas.height;
+  const sx0 = Math.max(0, Math.floor(-tx / k));
+  const sy0 = Math.max(0, Math.floor(-ty / k));
+  const sx1 = Math.min(capa.width, Math.ceil((w - tx) / k));
+  const sy1 = Math.min(capa.height, Math.ceil((h - ty) / k));
+  if (sx1 <= sx0 || sy1 <= sy0) return;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(
+    capa,
+    sx0,
+    sy0,
+    sx1 - sx0,
+    sy1 - sy0,
+    tx + sx0 * k,
+    ty + sy0 * k,
+    (sx1 - sx0) * k,
+    (sy1 - sy0) * k,
+  );
+}
 
 /** Qué está en foco: el nodo apuntado, sus vecinos (ambas direcciones) y quienes lo referencian. */
 export type FocoMicelio = {
@@ -393,16 +449,21 @@ export function dibujarCapaEstatica(
 // ── Sobrecapa: foco y nombres ────────────────────────────────────────────────
 
 /**
- * Copia la capa estática al canvas visible y pinta encima el foco y los nombres.
- * Los nombres van en **pantalla** (tamaño fijo, no escalan con el zoom) y no se
- * pisan: una etiqueta que solaparía a otra ya puesta no se dibuja, salvo la del
- * foco y las de sus vecinos.
+ * Pinta la sobrecapa en `ctx` (su canvas offscreen, transparente, del tamaño de
+ * la capa estática): el foco y los nombres. `cam` es la vista del lienzo
+ * visible (`ancho`/`alto` sin el margen) y `mx`/`my`, el margen de la capa por
+ * lado: todo se corre ese margen, así las dos capas se copian igual.
+ * Los nombres van en **pantalla** (tamaño fijo, no escalan con el zoom), solo
+ * los que caen en el lienzo visible —como antes de tener margen—, y no se pisan:
+ * una etiqueta que solaparía a otra ya puesta no se dibuja, salvo la del foco y
+ * las de sus vecinos.
  */
 export function dibujarSobrecapa(
   ctx: CanvasRenderingContext2D,
-  estatico: HTMLCanvasElement,
   e: EscenaMicelio,
   cam: Camara,
+  mx: number,
+  my: number,
   p: PaletaMicelio,
   foco: FocoMicelio,
   modoNombres: ModoNombresGrafo,
@@ -414,7 +475,7 @@ export function dibujarSobrecapa(
   const H = cam.alto;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.drawImage(estatico, 0, 0);
+  const camCapa: Camara = { ...cam, ancho: W + 2 * mx, alto: H + 2 * my };
   const revelado = (u: number) => g.rango[u] < e.limiteRango;
   const aPantalla = (u: number): [number, number] => [
     W / 2 + cam.ox + pos[u * 2] * s,
@@ -424,7 +485,7 @@ export function dibujarSobrecapa(
   const hayFoco = foco.nodo >= 0 && revelado(foco.nodo);
   if (hayFoco) {
     const f = foco.nodo;
-    aplicarCamara(ctx, cam);
+    aplicarCamara(ctx, camCapa);
     // Sus hifas, en el color de acento (son pocas: el blur acá sí se paga; en
     // movimiento no, Parte D).
     ctx.strokeStyle = p.acento;
@@ -459,8 +520,8 @@ export function dibujarSobrecapa(
     }
   }
 
-  // Etiquetas en espacio de pantalla.
-  ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+  // Etiquetas en espacio de pantalla (corridas el margen de la capa).
+  ctx.setTransform(cam.dpr, 0, 0, cam.dpr, mx * cam.dpr, my * cam.dpr);
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   const ocupados: [number, number, number, number][] = [];
