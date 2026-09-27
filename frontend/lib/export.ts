@@ -5,9 +5,8 @@ import { renderMermaidIn } from "@/lib/mermaid";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
-import { buildPrintCss, type PdfPrintOpts } from "@/lib/printStyles";
+import { armarDocumentoImpresion, type PdfPrintOpts } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
-import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePdfExportStore } from "@/stores/pdfExportStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
@@ -160,6 +159,32 @@ async function renderNoteHtml(notaId: string): Promise<string> {
 }
 
 /**
+ * Todo el CSS de la ventana, regla por regla. Una hoja de otro origen no deja
+ * leer sus reglas: se saltea (sus estilos no son de la vista de lectura).
+ */
+function cssDeLaVentana(): string {
+  const partes: string[] = [];
+  for (const hoja of Array.from(document.styleSheets)) {
+    let reglas: CSSRuleList;
+    try {
+      reglas = hoja.cssRules;
+    } catch {
+      // esperado: una hoja de otro origen no expone `cssRules`.
+      continue;
+    }
+    for (const regla of Array.from(reglas)) partes.push(regla.cssText);
+  }
+  return partes.join("\n");
+}
+
+/** Los atributos del `<html>` de la ventana: tema, modo, atmósfera, fuentes. */
+function atributosDeLaVentana(): Record<string, string> {
+  const salida: Record<string, string> = {};
+  for (const a of Array.from(document.documentElement.attributes)) salida[a.name] = a.value;
+  return salida;
+}
+
+/**
  * Exporta la nota como PDF 100% en el cliente (HU-10, escritorio): renderiza el
  * HTML de la nota (con SVG de Mermaid/Excalidraw) en un iframe oculto con el tema
  * y el tamaño de página aplicados, y abre el diálogo de impresión del webview
@@ -172,7 +197,6 @@ export async function exportNotePdf(
   pageSize: "A4" | "Letter",
   opts: PdfPrintOpts,
 ): Promise<void> {
-  const { tema, modoOscuro } = usePreferencesStore.getState();
   const html = await renderNoteHtml(notaId);
 
   const iframe = document.createElement("iframe");
@@ -193,18 +217,22 @@ export async function exportNotePdf(
     throw new Error("No se pudo preparar la impresión.");
   }
 
-  // Con fondo blanco se ignora el tema (blanco + negro); si no, se usa el tema de
-  // Mycelium (incluido oscuro si el usuario lo tiene). `@page { margin }` da los
-  // márgenes por página. NOTA (DEF-024): con márgenes, Chromium dibuja su
-  // encabezado/pie (fecha/título/página) en ese margen; se quita destildando
-  // "Encabezados y pies de página" en el diálogo de impresión (queda recordado).
-  const darkAttr = !opts.fondoBlanco && modoOscuro ? ' data-dark="true"' : "";
+  // El documento lleva el CSS REAL de la ventana y los atributos de su `<html>`
+  // —tema, atmósfera, tipografías, preferencias de fuente— (`DEF-116`): así el PDF
+  // se ve como la vista de lectura. Con fondo blanco se imprime con el tema claro.
+  // `@page { margin }` da los márgenes por página. NOTA (DEF-024): con márgenes,
+  // Chromium dibuja su encabezado/pie (fecha/título/página) en ese margen; se
+  // quita destildando "Encabezados y pies de página" en el diálogo de impresión.
   doc.open();
   doc.write(
-    `<!doctype html><html data-theme="${tema}"${darkAttr}><head><meta charset="utf-8">` +
-      `<title>${safeName(titulo)}</title>` +
-      `<style>@page { size: ${pageSize}; margin: 16mm; } ${buildPrintCss(opts)}</style></head>` +
-      `<body><div class="mic-preview">${html}</div></body></html>`,
+    armarDocumentoImpresion({
+      css: cssDeLaVentana(),
+      atributos: atributosDeLaVentana(),
+      html,
+      titulo: safeName(titulo),
+      pageSize,
+      opts,
+    }),
   );
   doc.close();
 

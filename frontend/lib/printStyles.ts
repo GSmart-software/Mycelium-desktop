@@ -146,12 +146,45 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
 `;
 
 /**
- * CSS de impresión según las opciones (DEF-024). Compone una base (Mycelium o
- * mínima) + capas para fondo blanco/texto negro, quitar colores de acento y
- * aplanar callouts. El `padding` da los márgenes del documento (el `@page` va con
- * `margin: 0` para que el navegador NO dibuje su encabezado/pie de fecha/título).
+ * Lo que hace falta para imprimir **encima de los estilos de la app** (`DEF-116`).
+ *
+ * El PDF se arma con el CSS real de la ventana —el mismo de la vista de lectura—,
+ * no con la copia reducida de `PRINT_CSS`, que se había quedado atrás: sin los
+ * colores de los títulos, los callouts por tipo ni las etiquetas en píldora. Así
+ * el PDF se parece a lo que se ve, y no vuelve a desfasarse con el próximo
+ * cambio de diseño.
+ *
+ * Ese CSS es el de una app de escritorio —`html, body { height: 100% }`, una
+ * hoja con ancho máximo— y hay que soltarlo para que el documento fluya en
+ * páginas. Más los saltos de página.
  */
-export function buildPrintCss(o: PdfPrintOpts): string {
+const PRINT_SOBRE_APP = `
+html, body { height: auto !important; max-width: none !important; overflow: visible !important; margin: 0 !important; }
+.mic-preview {
+  height: auto !important; overflow: visible !important;
+  max-width: none !important; padding: 0 !important; margin: 0 !important;
+}
+.mic-preview h1, .mic-preview h2, .mic-preview h3,
+.mic-preview h4, .mic-preview h5, .mic-preview h6 { break-after: avoid; page-break-after: avoid; }
+.mic-preview pre, .mic-preview table, .mic-preview blockquote, .mic-preview .mic-callout,
+.mic-preview .mic-props, .mic-preview .mermaid, .mic-preview .mic-excalidraw-block {
+  break-inside: avoid; page-break-inside: avoid;
+}
+.mic-preview img, .mic-preview svg { max-width: 100%; height: auto; }
+`;
+
+/**
+ * CSS de impresión según las opciones (DEF-024).
+ *
+ * Con `conCssDeLaApp` (desktop, `DEF-116`) el documento ya trae el CSS real de la
+ * ventana y el tema en sus atributos, y esto solo agrega lo del papel más las
+ * capas de las opciones. Sin él —web, que imprime en el backend— se usa la copia
+ * autocontenida `PRINT_CSS`.
+ *
+ * El `@page` va aparte, en quien arma el documento: `margin` da los márgenes por
+ * página.
+ */
+export function buildPrintCss(o: PdfPrintOpts, conCssDeLaApp = false): string {
   const partes: string[] = [
     // Imprimir los colores TAL CUAL (`DEF-116`). Sin esto, Chromium —el motor de
     // la ventana de Mycelium— imprime en modo ahorro: no dibuja ningún fondo y
@@ -161,40 +194,84 @@ export function buildPrintCss(o: PdfPrintOpts): string {
     // `DEF-024` dependían en silencio de que el usuario tildara «Gráficos de
     // fondo» en el diálogo de impresión.
     "html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }",
-    o.estilosMycelium ? PRINT_CSS : PRINT_CSS_MINIMO,
   ];
-  // Los márgenes los da `@page { margin }` (márgenes por página); no se añade
-  // padding al contenido (ver nota en `export.ts` sobre el encabezado del navegador).
+  const sobreApp = o.estilosMycelium && conCssDeLaApp;
+  partes.push(!o.estilosMycelium ? PRINT_CSS_MINIMO : sobreApp ? PRINT_SOBRE_APP : PRINT_CSS);
 
   if (o.fondoBlanco) {
-    partes.push(`
-      html, body, .mic-preview { background: #ffffff !important; color: #141414 !important; }
-      .mic-preview h1, .mic-preview h2, .mic-preview h3,
-      .mic-preview h4, .mic-preview h5, .mic-preview h6 { color: #141414 !important; }
-      .mic-preview th { background: #f2f2f2 !important; }
-      .mic-preview pre { background: #f4f4f4 !important; color: #141414 !important; }
-      .mic-preview :not(pre) > code { background: #f0f0f0 !important; color: #141414 !important; }
-      .mic-preview blockquote { color: #333 !important; }
-    `);
+    if (sobreApp) {
+      // El documento va con el tema CLARO (quien lo arma no pone `data-dark`):
+      // el texto ya es oscuro y los estilos se leen sobre claro. Solo falta que el
+      // papel sea blanco y no el crema del lienzo.
+      partes.push(`html, body, .mic-preview { background: #ffffff !important; }`);
+    } else {
+      partes.push(`
+        html, body, .mic-preview { background: #ffffff !important; color: #141414 !important; }
+        .mic-preview h1, .mic-preview h2, .mic-preview h3,
+        .mic-preview h4, .mic-preview h5, .mic-preview h6 { color: #141414 !important; }
+        .mic-preview th { background: #f2f2f2 !important; }
+        .mic-preview pre { background: #f4f4f4 !important; color: #141414 !important; }
+        .mic-preview :not(pre) > code { background: #f0f0f0 !important; color: #141414 !important; }
+        .mic-preview blockquote { color: #333 !important; }
+      `);
+    }
   }
 
   if (!o.colores) {
+    // Sin colores DEL TEXTO: todo en la tinta. Los bordes y fondos de los
+    // callouts no son texto: los decide «Estilar callouts».
     const texto = o.fondoBlanco ? "#141414" : "var(--mic-text-primary)";
     partes.push(`
       .mic-preview, .mic-preview * { color: ${texto} !important; }
       .mic-preview a, .mic-preview .mic-wikilink { text-decoration: underline; }
-      .mic-preview blockquote, .mic-preview .mic-callout { border-left-color: #999 !important; }
+      .mic-preview blockquote { border-left-color: #999 !important; }
     `);
   }
 
   if (!o.callouts) {
     partes.push(`
       .mic-preview .mic-callout {
-        border-left: 3px solid #ccc !important; background: transparent !important;
-        border-radius: 0 !important; padding: 0.3em 1em !important;
+        border: none !important; border-left: 3px solid #ccc !important;
+        background: transparent !important; border-radius: 0 !important;
+        padding: 0.3em 1em !important; box-shadow: none !important;
       }
     `);
   }
 
   return partes.join("\n");
+}
+
+/** Escapa un valor para un atributo HTML entre comillas dobles. */
+const escaparAtributo = (v: string): string =>
+  v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+/**
+ * El documento completo que se imprime (`DEF-116`). Puro: recibe todo lo que
+ * sale de la ventana —su CSS y los atributos de su `<html>`: el tema, la
+ * atmósfera, las variables de las tipografías, las preferencias de fuente— y lo
+ * arma, así se puede probar fuera de la app.
+ *
+ * Con «Fondo blanco» se imprime con el tema **claro** aunque la app esté en
+ * oscuro: `data-dark` se descarta.
+ */
+export function armarDocumentoImpresion(p: {
+  css: string;
+  atributos: Record<string, string>;
+  html: string;
+  titulo: string;
+  pageSize: "A4" | "Letter";
+  opts: PdfPrintOpts;
+}): string {
+  const atributos = { ...p.atributos };
+  if (p.opts.fondoBlanco) delete atributos["data-dark"];
+  const attrs = Object.entries(atributos)
+    .map(([k, v]) => ` ${k}="${escaparAtributo(v)}"`)
+    .join("");
+  return (
+    `<!doctype html><html${attrs}><head><meta charset="utf-8">` +
+    `<title>${escaparAtributo(p.titulo)}</title>` +
+    (p.css ? `<style>${p.css}</style>` : "") +
+    `<style>@page { size: ${p.pageSize}; margin: 16mm; } ${buildPrintCss(p.opts, p.css !== "")}</style></head>` +
+    `<body><div class="mic-preview">${p.html}</div></body></html>`
+  );
 }
