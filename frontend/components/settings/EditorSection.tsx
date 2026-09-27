@@ -9,6 +9,7 @@ import {
 } from "@/stores/preferencesStore";
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { refrescarCorrector } from "@/lib/editor/ortografia";
+import { DiccionariosCorrector } from "./DiccionariosCorrector";
 import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
@@ -106,17 +107,18 @@ export function EditorSection() {
         onChange={(v) => {
           setPref("correctorOrtografico", v);
           // Los editores abiertos leen la preferencia al actualizarse: se les
-          // avisa ya, para que el cambio se vea sin tener que escribir.
-          refrescarCorrector();
+          // avisa ya, para que el cambio se vea sin tener que escribir. Al
+          // apagarlo, además, se termina el worker del corrector.
+          refrescarCorrector(v);
         }}
       />
       <p className={styles.hint}>
-        Subraya las palabras mal escritas mientras escribís. Hacé clic derecho sobre
-        una para ver las sugerencias o agregarla al diccionario. Usa el corrector y
-        el <strong>idioma de tu sistema operativo</strong>: para cambiar el idioma o
-        sumar otro, se configura en el sistema, no acá. El código, los enlaces, las
-        etiquetas, las fórmulas y el frontmatter no se corrigen.
+        Subraya las palabras mal escritas, también las que ya estaban escritas al abrir
+        la nota. Hacé clic derecho sobre una marcada para ver las sugerencias, agregarla
+        al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las
+        fórmulas y el frontmatter no se corrigen.
       </p>
+      <DiccionariosCorrector />
 
       <Interruptor
         etiqueta="Números de línea"
