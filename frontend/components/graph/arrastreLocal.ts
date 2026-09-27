@@ -2,8 +2,9 @@
 //
 // Idea del usuario: al mover un nodo, los que no están cerca ni conectados no
 // deberían recalcularse ni redibujarse. Este módulo decide QUIÉNES se mueven
-// (el conjunto activo). La física de los congelados está en `fisica.ts`
-// (`EstadoFisica.moviles`).
+// (el conjunto activo) y QUÉ parte del lienzo hay que rehacer en cada frame
+// (el rectángulo sucio). La física de los congelados está en `fisica.ts`
+// (`EstadoFisica.moviles`) y el dibujo en `MiniGraph.tsx`.
 //
 // Módulo PURO (sin DOM): lo importan `MiniGraph.tsx` y los tests headless
 // (`scripts/test-arrastre-local.mjs`).
@@ -88,4 +89,117 @@ export function aristasQueTocan(mascara: Uint8Array, aristas: ArrayLike<number>)
     if (mascara[aristas[j]] || mascara[aristas[j + 1]]) r.push(j >> 1);
   }
   return Int32Array.from(r);
+}
+
+/** Rectángulo en píxeles del lienzo `[x0, y0) – [x1, y1)`; vacío si `x1 <= x0` o `y1 <= y0`. */
+export type Rect = { x0: number; y0: number; x1: number; y1: number };
+
+export const RECT_VACIO: Rect = { x0: 0, y0: 0, x1: 0, y1: 0 };
+
+export const rectVacio = (r: Rect) => r.x1 <= r.x0 || r.y1 <= r.y0;
+
+/** El rectángulo que envuelve a los dos (uno vacío no suma). */
+export function unirRect(a: Rect, b: Rect): Rect {
+  if (rectVacio(a)) return b;
+  if (rectVacio(b)) return a;
+  return {
+    x0: Math.min(a.x0, b.x0),
+    y0: Math.min(a.y0, b.y0),
+    x1: Math.max(a.x1, b.x1),
+    y1: Math.max(a.y1, b.y1),
+  };
+}
+
+/** Recorta al lienzo `ancho × alto` y lleva los bordes a píxeles enteros (hacia afuera). */
+export function recortarRect(r: Rect, ancho: number, alto: number): Rect {
+  const x0 = Math.max(0, Math.floor(r.x0));
+  const y0 = Math.max(0, Math.floor(r.y0));
+  const x1 = Math.min(ancho, Math.ceil(r.x1));
+  const y1 = Math.min(alto, Math.ceil(r.y1));
+  return x1 <= x0 || y1 <= y0 ? RECT_VACIO : { x0, y0, x1, y1 };
+}
+
+/** Cómo se lleva el mundo a píxeles del lienzo: `px = (x·scale + ox)·dpr + ancho/2`. */
+export type Transformacion = { scale: number; ox: number; oy: number; dpr: number; ancho: number; alto: number };
+
+/**
+ * Curvatura de las aristas (la de `controlDe` en `MiniGraph.tsx`): el punto de
+ * control es el punto medio desplazado `CURVA` veces la perpendicular.
+ */
+export const CURVA = 0.12;
+
+/**
+ * Rectángulo sucio (Parte F, cambio 3): lo que ocupa en el lienzo todo lo que
+ * se redibuja en el frame —los nodos activos con su disco y su nombre, y las
+ * aristas que los tocan— con `margen` píxeles CSS de más por lado (antialias,
+ * grosor del trazo). Una curva cuadrática queda dentro del triángulo de sus
+ * tres puntos, así que alcanza con los extremos y el punto de control.
+ *
+ * `radio[i]`: el del disco, en unidades de mundo. `nombre[i]`: ancho del nombre
+ * en píxeles CSS si se escribe, o < 0 si no; va centrado bajo el disco, con la
+ * línea base a `r + 13/scale` (las mismas cuentas que `pintarNombres`).
+ */
+export function rectSucio(
+  pos: ArrayLike<number>,
+  radio: ArrayLike<number>,
+  nombre: ArrayLike<number>,
+  nodos: ArrayLike<number>,
+  aristas: ArrayLike<number>,
+  indicesAristas: ArrayLike<number>,
+  t: Transformacion,
+  margen = 4,
+): Rect {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  // En unidades de mundo; se pasa a píxeles al final.
+  for (let k = 0; k < nodos.length; k++) {
+    const i = nodos[k];
+    const x = pos[i * 2];
+    const y = pos[i * 2 + 1];
+    const r = radio[i];
+    let izq = x - r;
+    let der = x + r;
+    let abajo = y + r;
+    const w = nombre[i];
+    if (w >= 0) {
+      // Nombre: `w` px de ancho y ~4 px bajo la línea base (descendentes).
+      const mitad = w / 2 / t.scale;
+      if (x - mitad < izq) izq = x - mitad;
+      if (x + mitad > der) der = x + mitad;
+      abajo = y + r + 17 / t.scale;
+    }
+    if (izq < x0) x0 = izq;
+    if (der > x1) x1 = der;
+    if (y - r < y0) y0 = y - r;
+    if (abajo > y1) y1 = abajo;
+  }
+  for (let k = 0; k < indicesAristas.length; k++) {
+    const j = indicesAristas[k] * 2;
+    const s = aristas[j];
+    const d = aristas[j + 1];
+    const sx = pos[s * 2];
+    const sy = pos[s * 2 + 1];
+    const tx = pos[d * 2];
+    const ty = pos[d * 2 + 1];
+    const cx = (sx + tx) / 2 - (ty - sy) * CURVA;
+    const cy = (sy + ty) / 2 + (tx - sx) * CURVA;
+    const minX = Math.min(sx, tx, cx);
+    const maxX = Math.max(sx, tx, cx);
+    const minY = Math.min(sy, ty, cy);
+    const maxY = Math.max(sy, ty, cy);
+    if (minX < x0) x0 = minX;
+    if (maxX > x1) x1 = maxX;
+    if (minY < y0) y0 = minY;
+    if (maxY > y1) y1 = maxY;
+  }
+  if (x0 === Infinity) return RECT_VACIO;
+  const { scale, ox, oy, dpr, ancho, alto } = t;
+  return {
+    x0: (x0 * scale + ox - margen) * dpr + ancho / 2,
+    y0: (y0 * scale + oy - margen) * dpr + alto / 2,
+    x1: (x1 * scale + ox + margen) * dpr + ancho / 2,
+    y1: (y1 * scale + oy + margen) * dpr + alto / 2,
+  };
 }

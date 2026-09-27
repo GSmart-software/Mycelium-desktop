@@ -3,7 +3,18 @@
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
-import { adyacencia, conjuntoActivo } from "./arrastreLocal";
+import {
+  RECT_VACIO,
+  type Rect,
+  adyacencia,
+  aristasQueTocan,
+  conjuntoActivo,
+  indicesActivos,
+  recortarRect,
+  rectSucio,
+  rectVacio,
+  unirRect,
+} from "./arrastreLocal";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
@@ -68,6 +79,15 @@ const RESIDUAL_MIN_PX = 0.5;
  */
 const RADIO_LOCAL_K = 3;
 const RECALCULO_LOCAL_K = 1;
+/**
+ * Al recalcular, los que entran al conjunto se recortan de la base (repintado
+ * parcial) y los que salen se siguen dibujando aparte, quietos: lo dibujado
+ * solo crece. Cuando pasa de `MAX_DIBUJADOS_K` veces el conjunto activo, la
+ * base se repinta entera con el conjunto de ahora (medido: repintar la base
+ * completa es un frame caro —rasterizar la capa entera—, y a cada `k` de
+ * recorrido eran varios por segundo).
+ */
+const MAX_DIBUJADOS_K = 2;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
@@ -445,14 +465,33 @@ export function MiniGraph({
     let dragNode: SimNode | null = null;
     // ── Arrastre local (`FUN-L-25` · Parte F). Mientras dura, `local` es la
     //    máscara de los activos (1 = se integra); los congelados no se mueven
-    //    (`EstadoFisica.moviles`). ──
+    //    (`EstadoFisica.moviles`) y viven en la base, pintada SIN los
+    //    `dibujados` (`pintarBase`). Cada frame se rehace solo el rectángulo
+    //    que envuelve a los dibujados y sus aristas. ──
     const ady = adyacencia(N, estado.aristas);
+    const radios = Float64Array.from(sim, (n) => n.r);
     const mascaraLocal = new Uint8Array(N);
     /** Máscara de la física (los que se integran), o `null` sin arrastre local. */
     let local: Uint8Array | null = null;
+    /**
+     * Los que NO están en la base y se dibujan cada frame: los activos y los
+     * que lo fueron desde el último repintado completo de la base (quietos).
+     */
+    const dibujados = new Uint8Array(N);
+    let nodosLocales: Int32Array = new Int32Array(0);
+    /** Índices en `simEdges` de las aristas que tocan un dibujado. */
+    let aristasLocales: Int32Array = new Int32Array(0);
+    /** Entraron al conjunto y siguen pintados en la base: hay que recortarlos. */
+    const entrantes: number[] = [];
     /** Dónde estaba el nodo arrastrado al calcular el conjunto. */
     let puntoLocalX = 0;
     let puntoLocalY = 0;
+    /** Las capas no tienen la base de este conjunto (arranque, recálculo, vista, tamaño). */
+    let baseSucia = false;
+    /** Lo que ocupó en el lienzo el dibujo local del frame anterior (hay que borrarlo). */
+    let rectPrevio: Rect = RECT_VACIO;
+    /** Ancho en px del nombre de cada activo que lo lleva (−1 = sin nombre). */
+    const anchoLocal = new Float32Array(N).fill(-1);
     /**
      * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
      * se calcula entero ANTES de dibujarse (`precalculo`: el lienzo queda
@@ -579,6 +618,7 @@ export function MiniGraph({
       margenY = myDev / dpr;
       capaAristas.width = capaNodos.width = canvas.width + 2 * mxDev;
       capaAristas.height = capaNodos.height = canvas.height + 2 * myDev;
+      if (local) baseSucia = true; // redimensionar borra las capas
       ensuciar();
       wake();
     };
@@ -622,7 +662,7 @@ export function MiniGraph({
         // Arrastre local (Parte F), solo en grafos grandes y fuera de la
         // construcción temporal (que ya usa su propia máscara de activos). En
         // el mini-grafo del panel el arrastre sigue siendo global.
-        if (reducible && revealCountRef.current == null) calcularLocal(n);
+        if (reducible && revealCountRef.current == null) calcularLocal(n, true);
       } else {
         panning = true;
       }
@@ -639,7 +679,7 @@ export function MiniGraph({
           const lejos = RECALCULO_LOCAL_K * constantes.k;
           const dx = p.x - puntoLocalX;
           const dy = p.y - puntoLocalY;
-          if (dx * dx + dy * dy > lejos * lejos) calcularLocal(dragNode);
+          if (dx * dx + dy * dy > lejos * lejos) calcularLocal(dragNode, false);
         }
         // Con el worker, las posiciones siguientes pueden no llegar en este
         // frame: el nodo arrastrado va con el próximo lote que se pinte (con
@@ -777,20 +817,53 @@ export function MiniGraph({
 
     /**
      * (Re)calcula el conjunto activo alrededor de `n` (Parte F, cambio 1) y se
-     * lo pasa al motor: desde el próximo paso solo se integran esos.
+     * lo pasa al motor: desde el próximo paso solo se integran esos. Las capas
+     * se repintan sin ellos en el próximo frame (`pintarBase`).
      */
-    function calcularLocal(n: SimNode) {
+    function calcularLocal(n: SimNode, inicio: boolean) {
       conjuntoActivo(n.i, ady, estado.pos, N, RADIO_LOCAL_K * constantes.k, mascaraLocal);
       local = mascaraLocal;
       puntoLocalX = n.x;
       puntoLocalY = n.y;
       motor?.moviles(mascaraLocal);
+      let activos = 0;
+      let nuevos = 0;
+      let yaDibujados = 0;
+      for (let i = 0; i < N; i++) {
+        activos += mascaraLocal[i];
+        yaDibujados += dibujados[i];
+        if (mascaraLocal[i] && !dibujados[i]) nuevos++;
+      }
+      if (inicio || baseSucia || yaDibujados + nuevos > MAX_DIBUJADOS_K * activos) {
+        // Base entera, con el conjunto de ahora.
+        dibujados.set(mascaraLocal);
+        entrantes.length = 0;
+        baseSucia = true;
+      } else if (nuevos > 0) {
+        // Los que entran se recortan de la base en el próximo frame.
+        for (let i = 0; i < N; i++) {
+          if (!mascaraLocal[i] || dibujados[i]) continue;
+          dibujados[i] = 1;
+          entrantes.push(i);
+        }
+      } else {
+        return; // los que salen quedan quietos, dibujados aparte
+      }
+      nodosLocales = indicesActivos(dibujados);
+      aristasLocales = aristasQueTocan(dibujados, estado.aristas);
     }
 
-    /** Fin del arrastre local: todos vuelven a moverse. */
+    /** Fin del arrastre local: todos vuelven a moverse y el próximo frame repinta todo. */
     function terminarLocal() {
       local = null;
       motor?.moviles(null);
+      dibujados.fill(0);
+      entrantes.length = 0;
+      baseSucia = false;
+      rectPrevio = RECT_VACIO;
+      // Las capas tienen la base (sin los activos): no sirven para el reposo.
+      capasVigentes = false;
+      ensuciar();
     }
 
     /**
@@ -932,8 +1005,14 @@ export function MiniGraph({
      * Pasada 1: aristas base. Además guarda la geometría de las visibles.
      * `flujo`: si lleva flujo animado encima; sin indicar, lo decide como
      * siempre (la opción, el zoom y cuántas aristas quedan a la vista).
+     * `excluir` (arrastre local): no pinta las aristas que tocan esos nodos.
      */
-    const pintarAristas = (c: CanvasRenderingContext2D, conMargen: boolean, flujo?: boolean) => {
+    const pintarAristas = (
+      c: CanvasRenderingContext2D,
+      conMargen: boolean,
+      flujo?: boolean,
+      excluir: Uint8Array | null = null,
+    ) => {
       calcularVisible(conMargen);
 
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
@@ -949,6 +1028,7 @@ export function MiniGraph({
       nVisibles = 0;
       for (const e of simEdges) {
         if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
+        if (excluir && (excluir[e.s.i] || excluir[e.t.i])) continue;
         // Culling: descartar la arista si su caja envolvente no toca la vista.
         if (fueraDeVista(e)) continue;
         const lit = hover && (e.s === hover || e.t === hover);
@@ -1014,8 +1094,11 @@ export function MiniGraph({
       c.globalAlpha = 1;
     };
 
-    /** Pasada 3: flechas, nodos y nombres (usa la geometría de la pasada 1). */
-    const pintarNodos = (c: CanvasRenderingContext2D) => {
+    /**
+     * Pasada 3: flechas, nodos y nombres (usa la geometría de la pasada 1).
+     * `excluir` (arrastre local): ni los discos ni los nombres de esos nodos.
+     */
+    const pintarNodos = (c: CanvasRenderingContext2D, excluir: Uint8Array | null = null) => {
       // Flecha al medio del enlace apuntando al destino.
       const dir = edgeDirectionRef.current;
       const showArrow = dir === "arrow" || dir === "both" || (reducido && dir === "animated");
@@ -1040,8 +1123,8 @@ export function MiniGraph({
         }
       }
 
-      pintarDiscos(c);
-      pintarNombres(c, false);
+      pintarDiscos(c, excluir);
+      pintarNombres(c, false, excluir);
     };
 
     // ── Nodos: discos lisos, sin brillo ni sombra, en reposo y en movimiento
@@ -1050,12 +1133,20 @@ export function MiniGraph({
     //    rasterizados. Blanco: el nodo central y el que está bajo el cursor.
     //    Acento: los que referencian al nodo en foco. Si no, el color del grupo
     //    (si tiene) o el glow del tema. Agrupados por color para no cambiar el
-    //    relleno a cada nodo. ──
+    //    relleno a cada nodo.
+    //    En el arrastre local (Parte F), `excluir` deja fuera a los activos
+    //    (la base) y `solo` pinta únicamente a ellos (cada frame). ──
     const discosPorColor = new Map<string, SimNode[]>();
-    const pintarDiscos = (c: CanvasRenderingContext2D) => {
+    const pintarDiscos = (
+      c: CanvasRenderingContext2D,
+      excluir: Uint8Array | null = null,
+      solo: Uint8Array | null = null,
+    ) => {
       for (const lista of discosPorColor.values()) lista.length = 0;
       for (const n of sim) {
         if (!revealed(n)) continue; // construcción temporal: aún no apareció
+        if (excluir && excluir[n.i]) continue;
+        if (solo && !solo[n.i]) continue;
         if (!dentro(n.x, n.y)) continue; // culling
         const isWhite = n.id === centerId || n === hover;
         const refsFocus = !isWhite && focusRefs.has(n.id);
@@ -1131,7 +1222,28 @@ export function MiniGraph({
       return true;
     };
 
-    const pintarNombres = (c: CanvasRenderingContext2D, soloDestacados: boolean) => {
+    const prepararNombres = (c: CanvasRenderingContext2D) => {
+      c.textAlign = "center";
+      c.font = `${12 / scale}px ${fontFamily}`;
+    };
+    const escribirNombre = (c: CanvasRenderingContext2D, n: SimNode) => {
+      c.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
+      c.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
+    };
+    /**
+     * Quién llevó nombre en el último dibujo completo (no el de movimiento):
+     * en el arrastre local, los activos conservan el suyo (Parte F).
+     */
+    const conNombre = new Uint8Array(N);
+    /**
+     * `excluir` (arrastre local): el reparto de sitios se hace con todos —así
+     * los congelados quedan con los mismos nombres—, pero esos no se escriben.
+     */
+    const pintarNombres = (
+      c: CanvasRenderingContext2D,
+      soloDestacados: boolean,
+      excluir: Uint8Array | null = null,
+    ) => {
       // Qué nombres se dibujan. El foco es el nodo apuntado y, si no hay
       // ninguno, el centro del panel — el mismo criterio que usa el
       // resaltado, para que el nombre acompañe a lo que ya está destacado.
@@ -1141,12 +1253,13 @@ export function MiniGraph({
       // hasta ser ilegibles y solo se deja el del apuntado. Los otros dos modos
       // ya muestran pocos, así que no necesitan ese recorte.
       const showAll = scale > 0.5;
-      c.textAlign = "center";
-      c.font = `${12 / scale}px ${fontFamily}`;
+      prepararNombres(c);
       const escribir = (n: SimNode) => {
-        c.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
-        c.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
+        if (!soloDestacados) conNombre[n.i] = 1;
+        if (excluir && excluir[n.i]) return;
+        escribirNombre(c, n);
       };
+      if (!soloDestacados) conNombre.fill(0);
       if (modo !== "todos" || !showAll) {
         for (const n of sim) {
           if (!revealed(n)) continue;
@@ -1267,6 +1380,265 @@ export function MiniGraph({
       lienzoAlDia = !flujo;
     };
 
+    // ── Arrastre local (`FUN-L-25` · Parte F): dibujo por rectángulo sucio.
+    //    Al empezar (y al recalcular el conjunto, o si cambia la vista o el
+    //    tamaño) se pinta la BASE: una sola capa (`capaNodos`) con lo
+    //    congelado —aristas entre congelados, discos y nombres— y SIN los
+    //    activos. Cada frame, en el rectángulo que envuelve a los activos —el
+    //    de ahora unido al del frame anterior, que hay que borrar—: se trazan
+    //    las aristas que tocan un activo, encima se copia ese trozo de la base
+    //    y encima van los discos y nombres activos. El resto del lienzo no se
+    //    toca.
+    //    - Base sin activos, y no tapar los activos viejos de la capa
+    //      completa: taparlos exige repintar desde algo que no los tenga, que
+    //      es esta misma base.
+    //    - UNA capa y las aristas activas ANTES de copiarla (quedan bajo los
+    //      discos congelados, como en el reposo): medido en Chromium, dos
+    //      capas distintas de 3.600 × 2.025 copiadas en el mismo frame y algo
+    //      dibujado después obligan a rasterizar el frame en el acto —el
+    //      presupuesto de imágenes de lienzo retenidas—: 120–220 ms de JS por
+    //      frame en vez de 3. ──
+
+    /** Copia el trozo `r` (píxeles del lienzo) de una capa pintada con la vista de ahora. */
+    const copiarTrozo = (capa: HTMLCanvasElement, r: Rect) => {
+      const mx = Math.round(margenX * dpr);
+      const my = Math.round(margenY * dpr);
+      const w = r.x1 - r.x0;
+      const h = r.y1 - r.y0;
+      ctx.drawImage(capa, r.x0 + mx, r.y0 + my, w, h, r.x0, r.y0, w, h);
+    };
+
+    /** La base: lo congelado en `capaNodos`, sin los activos (con su margen, como el reposo). */
+    const pintarBase = (activos: Uint8Array) => {
+      if (!nctx) return;
+      prepararLienzo(nctx, capaNodos.width, capaNodos.height);
+      pintarAristas(nctx, true, false, activos);
+      pintarNodos(nctx, activos);
+      marcarVistaPintada();
+      // Son la base del arrastre, no las del reposo: al soltar se repintan.
+      capasVigentes = false;
+      baseSucia = false;
+      entrantes.length = 0;
+      anchoLocal.fill(-1);
+      medirNombres(nctx, nodosLocales);
+    };
+
+    /** Ancho (px) del nombre de cada uno de `ids` que lo lleva, para el rectángulo. */
+    const medirNombres = (c: CanvasRenderingContext2D, ids: ArrayLike<number>) => {
+      c.font = `${12 / scale}px ${fontFamily}`;
+      for (let k = 0; k < ids.length; k++) {
+        const i = ids[k];
+        if (!conNombre[i]) continue;
+        if (anchoNombre[i] < 0) anchoNombre[i] = c.measureText(sim[i].titulo).width * scale;
+        anchoLocal[i] = anchoNombre[i];
+      }
+    };
+
+    /**
+     * Recorta de la base a los que entraron al conjunto (recálculo): repinta
+     * la base SOLO en el rectángulo que ocupaban —ellos, sus nombres y sus
+     * aristas, donde la base los tiene— con lo congelado que cae ahí.
+     * Devuelve ese rectángulo, que el lienzo tiene que recomponer.
+     */
+    const recortarBase = (): Rect => {
+      const ids = Int32Array.from(entrantes);
+      entrantes.length = 0;
+      if (!nctx) return RECT_VACIO;
+      medirNombres(nctx, ids);
+      const marca = new Uint8Array(N);
+      for (const i of ids) marca[i] = 1;
+      const W = canvas.width;
+      const H = canvas.height;
+      const rc = recortarRect(
+        rectSucio(posPintadas, radios, anchoLocal, ids, estado.aristas, aristasQueTocan(marca, estado.aristas), {
+          scale,
+          ox,
+          oy,
+          dpr,
+          ancho: W,
+          alto: H,
+        }),
+        W,
+        H,
+      );
+      if (rectVacio(rc)) return RECT_VACIO;
+      const mx = Math.round(margenX * dpr);
+      const my = Math.round(margenY * dpr);
+      nctx.save();
+      nctx.setTransform(1, 0, 0, 1, 0, 0);
+      nctx.beginPath();
+      nctx.rect(rc.x0 + mx, rc.y0 + my, rc.x1 - rc.x0, rc.y1 - rc.y0);
+      nctx.clip();
+      nctx.clearRect(rc.x0 + mx, rc.y0 + my, rc.x1 - rc.x0, rc.y1 - rc.y0);
+      aplicarVista(nctx, capaNodos.width, capaNodos.height);
+      // El recorte en coordenadas de mundo.
+      const aMundoX = (px: number) => ((px - W / 2) / dpr - ox) / scale;
+      const aMundoY = (py: number) => ((py - H / 2) / dpr - oy) / scale;
+      pintarCongeladosEn(nctx, aMundoX(rc.x0), aMundoX(rc.x1), aMundoY(rc.y0), aMundoY(rc.y1));
+      nctx.restore();
+      return rc;
+    };
+
+    /**
+     * Lo congelado (no `dibujados`) que toca el rectángulo de mundo, en el
+     * orden de la base: aristas, flechas, discos y nombres. Mismo estilo que
+     * `pintarAristas`/`pintarNodos`; los nombres son los que ya tenía la base
+     * (`conNombre`), sin volver a repartir sitios.
+     */
+    const pintarCongeladosEn = (c: CanvasRenderingContext2D, l: number, r: number, t: number, b: number) => {
+      const holgura = 3 / scale; // grosor del trazo y antialias
+      const glow = hoverGlowRef.current;
+      const dir = edgeDirectionRef.current;
+      const conFlecha = dir === "arrow" || dir === "both" || (reducido && dir === "animated");
+      const flechas: number[] = [];
+      for (const e of simEdges) {
+        if (!revealed(e.s) || !revealed(e.t)) continue;
+        if (dibujados[e.s.i] || dibujados[e.t.i]) continue;
+        controlDe(e);
+        if (
+          Math.max(e.s.x, e.t.x, ctrlX) < l - holgura ||
+          Math.min(e.s.x, e.t.x, ctrlX) > r + holgura ||
+          Math.max(e.s.y, e.t.y, ctrlY) < t - holgura ||
+          Math.min(e.s.y, e.t.y, ctrlY) > b + holgura
+        ) {
+          continue;
+        }
+        const lit = hover && (e.s === hover || e.t === hover);
+        c.strokeStyle = lit ? colEdgeLit : colEdge;
+        c.lineWidth = (lit ? 1.2 + 0.9 * glow : 1.1) / scale;
+        if (lit && glow > 0) {
+          c.shadowColor = colEdgeLit;
+          c.shadowBlur = (8 * glow) / scale;
+        }
+        c.beginPath();
+        c.moveTo(e.s.x, e.s.y);
+        c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
+        c.stroke();
+        c.shadowBlur = 0;
+        if (conFlecha) flechas.push(e.s.x, e.s.y, ctrlX, ctrlY, e.t.x, e.t.y, lit ? 1 : 0);
+      }
+      const size = 6 / scale;
+      for (let o = 0; o < flechas.length; o += 7) {
+        const sx = flechas[o];
+        const sy = flechas[o + 1];
+        const tx = flechas[o + 4];
+        const ty = flechas[o + 5];
+        const bx = 0.25 * sx + 0.5 * flechas[o + 2] + 0.25 * tx;
+        const by = 0.25 * sy + 0.5 * flechas[o + 3] + 0.25 * ty;
+        const a = Math.atan2(ty - sy, tx - sx);
+        c.fillStyle = flechas[o + 6] === 1 ? colEdgeLit : colEdge;
+        c.beginPath();
+        c.moveTo(bx + Math.cos(a) * size, by + Math.sin(a) * size);
+        c.lineTo(bx + Math.cos(a + 2.6) * size, by + Math.sin(a + 2.6) * size);
+        c.lineTo(bx + Math.cos(a - 2.6) * size, by + Math.sin(a - 2.6) * size);
+        c.closePath();
+        c.fill();
+      }
+      // Discos: `pintarDiscos` recorta con el rectángulo visible; se lo lleva
+      // a este, ampliado en el radio máximo (un disco puede asomar al borde).
+      const rMax = 18;
+      visL = l - rMax;
+      visR = r + rMax;
+      visT = t - rMax;
+      visB = b + rMax;
+      pintarDiscos(c, dibujados);
+      prepararNombres(c);
+      for (const n of sim) {
+        if (!conNombre[n.i] || dibujados[n.i] || !revealed(n)) continue;
+        let w = anchoNombre[n.i];
+        if (w < 0) {
+          w = c.measureText(n.titulo).width * scale;
+          anchoNombre[n.i] = w;
+        }
+        const mitad = w / 2 / scale;
+        if (n.x + mitad < l || n.x - mitad > r || n.y + n.r + 17 / scale < t || n.y + n.r > b) continue;
+        escribirNombre(c, n);
+      }
+    };
+
+    /** Las aristas que tocan un activo, como en movimiento: curvas, sin flujo ni flecha ni halo. */
+    const pintarAristasActivas = (c: CanvasRenderingContext2D) => {
+      c.strokeStyle = colEdge;
+      c.lineWidth = 1.1 / scale;
+      let hayLit = false;
+      for (const j of aristasLocales) {
+        const e = simEdges[j];
+        if (!revealed(e.s) || !revealed(e.t) || fueraDeVista(e)) continue;
+        if (hover && (e.s === hover || e.t === hover)) {
+          hayLit = true;
+          continue; // se dibujan después, resaltadas
+        }
+        controlDe(e);
+        c.beginPath();
+        c.moveTo(e.s.x, e.s.y);
+        c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
+        c.stroke();
+      }
+      if (!hayLit || !hover) return;
+      c.strokeStyle = colEdgeLit;
+      c.lineWidth = (1.2 + 0.9 * hoverGlowRef.current) / scale;
+      for (const j of aristasLocales) {
+        const e = simEdges[j];
+        if (e.s !== hover && e.t !== hover) continue;
+        if (!revealed(e.s) || !revealed(e.t) || fueraDeVista(e)) continue;
+        controlDe(e);
+        c.beginPath();
+        c.moveTo(e.s.x, e.s.y);
+        c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
+        c.stroke();
+      }
+    };
+
+    /** Un frame del arrastre local: solo el rectángulo sucio. */
+    const dibujarLocal = () => {
+      const W = canvas.width;
+      const H = canvas.height;
+      let completo = false;
+      /** Lo que la base cambió en este frame (recorte de los que entraron). */
+      let recortado = RECT_VACIO;
+      if (baseSucia || camaraMovida()) {
+        pintarBase(dibujados);
+        completo = true; // la base cambió: se recompone el lienzo entero
+      } else if (entrantes.length > 0) {
+        recortado = recortarBase();
+      } else if (!sucioEstatico) {
+        return; // nada se movió desde el último frame
+      }
+      sucioEstatico = false;
+      lienzoAlDia = false;
+      const ahora = recortarRect(
+        rectSucio(estado.pos, radios, anchoLocal, nodosLocales, estado.aristas, aristasLocales, {
+          scale,
+          ox,
+          oy,
+          dpr,
+          ancho: W,
+          alto: H,
+        }),
+        W,
+        H,
+      );
+      const r = completo
+        ? { x0: 0, y0: 0, x1: W, y1: H }
+        : unirRect(unirRect(ahora, rectPrevio), recortado);
+      rectPrevio = ahora;
+      if (rectVacio(r)) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      calcularVisible(false);
+      aplicarVista(ctx, W, H);
+      pintarAristasActivas(ctx);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      copiarTrozo(capaNodos, r);
+      aplicarVista(ctx, W, H);
+      pintarDiscos(ctx, null, dibujados);
+      prepararNombres(ctx);
+      for (const i of nodosLocales) {
+        const n = sim[i];
+        if (conNombre[i] && revealed(n) && dentroVista(n.x, n.y)) escribirNombre(ctx, n);
+      }
+    };
+
     /**
      * Un frame del cúmulo. `modo`:
      * - `"rapido"`: el grafo se mueve (Parte C): fidelidad de movimiento, directo.
@@ -1274,13 +1646,18 @@ export function MiniGraph({
      *   simulación continua ya casi quieta): directo, completo, sin capas.
      * - `"reposo"`: nada se mueve: las capas, a fidelidad completa. Durante un
      *   paneo solo se copian (Parte D); el zoom repinta (Parte E).
+     * - `"local"`: arrastre local (Parte F): el rectángulo sucio sobre la base.
      */
-    const draw = (modo: "rapido" | "directo" | "reposo") => {
+    const draw = (modo: "rapido" | "directo" | "reposo" | "local") => {
       const w = canvas.width;
       const h = canvas.height;
       // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
       // capa de 0 px lanza una excepción.
       if (w === 0 || h === 0) return;
+      if (modo === "local") {
+        if (local && nctx) dibujarLocal();
+        return;
+      }
       if (modo !== "reposo") {
         // En movimiento se pinta directo con la vista de ahora: la cámara
         // entra con el próximo lote de posiciones.
@@ -1531,7 +1908,13 @@ export function MiniGraph({
         // ya casi quieta, la completa: el movimiento es apenas perceptible y
         // los nombres no deben desaparecer y volver.
         const casiQuieto = !dragNode && (motor?.alpha ?? 0) <= ALPHA_CACHE;
-        const modo = !moviendo ? "reposo" : reducible && !casiQuieto ? "rapido" : "directo";
+        const modo = local
+          ? "local"
+          : !moviendo
+            ? "reposo"
+            : reducible && !casiQuieto
+              ? "rapido"
+              : "directo";
         // Presupuesto adaptativo solo en la construcción temporal (worker
         // libre): el dibujo anterior fue lento, así que este lote no se pinta
         // (queda sucio: va en el próximo). En el arrastre y la residual el
