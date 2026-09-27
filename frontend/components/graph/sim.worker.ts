@@ -11,6 +11,7 @@
 // Protocolo (lo arma `motorFisica.ts`):
 //   → { tipo: "iniciar", n, pos, aristas, centro, constantes, continuo, buffers }
 //   → { tipo: "correr", alpha }            darle energía (arranque, nodos nuevos)
+//   → { tipo: "precalcular", alpha }       a ciegas hasta asentarse (Parte E)
 //   → { tipo: "parar" }
 //   → { tipo: "fijar", i, x, y, seq }      arrastre (sube `alphaObjetivo` a 0,3)
 //   → { tipo: "soltar" }
@@ -18,6 +19,11 @@
 //   → { tipo: "activos", mascara }         construcción temporal (`null` = todos)
 //   → { tipo: "devolver", buffer }         el principal ya copió esas posiciones
 //   ← { tipo: "posiciones", pos, alpha, asentado, pasos, seq }
+//
+// Precálculo a ciegas (Parte E): sin caché de posiciones, el grafo se calcula
+// ENTERO antes de dibujarse. Mientras dura, el worker no publica nada
+// intermedio —el hilo principal no tiene qué dibujar—; solo el resultado final,
+// con `asentado: true`. Después se vuelve a correr libre.
 //
 // Posiciones: como mucho una publicación cada 16 ms, en un `Float32Array`
 // transferido. Hay DOS buffers que van y vuelven (ping-pong): el principal
@@ -32,6 +38,7 @@ import {
   colocarEn,
   crearCiclo,
   fijar,
+  precalcular,
   soltar,
 } from "./cicloFisica";
 import { type ConstantesFisica, crearEstado } from "./fisica";
@@ -49,6 +56,7 @@ export type MensajeAlWorker =
       buffers: Float32Array[];
     }
   | { tipo: "correr"; alpha: number }
+  | { tipo: "precalcular"; alpha: number }
   | { tipo: "parar" }
   | { tipo: "fijar"; i: number; x: number; y: number; seq: number }
   | { tipo: "soltar" }
@@ -89,6 +97,8 @@ let ultimaPublicacion = 0;
 let asentadoPendiente = false;
 let seqAplicado = 0;
 let programado = false;
+/** Precálculo a ciegas en curso: no se publica nada hasta asentarse. */
+let aCiegas = false;
 
 // `MessageChannel` para ceder entre tandas: `setTimeout(0)` se va a 4 ms de
 // espera tras unas cuantas vueltas anidadas; esto vuelve enseguida, después de
@@ -127,13 +137,14 @@ function bucle() {
   programado = false;
   const c = ciclo;
   if (!c || !c.corriendo) return;
-  const lento = c.continuo && c.alpha < 0.01;
+  const lento = !aCiegas && c.continuo && c.alpha < 0.01;
   avanzarCiclo(c, TANDA_MS, () => performance.now(), lento ? 1 : Infinity);
   if (!c.corriendo) {
+    aCiegas = false;
     if (!publicar(true)) asentadoPendiente = true;
     return;
   }
-  if (performance.now() - ultimaPublicacion >= PUBLICAR_MS) publicar(false);
+  if (!aCiegas && performance.now() - ultimaPublicacion >= PUBLICAR_MS) publicar(false);
   programar(lento ? RITMO_CONTINUO_MS : 0);
 }
 
@@ -160,6 +171,11 @@ ambito.onmessage = (ev) => {
   switch (m.tipo) {
     case "correr":
       calentar(c, m.alpha);
+      arrancar();
+      break;
+    case "precalcular":
+      precalcular(c, m.alpha);
+      aCiegas = true;
       arrancar();
       break;
     case "parar":

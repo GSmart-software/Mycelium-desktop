@@ -4,6 +4,8 @@
 // lo usa igual en los dos casos:
 //
 //   correr(alpha)   → darle energía (arranque, nodos nuevos)
+//   precalcular(a)  → a ciegas hasta asentarse, sin posiciones intermedias
+//                     (Parte E: sin caché, el grafo se calcula antes de verse)
 //   fijar/soltar    → arrastre de un nodo (sube la energía mientras dura)
 //   colocar()       → el hilo principal movió un nodo a mano (aparición)
 //   activos()       → qué nodos participan (construcción temporal)
@@ -21,6 +23,7 @@ import {
   colocarEn,
   crearCiclo,
   fijar,
+  precalcular,
   soltar,
 } from "./cicloFisica";
 import type { ConstantesFisica, EstadoFisica } from "./fisica";
@@ -34,6 +37,11 @@ export type MotorFisica = {
   /** La energía de lo último que se tomó. */
   readonly alpha: number;
   correr(alpha: number): void;
+  /**
+   * Precálculo a ciegas: corre hasta asentarse y solo entonces entrega
+   * posiciones (`tomar`), avisando con `alAsentar`.
+   */
+  precalcular(alpha: number): void;
   fijar(i: number, x: number, y: number): void;
   soltar(): void;
   colocar(i: number, x: number, y: number): void;
@@ -60,6 +68,11 @@ export const MIN_NODOS_WORKER = 200;
 
 /** Presupuesto de física por frame en el hilo principal (el respaldo). */
 const PRESUPUESTO_LOCAL_MS = 6;
+/**
+ * Durante el precálculo a ciegas no se dibuja nada: el frame entero es de la
+ * física, con margen para que siga por debajo de 16 ms.
+ */
+const PRESUPUESTO_LOCAL_CIEGO_MS = 12;
 
 /** La física en el hilo principal, sobre el mismo `estado` que usa el dibujo. */
 function motorLocal(
@@ -67,6 +80,7 @@ function motorLocal(
   constantes: ConstantesFisica,
   op: OpcionesMotor,
   heredado?: Ciclo,
+  heredadoACiegas = false,
 ): MotorFisica {
   const ciclo = crearCiclo(estado, constantes, op.continuo);
   if (heredado) {
@@ -75,6 +89,7 @@ function motorLocal(
     ciclo.corriendo = heredado.corriendo;
   }
   let nuevo = false;
+  let aCiegas = heredadoACiegas;
   return {
     enWorker: false,
     get corriendo() {
@@ -85,6 +100,10 @@ function motorLocal(
     },
     correr(alpha) {
       calentar(ciclo, alpha);
+    },
+    precalcular(alpha) {
+      precalcular(ciclo, alpha);
+      aCiegas = true;
     },
     fijar(i, x, y) {
       fijar(ciclo, i, x, y);
@@ -100,7 +119,10 @@ function motorLocal(
     },
     avanzar() {
       if (!ciclo.corriendo) return;
-      avanzarCiclo(ciclo, PRESUPUESTO_LOCAL_MS, () => performance.now());
+      const presupuesto = aCiegas ? PRESUPUESTO_LOCAL_CIEGO_MS : PRESUPUESTO_LOCAL_MS;
+      avanzarCiclo(ciclo, presupuesto, () => performance.now());
+      if (ciclo.corriendo && aCiegas) return; // a ciegas: nada que entregar todavía
+      aCiegas = false;
       nuevo = true;
       if (!ciclo.corriendo) op.alAsentar(ciclo.pasos);
     },
@@ -145,6 +167,8 @@ export function crearMotor(
   /** Índice movido a mano → `seq` del mensaje que lo movió. */
   const pendientes = new Map<number, number>();
   let seq = 0;
+  /** Precálculo a ciegas en curso en el worker (si cae, el respaldo lo sigue igual). */
+  let aCiegas = false;
 
   const enviar = (m: MensajeAlWorker, transferir: Transferable[] = []) => {
     if (!local) worker.postMessage(m, transferir);
@@ -154,7 +178,7 @@ export function crearMotor(
   const caer = () => {
     if (local) return;
     worker.terminate();
-    local = motorLocal(estado, constantes, op, espejo);
+    local = motorLocal(estado, constantes, op, espejo, aCiegas);
     recibido = null;
   };
   worker.onmessage = (ev: MessageEvent<MensajeDelWorker>) => {
@@ -166,6 +190,7 @@ export function crearMotor(
     espejo.pasos = m.pasos;
     for (const [i, s] of pendientes) if (s <= m.seq) pendientes.delete(i);
     if (m.asentado) {
+      aCiegas = false;
       espejo.corriendo = false;
       op.alAsentar(m.pasos);
     }
@@ -206,6 +231,12 @@ export function crearMotor(
       if (local) return local.correr(alpha);
       calentar(espejo, alpha);
       enviar({ tipo: "correr", alpha });
+    },
+    precalcular(alpha) {
+      if (local) return local.precalcular(alpha);
+      precalcular(espejo, alpha);
+      aCiegas = true;
+      enviar({ tipo: "precalcular", alpha });
     },
     fijar(i, x, y) {
       if (local) return local.fijar(i, x, y);

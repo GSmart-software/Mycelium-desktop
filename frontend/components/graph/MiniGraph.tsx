@@ -417,6 +417,15 @@ export function MiniGraph({
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
+    /**
+     * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
+     * se calcula entero ANTES de dibujarse (`precalculo`: el lienzo queda
+     * vacío y el motor no entrega posiciones intermedias) y recién ahí se
+     * muestra, ya ubicado (`vivo`). Antes se dibujaba cada lote del
+     * asentamiento, y ese movimiento masivo era lo caro y lo que se veía mal.
+     * Con caché (aunque sea parcial) se arranca directo en `vivo`.
+     */
+    let fase: "precalculo" | "vivo" = "vivo";
     let panning = false;
     // Capas estáticas (`FUN-L-25`): se vuelven a pintar solo cuando algo las
     // ensucia (vista, tamaño, nodos que se mueven, el foco, lo revelado,
@@ -547,7 +556,8 @@ export function MiniGraph({
     };
 
     const onMouseDown = (ev: MouseEvent) => {
-      const n = pick(ev);
+      // Mientras se precalcula no hay nodos a la vista: solo se puede panear.
+      const n = fase === "vivo" ? pick(ev) : null;
       downAt = { x: ev.clientX, y: ev.clientY };
       if (n) {
         dragNode = n;
@@ -575,7 +585,7 @@ export function MiniGraph({
         ox += ev.movementX;
         oy += ev.movementY;
         wake();
-      } else {
+      } else if (fase === "vivo") {
         const n = pick(ev);
         if (n !== hover) {
           hover = n;
@@ -644,6 +654,13 @@ export function MiniGraph({
       continuo: continuousSim,
       alRecibir: () => wake(),
       alAsentar: (pasos) => {
+        if (fase === "precalculo") {
+          // El layout está calculado: se muestra de una vez, ya ubicado.
+          fase = "vivo";
+          ensuciar();
+          wake();
+          return;
+        }
         if (informar) {
           const seg = (performance.now() - inicioCorrida) / 1000;
           console.info(`grafo: asentado en ${seg.toFixed(1)} s, ${pasos} pasos`);
@@ -666,7 +683,16 @@ export function MiniGraph({
       arrancarCorrida();
       motor?.correr(a);
     }
-    if (revealCountRef.current == null) calentarMotor(initialAlpha);
+    if (revealCountRef.current == null) {
+      if (savedCount === 0) {
+        // Sin caché: a ciegas hasta converger (Parte E).
+        fase = "precalculo";
+        arrancarCorrida();
+        motor.precalcular(initialAlpha);
+      } else {
+        calentarMotor(initialAlpha);
+      }
+    }
 
     /**
      * Aplica las posiciones nuevas del motor, si llegaron (en el hilo
@@ -1263,6 +1289,18 @@ export function MiniGraph({
     const tick = () => {
       frame = 0;
       if (!running || !canvas.isConnected) return;
+      if (fase === "precalculo") {
+        // Nada que dibujar: el lienzo queda vacío hasta que el layout converja.
+        // Con el worker ni siquiera hace falta el frame (el aviso de
+        // `alAsentar` lo despierta); en el hilo principal, cada frame da los
+        // pasos de su presupuesto.
+        if (motor && !motor.enWorker) {
+          motor.avanzar();
+          if (fase === "precalculo") frame = requestAnimationFrame(tick);
+          else wake();
+        }
+        return;
+      }
       const rc = revealCountRef.current;
       avanzarConstruccion(rc);
       prevRc = rc ?? null;
@@ -1322,9 +1360,13 @@ export function MiniGraph({
       motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
-      const positions: Record<string, { x: number; y: number }> = {};
-      for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
-      guardarPosiciones?.(positions);
+      // A mitad del precálculo no hay layout que guardar: lo que tiene `sim`
+      // es la siembra, y guardarlo haría arrancar desde ahí creyéndolo asentado.
+      if (fase !== "precalculo") {
+        const positions: Record<string, { x: number; y: number }> = {};
+        for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
+        guardarPosiciones?.(positions);
+      }
       // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
       guardarVista?.({ scale, ox, oy });
 
