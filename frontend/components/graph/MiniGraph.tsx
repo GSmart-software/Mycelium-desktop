@@ -51,6 +51,12 @@ const FLUJO_MAX_ARISTAS = 1500;
 const PRESUPUESTO_DIBUJO_MS = 12;
 /** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
 const HUBS_CON_NOMBRE = 24;
+/**
+ * Física residual (Parte E): por debajo de este desplazamiento en pantalla
+ * (ningún nodo se movió medio píxel desde el último dibujo) el paso no se
+ * repinta: el dibujo sería idéntico. Al asentarse se pinta igual, exacto.
+ */
+const RESIDUAL_MIN_PX = 0.5;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
@@ -461,9 +467,26 @@ export function MiniGraph({
     const enGesto = () => panning;
     const camaraMovida = () =>
       scale !== vistaPintada.scale || ox !== vistaPintada.ox || oy !== vistaPintada.oy;
-    /** Lo pintado pasa a ser lo de la vista de ahora. */
+    /** Posiciones de los nodos en el último dibujo (`[x0, y0, …]` por índice del motor). */
+    const posPintadas = new Float64Array(N * 2);
+    /** Lo pintado pasa a ser lo de la vista de ahora (y las posiciones de ahora). */
     const marcarVistaPintada = () => {
       vistaPintada = { scale, ox, oy };
+      for (const n of sim) {
+        posPintadas[n.i * 2] = n.x;
+        posPintadas[n.i * 2 + 1] = n.y;
+      }
+    };
+    /** ¿Algún nodo se movió `RESIDUAL_MIN_PX` en pantalla desde el último dibujo? */
+    const movidoALaVista = () => {
+      const u = RESIDUAL_MIN_PX / scale;
+      const u2 = u * u;
+      for (const n of sim) {
+        const dx = n.x - posPintadas[n.i * 2];
+        const dy = n.y - posPintadas[n.i * 2 + 1];
+        if (dx * dx + dy * dy >= u2) return true;
+      }
+      return false;
     };
     /** Posiciones que el ratón movió a mano (arrastre): van con el próximo lote. */
     let movidoAMano = false;
@@ -1437,9 +1460,17 @@ export function MiniGraph({
       // Los nodos se movieron (pasos locales, posiciones del worker que
       // llegaron —incluso con el bucle ya en reposo— o el nodo arrastrado): la
       // capa ya no vale.
-      const movio = simulate() || movidoAMano;
+      const aMano = movidoAMano;
+      const movio = simulate() || aMano;
       movidoAMano = false;
-      if (movio) ensuciar();
+      if (movio) {
+        // En la residual el grafo se mueve fracciones de píxel por paso: si
+        // ningún nodo se movió medio píxel desde el último dibujo, repintar
+        // daría lo mismo. El paso de física se dio igual (Parte E).
+        const residual =
+          !aMano && !dragNode && revealCountRef.current == null && (motor?.alpha ?? 1) <= ALPHA_CACHE;
+        if (!residual || movidoALaVista()) ensuciar();
+      }
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
