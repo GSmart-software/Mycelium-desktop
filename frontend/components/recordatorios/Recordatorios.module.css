@@ -939,7 +939,10 @@
 /* ── Completados ───────────────────────────────────────────────────
    El color ya llega oscurecido en `--rec` (`varColor(color, true)`); acá va lo
    que no es color: la casilla, el ✓ del chip y el título apagado, para que el
-   estado no dependa solo del color. */
+   estado no dependa solo del color.
+
+   `.casillaCompletar` y no `.casilla`: ese nombre ya era el del «Todo el día»
+   del formulario, y redefinirlo lo rompió (se veía otra casilla, sin texto). */
 
 .fila {
   display: flex;
@@ -952,7 +955,7 @@
   min-width: 0;
 }
 
-.casilla {
+.casillaCompletar {
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -964,11 +967,11 @@
   color: var(--mic-raw-canvas);
 }
 
-.casilla:hover {
+.casillaCompletar:hover {
   background: color-mix(in srgb, var(--rec) 20%, transparent);
 }
 
-.casilla[aria-checked="true"] {
+.casillaCompletar[aria-checked="true"] {
   background: var(--rec);
   color: #fff;
 }

@@ -127,7 +127,7 @@ export function ListaRecordatorios({
                         aria-checked={completada}
                         aria-label={`${completada ? "Desmarcar" : "Marcar"} «${o.recordatorio.titulo}» como completado`}
                         title={completada ? "Desmarcar como completado" : "Marcar como completado"}
-                        className={styles.casilla}
+                        className={styles.casillaCompletar}
                         style={color}
                         onClick={() => alternar(clave)}
                       >
