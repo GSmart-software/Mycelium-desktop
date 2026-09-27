@@ -13,6 +13,12 @@
  *   (el nodo apuntado, sus hifas y quienes lo referencian) y los nombres. Es lo
  *   único que se redibuja al mover el cursor.
  *
+ * Mientras los nodos se mueven (Sustrato asentándose o un arrastre) la capa
+ * estática se pinta con **fidelidad de movimiento** (`EscenaMicelio.rapido`):
+ * las hifas conservan la curva y el ahusamiento, con 4 segmentos y sin ondular;
+ * sin halo, sin brillo en los cuerpos fructíferos (discos planos del mismo color
+ * y radio) y sin sombra en el foco. Al detenerse, un repintado completo.
+ *
  * Referencia: `docs/design/demos/micelio-del-vault.html`, afinada por el usuario.
  */
 
@@ -91,6 +97,11 @@ export type EscenaMicelio = {
   reducido: boolean;
   /** Color por id según los grupos de color del usuario. */
   colores: Map<string, string> | undefined;
+  /**
+   * Los nodos se están moviendo (Parte D): hifas con 4 segmentos y sin ondular,
+   * sin halo, cuerpos fructíferos sin brillo y foco sin sombra.
+   */
+  rapido: boolean;
 };
 
 /** Qué está en foco: el nodo apuntado, sus vecinos (ambas direcciones) y quienes lo referencian. */
@@ -277,9 +288,9 @@ export function dibujarCapaEstatica(
     !(Math.max(ax, bx) < v.l || Math.min(ax, bx) > v.r || Math.max(ay, by) < v.t || Math.min(ay, by) > v.b);
   let animando = false;
 
-  if (e.disposicion === "sustrato") {
+  if (e.disposicion === "sustrato" && !e.rapido) {
     // Un halo difuso por nodo, más grande en los hubs: le da cuerpo a las zonas
-    // densas de la colonia.
+    // densas de la colonia. En movimiento no se pinta (vuelve al detenerse).
     const sp = spriteBrillo(p.halo, 6, 26);
     for (let u = 0; u < g.n; u++) {
       if (!revelado(u)) continue;
@@ -346,7 +357,7 @@ export function dibujarCapaEstatica(
       const curva = ((((sI * 7919) % 13) - 6) / 6) * 0.13;
       const f = fraccionDe(e, nuevo, ahora);
       if (f < 1) animando = true;
-      hifa(c, x0, y0, mx - dy * curva, my + dx * curva, x1, y1, w0, 0.35, sI * 0.37, f);
+      hifa(c, x0, y0, mx - dy * curva, my + dx * curva, x1, y1, w0, 0.35, sI * 0.37, f, e.rapido);
     }
   }
 
@@ -360,13 +371,16 @@ export function dibujarCapaEstatica(
     if (fraccionDe(e, u, ahora) < 1) continue;
     const r = e.radio[u];
     const propio = e.colores?.get(g.ids[u]);
-    if (g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO) {
+    if (g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO && !e.rapido) {
       const rp = Math.max(1, Math.round(r * pix * 2) / 2);
       const sp = spriteBrillo(propio ?? p.cuerpo, rp, 14);
       const lado = sp.width / pix;
       c.drawImage(sp, x - lado / 2, y - lado / 2, lado, lado);
     } else {
-      c.fillStyle = propio ?? p.espora;
+      // Espora; o, en movimiento, el cuerpo fructífero como disco plano del
+      // mismo color y radio, sin el sprite con brillo.
+      const cuerpo = g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO;
+      c.fillStyle = propio ?? (cuerpo ? p.cuerpo : p.espora);
       c.beginPath();
       // Alejado, una espora de 2 unidades desaparecería: al menos un píxel.
       c.arc(x, y, Math.max(r, 0.9 / s), 0, TAU);
@@ -411,12 +425,13 @@ export function dibujarSobrecapa(
   if (hayFoco) {
     const f = foco.nodo;
     aplicarCamara(ctx, cam);
-    // Sus hifas, en el color de acento (son pocas: el blur acá sí se paga).
+    // Sus hifas, en el color de acento (son pocas: el blur acá sí se paga; en
+    // movimiento no, Parte D).
     ctx.strokeStyle = p.acento;
     ctx.lineWidth = 1.6 / s;
     ctx.lineCap = "round";
     ctx.shadowColor = p.acento;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = e.rapido ? 0 : 8;
     const x0 = pos[f * 2];
     const y0 = pos[f * 2 + 1];
     for (const v of foco.vecinos) {

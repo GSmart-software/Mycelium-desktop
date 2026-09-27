@@ -1247,6 +1247,16 @@ export function MiniGraph({
     //    cúmulo, que sigue con `draw` y `tick` de siempre. ──
     const estatico = document.createElement("canvas");
     const sctx = estatico.getContext("2d");
+    /** Sustrato: lo último de la capa estática se pintó con fidelidad de movimiento. */
+    let capaRapida = false;
+    /**
+     * Fidelidad de movimiento mientras el grafo se mueve (Partes C y D): solo
+     * en grafos grandes. En el mini-grafo del panel el asentamiento dura unos
+     * pocos frames y alternar discos y sprites se vería como un parpadeo.
+     */
+    const reducible = N >= MIN_NODOS_WORKER;
+    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
+    let saltarDibujo = false;
     // El fondo de las etiquetas es el del lienzo (oscuro en cualquier tema),
     // semitransparente, para que el nombre se lea sobre un tapiz de hifas.
     const fondo = getComputedStyle(canvas.parentElement ?? canvas).backgroundColor;
@@ -1278,6 +1288,7 @@ export function MiniGraph({
             aparicion: disposicion === "crecimiento" ? new Float64Array(g.n) : null,
             reducido,
             colores: nodeColorsRef.current,
+            rapido: false,
           }
         : null;
     const hubs = g ? hubsDe(g) : [];
@@ -1323,7 +1334,7 @@ export function MiniGraph({
       return { nodo: g.indice.get(hover.id) ?? -1, vecinos: vecinosIdx, refs: refsIdx };
     };
 
-    const dibujarMicelio = (ahora: number) => {
+    const dibujarMicelio = (ahora: number, rapido: boolean) => {
       if (!escena || !sctx) return;
       const cam: Camara = {
         scale,
@@ -1338,7 +1349,11 @@ export function MiniGraph({
       escena.reducido = reducido;
       // La capa estática solo se repinta si algo la ensució; queda sucia
       // mientras alguna hifa siga creciendo.
-      if (sucioEstatico) sucioEstatico = dibujarCapaEstatica(sctx, escena, cam, paleta, ahora);
+      if (sucioEstatico) {
+        escena.rapido = rapido;
+        sucioEstatico = dibujarCapaEstatica(sctx, escena, cam, paleta, ahora);
+        capaRapida = rapido;
+      }
       dibujarSobrecapa(ctx, estatico, escena, cam, paleta, focoActual(), modoNombresRef.current, hubs);
     };
 
@@ -1363,32 +1378,31 @@ export function MiniGraph({
       }
       prevRc = rc ?? null;
       let activo = false;
+      let rapido = false;
       if (fisica) {
         // Sustrato: el mismo reposo con período de gracia que el cúmulo.
         const interacting = !!dragNode || panning;
-        const moviendo = interacting || !!motor?.corriendo;
-        if (moviendo) lastEnergetic = ahora;
+        const moviendo = !!dragNode || !!motor?.corriendo;
+        if (interacting || moviendo) lastEnergetic = ahora;
         activo = moviendo || ahora - lastEnergetic <= IDLE_GRACE_MS;
         if (simulate()) {
           sincronizarPos();
           ensuciar();
         }
+        // En movimiento, fidelidad de movimiento (Parte D); la simulación
+        // continua, ya casi quieta, vuelve a la completa (si no, no se vería).
+        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
+        rapido = moviendo && reducible && !casiQuieto;
+        // Lo último se pintó en movimiento y ya no se mueve: fidelidad completa.
+        if (capaRapida && !rapido) ensuciar();
       }
-      if (visible) dibujarMicelio(ahora);
+      if (visible) dibujarMicelio(ahora, rapido);
       // Sin física activa ni hifas creciendo no hay frame siguiente: en reposo
       // no corre `requestAnimationFrame`; la capa estática se queda como está
       // hasta la próxima interacción.
       if (activo || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
     };
 
-    /**
-     * Fidelidad reducida mientras el grafo se mueve (Parte C): solo en grafos
-     * grandes. En el mini-grafo del panel el asentamiento dura unos pocos
-     * frames y alternar discos y sprites se vería como un parpadeo.
-     */
-    const reducible = N >= MIN_NODOS_WORKER;
-    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
-    let saltarDibujo = false;
 
     const tick = () => {
       frame = 0;
