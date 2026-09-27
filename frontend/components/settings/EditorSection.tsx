@@ -8,6 +8,7 @@ import {
   usePreferencesStore,
 } from "@/stores/preferencesStore";
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
+import { refrescarCorrector } from "@/lib/editor/ortografia";
 import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
@@ -15,6 +16,7 @@ import styles from "./Settings.module.css";
 export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
+  const correctorOrtografico = usePreferencesStore((s) => s.prefs.correctorOrtografico);
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
@@ -96,6 +98,24 @@ export function EditorSection() {
         <code>&apos;</code>, <code>`</code>, <code>*</code> o <code>_</code> se inserta también
         el símbolo de cierre. Con texto seleccionado, lo envuelve en vez de
         reemplazarlo. Desactivá esta opción para escribir los símbolos tal cual.
+      </p>
+
+      <Interruptor
+        etiqueta="Corrector ortográfico"
+        valor={correctorOrtografico}
+        onChange={(v) => {
+          setPref("correctorOrtografico", v);
+          // Los editores abiertos leen la preferencia al actualizarse: se les
+          // avisa ya, para que el cambio se vea sin tener que escribir.
+          refrescarCorrector();
+        }}
+      />
+      <p className={styles.hint}>
+        Subraya las palabras mal escritas mientras escribís. Hacé clic derecho sobre
+        una para ver las sugerencias o agregarla al diccionario. Usa el corrector y
+        el <strong>idioma de tu sistema operativo</strong>: para cambiar el idioma o
+        sumar otro, se configura en el sistema, no acá. El código, los enlaces, las
+        etiquetas, las fórmulas y el frontmatter no se corrigen.
       </p>
 
       <Interruptor

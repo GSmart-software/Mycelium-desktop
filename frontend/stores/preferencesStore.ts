@@ -75,6 +75,12 @@ export type Preferencias = {
    */
   autoCloseBrackets: boolean;
   /**
+   * Corrector ortográfico del editor (`FUN-L-12`): el del sistema —WebView2 en
+   * desktop, el navegador en web—, en el idioma del sistema operativo. Activado
+   * por defecto.
+   */
+  correctorOrtografico: boolean;
+  /**
    * Mostrar el nombre del archivo como título centrado en la parte superior de
    * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
    */
@@ -177,6 +183,7 @@ const DEFAULT_PREFS: Preferencias = {
   previewTabs: true,
   graphContinuousSim: false,
   autoCloseBrackets: true,
+  correctorOrtografico: true,
   showFileTitle: true,
   iconosEnPestanas: true,
   busquedaCampo: "ambos",

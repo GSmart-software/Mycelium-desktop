@@ -56,6 +56,7 @@ import { contarPalabras, useSyncStore } from "@/stores/syncStore";
 import { panelMetaAbierto, useTabsStore } from "@/stores/tabsStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
 import { numerosDeLineaExt } from "@/lib/editor/numerosDeLinea";
+import { correctorOrtografico } from "@/lib/editor/ortografia";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { EditorToolbar, type EditorMode, type SyncState } from "./EditorToolbar";
@@ -467,6 +468,10 @@ export function NoteEditor({
             // Autocierre de pares ()[]{}""''``** __ con envoltura de la selección;
             // se consulta la preferencia en cada pulsación (toggle en vivo).
             autoPairs(() => usePreferencesStore.getState().prefs.autoCloseBrackets),
+            // Corrector ortográfico del sistema (`FUN-L-12`), con lo que no es
+            // prosa —código, enlaces, fórmulas— excluido. Se lee en cada
+            // actualización: el interruptor de Configuración rige al instante.
+            correctorOrtografico(() => usePreferencesStore.getState().prefs.correctorOrtografico),
             // Panel propio: la UI real es SearchBar (HU-31); el panel nativo
             // se reemplaza por un nodo vacío para activar el resaltado.
             // `top: true` NO es cosmetico: sin el, CodeMirror clasifica el panel

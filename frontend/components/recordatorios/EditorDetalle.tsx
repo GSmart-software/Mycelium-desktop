@@ -9,6 +9,8 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { GFM } from "@lezer/markdown";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { liveExtensions } from "@/lib/editor/livePreview";
+import { correctorOrtografico } from "@/lib/editor/ortografia";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { wikilinkCompletions } from "@/lib/editor/wikilink";
 import styles from "./Recordatorios.module.css";
 
@@ -63,6 +65,8 @@ export function EditorDetalle({
           autocompletion({ override: [wikilinkCompletions] }),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ "aria-label": etiqueta }),
+          // El mismo corrector que las notas (`FUN-L-12`).
+          correctorOrtografico(() => usePreferencesStore.getState().prefs.correctorOrtografico),
           placeholder("Detalle en markdown. Podés enlazar notas con [[…]]"),
           liveExtensions(
             (titulo) => abrirRef.current(titulo),
