@@ -1,0 +1,32 @@
+# Motor del corrector ortográfico (`FUN-L-12`): `spellbook` —compatible con
+# Hunspell— compilado a `wasm32-unknown-unknown`, sin wasm-bindgen.
+#
+# **No es parte de la app de escritorio**: el `.wasm` que sale de acá se
+# commitea en `public/ortografia/motor.wasm` y lo carga un worker del editor. Así
+# ni el build de la app ni el de web necesitan la cadena de Rust para WASM. Para
+# regenerarlo: `npm run wasm:ortografia` (requiere
+# `rustup target add wasm32-unknown-unknown`).
+#
+# Licencias: este crate es de Mycelium; `spellbook` es MPL-2.0 y su fuente está
+# en https://github.com/helix-editor/spellbook (no se modifica).
+[package]
+name = "ortografia-wasm"
+version = "1.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+spellbook = "=0.4.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# Crate suelto: que cargo no busque un workspace en las carpetas de arriba.
+[workspace]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
