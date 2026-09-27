@@ -10,6 +10,7 @@ import {
   type Ocurrencia,
   type Periodo,
 } from "@/lib/recordatorios";
+import { Check } from "lucide-react";
 import { useModalRecordatorioStore, useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { fechaCorta, horaDe } from "./comun";
 import styles from "./Recordatorios.module.css";
@@ -72,6 +73,8 @@ export function ListaRecordatorios({
   seleccionado: string | null;
 }) {
   const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
+  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
+  const alternar = useRecordatoriosStore((s) => s.alternarCompletada);
   const abrirModal = useModalRecordatorioStore((s) => s.abrir);
 
   const ocurrencias = useMemo(() => {
@@ -112,12 +115,28 @@ export function ListaRecordatorios({
               <ul className={styles.lista}>
                 {g.items.map((o) => {
                   const clave = `${o.recordatorio.id}@${o.fecha}`;
+                  const completada = estados[clave]?.completada === true;
+                  const color = { "--rec": varColor(o.recordatorio.color, completada) } as React.CSSProperties;
                   return (
-                    <li key={clave}>
+                    <li key={clave} className={styles.fila} data-completada={completada || undefined}>
+                      {/* Hermana del ítem, no adentro: un botón no puede contener
+                          otro. Marca solo ESTA ocurrencia. */}
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={completada}
+                        aria-label={`${completada ? "Desmarcar" : "Marcar"} «${o.recordatorio.titulo}» como completado`}
+                        title={completada ? "Desmarcar como completado" : "Marcar como completado"}
+                        className={styles.casilla}
+                        style={color}
+                        onClick={() => alternar(clave)}
+                      >
+                        {completada && <Check size={12} strokeWidth={3} aria-hidden />}
+                      </button>
                       <button
                         type="button"
                         className={`${styles.item} ${seleccionado === clave ? styles.seleccionado : ""}`}
-                        style={{ "--rec": varColor(o.recordatorio.color) } as React.CSSProperties}
+                        style={color}
                         onClick={() =>
                           abrirModal({ tipo: "ver", id: o.recordatorio.id, fecha: o.fecha })
                         }

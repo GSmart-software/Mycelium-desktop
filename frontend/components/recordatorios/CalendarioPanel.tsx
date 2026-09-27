@@ -25,6 +25,7 @@ const PUNTOS_POR_DIA = 3;
  */
 export function CalendarioPanel() {
   const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
+  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
   const abrirCalendario = useAbrirCalendario();
 
   const [fecha, setFecha] = useState(hoy);
@@ -39,18 +40,22 @@ export function CalendarioPanel() {
   const { anio, mes } = mesVisible;
   const semanas = useMemo(() => semanasDelMes(anio, mes), [anio, mes]);
 
-  // Los colores de cada día, sin repetir, en el orden de la lista.
+  // Los colores de cada día, sin repetir, en el orden de la lista. Un punto va
+  // oscurecido si TODO lo de ese color ese día está completado.
   const colores = useMemo(() => {
-    const mapa = new Map<string, ColorRecordatorio[]>();
+    const mapa = new Map<string, { c: ColorRecordatorio; completo: boolean }[]>();
     const desde = semanas[0][0];
     const hasta = semanas[semanas.length - 1][6];
     for (const o of ocurrenciasEnRango(recordatorios, desde, hasta)) {
       const lista = mapa.get(o.fecha) ?? [];
-      if (!lista.includes(o.recordatorio.color)) lista.push(o.recordatorio.color);
+      const completada = estados[`${o.recordatorio.id}@${o.fecha}`]?.completada === true;
+      const previo = lista.find((p) => p.c === o.recordatorio.color);
+      if (previo) previo.completo = previo.completo && completada;
+      else lista.push({ c: o.recordatorio.color, completo: completada });
       mapa.set(o.fecha, lista);
     }
     return mapa;
-  }, [recordatorios, semanas]);
+  }, [recordatorios, estados, semanas]);
 
   const moverMes = (delta: number) => {
     const d = new Date(anio, mes - 1 + delta, 1);
@@ -136,11 +141,11 @@ export function CalendarioPanel() {
               >
                 {Number(dia.slice(8))}
                 <span className={styles.puntos} aria-hidden>
-                  {deDia.slice(0, PUNTOS_POR_DIA).map((c) => (
+                  {deDia.slice(0, PUNTOS_POR_DIA).map(({ c, completo }) => (
                     <span
                       key={c}
                       className={styles.punto}
-                      style={{ "--rec": varColor(c) } as React.CSSProperties}
+                      style={{ "--rec": varColor(c, completo) } as React.CSSProperties}
                     />
                   ))}
                 </span>

@@ -230,6 +230,57 @@ test("la limpieza tira el estado de recordatorios borrados y de ocurrencias viej
   assert.deepEqual(Object.keys(limpio.ocurrencias).sort(), ["vivo@2026-07-02", "vivo@2026-09-24"]);
 });
 
+// ── Completadas ────────────────────────────────────────────────────────────
+
+test("completar es por ocurrencia: el lunes no completa el martes", () => {
+  const a = archivo([rec({ id: "d", fecha: "2026-09-21", repeticion: "dia" })]);
+  const b = R.alternarCompletada(a, "d@2026-09-21");
+  assert.equal(R.estaCompletada(b, "d@2026-09-21"), true);
+  assert.equal(R.estaCompletada(b, "d@2026-09-22"), false);
+});
+
+test("desmarcar vuelve atrás sin perder un «Listo», y sin dejar entradas vacías", () => {
+  const a = archivo([rec({ id: "r" })]);
+  const ida = R.alternarCompletada(a, "r@2026-01-01");
+  assert.deepEqual(R.alternarCompletada(ida, "r@2026-01-01").ocurrencias, {});
+  const conListo = R.alternarCompletada(R.descartar(a, "r@2026-01-01"), "r@2026-01-01");
+  assert.deepEqual(R.alternarCompletada(conListo, "r@2026-01-01").ocurrencias, {
+    "r@2026-01-01": { descartada: true },
+  });
+});
+
+test("«Listo» y «Posponer» no borran la marca de completada", () => {
+  const a = R.alternarCompletada(archivo([rec({ id: "r" })]), "r@2026-01-01");
+  assert.equal(R.estaCompletada(R.descartar(a, "r@2026-01-01"), "r@2026-01-01"), true);
+  const pospuesto = R.posponer(a, "r@2026-01-01", en("2026-01-02", "09:00"));
+  assert.equal(R.estaCompletada(pospuesto, "r@2026-01-01"), true);
+});
+
+test("una ocurrencia completada no avisa", () => {
+  const r = rec({ id: "r", fecha: "2026-09-25", hora: "08:00" });
+  const ahora = en("2026-09-25", "12:00");
+  assert.equal(R.avisosPendientes(archivo([r]), ahora).length, 1);
+  const completo = R.alternarCompletada(archivo([r]), "r@2026-09-25");
+  assert.equal(R.avisosPendientes(completo, ahora).length, 0);
+});
+
+test("la limpieza conserva lo completado aunque sea viejo, y lo lee de vuelta", () => {
+  const a = archivo([rec({ id: "r", repeticion: "dia" })], {
+    "r@2025-01-01": { completada: true, descartada: true },
+    "r@2025-01-02": { descartada: true },
+    "borrado@2025-01-01": { completada: true },
+  });
+  const limpio = R.limpiarOcurrencias(a, en("2026-09-25", "12:00"));
+  assert.deepEqual(limpio.ocurrencias, { "r@2025-01-01": { completada: true } });
+  const leido = R.leerArchivo(JSON.parse(JSON.stringify(limpio)));
+  assert.equal(R.estaCompletada(leido, "r@2025-01-01"), true);
+});
+
+test("el color de una completada es el mismo, más oscuro", () => {
+  assert.equal(R.varColor(3), "var(--mic-recordatorio-3)");
+  assert.equal(R.varColor(3, true), "color-mix(in srgb, var(--mic-recordatorio-3) 50%, #000)");
+});
+
 // ── El archivo ─────────────────────────────────────────────────────────────
 
 test("leer el archivo tolera entradas rotas sin perder las buenas", () => {

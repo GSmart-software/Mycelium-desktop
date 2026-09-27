@@ -935,3 +935,52 @@
 .selectorHoy:hover {
   background: var(--mic-bg-hover);
 }
+
+/* ── Completados ───────────────────────────────────────────────────
+   El color ya llega oscurecido en `--rec` (`varColor(color, true)`); acá va lo
+   que no es color: la casilla, el ✓ del chip y el título apagado, para que el
+   estado no dependa solo del color. */
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fila > .item {
+  flex: 1;
+  min-width: 0;
+}
+
+.casilla {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 0.2rem;
+  border: 1.5px solid var(--rec);
+  border-radius: 4px;
+  color: var(--mic-raw-canvas);
+}
+
+.casilla:hover {
+  background: color-mix(in srgb, var(--rec) 20%, transparent);
+}
+
+.casilla[aria-checked="true"] {
+  background: var(--rec);
+  color: #fff;
+}
+
+.fila[data-completada] .itemTitulo,
+.chip[data-completada] .chipTitulo {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--mic-text-muted);
+}
+
+.chipCheck {
+  flex-shrink: 0;
+  color: var(--rec);
+}

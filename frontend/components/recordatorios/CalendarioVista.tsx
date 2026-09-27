@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   nombreDelMes,
@@ -40,6 +40,7 @@ const mesDe = (fecha: string) => {
  */
 export function CalendarioVista() {
   const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
+  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
   const foco = useRecordatoriosStore((s) => s.foco);
   const consumirFoco = useRecordatoriosStore((s) => s.consumirFoco);
   const abrirModal = useModalRecordatorioStore((s) => s.abrir);
@@ -215,15 +216,18 @@ export function CalendarioVista() {
                       </button>
                       {visibles.map((o) => {
                         const clave = `${o.recordatorio.id}@${o.fecha}`;
+                        const completada = estados[clave]?.completada === true;
                         return (
                           <button
                             key={clave}
                             type="button"
                             className={`${styles.chip} ${seleccionado === clave ? styles.seleccionado : ""}`}
-                            style={{ "--rec": varColor(o.recordatorio.color) } as React.CSSProperties}
-                            title={o.recordatorio.titulo}
+                            data-completada={completada || undefined}
+                            style={{ "--rec": varColor(o.recordatorio.color, completada) } as React.CSSProperties}
+                            title={completada ? `${o.recordatorio.titulo} (completado)` : o.recordatorio.titulo}
                             onClick={() => abrirModal({ tipo: "ver", id: o.recordatorio.id, fecha: o.fecha })}
                           >
+                            {completada && <Check size={11} strokeWidth={3} aria-hidden className={styles.chipCheck} />}
                             {o.recordatorio.hora && (
                               <span className={styles.chipHora}>{o.recordatorio.hora}</span>
                             )}

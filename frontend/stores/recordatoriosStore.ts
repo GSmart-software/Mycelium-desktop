@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  alternarCompletada,
   archivoVacio,
   avisosPendientes,
   descartar,
@@ -67,6 +68,8 @@ type Estado = {
   listo: (clave: string) => void;
   /** «Posponer» en una tarjeta. */
   posponer: (clave: string, hasta: Date) => void;
+  /** Marca o desmarca una ocurrencia como completada. */
+  alternarCompletada: (clave: string) => void;
   /** Recalcula qué hay que avisar. La llama el programador cada minuto. */
   revisar: () => void;
   enfocar: (fecha: string, id: string | null) => void;
@@ -205,6 +208,10 @@ export const useRecordatoriosStore = create<Estado>((set, get) => {
 
     posponer(clave, hasta) {
       aplicar(posponer(get().archivo, clave, hasta));
+    },
+
+    alternarCompletada(clave) {
+      aplicar(alternarCompletada(get().archivo, clave));
     },
 
     revisar() {

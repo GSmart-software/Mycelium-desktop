@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmar } from "@/lib/confirmar";
 import { markMissingWikilinks } from "@/lib/editor/wikilink";
@@ -49,12 +49,15 @@ export function ModalRecordatorio() {
  */
 function Marco({
   color,
+  completada = false,
   titulo,
   children,
   pie,
   etiqueta,
 }: {
   color: Recordatorio["color"] | null;
+  /** El borde del diálogo lleva el color oscurecido, como el chip. */
+  completada?: boolean;
   titulo: string;
   children: React.ReactNode;
   pie: React.ReactNode;
@@ -73,7 +76,7 @@ function Marco({
         role="dialog"
         aria-modal="true"
         aria-label={etiqueta}
-        style={color ? ({ "--rec": varColor(color) } as React.CSSProperties) : undefined}
+        style={color ? ({ "--rec": varColor(color, completada) } as React.CSSProperties) : undefined}
       >
         <div className={styles.modalCabecera}>
           <h2 className={styles.modalTitulo}>{titulo}</h2>
@@ -100,6 +103,9 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
     s.archivo.recordatorios.find((r) => r.id === modal.id),
   );
   const eliminar = useRecordatoriosStore((s) => s.eliminar);
+  const alternar = useRecordatoriosStore((s) => s.alternarCompletada);
+  const clave = `${modal.id}@${modal.fecha}`;
+  const completada = useRecordatoriosStore((s) => s.archivo.ocurrencias[clave]?.completada === true);
   const { abrir, cerrar } = useModalRecordatorioStore();
   const { onClicDetalle } = useEnlacesDelVault(cerrar);
   const notas = useVaultStore((s) => s.notas);
@@ -138,6 +144,7 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
   return (
     <Marco
       color={recordatorio.color}
+      completada={completada}
       etiqueta={`Recordatorio: ${recordatorio.titulo}`}
       titulo={recordatorio.titulo}
       pie={
@@ -147,6 +154,16 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
             Eliminar
           </button>
           <div className={styles.empuje} />
+          {/* Marca ESTA ocurrencia (la del día desde el que se abrió), no la serie. */}
+          <button
+            type="button"
+            className={styles.boton}
+            aria-pressed={completada}
+            onClick={() => alternar(clave)}
+          >
+            <Check size={14} aria-hidden />
+            {completada ? "Completado" : "Marcar como completado"}
+          </button>
           <button
             type="button"
             className={styles.botonPrimario}

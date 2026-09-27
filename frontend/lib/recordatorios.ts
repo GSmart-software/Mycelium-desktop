@@ -44,12 +44,18 @@ export type Recordatorio = {
   vigenteDesde?: string;
 };
 
-/** Lo que el usuario hizo con una ocurrencia desde la tarjeta de aviso. */
+/** Lo que el usuario hizo con una ocurrencia. */
 export type EstadoOcurrencia = {
   /** «Listo»: esa ocurrencia no vuelve a avisar. */
   descartada?: boolean;
   /** «Posponer»: vuelve a avisar a partir de este momento (`AAAA-MM-DDTHH:MM`). */
   pospuestaHasta?: string;
+  /**
+   * Marcada como **completada** desde el calendario. No es lo mismo que «Listo»:
+   * «Listo» descarta un aviso; esto es un estado que se ve —el color del
+   * recordatorio se oscurece—. Una ocurrencia completada tampoco avisa.
+   */
+  completada?: boolean;
 };
 
 /** Forma de `.mycelium/recordatorios.json`. */
@@ -106,8 +112,11 @@ export const COLORES: { valor: ColorRecordatorio; nombre: string }[] = [
 ];
 
 /** La variable CSS de un color de la paleta. */
-export function varColor(color: ColorRecordatorio): string {
-  return `var(--mic-recordatorio-${color})`;
+export function varColor(color: ColorRecordatorio, completada = false): string {
+  const base = `var(--mic-recordatorio-${color})`;
+  // Completada: el mismo color, más oscuro. Mezclado con negro y no con el fondo
+  // del tema, para que se lea «apagado» en claro y en oscuro por igual.
+  return completada ? `color-mix(in srgb, ${base} 50%, #000)` : base;
 }
 
 export const REPETICIONES: { valor: Repeticion; nombre: string }[] = [
@@ -312,7 +321,7 @@ export function avisosPendientes(archivo: ArchivoRecordatorios, ahora: Date): Av
 
     const clave = claveOcurrencia(r.id, fecha);
     const estado = archivo.ocurrencias[clave];
-    if (estado?.descartada) continue;
+    if (estado?.descartada || estado?.completada) continue;
     const pospuesta = leerMomento(estado?.pospuestaHasta);
     if (pospuesta !== null && pospuesta > ahora) continue;
 
@@ -373,9 +382,42 @@ export function describirVencimiento(aviso: Aviso, ahora: Date): string | null {
 
 // ── Lo que se hace con una ocurrencia ─────────────────────────────────────
 
+/** Conserva la marca de completada al reemplazar el estado de aviso de una ocurrencia. */
+function conCompletada(archivo: ArchivoRecordatorios, clave: string, estado: EstadoOcurrencia): EstadoOcurrencia {
+  return archivo.ocurrencias[clave]?.completada ? { ...estado, completada: true } : estado;
+}
+
 /** «Listo»: la ocurrencia no vuelve a avisar, ni al reabrir la app. */
 export function descartar(archivo: ArchivoRecordatorios, clave: string): ArchivoRecordatorios {
-  return { ...archivo, ocurrencias: { ...archivo.ocurrencias, [clave]: { descartada: true } } };
+  return {
+    ...archivo,
+    ocurrencias: { ...archivo.ocurrencias, [clave]: conCompletada(archivo, clave, { descartada: true }) },
+  };
+}
+
+/** ¿Esa ocurrencia está marcada como completada? */
+export function estaCompletada(archivo: ArchivoRecordatorios, clave: string): boolean {
+  return archivo.ocurrencias[clave]?.completada === true;
+}
+
+/**
+ * Marca o desmarca una ocurrencia como completada. Es por **ocurrencia**: en uno
+ * que se repite, completar el del lunes no completa el del martes. Al
+ * desmarcarla se conserva lo demás (un «Listo» sigue valiendo), y si no queda
+ * nada, la entrada se va.
+ */
+export function alternarCompletada(archivo: ArchivoRecordatorios, clave: string): ArchivoRecordatorios {
+  const actual = archivo.ocurrencias[clave] ?? {};
+  const ocurrencias = { ...archivo.ocurrencias };
+  if (actual.completada) {
+    const resto: EstadoOcurrencia = { ...actual };
+    delete resto.completada;
+    if (resto.descartada || resto.pospuestaHasta) ocurrencias[clave] = resto;
+    else delete ocurrencias[clave];
+  } else {
+    ocurrencias[clave] = { ...actual, completada: true };
+  }
+  return { ...archivo, ocurrencias };
 }
 
 /** «Posponer»: vuelve a avisar en `hasta`, aunque la app se cierre entre medio. */
@@ -386,7 +428,10 @@ export function posponer(
 ): ArchivoRecordatorios {
   return {
     ...archivo,
-    ocurrencias: { ...archivo.ocurrencias, [clave]: { pospuestaHasta: momentoLocal(hasta) } },
+    ocurrencias: {
+      ...archivo.ocurrencias,
+      [clave]: conCompletada(archivo, clave, { pospuestaHasta: momentoLocal(hasta) }),
+    },
   };
 }
 
@@ -418,9 +463,14 @@ export function limpiarOcurrencias(
     const id = clave.slice(0, i);
     const fecha = clave.slice(i + 1);
     const pospuesta = leerMomento(estado.pospuestaHasta);
+    if (!ids.has(id)) continue;
     // Una pospuesta a futuro se conserva aunque su día sea viejo.
-    if (ids.has(id) && (fecha >= tope || (pospuesta !== null && pospuesta > ahora))) {
+    if (fecha >= tope || (pospuesta !== null && pospuesta > ahora)) {
       ocurrencias[clave] = estado;
+    } else if (estado.completada) {
+      // Lo completado es historia: se ve en el calendario aunque sea de hace un
+      // año, así que se queda. Se guarda solo la marca, no el estado de aviso.
+      ocurrencias[clave] = { completada: true };
     }
   }
   return { ...archivo, ocurrencias };
@@ -529,7 +579,8 @@ export function leerArchivo(json: unknown): ArchivoRecordatorios | null {
       if (typeof e.pospuestaHasta === "string" && leerMomento(e.pospuestaHasta)) {
         estado.pospuestaHasta = e.pospuestaHasta;
       }
-      if (estado.descartada || estado.pospuestaHasta) ocurrencias[clave] = estado;
+      if (e.completada === true) estado.completada = true;
+      if (estado.descartada || estado.pospuestaHasta || estado.completada) ocurrencias[clave] = estado;
     }
   }
   return {
