@@ -1,0 +1,17 @@
+/* Franja de la ventana para las pantallas SIN barra superior (`FUN-M-31`,
+   `DEF-114`): arrastra y trae los controles. Va sobre el contenido, sin ocupar
+   alto propio, porque esas pantallas centran su contenido y no hay nada arriba
+   con lo que chocar. */
+.franja {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  z-index: 50;
+  --mic-marco-texto: var(--mic-text-muted);
+  --mic-marco-glow: var(--mic-glow-texto);
+}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getAbrirUltimo, listarVaults } from "@/lib/vaultMode";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./page.module.css";
+import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 
 /**
  * Entrada de la app de escritorio (fase 3 del "vault en carpeta"). Decide a
@@ -57,6 +58,7 @@ export default function Home() {
 
   return (
     <main className={styles.main}>
+      <FranjaVentana />
       <div className={styles.brand}>
         <h1 className={styles.title}>Mycelium</h1>
         <p className={styles.tagline}>Abriendo tu espacio de trabajo…</p>

@@ -11,7 +11,7 @@ import {
   type VaultRef,
 } from "@/lib/vaultMode";
 import { AperturaVault } from "@/components/vault/AperturaVault";
-import { ControlesVentana } from "@/components/ventana/ControlesVentana";
+import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./page.module.css";
 
@@ -118,9 +118,7 @@ export default function VaultsPage() {
     <main className={styles.main}>
       {/* Esta ventana no tiene barra superior, pero tampoco la del sistema
           (`FUN-M-31`): una franja propia para arrastrarla y cerrarla. */}
-      <div className={styles.barraVentana} data-tauri-drag-region>
-        <ControlesVentana />
-      </div>
+      <FranjaVentana />
 
       <section className={styles.panel}>
         <header className={styles.header}>

@@ -9,6 +9,7 @@ import {
   type EtapaApertura,
 } from "@/stores/vaultSessionStore";
 import styles from "./AperturaVault.module.css";
+import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 
 /** Segundos sin ningún avance tras los que se avisa de que puede estar atascado. */
 const SEGUNDOS_ATASCO = 15;
@@ -52,6 +53,9 @@ export function AperturaVault() {
 
   return (
     <main className={styles.main}>
+      {/* Mientras carga también se tiene que poder cerrar o minimizar la ventana
+          (`DEF-114`): sin esto, una apertura trabada dejaba la app sin salida. */}
+      <FranjaVentana />
       <section className={styles.panel} role="status" aria-live="polite">
         <h1 className={styles.titulo}>Abriendo el vault</h1>
         {ruta !== null && (

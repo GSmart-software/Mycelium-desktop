@@ -23,6 +23,7 @@ import { allLeaves, useTabsStore } from "@/stores/tabsStore";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
+import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { listarOtrosArchivos } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
@@ -89,6 +90,7 @@ function WorkspaceGuard() {
     if (abriendoVault) return <AperturaVault />;
     return (
       <main className={styles.loading}>
+        <FranjaVentana />
         <p>Cargando…</p>
       </main>
     );
