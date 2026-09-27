@@ -795,6 +795,21 @@ export function MiniGraph({
       return n;
     };
 
+    // Punto de control de la curva de una arista (CA4): el mismo en reposo y en
+    // movimiento, así el grafo no cambia de forma al detenerse (Parte D).
+    let ctrlX = 0;
+    let ctrlY = 0;
+    const controlDe = (e: SimEdge) => {
+      const mx = (e.s.x + e.t.x) / 2;
+      const my = (e.s.y + e.t.y) / 2;
+      const nx = -(e.t.y - e.s.y);
+      const ny = e.t.x - e.s.x;
+      const len = Math.max(Math.hypot(nx, ny), 1);
+      const bend = 0.12;
+      ctrlX = mx + (nx / len) * len * bend;
+      ctrlY = my + (ny / len) * len * bend;
+    };
+
     /** Pasada 1: aristas base. Además guarda la geometría de las visibles. */
     const pintarAristas = (c: CanvasRenderingContext2D) => {
       calcularVisible();
@@ -814,14 +829,9 @@ export function MiniGraph({
         // Culling: descartar la arista si su caja envolvente no toca la vista.
         if (fueraDeVista(e)) continue;
         const lit = hover && (e.s === hover || e.t === hover);
-        const mx = (e.s.x + e.t.x) / 2;
-        const my = (e.s.y + e.t.y) / 2;
-        const nx = -(e.t.y - e.s.y);
-        const ny = e.t.x - e.s.x;
-        const len = Math.max(Math.hypot(nx, ny), 1);
-        const bend = 0.12;
-        const cx = mx + (nx / len) * len * bend;
-        const cy = my + (ny / len) * len * bend;
+        controlDe(e);
+        const cx = ctrlX;
+        const cy = ctrlY;
 
         // Línea base. Al apuntar un nodo, sus enlaces brillan con intensidad
         // `glow` (ancho + halo); con glow=0 apenas se resaltan.
@@ -1052,15 +1062,17 @@ export function MiniGraph({
     };
 
     /**
-     * Fidelidad reducida, mientras el grafo se mueve (Parte C): aristas rectas
-     * (sin la curva), sin flujo ni flecha; nodos como discos planos (sin el
-     * sprite con glow), agrupados por color para no cambiar el relleno a cada
-     * nodo; solo los nombres destacados. Al asentarse se pinta una vez a
-     * fidelidad completa.
+     * Fidelidad de movimiento, mientras el grafo se mueve (Parte C, corregida
+     * en la Parte D): las aristas conservan su curva —la misma que en reposo—,
+     * sin flujo ni flecha ni brillo; nodos como discos planos del mismo color y
+     * radio (sin el sprite con glow), agrupados por color para no cambiar el
+     * relleno a cada nodo; solo los nombres destacados. Al asentarse se pinta
+     * una vez a fidelidad completa. (La Parte C las trazaba rectas: el usuario
+     * lo rechazó, las curvas son el estilo de Mycelium.)
      *
      * Un `stroke()` y un `fill()` por elemento, SIN agrupar en paths: medido
      * con la Tesina asentada (1.600 × 900 a dpr 1,5, rasterizado forzado),
-     * agrupar las rectas empeora el rasterizado de forma monótona —35 ms uno
+     * agrupar los trazos empeora el rasterizado de forma monótona —35 ms uno
      * por arista, 45 en lotes de 16, 58 de 64, 75 de 256 a zoom 0,35; 128 →
      * 195 a zoom 1— y lo que ahorra en JS es un milisegundo (1,5 → 0,3).
      * Es lo mismo que `DEF-109` midió con un único path (68 contra 20 ms).
@@ -1080,20 +1092,23 @@ export function MiniGraph({
           hayLit = true;
           continue; // se dibujan después, resaltadas
         }
+        controlDe(e);
         c.beginPath();
         c.moveTo(e.s.x, e.s.y);
-        c.lineTo(e.t.x, e.t.y);
+        c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
         c.stroke();
       }
       if (hayLit && hover) {
+        // Resaltadas por color y ancho, sin el halo (`shadowBlur`) del reposo.
         c.strokeStyle = colEdgeLit;
         c.lineWidth = (1.2 + 0.9 * hoverGlowRef.current) / scale;
         for (const e of simEdges) {
           if (e.s !== hover && e.t !== hover) continue;
           if (!revealed(e.s) || !revealed(e.t)) continue;
+          controlDe(e);
           c.beginPath();
           c.moveTo(e.s.x, e.s.y);
-          c.lineTo(e.t.x, e.t.y);
+          c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
           c.stroke();
         }
       }

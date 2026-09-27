@@ -174,10 +174,22 @@ function rectVisible(cam: Camara) {
   };
 }
 
+/** Segmentos de una hifa en reposo y mientras los nodos se mueven. */
+const PASOS_HIFA = 8;
+const PASOS_HIFA_RAPIDA = 4;
+// Arrays de trabajo de `hifa()`, reutilizados: antes se reservaban cuatro por
+// hifa y por repintado (13.000 arrays para las 3.275 hifas de la Tesina).
+const hx = new Float64Array(PASOS_HIFA + 1);
+const hy = new Float64Array(PASOS_HIFA + 1);
+const hnx = new Float64Array(PASOS_HIFA + 1);
+const hny = new Float64Array(PASOS_HIFA + 1);
+
 /**
  * Hifa ahusada: un polígono relleno a lo largo de una bézier cuadrática, con
  * ancho que va de `w0` a `w1` y un leve ondular para que no parezca una línea.
  * `frac` en `[0, 1]` dibuja solo el tramo inicial (la hifa creciendo).
+ * `rapida` (los nodos se mueven): 4 segmentos y sin ondular; la curva y el
+ * ahusamiento se conservan.
  */
 export function hifa(
   c: CanvasRenderingContext2D,
@@ -191,14 +203,15 @@ export function hifa(
   w1: number,
   semilla: number,
   frac: number,
+  rapida = false,
 ) {
-  const pasos = 8;
+  const pasos = rapida ? PASOS_HIFA_RAPIDA : PASOS_HIFA;
   const L = Math.hypot(x1 - x0, y1 - y0);
-  const amp = Math.min(L * 0.045, 6);
-  const px = new Float64Array(pasos + 1);
-  const py = new Float64Array(pasos + 1);
-  const nx = new Float64Array(pasos + 1);
-  const ny = new Float64Array(pasos + 1);
+  const amp = rapida ? 0 : Math.min(L * 0.045, 6);
+  const px = hx;
+  const py = hy;
+  const nx = hnx;
+  const ny = hny;
   for (let i = 0; i <= pasos; i++) {
     const t = (i / pasos) * frac;
     const u = 1 - t;
