@@ -60,7 +60,7 @@ function fuerzas(pos, aristas, c, metodo, alpha = 0.5) {
 
 const cumulo = F.constantesDe("cumulo");
 
-test("constantes: cúmulo y sustrato conservan las de siempre", () => {
+test("constantes: cúmulo y sustrato conservan las fuerzas de siempre", () => {
   assert.deepEqual(
     { k: cumulo.k, tope: cumulo.topeRepulsion, factor: cumulo.factorRepulsion, theta: cumulo.theta },
     { k: 80, tope: 8, factor: 1, theta: 0.9 },
@@ -70,8 +70,28 @@ test("constantes: cúmulo y sustrato conservan las de siempre", () => {
     { k: s.k, tope: s.topeRepulsion, factor: s.factorRepulsion },
     { k: 45, tope: 6, factor: 0.7 },
   );
-  assert.equal(F.enfriar(1), 0.995);
-  assert.equal(F.enfriar(0.02), 0.02);
+  // Parte C: el ciclo de `d3-force` (rozamiento 0,4) con la ganancia que lo
+  // compensa, y el tope de velocidad en `k`.
+  assert.deepEqual(
+    { g: cumulo.ganancia, roz: cumulo.rozamiento, vmax: cumulo.velocidadMax, vmaxS: s.velocidadMax },
+    { g: 12, roz: 0.4, vmax: 80, vmaxS: 45 },
+  );
+});
+
+test("enfriar: como d3-force, de 1 a alphaMin en 300 pasos y hacia el objetivo", () => {
+  assert.ok(Math.abs(F.ALPHA_DECAY - (1 - Math.pow(0.001, 1 / 300))) < 1e-15);
+  assert.equal(F.ALPHA_MIN, 0.001);
+  let a = 1;
+  for (let i = 0; i < 300; i++) a = F.enfriar(a);
+  assert.ok(Math.abs(a - 0.001) < 1e-9, `alpha tras 300 pasos: ${a}`);
+  // Con objetivo 0,3 (arrastre) se acerca a 0,3 desde arriba y desde abajo.
+  let b = 1;
+  let c = 0;
+  for (let i = 0; i < 2000; i++) {
+    b = F.enfriar(b, 0.3);
+    c = F.enfriar(c, 0.3);
+  }
+  assert.ok(Math.abs(b - 0.3) < 1e-6 && Math.abs(c - 0.3) < 1e-6);
 });
 
 test("Barnes-Hut con θ = 0 es exactamente la repulsión de pares", () => {
@@ -164,7 +184,7 @@ test("determinismo: misma entrada y misma semilla, mismo layout", () => {
   assert.deepEqual(correr(), correr());
 });
 
-test("paso() con pares reproduce el simulate() de antes, número por número", () => {
+test("paso() con pares y las constantes de antes reproduce el simulate() de antes, número por número", () => {
   // Réplica literal del `simulate()` que vivía en MiniGraph.tsx (objetos).
   const viejo = (sim, edges, alpha, azar, centroId, drag) => {
     const k = 80;
@@ -226,11 +246,14 @@ test("paso() con pares reproduce el simulate() de antes, número por número", (
   e.fijo = 5;
   const az1 = azarCon(4);
   const az2 = azarCon(4);
+  // Las constantes de antes de la Parte C: sin ganancia, rozamiento 0,15 (×0,85)
+  // y sin tope de velocidad; y el enfriamiento de entonces (×0,995, piso 0,02).
+  const antes = { ...cumulo, ganancia: 1, rozamiento: 0.15, velocidadMax: Infinity };
   let alpha = 1;
   for (let s = 0; s < 60; s++) {
     viejo(sim, edges, alpha, az1, "0", sim[5]);
-    F.paso(e, cumulo, alpha, az2, F.repulsionPares);
-    alpha = F.enfriar(alpha);
+    F.paso(e, antes, alpha, az2, F.repulsionPares);
+    alpha = Math.max(alpha * 0.995, 0.02);
   }
   for (let i = 0; i < 150; i++) {
     assert.ok(Math.abs(sim[i].x - e.pos[i * 2]) < 1e-6, `x del nodo ${i}`);
@@ -254,7 +277,8 @@ test("activos, fijo y centro: solo se mueve lo que participa", () => {
   e.activos = new Uint8Array(50).fill(1);
   e.activos[7] = 0;
   e.fijo = 9;
-  for (let s = 0; s < 30; s++) F.paso(e, cumulo, 0.5);
+  // Energía efectiva 0,5 (con la ganancia, `alpha · ganancia`): la de antes.
+  for (let s = 0; s < 30; s++) F.paso(e, cumulo, 0.5 / cumulo.ganancia);
   assert.equal(e.pos[14], pos[14]);
   assert.equal(e.pos[15], pos[15]);
   assert.equal(e.pos[18], pos[18], "el arrastrado no se integra");

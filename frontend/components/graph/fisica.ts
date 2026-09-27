@@ -32,6 +32,16 @@ export type ConstantesFisica = {
   theta: number;
   /** Más allá de esta distancia no hay repulsión (`Infinity` = sin acotar). */
   distanciaMax: number;
+  /**
+   * Multiplica TODAS las fuerzas por igual (repulsión, resortes, gravedad y su
+   * tope), así que no cambia dónde se equilibran: solo cuánto camina el grafo
+   * por paso. Compensa que el ciclo de la Parte C da ~300 pasos y no ~1.000.
+   */
+  ganancia: number;
+  /** Fracción de la velocidad que se pierde en cada paso (`velocityDecay` de `d3-force`). */
+  rozamiento: number;
+  /** Tope del desplazamiento de un nodo en un paso. */
+  velocidadMax: number;
 };
 
 /**
@@ -56,12 +66,26 @@ export function constantesDe(disposicion: DisposicionFisica): ConstantesFisica {
     factorRepulsion: sustrato ? 0.7 : 1,
     theta: 0.9,
     distanciaMax: Infinity,
+    ganancia: GANANCIA,
+    rozamiento: 0.4,
+    velocidadMax: sustrato ? 45 : 80,
   };
 }
 
-/** Enfriamiento por paso: de 1 a 0,03 son ~700 pasos, como siempre. */
-export function enfriar(alpha: number): number {
-  return Math.max(alpha * 0.995, 0.02);
+/** Ver `ConstantesFisica.ganancia`; medido en la réplica (spec, «Cómo quedó · Parte C»). */
+const GANANCIA = 12;
+
+/** Por debajo de esta energía el grafo está asentado (`alphaMin` de `d3-force`). */
+export const ALPHA_MIN = 0.001;
+/** Decaimiento por paso: de 1 a `ALPHA_MIN` en 300 pasos (`alphaDecay` de `d3-force`). */
+export const ALPHA_DECAY = 1 - Math.pow(ALPHA_MIN, 1 / 300);
+
+/**
+ * Enfriamiento por paso, como `d3-force`: la energía se acerca a `objetivo`
+ * (0 al asentarse; 0,3 mientras se arrastra un nodo) un `ALPHA_DECAY` por paso.
+ */
+export function enfriar(alpha: number, objetivo = 0): number {
+  return alpha + (objetivo - alpha) * ALPHA_DECAY;
 }
 
 /** Buffers del quadtree, reutilizados entre pasos (crecen si hace falta). */
@@ -106,6 +130,10 @@ export type EstadoFisica = {
   /** Nodo central del mini-grafo (tira hacia el origen); −1 = ninguno. */
   centro: number;
   arbol: Arbol;
+  /** Aristas de cada nodo: da la inercia de los hubs (ver `paso`). */
+  grado: Float64Array;
+  /** Velocidades al empezar el paso (para aplicar la inercia). */
+  v0: Float64Array;
 };
 
 function crearArbol(n: number, cap: number): Arbol {
@@ -141,8 +169,25 @@ export function crearEstado(
     fijo: -1,
     centro,
     arbol: crearArbol(n, Math.max(16, n * 2)),
+    grado: gradoDe(n, aristas),
+    v0: new Float64Array(n * 2),
   };
 }
+
+function gradoDe(n: number, aristas: Int32Array): Float64Array {
+  const g = new Float64Array(n);
+  for (let j = 0; j < aristas.length; j++) g[aristas[j]]++;
+  return g;
+}
+
+/**
+ * Rigidez máxima que un nodo recibe por paso sin oscilar. Con el rozamiento de
+ * `d3` (se conserva el 60 % de la velocidad) el integrador diverge por encima
+ * de `2·(1 + 0,6)/0,6 ≈ 5,3`; 2,5 deja margen. Los resortes suman `0,01·a` por
+ * arista, así que un hub de 320 enlaces con `a = ganancia` (arranque en frío)
+ * pasa de largo (32) y vibra de un paso al otro: por eso tiene inercia.
+ */
+const RIGIDEZ_MAX = 2.5;
 
 /** Duplica la capacidad del árbol conservando lo ya construido. */
 function crecer(a: Arbol) {
@@ -414,18 +459,23 @@ export function paso(
   azar: () => number = Math.random,
   repulsion: typeof repulsionBarnesHut = repulsionBarnesHut,
 ) {
-  repulsion(e, c, alpha, azar);
-  const { n, pos, vel, aristas, activos, fijo, centro } = e;
+  // Todas las fuerzas escalan con la energía y con la ganancia (ver `constantesDe`).
+  const a = alpha * c.ganancia;
+  const retiene = 1 - c.rozamiento;
+  const vmax2 = c.velocidadMax * c.velocidadMax;
+  const { n, pos, vel, v0, grado, aristas, activos, fijo, centro } = e;
+  v0.set(vel);
+  repulsion(e, c, a, azar);
   const k = c.k;
   // Resortes: tiran hacia la distancia `k` (mismas constantes que siempre).
-  for (let a = 0; a < aristas.length; a += 2) {
-    const s = aristas[a];
-    const t = aristas[a + 1];
+  for (let j = 0; j < aristas.length; j += 2) {
+    const s = aristas[j];
+    const t = aristas[j + 1];
     if (activos && (!activos[s] || !activos[t])) continue;
     const dx = pos[t * 2] - pos[s * 2];
     const dy = pos[t * 2 + 1] - pos[s * 2 + 1];
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-    const f = ((d - k) / d) * 0.02 * alpha * 10 * 0.05;
+    const f = ((d - k) / d) * 0.02 * a * 10 * 0.05;
     vel[s * 2] += dx * f;
     vel[s * 2 + 1] += dy * f;
     vel[t * 2] -= dx * f;
@@ -436,16 +486,29 @@ export function paso(
     if (activos && !activos[i]) continue;
     const ix = i * 2;
     const iy = ix + 1;
-    vel[ix] -= pos[ix] * 0.004 * alpha;
-    vel[iy] -= pos[iy] * 0.004 * alpha;
+    vel[ix] -= pos[ix] * 0.004 * a;
+    vel[iy] -= pos[iy] * 0.004 * a;
     if (i === fijo) continue;
     // El nodo central tira hacia el origen para quedar al medio.
     if (i === centro) {
       vel[ix] -= pos[ix] * 0.05;
       vel[iy] -= pos[iy] * 0.05;
     }
-    vel[ix] *= 0.85;
-    vel[iy] *= 0.85;
+    // Inercia de los hubs: la fuerza del paso se reparte en `m` pasos. Solo
+    // cambia cómo llega al equilibrio, no dónde está (fuerza nula = reposo).
+    const m = (grado[i] * 0.01 * c.ganancia) / RIGIDEZ_MAX;
+    if (m > 1) {
+      vel[ix] = v0[ix] + (vel[ix] - v0[ix]) / m;
+      vel[iy] = v0[iy] + (vel[iy] - v0[iy]) / m;
+    }
+    vel[ix] *= retiene;
+    vel[iy] *= retiene;
+    const v2 = vel[ix] * vel[ix] + vel[iy] * vel[iy];
+    if (v2 > vmax2) {
+      const f = Math.sqrt(vmax2 / v2);
+      vel[ix] *= f;
+      vel[iy] *= f;
+    }
     pos[ix] += vel[ix];
     pos[iy] += vel[iy];
   }
