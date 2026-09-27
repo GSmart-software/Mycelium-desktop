@@ -7,7 +7,9 @@
  * `actualizadoEn` que ve el cliente es SIEMPRE `notas.actualizado_en` (no el de la
  * tabla de contenido), igual que en el backend.
  */
+import { derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { execute, select } from "./client";
+import { crearResolutor, escribirEnlacesTanda, huellaEnlaces } from "./enlacesIndice";
 import { ftsPoner } from "./ftsIndice";
 import { DbError } from "./errors";
 import { derivarIndice, reindexarPropiedadesTanda } from "./propiedades";
@@ -31,10 +33,12 @@ export async function getContenido(id: string): Promise<ContenidoResponse> {
 /** `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS. */
 export async function putContenido(id: string, contenido: string | null): Promise<PutContenidoResponse> {
   const vault = getVaultActual();
-  const notas = await select<{ titulo: string; hash_indexable: string | null }>(
-    "SELECT titulo, hash_indexable FROM notas WHERE id = ?",
-    [id],
-  );
+  const notas = await select<{
+    titulo: string;
+    tipo: string;
+    hash_indexable: string | null;
+    hash_enlaces: string | null;
+  }>("SELECT titulo, tipo, hash_indexable, hash_enlaces FROM notas WHERE id = ?", [id]);
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
 
   const texto = contenido ?? "";
@@ -64,11 +68,23 @@ export async function putContenido(id: string, contenido: string | null): Promis
     await ftsPoner(id, notas[0].titulo, indexable);
     await reindexarPropiedadesTanda([{ id, propiedades }]);
   }
-  // La huella se guarda DESPUÉS de reindexar: si `ftsPoner` o las propiedades
-  // fallan, la nota queda con la huella vieja y el próximo guardado reintenta.
+  // Los enlaces y las etiquetas (`FUN-L-25`), con su propia huella: casi todo
+  // guardado cambia el texto indexable y casi ninguno los enlaces. Si cambiaron,
+  // las filas de la nota se reescriben ya resueltas —así el grafo y las
+  // conexiones ven el `[[enlace]]` nuevo sin reindexar el vault—.
+  const enlaces = derivarEnlaces(texto, notas[0].tipo);
+  const etiquetas = derivarEtiquetas(texto, notas[0].tipo);
+  const huellaE = huellaEnlaces(enlaces, etiquetas);
+  if (huellaE !== notas[0].hash_enlaces) {
+    const resolver = enlaces.length > 0 ? await crearResolutor() : undefined;
+    await escribirEnlacesTanda([{ id, enlaces, etiquetas }], resolver);
+  }
+  // Las huellas se guardan DESPUÉS de reindexar: si `ftsPoner`, las propiedades
+  // o los enlaces fallan, la nota queda con la huella vieja y el próximo
+  // guardado reintenta.
   await execute(
-    "UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ?, hash_indexable = ? WHERE id = ?",
-    [bytes, now, mtime, huella, id],
+    "UPDATE notas SET tamano_bytes = ?, actualizado_en = ?, mtime = ?, hash_indexable = ?, hash_enlaces = ? WHERE id = ?",
+    [bytes, now, mtime, huella, huellaE, id],
   );
 
   return { actualizadoEn: now };

@@ -17,8 +17,10 @@
  *     dentro de uno es una constante (la que las rutas `/vaults/:id/...` de
  *     `api()` reciben de `authStore`).
  */
+import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import { execute, select } from "./client";
+import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
@@ -38,7 +40,8 @@ const VAULT_ID = LOCAL_VAULT_ID;
  *   o usuarios: `vault_id` es TEXT plano.
  * - `notas.mtime` es la validación incremental por fecha de modificación, y
  *   `hash_indexable` (`FUN-M-38`) la huella de lo que `notas_fts` y `propiedades`
- *   tienen de la nota, para no reescribirlas en un guardado que no las cambia.
+ *   tienen de la nota, para no reescribirlas en un guardado que no las cambia;
+ *   `hash_enlaces` (`FUN-L-25`), lo mismo para `enlaces` y `etiquetas`.
  * - `papelera.ruta_papelera`: dónde quedó el archivo en `.mycelium/.trash` para
  *   poder restaurarlo.
  *
@@ -110,7 +113,59 @@ const ESQUEMA_INDICE: string[] = [
    )`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_nota  ON propiedades(nota_id)`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_clave ON propiedades(clave, valor)`,
+  // Enlaces y etiquetas de cada nota (`FUN-L-25`, `DEF-109`): lo que el grafo,
+  // las conexiones y la barra de estado escaneaban del texto en CADA consulta
+  // —el contenido del vault entero, 300 ms en la Tesina— se deriva una vez, al
+  // indexar o al guardar (`lib/enlacesNota.ts`), y se lee de acá.
+  //
+  // - `destino_texto`: lo escrito en el `[[…]]`, sin alias y con el ancla si
+  //   la tenía (o la ruta de una tarjeta de nota de un canvas, `tipo =
+  //   'archivo'`). Resuelve entero y, si no, sin el ancla (`lib/enlacesNota.ts`).
+  // - `clave`: su último segmento en minúsculas, calculado en JS: es por donde
+  //   se re-resuelve cuando aparece o se va una nota con ese título. No es
+  //   `lower(destino_texto)`: el `lower()` de SQLite solo entiende ASCII.
+  //   `clave_ancla`: lo mismo sin el `#ancla`; NULL si no tiene.
+  // - `destino_id`: la nota a la que resuelve, NULL si no resuelve (roto). Sin
+  //   clave foránea a propósito: un enlace roto o a una nota borrada es un dato
+  //   (es la lista de enlaces sin resolver), no una fila a borrar.
+  // - `tipo`: `enlace` | `embed` | `canvas` | `archivo`; `n`: cuántas veces.
+  `CREATE TABLE IF NOT EXISTS enlaces (
+     desde_id      TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     destino_texto TEXT NOT NULL,
+     clave         TEXT NOT NULL,
+     clave_ancla   TEXT,
+     destino_id    TEXT,
+     tipo          TEXT NOT NULL,
+     n             INTEGER NOT NULL DEFAULT 1
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_enlaces_desde   ON enlaces(desde_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_enlaces_destino ON enlaces(destino_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_enlaces_clave   ON enlaces(clave)`,
+  `CREATE INDEX IF NOT EXISTS idx_enlaces_ancla   ON enlaces(clave_ancla)`,
+  `CREATE TABLE IF NOT EXISTS etiquetas (
+     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     tag     TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_etiquetas_nota ON etiquetas(nota_id)`,
 ];
+
+/**
+ * Versión del contenido DERIVADO del índice, en `PRAGMA user_version`. Cuando
+ * una versión nueva de Mycelium deriva algo que un índice anterior no tiene
+ * —una tabla que se llena leyendo los archivos—, sube este número, y el
+ * indexador hace UNA pasada completa sobre un índice con un número menor.
+ *
+ * - `1` (`FUN-L-25`): las tablas `enlaces` y `etiquetas`.
+ *
+ * > [!warning] No sirve preguntar si la tabla existe
+ * > Es lo que se hizo con `propiedades` (`FUN-M-04`), y dejó de funcionar sin
+ * > que nadie lo notara: la apertura del vault llama a `crearEsquemaIndice`
+ * > ANTES que a `indexarVault`, así que cuando el indexador pregunta, la tabla
+ * > ya existe —vacía—. Y aunque el orden fuera el bueno, cerrar la app a mitad
+ * > de la pasada dejaría la tabla creada y a medio llenar para siempre. El
+ * > número se escribe solo al terminar una pasada completa.
+ */
+const VERSION_DERIVADO = 1;
 
 /** Crea el esquema del índice (idempotente) contra el executor activo. */
 export async function crearEsquemaIndice(): Promise<void> {
@@ -129,6 +184,13 @@ export async function crearEsquemaIndice(): Promise<void> {
   // y cada nota se reindexa una vez más al guardarla, que es lo que hacía antes.
   try {
     await execute("ALTER TABLE notas ADD COLUMN hash_indexable TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  // Ídem `notas.hash_enlaces` (`FUN-L-25`): la huella de sus filas de `enlaces`
+  // y `etiquetas`, para no reescribirlas en un guardado que no las cambia.
+  try {
+    await execute("ALTER TABLE notas ADD COLUMN hash_enlaces TEXT");
   } catch {
     // La columna ya existe: nada que hacer.
   }
@@ -264,7 +326,11 @@ export async function indexarVault(
   const tablaPropiedades = await select<{ n: number }>(
     "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'propiedades'",
   );
-  const forzarTodo = (tablaPropiedades[0]?.n ?? 0) === 0;
+  // Y lo derivado que un índice anterior no tiene (`VERSION_DERIVADO`): hoy, los
+  // enlaces y las etiquetas (`FUN-L-25`). Ver la advertencia de esa constante.
+  const [version] = await select<{ user_version: number }>("PRAGMA user_version");
+  const forzarTodo =
+    (tablaPropiedades[0]?.n ?? 0) === 0 || Number(version?.user_version ?? 0) < VERSION_DERIVADO;
 
   await crearEsquemaIndice();
 
@@ -336,6 +402,13 @@ export async function indexarVault(
   let hechas = archivos.length - porReindexar.length;
   onProgress?.(hechas, archivos.length);
 
+  // Claves de `enlaces` que hay que (re)resolver al final (`FUN-L-25`): las de
+  // las filas que se escriben en esta pasada —entran con `destino_id` NULL, porque
+  // una nota de la primera tanda puede enlazar a una que todavía no se leyó— y
+  // los títulos de las notas que aparecen o desaparecen, que pueden arreglar o
+  // romper enlaces de notas que no cambiaron.
+  const clavesPorResolver = new Set<string>();
+
   // 3) Fase (b): pedir el contenido en tandas y escribir el índice tanda a tanda.
   let reindexadas = 0;
   for (let i = 0; i < porReindexar.length; i += TANDA) {
@@ -355,10 +428,12 @@ export async function indexarVault(
       bytes: number;
       mtime: number;
       huella: string;
+      huellaEnlaces: string;
     }[] = [];
     const filasContenidos: { id: string; contenido: string }[] = [];
     const filasFts: FilaFts[] = [];
     const entradasPropiedades: { id: string; propiedades: FilaPropiedad[] }[] = [];
+    const entradasEnlaces: EntradaEnlaces[] = [];
 
     for (const leido of leidos) {
       const id = leido.ruta_relativa;
@@ -371,6 +446,12 @@ export async function indexarVault(
       // Al índice de búsqueda va el CUERPO + los VALORES de las propiedades, no
       // el YAML crudo; la huella es lo que `putContenido` compara al guardar.
       const { indexable, propiedades, huella } = derivarIndice(leido.contenido);
+      // Los enlaces y las etiquetas (`FUN-L-25`): lo que el grafo antes sacaba
+      // del texto en cada consulta. Entran sin resolver: ver abajo.
+      const enlaces = derivarEnlaces(leido.contenido, meta.tipo);
+      const etiquetas = derivarEtiquetas(leido.contenido, meta.tipo);
+      for (const e of enlaces) clavesPorResolver.add(claveDeEnlace(e.texto));
+      if (!mtimePorId.has(id)) for (const c of clavesDeTitulo(titulo)) clavesPorResolver.add(c);
       filasNotas.push({
         id,
         carpetaId: carpetaDeArchivo(id),
@@ -379,22 +460,24 @@ export async function indexarVault(
         bytes: byteLen(leido.contenido),
         mtime: meta.mtime,
         huella,
+        huellaEnlaces: huellaEnlaces(enlaces, etiquetas),
       });
       // Contenido: Excalidraw se guarda igual que el markdown. Upsert como en
       // `contenido.ts`.
       filasContenidos.push({ id, contenido: leido.contenido });
       filasFts.push({ id, titulo, contenido: indexable });
       entradasPropiedades.push({ id, propiedades });
+      entradasEnlaces.push({ id, enlaces, etiquetas });
       reindexadas++;
     }
 
     if (filasNotas.length > 0) {
       await execute(
-        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_indexable, creado_en, actualizado_en)
+        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_indexable, hash_enlaces, creado_en, actualizado_en)
          SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.carpetaId'),
                 json_extract(value, '$.titulo'), json_extract(value, '$.tipo'),
                 json_extract(value, '$.bytes'), json_extract(value, '$.mtime'),
-                json_extract(value, '$.huella'), ?, ?
+                json_extract(value, '$.huella'), json_extract(value, '$.huellaEnlaces'), ?, ?
          FROM json_each(?) WHERE true
          ON CONFLICT(id) DO UPDATE SET
            carpeta_id = excluded.carpeta_id,
@@ -403,6 +486,7 @@ export async function indexarVault(
            tamano_bytes = excluded.tamano_bytes,
            mtime = excluded.mtime,
            hash_indexable = excluded.hash_indexable,
+           hash_enlaces = excluded.hash_enlaces,
            actualizado_en = excluded.actualizado_en`,
         [VAULT_ID, now, now, JSON.stringify(filasNotas)],
       );
@@ -417,6 +501,7 @@ export async function indexarVault(
       );
       await ftsPonerTanda(filasFts);
       await reindexarPropiedadesTanda(entradasPropiedades);
+      await escribirEnlacesTanda(entradasEnlaces);
     }
 
     // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
@@ -449,9 +534,12 @@ export async function indexarVault(
     .map((n) => n.id)
     .filter((id) => !rutasActuales.has(id) && !enPapelera.has(id));
   await ftsBorrar(desaparecidas);
+  for (const id of desaparecidas) for (const c of clavesDeTitulo(tituloDeRuta(id))) clavesPorResolver.add(c);
   for (const tanda of enTandas(desaparecidas)) {
     const q = marcadores(tanda.length);
     await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);
+    await execute(`DELETE FROM enlaces WHERE desde_id IN (${q})`, tanda);
+    await execute(`DELETE FROM etiquetas WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM contenidos WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM papelera WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM notas WHERE id IN (${q})`, tanda);
@@ -460,6 +548,12 @@ export async function indexarVault(
   for (const tanda of enTandas(carpetasIdas)) {
     await execute(`DELETE FROM carpetas WHERE id IN (${marcadores(tanda.length)})`, tanda);
   }
+
+  // 4) Resolver los enlaces (`FUN-L-25`): con todas las notas ya en el índice.
+  // En una pasada completa se resuelve todo; si no, solo lo que pudo cambiar.
+  await reResolverClaves(forzarTodo ? null : clavesPorResolver);
+  // La pasada terminó entera: lo derivado ya está al día con esta versión.
+  if (forzarTodo) await execute(`PRAGMA user_version = ${VERSION_DERIVADO}`);
 
   if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
 

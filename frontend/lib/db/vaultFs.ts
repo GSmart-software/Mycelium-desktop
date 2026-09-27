@@ -15,7 +15,8 @@
  */
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
-import { ftsBorrar, ftsPoner } from "./ftsIndice";
+import { reResolverTitulos } from "./enlacesIndice";
+import { enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
 import { desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
 
@@ -279,15 +280,29 @@ function profundidad(ruta: string): number {
  * se repuntan los hijos al id nuevo y se borra la fila vieja. Orden:
  *   1. carpetas nuevas (menos profundas primero: el padre existe antes que el hijo),
  *   2. notas nuevas (su carpeta ya existe),
- *   3. repunte de contenido/papelera + reindex FTS al id nuevo,
+ *   3. repunte de contenido/papelera/propiedades/enlaces/etiquetas + reindex
+ *      FTS al id nuevo,
  *   4. borrado de notas viejas,
- *   5. borrado de carpetas viejas (el CASCADE limpia descendientes ya vacíos).
+ *   5. borrado de carpetas viejas (el CASCADE limpia descendientes ya vacíos),
+ *   6. re-resolución dirigida de los enlaces (`FUN-L-25`): los títulos viejos y
+ *      nuevos de las notas movidas, porque cambió qué nota se llama así o su
+ *      ruta (la pista de carpeta y el desempate por profundidad dependen de ella).
  */
 export async function rekeyIndice(
   carpetas: CarpetaRekey[],
   notas: NotaRekey[],
 ): Promise<void> {
   const now = ahoraIso();
+
+  // Los títulos de antes, para la re-resolución del final (paso 6).
+  const titulosViejos: string[] = [];
+  for (const tanda of enTandas(notas.map((n) => n.oldId))) {
+    const filas = await select<{ titulo: string }>(
+      `SELECT titulo FROM notas WHERE id IN (${marcadores(tanda.length)})`,
+      tanda,
+    );
+    for (const f of filas) titulosViejos.push(f.titulo);
+  }
 
   // 1) Carpetas nuevas (copiando vault_id/creado_en de la vieja), padres primero.
   const carpetasAsc = [...carpetas].sort((a, b) => profundidad(a.newId) - profundidad(b.newId));
@@ -299,11 +314,14 @@ export async function rekeyIndice(
     );
   }
 
-  // 2) Notas nuevas (copiando tipo/tamaño/mtime/creado_en de la vieja).
+  // 2) Notas nuevas (copiando tipo/tamaño/mtime/creado_en de la vieja). La
+  // huella de los enlaces también: sus filas se repuntan tal cual (paso 3). La
+  // de lo indexable NO: `ftsPoner` de abajo indexa el texto crudo, y con la
+  // huella en NULL el próximo guardado la vuelve a indexar bien.
   for (const n of notas) {
     await execute(
-      `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
-       SELECT ?, vault_id, ?, ?, tipo, tamano_bytes, mtime, creado_en, ? FROM notas WHERE id = ?`,
+      `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_enlaces, creado_en, actualizado_en)
+       SELECT ?, vault_id, ?, ?, tipo, tamano_bytes, mtime, hash_enlaces, creado_en, ? FROM notas WHERE id = ?`,
       [n.newId, n.newCarpetaId, n.newTitulo, now, n.oldId],
     );
   }
@@ -316,6 +334,14 @@ export async function rekeyIndice(
     );
     await execute("UPDATE contenidos SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE papelera SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
+    // Las propiedades se perdían acá: el `DELETE` de la nota vieja (paso 4) las
+    // borraba en cascada, y como el `mtime` se copia, el reindexado no las
+    // volvía a leer hasta que el archivo cambiara.
+    await execute("UPDATE propiedades SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
+    // Enlaces (`FUN-L-25`): los que salen de la nota y los que llegan a ella.
+    await execute("UPDATE enlaces SET desde_id = ? WHERE desde_id = ?", [n.newId, n.oldId]);
+    await execute("UPDATE enlaces SET destino_id = ? WHERE destino_id = ?", [n.newId, n.oldId]);
+    await execute("UPDATE etiquetas SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await ftsBorrar([n.oldId]);
     await ftsPoner(n.newId, n.newTitulo, cont[0]?.contenido ?? "");
   }
@@ -330,4 +356,11 @@ export async function rekeyIndice(
   for (const c of carpetasDesc) {
     await execute("DELETE FROM carpetas WHERE id = ?", [c.oldId]);
   }
+
+  // 6) Re-resolución dirigida (`FUN-L-25`). El repunte del paso 3 deja cada
+  // enlace entrante en el id nuevo, que es lo correcto si todavía resuelve ahí;
+  // esto corrige los que no: `[[Viejo]]` tras renombrar a «Nuevo» pasa a su
+  // homónima o a roto, y un `[[Nuevo]]` que estaba roto pasa a resolver.
+  if (notas.length > 0) await reResolverTitulos([...titulosViejos, ...notas.map((n) => n.newTitulo)]);
 }
+
