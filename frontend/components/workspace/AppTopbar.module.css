@@ -36,17 +36,6 @@
   background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
 
-/* Nombre del vault abierto, al lado del logo. */
-.vault {
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  color: var(--mic-marco-texto);
-}
-
 .searchBar {
   flex: 1;
   max-width: 480px;

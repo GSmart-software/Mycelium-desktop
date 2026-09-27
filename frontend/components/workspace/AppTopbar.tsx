@@ -3,9 +3,9 @@
 import { LogOut, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useUiStore } from "@/stores/uiStore";
-import { nombreDeVault } from "@/lib/vaultMode";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ControlesVentana } from "@/components/ventana/ControlesVentana";
+import { MenuVaults } from "./MenuVaults";
 import styles from "./AppTopbar.module.css";
 
 /**
@@ -59,12 +59,9 @@ export function AppTopbar() {
 
       {/* El vault abierto. Estaba en el título de la ventana y con el marco
           propio esa barra ya no está; el título sigue existiendo para la barra
-          de tareas y el Alt+Tab, pero adentro hacía falta verlo. */}
-      {rutaVault && (
-        <span className={styles.vault} title={rutaVault}>
-          {nombreDeVault(rutaVault)}
-        </span>
-      )}
+          de tareas y el Alt+Tab, pero adentro hacía falta verlo. Además abre
+          otro vault en una ventana nueva sin salir de este (`FUN-S-24`). */}
+      {rutaVault && <MenuVaults rutaActual={rutaVault} />}
 
       <button type="button" className={styles.searchBar} onClick={() => setPaleta("notas")}>
         <Search size={14} aria-hidden className={styles.searchIcon} />
