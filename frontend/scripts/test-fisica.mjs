@@ -58,17 +58,37 @@ function fuerzas(pos, aristas, c, metodo, alpha = 0.5) {
 }
 
 const cumulo = F.constantesCumulo();
+const antes = F.constantesAntes();
 
-test("constantes: el cúmulo conserva las fuerzas de siempre", () => {
+test("constantes: el cúmulo usa el modelo de d3-force (Parte G) y las de antes quedan de referencia", () => {
+  // Parte G: resortes normalizados por grado, distanciaMin 30, centro débil y
+  // recentrado; la escala (`k`, repulsión, largo de los enlaces) no cambia.
   assert.deepEqual(
-    { k: cumulo.k, tope: cumulo.topeRepulsion, factor: cumulo.factorRepulsion, theta: cumulo.theta },
-    { k: 80, tope: 8, factor: 1, theta: 0.9 },
+    {
+      k: cumulo.k,
+      dmin: cumulo.distanciaMin,
+      factor: cumulo.factorRepulsion,
+      theta: cumulo.theta,
+      largo: cumulo.distanciaEnlace,
+      rigidez: cumulo.rigidezEnlace,
+      norm: cumulo.normalizarGrado,
+      gravedad: cumulo.gravedad,
+      recentrar: cumulo.recentrar,
+    },
+    { k: 80, dmin: 30, factor: 1, theta: 0.9, largo: 80, rigidez: 0.07, norm: true, gravedad: 0.003, recentrar: true },
   );
   // Parte C: el ciclo de `d3-force` (rozamiento 0,4) con la ganancia que lo
   // compensa, y el tope de velocidad en `k`.
   assert.deepEqual(
     { g: cumulo.ganancia, roz: cumulo.rozamiento, vmax: cumulo.velocidadMax },
     { g: 12, roz: 0.4, vmax: 80 },
+  );
+  // Las de antes: `k` 80 para todo, tope 8 (= `k²/distanciaMin²`), resortes
+  // iguales de 0,01 y gravedad 0,004 por nodo.
+  assert.ok(Math.abs((80 * 80) / antes.distanciaMin ** 2 - 8) < 1e-12);
+  assert.deepEqual(
+    { largo: antes.distanciaEnlace, rigidez: antes.rigidezEnlace, norm: antes.normalizarGrado, gravedad: antes.gravedad, recentrar: antes.recentrar },
+    { largo: 80, rigidez: 0.01, norm: false, gravedad: 0.004, recentrar: false },
   );
 });
 
@@ -150,7 +170,7 @@ test("distanciaMax: más allá del corte no hay repulsión; adentro, la misma", 
       const d2 = dx * dx + dy * dy;
       if (d2 >= 500 * 500) continue;
       const d = Math.sqrt(d2);
-      const f2 = Math.min(6400 / d2, 8) * 0.5;
+      const f2 = (6400 / Math.max(d2, cumulo.distanciaMin ** 2)) * 0.5;
       ref[i * 2] += (dx / d) * f2;
       ref[i * 2 + 1] += (dy / d) * f2;
     }
@@ -240,13 +260,14 @@ test("paso() con pares y las constantes de antes reproduce el simulate() de ante
   e.fijo = 5;
   const az1 = azarCon(4);
   const az2 = azarCon(4);
-  // Las constantes de antes de la Parte C: sin ganancia, rozamiento 0,15 (×0,85)
+  // Las constantes de antes de la Parte G (`constantesAntes`) y de antes de la
+  // Parte C: sin ganancia, rozamiento 0,15 (×0,85)
   // y sin tope de velocidad; y el enfriamiento de entonces (×0,995, piso 0,02).
-  const antes = { ...cumulo, ganancia: 1, rozamiento: 0.15, velocidadMax: Infinity };
+  const deAntes = { ...antes, ganancia: 1, rozamiento: 0.15, velocidadMax: Infinity };
   let alpha = 1;
   for (let s = 0; s < 60; s++) {
     viejo(sim, edges, alpha, az1, "0", sim[5]);
-    F.paso(e, antes, alpha, az2, F.repulsionPares);
+    F.paso(e, deAntes, alpha, az2, F.repulsionPares);
     alpha = Math.max(alpha * 0.995, 0.02);
   }
   for (let i = 0; i < 150; i++) {
@@ -307,4 +328,108 @@ test("2.000 nodos: Barnes-Hut es varias veces más rápido que los pares", () =>
   const pares = medir(F.repulsionPares);
   const bh = medir(F.repulsionBarnesHut);
   assert.ok(bh * 2 < pares, `pares ${pares.toFixed(1)} ms, Barnes-Hut ${bh.toFixed(1)} ms`);
+});
+
+// ── Parte G: resortes normalizados por grado y recentrado ──
+
+test("resortes normalizados: fuerza 1/min(grado) repartida según el grado del otro extremo (forceLink de d3)", () => {
+  // Hub 0 con 4 hojas (1–4); la 1 además enlazada con la 5. Grados 4, 2, 1, 1, 1, 1.
+  const aristas = new Int32Array([0, 1, 0, 2, 0, 3, 0, 4, 1, 5]);
+  const e = F.crearEstado(6, new Float64Array(12), aristas);
+  assert.deepEqual([...e.grado], [4, 2, 1, 1, 1, 1]);
+  assert.deepEqual([...e.fuerzaArista], [1 / 2, 1, 1, 1, 1]);
+  // `bias` de d3: la parte que se lleva `t` es grado(s)/(grado(s)+grado(t)).
+  assert.ok(Math.abs(e.sesgo[0] - 4 / 6) < 1e-15);
+  assert.ok(Math.abs(e.sesgo[4] - 2 / 3) < 1e-15);
+
+  // Solo la arista 0–1 estirada (a 200); las demás en reposo (a `L`). Sin
+  // repulsión, centro, recentrado, ganancia ni rozamiento: `vel` es la fuerza.
+  const c = { ...cumulo, factorRepulsion: 0, gravedad: 0, recentrar: false, ganancia: 1, rozamiento: 0 };
+  const L = c.distanciaEnlace;
+  const pos = new Float64Array([0, 0, 200, 0, 0, L, 0, -L, -L, 0, 200 + L, 0]);
+  const alpha = 0.5;
+  const f = ((200 - L) / 200) * c.rigidezEnlace * alpha;
+
+  const n = F.crearEstado(6, Float64Array.from(pos), aristas);
+  F.paso(n, c, alpha);
+  // Normalizada: ×2·(1/2), y de eso 2/6 al hub y 4/6 a la hoja.
+  const hub = 200 * f * 2 * (1 / 2) * (2 / 6);
+  const hoja = 200 * f * 2 * (1 / 2) * (4 / 6);
+  assert.ok(Math.abs(n.vel[0] - hub) < 1e-9, `hub ${n.vel[0]} ≠ ${hub}`);
+  assert.ok(Math.abs(n.vel[2] + hoja) < 1e-9, `hoja ${n.vel[2]} ≠ ${-hoja}`);
+  // El de menos enlaces se mueve el doble: el hub ya no arrastra a sus vecinos.
+  assert.ok(Math.abs(-n.vel[2] / n.vel[0] - 2) < 1e-9);
+
+  // Sin normalizar (como antes), el tirón entero a cada lado.
+  const v = F.crearEstado(6, Float64Array.from(pos), aristas);
+  F.paso(v, { ...c, normalizarGrado: false }, alpha);
+  assert.ok(Math.abs(v.vel[0] - 200 * f) < 1e-9);
+  assert.ok(Math.abs(v.vel[2] + 200 * f) < 1e-9);
+});
+
+test("resortes normalizados: un hub de 320 enlaces tira de cada vecino 1/min(grado), no 320 veces", () => {
+  // Hub 0 con 320 hojas; cada hoja además en una cadena con su vecina (grado 3).
+  const m = 320;
+  const ar = [];
+  for (let i = 1; i <= m; i++) ar.push(0, i);
+  for (let i = 1; i < m; i++) ar.push(i, i + 1);
+  const e = F.crearEstado(m + 1, new Float64Array((m + 1) * 2), new Int32Array(ar));
+  // Hub–hoja: fuerza 1/min(320, 3) = 1/3, y la hoja se lleva 320/323 del tirón.
+  assert.ok(Math.abs(e.fuerzaArista[5] - 1 / 3) < 1e-15);
+  assert.ok(Math.abs(e.sesgo[5] - 320 / 323) < 1e-15);
+  // Lo que suman los resortes del hub: 320 aristas × 2·(1/3)·(3/323) ≈ 2, no 320.
+  assert.ok(e.rigidezNorm[0] < 2.1, `rigidez del hub ${e.rigidezNorm[0]}`);
+  // Sigue teniendo la inercia de su grado (masa por enlace), así no vibra.
+  assert.equal(e.grado[0], m);
+});
+
+test("recentrar: el centroide vuelve al origen, sin cambiar ninguna distancia", () => {
+  const { pos, aristas } = grafoAzar(200, 300, 41);
+  for (let i = 0; i < 200; i++) pos[i * 2] += 500; // todo corrido 500 a la derecha
+  const e = F.crearEstado(200, pos, aristas);
+  const d01 = Math.hypot(pos[0] - pos[2], pos[1] - pos[3]);
+  F.recentrar(e);
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < 200; i++) {
+    cx += e.pos[i * 2];
+    cy += e.pos[i * 2 + 1];
+  }
+  assert.ok(Math.abs(cx / 200) < 1e-9 && Math.abs(cy / 200) < 1e-9);
+  assert.ok(Math.abs(Math.hypot(e.pos[0] - e.pos[2], e.pos[1] - e.pos[3]) - d01) < 1e-9);
+
+  // En `paso`, tras cada paso: el arrastrado no se corre (lo tiene el
+  // puntero) y los inactivos tampoco; el resto queda centrado.
+  const g = grafoAzar(100, 300, 43);
+  for (let i = 0; i < 100; i++) g.pos[i * 2 + 1] -= 400; // todo 400 más arriba
+  const f = F.crearEstado(100, g.pos, g.aristas);
+  f.fijo = 4;
+  f.activos = new Uint8Array(100).fill(1);
+  f.activos[9] = 0;
+  const fijo = [g.pos[8], g.pos[9]];
+  const inactivo = [g.pos[18], g.pos[19]];
+  F.paso(f, cumulo, 0.3, azarCon(2));
+  assert.deepEqual([f.pos[8], f.pos[9]], fijo);
+  assert.deepEqual([f.pos[18], f.pos[19]], inactivo);
+  let sx = 0;
+  let sy = 0;
+  for (let i = 0; i < 100; i++) {
+    if (i === 9) continue;
+    sx += f.pos[i * 2];
+    sy += f.pos[i * 2 + 1];
+  }
+  // Sin recentrar estaría a ~400; con el fijo fuera de la traslación queda a
+  // (centroide previo)/99 ≈ 4.
+  assert.ok(Math.hypot(sx / 99, sy / 99) < 10, `centroide a ${Math.hypot(sx / 99, sy / 99).toFixed(1)}`);
+});
+
+test("recentrar: el mini-grafo no se recentra, lo ancla su nodo central", () => {
+  const { pos, aristas } = grafoAzar(50, 200, 47);
+  pos[0] = 300; // el nodo central, lejos del origen
+  const con = F.crearEstado(50, Float64Array.from(pos), aristas, 0);
+  const sin = F.crearEstado(50, Float64Array.from(pos), aristas, 0);
+  F.paso(con, cumulo, 0.1, azarCon(3));
+  F.paso(sin, { ...cumulo, recentrar: false }, 0.1, azarCon(3));
+  assert.deepEqual(con.pos, sin.pos);
+  assert.ok(con.pos[0] < 300, "el nodo central tira hacia el origen");
 });

@@ -151,8 +151,10 @@ test("filotaxis: radio k/4·√i, ángulo áureo, sin amontonar", () => {
 });
 
 test("un hub de 400 enlaces no vibra con energía sostenida (inercia)", () => {
-  // Estrella: el nodo 0 enlazado con todos. Sin inercia, sus resortes suman
-  // 0,01·400·alpha·ganancia = 12 a alpha 0,3 y el integrador diverge.
+  // Estrella: el nodo 0 enlazado con todos. Sin normalizar, sus resortes
+  // suman 0,01·400·alpha·ganancia = 12 a alpha 0,3 y el integrador diverge.
+  // Normalizados (Parte G) casi no los siente, pero las 400 hojas lo empujan
+  // desde todos lados: sin la masa por enlace saltaba 80 px por paso.
   const n = 401;
   const ar = [];
   for (let i = 1; i < n; i++) ar.push(0, i);
@@ -168,25 +170,29 @@ test("un hub de 400 enlaces no vibra con energía sostenida (inercia)", () => {
   assert.ok(vmax < 20, `velocidad del hub ${vmax.toFixed(1)} px/paso`);
 });
 
+/** Radio RMS del cúmulo alrededor de su centroide. */
+function radio(p) {
+  const n = p.length / 2;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < n; i++) {
+    cx += p[i * 2];
+    cy += p[i * 2 + 1];
+  }
+  cx /= n;
+  cy /= n;
+  let r2 = 0;
+  for (let i = 0; i < n; i++) r2 += (p[i * 2] - cx) ** 2 + (p[i * 2 + 1] - cy) ** 2;
+  return Math.sqrt(r2 / n);
+}
+
 test("el layout asentado es del mismo tipo que el del ciclo de antes (radio ±5 %)", () => {
   // Réplica de la medición de la spec (Parte C) a escala de test: el ciclo
   // de antes (siembra en anillo, ×0,995, rozamiento 0,15, sin ganancia, 1.000
-  // pasos) contra el de ahora (filotaxis, d3, ganancia) sobre el mismo grafo.
+  // pasos) contra el de ahora (filotaxis, d3, ganancia) sobre el mismo grafo
+  // y con las mismas fuerzas: el ciclo no cambia el tamaño.
   const n = 700;
   const aristas = grafoVault(n, 9);
-  const radio = (p) => {
-    let cx = 0;
-    let cy = 0;
-    for (let i = 0; i < n; i++) {
-      cx += p[i * 2];
-      cy += p[i * 2 + 1];
-    }
-    cx /= n;
-    cy /= n;
-    let r2 = 0;
-    for (let i = 0; i < n; i++) r2 += (p[i * 2] - cx) ** 2 + (p[i * 2 + 1] - cy) ** 2;
-    return Math.sqrt(r2 / n);
-  };
   const azar = azarCon(3);
   const pv = new Float64Array(n * 2);
   for (let i = 0; i < n; i++) {
@@ -207,6 +213,26 @@ test("el layout asentado es del mismo tipo que el del ciclo de antes (radio ±5 
   const rv = radio(viejo.pos);
   const rn = radio(c.estado.pos);
   assert.ok(Math.abs(rn / rv - 1) < 0.05, `radio antes ${rv.toFixed(0)}, ahora ${rn.toFixed(0)}`);
+});
+
+test("Parte G: las fuerzas de d3 dejan el cúmulo del mismo tamaño que las de antes (±15 %)", () => {
+  // Mismo ciclo (filotaxis, 300 pasos), fuerzas de antes contra las de ahora.
+  // En los vaults reales: Tesina +7 %, Trabajo y Estudio +10 %, este repo +6 %;
+  // este grafo sintético (casi todo enlazado) se achica: −7 %.
+  const n = 700;
+  const aristas = grafoVault(n, 9);
+  const asentar = (constantes) => {
+    const pos = new Float64Array(n * 2);
+    C.sembrarFilotaxis(pos, Array.from({ length: n }, (_, i) => i), constantes.k);
+    const c = C.crearCiclo(F.crearEstado(n, pos, aristas), constantes);
+    C.calentar(c, 1);
+    const dados = C.avanzarCiclo(c, 1, relojQuieto);
+    return { r: radio(c.estado.pos), dados };
+  };
+  const antes = asentar(F.constantesAntes());
+  const ahora = asentar(cumulo);
+  assert.ok(Math.abs(ahora.r / antes.r - 1) < 0.15, `radio antes ${antes.r.toFixed(0)}, ahora ${ahora.r.toFixed(0)}`);
+  assert.equal(ahora.dados, antes.dados, "los mismos pasos hasta asentarse");
 });
 
 // ── Parte E: precálculo a ciegas y física residual ──
