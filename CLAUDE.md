@@ -256,6 +256,17 @@ orquestador** hace el merge de cada rama de feature a su principal:
 Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 `desktop-tauri` directamente.
 
+> [!important] Una parte, una rama, un merge (regla del usuario, 2026-09-27)
+> Cuando un trabajo se hace por partes que el usuario va a **evaluar por separado en la
+> app** (como las siete partes del grafo en `FUN-L-25`), cada parte va en su propia rama y
+> entra con su propio merge `--no-ff`. Así una parte que no gusta se revierte sola con
+> `git revert -m 1 <merge>` sin tocar las demás (la Parte F se revirtió así). Las partes que
+> tocan los mismos archivos van **en serie**, no en paralelo.
+>
+> Y lo que el banco no puede medir lo decide el usuario en la app: los ms por frame de un
+> canvas en Chromium headless (sin GPU) **no** son los de WebView2; vale el JS por frame y
+> la cuenta de frames largos, no los fps absolutos. Ver [[Rendimiento del grafo]].
+
 > [!tip] Alternativa: reflejar en vez de implementar en paralelo
 > Cuando el cambio **ya está hecho y confirmado por el usuario en desktop**, en lugar de
 > lanzar un subagente para web se usa la receta de [[Reflejar cambios de desktop a web]]:
@@ -291,6 +302,12 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
   harán los commits como si los creara el propio usuario. Ningún commit debe figurar como
   si Claude (o cualquier IA) hubiera participado. Ver [[Convenciones de commits]].
 - No hagas `push` ni toques el remoto salvo que se indique.
+- **Comprobá el commit base de tu worktree** al empezar (`git log --oneline -1`): varias
+  veces arrancó en un commit viejo. Si no es la punta de la rama indicada, creá tu rama
+  desde esa punta (`git switch -c feat/… desktop-tauri`) y decilo en el informe.
+- **Cerrá todo proceso que hayas abierto** (navegadores headless, servidores, `dotnet`,
+  `next dev`) antes de terminar: un proceso vivo bloquea el worktree y te deja «esperando
+  sin finalizar».
 - Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, dudas.
 
 ---
