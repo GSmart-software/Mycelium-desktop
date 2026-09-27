@@ -13,6 +13,8 @@ import {
   limitesDe,
   siembraSustrato,
 } from "./disposiciones";
+import { type EstadoFisica, constantesDe, crearEstado, enfriar } from "./fisica";
+import { type MotorFisica, crearMotor } from "./motorFisica";
 import {
   type Camara,
   type EscenaMicelio,
@@ -34,8 +36,12 @@ export type GraphNode = {
 };
 export type GraphEdge = { source: string; target: string };
 
-/** `r` = radio del nodo, precalculado (depende solo de `conexiones` y del centro). */
-type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number; r: number };
+/**
+ * `r` = radio del nodo, precalculado (depende solo de `conexiones` y del centro).
+ * `i` = su índice en los arrays del motor de fuerzas (`fisica.ts`), que son los
+ * que tienen la posición y la velocidad de verdad; `x`/`y` son la copia que dibuja.
+ */
+type SimNode = GraphNode & { x: number; y: number; i: number; r: number };
 type SimEdge = { s: SimNode; t: SimNode };
 
 /**
@@ -52,6 +58,18 @@ type SpriteKey = string;
 const spriteCache = new Map<SpriteKey, HTMLCanvasElement>();
 /** Techo del caché: el zoom continuo genera radios nuevos; evita crecer sin fin. */
 const SPRITE_CACHE_MAX = 400;
+
+/**
+ * Flujo animado acotado (`FUN-L-25` · B2, `DEF-109`). Por debajo de este zoom
+ * los guiones no se distinguen: es el mismo umbral que ya apaga los nombres.
+ */
+const FLUJO_ZOOM_MIN = 0.5;
+/**
+ * Techo de aristas visibles con flujo. Medido en `DEF-109`: con miles de
+ * trazos por frame el canvas cae a un régimen decenas de veces más lento
+ * (719 ms/frame a 2.000 nodos con todo a la vista). Por encima, sin guiones.
+ */
+const FLUJO_MAX_ARISTAS = 1500;
 
 function nodeSprite(
   fill: string,
@@ -245,14 +263,14 @@ export function MiniGraph({
       const cached = saved?.[n.id];
       if (cached && n.id !== centerId && fisica) {
         savedCount++;
-        return { ...n, x: cached.x, y: cached.y, vx: 0, vy: 0, r: radioDe(n) };
+        return { ...n, x: cached.x, y: cached.y, i, r: radioDe(n) };
       }
       if (posMicelio) {
-        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], vx: 0, vy: 0, r: radioDe(n) };
+        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], i, r: radioDe(n) };
       }
       const a = (i / Math.max(N, 1)) * Math.PI * 2;
       const r = n.id === centerId ? 0 : 50 + Math.random() * 90;
-      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, r: radioDe(n) };
+      return { ...n, x: Math.cos(a) * r, y: Math.sin(a) * r, i, r: radioDe(n) };
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
     // que el grafo aparezca ya asentado; si hay nodos nuevos, algo más para
@@ -287,6 +305,30 @@ export function MiniGraph({
       if (s && t) simEdges.push({ s, t });
     }
 
+    // ── Motor de fuerzas (`fisica.ts`, `FUN-L-25` · B3): posiciones y
+    //    velocidades en arrays tipados; `sim[i].x/y` es la copia que se dibuja.
+    //    Lo que el hilo principal mueve a mano (arrastre, nodos que aparecen)
+    //    pasa por `colocar`, que actualiza las dos y avisa al motor (que puede
+    //    estar en un worker, `B4`: se crea más abajo, con las constantes). ──
+    let motor: MotorFisica | null = null;
+    const estado: EstadoFisica = crearEstado(
+      N,
+      Float64Array.from({ length: N * 2 }, (_, j) => (j & 1 ? sim[j >> 1].y : sim[j >> 1].x)),
+      Int32Array.from(simEdges.flatMap((e) => [e.s.i, e.t.i])),
+      centerId ? sim.findIndex((n) => n.id === centerId) : -1,
+    );
+    /** Nodos que ya participan en la construcción temporal (espejo de `activated`). */
+    const mascaraActivos = new Uint8Array(N);
+    const colocar = (n: SimNode, x: number, y: number) => {
+      n.x = x;
+      n.y = y;
+      estado.pos[n.i * 2] = x;
+      estado.pos[n.i * 2 + 1] = y;
+      estado.vel[n.i * 2] = 0;
+      estado.vel[n.i * 2 + 1] = 0;
+      motor?.colocar(n.i, x, y);
+    };
+
     // ── Construcción temporal: el grafo CRECE. Solo los nodos ya "aparecidos"
     //    participan en la simulación; al aparecer, cada nodo se coloca cerca de
     //    sus vecinos ya presentes y el layout se readapta (estilo Obsidian). ──
@@ -315,17 +357,18 @@ export function MiniGraph({
           sx += m.x;
           sy += m.y;
         }
-        n.x = sx / nbrs.length + (Math.random() - 0.5) * 24;
-        n.y = sy / nbrs.length + (Math.random() - 0.5) * 24;
+        colocar(
+          n,
+          sx / nbrs.length + (Math.random() - 0.5) * 24,
+          sy / nbrs.length + (Math.random() - 0.5) * 24,
+        );
       } else {
         const ang = Math.random() * Math.PI * 2;
         const rad = 16 + Math.random() * 28;
-        n.x = Math.cos(ang) * rad;
-        n.y = Math.sin(ang) * rad;
+        colocar(n, Math.cos(ang) * rad, Math.sin(ang) * rad);
       }
-      n.vx = 0;
-      n.vy = 0;
       activated.add(n.id);
+      mascaraActivos[n.i] = 1;
     };
     let prevRc: number | null = null;
 
@@ -367,8 +410,9 @@ export function MiniGraph({
     /** Nodo pulsado en las disposiciones sin arrastre (anillo, crecimiento): clic = abrir. */
     let clickNode: SimNode | null = null;
     let panning = false;
-    // Capa estática de las disposiciones micelio: se vuelve a pintar solo cuando
-    // algo la ensucia (vista, tamaño, nodos que se mueven, lo revelado, colores).
+    // Capa estática (las disposiciones micelio y, desde `FUN-L-25`, también el
+    // cúmulo): se vuelve a pintar solo cuando algo la ensucia (vista, tamaño,
+    // nodos que se mueven, el foco, lo revelado, colores u opciones).
     let sucioEstatico = true;
     const ensuciar = () => {
       sucioEstatico = true;
@@ -392,14 +436,13 @@ export function MiniGraph({
     const wake = () => {
       if (running && frame === 0) frame = requestAnimationFrame(micelio ? tickMicelio : tick);
     };
-    // Permite despertar el bucle al cambiar las opciones. En micelio, además,
-    // ensucia la capa estática: los colores y lo revelado viven ahí.
-    wakeRef.current = micelio
-      ? () => {
-          ensuciar();
-          wake();
-        }
-      : wake;
+    // Permite despertar el bucle al cambiar las opciones. Además ensucia la capa
+    // estática: los colores, los nombres, lo revelado y la flecha viven ahí.
+    const despertar = () => {
+      ensuciar();
+      wake();
+    };
+    wakeRef.current = despertar;
 
     // Movimiento reducido: el flujo animado de las aristas es un bucle infinito
     // que no se detiene nunca. Con la preferencia del sistema activa se dibuja
@@ -409,7 +452,7 @@ export function MiniGraph({
     let reducido = movimiento.matches;
     const alCambiarMovimiento = () => {
       reducido = movimiento.matches;
-      wake();
+      despertar(); // la flecha que reemplaza al flujo se pinta en la capa
     };
     movimiento.addEventListener("change", alCambiarMovimiento);
 
@@ -443,8 +486,11 @@ export function MiniGraph({
           recentrar();
           encuadrePendiente = false;
         }
-        ensuciar();
+      } else {
+        capaAristas.width = capaNodos.width = canvas.width;
+        capaAristas.height = capaNodos.height = canvas.height;
       }
+      ensuciar();
       wake();
     };
 
@@ -495,16 +541,14 @@ export function MiniGraph({
     const onMouseMove = (ev: MouseEvent) => {
       if (dragNode) {
         const p = toWorld(ev);
-        dragNode.x = p.x;
-        dragNode.y = p.y;
-        dragNode.vx = 0;
-        dragNode.vy = 0;
+        colocar(dragNode, p.x, p.y);
+        ensuciar(); // con el worker, el paso siguiente puede no llegar en este frame
         alpha = Math.max(alpha, 0.4);
         wake();
       } else if (panning) {
         ox += ev.movementX;
         oy += ev.movementY;
-        if (micelio) ensuciar();
+        ensuciar();
         wake();
       } else {
         const n = pick(ev);
@@ -512,7 +556,10 @@ export function MiniGraph({
           hover = n;
           computeRefs(hover ?? centerNode); // foco = hover, o el centro si no hay
           canvas.style.cursor = n ? "pointer" : "grab";
-          wake(); // un redibujo para el resaltado de hover
+          // Un redibujo para el resaltado de hover. En el cúmulo el resaltado
+          // vive en la capa estática; en micelio va en la sobrecapa.
+          if (!micelio) ensuciar();
+          wake();
         }
       }
     };
@@ -537,7 +584,7 @@ export function MiniGraph({
       // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
       // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
       scale = Math.min(Math.max(scale * factor, 0.05), 4);
-      if (micelio) ensuciar();
+      ensuciar();
       wake(); // un redibujo para reflejar el zoom
     };
 
@@ -551,92 +598,105 @@ export function MiniGraph({
     // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
     // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
     // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
-    const k = disposicion === "sustrato" ? 45 : 80;
-    const topeRepulsion = disposicion === "sustrato" ? 6 : 8;
-    const factorRepulsion = disposicion === "sustrato" ? 0.7 : 1;
+    const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
+    // La física, en un worker si se puede (`motorFisica.ts`); si no, acá mismo.
+    // Cuando llegan posiciones con el bucle detenido, lo despierta para verlas.
+    if (fisica) motor = crearMotor(estado, constantes, () => wake());
 
-    const simulate = () => {
-      // En construcción temporal solo simulan los nodos ya aparecidos, así el
-      // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
-      const tl = revealCountRef.current != null;
-      const active = tl ? sim.filter((n) => activated.has(n.id)) : sim;
-      for (let i = 0; i < active.length; i++) {
-        const a = active[i];
-        for (let j = i + 1; j < active.length; j++) {
-          const b = active[j];
-          let dx = a.x - b.x;
-          let dy = a.y - b.y;
-          let d2 = dx * dx + dy * dy;
-          if (d2 < 1) {
-            dx = Math.random() - 0.5;
-            dy = Math.random() - 0.5;
-            d2 = 1;
-          }
-          const d = Math.sqrt(d2);
-          const f = Math.min((k * k) / d2, topeRepulsion) * factorRepulsion * alpha;
-          a.vx += (dx / d) * f;
-          a.vy += (dy / d) * f;
-          b.vx -= (dx / d) * f;
-          b.vy -= (dy / d) * f;
-        }
+    /**
+     * Aplica las posiciones nuevas del motor (si llegaron) y, si la simulación
+     * está activa, pide el paso siguiente (`fisica.ts`: Barnes-Hut en vez de
+     * todos los pares, mismas fuerzas). Devuelve si los nodos se movieron.
+     */
+    const simulate = (activa: boolean): boolean => {
+      if (!motor) return false;
+      if (activa) {
+        // En construcción temporal solo simulan los nodos ya aparecidos, así el
+        // grafo se reacomoda mientras crece (en vez de estar todo prefijado).
+        const activos = revealCountRef.current != null ? mascaraActivos : null;
+        // Con el worker, si el paso anterior sigue en vuelo no se encarga otro
+        // (ni se enfría): la energía baja un escalón por paso dado, como antes.
+        if (motor.avanzar(alpha, dragNode ? dragNode.i : -1, activos)) alpha = enfriar(alpha);
       }
-      for (const e of simEdges) {
-        if (tl && (!activated.has(e.s.id) || !activated.has(e.t.id))) continue;
-        const dx = e.t.x - e.s.x;
-        const dy = e.t.y - e.s.y;
-        const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1); // sqrt < hypot en bucles
-        const f = ((d - k) / d) * 0.02 * alpha * 10;
-        e.s.vx += dx * f * 0.05;
-        e.s.vy += dy * f * 0.05;
-        e.t.vx -= dx * f * 0.05;
-        e.t.vy -= dy * f * 0.05;
+      const pos = motor.tomar();
+      if (!pos) return false;
+      for (const n of sim) {
+        if (n === dragNode) continue; // manda el ratón
+        n.x = pos[n.i * 2];
+        n.y = pos[n.i * 2 + 1];
       }
-      for (const n of active) {
-        n.vx -= n.x * 0.004 * alpha;
-        n.vy -= n.y * 0.004 * alpha;
-        if (n === dragNode) continue;
-        // El nodo central tira hacia el origen para quedar al medio.
-        if (n.id === centerId) {
-          n.vx -= n.x * 0.05;
-          n.vy -= n.y * 0.05;
-        }
-        n.vx *= 0.85;
-        n.vy *= 0.85;
-        n.x += n.vx;
-        n.y += n.vy;
-      }
-      alpha = Math.max(alpha * 0.995, 0.02);
+      return true;
     };
 
-    const draw = () => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.translate(w / (2 * dpr) + ox, h / (2 * dpr) + oy);
-      ctx.scale(scale, scale);
+    // ── Cúmulo con capa estática y reposo real (`FUN-L-25` · B1, `DEF-109`).
+    //    Antes cada frame redibujaba el grafo entero, y con el flujo animado
+    //    (que viene por defecto) eso era a 60 fps para siempre. El dibujo va en
+    //    tres pasadas, siempre en este orden: aristas base, flujo animado, y
+    //    flechas + nodos + nombres (el flujo pasa por debajo de nodos y flechas).
+    //    - En reposo, las pasadas quietas se pintan a DOS capas offscreen que
+    //      solo se repintan si algo las ensucia (vista, foco, lo revelado, una
+    //      opción); cada frame es copiar las capas con el flujo en el medio, y
+    //      sin flujo no hay frame.
+    //    - Mientras la simulación está activa los nodos se mueven casi en cada
+    //      frame: ahí las capas no se pueden reutilizar y pintarlas aparte y
+    //      copiarlas costaría más (medido), así que se dibuja directo como antes. ──
+    const capaAristas = document.createElement("canvas");
+    const capaNodos = document.createElement("canvas");
+    const actx = capaAristas.getContext("2d");
+    const nctx = capaNodos.getContext("2d");
+    /** ¿Las capas tienen lo último? (dejan de tenerlo tras un frame directo). */
+    let capasVigentes = false;
+    /** Geometría de las aristas visibles: `[sx, sy, cx, cy, tx, ty]` por arista. */
+    let geoAristas = new Float64Array(0);
+    /** 1 = la arista toca el nodo apuntado (se resalta). */
+    let litAristas = new Uint8Array(0);
+    let nVisibles = 0;
+    /** ¿Lo último pintado lleva flujo animado encima? */
+    let conFlujo = false;
+    // Rectángulo visible en coordenadas de MUNDO (culling), de la última pintada.
+    let visL = 0;
+    let visR = 0;
+    let visT = 0;
+    let visB = 0;
+    const dentro = (x: number, y: number) => x >= visL && x <= visR && y >= visT && y <= visB;
 
+    /** Transformación de la vista (mundo → píxeles) sobre un contexto. */
+    const aplicarVista = (c: CanvasRenderingContext2D, w: number, h: number) => {
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.translate(w / (2 * dpr) + ox, h / (2 * dpr) + oy);
+      c.scale(scale, scale);
+    };
+    /** Limpia el contexto y le aplica la vista. */
+    const prepararLienzo = (c: CanvasRenderingContext2D, w: number, h: number) => {
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, w, h);
+      aplicarVista(c, w, h);
+    };
+
+    /** Pasada 1: aristas base. Además guarda la geometría de las visibles. */
+    const pintarAristas = (c: CanvasRenderingContext2D) => {
       // ── Culling por viewport: rectángulo visible en coordenadas de MUNDO. Todo
       //    lo que cae fuera no se dibuja (nodos, aristas y etiquetas). El test es
       //    aritmética simple frente al costo de rasterizar, y no cambia nada de lo
       //    que se ve: con zoom alto evita pagar por lo que está fuera de pantalla.
-      const cw = w / dpr;
-      const ch = h / dpr;
+      const cw = canvas.width / dpr;
+      const ch = canvas.height / dpr;
       const margen = 40 / scale; // glow + etiqueta del nodo
-      const visL = (-cw / 2 - ox) / scale - margen;
-      const visR = (cw / 2 - ox) / scale + margen;
-      const visT = (-ch / 2 - oy) / scale - margen;
-      const visB = (ch / 2 - oy) / scale + margen;
-      const dentro = (x: number, y: number) => x >= visL && x <= visR && y >= visT && y <= visB;
+      visL = (-cw / 2 - ox) / scale - margen;
+      visR = (cw / 2 - ox) / scale + margen;
+      visT = (-ch / 2 - oy) / scale - margen;
+      visB = (ch / 2 - oy) / scale + margen;
 
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
       // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
       const dir = edgeDirectionRef.current;
       const showFlow = !reducido && (dir === "animated" || dir === "both");
-      const showArrow = dir === "arrow" || dir === "both" || (reducido && dir === "animated");
       const glow = hoverGlowRef.current;
-      const flowOffset = showFlow ? -((performance.now() / 1000) * 30) / scale : 0;
+      if (geoAristas.length < simEdges.length * 6) {
+        geoAristas = new Float64Array(simEdges.length * 6);
+        litAristas = new Uint8Array(simEdges.length);
+      }
+      nVisibles = 0;
       for (const e of simEdges) {
         if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
         // Culling: descartar la arista si su caja envolvente no toca la vista.
@@ -657,56 +717,87 @@ export function MiniGraph({
         const bend = 0.12;
         const cx = mx + (nx / len) * len * bend;
         const cy = my + (ny / len) * len * bend;
-        const curve = () => {
-          ctx.beginPath();
-          ctx.moveTo(e.s.x, e.s.y);
-          ctx.quadraticCurveTo(cx, cy, e.t.x, e.t.y);
-          ctx.stroke();
-        };
 
         // Línea base. Al apuntar un nodo, sus enlaces brillan con intensidad
         // `glow` (ancho + halo); con glow=0 apenas se resaltan.
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = lit ? colEdgeLit : colEdge;
-        ctx.lineWidth = (lit ? 1.2 + 0.9 * glow : 1.1) / scale;
+        c.strokeStyle = lit ? colEdgeLit : colEdge;
+        c.lineWidth = (lit ? 1.2 + 0.9 * glow : 1.1) / scale;
         if (lit && glow > 0) {
-          ctx.shadowColor = colEdgeLit;
-          ctx.shadowBlur = (8 * glow) / scale;
+          c.shadowColor = colEdgeLit;
+          c.shadowBlur = (8 * glow) / scale;
         }
-        curve();
-        ctx.shadowBlur = 0;
+        c.beginPath();
+        c.moveTo(e.s.x, e.s.y);
+        c.quadraticCurveTo(cx, cy, e.t.x, e.t.y);
+        c.stroke();
+        c.shadowBlur = 0;
 
-        // Flujo animado a lo largo del enlace (dirección origen→destino).
-        if (showFlow) {
-          ctx.setLineDash([2 / scale, 9 / scale]);
-          ctx.lineDashOffset = flowOffset;
-          ctx.strokeStyle = lit ? colCenter : colEdgeLit;
-          ctx.globalAlpha = lit ? 0.95 : 0.5;
-          ctx.lineWidth = (lit ? 2.2 : 1.5) / scale;
-          curve();
-          ctx.setLineDash([]);
-          ctx.lineDashOffset = 0;
-          ctx.globalAlpha = 1;
-        }
+        // La curva queda guardada para el flujo (que se mueve en cada frame) y
+        // para la flecha (que va en la pasada de nodos).
+        const o = nVisibles * 6;
+        geoAristas[o] = e.s.x;
+        geoAristas[o + 1] = e.s.y;
+        geoAristas[o + 2] = cx;
+        geoAristas[o + 3] = cy;
+        geoAristas[o + 4] = e.t.x;
+        geoAristas[o + 5] = e.t.y;
+        litAristas[nVisibles] = lit ? 1 : 0;
+        nVisibles++;
+      }
+      // Flujo acotado (`FUN-L-25` · B2): alejado o con demasiadas aristas a la
+      // vista, solo queda el trazo base (y la flecha, si la opción la pide). La
+      // opción no cambia de valor: el flujo vuelve en cuanto el zoom o el
+      // recorte lo permiten.
+      conFlujo =
+        showFlow && nVisibles > 0 && scale >= FLUJO_ZOOM_MIN && nVisibles <= FLUJO_MAX_ARISTAS;
+    };
 
-        // Flecha al medio del enlace apuntando al destino.
-        if (showArrow) {
-          const bx = 0.25 * e.s.x + 0.5 * cx + 0.25 * e.t.x;
-          const by = 0.25 * e.s.y + 0.5 * cy + 0.25 * e.t.y;
-          const a = Math.atan2(e.t.y - e.s.y, e.t.x - e.s.x);
-          const size = 6 / scale;
-          ctx.fillStyle = lit ? colEdgeLit : colEdge;
-          ctx.beginPath();
-          ctx.moveTo(bx + Math.cos(a) * size, by + Math.sin(a) * size);
-          ctx.lineTo(bx + Math.cos(a + 2.6) * size, by + Math.sin(a + 2.6) * size);
-          ctx.lineTo(bx + Math.cos(a - 2.6) * size, by + Math.sin(a - 2.6) * size);
-          ctx.closePath();
-          ctx.fill();
+    /** Pasada 2: el flujo animado a lo largo de cada arista visible (origen → destino). */
+    const pintarFlujo = (c: CanvasRenderingContext2D) => {
+      // Los mismos guiones de siempre, con el desplazamiento del reloj.
+      c.setLineDash([2 / scale, 9 / scale]);
+      c.lineDashOffset = -((performance.now() / 1000) * 30) / scale;
+      for (let i = 0; i < nVisibles; i++) {
+        const lit = litAristas[i] === 1;
+        c.strokeStyle = lit ? colCenter : colEdgeLit;
+        c.globalAlpha = lit ? 0.95 : 0.5;
+        c.lineWidth = (lit ? 2.2 : 1.5) / scale;
+        const o = i * 6;
+        c.beginPath();
+        c.moveTo(geoAristas[o], geoAristas[o + 1]);
+        c.quadraticCurveTo(geoAristas[o + 2], geoAristas[o + 3], geoAristas[o + 4], geoAristas[o + 5]);
+        c.stroke();
+      }
+      c.setLineDash([]);
+      c.lineDashOffset = 0;
+      c.globalAlpha = 1;
+    };
+
+    /** Pasada 3: flechas, nodos y nombres (usa la geometría de la pasada 1). */
+    const pintarNodos = (c: CanvasRenderingContext2D) => {
+      // Flecha al medio del enlace apuntando al destino.
+      const dir = edgeDirectionRef.current;
+      const showArrow = dir === "arrow" || dir === "both" || (reducido && dir === "animated");
+      if (showArrow) {
+        const size = 6 / scale;
+        for (let i = 0; i < nVisibles; i++) {
+          const o = i * 6;
+          const sx = geoAristas[o];
+          const sy = geoAristas[o + 1];
+          const tx = geoAristas[o + 4];
+          const ty = geoAristas[o + 5];
+          const bx = 0.25 * sx + 0.5 * geoAristas[o + 2] + 0.25 * tx;
+          const by = 0.25 * sy + 0.5 * geoAristas[o + 3] + 0.25 * ty;
+          const a = Math.atan2(ty - sy, tx - sx);
+          c.fillStyle = litAristas[i] === 1 ? colEdgeLit : colEdge;
+          c.beginPath();
+          c.moveTo(bx + Math.cos(a) * size, by + Math.sin(a) * size);
+          c.lineTo(bx + Math.cos(a + 2.6) * size, by + Math.sin(a + 2.6) * size);
+          c.lineTo(bx + Math.cos(a - 2.6) * size, by + Math.sin(a - 2.6) * size);
+          c.closePath();
+          c.fill();
         }
       }
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
 
       // Nodos: se dibujan como SPRITE cacheado (círculo + glow ya rasterizados) en
       // vez de aplicar `shadowBlur` en cada `fill()`. El sprite se genera a la
@@ -732,7 +823,7 @@ export function MiniGraph({
         const rPix = Math.max(0.5, Math.round(n.r * escalaPix * 2) / 2);
         const sprite = nodeSprite(fill, shadow, rPix, blurPix);
         const ladoMundo = sprite.width / escalaPix;
-        ctx.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
+        c.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
       }
 
       // Qué nombres se dibujan (`FUN-M-21`). El foco es el nodo apuntado y, si
@@ -744,8 +835,8 @@ export function MiniGraph({
       // hasta ser ilegibles y solo se deja el del apuntado. Los otros dos modos
       // ya muestran pocos, así que no necesitan ese recorte.
       const showAll = scale > 0.5;
-      ctx.textAlign = "center";
-      ctx.font = `${12 / scale}px ${fontFamily}`;
+      c.textAlign = "center";
+      c.font = `${12 / scale}px ${fontFamily}`;
       for (const n of sim) {
         if (!revealed(n)) continue;
         if (modo === "apuntado") {
@@ -756,9 +847,50 @@ export function MiniGraph({
           continue;
         }
         if (!dentro(n.x, n.y)) continue; // culling
-        ctx.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
-        ctx.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
+        c.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
+        c.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
       }
+    };
+
+    /**
+     * Un frame del cúmulo. `simulando` = la simulación está activa (no en
+     * reposo): se dibuja directo, sin capas. En reposo se usan las capas.
+     */
+    const draw = (simulando: boolean) => {
+      const w = canvas.width;
+      const h = canvas.height;
+      // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
+      // capa de 0 px lanza una excepción.
+      if (w === 0 || h === 0) return;
+      if (simulando || !actx || !nctx) {
+        // Nada cambió y nada se anima (p. ej. el paso del worker todavía no
+        // volvió): el lienzo ya muestra lo último.
+        if (!sucioEstatico && !conFlujo) return;
+        prepararLienzo(ctx, w, h);
+        pintarAristas(ctx);
+        if (conFlujo) pintarFlujo(ctx);
+        pintarNodos(ctx);
+        sucioEstatico = false;
+        capasVigentes = false;
+        return;
+      }
+      if (sucioEstatico || !capasVigentes) {
+        prepararLienzo(actx, w, h);
+        pintarAristas(actx);
+        prepararLienzo(nctx, w, h);
+        pintarNodos(nctx);
+        sucioEstatico = false;
+        capasVigentes = true;
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(capaAristas, 0, 0);
+      if (conFlujo) {
+        aplicarVista(ctx, w, h);
+        pintarFlujo(ctx);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+      ctx.drawImage(capaNodos, 0, 0);
     };
 
     // Construcción temporal con física (cúmulo y sustrato): colocar los nodos
@@ -766,7 +898,11 @@ export function MiniGraph({
     // se reacomode al crecer.
     const avanzarConstruccion = (rc: number | null | undefined) => {
       if (rc != null) {
-        if (prevRc == null) activated.clear(); // (re)inicio: crecer desde cero
+        if (prevRc == null) {
+          // (re)inicio: crecer desde cero
+          activated.clear();
+          mascaraActivos.fill(0);
+        }
         const target = Math.min(rc, orderedSim.length);
         while (activated.size < target) placeNew(orderedSim[activated.size]);
         if (rc !== prevRc) alpha = Math.max(alpha, 0.6);
@@ -899,8 +1035,7 @@ export function MiniGraph({
         const interacting = !!dragNode || panning;
         if (interacting || alpha > REST) lastEnergetic = ahora;
         activo = continuousSim || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (activo) {
-          simulate();
+        if (simulate(activo)) {
           sincronizarPos();
           ensuciar();
         }
@@ -926,15 +1061,17 @@ export function MiniGraph({
       // detiene. Con `continuousSim` el bloqueo está desactivado: nunca para.
       const idle = !continuousSim && now - lastEnergetic > IDLE_GRACE_MS;
       const active = !idle;
-      // Flujo animado en los enlaces → mantener el redibujo aunque la simulación
-      // esté en reposo (en ese caso solo se dibuja, sin simular).
-      const d = edgeDirectionRef.current;
-      const animating = !reducido && visible && (d === "animated" || d === "both");
-      if (active) simulate();
+      // Los nodos se movieron (paso local, o respuesta del worker que llegó,
+      // incluso con el bucle ya en reposo): la capa estática ya no vale.
+      if (simulate(active)) ensuciar();
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
-      if (visible) draw();
+      if (visible) draw(active);
+      // Flujo animado sobre la capa → mantener el redibujo aunque la simulación
+      // esté en reposo (en ese caso solo se copia la capa y se mueve el flujo).
+      // `conFlujo` lo decide la última capa pintada (opción, movimiento reducido).
+      const animating = visible && conFlujo;
       // Si no hay nada activo ni animándose, se detiene (sin rAF) hasta que algo
       // lo despierte con wake().
       if (active || animating) frame = requestAnimationFrame(tick);
@@ -946,8 +1083,9 @@ export function MiniGraph({
       running = false;
       movimiento.removeEventListener("change", alCambiarMovimiento);
       observador.disconnect();
-      if (wakeRef.current === wake) wakeRef.current = null;
+      if (wakeRef.current === despertar) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
+      motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
       // Solo vale para las disposiciones con física: el anillo y el crecimiento
