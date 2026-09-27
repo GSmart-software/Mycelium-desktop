@@ -25,21 +25,6 @@ type SimNode = GraphNode & { x: number; y: number; i: number; r: number };
 type SimEdge = { s: SimNode; t: SimNode };
 
 /**
- * Caché de "sprites" de nodo: un canvas offscreen con el círculo y su glow ya
- * rasterizados. Dibujar `shadowBlur` por nodo y por frame es de lo más caro del
- * canvas 2D (cada `fill()` obliga a un blur gaussiano); con el sprite el blur se
- * calcula UNA vez por combinación y luego solo se hace `drawImage`.
- *
- * El sprite se genera en píxeles REALES de pantalla (radio × scale × dpr) porque
- * `shadowBlur` no se escala con la transformación del contexto: así el resultado
- * es visualmente idéntico al dibujo directo, a cualquier zoom, y sin resampleo.
- */
-type SpriteKey = string;
-const spriteCache = new Map<SpriteKey, HTMLCanvasElement>();
-/** Techo del caché: el zoom continuo genera radios nuevos; evita crecer sin fin. */
-const SPRITE_CACHE_MAX = 400;
-
-/**
  * Flujo animado acotado (`FUN-L-25` · B2, `DEF-109`). Por debajo de este zoom
  * los guiones no se distinguen: es el mismo umbral que ya apaga los nombres.
  */
@@ -65,35 +50,6 @@ const HUBS_CON_NOMBRE = 24;
 const MARGEN_CAPA = 0.25;
 /** Tras el último evento de rueda, cuánto se espera para repintar a fidelidad completa. */
 const RUEDA_REPOSO_MS = 150;
-
-function nodeSprite(
-  fill: string,
-  shadow: string,
-  rPix: number,
-  blurPix: number,
-): HTMLCanvasElement {
-  const key: SpriteKey = `${fill}|${shadow}|${rPix}|${blurPix}`;
-  const hit = spriteCache.get(key);
-  if (hit) return hit;
-  if (spriteCache.size > SPRITE_CACHE_MAX) spriteCache.clear();
-
-  const lado = Math.ceil(2 * (rPix + blurPix) + 2);
-  const c = document.createElement("canvas");
-  c.width = lado;
-  c.height = lado;
-  const cx = c.getContext("2d");
-  if (cx) {
-    const centro = lado / 2;
-    cx.shadowColor = shadow;
-    cx.shadowBlur = blurPix;
-    cx.fillStyle = fill;
-    cx.beginPath();
-    cx.arc(centro, centro, rPix, 0, Math.PI * 2);
-    cx.fill();
-  }
-  spriteCache.set(key, c);
-  return c;
-}
 
 /** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
 type Vista = { scale: number; ox: number; oy: number };
@@ -959,38 +915,16 @@ export function MiniGraph({
         }
       }
 
-      // Nodos: se dibujan como SPRITE cacheado (círculo + glow ya rasterizados) en
-      // vez de aplicar `shadowBlur` en cada `fill()`. El sprite se genera a la
-      // resolución real de pantalla y se coloca en coordenadas de mundo con el
-      // tamaño equivalente, así el resultado es idéntico pero sin un blur
-      // gaussiano por nodo y por frame.
-      const escalaPix = scale * dpr;
-      for (const n of sim) {
-        if (!revealed(n)) continue; // construcción temporal: aún no apareció
-        if (!dentro(n.x, n.y)) continue; // culling
-        // Blanco: el nodo central y el que está bajo el cursor. Accent: los que
-        // referencian al nodo en foco. Si no, el color del grupo (si tiene) o el
-        // glow por defecto.
-        const isWhite = n.id === centerId || n === hover;
-        const refsFocus = !isWhite && focusRefs.has(n.id);
-        const custom = nodeColorsRef.current?.get(n.id);
-        const base = custom ?? colNode;
-        const shadow = refsFocus ? colAccent : base;
-        const fill = isWhite ? colCenter : refsFocus ? colAccent : base;
-        const blurPix = isWhite ? 22 : refsFocus ? 16 : 12;
-        // Radio en píxeles reales, redondeado a 0.5 para acotar las variantes de
-        // sprite que genera el zoom continuo.
-        const rPix = Math.max(0.5, Math.round(n.r * escalaPix * 2) / 2);
-        const sprite = nodeSprite(fill, shadow, rPix, blurPix);
-        const ladoMundo = sprite.width / escalaPix;
-        c.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
-      }
-
+      pintarDiscos(c);
       pintarNombres(c, false);
     };
 
-    // ── Nodos en movimiento: discos planos del mismo color y radio que el
-    //    sprite del reposo, sin el glow. Agrupados por color para no cambiar el
+    // ── Nodos: discos lisos, sin brillo ni sombra, en reposo y en movimiento
+    //    (decisión del usuario del 2026-09-27, `DEF-109`). Antes, en reposo,
+    //    cada nodo era un sprite con el círculo y su glow (`shadowBlur`) ya
+    //    rasterizados. Blanco: el nodo central y el que está bajo el cursor.
+    //    Acento: los que referencian al nodo en foco. Si no, el color del grupo
+    //    (si tiene) o el glow del tema. Agrupados por color para no cambiar el
     //    relleno a cada nodo. ──
     const discosPorColor = new Map<string, SimNode[]>();
     const pintarDiscos = (c: CanvasRenderingContext2D) => {
@@ -1139,8 +1073,8 @@ export function MiniGraph({
     /**
      * Fidelidad de movimiento, mientras el grafo se mueve (Parte C, corregida
      * en la Parte D): las aristas conservan su curva —la misma que en reposo—,
-     * sin flujo ni flecha ni brillo; nodos como discos planos (sin el sprite
-     * con glow); solo los nombres destacados. Al asentarse se pinta una vez a fidelidad
+     * sin flujo ni flecha ni brillo; los mismos discos lisos del reposo; solo
+     * los nombres destacados. Al asentarse se pinta una vez a fidelidad
      * completa. (La Parte C las trazaba rectas: el usuario lo rechazó, las
      * curvas son el estilo de Mycelium.)
      *
@@ -1320,7 +1254,7 @@ export function MiniGraph({
     /**
      * Fidelidad de movimiento mientras el grafo se mueve (Partes C y D): solo
      * en grafos grandes. En el mini-grafo del panel el asentamiento dura unos
-     * pocos frames y alternar discos y sprites se vería como un parpadeo.
+     * pocos frames y alternar nombres y flujo se vería como un parpadeo.
      */
     const reducible = N >= MIN_NODOS_WORKER;
     /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
