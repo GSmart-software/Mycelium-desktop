@@ -12,6 +12,8 @@ export type MenuItem = {
   disabled?: boolean;
   /** Texto del tooltip; en una entrada deshabilitada, el motivo. */
   title?: string;
+  /** Una línea divisoria antes de esta entrada, para separar grupos. */
+  separadorAntes?: boolean;
   /** Entradas anidadas: la fila abre un submenú en vez de ejecutar una acción. */
   submenu?: MenuItem[];
   onClick?: () => void;
@@ -88,7 +90,12 @@ export function ContextMenu({
     typeof window !== "undefined" && x + ANCHO_MENU * 2 > window.innerWidth;
 
   const clase = (item: MenuItem) =>
-    [styles.item, item.danger ? styles.danger : "", item.disabled ? styles.disabled : ""]
+    [
+      styles.item,
+      item.danger ? styles.danger : "",
+      item.disabled ? styles.disabled : "",
+      item.separadorAntes ? styles.conSeparador : "",
+    ]
       .filter(Boolean)
       .join(" ");
 

@@ -220,6 +220,7 @@ async function abrirMenu(view: EditorView, desde: number, hasta: number, x: numb
       : [{ label: "Sin sugerencias", disabled: true }]),
     {
       label: "Agregar al diccionario del vault",
+      separadorAntes: true,
       disabled: !hayVault,
       title: hayVault
         ? "Deja de marcarla en todas las notas de este vault"
