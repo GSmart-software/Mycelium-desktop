@@ -7,6 +7,7 @@
  */
 import { execute, select } from "./client";
 import { ftsBorrar } from "./ftsIndice";
+import { reResolverTitulos } from "./enlacesIndice";
 import { respaldarPapelera } from "./estadoVault";
 import { DbError } from "./errors";
 import type { PapeleraResponse } from "./types";
@@ -19,8 +20,8 @@ const RETENCION_DIAS = 30;
 
 /** `DELETE /notas/{id}` → papelera. */
 export async function borrarNota(id: string): Promise<void> {
-  const notas = await select<{ vault_id: string; carpeta_id: string | null }>(
-    "SELECT vault_id, carpeta_id FROM notas WHERE id = ?",
+  const notas = await select<{ vault_id: string; carpeta_id: string | null; titulo: string }>(
+    "SELECT vault_id, carpeta_id, titulo FROM notas WHERE id = ?",
     [id],
   );
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
@@ -48,6 +49,9 @@ export async function borrarNota(id: string): Promise<void> {
     "INSERT INTO papelera (id, nota_id, ruta_original, carpeta_original_id, eliminado_en, ruta_papelera) VALUES (?, ?, ?, ?, ?, ?)",
     [nuevoId(), id, rutaDe(rutas, carpeta_id), carpeta_id, now, rutaPapelera],
   );
+  // Los enlaces que llegaban a ella pasan a su homónima, si hay, o a rotos
+  // (`FUN-L-25`): una nota en la papelera no es destino, como antes en el grafo.
+  await reResolverTitulos([notas[0].titulo]);
   // El registro también va a `.mycelium/papelera.json` (`DEF-107`): sin él,
   // reconstruir el índice deja el archivo en `.trash` sin forma de recuperarlo.
   await respaldarPapelera();
@@ -109,6 +113,9 @@ export async function recuperarNota(id: string): Promise<void> {
       ahoraIso(),
       id,
     ]);
+    // Vuelve a ser destino (`FUN-L-25`); por el camino de arriba lo hace `rekeyIndice`.
+    const fila = await select<{ titulo: string }>("SELECT titulo FROM notas WHERE id = ?", [id]);
+    if (fila.length > 0) await reResolverTitulos([fila[0].titulo]);
   }
   await respaldarPapelera();
 }

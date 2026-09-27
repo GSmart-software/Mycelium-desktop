@@ -4,8 +4,10 @@
  * copia de contenido al duplicar). La identidad de una nota es su ruta relativa en
  * el vault: cada operación toca primero el disco y después el índice.
  */
+import { derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
+import { crearResolutor, escribirEnlacesTanda, huellaEnlaces, reResolverTitulos } from "./enlacesIndice";
 import { ftsPoner } from "./ftsIndice";
 import { DbError } from "./errors";
 import { carpetaDeArchivo, tituloDeRuta } from "./indexer";
@@ -73,6 +75,9 @@ export async function crearNota(
     [libre.id, now],
   );
   await ftsPoner(libre.id, libre.titulo, "");
+  // Un `[[enlace]]` que estaba roto hacia este título pasa a resolver ya, sin
+  // esperar a reindexar (`FUN-L-25`).
+  await reResolverTitulos([libre.titulo]);
   return { id: libre.id };
 }
 
@@ -187,7 +192,17 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
       now,
     ]);
     await ftsPoner(nuevo, titulo, cont[0].contenido);
+    // La copia enlaza a lo mismo que el original (`FUN-L-25`).
+    const enlaces = derivarEnlaces(cont[0].contenido, nota.tipo);
+    const etiquetas = derivarEtiquetas(cont[0].contenido, nota.tipo);
+    const resolver = enlaces.length > 0 ? await crearResolutor() : undefined;
+    await escribirEnlacesTanda([{ id: nuevo, enlaces, etiquetas }], resolver);
+    await execute("UPDATE notas SET hash_enlaces = ? WHERE id = ?", [
+      huellaEnlaces(enlaces, etiquetas),
+      nuevo,
+    ]);
   }
+  await reResolverTitulos([titulo]);
 
   return { id: nuevo };
 }
