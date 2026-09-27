@@ -2,26 +2,24 @@
  * Grafo de wikilinks del vault (HU-30): grafo global y conexiones de una nota.
  * Portado de `SearchEndpoints.BuildVaultGraphAsync/ContarConexiones/FragmentAround`.
  *
- * Diferencia con el backend: en vez de leer N blobs en paralelo, se cargan todos
- * los contenidos del vault en UNA sola query (SQLite local, sin round-trips).
+ * Lee las tablas `enlaces` y `etiquetas` del índice (`FUN-L-25`, `DEF-109`), que
+ * el indexador y el guardado llenan con lo que sale del texto
+ * (`lib/enlacesNota.ts`) ya resuelto (`lib/db/enlacesIndice.ts`). Hasta
+ * entonces, cada consulta leía el contenido de TODO el vault y lo escaneaba:
+ * ≈300 ms en la Tesina (1.306 notas) por cada apertura del grafo, cada guardado
+ * que refrescaba la barra de estado y cada panel de conexiones. Ahora el grafo
+ * no lee contenido, y las conexiones leen solo el de las notas que citan a la
+ * nota (para el fragmento de contexto).
+ *
+ * > [!info] Qué es una arista
+ * > Un par `(desde, destino)` distinto, con el destino resuelto, sin lazos (una
+ * > nota que se enlaza a sí misma) y sin notas de la papelera en ninguna punta.
+ * > Es exactamente lo que armaba el escaneo. El filtro de la papelera se aplica
+ * > al leer además de al resolver, para que una fila vieja no dibuje una arista
+ * > hacia una nota borrada.
  */
-import { referenciasDe } from "@/lib/canvas";
-import { etiquetasDe } from "@/lib/frontmatter";
-import { sinCodigo } from "@/lib/sinCodigo";
-import {
-  indexarPorTitulo,
-  partirWikilink,
-  resolveWikilinkEnIndice,
-  type CarpetaEnlazable,
-  type NotaEnlazable,
-} from "@/lib/wikilinks";
 import { select } from "./client";
 import { DbError } from "./errors";
-
-// Los WIKILINKS se buscan sobre el texto COMPLETO a propósito: un `[[enlace]]`
-// dentro de una propiedad del frontmatter cuenta como enlace saliente, que es el
-// comportamiento actual y el correcto (FUN-M-04).
-const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 
 export type GraphNodeDto = {
   id: string;
@@ -33,119 +31,20 @@ export type GraphNodeDto = {
 export type GraphEdgeDto = { source: string; target: string };
 export type GraphDataDto = { nodos: GraphNodeDto[]; aristas: GraphEdgeDto[] };
 
-type Arista = { from: string; to: string };
-type VaultGraph = {
-  aristas: Arista[];
-  titulosPorId: Map<string, string>;
-  contenidos: Map<string, string>;
-  creadoPorId: Map<string, string>;
-};
+/** Las filas de `enlaces` que son aristas (ver la cabecera), sobre el alias `e`. */
+const ES_ARISTA = `e.destino_id IS NOT NULL AND e.desde_id <> e.destino_id
+  AND e.desde_id NOT IN (SELECT nota_id FROM papelera)
+  AND e.destino_id NOT IN (SELECT nota_id FROM papelera)`;
 
-/** Escanea todas las notas (no en papelera) y arma el grafo de wikilinks. */
-async function buildVaultGraph(vaultId: string): Promise<VaultGraph> {
-  const filas = await select<{
-    id: string;
-    titulo: string;
-    carpeta_id: string | null;
-    creado_en: string;
-    tipo: string;
-    contenido: string | null;
-  }>(
-    `SELECT n.id, n.titulo, n.carpeta_id, n.creado_en, n.tipo, c.contenido
-     FROM notas n LEFT JOIN contenidos c ON c.nota_id = n.id
-     WHERE n.vault_id = ? AND n.id NOT IN (SELECT nota_id FROM papelera)`,
-    [vaultId],
-  );
-  const carpetas: CarpetaEnlazable[] = (
-    await select<{ id: string; nombre: string; padre_id: string | null }>(
-      "SELECT id, nombre, padre_id FROM carpetas WHERE vault_id = ?",
-      [vaultId],
-    )
-  ).map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
-
-  // Los enlaces se resuelven con la MISMA regla que el editor (`FUN-M-40`, D8):
-  // pista de carpeta, sin extensión, empate a la ruta más corta. Antes era «la
-  // primera nota con ese título» en el orden de esta consulta, así que con dos
-  // homónimas el clic iba a una y la arista a otra, y `![[x.excalidraw]]` no
-  // llegaba al grafo.
-  const indice = indexarPorTitulo<NotaEnlazable>(
-    filas.map((f) => ({ id: f.id, titulo: f.titulo, carpetaId: f.carpeta_id })),
-  );
-  const resolver = (ref: string) => resolveWikilinkEnIndice(ref, indice, carpetas)?.id;
-  const titulosPorId = new Map<string, string>();
-  const contenidos = new Map<string, string>();
-  /** Canvas por id: su contenido se interpreta aparte, no como prosa. */
-  const canvasPorId = new Map<string, string>();
-  const creadoPorId = new Map<string, string>();
-  for (const f of filas) {
-    titulosPorId.set(f.id, f.titulo);
-    creadoPorId.set(f.id, f.creado_en);
-    // Una base (`FUN-L-03`) SÍ es un destino válido —`[[Mi base]]` navega y
-    // aparece como nodo— pero su contenido NO se escanea: es la definición de una
-    // consulta, no prosa, y un `[[…]]` dentro de un valor del YAML crearía una
-    // arista fantasma. Es el mismo efecto colateral que ya arrastra Excalidraw y
-    // que nadie diseñó (ver docs/features/canvas.md).
-    // Un `.drawio` (`FUN-L-20`) se suma a la lista por el mismo motivo: es XML
-    // de mxGraph, y escanearlo como prosa encontraría `[[…]]` dentro de los
-    // estilos y las etiquetas de las figuras. Es un destino válido, no una
-    // fuente de aristas.
-    if (f.contenido && f.tipo !== "base" && f.tipo !== "canvas" && f.tipo !== "drawio") {
-      contenidos.set(f.id, f.contenido);
-    }
-    // Un canvas (`FUN-L-18`) tampoco se escanea como prosa: es JSON, y buscarle
-    // wikilinks a la cadena cruda encontraría también los de las rutas y los
-    // escapes. Sus referencias se leen entendiendo el formato (ver abajo).
-    if (f.contenido && f.tipo === "canvas") canvasPorId.set(f.id, f.contenido);
-  }
-
-  const vistas = new Set<string>();
-  const aristas: Arista[] = [];
-  const agregar = (desde: string, hasta: string) => {
-    if (hasta === desde) return;
-    const clave = `${desde}${hasta}`;
-    if (vistas.has(clave)) return;
-    vistas.add(clave);
-    aristas.push({ from: desde, to: hasta });
-  };
-
-  // Qué aporta un canvas al grafo (spec § 5): los `[[enlaces]]` de sus tarjetas
-  // de texto y las tarjetas de nota, que son una referencia explícita como un
-  // embed. Las FLECHAS no: son disposición visual, y así una arista del grafo se
-  // crea de una sola manera y no hay que resolver qué pasa si una flecha y un
-  // enlace se contradicen.
-  for (const [notaId, json] of canvasPorId) {
-    const { titulos, rutas } = referenciasDe(json);
-    for (const t of titulos) {
-      const destinoId = resolver(t);
-      if (destinoId) agregar(notaId, destinoId);
-    }
-    // La tarjeta guarda una RUTA, y en desktop el id de una nota ES su ruta.
-    for (const r of rutas) if (titulosPorId.has(r)) agregar(notaId, r);
-  }
-  for (const [notaId, contenido] of contenidos) {
-    // Sin el código (`DEF-102`): un `[[x]]` escrito para mostrar la sintaxis no
-    // es una arista del grafo.
-    const texto = sinCodigo(contenido);
-    for (let m = WIKILINK_RE.exec(texto); m !== null; m = WIKILINK_RE.exec(texto)) {
-      // [[destino|alias]] y [[Carpeta/destino]] → el destino sin el alias, CON
-      // la ruta, que es la pista para desambiguar homónimas. La barra puede
-      // venir escapada si el enlace está dentro de una tabla (`DEF-045`), y ahí
-      // también es un alias. Un embed `![[x.excalidraw]]` entra por acá igual:
-      // la extensión la quita el resolutor.
-      const destinoId = resolver(partirWikilink(m[1]).destino);
-      if (destinoId) agregar(notaId, destinoId);
-    }
-  }
-
-  return { aristas, titulosPorId, contenidos, creadoPorId };
-}
+/** Tipos que no tienen prosa de la que sacar un fragmento (`lib/enlacesNota.ts`). */
+const NO_ES_PROSA = new Set(["base", "canvas", "drawio"]);
 
 /** Grado total (entrante + saliente) por nodo (HU-30 CA3). */
-function contarConexiones(aristas: Arista[]): Map<string, number> {
+function contarConexiones(aristas: GraphEdgeDto[]): Map<string, number> {
   const conteo = new Map<string, number>();
-  for (const { from, to } of aristas) {
-    conteo.set(from, (conteo.get(from) ?? 0) + 1);
-    conteo.set(to, (conteo.get(to) ?? 0) + 1);
+  for (const { source, target } of aristas) {
+    conteo.set(source, (conteo.get(source) ?? 0) + 1);
+    conteo.set(target, (conteo.get(target) ?? 0) + 1);
   }
   return conteo;
 }
@@ -160,28 +59,45 @@ function fragmentAround(contenido: string, titulo: string): string {
   return (start > 0 ? "…" : "") + fragment + (end < contenido.length ? "…" : "");
 }
 
-/** `GET /vaults/{id}/grafo`. */
+/** `GET /vaults/{id}/grafo`: tres `SELECT`, ninguno de contenido. */
 export async function grafo(vaultId: string): Promise<GraphDataDto> {
-  const { aristas, titulosPorId, contenidos, creadoPorId } = await buildVaultGraph(vaultId);
-  const conexionesTotales = contarConexiones(aristas);
-
-  const nodos: GraphNodeDto[] = [];
-  for (const [id, titulo] of titulosPorId) {
-    const contenido = contenidos.get(id);
-    nodos.push({
-      id,
-      titulo,
-      conexiones: conexionesTotales.get(id) ?? 0,
-      // Etiquetas = las de `tags:` del frontmatter MÁS los `#tag` del cuerpo
-      // (FUN-M-04): los grupos de color por etiqueta ven las dos fuentes.
-      tags: contenido ? etiquetasDe(contenido, sinCodigo) : [],
-      creadoEn: creadoPorId.get(id),
-    });
+  const notas = await select<{ id: string; titulo: string; creado_en: string }>(
+    `SELECT id, titulo, creado_en FROM notas
+     WHERE vault_id = ? AND id NOT IN (SELECT nota_id FROM papelera)`,
+    [vaultId],
+  );
+  const aristas = await select<GraphEdgeDto>(
+    `SELECT DISTINCT e.desde_id AS source, e.destino_id AS target FROM enlaces e WHERE ${ES_ARISTA}`,
+  );
+  // Etiquetas = las de `tags:` del frontmatter MÁS los `#tag` del cuerpo
+  // (FUN-M-04): los grupos de color por etiqueta ven las dos fuentes. En el
+  // orden en que salen del texto, que es el de inserción.
+  const tagsPorNota = new Map<string, string[]>();
+  const filasTags = await select<{ nota_id: string; tag: string }>(
+    "SELECT nota_id, tag FROM etiquetas ORDER BY rowid",
+  );
+  for (const { nota_id, tag } of filasTags) {
+    const lista = tagsPorNota.get(nota_id);
+    if (lista) lista.push(tag);
+    else tagsPorNota.set(nota_id, [tag]);
   }
-  return { nodos, aristas: aristas.map((a) => ({ source: a.from, target: a.to })) };
+
+  const conexionesTotales = contarConexiones(aristas);
+  const nodos: GraphNodeDto[] = notas.map((n) => ({
+    id: n.id,
+    titulo: n.titulo,
+    conexiones: conexionesTotales.get(n.id) ?? 0,
+    tags: tagsPorNota.get(n.id) ?? [],
+    creadoEn: n.creado_en,
+  }));
+  return { nodos, aristas };
 }
 
-/** `GET /notas/{id}/conexiones` — salientes, retroenlaces y mini-grafo de 1 salto. */
+/**
+ * `GET /notas/{id}/conexiones` — salientes, retroenlaces y mini-grafo de 1 salto.
+ * Consultas sobre `enlaces`/`notas` por índice, y una de contenido: solo el de
+ * las notas que citan a esta, para el fragmento de contexto de cada retroenlace.
+ */
 export async function conexiones(notaId: string): Promise<unknown> {
   const nota = await select<{
     id: string;
@@ -198,30 +114,72 @@ export async function conexiones(notaId: string): Promise<unknown> {
   if (nota.length === 0) throw new DbError(404, "La nota no existe.");
   const n = nota[0];
 
-  const { aristas, titulosPorId, contenidos } = await buildVaultGraph(n.vault_id);
-  const conexionesTotales = contarConexiones(aristas);
+  // En el orden en que aparecen en el texto (el de inserción de las filas).
+  const salientes = await select<{ id: string; titulo: string }>(
+    `SELECT e.destino_id AS id, d.titulo AS titulo
+     FROM enlaces e JOIN notas d ON d.id = e.destino_id
+     WHERE e.desde_id = ? AND ${ES_ARISTA}
+     GROUP BY e.destino_id ORDER BY MIN(e.rowid)`,
+    [notaId],
+  );
+  // En el orden que tenía el escaneo: primero los canvas, después el resto,
+  // cada grupo en el orden de `notas`.
+  const citantes = await select<{ id: string; titulo: string; tipo: string }>(
+    `SELECT e.desde_id AS id, o.titulo AS titulo, o.tipo AS tipo
+     FROM enlaces e JOIN notas o ON o.id = e.desde_id
+     WHERE e.destino_id = ? AND ${ES_ARISTA}
+     GROUP BY e.desde_id ORDER BY o.tipo = 'canvas' DESC, MIN(o.rowid)`,
+    [notaId],
+  );
 
-  const salientes = aristas
-    .filter((a) => a.from === notaId)
-    .map((a) => ({ id: a.to, titulo: titulosPorId.get(a.to) ?? "?" }));
-
-  const retro = aristas
-    .filter((a) => a.to === notaId)
-    .map((a) => ({
-      id: a.from,
-      titulo: titulosPorId.get(a.from) ?? "?",
-      fragmento: fragmentAround(contenidos.get(a.from) ?? "", n.titulo),
-    }));
-
-  const vecinos = [...new Set([...salientes.map((s) => s.id), ...retro.map((r) => r.id)])];
-  const nodos = [notaId, ...vecinos].map((id) => ({
-    id,
-    titulo: titulosPorId.get(id) ?? "?",
-    conexiones: conexionesTotales.get(id) ?? 0,
+  // El fragmento sale del texto de quien cita, así que solo se lee ESE
+  // contenido. Un canvas, una base o un `.drawio` no tienen prosa: sin fragmento.
+  const conProsa = citantes.filter((c) => !NO_ES_PROSA.has(c.tipo)).map((c) => c.id);
+  const contenidos = new Map<string, string>();
+  if (conProsa.length > 0) {
+    const filas = await select<{ nota_id: string; contenido: string }>(
+      "SELECT nota_id, contenido FROM contenidos WHERE nota_id IN (SELECT value FROM json_each(?))",
+      [JSON.stringify(conProsa)],
+    );
+    for (const f of filas) contenidos.set(f.nota_id, f.contenido);
+  }
+  const retro = citantes.map((c) => ({
+    id: c.id,
+    titulo: c.titulo,
+    fragmento: fragmentAround(contenidos.get(c.id) ?? "", n.titulo),
   }));
-  const aristasVecinas = aristas
-    .filter((a) => a.from === notaId || a.to === notaId)
-    .map((a) => ({ source: a.from, target: a.to }));
+
+  // Mini-grafo: la nota y sus vecinos, cada uno con su grado en el grafo
+  // entero (lo que dimensiona el nodo), y las aristas que tocan a la nota.
+  const titulos = new Map<string, string>([[notaId, n.titulo]]);
+  for (const s of salientes) titulos.set(s.id, s.titulo);
+  for (const r of retro) titulos.set(r.id, r.titulo);
+  const ids = [...titulos.keys()];
+  // El grado de cada uno se cuenta en SQL —aristas salientes distintas más
+  // entrantes distintas— y vuelve una fila por nodo: el vecindario de una nota
+  // muy citada es buena parte del grafo, y traer sus pares (2.274 en la nota
+  // más conectada de la Tesina) para contarlos en JS costaba más que contarlos.
+  const idsJson = JSON.stringify(ids);
+  const grados = await select<{ id: string; n: number }>(
+    `SELECT id, COUNT(*) AS n FROM (
+       SELECT DISTINCT e.desde_id AS id, e.destino_id AS otro FROM enlaces e
+       WHERE e.desde_id IN (SELECT value FROM json_each(?)) AND ${ES_ARISTA}
+       UNION ALL
+       SELECT DISTINCT e.destino_id, e.desde_id FROM enlaces e
+       WHERE e.destino_id IN (SELECT value FROM json_each(?)) AND ${ES_ARISTA}
+     ) GROUP BY id`,
+    [idsJson, idsJson],
+  );
+  const grado = new Map(grados.map((g) => [g.id, Number(g.n)]));
+  const nodos = ids.map((id) => ({
+    id,
+    titulo: titulos.get(id) ?? "?",
+    conexiones: grado.get(id) ?? 0,
+  }));
+  const aristasVecinas = [
+    ...salientes.map((s) => ({ source: notaId, target: s.id })),
+    ...retro.map((r) => ({ source: r.id, target: notaId })),
+  ];
 
   return {
     nota: {

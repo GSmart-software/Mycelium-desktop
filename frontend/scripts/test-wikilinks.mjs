@@ -2,8 +2,9 @@
 // `[[wikilinks]]` (`DEF-045`) y el resolutor único que comparten el editor y el
 // grafo (`FUN-M-40`, D8). Cada módulo se transpila en el momento y se importa
 // vía data: URL, con sus imports reemplazados por los módulos ya transpilados
-// (todos puros), igual que `scripts/test-capa-datos.mjs`. El grafo
-// (`lib/db/grafo.ts`) se prueba entero, con un doble del executor SQL.
+// (todos puros), igual que `scripts/test-capa-datos.mjs`. Del grafo se prueba
+// la resolución de la tabla `enlaces` (`lib/enlacesNota.ts`); sus consultas, en
+// `scripts/test-enlaces-nota.mjs`.
 //
 //   node --test scripts/test-wikilinks.mjs
 //   node scripts/test-wikilinks.mjs
@@ -29,21 +30,17 @@ async function fuente(ruta, mapa = {}) {
 
 const EXTENSIONES = await fuente("../lib/extensionesDeTipo.ts");
 const WIKILINKS = await fuente("../lib/wikilinks.ts", { "@/lib/extensionesDeTipo": EXTENSIONES });
-const ERRORS = await fuente("../lib/db/errors.ts");
-const CLIENT = await fuente("../lib/db/client.ts", { "./errors": ERRORS });
-const GRAFO = await fuente("../lib/db/grafo.ts", {
+const ENLACES_NOTA = await fuente("../lib/enlacesNota.ts", {
   "@/lib/canvas": await fuente("../lib/canvas.ts"),
+  "@/lib/extensionesDeTipo": EXTENSIONES,
   "@/lib/frontmatter": await fuente("../lib/frontmatter.ts"),
   "@/lib/sinCodigo": await fuente("../lib/sinCodigo.ts"),
   "@/lib/wikilinks": WIKILINKS,
-  "./client": CLIENT,
-  "./errors": ERRORS,
 });
 
 const { partirWikilink, resolveWikilink, resolveWikilinkEnIndice, indexarPorTitulo, refUnivoca, EXCALIDRAW_RE } =
   await import(WIKILINKS);
-const client = await import(CLIENT);
-const grafoDb = await import(GRAFO);
+const enlacesNota = await import(ENLACES_NOTA);
 
 // La barra escapada se arma con charCode para que no dependa de cómo se copie
 // este archivo: es la secuencia de DOS caracteres  \  y  |
@@ -181,43 +178,32 @@ test("EXCALIDRAW_RE captura la referencia sin la extensión, con su ruta", () =>
 });
 
 // ── El grafo resuelve igual que el editor ─────────────────────────────────────
+//
+// Desde `FUN-L-25` el grafo lee la tabla `enlaces`, que se llena con
+// `derivarEnlaces` + `resolverEnlace` (`lib/enlacesNota.ts`). Lo que se prueba
+// acá es esa resolución: la misma que el clic del editor. Las consultas SQL y
+// la comparación contra el escaneo de antes están en `test-enlaces-nota.mjs`.
 
-/** Executor SQL de mentira: responde las consultas de `lib/db/grafo.ts`. */
-function indiceDelVault(contenidos) {
-  return {
-    async select(sql, params = []) {
-      if (sql.includes("FROM notas n LEFT JOIN contenidos")) {
-        return NOTAS.map((n) => ({
-          id: n.id,
-          titulo: n.titulo,
-          carpeta_id: n.carpetaId,
-          creado_en: "2026-09-26",
-          tipo: n.tipo,
-          contenido: contenidos[n.id] ?? null,
-        }));
-      }
-      if (sql.includes("FROM carpetas")) {
-        return CARPETAS.map((c) => ({ id: c.id, nombre: c.nombre, padre_id: c.padreId }));
-      }
-      if (sql.includes("FROM notas WHERE id = ?")) {
-        const n = NOTAS.find((x) => x.id === params[0]);
-        return n
-          ? [{ id: n.id, vault_id: "v", titulo: n.titulo, carpeta_id: n.carpetaId, creado_en: "", actualizado_en: "", tamano_bytes: 0 }]
-          : [];
-      }
-      throw new Error(`consulta inesperada: ${sql}`);
-    },
-    async execute() {
-      throw new Error("el grafo no escribe");
-    },
-  };
+/** Las aristas que saldrían de estas notas: sin lazos y sin repetir. */
+function aristasDe(contenidos) {
+  const porTitulo = indexarPorTitulo(NOTAS);
+  const ids = new Set(NOTAS.map((n) => n.id));
+  const vistas = new Set();
+  const aristas = [];
+  for (const n of NOTAS) {
+    for (const e of enlacesNota.derivarEnlaces(contenidos[n.id] ?? "", n.tipo)) {
+      const d = enlacesNota.resolverEnlace(e, porTitulo, CARPETAS, ids);
+      if (d === null || d === n.id || vistas.has(`${n.id}>${d}`)) continue;
+      vistas.add(`${n.id}>${d}`);
+      aristas.push({ source: n.id, target: d });
+    }
+  }
+  return aristas;
 }
 
-test("con homónimas, la arista va a la misma nota que el clic (criterio de D8)", async () => {
+test("con homónimas, la arista va a la misma nota que el clic (criterio de D8)", () => {
   const texto = "[[Plan]] · [[Proyectos/Plan|el de proyectos]] · [[2025/Plan]] · [[Idea]]";
-  client.setExecutor(indiceDelVault({ "Zeta/Idea.md": "nada", "Alfa/Idea.md": texto }));
-  const { aristas } = await grafoDb.grafo("v");
-  const salientes = aristas
+  const salientes = aristasDe({ "Zeta/Idea.md": "nada", "Alfa/Idea.md": texto })
     .filter((a) => a.source === "Alfa/Idea.md")
     .map((a) => a.target)
     .sort();
@@ -225,17 +211,12 @@ test("con homónimas, la arista va a la misma nota que el clic (criterio de D8)"
   assert.deepEqual(salientes, delEditor);
   // `[[Idea]]` desde `Alfa/Idea` resuelve a sí misma: no es una arista.
   assert.equal(salientes.includes("Alfa/Idea.md"), false);
-  client.setExecutor(null);
 });
 
-test("un embed ![[x.excalidraw]] cuenta como arista y como conexión", async () => {
-  client.setExecutor(indiceDelVault({ "Plan.md": "# Plan\n\n![[Boceto.excalidraw]]\n" }));
-  const { aristas } = await grafoDb.grafo("v");
+test("un embed ![[x.excalidraw]] cuenta como arista", () => {
+  const aristas = aristasDe({ "Plan.md": "# Plan\n\n![[Boceto.excalidraw]]\n" });
   assert.deepEqual(
     aristas.filter((a) => a.source === "Plan.md"),
     [{ source: "Plan.md", target: "Proyectos/Boceto.excalidraw" }],
   );
-  const con = await grafoDb.conexiones("Proyectos/Boceto.excalidraw");
-  assert.deepEqual(con.retro.map((r) => r.id), ["Plan.md"]);
-  client.setExecutor(null);
 });
