@@ -54,13 +54,11 @@ const HUBS_CON_NOMBRE = 24;
 
 /**
  * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
- * Mientras dura un paneo o un zoom con rueda el lienzo solo copia las capas
- * desplazadas o escaladas; el margen es lo que se ve en los bordes en vez de un
- * hueco vacío, hasta el repintado del final del gesto.
+ * Mientras dura un paneo el lienzo solo copia las capas desplazadas; el margen
+ * es lo que se ve en los bordes en vez de un hueco vacío, hasta el repintado
+ * del final del gesto.
  */
 const MARGEN_CAPA = 0.25;
-/** Tras el último evento de rueda, cuánto se espera para repintar a fidelidad completa. */
-const RUEDA_REPOSO_MS = 150;
 
 /** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
 type Vista = { scale: number; ox: number; oy: number };
@@ -450,18 +448,17 @@ export function MiniGraph({
     };
     // ── La cámara nunca repinta a mitad de gesto (`FUN-L-25` · Parte D). Las
     //    capas llevan un margen por lado (`margenX`/`margenY`, en px CSS) y recuerdan
-    //    la vista con que se pintaron; mientras se panea o se gira la rueda, el
-    //    lienzo las copia llevadas a la vista de ahora (`copiarCapa`) y el
-    //    repintado completo llega al terminar el gesto: al soltar el paneo, o
-    //    `RUEDA_REPOSO_MS` después del último evento de rueda. Antes cada evento
-    //    de paneo o de rueda repintaba el grafo entero. ──
+    //    la vista con que se pintaron; mientras se panea, el lienzo las copia
+    //    desplazadas a la vista de ahora (`copiarCapa`) y el repintado completo
+    //    llega al soltar. Antes cada evento de paneo repintaba el grafo entero.
+    //    El zoom con rueda, en cambio, repinta nítido en cada paso (Parte E,
+    //    decisión del usuario): la copia escalada de la Parte D se veía borrosa
+    //    hasta 150 ms después del último paso. ──
     let margenX = 0;
     let margenY = 0;
     /** Vista con que se pintó lo último (las capas, o el lienzo en movimiento). */
     let vistaPintada: Vista = { scale, ox, oy };
-    let ruedaActiva = false;
-    let temporizadorRueda: ReturnType<typeof setTimeout> | undefined;
-    const enGesto = () => panning || ruedaActiva;
+    const enGesto = () => panning;
     const camaraMovida = () =>
       scale !== vistaPintada.scale || ox !== vistaPintada.ox || oy !== vistaPintada.oy;
     /** Lo pintado pasa a ser lo de la vista de ahora. */
@@ -643,14 +640,8 @@ export function MiniGraph({
       // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
       // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
       scale = Math.min(Math.max(scale * factor, 0.05), 4);
-      // Durante el gesto el frame copia las capas escaladas alrededor del
-      // puntero (Parte D); el repintado completo, cuando la rueda se detiene.
-      ruedaActiva = true;
-      clearTimeout(temporizadorRueda);
-      temporizadorRueda = setTimeout(() => {
-        ruedaActiva = false;
-        wake();
-      }, RUEDA_REPOSO_MS);
+      // Repintado nítido en el próximo frame: la cámara movida fuera de un
+      // paneo ensucia las capas (Parte E; ya no se copian escaladas).
       wake();
     };
 
@@ -1204,7 +1195,7 @@ export function MiniGraph({
      * - `"directo"`: simulación activa sin fidelidad reducida (grafos chicos,
      *   simulación continua ya casi quieta): directo, completo, sin capas.
      * - `"reposo"`: nada se mueve: las capas, a fidelidad completa. Durante un
-     *   paneo o un zoom con rueda solo se copian (Parte D).
+     *   paneo solo se copian (Parte D); el zoom repinta (Parte E).
      */
     const draw = (modo: "rapido" | "directo" | "reposo") => {
       const w = canvas.width;
@@ -1251,9 +1242,9 @@ export function MiniGraph({
 
     /**
      * Deja las capas del reposo al día (las repinta si algo las ensució).
-     * Fuera de un gesto, la cámara movida (fin de un paneo o de la rueda) es
-     * un repintado completo; dentro, las capas se copian llevadas a la vista
-     * de ahora, sin el flujo, y nada se repinta (Parte D). `false` si no hay
+     * Fuera de un paneo, la cámara movida (su final, o cada paso de rueda) es
+     * un repintado completo; durante el paneo, las capas se copian llevadas a
+     * la vista de ahora, sin el flujo, y nada se repinta (Parte D). `false` si no hay
      * contextos.
      */
     function prepararCapas(): boolean {
@@ -1485,7 +1476,6 @@ export function MiniGraph({
       observador.disconnect();
       if (wakeRef.current === despertar) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
-      clearTimeout(temporizadorRueda);
       motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
