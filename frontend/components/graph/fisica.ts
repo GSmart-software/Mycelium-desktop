@@ -14,21 +14,53 @@
 // - **Repulsión acotada** (`distanciaMax`): lo que queda más lejos no se
 //   calcula. Implementada pero apagada: ver `constantesCumulo` y por qué.
 //
+// Parte G (2026-09-27): las fuerzas pasan al modelo de `d3-force` —resortes
+// normalizados por grado, `distanciaMin`, recentrado del conjunto—; las de
+// antes quedan en `constantesAntes`.
+//
 // Los datos viven en arrays tipados (posiciones y velocidades intercaladas
 // `[x0, y0, x1, y1, …]`, aristas `[s0, t0, s1, t1, …]`) para que el worker los
 // reciba y devuelva sin objetos por nodo.
 
 export type ConstantesFisica = {
-  /** Distancia de reposo de los resortes y escala de la repulsión (`k²/d²`). */
+  /**
+   * Escala del cúmulo: la repulsión es `factorRepulsion·k²/d²`, la siembra en
+   * filotaxis y el tope de velocidad se miden en `k`.
+   */
   k: number;
-  /** Tope de la repulsión por par (la misma clamp de siempre). */
-  topeRepulsion: number;
-  /** Multiplicador de la repulsión (1 en el cúmulo). */
+  /**
+   * Por debajo de esta distancia la repulsión deja de crecer (`distanceMin` de
+   * `d3-force`): evita que dos nodos casi superpuestos salgan disparados. Es la
+   * clamp de siempre expresada como distancia: el tope viejo de 8 con `k` 80
+   * equivale a `80/√8 ≈ 28,3`.
+   */
+  distanciaMin: number;
+  /** Multiplicador de la repulsión. */
   factorRepulsion: number;
   /** Criterio de Barnes-Hut: una celda de lado `w` a distancia `d` se aproxima si `w < θ·d`. */
   theta: number;
   /** Más allá de esta distancia no hay repulsión (`Infinity` = sin acotar). */
   distanciaMax: number;
+  /** Largo de reposo de los resortes (`linkDistance`). */
+  distanciaEnlace: number;
+  /** Rigidez de un resorte entre dos nodos del mismo grado, por extremo. */
+  rigidezEnlace: number;
+  /**
+   * Resortes como `forceLink` de `d3-force`: la fuerza de cada enlace es
+   * `1/min(grado(s), grado(t))` y se reparte entre los extremos según el grado
+   * del otro (el de menos enlaces se mueve más). Sin esto, un hub de 320
+   * enlaces tira de sus vecinos con la fuerza de 320 resortes enteros y los
+   * apila encima suyo.
+   */
+  normalizarGrado: boolean;
+  /** Tirón de cada nodo hacia el origen, `pos·gravedad·alpha` (`forceX/forceY`). */
+  gravedad: number;
+  /**
+   * Tras cada paso, traslada el conjunto para que su centroide quede en el
+   * origen (`forceCenter`). No deforma el grafo: solo lo mantiene en su lugar.
+   * No se aplica al mini-grafo, que ya se ancla con su nodo central.
+   */
+  recentrar: boolean;
   /**
    * Multiplica TODAS las fuerzas por igual (repulsión, resortes, gravedad y su
    * tope), así que no cambia dónde se equilibran: solo cuánto camina el grafo
@@ -42,30 +74,81 @@ export type ConstantesFisica = {
 };
 
 /**
- * Constantes del cúmulo: los valores que tenían en `MiniGraph.tsx` (`k` 80,
- * tope 8, factor 1). (Hasta el 2026-09-27 había también las del «sustrato» de
- * `FUN-L-23`, retirado con las demás disposiciones: queda solo el cúmulo.)
- *
- * `distanciaMax = Infinity` (sin corte): la spec proponía `4·k`, pero medido
- * sobre un vault sintético de 1.000 notas (réplica en Node, ver
- * `docs/features/grafo-indice-y-motor.md` § Cómo quedó · Parte B) cortar a `4·k`
- * achica el cúmulo asentado un 30 % (radio RMS 793 → 550) y desde la caché
- * desplaza cada nodo 160 px de media: la gravedad (`0,004·x`) solo se equilibra
- * con la SUMA de muchas repulsiones lejanas y débiles, y el corte se la quita.
- * Incluso `16·k` lo achica un 6 %. El ahorro, en cambio, es de un 10 % sobre
- * Barnes-Hut (las celdas lejanas ya se calculan como un solo nodo). El corte
- * queda implementado y probado, pero apagado.
+ * Las fuerzas del cúmulo hasta la Parte F (las del `simulate()` de
+ * `MiniGraph.tsx`): resortes iguales para todos (`0,01`), gravedad por nodo y
+ * `k` 80 como distancia de reposo y como escala de la repulsión, con su tope de
+ * 8 (`distanciaMin 80/√8`). Quedan como referencia para los tests y la réplica
+ * de medición: el motor usa `constantesCumulo`.
  */
-export function constantesCumulo(): ConstantesFisica {
+export function constantesAntes(): ConstantesFisica {
   return {
     k: 80,
-    topeRepulsion: 8,
+    distanciaMin: 80 / Math.SQRT2 / 2,
     factorRepulsion: 1,
     theta: 0.9,
     distanciaMax: Infinity,
+    distanciaEnlace: 80,
+    rigidezEnlace: 0.01,
+    normalizarGrado: false,
+    gravedad: 0.004,
+    recentrar: false,
     ganancia: GANANCIA,
     rozamiento: 0.4,
     velocidadMax: 80,
+  };
+}
+
+/**
+ * Constantes del cúmulo (`FUN-L-25` · Parte G, 2026-09-27): el modelo de
+ * `d3-force`, para que las notas relacionadas se vean como grupos. Medido con
+ * los grafos reales de la Tesina, Trabajo y Estudio y este repo (réplica en
+ * Node; spec `docs/features/grafo-indice-y-motor.md` § Cómo quedó · Parte G).
+ * Entre paréntesis, el valor del «Graph Worker» de Obsidian
+ * (`docs/aprendizajes/Como construye Obsidian su grafo.md` § 3), que usa
+ * otras unidades: su repulsión cae como `1/d` y la de acá como `1/d²`, así
+ * que los números no se copian, se copia el modelo.
+ *
+ * - `normalizarGrado` (Obsidian: `linkStrength 1`, que `d3` divide por
+ *   `min(grado)`): lo que agrupa. Un hub ya no tira de cada vecino con la
+ *   fuerza de todos sus enlaces; sus vecinos se reparten alrededor y cada
+ *   grupo se sostiene con sus propios enlaces.
+ * - `rigidezEnlace` 0,07 (antes 0,01, sin normalizar): normalizada, una
+ *   arista entre dos notas de grado 3 queda en `0,07/3`, más del doble de
+ *   firme que antes, y la de un hub a una hoja tira de la hoja con 0,14 y del
+ *   hub con 1/320 de eso. Con 0,01 normalizada el cúmulo se desarma (los
+ *   enlaces pierden contra la repulsión). Con 0,1 agrupa apenas más, pero al
+ *   arrastrar un hub su flor se mueve en bloque y barre a los nodos que cruza:
+ *   en Trabajo y Estudio, 545 movimientos de más de 20 px por paso contra 23
+ *   de antes. 0,07 es el punto medio: 57 (y 14 contra 89 en la Tesina).
+ * - `distanciaEnlace` 80 (Obsidian 250): igual que antes; 50, 60 y 120 no
+ *   agrupaban mejor.
+ * - `distanciaMin` 30 (Obsidian 30): la clamp de siempre (28,3) redondeada al
+ *   valor de Obsidian.
+ * - `k` 80 y `factorRepulsion` 1 (Obsidian: `strength −1000`): igual que
+ *   antes. El radio lo fija el cociente repulsión/centro: bajar los dos juntos
+ *   (0,25 y 0,001) dio el mismo radio y el mismo agrupamiento.
+ * - `gravedad` 0,003 (antes 0,004), el centro débil (Obsidian 0,1 como
+ *   `forceX/forceY`; acá se multiplica por la ganancia: 0,036 por unidad de
+ *   `alpha`). No se puede quitar: sin él los 559 nodos sin enlaces de la
+ *   Tesina salen despedidos y el radio se duplica (933 → 1.871). A radio
+ *   igual, más o menos centro no cambió el agrupamiento (medido de 0,001 a
+ *   0,0083); se bajó un poco para que los resortes más firmes no achiquen
+ *   el cúmulo (radio +7 % Tesina, +10 % Trabajo y Estudio, +6 % este repo).
+ * - `recentrar` (`forceCenter`): el centroide vuelve al origen tras cada paso,
+ *   que es donde nace el revelado de la Parte E.
+ * - `distanciaMax` sin corte (Obsidian lo acota): medido en la Parte B, cortar
+ *   a `4·k` achicaba el cúmulo un 30 % —el centro solo se equilibra con la
+ *   SUMA de muchas repulsiones lejanas y débiles— y ahorraba un 10 % sobre
+ *   Barnes-Hut. Queda implementado y probado, pero apagado.
+ */
+export function constantesCumulo(): ConstantesFisica {
+  return {
+    ...constantesAntes(),
+    distanciaMin: 30,
+    rigidezEnlace: 0.07,
+    normalizarGrado: true,
+    gravedad: 0.003,
+    recentrar: true,
   };
 }
 
@@ -129,6 +212,12 @@ export type EstadoFisica = {
   arbol: Arbol;
   /** Aristas de cada nodo: da la inercia de los hubs (ver `paso`). */
   grado: Float64Array;
+  /** Fuerza de cada arista con `normalizarGrado`: `1/min(grado(s), grado(t))`. */
+  fuerzaArista: Float64Array;
+  /** Parte del tirón de cada arista que se lleva `t`: `grado(s)/(grado(s)+grado(t))` (`bias`). */
+  sesgo: Float64Array;
+  /** Rigidez que suman los resortes normalizados de cada nodo (su inercia, ver `paso`). */
+  rigidezNorm: Float64Array;
   /** Velocidades al empezar el paso (para aplicar la inercia). */
   v0: Float64Array;
 };
@@ -166,9 +255,35 @@ export function crearEstado(
     fijo: -1,
     centro,
     arbol: crearArbol(n, Math.max(16, n * 2)),
-    grado: gradoDe(n, aristas),
+    ...resortesDe(n, aristas),
     v0: new Float64Array(n * 2),
   };
+}
+
+/**
+ * Grado de cada nodo y, por arista, la fuerza y el reparto de `forceLink`
+ * (`d3-force`): se calculan una vez, con el grafo entero (también durante la
+ * construcción temporal, como `d3`, que cuenta los enlaces de la fuerza).
+ */
+function resortesDe(n: number, aristas: Int32Array) {
+  const grado = gradoDe(n, aristas);
+  const m = aristas.length >> 1;
+  const fuerzaArista = new Float64Array(m);
+  const sesgo = new Float64Array(m);
+  const rigidezNorm = new Float64Array(n);
+  for (let j = 0; j < m; j++) {
+    const s = aristas[j * 2];
+    const t = aristas[j * 2 + 1];
+    const f = 1 / Math.min(grado[s], grado[t]);
+    const b = grado[s] / (grado[s] + grado[t]);
+    fuerzaArista[j] = f;
+    sesgo[j] = b;
+    // Por extremo, el doble del reparto: con grados iguales cada uno recibe el
+    // tirón entero, como sin normalizar.
+    rigidezNorm[s] += 2 * f * (1 - b);
+    rigidezNorm[t] += 2 * f * b;
+  }
+  return { grado, fuerzaArista, sesgo, rigidezNorm };
 }
 
 function gradoDe(n: number, aristas: Int32Array): Float64Array {
@@ -185,6 +300,16 @@ function gradoDe(n: number, aristas: Int32Array): Float64Array {
  * pasa de largo (32) y vibra de un paso al otro: por eso tiene inercia.
  */
 const RIGIDEZ_MAX = 2.5;
+
+/**
+ * Inercia mínima por enlace, aunque los resortes estén normalizados (Parte G):
+ * normalizado, el hub casi no siente sus resortes (1/320 de cada uno), pero
+ * sigue en medio de sus cientos de vecinos, que se empujan entre sí y contra
+ * él; sin esta masa el hub de una estrella de 400 salta 80 px por paso
+ * mientras se arrastra. Es la inercia que los hubs tenían antes (`0,01` por
+ * enlace), así que el hub se mueve como siempre.
+ */
+const MASA_POR_ENLACE = 0.01;
 
 /** Duplica la capacidad del árbol conservando lo ya construido. */
 function crecer(a: Arbol) {
@@ -325,7 +450,7 @@ export function repulsionBarnesHut(
   const { n, pos, vel, activos } = e;
   const a = e.arbol;
   const kk = c.k * c.k;
-  const tope = c.topeRepulsion;
+  const dmin2 = c.distanciaMin * c.distanciaMin;
   const escala = c.factorRepulsion * alpha;
   const theta2 = c.theta * c.theta;
   const dmax2 = c.distanciaMax * c.distanciaMax;
@@ -357,7 +482,7 @@ export function repulsionBarnesHut(
             d2 = 1;
           }
           const d = Math.sqrt(d2);
-          const f = Math.min(kk / d2, tope) * escala;
+          const f = (kk / Math.max(d2, dmin2)) * escala;
           fx += (dx / d) * f;
           fy += (dy / d) * f;
         }
@@ -386,7 +511,7 @@ export function repulsionBarnesHut(
             d2 = 1;
           }
           const d = Math.sqrt(d2);
-          const f = Math.min(kk / d2, tope) * escala * m;
+          const f = (kk / Math.max(d2, dmin2)) * escala * m;
           fx += (dx / d) * f;
           fy += (dy / d) * f;
           continue;
@@ -422,6 +547,7 @@ export function repulsionPares(
 ) {
   const { n, pos, vel, activos } = e;
   const kk = c.k * c.k;
+  const dmin2 = c.distanciaMin * c.distanciaMin;
   const escala = c.factorRepulsion * alpha;
   for (let i = 0; i < n; i++) {
     if (activos && !activos[i]) continue;
@@ -436,7 +562,7 @@ export function repulsionPares(
         d2 = 1;
       }
       const d = Math.sqrt(d2);
-      const f = Math.min(kk / d2, c.topeRepulsion) * escala;
+      const f = (kk / Math.max(d2, dmin2)) * escala;
       vel[i * 2] += (dx / d) * f;
       vel[i * 2 + 1] += (dy / d) * f;
       vel[j * 2] -= (dx / d) * f;
@@ -460,11 +586,15 @@ export function paso(
   const a = alpha * c.ganancia;
   const retiene = 1 - c.rozamiento;
   const vmax2 = c.velocidadMax * c.velocidadMax;
-  const { n, pos, vel, v0, grado, aristas, activos, fijo, centro } = e;
+  const { n, pos, vel, v0, aristas, activos, fijo, centro } = e;
   v0.set(vel);
   repulsion(e, c, a, azar);
-  const k = c.k;
-  // Resortes: tiran hacia la distancia `k` (mismas constantes que siempre).
+  // Resortes: tiran hacia `distanciaEnlace`. Normalizados (Parte G), como
+  // `forceLink` de `d3`: fuerza `1/min(grado)` repartida según el grado del
+  // otro extremo; sin normalizar, el tirón entero a cada lado (el de antes).
+  const L = c.distanciaEnlace;
+  const norm = c.normalizarGrado;
+  const { fuerzaArista, sesgo } = e;
   for (let j = 0; j < aristas.length; j += 2) {
     const s = aristas[j];
     const t = aristas[j + 1];
@@ -472,19 +602,32 @@ export function paso(
     const dx = pos[t * 2] - pos[s * 2];
     const dy = pos[t * 2 + 1] - pos[s * 2 + 1];
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-    const f = ((d - k) / d) * 0.02 * a * 10 * 0.05;
-    vel[s * 2] += dx * f;
-    vel[s * 2 + 1] += dy * f;
-    vel[t * 2] -= dx * f;
-    vel[t * 2 + 1] -= dy * f;
+    const f = ((d - L) / d) * c.rigidezEnlace * a;
+    let fs = f;
+    let ft = f;
+    if (norm) {
+      const w = 2 * f * fuerzaArista[j >> 1];
+      const b = sesgo[j >> 1];
+      fs = w * (1 - b);
+      ft = w * b;
+    }
+    vel[s * 2] += dx * fs;
+    vel[s * 2 + 1] += dy * fs;
+    vel[t * 2] -= dx * ft;
+    vel[t * 2 + 1] -= dy * ft;
   }
+  // Rigidez de los resortes de cada nodo, para su inercia (abajo).
+  const rigidez = norm ? e.rigidezNorm : e.grado;
+  const g = c.gravedad * a;
   // Gravedad hacia el origen, rozamiento e integración.
   for (let i = 0; i < n; i++) {
     if (activos && !activos[i]) continue;
     const ix = i * 2;
     const iy = ix + 1;
-    vel[ix] -= pos[ix] * 0.004 * a;
-    vel[iy] -= pos[iy] * 0.004 * a;
+    if (g !== 0) {
+      vel[ix] -= pos[ix] * g;
+      vel[iy] -= pos[iy] * g;
+    }
     if (i === fijo) continue;
     // El nodo central tira hacia el origen para quedar al medio.
     if (i === centro) {
@@ -493,7 +636,9 @@ export function paso(
     }
     // Inercia de los hubs: la fuerza del paso se reparte en `m` pasos. Solo
     // cambia cómo llega al equilibrio, no dónde está (fuerza nula = reposo).
-    const m = (grado[i] * 0.01 * c.ganancia) / RIGIDEZ_MAX;
+    const m =
+      (Math.max(rigidez[i] * c.rigidezEnlace, e.grado[i] * MASA_POR_ENLACE) * c.ganancia) /
+      RIGIDEZ_MAX;
     if (m > 1) {
       vel[ix] = v0[ix] + (vel[ix] - v0[ix]) / m;
       vel[iy] = v0[iy] + (vel[iy] - v0[iy]) / m;
@@ -508,5 +653,33 @@ export function paso(
     }
     pos[ix] += vel[ix];
     pos[iy] += vel[iy];
+  }
+  if (c.recentrar && centro < 0) recentrar(e);
+}
+
+/**
+ * `forceCenter` de `d3-force`: traslada los nodos que participan para que su
+ * centroide quede en el origen. El arrastrado no se mueve (lo tiene el puntero);
+ * el resto se corre con él, como en `d3`, donde el nodo fijo vuelve a su lugar.
+ * Una traslación no cambia ninguna distancia: ni la forma ni las fuerzas.
+ */
+export function recentrar(e: EstadoFisica) {
+  const { n, pos, activos, fijo } = e;
+  let sx = 0;
+  let sy = 0;
+  let cuantos = 0;
+  for (let i = 0; i < n; i++) {
+    if (activos && !activos[i]) continue;
+    sx += pos[i * 2];
+    sy += pos[i * 2 + 1];
+    cuantos++;
+  }
+  if (cuantos === 0) return;
+  sx /= cuantos;
+  sy /= cuantos;
+  for (let i = 0; i < n; i++) {
+    if (i === fijo || (activos && !activos[i])) continue;
+    pos[i * 2] -= sx;
+    pos[i * 2 + 1] -= sy;
   }
 }
