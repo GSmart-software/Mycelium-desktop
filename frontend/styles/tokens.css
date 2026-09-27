@@ -307,6 +307,14 @@
   --mic-callout-bg:               var(--mic-raw-mist);
 }
 
+/* ── Corrector ortográfico (FUN-L-12) ─────────────────────────── */
+/* El subrayado ondulado de una palabra mal escrita. Es propio —el del sistema
+   está apagado—, así que el color lo pone el tema: el rojo de los callouts de
+   error, que ya está calibrado para leerse sobre los dos fondos. */
+:root {
+  --mic-error-ortografico: var(--mic-callout-error-border);
+}
+
 /* ── Tipografía ───────────────────────────────────────────────── */
 :root {
   --mic-font-sans:  var(--font-geist-sans), system-ui, sans-serif;        /* interfaz, labels, UI */

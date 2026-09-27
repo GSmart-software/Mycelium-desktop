@@ -75,9 +75,9 @@ export type Preferencias = {
    */
   autoCloseBrackets: boolean;
   /**
-   * Corrector ortográfico del editor (`FUN-L-12`): el del sistema —WebView2 en
-   * desktop, el navegador en web—, en el idioma del sistema operativo. Activado
-   * por defecto.
+   * Corrector ortográfico del editor (`FUN-L-12`): el motor propio (spellbook
+   * en un worker) con los diccionarios que se descargan en Configuración.
+   * Apagado, el worker no se carga. Activado por defecto.
    */
   correctorOrtografico: boolean;
   /**

@@ -1947,3 +1947,17 @@
   background-color: color-mix(in srgb, var(--mic-glow) 65%, transparent);
   color: var(--mic-text-primary);
 }
+
+/* ── Corrector ortográfico (FUN-L-12) ──────────────────────────────────────
+   La marca la pone `lib/editor/ortografia.ts` sobre cada palabra mal escrita,
+   en el editor de notas y en el de los recordatorios (por eso no va bajo
+   `.mic-editor-host`). `skip-ink: none` para que la onda no se corte en las
+   letras con descendente (g, j, p). */
+.cm-editor .mic-error-ortografico {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--mic-error-ortografico);
+  text-decoration-thickness: 1px;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.2em;
+}
