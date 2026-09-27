@@ -112,7 +112,8 @@
  * - `2.2.0` — **el calendario con recordatorios** (`FUN-L-22`: avisan en la app y
  *   en Windows, viven en el vault y no son archivos) y **las disposiciones del
  *   grafo** (`FUN-L-23`: anillo de colonias, crecimiento y sustrato, elegibles
- *   por vault, además del cúmulo de siempre). Absorbe los arreglos del índice
+ *   por vault, además del cúmulo de siempre; **retiradas el 2026-09-27** por
+ *   decisión del usuario: queda solo el cúmulo). Absorbe los arreglos del índice
  *   que salieron del incidente de un vault de 11.780 notas (`DEF-105` a
  *   `DEF-108`: reindexado lento, cambios externos que no aparecían, datos que
  *   se perdían al reconstruir el índice, y un índice que no se achicaba).

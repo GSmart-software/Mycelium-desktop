@@ -56,7 +56,7 @@ function grafoVault(n, semilla) {
 
 /** Reloj quieto: `avanzarCiclo` no corta por tiempo, solo por `maxPasos` o al asentarse. */
 const relojQuieto = () => 0;
-const cumulo = F.constantesDe("cumulo");
+const cumulo = F.constantesCumulo();
 
 function cicloDe(n, aristas, alpha, continuo = false) {
   const pos = new Float64Array(n * 2);

@@ -1,5 +1,5 @@
 // «Graph Worker» de Mycelium (`FUN-L-25` · B4 y Parte C, `DEF-109`): corre la
-// física del cúmulo y del sustrato (`fisica.ts` + `cicloFisica.ts`, los MISMOS
+// física del cúmulo (`fisica.ts` + `cicloFisica.ts`, los MISMOS
 // módulos que usa el hilo principal como respaldo) fuera del hilo de la
 // interfaz, como hace Obsidian.
 //

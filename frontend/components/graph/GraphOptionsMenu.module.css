@@ -87,21 +87,6 @@
   background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
 }
 
-/* Opciones que solo aplican al cúmulo (`FUN-L-23`): con otra disposición se
-   ven atenuadas y no responden; la ayuda (`title`) dice por qué. */
-.groupDisabled {
-  opacity: 0.45;
-}
-
-.segment:disabled,
-.slider:disabled {
-  cursor: not-allowed;
-}
-
-.segment:disabled:hover {
-  color: var(--mic-text-muted);
-}
-
 .slider {
   width: 100%;
   accent-color: var(--mic-glow);

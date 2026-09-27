@@ -2,31 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { type DisposicionGrafo, usePrefVault } from "@/stores/prefsVaultStore";
-import {
-  type GrafoIndexado,
-  type LayoutAnillo,
-  hubsDe,
-  indexarGrafo,
-  layoutAnillo,
-  layoutCrecimiento,
-  limitesDe,
-  siembraSustrato,
-} from "./disposiciones";
+import { usePrefVault } from "@/stores/prefsVaultStore";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
-import { type EstadoFisica, constantesDe, crearEstado } from "./fisica";
+import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
-import {
-  type Camara,
-  type EscenaMicelio,
-  type FocoMicelio,
-  type PaletaMicelio,
-  type Vista,
-  conAlpha,
-  copiarCapa,
-  dibujarCapaEstatica,
-  dibujarSobrecapa,
-} from "./hifas";
 
 export type GraphNode = {
   id: string;
@@ -34,8 +13,6 @@ export type GraphNode = {
   conexiones: number;
   tags?: string[];
   creadoEn?: string;
-  /** Ruta de la carpeta con `/` (vacía = raíz). La usa el anillo de colonias (`FUN-L-23`). */
-  carpeta?: string;
 };
 export type GraphEdge = { source: string; target: string };
 
@@ -88,8 +65,6 @@ const HUBS_CON_NOMBRE = 24;
 const MARGEN_CAPA = 0.25;
 /** Tras el último evento de rueda, cuánto se espera para repintar a fidelidad completa. */
 const RUEDA_REPOSO_MS = 150;
-/** Sustrato en movimiento: la capa se repinta como mucho a ~30 fps. */
-const INTERVALO_SUSTRATO_MS = 33;
 
 function nodeSprite(
   fill: string,
@@ -120,6 +95,57 @@ function nodeSprite(
   return c;
 }
 
+/** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
+type Vista = { scale: number; ox: number; oy: number };
+
+/**
+ * Copia una capa con margen al lienzo visible, llevándola de la vista con que se
+ * pintó a la de ahora: desplazada si cambió el desplazamiento, escalada alrededor
+ * del mismo punto del mundo si cambió el zoom. Con las dos vistas iguales es una
+ * copia exacta, píxel a píxel (el margen es un número entero de píxeles reales).
+ *
+ * `ancho`/`alto` son los del lienzo visible en píxeles CSS; `mx`/`my`, el margen
+ * de la capa por lado, también en píxeles CSS.
+ */
+function copiarCapa(
+  c: CanvasRenderingContext2D,
+  capa: HTMLCanvasElement,
+  pintada: Vista,
+  ahora: Vista,
+  ancho: number,
+  alto: number,
+  mx: number,
+  my: number,
+  dpr: number,
+) {
+  // Un punto de la capa en (lx, ly) cae, con la vista pintada, en el píxel
+  // (lx − mx·dpr) del lienzo; de ahí se lleva a la vista de ahora.
+  const k = ahora.scale / pintada.scale;
+  const tx = dpr * (ancho / 2 + ahora.ox) - k * dpr * (ancho / 2 + pintada.ox + mx);
+  const ty = dpr * (alto / 2 + ahora.oy) - k * dpr * (alto / 2 + pintada.oy + my);
+  // Solo el trozo de la capa que cae en el lienzo: copiar la capa entera, con
+  // su margen, es mover más del doble de píxeles para nada.
+  const w = c.canvas.width;
+  const h = c.canvas.height;
+  const sx0 = Math.max(0, Math.floor(-tx / k));
+  const sy0 = Math.max(0, Math.floor(-ty / k));
+  const sx1 = Math.min(capa.width, Math.ceil((w - tx) / k));
+  const sy1 = Math.min(capa.height, Math.ceil((h - ty) / k));
+  if (sx1 <= sx0 || sy1 <= sy0) return;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(
+    capa,
+    sx0,
+    sy0,
+    sx1 - sx0,
+    sy1 - sy0,
+    tx + sx0 * k,
+    ty + sy0 * k,
+    (sx1 - sx0) * k,
+    (sy1 - sy0) * k,
+  );
+}
+
 /**
  * Mini-grafo force-directed en canvas (HU-30 CA2-CA5), portado de
  * `legacy/js/graph.js`. El nodo central (`centerId`) se resalta; el radio de
@@ -140,18 +166,11 @@ export function MiniGraph({
   onView,
   nodeColors,
   revealCount,
-  disposicion: disposicionProp,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
   centerId: string | null;
   onOpen: (id: string) => void;
-  /**
-   * Cómo se disponen los nodos (`FUN-L-23`). Sin indicar = `cumulo`, la
-   * simulación de fuerzas de siempre; es lo que usa el mini-grafo del panel.
-   * Las otras tres se dibujan como micelio (`hifas.ts`) sobre una capa estática.
-   */
-  disposicion?: DisposicionGrafo;
   /** Color por id según los grupos de color del usuario (sobrescribe el glow). */
   nodeColors?: Map<string, string>;
   /** Construcción temporal: solo se dibujan los primeros `revealCount` nodos en
@@ -161,8 +180,7 @@ export function MiniGraph({
   initialPositions?: Record<string, { x: number; y: number }>;
   /** Devuelve las posiciones actuales al desmontar/recalcular, para cachearlas. */
   onPositions?: (positions: Record<string, { x: number; y: number }>) => void;
-  /** Getter de la vista (zoom/pan) cacheada — se lee al (re)iniciar la simulación.
-   *  `undefined` = todavía no hay: las disposiciones micelio encuadran el grafo. */
+  /** Getter de la vista (zoom/pan) cacheada — se lee al (re)iniciar la simulación. */
   getInitialView?: () => GraphView | undefined;
   /** Guarda la vista actual al desmontar/recalcular, para conservar el zoom. */
   onView?: (view: GraphView) => void;
@@ -211,7 +229,6 @@ export function MiniGraph({
   getInitialViewRef.current = getInitialView;
   const onViewRef = useRef(onView);
   onViewRef.current = onView;
-  const disposicion: DisposicionGrafo = disposicionProp ?? "cumulo";
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -219,18 +236,10 @@ export function MiniGraph({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Las callbacks de guardado se capturan AHORA y no en el cleanup: al cambiar
-    // de disposición, la ref ya apunta a la callback de la disposición nueva
-    // cuando corre el cleanup de la vieja, y guardaría el layout del cúmulo
-    // bajo la clave del anillo (y su vista, que entonces no se encuadraría).
+    // Las callbacks de guardado se capturan al montar: el cleanup guarda con
+    // las de este montaje, no con las que la ref tenga cuando corra.
     const guardarPosiciones = onPositionsRef.current;
     const guardarVista = onViewRef.current;
-
-    // ── Disposición (`FUN-L-23`). `micelio` = las tres nuevas, que se dibujan
-    //    con `hifas.ts` sobre una capa estática; `fisica` = las que simulan
-    //    (cúmulo y sustrato). El cúmulo sigue su camino de siempre. ──
-    const micelio = disposicion !== "cumulo";
-    const fisica = disposicion === "cumulo" || disposicion === "sustrato";
 
     // El grafo se dibuja sobre un lienzo oscuro (estilo Obsidian) en cualquier
     // tema; los nodos usan el glow del tema y las etiquetas un gris claro.
@@ -258,39 +267,17 @@ export function MiniGraph({
     // nodo: en el dibujo de nodos y en el de etiquetas).
     const radioDe = (n: GraphNode) => {
       const base = Math.min(4 + n.conexiones * 1.6, 15);
-      // En las disposiciones micelio hay muchos más nodos en pantalla que en el
-      // mini-grafo para el que se calibró la fórmula: la mitad.
-      if (micelio) return base / 2;
       return n.id === centerId ? base + 3 : base;
     };
-    // Layout de las disposiciones micelio: el anillo y el crecimiento son
-    // deterministas y se recalculan acá (milisegundos); el sustrato solo toma la
-    // siembra inicial y después simula como el cúmulo, con su caché.
-    const g: GrafoIndexado | null = micelio ? indexarGrafo(nodes, edges) : null;
-    let anillo: LayoutAnillo | null = null;
-    let posMicelio: Float64Array | null = null;
-    if (g) {
-      if (disposicion === "anillo") {
-        anillo = layoutAnillo(g);
-        posMicelio = anillo.pos;
-      } else if (disposicion === "crecimiento") {
-        posMicelio = layoutCrecimiento(g).pos;
-      } else {
-        posMicelio = siembraSustrato(g);
-      }
-    }
-    /** Nodos sin posición (ni caché ni siembra de micelio): los siembra el cúmulo. */
+    /** Nodos sin posición en la caché: se siembran más abajo. */
     const sinSembrar: number[] = [];
     const sim: SimNode[] = nodes.map((n, i) => {
       const cached = saved?.[n.id];
-      if (cached && n.id !== centerId && fisica) {
+      if (cached && n.id !== centerId) {
         savedCount++;
         return { ...n, x: cached.x, y: cached.y, i, r: radioDe(n) };
       }
-      if (posMicelio) {
-        return { ...n, x: posMicelio[i * 2], y: posMicelio[i * 2 + 1], i, r: radioDe(n) };
-      }
-      sinSembrar.push(i); // el cúmulo lo siembra más abajo (filotaxis)
+      sinSembrar.push(i); // se siembra más abajo (filotaxis)
       return { ...n, x: 0, y: 0, i, r: radioDe(n) };
     });
     // Si casi todos los nodos vienen del cache, arrancar con poca energía para
@@ -303,17 +290,12 @@ export function MiniGraph({
     // Rango de aparición por id: orden de creación (creadoEn, desempate por id
     // para coincidir con el orden que usa GraphView al contar). Permite revelar
     // los nodos de a uno aunque compartan la misma fecha.
-    // En las disposiciones micelio manda el orden del índice (`g.rango`): es el
-    // mismo que usa el layout de crecimiento, y pone las notas sin fecha al
-    // final en vez de al principio.
-    const rankById = g
-      ? new Map(g.ids.map((id, i) => [id, g.rango[i]] as const))
-      : new Map(
-          nodes
-            .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : 0 }))
-            .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-            .map((o, i) => [o.id, i] as const),
-        );
+    const rankById = new Map(
+      nodes
+        .map((n) => ({ id: n.id, t: n.creadoEn ? Date.parse(n.creadoEn) : 0 }))
+        .sort((a, b) => a.t - b.t || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+        .map((o, i) => [o.id, i] as const),
+    );
     // ¿El nodo ya "apareció"? Se muestran los primeros `revealCount` en orden de
     // creación (null = mostrar todo).
     const revealed = (n: SimNode) => {
@@ -327,16 +309,14 @@ export function MiniGraph({
       if (s && t) simEdges.push({ s, t });
     }
 
-    // Constantes del motor. El sustrato (`FUN-L-23`) usa la MISMA simulación
-    // con repulsión y reposo más cortos (k = 45), fuerza al 70 % y tope 6: la
-    // colonia queda apretada y las hifas, cortas. El cúmulo conserva sus valores.
-    const constantes = constantesDe(disposicion === "sustrato" ? "sustrato" : "cumulo");
+    // Constantes del motor (`fisica.ts`).
+    const constantes = constantesCumulo();
 
     // ── Siembra (`FUN-L-25` · Parte C). Los nodos sin caché que tienen algún
     //    vecino con posición nacen junto a ellos (como en la construcción
     //    temporal); el resto, en filotaxis alrededor del origen, con el nodo
     //    central primero y después los de más enlaces. Antes nacían todos en un
-    //    anillo de radio 50–140 y el grafo pasaba cientos de pasos
+    //    una corona de radio 50–140 y el grafo pasaba cientos de pasos
     //    expandiéndose a empujones. ──
     if (sinSembrar.length > 0) {
       const conPosicion = new Uint8Array(N).fill(1);
@@ -481,12 +461,10 @@ export function MiniGraph({
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
     let dragNode: SimNode | null = null;
-    /** Nodo pulsado en las disposiciones sin arrastre (anillo, crecimiento): clic = abrir. */
-    let clickNode: SimNode | null = null;
     let panning = false;
-    // Capa estática (las disposiciones micelio y, desde `FUN-L-25`, también el
-    // cúmulo): se vuelve a pintar solo cuando algo la ensucia (vista, tamaño,
-    // nodos que se mueven, el foco, lo revelado, colores u opciones).
+    // Capas estáticas (`FUN-L-25`): se vuelven a pintar solo cuando algo las
+    // ensucia (vista, tamaño, nodos que se mueven, el foco, lo revelado,
+    // colores u opciones).
     let sucioEstatico = true;
     const ensuciar = () => {
       sucioEstatico = true;
@@ -513,9 +491,6 @@ export function MiniGraph({
     };
     /** Posiciones que el ratón movió a mano (arrastre): van con el próximo lote. */
     let movidoAMano = false;
-    // Sin vista cacheada, la disposición micelio se encuadra en cuanto el lienzo
-    // tenga tamaño (la primera vez que se elige; después recuerda su vista).
-    let encuadrePendiente = micelio && !v0;
     let downAt: { x: number; y: number } | null = null;
     let dpr = window.devicePixelRatio || 1;
     let running = true;
@@ -529,7 +504,7 @@ export function MiniGraph({
     let frame = 0;
     let lastEnergetic = performance.now();
     const wake = () => {
-      if (running && frame === 0) frame = requestAnimationFrame(micelio ? tickMicelio : tick);
+      if (running && frame === 0) frame = requestAnimationFrame(tick);
     };
     // Permite despertar el bucle al cambiar las opciones. Además ensucia la capa
     // estática: los colores, los nombres, lo revelado y la flecha viven ahí.
@@ -582,19 +557,8 @@ export function MiniGraph({
       const myDev = Math.round(parent.clientHeight * MARGEN_CAPA * dpr);
       margenX = mxDev / dpr;
       margenY = myDev / dpr;
-      const anchoCapa = canvas.width + 2 * mxDev;
-      const altoCapa = canvas.height + 2 * myDev;
-      if (micelio) {
-        estatico.width = sobre.width = anchoCapa;
-        estatico.height = sobre.height = altoCapa;
-        if (encuadrePendiente && parent.clientWidth > 0 && parent.clientHeight > 0) {
-          recentrar();
-          encuadrePendiente = false;
-        }
-      } else {
-        capaAristas.width = capaNodos.width = anchoCapa;
-        capaAristas.height = capaNodos.height = altoCapa;
-      }
+      capaAristas.width = capaNodos.width = canvas.width + 2 * mxDev;
+      capaAristas.height = capaNodos.height = canvas.height + 2 * myDev;
       ensuciar();
       wake();
     };
@@ -630,16 +594,10 @@ export function MiniGraph({
       const n = pick(ev);
       downAt = { x: ev.clientX, y: ev.clientY };
       if (n) {
-        // Arrastrar un nodo solo tiene sentido donde hay física; en el anillo y
-        // el crecimiento la posición es determinista y pulsar es solo abrir.
-        if (fisica) {
-          dragNode = n;
-          // El motor sube la energía mientras dure (`alphaObjetivo` 0,3).
-          arrancarCorrida();
-          motor?.fijar(n.i, n.x, n.y);
-        } else {
-          clickNode = n;
-        }
+        dragNode = n;
+        // El motor sube la energía mientras dure (`alphaObjetivo` 0,3).
+        arrancarCorrida();
+        motor?.fijar(n.i, n.x, n.y);
       } else {
         panning = true;
       }
@@ -667,10 +625,8 @@ export function MiniGraph({
           hover = n;
           computeRefs(hover ?? centerNode); // foco = hover, o el centro si no hay
           canvas.style.cursor = n ? "pointer" : "grab";
-          // Un redibujo para el resaltado de hover. En el cúmulo el resaltado
-          // vive en la capa estática; en micelio va en la sobrecapa.
-          if (micelio) sucioSobre = true;
-          else ensuciar();
+          // Un redibujo para el resaltado de hover, que vive en la capa estática.
+          ensuciar();
           wake();
         }
       }
@@ -678,14 +634,12 @@ export function MiniGraph({
     const onMouseUp = (ev: MouseEvent) => {
       const moved =
         downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4;
-      const pulsado = dragNode ?? clickNode;
-      if (pulsado && !moved) onOpenRef.current(pulsado.id);
+      if (dragNode && !moved) onOpenRef.current(dragNode.id);
       if (dragNode) {
         inicioCorrida = performance.now(); // «asentado en…» cuenta desde que se suelta
         motor?.soltar();
       }
       dragNode = null;
-      clickNode = null;
       if (panning) {
         // Fin del paneo: el próximo frame ve la cámara movida fuera de un
         // gesto y repinta a fidelidad completa.
@@ -728,27 +682,25 @@ export function MiniGraph({
     // que llegó y el motor avisa cuando el grafo se asienta.
     // Solo el grafo global (sin nodo central) lo cuenta en la consola: el
     // mini-grafo del panel se reconstruye con cada nota que se abre.
-    const informar = fisica && centerId === null;
+    const informar = centerId === null;
     let inicioCorrida = performance.now();
-    if (fisica) {
-      motor = crearMotor(estado, constantes, {
-        continuo: continuousSim,
-        alRecibir: () => wake(),
-        alAsentar: (pasos) => {
-          if (informar) {
-            const seg = (performance.now() - inicioCorrida) / 1000;
-            console.info(`grafo: asentado en ${seg.toFixed(1)} s, ${pasos} pasos`);
-          }
-          // El primer frame quieto se pinta a fidelidad completa.
-          ensuciar();
-          wake();
-        },
-      });
-      if (informar) {
-        console.info(
-          `grafo: física en ${motor.enWorker ? "worker" : "hilo principal"}, ${N} nodos, ${simEdges.length} aristas`,
-        );
-      }
+    motor = crearMotor(estado, constantes, {
+      continuo: continuousSim,
+      alRecibir: () => wake(),
+      alAsentar: (pasos) => {
+        if (informar) {
+          const seg = (performance.now() - inicioCorrida) / 1000;
+          console.info(`grafo: asentado en ${seg.toFixed(1)} s, ${pasos} pasos`);
+        }
+        // El primer frame quieto se pinta a fidelidad completa.
+        ensuciar();
+        wake();
+      },
+    });
+    if (informar) {
+      console.info(
+        `grafo: física en ${motor.enWorker ? "worker" : "hilo principal"}, ${N} nodos, ${simEdges.length} aristas`,
+      );
     }
     /** Un arranque nuevo (el grafo estaba quieto): desde acá se cuenta el asentamiento. */
     function arrancarCorrida() {
@@ -1037,14 +989,44 @@ export function MiniGraph({
       pintarNombres(c, false);
     };
 
+    // ── Nodos en movimiento: discos planos del mismo color y radio que el
+    //    sprite del reposo, sin el glow. Agrupados por color para no cambiar el
+    //    relleno a cada nodo. ──
+    const discosPorColor = new Map<string, SimNode[]>();
+    const pintarDiscos = (c: CanvasRenderingContext2D) => {
+      for (const lista of discosPorColor.values()) lista.length = 0;
+      for (const n of sim) {
+        if (!revealed(n)) continue; // construcción temporal: aún no apareció
+        if (!dentro(n.x, n.y)) continue; // culling
+        const isWhite = n.id === centerId || n === hover;
+        const refsFocus = !isWhite && focusRefs.has(n.id);
+        const fill = isWhite
+          ? colCenter
+          : refsFocus
+            ? colAccent
+            : (nodeColorsRef.current?.get(n.id) ?? colNode);
+        const lista = discosPorColor.get(fill);
+        if (lista) lista.push(n);
+        else discosPorColor.set(fill, [n]);
+      }
+      for (const [fill, lista] of discosPorColor) {
+        if (lista.length === 0) continue;
+        c.fillStyle = fill;
+        for (const n of lista) {
+          c.beginPath();
+          c.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    };
+
     // ── Nombres (`FUN-M-21`; Parte C de `FUN-L-25`). Mientras el grafo se mueve
     //    solo se escriben los de los hubs, el apuntado y el centro (escribir los
     //    1.300 con `fillText` en cada frame era buena parte del frame); el resto
     //    aparece al asentarse, en la capa estática y sin pisarse: se escriben
     //    por importancia (apuntado, centro y después por enlaces, así los hubs
-    //    ganan el sitio) y se salta el que caería encima de uno ya escrito, el
-    //    mismo criterio de `hifas.ts` con una rejilla para no comparar todos
-    //    contra todos. ──
+    //    ganan el sitio) y se salta el que caería encima de uno ya escrito, con
+    //    una rejilla para no comparar todos contra todos. ──
     const hubsCumulo = new Set(
       [...sim].sort((a, b) => b.conexiones - a.conexiones || a.i - b.i).slice(0, HUBS_CON_NOMBRE),
     );
@@ -1157,11 +1139,10 @@ export function MiniGraph({
     /**
      * Fidelidad de movimiento, mientras el grafo se mueve (Parte C, corregida
      * en la Parte D): las aristas conservan su curva —la misma que en reposo—,
-     * sin flujo ni flecha ni brillo; nodos como discos planos del mismo color y
-     * radio (sin el sprite con glow), agrupados por color para no cambiar el
-     * relleno a cada nodo; solo los nombres destacados. Al asentarse se pinta
-     * una vez a fidelidad completa. (La Parte C las trazaba rectas: el usuario
-     * lo rechazó, las curvas son el estilo de Mycelium.)
+     * sin flujo ni flecha ni brillo; nodos como discos planos (sin el sprite
+     * con glow); solo los nombres destacados. Al asentarse se pinta una vez a fidelidad
+     * completa. (La Parte C las trazaba rectas: el usuario lo rechazó, las
+     * curvas son el estilo de Mycelium.)
      *
      * Un `stroke()` y un `fill()` por elemento, SIN agrupar en paths: medido
      * con la Tesina asentada (1.600 × 900 a dpr 1,5, rasterizado forzado),
@@ -1170,7 +1151,6 @@ export function MiniGraph({
      * 195 a zoom 1— y lo que ahorra en JS es un milisegundo (1,5 → 0,3).
      * Es lo mismo que `DEF-109` midió con un único path (68 contra 20 ms).
      */
-    const discosPorColor = new Map<string, SimNode[]>();
     const pintarRapido = (c: CanvasRenderingContext2D) => {
       calcularVisible(false);
       conFlujo = false;
@@ -1206,29 +1186,7 @@ export function MiniGraph({
         }
       }
 
-      for (const lista of discosPorColor.values()) lista.length = 0;
-      for (const n of sim) {
-        if (!revealed(n) || !dentro(n.x, n.y)) continue;
-        const isWhite = n.id === centerId || n === hover;
-        const refsFocus = !isWhite && focusRefs.has(n.id);
-        const fill = isWhite
-          ? colCenter
-          : refsFocus
-            ? colAccent
-            : (nodeColorsRef.current?.get(n.id) ?? colNode);
-        const lista = discosPorColor.get(fill);
-        if (lista) lista.push(n);
-        else discosPorColor.set(fill, [n]);
-      }
-      for (const [fill, lista] of discosPorColor) {
-        if (lista.length === 0) continue;
-        c.fillStyle = fill;
-        for (const n of lista) {
-          c.beginPath();
-          c.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-          c.fill();
-        }
-      }
+      pintarDiscos(c);
       pintarNombres(c, true);
     };
 
@@ -1334,7 +1292,7 @@ export function MiniGraph({
       componerCapas(flujo);
     };
 
-    // Construcción temporal con física (cúmulo y sustrato): colocar los nodos
+    // Construcción temporal: colocar los nodos
     // recién aparecidos (en orden de creación) y dar energía para que el grafo
     // se reacomode al crecer.
     const avanzarConstruccion = (rc: number | null | undefined) => {
@@ -1359,21 +1317,6 @@ export function MiniGraph({
       }
     };
 
-    // ── Disposiciones micelio (`FUN-L-23`): capa estática + sobrecapa. Todo lo
-    //    de acá abajo hasta `tickMicelio` es inerte cuando `disposicion` es el
-    //    cúmulo, que sigue con `draw` y `tick` de siempre. ──
-    const estatico = document.createElement("canvas");
-    const sctx = estatico.getContext("2d");
-    const sobre = document.createElement("canvas");
-    const octx = sobre.getContext("2d");
-    /** La sobrecapa (foco y nombres) ya no muestra lo último. */
-    let sucioSobre = true;
-    /** Sustrato: lo último de la capa estática se pintó con fidelidad de movimiento. */
-    let capaRapida = false;
-    /** Sustrato: llegaron posiciones que la capa todavía no muestra. */
-    let posNuevas = false;
-    /** Sustrato en movimiento: cuándo se repintó la capa por última vez. */
-    let ultimoRepintado = -Infinity;
     /**
      * Fidelidad de movimiento mientras el grafo se mueve (Partes C y D): solo
      * en grafos grandes. En el mini-grafo del panel el asentamiento dura unos
@@ -1382,207 +1325,6 @@ export function MiniGraph({
     const reducible = N >= MIN_NODOS_WORKER;
     /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
     let saltarDibujo = false;
-    // El fondo de las etiquetas es el del lienzo (oscuro en cualquier tema),
-    // semitransparente, para que el nombre se lea sobre un tapiz de hifas.
-    const fondo = getComputedStyle(canvas.parentElement ?? canvas).backgroundColor;
-    const paleta: PaletaMicelio = {
-      hifa: conAlpha(ctx, colGlow, 0.24),
-      hifaSustrato: conAlpha(ctx, colGlow, 0.2),
-      cruce: conAlpha(ctx, colGlow, 0.07),
-      halo: conAlpha(ctx, colGlow, 0.1),
-      espora: colGlow,
-      cuerpo: "#F2E4C4",
-      foco: "#EAFFF8",
-      acento: colAccent,
-      texto: colText,
-      textoFoco: colText2,
-      textoHub: "rgba(242, 228, 196, 0.9)",
-      fondoEtiqueta: conAlpha(ctx, fondo || "#0B100E", 0.75),
-      fuente: fontFamily,
-    };
-    const escena: EscenaMicelio | null =
-      g && posMicelio && disposicion !== "cumulo"
-        ? {
-            disposicion,
-            g,
-            pos: posMicelio,
-            radio: Float32Array.from(sim, (n) => n.r),
-            anillo,
-            limiteRango: Infinity,
-            // Solo en Crecimiento las hifas de lo recién revelado crecen.
-            aparicion: disposicion === "crecimiento" ? new Float64Array(g.n) : null,
-            reducido,
-            colores: nodeColorsRef.current,
-            rapido: false,
-          }
-        : null;
-    const hubs = g ? hubsDe(g) : [];
-    /** Sustrato: la simulación mueve `sim`; el dibujo lee `escena.pos`. */
-    const sincronizarPos = () => {
-      if (!escena) return;
-      for (let i = 0; i < sim.length; i++) {
-        escena.pos[i * 2] = sim[i].x;
-        escena.pos[i * 2 + 1] = sim[i].y;
-      }
-    };
-    if (escena && fisica) sincronizarPos(); // con caché, `sim` ya trae lo asentado
-
-    /** Encuadra el grafo entero en el lienzo (primera vez que se elige la disposición). */
-    const recentrar = () => {
-      if (!escena) return;
-      const W = canvas.width / dpr;
-      const H = canvas.height / dpr;
-      const margen = anillo ? anillo.R + 95 : 0; // el anillo lleva nombres por fuera
-      const b = anillo
-        ? { minX: -margen, minY: -margen, maxX: margen, maxY: margen }
-        : limitesDe(escena.g, escena.pos);
-      const s = Math.min((W - 40) / (b.maxX - b.minX + 1), (H - 40) / (b.maxY - b.minY + 1));
-      scale = Math.min(Math.max(s, 0.05), 4);
-      ox = -((b.minX + b.maxX) / 2) * scale;
-      oy = -((b.minY + b.maxY) / 2) * scale;
-      ensuciar();
-    };
-
-    /** El foco como índices del grafo (los conjuntos de arriba son por id). */
-    const focoActual = (): FocoMicelio => {
-      const vecinosIdx = new Set<number>();
-      const refsIdx = new Set<number>();
-      if (!g || !hover) return { nodo: -1, vecinos: vecinosIdx, refs: refsIdx };
-      for (const id of vecinos) {
-        const i = g.indice.get(id);
-        if (i !== undefined) vecinosIdx.add(i);
-      }
-      for (const id of focusRefs) {
-        const i = g.indice.get(id);
-        if (i !== undefined) refsIdx.add(i);
-      }
-      return { nodo: g.indice.get(hover.id) ?? -1, vecinos: vecinosIdx, refs: refsIdx };
-    };
-
-    const dibujarMicelio = (ahora: number, rapido: boolean) => {
-      if (!escena || !sctx || !octx) return;
-      const W = canvas.width / dpr;
-      const H = canvas.height / dpr;
-      // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
-      // capa de 0 px lanza una excepción.
-      if (canvas.width === 0 || canvas.height === 0) return;
-      escena.limiteRango = revealCountRef.current ?? Infinity;
-      escena.colores = nodeColorsRef.current;
-      escena.reducido = reducido;
-      // La capa estática solo se repinta si algo la ensució; queda sucia
-      // mientras alguna hifa siga creciendo. Se pinta con su margen y con la
-      // vista de ahora, que pasa a ser la de las dos capas.
-      if (sucioEstatico) {
-        if (fisica) sincronizarPos();
-        escena.rapido = rapido;
-        marcarVistaPintada();
-        const camCapa: Camara = { scale, ox, oy, ancho: W + 2 * margenX, alto: H + 2 * margenY, dpr };
-        sucioEstatico = dibujarCapaEstatica(sctx, escena, camCapa, paleta, ahora);
-        capaRapida = rapido;
-        sucioSobre = true;
-      }
-      // La sobrecapa (foco y nombres) va con la misma vista que la estática, así
-      // las dos se copian juntas aunque el cursor cambie el foco en un gesto.
-      if (sucioSobre) {
-        const camSobre: Camara = { ...vistaPintada, ancho: W, alto: H, dpr };
-        dibujarSobrecapa(
-          octx,
-          escena,
-          camSobre,
-          margenX,
-          margenY,
-          paleta,
-          focoActual(),
-          modoNombresRef.current,
-          hubs,
-        );
-        sucioSobre = false;
-        lienzoAlDia = false;
-      }
-      if (lienzoAlDia && lienzoVista.scale === scale && lienzoVista.ox === ox && lienzoVista.oy === oy) {
-        return; // el lienzo ya muestra las dos capas en esta vista
-      }
-      const vistaAhora: Vista = { scale, ox, oy };
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      copiarCapa(ctx, estatico, vistaPintada, vistaAhora, W, H, margenX, margenY, dpr);
-      copiarCapa(ctx, sobre, vistaPintada, vistaAhora, W, H, margenX, margenY, dpr);
-      lienzoVista = vistaAhora;
-      lienzoAlDia = true;
-    };
-
-    const tickMicelio = () => {
-      frame = 0;
-      if (!running || !canvas.isConnected || !escena) return;
-      const ahora = performance.now();
-      const rc = revealCountRef.current;
-      if (fisica) avanzarConstruccion(rc);
-      if (rc !== prevRc) {
-        if (escena.aparicion) {
-          // Crecimiento: las hifas de lo recién revelado crecen desde ahora. Al
-          // (re)iniciar o terminar la construcción se parte de cero.
-          const desde = prevRc == null || rc == null || rc < prevRc ? 0 : prevRc;
-          if (desde === 0) escena.aparicion.fill(0);
-          if (rc != null) {
-            const hasta = Math.min(rc, escena.g.n);
-            for (let k = desde; k < hasta; k++) escena.aparicion[escena.g.orden[k]] = ahora;
-          }
-        }
-        ensuciar();
-      }
-      prevRc = rc ?? null;
-      let activo = false;
-      let rapido = false;
-      if (fisica) {
-        // Sustrato: el mismo reposo con período de gracia que el cúmulo.
-        const interacting = !!dragNode || panning;
-        const moviendo = !!dragNode || !!motor?.corriendo;
-        if (interacting || moviendo) lastEnergetic = ahora;
-        activo = moviendo || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (simulate() || movidoAMano) posNuevas = true;
-        movidoAMano = false;
-        // En movimiento, fidelidad de movimiento (Parte D); la simulación
-        // continua, ya casi quieta, vuelve a la completa (si no, no se vería).
-        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
-        rapido = moviendo && reducible && !casiQuieto;
-        if (posNuevas) {
-          if (!rapido) {
-            ensuciar();
-          } else if (ahora - ultimoRepintado >= INTERVALO_SUSTRATO_MS) {
-            // Repintado acotado (Parte D): como mucho ~30 fps, y si el último
-            // pasó el presupuesto este lote se salta (la física no se entera:
-            // sigue en el worker). Entre repintados el hilo principal no dibuja.
-            if (saltarDibujo) {
-              saltarDibujo = false;
-              ultimoRepintado = ahora;
-            } else {
-              ensuciar();
-            }
-          }
-        }
-        // Lo último se pintó en movimiento y ya no se mueve: fidelidad completa.
-        if (capaRapida && !rapido) ensuciar();
-      }
-      // Fuera de un gesto, la cámara movida (fin de un paneo o de la rueda) es
-      // un repintado completo; dentro, las capas solo se copian (Parte D).
-      if (!enGesto() && camaraMovida()) ensuciar();
-      if (visible) {
-        const repinta = sucioEstatico;
-        const t0 = performance.now();
-        dibujarMicelio(ahora, rapido);
-        if (repinta) {
-          posNuevas = false;
-          if (rapido) {
-            ultimoRepintado = ahora;
-            saltarDibujo = performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
-          }
-        }
-      }
-      // Sin física activa ni hifas creciendo no hay frame siguiente: en reposo
-      // no corre `requestAnimationFrame`; la capa estática se queda como está
-      // hasta la próxima interacción.
-      if (activo || posNuevas || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
-    };
 
     const tick = () => {
       frame = 0;
@@ -1646,16 +1388,11 @@ export function MiniGraph({
       motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
-      // Solo vale para las disposiciones con física: el anillo y el crecimiento
-      // son deterministas y se recalculan en milisegundos.
-      if (fisica) {
-        const positions: Record<string, { x: number; y: number }> = {};
-        for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
-        guardarPosiciones?.(positions);
-      }
-      // Conservar el zoom/pan para el próximo (re)montaje o recálculo. Si nunca
-      // llegó a encuadrarse (el lienzo no tuvo tamaño), no hay vista que guardar.
-      if (!encuadrePendiente) guardarVista?.({ scale, ox, oy });
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const n of sim) positions[n.id] = { x: n.x, y: n.y };
+      guardarPosiciones?.(positions);
+      // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
+      guardarVista?.({ scale, ox, oy });
 
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
@@ -1663,7 +1400,7 @@ export function MiniGraph({
       canvas.removeEventListener("wheel", onWheel);
       ro.disconnect();
     };
-  }, [nodes, edges, centerId, continuousSim, tema, modoOscuro, disposicion]);
+  }, [nodes, edges, centerId, continuousSim, tema, modoOscuro]);
 
   return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />;
 }

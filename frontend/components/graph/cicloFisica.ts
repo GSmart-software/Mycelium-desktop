@@ -1,4 +1,4 @@
-// Ciclo de asentamiento del cúmulo y del sustrato (`FUN-L-25` · Parte C, `DEF-109`).
+// Ciclo de asentamiento del cúmulo (`FUN-L-25` · Parte C, `DEF-109`).
 //
 // La física (`fisica.ts`) da UN paso; este módulo decide cuántos, con qué
 // energía y cuándo parar, como `d3-force` (y el «Graph Worker» de Obsidian):

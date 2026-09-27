@@ -1,4 +1,4 @@
-// Motor de fuerzas del cúmulo y del sustrato (`FUN-L-25` · Parte B, `DEF-109`).
+// Motor de fuerzas del cúmulo (`FUN-L-25` · Parte B, `DEF-109`).
 //
 // Módulo PURO: sin DOM, sin React, sin imports. Lo usan el hilo principal
 // (`MiniGraph.tsx`, como respaldo) y el worker (`sim.worker.ts`), y los tests
@@ -12,21 +12,18 @@
 //   par a par, exactamente como antes (incluido el desempate al azar de dos
 //   nodos superpuestos).
 // - **Repulsión acotada** (`distanciaMax`): lo que queda más lejos no se
-//   calcula. Implementada pero apagada: ver `constantesDe` y por qué.
+//   calcula. Implementada pero apagada: ver `constantesCumulo` y por qué.
 //
 // Los datos viven en arrays tipados (posiciones y velocidades intercaladas
 // `[x0, y0, x1, y1, …]`, aristas `[s0, t0, s1, t1, …]`) para que el worker los
 // reciba y devuelva sin objetos por nodo.
-
-/** Disposiciones que simulan (las otras dos son deterministas: `disposiciones.ts`). */
-export type DisposicionFisica = "cumulo" | "sustrato";
 
 export type ConstantesFisica = {
   /** Distancia de reposo de los resortes y escala de la repulsión (`k²/d²`). */
   k: number;
   /** Tope de la repulsión por par (la misma clamp de siempre). */
   topeRepulsion: number;
-  /** Multiplicador de la repulsión (el sustrato empuja al 70 %). */
+  /** Multiplicador de la repulsión (1 en el cúmulo). */
   factorRepulsion: number;
   /** Criterio de Barnes-Hut: una celda de lado `w` a distancia `d` se aproxima si `w < θ·d`. */
   theta: number;
@@ -45,8 +42,9 @@ export type ConstantesFisica = {
 };
 
 /**
- * Constantes por disposición. El cúmulo y el sustrato conservan los valores que
- * tenían en `MiniGraph.tsx` (`k` 80/45, tope 8/6, factor 1/0,7).
+ * Constantes del cúmulo: los valores que tenían en `MiniGraph.tsx` (`k` 80,
+ * tope 8, factor 1). (Hasta el 2026-09-27 había también las del «sustrato» de
+ * `FUN-L-23`, retirado con las demás disposiciones: queda solo el cúmulo.)
  *
  * `distanciaMax = Infinity` (sin corte): la spec proponía `4·k`, pero medido
  * sobre un vault sintético de 1.000 notas (réplica en Node, ver
@@ -58,17 +56,16 @@ export type ConstantesFisica = {
  * Barnes-Hut (las celdas lejanas ya se calculan como un solo nodo). El corte
  * queda implementado y probado, pero apagado.
  */
-export function constantesDe(disposicion: DisposicionFisica): ConstantesFisica {
-  const sustrato = disposicion === "sustrato";
+export function constantesCumulo(): ConstantesFisica {
   return {
-    k: sustrato ? 45 : 80,
-    topeRepulsion: sustrato ? 6 : 8,
-    factorRepulsion: sustrato ? 0.7 : 1,
+    k: 80,
+    topeRepulsion: 8,
+    factorRepulsion: 1,
     theta: 0.9,
     distanciaMax: Infinity,
     ganancia: GANANCIA,
     rozamiento: 0.4,
-    velocidadMax: sustrato ? 45 : 80,
+    velocidadMax: 80,
   };
 }
 
@@ -459,7 +456,7 @@ export function paso(
   azar: () => number = Math.random,
   repulsion: typeof repulsionBarnesHut = repulsionBarnesHut,
 ) {
-  // Todas las fuerzas escalan con la energía y con la ganancia (ver `constantesDe`).
+  // Todas las fuerzas escalan con la energía y con la ganancia (ver `constantesCumulo`).
   const a = alpha * c.ganancia;
   const retiene = 1 - c.rozamiento;
   const vmax2 = c.velocidadMax * c.velocidadMax;

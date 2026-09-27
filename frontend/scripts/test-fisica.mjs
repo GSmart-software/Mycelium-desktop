@@ -1,8 +1,7 @@
 // Test headless (sin navegador ni Tauri) del motor de fuerzas del grafo
 // (`FUN-L-25` · Parte B, `DEF-109`). El módulo bajo prueba
 // (`components/graph/fisica.ts`) es puro —sin imports—, así que se transpila en
-// el momento con el compilador de TypeScript y se importa vía data: URL, igual
-// que `scripts/test-disposiciones.mjs`.
+// el momento con el compilador de TypeScript y se importa vía data: URL.
 //
 // Lo que NO se prueba acá, porque necesita la app: el worker (`sim.worker.ts`),
 // el dibujo de la capa estática y el flujo acotado. Eso lo confirma el usuario.
@@ -58,23 +57,18 @@ function fuerzas(pos, aristas, c, metodo, alpha = 0.5) {
   return e.vel;
 }
 
-const cumulo = F.constantesDe("cumulo");
+const cumulo = F.constantesCumulo();
 
-test("constantes: cúmulo y sustrato conservan las fuerzas de siempre", () => {
+test("constantes: el cúmulo conserva las fuerzas de siempre", () => {
   assert.deepEqual(
     { k: cumulo.k, tope: cumulo.topeRepulsion, factor: cumulo.factorRepulsion, theta: cumulo.theta },
     { k: 80, tope: 8, factor: 1, theta: 0.9 },
   );
-  const s = F.constantesDe("sustrato");
-  assert.deepEqual(
-    { k: s.k, tope: s.topeRepulsion, factor: s.factorRepulsion },
-    { k: 45, tope: 6, factor: 0.7 },
-  );
   // Parte C: el ciclo de `d3-force` (rozamiento 0,4) con la ganancia que lo
   // compensa, y el tope de velocidad en `k`.
   assert.deepEqual(
-    { g: cumulo.ganancia, roz: cumulo.rozamiento, vmax: cumulo.velocidadMax, vmaxS: s.velocidadMax },
-    { g: 12, roz: 0.4, vmax: 80, vmaxS: 45 },
+    { g: cumulo.ganancia, roz: cumulo.rozamiento, vmax: cumulo.velocidadMax },
+    { g: 12, roz: 0.4, vmax: 80 },
   );
 });
 
