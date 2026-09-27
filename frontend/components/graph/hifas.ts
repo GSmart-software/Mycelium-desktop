@@ -9,9 +9,20 @@
  *   offscreen. Solo se repinta cuando cambia la vista, se mueven los nodos
  *   (Sustrato mientras no está en reposo), cambia lo revelado o cambia la
  *   preferencia. Es la propuesta 1 de `DEF-109` aplicada a estas disposiciones.
- * - **Sobrecapa** (`dibujarSobrecapa`): copia la estática y encima pinta el foco
- *   (el nodo apuntado, sus hifas y quienes lo referencian) y los nombres. Es lo
- *   único que se redibuja al mover el cursor.
+ * - **Sobrecapa** (`dibujarSobrecapa`): otro canvas offscreen, transparente, con
+ *   el foco (el nodo apuntado, sus hifas y quienes lo referencian) y los nombres.
+ *   Es lo único que se repinta al mover el cursor.
+ *
+ * Las dos capas son más grandes que el lienzo (un margen por lado) y el lienzo
+ * visible solo las **copia** (`copiarCapa`): mientras dura un paneo o un zoom con
+ * rueda se copian desplazadas o escaladas, sin repintar nada; el repintado
+ * completo llega al terminar el gesto (`FUN-L-25` · Parte D).
+ *
+ * Mientras los nodos se mueven (Sustrato asentándose o un arrastre) la capa
+ * estática se pinta con **fidelidad de movimiento** (`EscenaMicelio.rapido`):
+ * las hifas conservan la curva y el ahusamiento, con 4 segmentos y sin ondular;
+ * sin halo, sin brillo en los cuerpos fructíferos (discos planos del mismo color
+ * y radio) y sin sombra en el foco. Al detenerse, un repintado completo.
  *
  * Referencia: `docs/design/demos/micelio-del-vault.html`, afinada por el usuario.
  */
@@ -91,7 +102,63 @@ export type EscenaMicelio = {
   reducido: boolean;
   /** Color por id según los grupos de color del usuario. */
   colores: Map<string, string> | undefined;
+  /**
+   * Los nodos se están moviendo (Parte D): hifas con 4 segmentos y sin ondular,
+   * sin halo, cuerpos fructíferos sin brillo y foco sin sombra.
+   */
+  rapido: boolean;
 };
+
+/** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
+export type Vista = { scale: number; ox: number; oy: number };
+
+/**
+ * Copia una capa con margen al lienzo visible, llevándola de la vista con que se
+ * pintó a la de ahora: desplazada si cambió el desplazamiento, escalada alrededor
+ * del mismo punto del mundo si cambió el zoom. Con las dos vistas iguales es una
+ * copia exacta, píxel a píxel (el margen es un número entero de píxeles reales).
+ *
+ * `ancho`/`alto` son los del lienzo visible en píxeles CSS; `mx`/`my`, el margen
+ * de la capa por lado, también en píxeles CSS.
+ */
+export function copiarCapa(
+  c: CanvasRenderingContext2D,
+  capa: HTMLCanvasElement,
+  pintada: Vista,
+  ahora: Vista,
+  ancho: number,
+  alto: number,
+  mx: number,
+  my: number,
+  dpr: number,
+) {
+  // Un punto de la capa en (lx, ly) cae, con la vista pintada, en el píxel
+  // (lx − mx·dpr) del lienzo; de ahí se lleva a la vista de ahora.
+  const k = ahora.scale / pintada.scale;
+  const tx = dpr * (ancho / 2 + ahora.ox) - k * dpr * (ancho / 2 + pintada.ox + mx);
+  const ty = dpr * (alto / 2 + ahora.oy) - k * dpr * (alto / 2 + pintada.oy + my);
+  // Solo el trozo de la capa que cae en el lienzo: copiar la capa entera, con
+  // su margen, es mover más del doble de píxeles para nada.
+  const w = c.canvas.width;
+  const h = c.canvas.height;
+  const sx0 = Math.max(0, Math.floor(-tx / k));
+  const sy0 = Math.max(0, Math.floor(-ty / k));
+  const sx1 = Math.min(capa.width, Math.ceil((w - tx) / k));
+  const sy1 = Math.min(capa.height, Math.ceil((h - ty) / k));
+  if (sx1 <= sx0 || sy1 <= sy0) return;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.drawImage(
+    capa,
+    sx0,
+    sy0,
+    sx1 - sx0,
+    sy1 - sy0,
+    tx + sx0 * k,
+    ty + sy0 * k,
+    (sx1 - sx0) * k,
+    (sy1 - sy0) * k,
+  );
+}
 
 /** Qué está en foco: el nodo apuntado, sus vecinos (ambas direcciones) y quienes lo referencian. */
 export type FocoMicelio = {
@@ -174,10 +241,22 @@ function rectVisible(cam: Camara) {
   };
 }
 
+/** Segmentos de una hifa en reposo y mientras los nodos se mueven. */
+const PASOS_HIFA = 8;
+const PASOS_HIFA_RAPIDA = 4;
+// Arrays de trabajo de `hifa()`, reutilizados: antes se reservaban cuatro por
+// hifa y por repintado (13.000 arrays para las 3.275 hifas de la Tesina).
+const hx = new Float64Array(PASOS_HIFA + 1);
+const hy = new Float64Array(PASOS_HIFA + 1);
+const hnx = new Float64Array(PASOS_HIFA + 1);
+const hny = new Float64Array(PASOS_HIFA + 1);
+
 /**
  * Hifa ahusada: un polígono relleno a lo largo de una bézier cuadrática, con
  * ancho que va de `w0` a `w1` y un leve ondular para que no parezca una línea.
  * `frac` en `[0, 1]` dibuja solo el tramo inicial (la hifa creciendo).
+ * `rapida` (los nodos se mueven): 4 segmentos y sin ondular; la curva y el
+ * ahusamiento se conservan.
  */
 export function hifa(
   c: CanvasRenderingContext2D,
@@ -191,14 +270,15 @@ export function hifa(
   w1: number,
   semilla: number,
   frac: number,
+  rapida = false,
 ) {
-  const pasos = 8;
+  const pasos = rapida ? PASOS_HIFA_RAPIDA : PASOS_HIFA;
   const L = Math.hypot(x1 - x0, y1 - y0);
-  const amp = Math.min(L * 0.045, 6);
-  const px = new Float64Array(pasos + 1);
-  const py = new Float64Array(pasos + 1);
-  const nx = new Float64Array(pasos + 1);
-  const ny = new Float64Array(pasos + 1);
+  const amp = rapida ? 0 : Math.min(L * 0.045, 6);
+  const px = hx;
+  const py = hy;
+  const nx = hnx;
+  const ny = hny;
   for (let i = 0; i <= pasos; i++) {
     const t = (i / pasos) * frac;
     const u = 1 - t;
@@ -264,9 +344,9 @@ export function dibujarCapaEstatica(
     !(Math.max(ax, bx) < v.l || Math.min(ax, bx) > v.r || Math.max(ay, by) < v.t || Math.min(ay, by) > v.b);
   let animando = false;
 
-  if (e.disposicion === "sustrato") {
+  if (e.disposicion === "sustrato" && !e.rapido) {
     // Un halo difuso por nodo, más grande en los hubs: le da cuerpo a las zonas
-    // densas de la colonia.
+    // densas de la colonia. En movimiento no se pinta (vuelve al detenerse).
     const sp = spriteBrillo(p.halo, 6, 26);
     for (let u = 0; u < g.n; u++) {
       if (!revelado(u)) continue;
@@ -333,7 +413,7 @@ export function dibujarCapaEstatica(
       const curva = ((((sI * 7919) % 13) - 6) / 6) * 0.13;
       const f = fraccionDe(e, nuevo, ahora);
       if (f < 1) animando = true;
-      hifa(c, x0, y0, mx - dy * curva, my + dx * curva, x1, y1, w0, 0.35, sI * 0.37, f);
+      hifa(c, x0, y0, mx - dy * curva, my + dx * curva, x1, y1, w0, 0.35, sI * 0.37, f, e.rapido);
     }
   }
 
@@ -347,13 +427,16 @@ export function dibujarCapaEstatica(
     if (fraccionDe(e, u, ahora) < 1) continue;
     const r = e.radio[u];
     const propio = e.colores?.get(g.ids[u]);
-    if (g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO) {
+    if (g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO && !e.rapido) {
       const rp = Math.max(1, Math.round(r * pix * 2) / 2);
       const sp = spriteBrillo(propio ?? p.cuerpo, rp, 14);
       const lado = sp.width / pix;
       c.drawImage(sp, x - lado / 2, y - lado / 2, lado, lado);
     } else {
-      c.fillStyle = propio ?? p.espora;
+      // Espora; o, en movimiento, el cuerpo fructífero como disco plano del
+      // mismo color y radio, sin el sprite con brillo.
+      const cuerpo = g.conexiones[u] >= UMBRAL_CUERPO_FRUCTIFERO;
+      c.fillStyle = propio ?? (cuerpo ? p.cuerpo : p.espora);
       c.beginPath();
       // Alejado, una espora de 2 unidades desaparecería: al menos un píxel.
       c.arc(x, y, Math.max(r, 0.9 / s), 0, TAU);
@@ -366,16 +449,21 @@ export function dibujarCapaEstatica(
 // ── Sobrecapa: foco y nombres ────────────────────────────────────────────────
 
 /**
- * Copia la capa estática al canvas visible y pinta encima el foco y los nombres.
- * Los nombres van en **pantalla** (tamaño fijo, no escalan con el zoom) y no se
- * pisan: una etiqueta que solaparía a otra ya puesta no se dibuja, salvo la del
- * foco y las de sus vecinos.
+ * Pinta la sobrecapa en `ctx` (su canvas offscreen, transparente, del tamaño de
+ * la capa estática): el foco y los nombres. `cam` es la vista del lienzo
+ * visible (`ancho`/`alto` sin el margen) y `mx`/`my`, el margen de la capa por
+ * lado: todo se corre ese margen, así las dos capas se copian igual.
+ * Los nombres van en **pantalla** (tamaño fijo, no escalan con el zoom), solo
+ * los que caen en el lienzo visible —como antes de tener margen—, y no se pisan:
+ * una etiqueta que solaparía a otra ya puesta no se dibuja, salvo la del foco y
+ * las de sus vecinos.
  */
 export function dibujarSobrecapa(
   ctx: CanvasRenderingContext2D,
-  estatico: HTMLCanvasElement,
   e: EscenaMicelio,
   cam: Camara,
+  mx: number,
+  my: number,
   p: PaletaMicelio,
   foco: FocoMicelio,
   modoNombres: ModoNombresGrafo,
@@ -387,7 +475,7 @@ export function dibujarSobrecapa(
   const H = cam.alto;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.drawImage(estatico, 0, 0);
+  const camCapa: Camara = { ...cam, ancho: W + 2 * mx, alto: H + 2 * my };
   const revelado = (u: number) => g.rango[u] < e.limiteRango;
   const aPantalla = (u: number): [number, number] => [
     W / 2 + cam.ox + pos[u * 2] * s,
@@ -397,13 +485,14 @@ export function dibujarSobrecapa(
   const hayFoco = foco.nodo >= 0 && revelado(foco.nodo);
   if (hayFoco) {
     const f = foco.nodo;
-    aplicarCamara(ctx, cam);
-    // Sus hifas, en el color de acento (son pocas: el blur acá sí se paga).
+    aplicarCamara(ctx, camCapa);
+    // Sus hifas, en el color de acento (son pocas: el blur acá sí se paga; en
+    // movimiento no, Parte D).
     ctx.strokeStyle = p.acento;
     ctx.lineWidth = 1.6 / s;
     ctx.lineCap = "round";
     ctx.shadowColor = p.acento;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = e.rapido ? 0 : 8;
     const x0 = pos[f * 2];
     const y0 = pos[f * 2 + 1];
     for (const v of foco.vecinos) {
@@ -431,8 +520,8 @@ export function dibujarSobrecapa(
     }
   }
 
-  // Etiquetas en espacio de pantalla.
-  ctx.setTransform(cam.dpr, 0, 0, cam.dpr, 0, 0);
+  // Etiquetas en espacio de pantalla (corridas el margen de la capa).
+  ctx.setTransform(cam.dpr, 0, 0, cam.dpr, mx * cam.dpr, my * cam.dpr);
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   const ocupados: [number, number, number, number][] = [];

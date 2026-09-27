@@ -21,7 +21,9 @@ import {
   type EscenaMicelio,
   type FocoMicelio,
   type PaletaMicelio,
+  type Vista,
   conAlpha,
+  copiarCapa,
   dibujarCapaEstatica,
   dibujarSobrecapa,
 } from "./hifas";
@@ -76,6 +78,18 @@ const FLUJO_MAX_ARISTAS = 1500;
 const PRESUPUESTO_DIBUJO_MS = 12;
 /** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
 const HUBS_CON_NOMBRE = 24;
+
+/**
+ * Margen por lado de las capas offscreen, como fracción del lienzo (Parte D).
+ * Mientras dura un paneo o un zoom con rueda el lienzo solo copia las capas
+ * desplazadas o escaladas; el margen es lo que se ve en los bordes en vez de un
+ * hueco vacío, hasta el repintado del final del gesto.
+ */
+const MARGEN_CAPA = 0.25;
+/** Tras el último evento de rueda, cuánto se espera para repintar a fidelidad completa. */
+const RUEDA_REPOSO_MS = 150;
+/** Sustrato en movimiento: la capa se repinta como mucho a ~30 fps. */
+const INTERVALO_SUSTRATO_MS = 33;
 
 function nodeSprite(
   fill: string,
@@ -477,6 +491,28 @@ export function MiniGraph({
     const ensuciar = () => {
       sucioEstatico = true;
     };
+    // ── La cámara nunca repinta a mitad de gesto (`FUN-L-25` · Parte D). Las
+    //    capas llevan un margen por lado (`margenX`/`margenY`, en px CSS) y recuerdan
+    //    la vista con que se pintaron; mientras se panea o se gira la rueda, el
+    //    lienzo las copia llevadas a la vista de ahora (`copiarCapa`) y el
+    //    repintado completo llega al terminar el gesto: al soltar el paneo, o
+    //    `RUEDA_REPOSO_MS` después del último evento de rueda. Antes cada evento
+    //    de paneo o de rueda repintaba el grafo entero. ──
+    let margenX = 0;
+    let margenY = 0;
+    /** Vista con que se pintó lo último (las capas, o el lienzo en movimiento). */
+    let vistaPintada: Vista = { scale, ox, oy };
+    let ruedaActiva = false;
+    let temporizadorRueda: ReturnType<typeof setTimeout> | undefined;
+    const enGesto = () => panning || ruedaActiva;
+    const camaraMovida = () =>
+      scale !== vistaPintada.scale || ox !== vistaPintada.ox || oy !== vistaPintada.oy;
+    /** Lo pintado pasa a ser lo de la vista de ahora. */
+    const marcarVistaPintada = () => {
+      vistaPintada = { scale, ox, oy };
+    };
+    /** Posiciones que el ratón movió a mano (arrastre): van con el próximo lote. */
+    let movidoAMano = false;
     // Sin vista cacheada, la disposición micelio se encuadra en cuanto el lienzo
     // tenga tamaño (la primera vez que se elige; después recuerda su vista).
     let encuadrePendiente = micelio && !v0;
@@ -540,16 +576,24 @@ export function MiniGraph({
       // (Ya no le da energía a la simulación: el tamaño del lienzo no cambia
       // el layout, solo la vista. Con la caché, eso volvía a mover el grafo
       // entero cada vez que se abría la pestaña, porque montar dispara resize.)
+      // El margen de las capas es un número entero de píxeles reales: así, sin
+      // gesto, copiarlas es píxel a píxel (lo quieto se ve idéntico).
+      const mxDev = Math.round(parent.clientWidth * MARGEN_CAPA * dpr);
+      const myDev = Math.round(parent.clientHeight * MARGEN_CAPA * dpr);
+      margenX = mxDev / dpr;
+      margenY = myDev / dpr;
+      const anchoCapa = canvas.width + 2 * mxDev;
+      const altoCapa = canvas.height + 2 * myDev;
       if (micelio) {
-        estatico.width = canvas.width;
-        estatico.height = canvas.height;
+        estatico.width = sobre.width = anchoCapa;
+        estatico.height = sobre.height = altoCapa;
         if (encuadrePendiente && parent.clientWidth > 0 && parent.clientHeight > 0) {
           recentrar();
           encuadrePendiente = false;
         }
       } else {
-        capaAristas.width = capaNodos.width = canvas.width;
-        capaAristas.height = capaNodos.height = canvas.height;
+        capaAristas.width = capaNodos.width = anchoCapa;
+        capaAristas.height = capaNodos.height = altoCapa;
       }
       ensuciar();
       wake();
@@ -607,12 +651,15 @@ export function MiniGraph({
         dragNode.x = p.x;
         dragNode.y = p.y;
         motor?.fijar(dragNode.i, p.x, p.y);
-        ensuciar(); // con el worker, las posiciones siguientes pueden no llegar en este frame
+        // Con el worker, las posiciones siguientes pueden no llegar en este
+        // frame: el nodo arrastrado va con el próximo lote que se pinte (con
+        // el mismo presupuesto que las posiciones del motor).
+        movidoAMano = true;
         wake();
       } else if (panning) {
+        // Sin repintar: el frame copia las capas desplazadas (Parte D).
         ox += ev.movementX;
         oy += ev.movementY;
-        ensuciar();
         wake();
       } else {
         const n = pick(ev);
@@ -622,7 +669,8 @@ export function MiniGraph({
           canvas.style.cursor = n ? "pointer" : "grab";
           // Un redibujo para el resaltado de hover. En el cúmulo el resaltado
           // vive en la capa estática; en micelio va en la sobrecapa.
-          if (!micelio) ensuciar();
+          if (micelio) sucioSobre = true;
+          else ensuciar();
           wake();
         }
       }
@@ -638,7 +686,12 @@ export function MiniGraph({
       }
       dragNode = null;
       clickNode = null;
-      panning = false;
+      if (panning) {
+        // Fin del paneo: el próximo frame ve la cámara movida fuera de un
+        // gesto y repinta a fidelidad completa.
+        panning = false;
+        wake();
+      }
       downAt = null;
     };
     const onWheel = (ev: WheelEvent) => {
@@ -652,8 +705,15 @@ export function MiniGraph({
       // DEF-038: mínimo bajo (0.05) para poder alejar y ver completo un grafo con
       // muchos nodos; el 0.3 anterior no dejaba abarcarlo entero.
       scale = Math.min(Math.max(scale * factor, 0.05), 4);
-      ensuciar();
-      wake(); // un redibujo para reflejar el zoom
+      // Durante el gesto el frame copia las capas escaladas alrededor del
+      // puntero (Parte D); el repintado completo, cuando la rueda se detiene.
+      ruedaActiva = true;
+      clearTimeout(temporizadorRueda);
+      temporizadorRueda = setTimeout(() => {
+        ruedaActiva = false;
+        wake();
+      }, RUEDA_REPOSO_MS);
+      wake();
     };
 
     canvas.addEventListener("mousedown", onMouseDown);
@@ -751,6 +811,19 @@ export function MiniGraph({
     let visT = 0;
     let visB = 0;
     const dentro = (x: number, y: number) => x >= visL && x <= visR && y >= visT && y <= visB;
+    // El del lienzo visible, sin el margen de las capas (Parte D): los nombres y
+    // el flujo solo se pintan acá, como antes de que las capas tuvieran margen.
+    let vpL = 0;
+    let vpR = 0;
+    let vpT = 0;
+    let vpB = 0;
+    const dentroVista = (x: number, y: number) => x >= vpL && x <= vpR && y >= vpT && y <= vpB;
+    /** 1 = la arista visible cae en el lienzo (no solo en el margen de la capa). */
+    let enVistaAristas = new Uint8Array(0);
+    /** ¿Lo último del reposo se pintó en una sola capa (sin flujo posible)? */
+    let capaUnica = true;
+    /** Vista que muestra el lienzo compuesto con las capas (si `lienzoAlDia`). */
+    let lienzoVista: Vista = { scale, ox, oy };
 
     /** Transformación de la vista (mundo → píxeles) sobre un contexto. */
     const aplicarVista = (c: CanvasRenderingContext2D, w: number, h: number) => {
@@ -769,35 +842,66 @@ export function MiniGraph({
     //    lo que cae fuera no se dibuja (nodos, aristas y etiquetas). El test es
     //    aritmética simple frente al costo de rasterizar, y no cambia nada de lo
     //    que se ve: con zoom alto evita pagar por lo que está fuera de pantalla. ──
-    const calcularVisible = () => {
+    //    `conMargen`: lo que se pinta a las capas incluye su margen (Parte D).
+    const calcularVisible = (conMargen: boolean) => {
       const cw = canvas.width / dpr;
       const ch = canvas.height / dpr;
       const margen = 40 / scale; // glow + etiqueta del nodo
-      visL = (-cw / 2 - ox) / scale - margen;
-      visR = (cw / 2 - ox) / scale + margen;
-      visT = (-ch / 2 - oy) / scale - margen;
-      visB = (ch / 2 - oy) / scale + margen;
+      vpL = (-cw / 2 - ox) / scale - margen;
+      vpR = (cw / 2 - ox) / scale + margen;
+      vpT = (-ch / 2 - oy) / scale - margen;
+      vpB = (ch / 2 - oy) / scale + margen;
+      const extraX = conMargen ? margenX / scale : 0;
+      const extraY = conMargen ? margenY / scale : 0;
+      visL = vpL - extraX;
+      visR = vpR + extraX;
+      visT = vpT - extraY;
+      visB = vpB + extraY;
     };
     const fueraDeVista = (e: SimEdge) =>
       Math.max(e.s.x, e.t.x) < visL ||
       Math.min(e.s.x, e.t.x) > visR ||
       Math.max(e.s.y, e.t.y) < visT ||
       Math.min(e.s.y, e.t.y) > visB;
+    const fueraDelLienzo = (e: SimEdge) =>
+      Math.max(e.s.x, e.t.x) < vpL ||
+      Math.min(e.s.x, e.t.x) > vpR ||
+      Math.max(e.s.y, e.t.y) < vpT ||
+      Math.min(e.s.y, e.t.y) > vpB;
 
-    /** Cuántas aristas caen en la vista (solo el culling, sin dibujar). */
+    /** Cuántas aristas caen en el lienzo visible (solo el culling, sin dibujar). */
     const aristasALaVista = () => {
-      calcularVisible();
+      calcularVisible(false);
       let n = 0;
       for (const e of simEdges) {
-        if (!revealed(e.s) || !revealed(e.t) || fueraDeVista(e)) continue;
+        if (!revealed(e.s) || !revealed(e.t) || fueraDelLienzo(e)) continue;
         if (++n > FLUJO_MAX_ARISTAS) break;
       }
       return n;
     };
 
-    /** Pasada 1: aristas base. Además guarda la geometría de las visibles. */
-    const pintarAristas = (c: CanvasRenderingContext2D) => {
-      calcularVisible();
+    // Punto de control de la curva de una arista (CA4): el mismo en reposo y en
+    // movimiento, así el grafo no cambia de forma al detenerse (Parte D).
+    let ctrlX = 0;
+    let ctrlY = 0;
+    const controlDe = (e: SimEdge) => {
+      const mx = (e.s.x + e.t.x) / 2;
+      const my = (e.s.y + e.t.y) / 2;
+      const nx = -(e.t.y - e.s.y);
+      const ny = e.t.x - e.s.x;
+      const len = Math.max(Math.hypot(nx, ny), 1);
+      const bend = 0.12;
+      ctrlX = mx + (nx / len) * len * bend;
+      ctrlY = my + (ny / len) * len * bend;
+    };
+
+    /**
+     * Pasada 1: aristas base. Además guarda la geometría de las visibles.
+     * `flujo`: si lleva flujo animado encima; sin indicar, lo decide como
+     * siempre (la opción, el zoom y cuántas aristas quedan a la vista).
+     */
+    const pintarAristas = (c: CanvasRenderingContext2D, conMargen: boolean, flujo?: boolean) => {
+      calcularVisible(conMargen);
 
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
       // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
@@ -807,6 +911,7 @@ export function MiniGraph({
       if (geoAristas.length < simEdges.length * 6) {
         geoAristas = new Float64Array(simEdges.length * 6);
         litAristas = new Uint8Array(simEdges.length);
+        enVistaAristas = new Uint8Array(simEdges.length);
       }
       nVisibles = 0;
       for (const e of simEdges) {
@@ -814,14 +919,9 @@ export function MiniGraph({
         // Culling: descartar la arista si su caja envolvente no toca la vista.
         if (fueraDeVista(e)) continue;
         const lit = hover && (e.s === hover || e.t === hover);
-        const mx = (e.s.x + e.t.x) / 2;
-        const my = (e.s.y + e.t.y) / 2;
-        const nx = -(e.t.y - e.s.y);
-        const ny = e.t.x - e.s.x;
-        const len = Math.max(Math.hypot(nx, ny), 1);
-        const bend = 0.12;
-        const cx = mx + (nx / len) * len * bend;
-        const cy = my + (ny / len) * len * bend;
+        controlDe(e);
+        const cx = ctrlX;
+        const cy = ctrlY;
 
         // Línea base. Al apuntar un nodo, sus enlaces brillan con intensidad
         // `glow` (ancho + halo); con glow=0 apenas se resaltan.
@@ -847,6 +947,7 @@ export function MiniGraph({
         geoAristas[o + 4] = e.t.x;
         geoAristas[o + 5] = e.t.y;
         litAristas[nVisibles] = lit ? 1 : 0;
+        enVistaAristas[nVisibles] = fueraDelLienzo(e) ? 0 : 1;
         nVisibles++;
       }
       // Flujo acotado (`FUN-L-25` · B2): alejado o con demasiadas aristas a la
@@ -854,7 +955,8 @@ export function MiniGraph({
       // opción no cambia de valor: el flujo vuelve en cuanto el zoom o el
       // recorte lo permiten.
       conFlujo =
-        showFlow && nVisibles > 0 && scale >= FLUJO_ZOOM_MIN && nVisibles <= FLUJO_MAX_ARISTAS;
+        flujo ??
+        (showFlow && nVisibles > 0 && scale >= FLUJO_ZOOM_MIN && nVisibles <= FLUJO_MAX_ARISTAS);
     };
 
     /** Pasada 2: el flujo animado a lo largo de cada arista visible (origen → destino). */
@@ -863,6 +965,7 @@ export function MiniGraph({
       c.setLineDash([2 / scale, 9 / scale]);
       c.lineDashOffset = -((performance.now() / 1000) * 30) / scale;
       for (let i = 0; i < nVisibles; i++) {
+        if (enVistaAristas[i] === 0) continue; // en el margen de la capa: no se ve
         const lit = litAristas[i] === 1;
         c.strokeStyle = lit ? colCenter : colEdgeLit;
         c.globalAlpha = lit ? 0.95 : 0.5;
@@ -1013,7 +1116,7 @@ export function MiniGraph({
           } else if (n !== hover && n.id !== centerId) {
             continue;
           }
-          if (!dentro(n.x, n.y)) continue; // culling
+          if (!dentroVista(n.x, n.y)) continue; // culling
           escribir(n);
         }
         return;
@@ -1021,7 +1124,7 @@ export function MiniGraph({
       if (soloDestacados) {
         for (const n of sim) {
           if (n !== hover && n.id !== centerId && !hubsCumulo.has(n)) continue;
-          if (!revealed(n) || !dentro(n.x, n.y)) continue;
+          if (!revealed(n) || !dentroVista(n.x, n.y)) continue;
           escribir(n);
         }
         return;
@@ -1031,7 +1134,7 @@ export function MiniGraph({
       const W2 = canvas.width / dpr / 2 + ox;
       const H2 = canvas.height / dpr / 2 + oy;
       const intentar = (n: SimNode, forzar: boolean) => {
-        if (!revealed(n) || !dentro(n.x, n.y)) return;
+        if (!revealed(n) || !dentroVista(n.x, n.y)) return;
         let w = anchoNombre[n.i];
         if (w < 0) {
           // `measureText` mide con la fuente de `c` (12/scale en unidades de
@@ -1052,22 +1155,24 @@ export function MiniGraph({
     };
 
     /**
-     * Fidelidad reducida, mientras el grafo se mueve (Parte C): aristas rectas
-     * (sin la curva), sin flujo ni flecha; nodos como discos planos (sin el
-     * sprite con glow), agrupados por color para no cambiar el relleno a cada
-     * nodo; solo los nombres destacados. Al asentarse se pinta una vez a
-     * fidelidad completa.
+     * Fidelidad de movimiento, mientras el grafo se mueve (Parte C, corregida
+     * en la Parte D): las aristas conservan su curva —la misma que en reposo—,
+     * sin flujo ni flecha ni brillo; nodos como discos planos del mismo color y
+     * radio (sin el sprite con glow), agrupados por color para no cambiar el
+     * relleno a cada nodo; solo los nombres destacados. Al asentarse se pinta
+     * una vez a fidelidad completa. (La Parte C las trazaba rectas: el usuario
+     * lo rechazó, las curvas son el estilo de Mycelium.)
      *
      * Un `stroke()` y un `fill()` por elemento, SIN agrupar en paths: medido
      * con la Tesina asentada (1.600 × 900 a dpr 1,5, rasterizado forzado),
-     * agrupar las rectas empeora el rasterizado de forma monótona —35 ms uno
+     * agrupar los trazos empeora el rasterizado de forma monótona —35 ms uno
      * por arista, 45 en lotes de 16, 58 de 64, 75 de 256 a zoom 0,35; 128 →
      * 195 a zoom 1— y lo que ahorra en JS es un milisegundo (1,5 → 0,3).
      * Es lo mismo que `DEF-109` midió con un único path (68 contra 20 ms).
      */
     const discosPorColor = new Map<string, SimNode[]>();
     const pintarRapido = (c: CanvasRenderingContext2D) => {
-      calcularVisible();
+      calcularVisible(false);
       conFlujo = false;
       nVisibles = 0;
       c.strokeStyle = colEdge;
@@ -1080,20 +1185,23 @@ export function MiniGraph({
           hayLit = true;
           continue; // se dibujan después, resaltadas
         }
+        controlDe(e);
         c.beginPath();
         c.moveTo(e.s.x, e.s.y);
-        c.lineTo(e.t.x, e.t.y);
+        c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
         c.stroke();
       }
       if (hayLit && hover) {
+        // Resaltadas por color y ancho, sin el halo (`shadowBlur`) del reposo.
         c.strokeStyle = colEdgeLit;
         c.lineWidth = (1.2 + 0.9 * hoverGlowRef.current) / scale;
         for (const e of simEdges) {
           if (e.s !== hover && e.t !== hover) continue;
           if (!revealed(e.s) || !revealed(e.t)) continue;
+          controlDe(e);
           c.beginPath();
           c.moveTo(e.s.x, e.s.y);
-          c.lineTo(e.t.x, e.t.y);
+          c.quadraticCurveTo(ctrlX, ctrlY, e.t.x, e.t.y);
           c.stroke();
         }
       }
@@ -1124,12 +1232,31 @@ export function MiniGraph({
       pintarNombres(c, true);
     };
 
+    /** Copia las capas del reposo al lienzo, llevadas a la vista de ahora. */
+    const componerCapas = (flujo: boolean) => {
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
+      const ahora: Vista = { scale, ox, oy };
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!capaUnica) copiarCapa(ctx, capaAristas, vistaPintada, ahora, W, H, margenX, margenY, dpr);
+      if (flujo) {
+        aplicarVista(ctx, canvas.width, canvas.height);
+        pintarFlujo(ctx);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+      copiarCapa(ctx, capaNodos, vistaPintada, ahora, W, H, margenX, margenY, dpr);
+      lienzoVista = ahora;
+      lienzoAlDia = !flujo;
+    };
+
     /**
      * Un frame del cúmulo. `modo`:
-     * - `"rapido"`: el grafo se mueve (Parte C): fidelidad reducida, directo.
+     * - `"rapido"`: el grafo se mueve (Parte C): fidelidad de movimiento, directo.
      * - `"directo"`: simulación activa sin fidelidad reducida (grafos chicos,
      *   simulación continua ya casi quieta): directo, completo, sin capas.
-     * - `"reposo"`: nada se mueve: las capas, a fidelidad completa.
+     * - `"reposo"`: nada se mueve: las capas, a fidelidad completa. Durante un
+     *   paneo o un zoom con rueda solo se copian (Parte D).
      */
     const draw = (modo: "rapido" | "directo" | "reposo") => {
       const w = canvas.width;
@@ -1137,69 +1264,74 @@ export function MiniGraph({
       // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
       // capa de 0 px lanza una excepción.
       if (w === 0 || h === 0) return;
-      if (modo === "rapido") {
-        if (!sucioEstatico) return;
+      if (modo !== "reposo") {
+        // En movimiento se pinta directo con la vista de ahora: la cámara
+        // entra con el próximo lote de posiciones.
+        if (camaraMovida()) ensuciar();
+        // Nada cambió y nada se anima (p. ej. el lote siguiente del worker
+        // todavía no llegó): el lienzo ya muestra lo último.
+        if (!sucioEstatico && (modo === "rapido" || !conFlujo)) return;
         prepararLienzo(ctx, w, h);
-        pintarRapido(ctx);
+        if (modo === "rapido") {
+          pintarRapido(ctx);
+        } else {
+          pintarAristas(ctx, false);
+          if (conFlujo) pintarFlujo(ctx);
+          pintarNodos(ctx);
+        }
+        marcarVistaPintada();
         sucioEstatico = false;
         capasVigentes = false;
         lienzoAlDia = false;
         return;
       }
-      if (modo === "directo" || !actx || !nctx) {
-        // Nada cambió y nada se anima (p. ej. el paso del worker todavía no
-        // volvió): el lienzo ya muestra lo último.
-        if (!sucioEstatico && !conFlujo) return;
-        prepararLienzo(ctx, w, h);
-        pintarAristas(ctx);
-        if (conFlujo) pintarFlujo(ctx);
-        pintarNodos(ctx);
-        sucioEstatico = false;
-        capasVigentes = false;
-        lienzoAlDia = false;
-        return;
-      }
-      // Reposo. Las capas solo sirven para animar el flujo encima sin repintar
-      // lo quieto; si el flujo no se puede ver (opción, movimiento reducido o
-      // zoom), se pinta directo al lienzo: una sola rasterización en vez de
-      // pintar dos capas y copiarlas (Parte C: es el frame en que el grafo se
-      // asienta y pasa a fidelidad completa, y el de cada paso de un paneo).
-      const dir = edgeDirectionRef.current;
-      const flujoPosible =
-        !reducido &&
-        (dir === "animated" || dir === "both") &&
-        scale >= FLUJO_ZOOM_MIN &&
-        aristasALaVista() <= FLUJO_MAX_ARISTAS;
-      if (!flujoPosible) {
-        if (!sucioEstatico && lienzoAlDia) return;
-        prepararLienzo(ctx, w, h);
-        pintarAristas(ctx);
-        pintarNodos(ctx);
-        sucioEstatico = false;
-        capasVigentes = false;
-        lienzoAlDia = true;
-        return;
-      }
+      if (!actx || !nctx) return;
+      // Reposo. Fuera de un gesto, la cámara movida (fin de un paneo o de la
+      // rueda) es un repintado completo; dentro, las capas se copian llevadas
+      // a la vista de ahora, sin el flujo, y nada se repinta (Parte D).
+      const gesto = enGesto();
+      if (!gesto && camaraMovida()) ensuciar();
       if (sucioEstatico || !capasVigentes) {
-        prepararLienzo(actx, w, h);
-        pintarAristas(actx);
-        prepararLienzo(nctx, w, h);
-        pintarNodos(nctx);
+        // Las capas solo se separan si el flujo animado va entre aristas y
+        // nodos; si no se puede ver (opción, movimiento reducido, zoom o más de
+        // `FLUJO_MAX_ARISTAS` a la vista), todo va a una sola capa.
+        const dir = edgeDirectionRef.current;
+        const flujoPosible =
+          !reducido &&
+          (dir === "animated" || dir === "both") &&
+          scale >= FLUJO_ZOOM_MIN &&
+          aristasALaVista() <= FLUJO_MAX_ARISTAS;
+        const cw = capaNodos.width;
+        const ch = capaNodos.height;
+        if (flujoPosible) {
+          prepararLienzo(actx, cw, ch);
+          pintarAristas(actx, true, true);
+          prepararLienzo(nctx, cw, ch);
+          pintarNodos(nctx);
+          capaUnica = false;
+        } else {
+          prepararLienzo(nctx, cw, ch);
+          pintarAristas(nctx, true, false);
+          pintarNodos(nctx);
+          capaUnica = true;
+        }
+        marcarVistaPintada();
         sucioEstatico = false;
         capasVigentes = true;
-      } else if (!conFlujo && lienzoAlDia) {
-        return; // el lienzo ya muestra las capas y nada se anima
+        lienzoAlDia = false;
       }
-      lienzoAlDia = !conFlujo;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      ctx.drawImage(capaAristas, 0, 0);
-      if (conFlujo) {
-        aplicarVista(ctx, w, h);
-        pintarFlujo(ctx);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      // El flujo solo se anima con el lienzo en la vista de las capas.
+      const flujo = conFlujo && !gesto && !camaraMovida();
+      if (
+        !flujo &&
+        lienzoAlDia &&
+        lienzoVista.scale === scale &&
+        lienzoVista.ox === ox &&
+        lienzoVista.oy === oy
+      ) {
+        return; // el lienzo ya muestra las capas en esta vista y nada se anima
       }
-      ctx.drawImage(capaNodos, 0, 0);
+      componerCapas(flujo);
     };
 
     // Construcción temporal con física (cúmulo y sustrato): colocar los nodos
@@ -1232,6 +1364,24 @@ export function MiniGraph({
     //    cúmulo, que sigue con `draw` y `tick` de siempre. ──
     const estatico = document.createElement("canvas");
     const sctx = estatico.getContext("2d");
+    const sobre = document.createElement("canvas");
+    const octx = sobre.getContext("2d");
+    /** La sobrecapa (foco y nombres) ya no muestra lo último. */
+    let sucioSobre = true;
+    /** Sustrato: lo último de la capa estática se pintó con fidelidad de movimiento. */
+    let capaRapida = false;
+    /** Sustrato: llegaron posiciones que la capa todavía no muestra. */
+    let posNuevas = false;
+    /** Sustrato en movimiento: cuándo se repintó la capa por última vez. */
+    let ultimoRepintado = -Infinity;
+    /**
+     * Fidelidad de movimiento mientras el grafo se mueve (Partes C y D): solo
+     * en grafos grandes. En el mini-grafo del panel el asentamiento dura unos
+     * pocos frames y alternar discos y sprites se vería como un parpadeo.
+     */
+    const reducible = N >= MIN_NODOS_WORKER;
+    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
+    let saltarDibujo = false;
     // El fondo de las etiquetas es el del lienzo (oscuro en cualquier tema),
     // semitransparente, para que el nombre se lea sobre un tapiz de hifas.
     const fondo = getComputedStyle(canvas.parentElement ?? canvas).backgroundColor;
@@ -1263,6 +1413,7 @@ export function MiniGraph({
             aparicion: disposicion === "crecimiento" ? new Float64Array(g.n) : null,
             reducido,
             colores: nodeColorsRef.current,
+            rapido: false,
           }
         : null;
     const hubs = g ? hubsDe(g) : [];
@@ -1308,23 +1459,56 @@ export function MiniGraph({
       return { nodo: g.indice.get(hover.id) ?? -1, vecinos: vecinosIdx, refs: refsIdx };
     };
 
-    const dibujarMicelio = (ahora: number) => {
-      if (!escena || !sctx) return;
-      const cam: Camara = {
-        scale,
-        ox,
-        oy,
-        ancho: canvas.width / dpr,
-        alto: canvas.height / dpr,
-        dpr,
-      };
+    const dibujarMicelio = (ahora: number, rapido: boolean) => {
+      if (!escena || !sctx || !octx) return;
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
+      // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
+      // capa de 0 px lanza una excepción.
+      if (canvas.width === 0 || canvas.height === 0) return;
       escena.limiteRango = revealCountRef.current ?? Infinity;
       escena.colores = nodeColorsRef.current;
       escena.reducido = reducido;
       // La capa estática solo se repinta si algo la ensució; queda sucia
-      // mientras alguna hifa siga creciendo.
-      if (sucioEstatico) sucioEstatico = dibujarCapaEstatica(sctx, escena, cam, paleta, ahora);
-      dibujarSobrecapa(ctx, estatico, escena, cam, paleta, focoActual(), modoNombresRef.current, hubs);
+      // mientras alguna hifa siga creciendo. Se pinta con su margen y con la
+      // vista de ahora, que pasa a ser la de las dos capas.
+      if (sucioEstatico) {
+        if (fisica) sincronizarPos();
+        escena.rapido = rapido;
+        marcarVistaPintada();
+        const camCapa: Camara = { scale, ox, oy, ancho: W + 2 * margenX, alto: H + 2 * margenY, dpr };
+        sucioEstatico = dibujarCapaEstatica(sctx, escena, camCapa, paleta, ahora);
+        capaRapida = rapido;
+        sucioSobre = true;
+      }
+      // La sobrecapa (foco y nombres) va con la misma vista que la estática, así
+      // las dos se copian juntas aunque el cursor cambie el foco en un gesto.
+      if (sucioSobre) {
+        const camSobre: Camara = { ...vistaPintada, ancho: W, alto: H, dpr };
+        dibujarSobrecapa(
+          octx,
+          escena,
+          camSobre,
+          margenX,
+          margenY,
+          paleta,
+          focoActual(),
+          modoNombresRef.current,
+          hubs,
+        );
+        sucioSobre = false;
+        lienzoAlDia = false;
+      }
+      if (lienzoAlDia && lienzoVista.scale === scale && lienzoVista.ox === ox && lienzoVista.oy === oy) {
+        return; // el lienzo ya muestra las dos capas en esta vista
+      }
+      const vistaAhora: Vista = { scale, ox, oy };
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      copiarCapa(ctx, estatico, vistaPintada, vistaAhora, W, H, margenX, margenY, dpr);
+      copiarCapa(ctx, sobre, vistaPintada, vistaAhora, W, H, margenX, margenY, dpr);
+      lienzoVista = vistaAhora;
+      lienzoAlDia = true;
     };
 
     const tickMicelio = () => {
@@ -1348,32 +1532,57 @@ export function MiniGraph({
       }
       prevRc = rc ?? null;
       let activo = false;
+      let rapido = false;
       if (fisica) {
         // Sustrato: el mismo reposo con período de gracia que el cúmulo.
         const interacting = !!dragNode || panning;
-        const moviendo = interacting || !!motor?.corriendo;
-        if (moviendo) lastEnergetic = ahora;
+        const moviendo = !!dragNode || !!motor?.corriendo;
+        if (interacting || moviendo) lastEnergetic = ahora;
         activo = moviendo || ahora - lastEnergetic <= IDLE_GRACE_MS;
-        if (simulate()) {
-          sincronizarPos();
-          ensuciar();
+        if (simulate() || movidoAMano) posNuevas = true;
+        movidoAMano = false;
+        // En movimiento, fidelidad de movimiento (Parte D); la simulación
+        // continua, ya casi quieta, vuelve a la completa (si no, no se vería).
+        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
+        rapido = moviendo && reducible && !casiQuieto;
+        if (posNuevas) {
+          if (!rapido) {
+            ensuciar();
+          } else if (ahora - ultimoRepintado >= INTERVALO_SUSTRATO_MS) {
+            // Repintado acotado (Parte D): como mucho ~30 fps, y si el último
+            // pasó el presupuesto este lote se salta (la física no se entera:
+            // sigue en el worker). Entre repintados el hilo principal no dibuja.
+            if (saltarDibujo) {
+              saltarDibujo = false;
+              ultimoRepintado = ahora;
+            } else {
+              ensuciar();
+            }
+          }
+        }
+        // Lo último se pintó en movimiento y ya no se mueve: fidelidad completa.
+        if (capaRapida && !rapido) ensuciar();
+      }
+      // Fuera de un gesto, la cámara movida (fin de un paneo o de la rueda) es
+      // un repintado completo; dentro, las capas solo se copian (Parte D).
+      if (!enGesto() && camaraMovida()) ensuciar();
+      if (visible) {
+        const repinta = sucioEstatico;
+        const t0 = performance.now();
+        dibujarMicelio(ahora, rapido);
+        if (repinta) {
+          posNuevas = false;
+          if (rapido) {
+            ultimoRepintado = ahora;
+            saltarDibujo = performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
+          }
         }
       }
-      if (visible) dibujarMicelio(ahora);
       // Sin física activa ni hifas creciendo no hay frame siguiente: en reposo
       // no corre `requestAnimationFrame`; la capa estática se queda como está
       // hasta la próxima interacción.
-      if (activo || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
+      if (activo || posNuevas || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
     };
-
-    /**
-     * Fidelidad reducida mientras el grafo se mueve (Parte C): solo en grafos
-     * grandes. En el mini-grafo del panel el asentamiento dura unos pocos
-     * frames y alternar discos y sprites se vería como un parpadeo.
-     */
-    const reducible = N >= MIN_NODOS_WORKER;
-    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
-    let saltarDibujo = false;
 
     const tick = () => {
       frame = 0;
@@ -1391,9 +1600,11 @@ export function MiniGraph({
       // período de gracia, se detiene. Con `continuousSim` el motor no se
       // asienta nunca: nunca para.
       const active = moviendo || now - lastEnergetic <= IDLE_GRACE_MS;
-      // Los nodos se movieron (pasos locales, o posiciones del worker que
-      // llegaron, incluso con el bucle ya en reposo): la capa ya no vale.
-      const movio = simulate();
+      // Los nodos se movieron (pasos locales, posiciones del worker que
+      // llegaron —incluso con el bucle ya en reposo— o el nodo arrastrado): la
+      // capa ya no vale.
+      const movio = simulate() || movidoAMano;
+      movidoAMano = false;
       if (movio) ensuciar();
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
@@ -1431,6 +1642,7 @@ export function MiniGraph({
       observador.disconnect();
       if (wakeRef.current === despertar) wakeRef.current = null;
       if (frame) cancelAnimationFrame(frame);
+      clearTimeout(temporizadorRueda);
       motor?.cerrar(); // termina el worker, si lo hay
       // Guardar el layout actual para que el próximo montaje (cambio de pestaña)
       // o recálculo (datos nuevos) arranque asentado, sin re-simular desde cero.
