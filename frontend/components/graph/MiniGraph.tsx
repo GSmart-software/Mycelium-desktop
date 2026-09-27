@@ -6,6 +6,13 @@ import { usePrefVault } from "@/stores/prefsVaultStore";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
+import {
+  BANDA_NIEBLA,
+  anillosNiebla,
+  progresoRevelado,
+  radioMaximo,
+  suavizar,
+} from "./revelado";
 
 export type GraphNode = {
   id: string;
@@ -421,11 +428,14 @@ export function MiniGraph({
      * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
      * se calcula entero ANTES de dibujarse (`precalculo`: el lienzo queda
      * vacío y el motor no entrega posiciones intermedias) y recién ahí se
-     * muestra, ya ubicado (`vivo`). Antes se dibujaba cada lote del
-     * asentamiento, y ese movimiento masivo era lo caro y lo que se veía mal.
-     * Con caché (aunque sea parcial) se arranca directo en `vivo`.
+     * muestra, ya ubicado, con un fundido radial desde el centro (`revelado`,
+     * ver `revelado.ts`). Antes se dibujaba cada lote del asentamiento, y ese
+     * movimiento masivo era lo caro y lo que se veía mal. Con caché (aunque
+     * sea parcial) se arranca directo en `vivo`, sin fundido.
      */
-    let fase: "precalculo" | "vivo" = "vivo";
+    let fase: "precalculo" | "revelado" | "vivo" = "vivo";
+    /** Cuándo empezó el fundido (tras pintar la capa), o `null` si todavía no. */
+    let inicioRevelado: number | null = null;
     let panning = false;
     // Capas estáticas (`FUN-L-25`): se vuelven a pintar solo cuando algo las
     // ensucia (vista, tamaño, nodos que se mueven, el foco, lo revelado,
@@ -655,8 +665,9 @@ export function MiniGraph({
       alRecibir: () => wake(),
       alAsentar: (pasos) => {
         if (fase === "precalculo") {
-          // El layout está calculado: se muestra de una vez, ya ubicado.
-          fase = "vivo";
+          // El layout está calculado: se revela, ya ubicado.
+          fase = "revelado";
+          inicioRevelado = null;
           ensuciar();
           wake();
           return;
@@ -1203,10 +1214,31 @@ export function MiniGraph({
         lienzoAlDia = false;
         return;
       }
-      if (!actx || !nctx) return;
-      // Reposo. Fuera de un gesto, la cámara movida (fin de un paneo o de la
-      // rueda) es un repintado completo; dentro, las capas se copian llevadas
-      // a la vista de ahora, sin el flujo, y nada se repinta (Parte D).
+      if (!prepararCapas()) return;
+      const gesto = enGesto();
+      // El flujo solo se anima con el lienzo en la vista de las capas.
+      const flujo = conFlujo && !gesto && !camaraMovida();
+      if (
+        !flujo &&
+        lienzoAlDia &&
+        lienzoVista.scale === scale &&
+        lienzoVista.ox === ox &&
+        lienzoVista.oy === oy
+      ) {
+        return; // el lienzo ya muestra las capas en esta vista y nada se anima
+      }
+      componerCapas(flujo);
+    };
+
+    /**
+     * Deja las capas del reposo al día (las repinta si algo las ensució).
+     * Fuera de un gesto, la cámara movida (fin de un paneo o de la rueda) es
+     * un repintado completo; dentro, las capas se copian llevadas a la vista
+     * de ahora, sin el flujo, y nada se repinta (Parte D). `false` si no hay
+     * contextos.
+     */
+    function prepararCapas(): boolean {
+      if (!actx || !nctx) return false;
       const gesto = enGesto();
       if (!gesto && camaraMovida()) ensuciar();
       if (sucioEstatico || !capasVigentes) {
@@ -1238,19 +1270,75 @@ export function MiniGraph({
         capasVigentes = true;
         lienzoAlDia = false;
       }
-      // El flujo solo se anima con el lienzo en la vista de las capas.
-      const flujo = conFlujo && !gesto && !camaraMovida();
-      if (
-        !flujo &&
-        lienzoAlDia &&
-        lienzoVista.scale === scale &&
-        lienzoVista.ox === ox &&
-        lienzoVista.oy === oy
-      ) {
-        return; // el lienzo ya muestra las capas en esta vista y nada se anima
+      return true;
+    }
+
+    /**
+     * Un frame del revelado (Parte E): las capas —pintadas una vez— copiadas
+     * dentro de un disco que crece desde el centro del grafo, con el borde
+     * difuso en anillos de opacidad decreciente (`revelado.ts`). Nada más se
+     * dibuja: son copias. `avance`: 0–1, sin suavizar.
+     */
+    const componerConNiebla = (avance: number) => {
+      const W = canvas.width;
+      const H = canvas.height;
+      const ahora: Vista = { scale, ox, oy };
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      // El centro del grafo (el origen del mundo, adonde tira la gravedad) en
+      // píxeles del lienzo.
+      const cx = (W / dpr / 2 + ox) * dpr;
+      const cy = (H / dpr / 2 + oy) * dpr;
+      const rMax = radioMaximo(cx, cy, W, H);
+      for (const a of anillosNiebla(suavizar(avance), rMax, rMax * BANDA_NIEBLA)) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, a.exterior, 0, Math.PI * 2);
+        if (a.interior > 0) ctx.arc(cx, cy, a.interior, 0, Math.PI * 2, true);
+        ctx.clip();
+        ctx.globalAlpha = a.alfa;
+        const w = W / dpr;
+        const h = H / dpr;
+        if (!capaUnica) copiarCapa(ctx, capaAristas, vistaPintada, ahora, w, h, margenX, margenY, dpr);
+        copiarCapa(ctx, capaNodos, vistaPintada, ahora, w, h, margenX, margenY, dpr);
+        ctx.restore();
       }
-      componerCapas(flujo);
+      lienzoAlDia = false;
     };
+
+    /**
+     * Avanza el revelado un frame. El primero pinta las capas (el único dibujo
+     * caro) y recién después arranca el reloj, así el fundido no empieza
+     * adelantado. Con movimiento reducido no hay fundido: se muestra de una.
+     * Devuelve `"sigue"`, `"espera"` (lienzo sin tamaño: el `resize` lo
+     * despierta) o `"fin"`.
+     */
+    const pasoRevelado = (): "sigue" | "espera" | "fin" => {
+      if (reducido) {
+        terminarRevelado();
+        return "fin";
+      }
+      if (canvas.width === 0 || canvas.height === 0 || !prepararCapas()) return "espera";
+      if (inicioRevelado === null) {
+        inicioRevelado = performance.now();
+        componerConNiebla(0);
+        return "sigue";
+      }
+      const avance = progresoRevelado(performance.now() - inicioRevelado);
+      if (avance >= 1) {
+        terminarRevelado();
+        return "fin";
+      }
+      componerConNiebla(avance);
+      return "sigue";
+    };
+
+    /** Fin del fundido: el grafo queda vivo y el próximo dibujo es el reposo normal. */
+    function terminarRevelado() {
+      fase = "vivo";
+      inicioRevelado = null;
+      lienzoAlDia = false;
+    }
 
     // Construcción temporal: colocar los nodos
     // recién aparecidos (en orden de creación) y dar energía para que el grafo
@@ -1300,6 +1388,19 @@ export function MiniGraph({
           else wake();
         }
         return;
+      }
+      if (fase === "revelado") {
+        if (simulate()) ensuciar(); // las posiciones finales del precálculo
+        // Oculto (o sin tamaño) el revelado espera: el observador o el
+        // `resize` lo despiertan, y el fundido empieza cuando se ve.
+        if (!visible) return;
+        const r = pasoRevelado();
+        if (r === "espera") return;
+        if (r === "sigue") {
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        lastEnergetic = performance.now();
       }
       const rc = revealCountRef.current;
       avanzarConstruccion(rc);
