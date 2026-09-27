@@ -15,7 +15,7 @@ import {
 } from "./disposiciones";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesDe, crearEstado } from "./fisica";
-import { type MotorFisica, crearMotor } from "./motorFisica";
+import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
 import {
   type Camara,
   type EscenaMicelio,
@@ -71,6 +71,11 @@ const FLUJO_ZOOM_MIN = 0.5;
  * (719 ms/frame a 2.000 nodos con todo a la vista). Por encima, sin guiones.
  */
 const FLUJO_MAX_ARISTAS = 1500;
+
+/** Si un frame de dibujo en movimiento pasó de esto, el siguiente se salta. */
+const PRESUPUESTO_DIBUJO_MS = 12;
+/** Nombres que se ven mientras el grafo se mueve: los de más enlaces. */
+const HUBS_CON_NOMBRE = 24;
 
 function nodeSprite(
   fill: string,
@@ -709,6 +714,8 @@ export function MiniGraph({
     const nctx = capaNodos.getContext("2d");
     /** ¿Las capas tienen lo último? (dejan de tenerlo tras un frame directo). */
     let capasVigentes = false;
+    /** ¿El lienzo ya muestra lo último a fidelidad completa, sin nada animado encima? */
+    let lienzoAlDia = false;
     /** Geometría de las aristas visibles: `[sx, sy, cx, cy, tx, ty]` por arista. */
     let geoAristas = new Float64Array(0);
     /** 1 = la arista toca el nodo apuntado (se resalta). */
@@ -736,12 +743,11 @@ export function MiniGraph({
       aplicarVista(c, w, h);
     };
 
-    /** Pasada 1: aristas base. Además guarda la geometría de las visibles. */
-    const pintarAristas = (c: CanvasRenderingContext2D) => {
-      // ── Culling por viewport: rectángulo visible en coordenadas de MUNDO. Todo
-      //    lo que cae fuera no se dibuja (nodos, aristas y etiquetas). El test es
-      //    aritmética simple frente al costo de rasterizar, y no cambia nada de lo
-      //    que se ve: con zoom alto evita pagar por lo que está fuera de pantalla.
+    // ── Culling por viewport: rectángulo visible en coordenadas de MUNDO. Todo
+    //    lo que cae fuera no se dibuja (nodos, aristas y etiquetas). El test es
+    //    aritmética simple frente al costo de rasterizar, y no cambia nada de lo
+    //    que se ve: con zoom alto evita pagar por lo que está fuera de pantalla. ──
+    const calcularVisible = () => {
       const cw = canvas.width / dpr;
       const ch = canvas.height / dpr;
       const margen = 40 / scale; // glow + etiqueta del nodo
@@ -749,6 +755,27 @@ export function MiniGraph({
       visR = (cw / 2 - ox) / scale + margen;
       visT = (-ch / 2 - oy) / scale - margen;
       visB = (ch / 2 - oy) / scale + margen;
+    };
+    const fueraDeVista = (e: SimEdge) =>
+      Math.max(e.s.x, e.t.x) < visL ||
+      Math.min(e.s.x, e.t.x) > visR ||
+      Math.max(e.s.y, e.t.y) < visT ||
+      Math.min(e.s.y, e.t.y) > visB;
+
+    /** Cuántas aristas caen en la vista (solo el culling, sin dibujar). */
+    const aristasALaVista = () => {
+      calcularVisible();
+      let n = 0;
+      for (const e of simEdges) {
+        if (!revealed(e.s) || !revealed(e.t) || fueraDeVista(e)) continue;
+        if (++n > FLUJO_MAX_ARISTAS) break;
+      }
+      return n;
+    };
+
+    /** Pasada 1: aristas base. Además guarda la geometría de las visibles. */
+    const pintarAristas = (c: CanvasRenderingContext2D) => {
+      calcularVisible();
 
       // Aristas con curva bezier suave (CA4). Indicador de dirección (s→t):
       // flujo animado (dash en movimiento) y/o flecha al medio, según la opción.
@@ -763,14 +790,7 @@ export function MiniGraph({
       for (const e of simEdges) {
         if (!revealed(e.s) || !revealed(e.t)) continue; // aún no aparecieron
         // Culling: descartar la arista si su caja envolvente no toca la vista.
-        if (
-          Math.max(e.s.x, e.t.x) < visL ||
-          Math.min(e.s.x, e.t.x) > visR ||
-          Math.max(e.s.y, e.t.y) < visT ||
-          Math.min(e.s.y, e.t.y) > visB
-        ) {
-          continue;
-        }
+        if (fueraDeVista(e)) continue;
         const lit = hover && (e.s === hover || e.t === hover);
         const mx = (e.s.x + e.t.x) / 2;
         const my = (e.s.y + e.t.y) / 2;
@@ -889,8 +909,65 @@ export function MiniGraph({
         c.drawImage(sprite, n.x - ladoMundo / 2, n.y - ladoMundo / 2, ladoMundo, ladoMundo);
       }
 
-      // Qué nombres se dibujan (`FUN-M-21`). El foco es el nodo apuntado y, si
-      // no hay ninguno, el centro del panel — el mismo criterio que usa el
+      pintarNombres(c, false);
+    };
+
+    // ── Nombres (`FUN-M-21`; Parte C de `FUN-L-25`). Mientras el grafo se mueve
+    //    solo se escriben los de los hubs, el apuntado y el centro (escribir los
+    //    1.300 con `fillText` en cada frame era buena parte del frame); el resto
+    //    aparece al asentarse, en la capa estática y sin pisarse: se escriben
+    //    por importancia (apuntado, centro y después por enlaces, así los hubs
+    //    ganan el sitio) y se salta el que caería encima de uno ya escrito, el
+    //    mismo criterio de `hifas.ts` con una rejilla para no comparar todos
+    //    contra todos. ──
+    const hubsCumulo = new Set(
+      [...sim].sort((a, b) => b.conexiones - a.conexiones || a.i - b.i).slice(0, HUBS_CON_NOMBRE),
+    );
+    /** Candidatos a nombre en orden de importancia. */
+    const porImportancia = [...sim].sort((a, b) => b.conexiones - a.conexiones || a.i - b.i);
+    /** Ancho de cada nombre con la fuente a 12 px (−1 = sin medir). Se mide una vez. */
+    const anchoNombre = new Float32Array(N).fill(-1);
+    /** Rejilla de ocupación en píxeles de pantalla: celda → cajas `[x, y, w, h, …]`. */
+    const CELDA_NOMBRE = 96;
+    const ocupadas = new Map<number, number[]>();
+    /** ¿La caja pisa una ya ocupada? Si no, la ocupa. */
+    const ocupar = (x: number, y: number, w: number, h: number, forzar: boolean): boolean => {
+      const c0 = Math.floor(x / CELDA_NOMBRE);
+      const c1 = Math.floor((x + w) / CELDA_NOMBRE);
+      const f0 = Math.floor(y / CELDA_NOMBRE);
+      const f1 = Math.floor((y + h) / CELDA_NOMBRE);
+      if (!forzar) {
+        for (let f = f0; f <= f1; f++) {
+          for (let k = c0; k <= c1; k++) {
+            const cajas = ocupadas.get(f * 100003 + k);
+            if (!cajas) continue;
+            for (let j = 0; j < cajas.length; j += 4) {
+              if (
+                x < cajas[j] + cajas[j + 2] &&
+                x + w > cajas[j] &&
+                y < cajas[j + 1] + cajas[j + 3] &&
+                y + h > cajas[j + 1]
+              ) {
+                return false;
+              }
+            }
+          }
+        }
+      }
+      for (let f = f0; f <= f1; f++) {
+        for (let k = c0; k <= c1; k++) {
+          const clave = f * 100003 + k;
+          const cajas = ocupadas.get(clave);
+          if (cajas) cajas.push(x, y, w, h);
+          else ocupadas.set(clave, [x, y, w, h]);
+        }
+      }
+      return true;
+    };
+
+    const pintarNombres = (c: CanvasRenderingContext2D, soloDestacados: boolean) => {
+      // Qué nombres se dibujan. El foco es el nodo apuntado y, si no hay
+      // ninguno, el centro del panel — el mismo criterio que usa el
       // resaltado, para que el nombre acompañe a lo que ya está destacado.
       const modo = modoNombresRef.current;
       const foco = hover ?? centerNode;
@@ -900,32 +977,154 @@ export function MiniGraph({
       const showAll = scale > 0.5;
       c.textAlign = "center";
       c.font = `${12 / scale}px ${fontFamily}`;
-      for (const n of sim) {
-        if (!revealed(n)) continue;
-        if (modo === "apuntado") {
-          if (n !== foco) continue;
-        } else if (modo === "vecinos") {
-          if (n !== foco && !vecinos.has(n.id)) continue;
-        } else if (!showAll && n !== hover && n.id !== centerId) {
-          continue;
-        }
-        if (!dentro(n.x, n.y)) continue; // culling
+      const escribir = (n: SimNode) => {
         c.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
         c.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
+      };
+      if (modo !== "todos" || !showAll) {
+        for (const n of sim) {
+          if (!revealed(n)) continue;
+          if (modo === "apuntado") {
+            if (n !== foco) continue;
+          } else if (modo === "vecinos") {
+            if (n !== foco && !vecinos.has(n.id)) continue;
+          } else if (n !== hover && n.id !== centerId) {
+            continue;
+          }
+          if (!dentro(n.x, n.y)) continue; // culling
+          escribir(n);
+        }
+        return;
+      }
+      if (soloDestacados) {
+        for (const n of sim) {
+          if (n !== hover && n.id !== centerId && !hubsCumulo.has(n)) continue;
+          if (!revealed(n) || !dentro(n.x, n.y)) continue;
+          escribir(n);
+        }
+        return;
+      }
+      // Todos, sin pisarse. Las cajas se comparan en píxeles de pantalla.
+      ocupadas.clear();
+      const W2 = canvas.width / dpr / 2 + ox;
+      const H2 = canvas.height / dpr / 2 + oy;
+      const intentar = (n: SimNode, forzar: boolean) => {
+        if (!revealed(n) || !dentro(n.x, n.y)) return;
+        let w = anchoNombre[n.i];
+        if (w < 0) {
+          // `measureText` mide con la fuente de `c` (12/scale en unidades de
+          // mundo): llevado a 12 px de pantalla, sirve para cualquier zoom.
+          w = c.measureText(n.titulo).width * scale;
+          anchoNombre[n.i] = w;
+        }
+        const sx = n.x * scale + W2;
+        const sy = (n.y + n.r) * scale + 13 + H2; // línea base del texto
+        if (ocupar(sx - w / 2 - 2, sy - 11, w + 4, 14, forzar)) escribir(n);
+      };
+      if (hover) intentar(hover, true);
+      if (centerNode && centerNode !== hover) intentar(centerNode, true);
+      for (const n of porImportancia) {
+        if (n === hover || n === centerNode) continue;
+        intentar(n, false);
       }
     };
 
     /**
-     * Un frame del cúmulo. `simulando` = la simulación está activa (no en
-     * reposo): se dibuja directo, sin capas. En reposo se usan las capas.
+     * Fidelidad reducida, mientras el grafo se mueve (Parte C): aristas rectas
+     * (sin la curva), sin flujo ni flecha; nodos como discos planos (sin el
+     * sprite con glow), agrupados por color para no cambiar el relleno a cada
+     * nodo; solo los nombres destacados. Al asentarse se pinta una vez a
+     * fidelidad completa.
+     *
+     * Un `stroke()` y un `fill()` por elemento, SIN agrupar en paths: medido
+     * con la Tesina asentada (1.600 × 900 a dpr 1,5, rasterizado forzado),
+     * agrupar las rectas empeora el rasterizado de forma monótona —35 ms uno
+     * por arista, 45 en lotes de 16, 58 de 64, 75 de 256 a zoom 0,35; 128 →
+     * 195 a zoom 1— y lo que ahorra en JS es un milisegundo (1,5 → 0,3).
+     * Es lo mismo que `DEF-109` midió con un único path (68 contra 20 ms).
      */
-    const draw = (simulando: boolean) => {
+    const discosPorColor = new Map<string, SimNode[]>();
+    const pintarRapido = (c: CanvasRenderingContext2D) => {
+      calcularVisible();
+      conFlujo = false;
+      nVisibles = 0;
+      c.strokeStyle = colEdge;
+      c.lineWidth = 1.1 / scale;
+      let hayLit = false;
+      for (const e of simEdges) {
+        if (!revealed(e.s) || !revealed(e.t)) continue;
+        if (fueraDeVista(e)) continue;
+        if (hover && (e.s === hover || e.t === hover)) {
+          hayLit = true;
+          continue; // se dibujan después, resaltadas
+        }
+        c.beginPath();
+        c.moveTo(e.s.x, e.s.y);
+        c.lineTo(e.t.x, e.t.y);
+        c.stroke();
+      }
+      if (hayLit && hover) {
+        c.strokeStyle = colEdgeLit;
+        c.lineWidth = (1.2 + 0.9 * hoverGlowRef.current) / scale;
+        for (const e of simEdges) {
+          if (e.s !== hover && e.t !== hover) continue;
+          if (!revealed(e.s) || !revealed(e.t)) continue;
+          c.beginPath();
+          c.moveTo(e.s.x, e.s.y);
+          c.lineTo(e.t.x, e.t.y);
+          c.stroke();
+        }
+      }
+
+      for (const lista of discosPorColor.values()) lista.length = 0;
+      for (const n of sim) {
+        if (!revealed(n) || !dentro(n.x, n.y)) continue;
+        const isWhite = n.id === centerId || n === hover;
+        const refsFocus = !isWhite && focusRefs.has(n.id);
+        const fill = isWhite
+          ? colCenter
+          : refsFocus
+            ? colAccent
+            : (nodeColorsRef.current?.get(n.id) ?? colNode);
+        const lista = discosPorColor.get(fill);
+        if (lista) lista.push(n);
+        else discosPorColor.set(fill, [n]);
+      }
+      for (const [fill, lista] of discosPorColor) {
+        if (lista.length === 0) continue;
+        c.fillStyle = fill;
+        for (const n of lista) {
+          c.beginPath();
+          c.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+      pintarNombres(c, true);
+    };
+
+    /**
+     * Un frame del cúmulo. `modo`:
+     * - `"rapido"`: el grafo se mueve (Parte C): fidelidad reducida, directo.
+     * - `"directo"`: simulación activa sin fidelidad reducida (grafos chicos,
+     *   simulación continua ya casi quieta): directo, completo, sin capas.
+     * - `"reposo"`: nada se mueve: las capas, a fidelidad completa.
+     */
+    const draw = (modo: "rapido" | "directo" | "reposo") => {
       const w = canvas.width;
       const h = canvas.height;
       // Un lienzo sin tamaño (panel colapsado) no se dibuja: `drawImage` de una
       // capa de 0 px lanza una excepción.
       if (w === 0 || h === 0) return;
-      if (simulando || !actx || !nctx) {
+      if (modo === "rapido") {
+        if (!sucioEstatico) return;
+        prepararLienzo(ctx, w, h);
+        pintarRapido(ctx);
+        sucioEstatico = false;
+        capasVigentes = false;
+        lienzoAlDia = false;
+        return;
+      }
+      if (modo === "directo" || !actx || !nctx) {
         // Nada cambió y nada se anima (p. ej. el paso del worker todavía no
         // volvió): el lienzo ya muestra lo último.
         if (!sucioEstatico && !conFlujo) return;
@@ -935,6 +1134,28 @@ export function MiniGraph({
         pintarNodos(ctx);
         sucioEstatico = false;
         capasVigentes = false;
+        lienzoAlDia = false;
+        return;
+      }
+      // Reposo. Las capas solo sirven para animar el flujo encima sin repintar
+      // lo quieto; si el flujo no se puede ver (opción, movimiento reducido o
+      // zoom), se pinta directo al lienzo: una sola rasterización en vez de
+      // pintar dos capas y copiarlas (Parte C: es el frame en que el grafo se
+      // asienta y pasa a fidelidad completa, y el de cada paso de un paneo).
+      const dir = edgeDirectionRef.current;
+      const flujoPosible =
+        !reducido &&
+        (dir === "animated" || dir === "both") &&
+        scale >= FLUJO_ZOOM_MIN &&
+        aristasALaVista() <= FLUJO_MAX_ARISTAS;
+      if (!flujoPosible) {
+        if (!sucioEstatico && lienzoAlDia) return;
+        prepararLienzo(ctx, w, h);
+        pintarAristas(ctx);
+        pintarNodos(ctx);
+        sucioEstatico = false;
+        capasVigentes = false;
+        lienzoAlDia = true;
         return;
       }
       if (sucioEstatico || !capasVigentes) {
@@ -944,7 +1165,10 @@ export function MiniGraph({
         pintarNodos(nctx);
         sucioEstatico = false;
         capasVigentes = true;
+      } else if (!conFlujo && lienzoAlDia) {
+        return; // el lienzo ya muestra las capas y nada se anima
       }
+      lienzoAlDia = !conFlujo;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, w, h);
       ctx.drawImage(capaAristas, 0, 0);
@@ -1120,6 +1344,15 @@ export function MiniGraph({
       if (activo || (visible && sucioEstatico)) frame = requestAnimationFrame(tickMicelio);
     };
 
+    /**
+     * Fidelidad reducida mientras el grafo se mueve (Parte C): solo en grafos
+     * grandes. En el mini-grafo del panel el asentamiento dura unos pocos
+     * frames y alternar discos y sprites se vería como un parpadeo.
+     */
+    const reducible = N >= MIN_NODOS_WORKER;
+    /** El dibujo anterior pasó el presupuesto: el próximo lote de posiciones se salta. */
+    let saltarDibujo = false;
+
     const tick = () => {
       frame = 0;
       if (!running || !canvas.isConnected) return;
@@ -1143,7 +1376,22 @@ export function MiniGraph({
       // Oculto no se dibuja: ocultarlo cambia su tamaño, eso le da energía a la
       // simulación, y dibujaba cada frame sin que nadie lo viera. Al volver a
       // verse, el observador lo despierta y el primer frame ya lo pinta.
-      if (visible) draw(active);
+      if (visible) {
+        // En movimiento, fidelidad reducida; la simulación continua, ya casi
+        // quieta, vuelve a la completa (si no, no se vería nunca).
+        const casiQuieto = continuousSim && !dragNode && (motor?.alpha ?? 0) < 0.05;
+        const modo = !moviendo ? "reposo" : reducible && !casiQuieto ? "rapido" : "directo";
+        if (movio && saltarDibujo && modo !== "reposo") {
+          // Presupuesto adaptativo: el dibujo anterior fue lento, así que este
+          // lote de posiciones no se pinta (queda sucio: va en el próximo). La
+          // física no se entera: sigue libre en el worker.
+          saltarDibujo = false;
+        } else {
+          const t0 = performance.now();
+          draw(modo);
+          saltarDibujo = modo !== "reposo" && performance.now() - t0 > PRESUPUESTO_DIBUJO_MS;
+        }
+      }
       // Flujo animado sobre la capa → mantener el redibujo aunque la simulación
       // esté en reposo (en ese caso solo se copia la capa y se mueve el flujo).
       // `conFlujo` lo decide la última capa pintada (opción, movimiento reducido).
