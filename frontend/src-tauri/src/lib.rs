@@ -214,6 +214,8 @@ pub fn run() {
             diccionarios::diccionarios_leer,
             diccionarios::diccionarios_config_leer,
             diccionarios::diccionarios_config_escribir,
+            diccionarios::diccionario_personal_leer,
+            diccionarios::diccionario_personal_escribir,
             recordatorios::notificar_recordatorio,
             vault_config::listar_vaults,
             vault_config::vincular_vault,

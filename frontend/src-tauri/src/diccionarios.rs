@@ -23,6 +23,12 @@
 //! La petición la hace `reqwest`, como el updater: sin CORS que configurar en el
 //! bucket para desktop. Para desarrollo, la URL del manifiesto puede ser una
 //! carpeta local (ver `url_manifiesto`).
+//!
+//! También guarda el **diccionario de Mycelium** (`diccionario-personal.txt`):
+//! las palabras que el usuario agrega para todos sus vaults. Ese va en la
+//! carpeta de **configuración** de la app, junto a `vaults.json`, y no junto a
+//! los diccionarios descargados: son palabras del usuario y tienen que
+//! sobrevivir a que se borre o se actualice un diccionario.
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -51,6 +57,13 @@ const MANIFIESTO_DEFECTO: &str =
 /// (`http://localhost:8080/manifiesto.json`, `file:///C:/…/manifiesto.json`) o
 /// una carpeta local (`C:\…\frontend\.diccionarios`).
 const VARIABLE_MANIFIESTO: &str = "MYCELIUM_DICCIONARIOS";
+
+/// El diccionario de Mycelium, en `app_config_dir` (junto a `vaults.json`). Una
+/// palabra por renglón; el formato lo decide el frontend (`palabras.ts`).
+const PERSONAL: &str = "diccionario-personal.txt";
+/// Evento cuando cambia el diccionario de Mycelium: las demás ventanas releen
+/// sus palabras (sin recargar los diccionarios descargados).
+const EVENTO_PERSONAL: &str = "diccionario-personal-cambiado";
 
 /// Evento con el avance de una descarga.
 const EVENTO_PROGRESO: &str = "diccionarios-progreso";
@@ -542,6 +555,51 @@ pub fn diccionarios_config_escribir(app: tauri::AppHandle, contenido: String) ->
     Ok(())
 }
 
+// ── Diccionario de Mycelium ─────────────────────────────────────────────────
+
+fn ruta_personal(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("No se encontró la carpeta de configuración de la app: {e}"))?
+        .join(PERSONAL))
+}
+
+/// El contenido del archivo, o `None` si todavía no existe. Pura, testeable.
+fn leer_personal(ruta: &Path) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(ruta) {
+        Ok(t) => Ok(Some(t)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        // Ilegible (permisos, no es UTF-8): se avisa en vez de tratarlo como
+        // vacío, porque el próximo «Agregar» lo reescribiría y perdería todo.
+        Err(e) => Err(format!("No se pudo leer {}: {e}", ruta.display())),
+    }
+}
+
+/// Escribe el archivo entero, atómico: un corte a mitad no deja el diccionario
+/// truncado. Crea la carpeta si falta (en una instalación nueva, antes de
+/// vincular el primer vault, puede no existir). Pura, testeable.
+fn escribir_personal(ruta: &Path, contenido: &str) -> Result<(), String> {
+    if let Some(dir) = ruta.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+    }
+    escribir_atomico(ruta, contenido)
+}
+
+/// Las palabras del diccionario de Mycelium (texto crudo), o `None` si no hay.
+#[tauri::command]
+pub fn diccionario_personal_leer(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    leer_personal(&ruta_personal(&app)?)
+}
+
+/// Guarda el diccionario de Mycelium y avisa a todas las ventanas.
+#[tauri::command]
+pub fn diccionario_personal_escribir(app: tauri::AppHandle, contenido: String) -> Result<(), String> {
+    escribir_personal(&ruta_personal(&app)?, &contenido)?;
+    let _ = app.emit(EVENTO_PERSONAL, ());
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -723,5 +781,44 @@ mod tests {
         std::fs::create_dir_all(&v).unwrap();
         std::fs::write(v.join("en-US.aff"), "a").unwrap();
         assert!(listar_en(&base).is_empty());
+    }
+
+    #[test]
+    fn personal_sin_archivo_es_none_y_se_crea_la_carpeta() {
+        let base = temporal("personal");
+        let ruta = base.join("config-que-no-existe").join(PERSONAL);
+        assert_eq!(leer_personal(&ruta).unwrap(), None);
+        escribir_personal(&ruta, "casa
+Mycelium
+").unwrap();
+        assert_eq!(leer_personal(&ruta).unwrap().as_deref(), Some("casa
+Mycelium
+"));
+    }
+
+    #[test]
+    fn personal_se_reescribe_entero_sin_dejar_temporales() {
+        let base = temporal("personal-reescribir");
+        let ruta = base.join(PERSONAL);
+        escribir_personal(&ruta, "una
+dos
+tres
+").unwrap();
+        escribir_personal(&ruta, "una
+").unwrap();
+        assert_eq!(leer_personal(&ruta).unwrap().as_deref(), Some("una
+"));
+        let archivos: Vec<_> = std::fs::read_dir(&base).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert_eq!(archivos, vec![std::ffi::OsString::from(PERSONAL)]);
+    }
+
+    #[test]
+    fn personal_ilegible_es_error_y_no_vacio() {
+        // Una carpeta con el nombre del archivo: leerla falla con algo que no es
+        // «no existe», y eso no debe confundirse con un diccionario vacío.
+        let base = temporal("personal-ilegible");
+        let ruta = base.join(PERSONAL);
+        std::fs::create_dir_all(&ruta).unwrap();
+        assert!(leer_personal(&ruta).is_err());
     }
 }
