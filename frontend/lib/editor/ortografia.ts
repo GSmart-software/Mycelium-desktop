@@ -17,7 +17,8 @@
  *      worker solo por las únicas que el caché no conoce.
  *   3. **Subraya** las mal escritas (`.mic-error-ortografico`).
  *   4. **Menú propio** al hacer clic derecho sobre una marca: sugerencias,
- *      «Agregar al diccionario del vault» e «Ignorar». Sobre cualquier otra cosa,
+ *      «Agregar al diccionario del vault», «Agregar al diccionario de Mycelium»
+ *      (para todos los vaults) e «Ignorar». Sobre cualquier otra cosa,
  *      el menú de siempre.
  */
 import { syntaxTree } from "@codemirror/language";
@@ -33,6 +34,7 @@ import {
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { rangosExcluidos } from "@/lib/editor/ortografiaExclusiones";
 import * as corrector from "@/lib/ortografia/corrector";
+import { avisar } from "@/stores/avisosStore";
 import { vaultActual } from "@/lib/ortografia/diccionarios";
 import { extraerPalabras, fueraDeExcluidos, normalizarPalabra, type Palabra } from "@/lib/ortografia/palabras";
 import type { MenuItem } from "@/components/explorer/ContextMenu";
@@ -200,6 +202,13 @@ function mismasMarcas(a: DecorationSet, b: DecorationSet): boolean {
   return !ia.value && !ib.value;
 }
 
+function agregar(dic: corrector.DiccionarioPersonal, palabra: string) {
+  corrector.agregarA(dic, palabra).catch((e) => {
+    console.error("[Mycelium] corrector · no se pudo guardar la palabra", e);
+    avisar(`No se pudo agregar «${palabra}» al diccionario: ${e instanceof Error ? e.message : String(e)}`);
+  });
+}
+
 /** El menú del clic derecho sobre una palabra marcada. */
 async function abrirMenu(view: EditorView, desde: number, hasta: number, x: number, y: number) {
   const palabra = view.state.doc.sliceString(desde, hasta);
@@ -225,11 +234,12 @@ async function abrirMenu(view: EditorView, desde: number, hasta: number, x: numb
       title: hayVault
         ? "Deja de marcarla en todas las notas de este vault"
         : "Abrí un vault para tener un diccionario propio",
-      onClick: () => {
-        corrector.agregarAlVault(palabra).catch((e) => {
-          console.error("[Mycelium] corrector · no se pudo guardar la palabra", e);
-        });
-      },
+      onClick: () => agregar("vault", palabra),
+    },
+    {
+      label: "Agregar al diccionario de Mycelium",
+      title: "Deja de marcarla en todos los vaults",
+      onClick: () => agregar("mycelium", palabra),
     },
     {
       label: "Ignorar",

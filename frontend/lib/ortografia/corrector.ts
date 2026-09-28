@@ -1,7 +1,7 @@
 /**
  * El corrector ortográfico del hilo principal (`FUN-L-12`): arranca y apaga el
- * worker, le manda los diccionarios activos y el diccionario del vault, y
- * guarda en un caché lo que ya contestó.
+ * worker, le manda los diccionarios activos y los dos personales —el del vault
+ * y el de Mycelium—, y guarda en un caché lo que ya contestó.
  *
  * Es **uno por ventana** —un módulo, no un store—: todos los editores de la
  * ventana (las notas, el detalle de los recordatorios) comparten el worker, el
@@ -16,6 +16,10 @@
  *   - **Recarga** cuando cambian los diccionarios —una descarga, un «Quitar», una
  *     casilla «Activo», en esta ventana o en otra— o el vault: se vacía el caché y
  *     los editores vuelven a revisar lo visible.
+ *   - Cuando cambia un **diccionario personal** —un «Agregar», un «Quitar» en
+ *     Configuración; el de Mycelium, también desde otra ventana— no se recargan
+ *     los diccionarios: se le mandan al worker las palabras nuevas y se vacía el
+ *     caché, así las marcas se recalculan al instante en todos los editores.
  *
  * El editor nunca espera al worker: pide lo que falta y, cuando llega la
  * respuesta, se le avisa (`suscribir`) para que redibuje.
@@ -25,17 +29,25 @@ import {
   descargar,
   escribirConfig,
   escucharCambios,
+  escucharCambiosDeMycelium,
+  guardarPalabrasDeMycelium,
   guardarPalabrasDelVault,
   consultarManifiesto,
   leerConfig,
   leerDescargado,
+  leerPalabrasDeMycelium,
   leerPalabrasDelVault,
   listarDescargados,
   vaultActual,
 } from "./diccionarios";
 import { elegirVariante, lenguaDelSistema, localesDelSistema, regionDelSistema } from "./idioma";
 import { diccionariosACargar, formatearBytes } from "./manifiesto";
-import { CacheOrtografia, normalizarPalabra } from "./palabras";
+import {
+  CacheOrtografia,
+  escribirDiccionarioPersonal,
+  leerDiccionarioPersonal,
+  normalizarPalabra,
+} from "./palabras";
 import type { MensajeAlCorrector, MensajeDelCorrector } from "./corrector.worker";
 
 /** Dónde está el motor: `public/ortografia/motor.wasm`, servido junto a la app. */
@@ -56,13 +68,23 @@ let worker: Worker | null = null;
 let listo: Promise<void> | null = null;
 /** Cambia en cada recarga: una respuesta de antes ya no vale. */
 let generacion = 0;
+/**
+ * Cambia cada vez que cambian las palabras personales. Aparte de `generacion`
+ * porque esa corta una carga en curso, y un «Agregar» no debe cortarla. Una
+ * revisión pedida antes del cambio vuelve con la respuesta vieja («mal
+ * escrita») y no debe quedar en el caché recién vaciado.
+ */
+let epocaPersonales = 0;
 let secuencia = 0;
 const esperando = new Map<number, (m: MensajeDelCorrector) => void>();
 
 /** El vault cuyas palabras están cargadas, y ellas. */
 let vaultCargado: string | null = null;
 let palabrasVault: string[] = [];
+/** Las del diccionario de Mycelium (no dependen del vault). `null`: sin leer. */
+let palabrasMycelium: string[] | null = null;
 let dejarDeEscuchar: (() => void) | null = null;
+let dejarDeEscucharMycelium: (() => void) | null = null;
 
 function avisarOyentes() {
   for (const fn of oyentes) fn();
@@ -126,6 +148,15 @@ export function asegurar(): void {
       dejarDeEscuchar = dejar;
     });
   }
+  if (!dejarDeEscucharMycelium) {
+    // Otra ventana (o esta misma: Rust avisa a todas) cambió el diccionario de
+    // Mycelium: solo se releen sus palabras, sin recargar los diccionarios.
+    void escucharCambiosDeMycelium(() => {
+      if (worker) void recargarMycelium();
+    }).then((dejar) => {
+      dejarDeEscucharMycelium = dejar;
+    });
+  }
 }
 
 /** Apaga el corrector: termina el worker y olvida todo salvo lo ignorado. */
@@ -140,6 +171,8 @@ export function apagar(): void {
   esperando.clear();
   dejarDeEscuchar?.();
   dejarDeEscuchar = null;
+  dejarDeEscucharMycelium?.();
+  dejarDeEscucharMycelium = null;
   avisarOyentes();
 }
 
@@ -152,13 +185,21 @@ async function cargar(): Promise<void> {
   const gen = ++generacion;
   cache.vaciar();
   try {
-    const [config, descargados, palabras] = await Promise.all([
+    const [config, descargados, palabras, deMycelium] = await Promise.all([
       leerConfig(),
       listarDescargados(),
       leerPalabrasDelVault(vaultActual()),
+      // Un diccionario de Mycelium ilegible no debe dejar al corrector sin
+      // diccionarios: se sigue sin sus palabras (y «Agregar» lo relee y falla
+      // con el error, en vez de pisarlo).
+      leerPalabrasDeMycelium().catch((e) => {
+        console.error("[Mycelium] corrector · no se pudo leer el diccionario de Mycelium", e);
+        return [];
+      }),
     ]);
     vaultCargado = vaultActual();
     palabrasVault = palabras;
+    palabrasMycelium = deMycelium;
     const locales = localesDelSistema();
     const region = regionDelSistema(locales);
     // La variante de la región, si está descargada, gana a otra de la misma
@@ -226,8 +267,33 @@ export async function activarLengua(lengua: string, activa: boolean): Promise<vo
   await escribirConfig({ ...config, activas: [...activas] });
 }
 
+/**
+ * Todo lo que el worker da por bueno además de los diccionarios: el del vault,
+ * el de Mycelium y las ignoradas. Al worker le da igual de cuál viene cada
+ * una; la diferencia es dónde se guardan.
+ */
 function personales(): string[] {
-  return [...new Set([...palabrasVault, ...ignoradas])];
+  return [...new Set([...palabrasVault, ...(palabrasMycelium ?? []), ...ignoradas])];
+}
+
+async function recargarMycelium(): Promise<void> {
+  let leidas: string[];
+  try {
+    leidas = await leerPalabrasDeMycelium();
+  } catch (e) {
+    console.error("[Mycelium] corrector · no se pudo leer el diccionario de Mycelium", e);
+    return;
+  }
+  // El aviso también le llega a la ventana que lo escribió, que ya tiene estas
+  // palabras: no se vacía el caché por nada.
+  if (palabrasMycelium && mismasPalabras(palabrasMycelium, leidas)) return;
+  palabrasMycelium = leidas;
+  cambiaronPersonales();
+  for (const fn of oyentesPersonales) fn();
+}
+
+function mismasPalabras(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((p, i) => p === b[i]);
 }
 
 async function recargarVault(): Promise<void> {
@@ -246,6 +312,8 @@ function cambiaronPersonales() {
   enviar({ tipo: "personales", palabras: personales() });
   // Vaciar y no solo marcar la palabra como buena: con la regla de mayúsculas,
   // agregar «casa» también arregla «Casa» y «CASA», que están en el caché aparte.
+  // Y al quitar una, la que estaba «bien» tiene que volver a preguntarse.
+  epocaPersonales++;
   cache.vaciar();
   avisarOyentes();
 }
@@ -272,8 +340,10 @@ export async function revisar(palabras: string[]): Promise<boolean> {
   const gen = generacion;
   await listo;
   if (gen !== generacion || !worker) return false;
+  const epoca = epocaPersonales;
   const r = await pedir({ tipo: "revisar", n: ++secuencia, palabras });
-  if (gen !== generacion || r.tipo !== "revisado" || r.correctas.length !== palabras.length) return false;
+  if (gen !== generacion || epoca !== epocaPersonales) return false;
+  if (r.tipo !== "revisado" || r.correctas.length !== palabras.length) return false;
   cache.guardar(palabras, r.correctas);
   return true;
 }
@@ -287,52 +357,83 @@ export async function sugerir(palabra: string): Promise<string[]> {
   return r.tipo === "sugerido" ? r.sugerencias : [];
 }
 
-// ── Diccionario del vault e «Ignorar» ───────────────────────────────────────
+// ── Diccionarios personales e «Ignorar» ─────────────────────────────────────
 
-/** Las palabras del diccionario del vault abierto (para Configuración). */
-export async function palabrasDelVault(): Promise<string[]> {
+/**
+ * Los dos diccionarios personales (spec § 1): el **del vault**, que viaja con
+ * él, y el **de Mycelium**, que vale para todos los vaults de esta instalación.
+ */
+export type DiccionarioPersonal = "vault" | "mycelium";
+
+/** Las palabras de un diccionario personal (para Configuración), ordenadas. */
+export async function palabrasDe(dic: DiccionarioPersonal): Promise<string[]> {
+  if (dic === "mycelium") {
+    if (worker && palabrasMycelium) return palabrasMycelium;
+    return leerPalabrasDeMycelium();
+  }
   if (worker && vaultActual() === vaultCargado) return palabrasVault;
   return leerPalabrasDelVault(vaultActual());
 }
 
-/** Escrituras del diccionario del vault, en cola: dos «Agregar» seguidos no se pisan. */
-let colaVault: Promise<void> = Promise.resolve();
+/**
+ * Escrituras de los diccionarios personales, en cola: dos «Agregar» seguidos no
+ * se pisan. Una sola cola para los dos: es raro que coincidan, y así no hay
+ * que pensar en el orden entre ellos.
+ */
+let colaEscrituras: Promise<void> = Promise.resolve();
 
-async function reescribirVault(cambiar: (palabras: string[]) => string[]): Promise<void> {
+async function reescribir(dic: DiccionarioPersonal, cambiar: (palabras: string[]) => string[]): Promise<void> {
   const vault = vaultActual();
-  if (vault === null) throw new Error("No hay un vault abierto donde guardar la palabra.");
-  const tarea = colaVault.then(async () => {
+  if (dic === "vault" && vault === null) throw new Error("No hay un vault abierto donde guardar la palabra.");
+  const tarea = colaEscrituras.then(async () => {
     // Se relee el archivo: puede haber cambiado desde que se cargó (otra
-    // ventana no, pero sí una edición a mano o una sincronización).
-    const actuales = await leerPalabrasDelVault(vault);
-    const nuevas = cambiar(actuales);
-    await guardarPalabrasDelVault(vault, nuevas);
-    if (vault === vaultCargado || !worker) {
-      palabrasVault = nuevas;
-      vaultCargado = vault;
+    // ventana, una edición a mano o una sincronización).
+    // En memoria, igual que en el archivo (sin duplicados y ordenadas): así la
+    // lista de Configuración sale en orden y el aviso de vuelta de Rust
+    // (`recargarMycelium`) ve que no cambió nada.
+    const comoEnDisco = (ps: string[]) => leerDiccionarioPersonal(escribirDiccionarioPersonal(ps));
+    if (dic === "mycelium") {
+      const nuevas = comoEnDisco(cambiar(await leerPalabrasDeMycelium()));
+      await guardarPalabrasDeMycelium(nuevas);
+      palabrasMycelium = nuevas;
+    } else if (vault !== null) {
+      const nuevas = comoEnDisco(cambiar(await leerPalabrasDelVault(vault)));
+      await guardarPalabrasDelVault(vault, nuevas);
+      if (vault === vaultCargado || !worker) {
+        palabrasVault = nuevas;
+        vaultCargado = vault;
+      }
     }
   });
-  colaVault = tarea.catch(() => {});
+  colaEscrituras = tarea.catch(() => {});
   await tarea;
   cambiaronPersonales();
-  for (const fn of oyentesVault) fn();
+  for (const fn of oyentesPersonales) fn();
 }
 
-const oyentesVault = new Set<() => void>();
-/** Avisa cuando cambian las palabras del vault (la lista de Configuración). */
-export function suscribirVault(fn: () => void): () => void {
-  oyentesVault.add(fn);
-  return () => oyentesVault.delete(fn);
+const oyentesPersonales = new Set<() => void>();
+/**
+ * Avisa cuando cambian las palabras de un diccionario personal (la lista de
+ * Configuración). Con el corrector apagado, los cambios del de Mycelium hechos
+ * en otra ventana no pasan por acá: llegan por `escucharCambiosDeMycelium`.
+ */
+export function suscribirPersonales(fn: () => void): () => void {
+  oyentesPersonales.add(fn);
+  return () => oyentesPersonales.delete(fn);
 }
 
-/** «Agregar al diccionario del vault»: la desmarca en todas las notas de este vault. */
-export async function agregarAlVault(palabra: string): Promise<void> {
+/**
+ * «Agregar al diccionario del vault» (la desmarca en todas las notas de este
+ * vault) o «… de Mycelium» (en todos los vaults).
+ */
+export async function agregarA(dic: DiccionarioPersonal, palabra: string): Promise<void> {
   const p = normalizarPalabra(palabra);
-  await reescribirVault((actuales) => (actuales.includes(p) ? actuales : [...actuales, p]));
+  await reescribir(dic, (actuales) => (actuales.includes(p) ? actuales : [...actuales, p]));
 }
 
-export async function quitarDelVault(palabra: string): Promise<void> {
-  await reescribirVault((actuales) => actuales.filter((w) => w !== palabra));
+/** Quitar una palabra (desde Configuración): vuelve a marcarse. */
+export async function quitarDe(dic: DiccionarioPersonal, palabra: string): Promise<void> {
+  await reescribir(dic, (actuales) => actuales.filter((w) => w !== palabra));
 }
 
 /** «Ignorar»: no la marca más hasta cerrar la app, en ningún editor. */

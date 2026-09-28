@@ -46,8 +46,8 @@ export function extraerPalabras(texto: string, base = 0): Palabra[] {
 /**
  * La forma en que se revisa y se guarda una palabra: el apóstrofo tipográfico
  * (’) pasa a recto ('), que es el que usan los diccionarios Hunspell. Así
- * «l’amico» y «l'amico» son la misma entrada del caché y del diccionario del
- * vault.
+ * «l’amico» y «l'amico» son la misma entrada del caché y de los diccionarios
+ * personales.
  */
 export function normalizarPalabra(texto: string): string {
   return texto.replace(/’/g, "'");
@@ -90,8 +90,7 @@ export const TOPE_CACHE = 20_000;
  * editor solo le pregunte al worker lo **nuevo**: desplazarse por una nota ya
  * revisada no cuesta ni un mensaje.
  *
- * Se vacía al cambiar los diccionarios activos o el diccionario del vault
- * (`vaciar`). Cuando pasa del tope olvida las entradas más viejas —un `Map`
+ * Se vacía al cambiar los diccionarios activos o uno personal (`vaciar`). Cuando pasa del tope olvida las entradas más viejas —un `Map`
  * recorre en orden de inserción—, así una sesión larga no crece sin límite.
  */
 export class CacheOrtografia {
@@ -141,13 +140,15 @@ export class CacheOrtografia {
 }
 
 /**
- * Las palabras del diccionario del vault a partir del archivo
- * (`.mycelium/diccionario.txt`): una por renglón. Se ignoran los renglones
- * vacíos y los que empiezan con `#` (comentarios, por si alguien lo edita a
- * mano); se quitan duplicados y se ordena, para que el archivo reescrito sea
- * estable y un diff del vault muestre solo lo que cambió.
+ * Las palabras de un diccionario personal —el del vault
+ * (`.mycelium/diccionario.txt`) o el de Mycelium (`diccionario-personal.txt`,
+ * en la carpeta de configuración de la app)— a partir del archivo: una por
+ * renglón. Se ignoran los renglones vacíos y los que empiezan con `#`
+ * (comentarios, por si alguien lo edita a mano); se quitan duplicados y se
+ * ordena, para que el archivo reescrito sea estable y un diff muestre solo lo
+ * que cambió.
  */
-export function leerDiccionarioVault(texto: string | null): string[] {
+export function leerDiccionarioPersonal(texto: string | null): string[] {
   if (!texto) return [];
   const palabras = new Set<string>();
   for (const renglon of texto.split(/\r?\n/)) {
@@ -158,9 +159,25 @@ export function leerDiccionarioVault(texto: string | null): string[] {
 }
 
 /** El contenido del archivo: una palabra por renglón, ordenadas, con salto final. */
-export function escribirDiccionarioVault(palabras: string[]): string {
+export function escribirDiccionarioPersonal(palabras: string[]): string {
   const unicas = ordenarPalabras([...new Set(palabras.map(normalizarPalabra))]);
   return unicas.length ? unicas.join("\n") + "\n" : "";
+}
+
+/** Sin tildes ni mayúsculas: para comparar con lo que se escribe en un filtro. */
+function plegar(texto: string): string {
+  return texto.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase();
+}
+
+/**
+ * Las palabras que contienen el texto del filtro de Configuración, sin
+ * distinguir tildes ni mayúsculas («arbol» encuentra «Árbol»). Un filtro vacío
+ * las deja todas. Conserva el orden.
+ */
+export function filtrarPalabras(palabras: readonly string[], filtro: string): string[] {
+  const f = plegar(filtro.trim());
+  if (!f) return [...palabras];
+  return palabras.filter((p) => plegar(p).includes(f));
 }
 
 function ordenarPalabras(palabras: string[]): string[] {
@@ -168,8 +185,8 @@ function ordenarPalabras(palabras: string[]): string[] {
 }
 
 /**
- * ¿Está una palabra en un conjunto de palabras aceptadas (el diccionario del
- * vault o las ignoradas)? Con la regla de mayúsculas de Hunspell: una palabra
+ * ¿Está una palabra en un conjunto de palabras aceptadas (los diccionarios del
+ * vault y de Mycelium, o las ignoradas)? Con la regla de mayúsculas de Hunspell: una palabra
  * guardada en minúscula vale también Capitalizada (a principio de oración) y
  * EN MAYÚSCULAS; una guardada con mayúscula («Mycelium») vale igual y en
  * mayúsculas, pero no en minúscula.

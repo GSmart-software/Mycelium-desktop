@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { confirmar } from "@/lib/confirmar";
 import { abrirEnNavegador } from "@/lib/enlacesExternos";
 import * as corrector from "@/lib/ortografia/corrector";
@@ -12,6 +12,7 @@ import {
   descargar,
   DESCARGA_CANCELADA,
   escucharCambios,
+  escucharCambiosDeMycelium,
   escucharProgreso,
   leerConfig,
   leerLicencia,
@@ -29,6 +30,7 @@ import {
   type Idioma,
   type Manifiesto,
 } from "@/lib/ortografia/manifiesto";
+import { filtrarPalabras } from "@/lib/ortografia/palabras";
 import styles from "./DiccionariosCorrector.module.css";
 import ajustes from "./Settings.module.css";
 
@@ -47,7 +49,8 @@ function sin<T>(registro: Record<string, T>, clave: string): Record<string, T> {
 /**
  * Los diccionarios del corrector ortográfico (`FUN-L-12`, spec § 2.2): la lista
  * del manifiesto con el estado de cada uno, la propuesta de bajar el del idioma
- * del sistema, las licencias y el diccionario del vault.
+ * del sistema, las licencias y los dos diccionarios personales (el del vault y
+ * el de Mycelium).
  */
 export function DiccionariosCorrector() {
   const [manifiesto, setManifiesto] = useState<Manifiesto | null>(null);
@@ -270,7 +273,7 @@ export function DiccionariosCorrector() {
       </button>
       {verLicencias && <Licencias manifiesto={manifiesto} descargados={descargados} />}
 
-      <DiccionarioDelVault />
+      <DiccionariosPersonales />
     </div>
   );
 }
@@ -324,72 +327,136 @@ function Licencias({ manifiesto, descargados }: { manifiesto: Manifiesto | null;
   );
 }
 
-/** Las palabras del diccionario del vault: cuántas hay, verlas y quitar una. */
-function DiccionarioDelVault() {
+/** Desde cuántas palabras se ofrece el filtro de texto: con pocas, sobra. */
+const PALABRAS_PARA_FILTRAR = 12;
+
+/** Lo que cambia entre los dos diccionarios personales. */
+const PERSONALES: Record<corrector.DiccionarioPersonal, { titulo: string; nombre: string; donde: ReactNode }> = {
+  vault: {
+    titulo: "Diccionario de este vault",
+    nombre: "del vault",
+    donde: (
+      <>
+        Se guarda dentro del vault (<code>.mycelium/diccionario.txt</code>) y viaja con él: vale solo en este
+        vault.
+      </>
+    ),
+  },
+  mycelium: {
+    titulo: "Diccionario de Mycelium",
+    nombre: "de Mycelium",
+    donde: (
+      <>
+        Se guarda en esta computadora (<code>diccionario-personal.txt</code>, junto a la configuración de la
+        app) y vale en todos tus vaults.
+      </>
+    ),
+  },
+};
+
+/** Los dos diccionarios personales (spec § 2.2). Sin vault abierto, el del vault no se muestra. */
+function DiccionariosPersonales() {
+  const hayVault = vaultActual() !== null;
+  return (
+    <div className={styles.personales}>
+      <span className={ajustes.label}>Diccionarios personales</span>
+      <p className={ajustes.hint}>
+        Las palabras que agregás con el clic derecho sobre una palabra marcada. Quitar una hace que se vuelva
+        a marcar.
+      </p>
+      {hayVault && <DiccionarioPersonal dic="vault" />}
+      <DiccionarioPersonal dic="mycelium" />
+    </div>
+  );
+}
+
+/** Un diccionario personal: cuántas palabras tiene, verlas (con filtro) y quitar una. */
+function DiccionarioPersonal({ dic }: { dic: corrector.DiccionarioPersonal }) {
   const [palabras, setPalabras] = useState<string[] | null>(null);
   const [ver, setVer] = useState(false);
+  const [filtro, setFiltro] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const hayVault = vaultActual() !== null;
+  const { titulo, nombre, donde } = PERSONALES[dic];
 
   useEffect(() => {
     let vivo = true;
     const cargar = () =>
       corrector
-        .palabrasDelVault()
+        .palabrasDe(dic)
         .then((p) => vivo && setPalabras(p))
         .catch((e) => vivo && setError(mensaje(e)));
     void cargar();
-    const baja = corrector.suscribirVault(() => void cargar());
+    const bajas = [corrector.suscribirPersonales(() => void cargar())];
+    // El de Mycelium también cambia desde otra ventana, aunque en esta el
+    // corrector esté apagado.
+    if (dic === "mycelium") {
+      void escucharCambiosDeMycelium(() => void cargar()).then((b) => (vivo ? bajas.push(b) : b()));
+    }
     return () => {
       vivo = false;
-      baja();
+      for (const b of bajas) b();
     };
-  }, []);
+  }, [dic]);
 
   const quitar = async (p: string) => {
     setError(null);
     try {
-      await corrector.quitarDelVault(p);
+      await corrector.quitarDe(dic, p);
     } catch (e) {
       setError(mensaje(e));
     }
   };
 
-  if (!hayVault) {
-    return <p className={ajustes.hint}>Abrí un vault para ver su diccionario propio.</p>;
-  }
   const n = palabras?.length ?? 0;
+  const visibles = palabras ? filtrarPalabras(palabras, filtro) : [];
   return (
-    <>
-      <p className={ajustes.hint}>
-        <strong>Diccionario de este vault</strong>: {n === 1 ? "1 palabra" : `${n} palabras`}. Las que
-        agregás con el clic derecho sobre una palabra marcada; se guardan dentro del vault
-        (<code>.mycelium/diccionario.txt</code>) y viajan con él.{" "}
+    <div className={styles.personal}>
+      <p className={styles.personalCabecera}>
+        <span>
+          <strong>{titulo}</strong> · {n === 1 ? "1 palabra" : `${n} palabras`}
+        </span>
         {n > 0 && (
           <button type="button" className={styles.enlace} onClick={() => setVer((v) => !v)} aria-expanded={ver}>
             {ver ? "Ocultar" : "Ver y quitar"}
           </button>
         )}
       </p>
-      {ver && palabras && (
-        <ul className={styles.palabras}>
-          {palabras.map((p) => (
-            <li key={p} className={styles.palabra}>
-              {p}
-              <button
-                type="button"
-                className={styles.quitarPalabra}
-                aria-label={`Quitar «${p}» del diccionario del vault`}
-                title="Quitar"
-                onClick={() => void quitar(p)}
-              >
-                <X size={12} aria-hidden />
-              </button>
-            </li>
-          ))}
-        </ul>
+      <p className={ajustes.hint}>{donde}</p>
+      {ver && palabras && n > 0 && (
+        <>
+          {n >= PALABRAS_PARA_FILTRAR && (
+            <input
+              type="search"
+              className={`${ajustes.input} ${styles.filtro}`}
+              placeholder="Buscar una palabra…"
+              aria-label={`Buscar en el diccionario ${nombre}`}
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+            />
+          )}
+          {visibles.length > 0 ? (
+            <ul className={styles.palabras} aria-label={`Palabras del diccionario ${nombre}`}>
+              {visibles.map((p) => (
+                <li key={p} className={styles.palabra}>
+                  <span className={styles.palabraTexto}>{p}</span>
+                  <button
+                    type="button"
+                    className={styles.quitarPalabra}
+                    aria-label={`Quitar «${p}» del diccionario ${nombre}`}
+                    title="Quitar"
+                    onClick={() => void quitar(p)}
+                  >
+                    <X size={12} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={ajustes.hint}>Ninguna palabra coincide con «{filtro.trim()}».</p>
+          )}
+        </>
       )}
       {error && <p className={ajustes.error}>{error}</p>}
-    </>
+    </div>
   );
 }
