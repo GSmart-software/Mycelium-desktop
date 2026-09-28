@@ -313,6 +313,12 @@ export function NoteEditor({
   notaIdRef.current = notaId;
   const contentRef = useRef("");
   const dirtyRef = useRef(false);
+  /**
+   * Lo último que este editor sabe que está en disco: lo que guardó, o lo que
+   * leyó (`DEF-117`). Sirve para reconocer el eco de un guardado propio cuando
+   * el watcher dispara la recarga.
+   */
+  const ultimoGuardadoRef = useRef<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cuánto tardó el último render del preview, para el debounce adaptativo.
   const ultimoRenderMs = useRef(0);
@@ -351,12 +357,28 @@ export function NoteEditor({
     if (!dirtyRef.current || syncingRef.current) return false;
     syncingRef.current = true;
     setSyncState("syncing");
+    // Lo que se manda, fijado ANTES del await (`DEF-117`): mientras el guardado
+    // viaja se puede seguir escribiendo, y eso nuevo todavía no está en disco.
+    const enviado = contentRef.current;
     try {
       await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
         method: "PUT",
         token: useAuthStore.getState().accessToken,
-        body: { contenido: contentRef.current },
+        body: { contenido: enviado },
       });
+      ultimoGuardadoRef.current = enviado;
+      // Solo queda «guardado» si no se escribió nada durante el guardado. Antes
+      // se marcaba siempre, y lo tipeado en ese intervalo quedaba como si
+      // estuviera en disco: la recarga que dispara el propio guardado (el
+      // watcher lo ve como un cambio) lo pisaba con la versión vieja, y se
+      // perdían las últimas palabras.
+      if (contentRef.current !== enviado) {
+        // Lo de antes quedó en disco, pero lo nuevo no: sigue pendiente y lo
+        // escribe el próximo guardado. `false` porque NO quedó todo guardado —
+        // quien cierra la pestaña lo usa para decidir si queda limpia.
+        setSyncState("local");
+        return false;
+      }
       dirtyRef.current = false;
       setSyncState("synced");
       // El contenido (y por ende los [[enlaces]]) cambió → refrescar el grafo.
@@ -631,11 +653,33 @@ export function NoteEditor({
     [onDocChanged, openByTitle, noteExists, notaId, instanceId, paneId],
   );
 
+  /**
+   * Pone `content` en el editor cambiando **solo el tramo que difiere**
+   * (`DEF-117`). Reemplazar el documento entero —como se hacía— tira la
+   * selección y el scroll: con cada recarga el cursor saltaba al inicio y lo
+   * siguiente se escribía en otro lugar. Con el cambio acotado, CodeMirror
+   * reubica el cursor por sí mismo y la vista no se mueve.
+   */
   const applyContent = useCallback((content: string) => {
     const view = viewRef.current;
     if (!view) return;
+    const actual = view.state.doc.toString();
+    if (actual === content) return;
+    let desde = 0;
+    const tope = Math.min(actual.length, content.length);
+    while (desde < tope && actual.charCodeAt(desde) === content.charCodeAt(desde)) desde++;
+    let finActual = actual.length;
+    let finNuevo = content.length;
+    while (
+      finActual > desde &&
+      finNuevo > desde &&
+      actual.charCodeAt(finActual - 1) === content.charCodeAt(finNuevo - 1)
+    ) {
+      finActual--;
+      finNuevo--;
+    }
     view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: content },
+      changes: { from: desde, to: finActual, insert: content.slice(desde, finNuevo) },
     });
   }, []);
 
@@ -657,11 +701,17 @@ export function NoteEditor({
       // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
       if (dirtyRef.current || !viewRef.current) return;
       if (remote.contenido === contentRef.current) return; // sin cambios
+      // El eco de nuestro propio guardado (`DEF-117`): el watcher ve la escritura
+      // del editor como un cambio en disco y dispara esta recarga. Si el disco
+      // tiene exactamente lo último que guardamos, no vino nada de afuera: lo que
+      // difiere es lo que se siguió escribiendo, y no se toca.
+      if (remote.contenido === ultimoGuardadoRef.current) return;
       // Aplicar como cambio "remoto" (brokerApplyRef evita marcar la nota sucia).
       brokerApplyRef.current = true;
       applyContent(remote.contenido);
       brokerApplyRef.current = false;
       contentRef.current = remote.contenido;
+      ultimoGuardadoRef.current = remote.contenido;
       dirtyRef.current = false;
       setSyncState("synced");
       // El cambio vino de disco, así que el updateListener no publicó nada: se
@@ -695,6 +745,7 @@ export function NoteEditor({
         );
         if (cancelled) return;
 
+        ultimoGuardadoRef.current = remote.contenido;
         if (!instance) {
           createView(remote.contenido);
           setSyncState("synced");

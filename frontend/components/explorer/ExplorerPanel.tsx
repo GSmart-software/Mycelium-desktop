@@ -191,9 +191,20 @@ export function ExplorerPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultId]);
 
-  // Ctrl+Z deshace el último movimiento (HU-24 CA7)
+  // Ctrl+Z deshace el último movimiento (HU-24 CA7)… pero SOLO si el foco no
+  // está en algo editable (`DEF-117`). Escuchaba en toda la ventana sin mirar
+  // dónde estaba el foco, y el movimiento no vencía: después de mover un
+  // archivo, el primer Ctrl+Z que se hiciera escribiendo en una nota —minutos
+  // después, para deshacer texto— devolvía el archivo a su carpeta. Si el
+  // editor u otro campo ya atendió la tecla (`defaultPrevented`), tampoco.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+      const foco = document.activeElement as HTMLElement | null;
+      const editable =
+        foco !== null &&
+        (foco.isContentEditable || foco.tagName === "INPUT" || foco.tagName === "TEXTAREA");
+      if (editable) return;
       if (event.ctrlKey && event.key === "z" && store.lastMove) {
         event.preventDefault();
         void store.undoLastMove();
