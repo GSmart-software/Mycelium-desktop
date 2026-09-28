@@ -291,10 +291,15 @@ async function comprobarInmutables(manifiesto) {
 
 function subir(archivos) {
   for (const { clave, archivo, contentType } of archivos) {
+    // Con `shell` (Windows: `npx` es un `.cmd`), un argumento con espacios —el
+    // `text/plain; charset=utf-8` de las licencias— se parte si no va entre
+    // comillas; igual que `ejecutar` en `publicar.mjs`.
+    const args = ["--no-install", "wrangler", "r2", "object", "put", `${BUCKET}/${PREFIJO}/${clave}`, "--file", archivo, "--remote", "--content-type", contentType];
+    const enShell = process.platform === "win32";
     const r = spawnSync(
       "npx",
-      ["--no-install", "wrangler", "r2", "object", "put", `${BUCKET}/${PREFIJO}/${clave}`, "--file", archivo, "--remote", "--content-type", contentType],
-      { stdio: "inherit", shell: process.platform === "win32" },
+      enShell ? args.map((a) => (/\s/.test(a) ? `"${a}"` : a)) : args,
+      { stdio: "inherit", shell: enShell },
     );
     if (r.status !== 0) fallar(`Falló la subida de ${clave}. Lo ya subido queda; se puede repetir.`);
     ok(`subido ${PREFIJO}/${clave}`);
