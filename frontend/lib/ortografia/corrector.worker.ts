@@ -4,14 +4,16 @@
 // 55–90 ms y una sugerencia 25–35 ms, y el editor nunca espera por eso.
 //
 // Una palabra es correcta si lo es en **alguno** de los diccionarios cargados,
-// o si está en el diccionario del vault o en «Ignorar» (con la regla de
-// mayúsculas de Hunspell, `aceptadaPor`). Sin ningún diccionario cargado, todo
-// es correcto: no hay contra qué marcar.
+// o si está en el diccionario del vault, en el de Mycelium o en «Ignorar» (con
+// la regla de mayúsculas de Hunspell, `aceptadaPor`). Esas tres llegan juntas,
+// como `personales`: al worker no le importa de cuál viene cada palabra; eso
+// solo lo sabe el hilo principal, que es el que las guarda. Sin ningún
+// diccionario cargado, todo es correcto: no hay contra qué marcar.
 //
 // Protocolo (lo arma `lib/ortografia/corrector.ts`):
 //   → { tipo: "iniciar", urlMotor }
 //   → { tipo: "diccionarios", lista: [{ id, aff, dic }] }   reemplaza los cargados
-//   → { tipo: "personales", palabras }                      diccionario del vault + ignoradas
+//   → { tipo: "personales", palabras }                      del vault + de Mycelium + ignoradas
 //   → { tipo: "revisar", n, palabras }
 //   → { tipo: "sugerir", n, palabra }
 //   ← { tipo: "cargados", ids, errores: [{ id, mensaje }] }
@@ -102,7 +104,7 @@ async function atender(m: MensajeAlCorrector): Promise<void> {
         // spellbook no sabe «desagregar» una palabra (su `remove_stem` la marca
         // prohibida, y eso rompería la que otro diccionario tenga): se vuelve a
         // cargar cada diccionario desde sus bytes. Pasa solo al quitar una
-        // palabra del diccionario del vault, que es raro.
+        // palabra de un diccionario personal, que es raro.
         cargados = cargados.map((c) => {
           c.motor.liberar();
           return cargar(c.id, c.aff, c.dic);

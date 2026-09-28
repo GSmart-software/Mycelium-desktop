@@ -166,14 +166,52 @@
   border-radius: var(--mic-radius-sm);
 }
 
-/* Palabras del diccionario del vault. */
+/* Los dos diccionarios personales (el del vault y el de Mycelium). */
+.personales {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1.1rem;
+}
+
+.personal {
+  max-width: 560px;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+/* Las aclaraciones van pegadas a la cabecera, no con el aire de un campo suelto. */
+.personal > p:not(.personalCabecera) {
+  margin-top: 0.2rem;
+}
+
+.personalCabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.filtro {
+  max-width: 16rem;
+  margin-top: 0.5rem;
+}
+
+/* Las palabras de un diccionario personal: una lista larga (cientos) no estira
+   la página, se desplaza dentro de su caja. */
 .palabras {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  max-width: 560px;
   max-height: 12rem;
   overflow: auto;
+  overscroll-behavior: contain;
   margin-top: 0.5rem;
   list-style: none;
 }
@@ -182,6 +220,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  max-width: 100%;
   padding: 0.15rem 0.2rem 0.15rem 0.5rem;
   font-size: 0.75rem;
   color: var(--mic-text-primary);
@@ -189,7 +228,16 @@
   border-radius: 999px;
 }
 
+/* Una «palabra» agregada a mano puede ser larguísima: se corta con «…». */
+.palabraTexto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .quitarPalabra {
+  flex-shrink: 0;
   display: grid;
   place-items: center;
   width: 18px;

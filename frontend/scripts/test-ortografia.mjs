@@ -138,14 +138,27 @@ test("el caché olvida lo más viejo al pasar el tope", () => {
   assert.equal(c.consultar("e"), false);
 });
 
-test("el diccionario del vault: una por renglón, sin vacíos ni comentarios, ordenado y estable", () => {
+test("un diccionario personal: una por renglón, sin vacíos ni comentarios, ordenado y estable", () => {
+  // El mismo formato para el del vault y el de Mycelium.
   const texto = "zeta\r\n\n# un comentario\nMycelium\nárbol\nzeta\n  vault  \nl’amico\n";
-  const palabras = P.leerDiccionarioVault(texto);
+  const palabras = P.leerDiccionarioPersonal(texto);
   assert.deepEqual(palabras, ["árbol", "l'amico", "Mycelium", "vault", "zeta"]);
-  assert.equal(P.escribirDiccionarioVault(palabras), "árbol\nl'amico\nMycelium\nvault\nzeta\n");
-  assert.deepEqual(P.leerDiccionarioVault(P.escribirDiccionarioVault(palabras)), palabras);
-  assert.deepEqual(P.leerDiccionarioVault(null), []);
-  assert.equal(P.escribirDiccionarioVault([]), "");
+  assert.equal(P.escribirDiccionarioPersonal(palabras), "árbol\nl'amico\nMycelium\nvault\nzeta\n");
+  assert.deepEqual(P.leerDiccionarioPersonal(P.escribirDiccionarioPersonal(palabras)), palabras);
+  assert.deepEqual(P.leerDiccionarioPersonal(null), []);
+  assert.equal(P.escribirDiccionarioPersonal([]), "");
+  // Agregar una al final y reescribir la deja en su lugar (así queda en memoria).
+  const conUna = P.leerDiccionarioPersonal(P.escribirDiccionarioPersonal([...palabras, "casa", "zeta"]));
+  assert.deepEqual(conUna, ["árbol", "casa", "l'amico", "Mycelium", "vault", "zeta"]);
+});
+
+test("el filtro de Configuración no distingue tildes ni mayúsculas", () => {
+  const palabras = ["Árbol", "arbolito", "casa", "Mycelium", "pingüino"];
+  assert.deepEqual(P.filtrarPalabras(palabras, "arbol"), ["Árbol", "arbolito"]);
+  assert.deepEqual(P.filtrarPalabras(palabras, "  MYCE "), ["Mycelium"]);
+  assert.deepEqual(P.filtrarPalabras(palabras, "guino"), ["pingüino"]);
+  assert.deepEqual(P.filtrarPalabras(palabras, ""), palabras);
+  assert.deepEqual(P.filtrarPalabras(palabras, "zzz"), []);
 });
 
 test("la regla de mayúsculas de las palabras aceptadas", () => {
@@ -349,7 +362,8 @@ test("el worker: correcta en alguno, el diccionario del vault y sugerencias inte
   w.enviar({ tipo: "revisar", n: 2, palabras: ["casas", "houses", "Hola", "cassa", "Mycelium"] });
   assert.deepEqual((await w.siguiente("revisado")).correctas, [true, true, true, false, false]);
 
-  // Diccionario del vault (e ignoradas): con la regla de mayúsculas.
+  // Los personales —del vault, de Mycelium e ignoradas, que el hilo principal
+  // manda juntos—: con la regla de mayúsculas.
   w.enviar({ tipo: "personales", palabras: ["Mycelium", "vault"] });
   w.enviar({ tipo: "revisar", n: 3, palabras: ["Mycelium", "MYCELIUM", "Vault", "mycelium"] });
   assert.deepEqual((await w.siguiente("revisado")).correctas, [true, true, true, false]);

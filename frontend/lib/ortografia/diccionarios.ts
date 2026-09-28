@@ -1,18 +1,18 @@
 /**
- * Dónde viven los diccionarios del corrector y el diccionario del vault
- * (`FUN-L-12`).
+ * Dónde viven los diccionarios del corrector y los dos diccionarios personales
+ * —el del vault y el de Mycelium— (`FUN-L-12`).
  *
  * **Diverge de web**: en desktop todo pasa por Rust (`src-tauri/src/diccionarios.rs`
  * y `prefs_vault.rs`): la descarga con verificación, los archivos en
- * `%LOCALAPPDATA%`, la configuración de la instalación y
- * `.mycelium/diccionario.txt`. En web la descarga es un `fetch` a R2 guardado en
- * la Cache API y el diccionario del vault va al backend. La API de este módulo
- * es lo que las dos ramas comparten; lo demás del corrector no sabe de dónde
- * salen los bytes.
+ * `%LOCALAPPDATA%`, la configuración de la instalación,
+ * `.mycelium/diccionario.txt` y `diccionario-personal.txt` (en `%APPDATA%`). En
+ * web la descarga es un `fetch` a R2 guardado en la Cache API y los
+ * diccionarios personales van al backend. La API de este módulo es lo que las
+ * dos ramas comparten; lo demás del corrector no sabe de dónde salen los bytes.
  */
 import { getVaultActual } from "@/lib/db/vaultContext";
 import { parsearManifiesto, type Descargado, type Manifiesto, type Variante } from "./manifiesto";
-import { escribirDiccionarioVault, leerDiccionarioVault } from "./palabras";
+import { escribirDiccionarioPersonal, leerDiccionarioPersonal } from "./palabras";
 
 async function invocar<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
@@ -148,13 +148,39 @@ export function vaultActual(): string | null {
 export async function leerPalabrasDelVault(vault: string | null): Promise<string[]> {
   if (vault === null) return [];
   const texto = await invocar<string | null>("leer_estado_vault", { ruta: vault, nombre: ARCHIVO_VAULT });
-  return leerDiccionarioVault(texto);
+  return leerDiccionarioPersonal(texto);
 }
 
 export async function guardarPalabrasDelVault(vault: string, palabras: string[]): Promise<void> {
   await invocar("escribir_estado_vault", {
     ruta: vault,
     nombre: ARCHIVO_VAULT,
-    contenido: escribirDiccionarioVault(palabras),
+    contenido: escribirDiccionarioPersonal(palabras),
   });
+}
+
+// ── Diccionario de Mycelium ─────────────────────────────────────────────────
+//
+// El que vale para todos los vaults de esta instalación:
+// `diccionario-personal.txt` en la carpeta de configuración de la app
+// (`%APPDATA%\com.mycelium.desktop\`, junto a `vaults.json`). No depende de que
+// haya un vault abierto.
+
+/** Las palabras del diccionario de Mycelium. Sin archivo, ninguna. */
+export async function leerPalabrasDeMycelium(): Promise<string[]> {
+  return leerDiccionarioPersonal(await invocar<string | null>("diccionario_personal_leer"));
+}
+
+/** Lo reescribe entero; Rust avisa a todas las ventanas (`escucharCambiosDeMycelium`). */
+export async function guardarPalabrasDeMycelium(palabras: string[]): Promise<void> {
+  await invocar("diccionario_personal_escribir", { contenido: escribirDiccionarioPersonal(palabras) });
+}
+
+/**
+ * Cambió el diccionario de Mycelium, en esta ventana o en otra: cada ventana
+ * relee sus palabras. Devuelve con qué dejar de escuchar.
+ */
+export async function escucharCambiosDeMycelium(fn: () => void): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("diccionario-personal-cambiado", () => fn());
 }
