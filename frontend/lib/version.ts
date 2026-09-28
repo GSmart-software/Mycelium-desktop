@@ -110,15 +110,18 @@
  *   viajan absorbidas. Ver `docs/estado/Version 2.1.0.md`.
  *
  * - `2.2.0` — **el calendario con recordatorios** (`FUN-L-22`: avisan en la app y
- *   en Windows, viven en el vault y no son archivos) y **las disposiciones del
- *   grafo** (`FUN-L-23`: anillo de colonias, crecimiento y sustrato, elegibles
- *   por vault, además del cúmulo de siempre; **retiradas el 2026-09-27** por
- *   decisión del usuario: queda solo el cúmulo). Absorbe los arreglos del índice
- *   que salieron del incidente de un vault de 11.780 notas (`DEF-105` a
- *   `DEF-108`: reindexado lento, cambios externos que no aparecían, datos que
- *   se perdían al reconstruir el índice, y un índice que no se achicaba).
+ *   en Windows, viven en el vault y no son archivos), **el corrector ortográfico
+ *   con motor propio** (`FUN-L-12`: spellbook en WebAssembly, diccionarios que se
+ *   descargan de R2, diccionario del vault y de Mycelium) y **abrir otro vault
+ *   desde la barra superior** (`FUN-S-24`). El grafo se reconstruye para vaults
+ *   grandes (`FUN-L-25`, cierra `DEF-109`); las disposiciones (`FUN-L-23`)
+ *   entraron y se **retiraron el 2026-09-27** sin publicarse. Absorbe los
+ *   arreglos del índice del incidente de un vault de 11.780 notas (`DEF-105` a
+ *   `DEF-108`), las tandas de rendimiento y limpieza (`FUN-M-38` a `FUN-M-40`,
+ *   `FUN-L-24`) y las correcciones `DEF-089`, `DEF-102` a `DEF-104` y `DEF-110`
+ *   a `DEF-117`.
  *
- *   **Minor, y uno solo** para dos funcionalidades: el salto lo decide el
+ *   **Minor, y uno solo** para tres funcionalidades: el salto lo decide el
  *   cambio más significativo, no cuántos hay. Ver `docs/estado/Version 2.2.0.md`.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
