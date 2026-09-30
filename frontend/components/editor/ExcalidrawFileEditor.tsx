@@ -5,7 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import { EVENTO_RECARGA } from "@/lib/eventos";
-import { leerEscena, type EscenaLeida } from "@/lib/excalidraw";
+import {
+  encuadrarDibujo,
+  hayAlgoDibujado,
+  leerEscena,
+  type ApiEncuadre,
+  type EscenaLeida,
+} from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
   registrarGuardadoPendiente,
@@ -26,7 +32,7 @@ type ExcalidrawApi = {
   getFiles: () => Record<string, unknown>;
   updateScene: (escena: { elements: readonly unknown[]; captureUpdate?: "NEVER" }) => void;
   addFiles: (archivos: unknown[]) => void;
-};
+} & ApiEncuadre;
 
 /**
  * Qué muestra la vista. `ilegible` (`DEF-119`) NO monta Excalidraw: sin editor
@@ -70,6 +76,14 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const versionBaseRef = useRef<number | null>(null);
   /** `versionDeEscena` del último `onChange`: la que queda en disco al guardar. */
   const versionActualRef = useRef<number | null>(null);
+  /**
+   * Falta encuadrar el dibujo recién montado (`FUN-L-26`). Solo al montar
+   * Excalidraw —la primera apertura, o al recuperarse de un archivo ilegible—:
+   * la recarga desde disco conserva la cámara. Y solo si hay algo dibujado: un
+   * dibujo en blanco no tiene qué encuadrar, y encuadrar su primer trazo movería
+   * la vista mientras se dibuja.
+   */
+  const encuadrePendienteRef = useRef(false);
   const dark =
     typeof document !== "undefined" && document.documentElement.dataset.dark === "true";
 
@@ -81,6 +95,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const mostrarAviso = useCallback((disco: string | null, motivo: string) => {
     conocidoRef.current = disco;
     ilegibleRef.current = true;
+    encuadrePendienteRef.current = false;
     // Sin editor montado no hay API: nada puede guardar (ni el volcado del updater).
     apiRef.current = null;
     sucioRef.current = false;
@@ -93,6 +108,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
     conocidoRef.current = disco;
     ilegibleRef.current = false;
     versionBaseRef.current = versionDeEscena(escena.elements);
+    encuadrePendienteRef.current = hayAlgoDibujado(escena.elements);
     setEstado({ tipo: "lista", escena });
     setMontaje((m) => m + 1);
   }, []);
@@ -163,6 +179,13 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const onChange = (elementos: readonly unknown[]) => {
     const version = versionDeEscena(elementos);
     versionActualRef.current = version;
+    // La primera `onChange` con la escena cargada: es cuando ya se puede
+    // encuadrar. Alguna anterior puede llegar todavía sin elementos, antes de
+    // que Excalidraw termine de leer `initialData`.
+    if (encuadrePendienteRef.current && apiRef.current && hayAlgoDibujado(elementos)) {
+      encuadrePendienteRef.current = false;
+      encuadrarDibujo(apiRef.current);
+    }
     // Mover la cámara, seleccionar o la escena recién cargada desde disco no
     // cambian el archivo: no se marca nada ni se escribe. Antes cada `onChange`
     // guardaba, y eso —además de escribir de balde— reescribía en el formato de

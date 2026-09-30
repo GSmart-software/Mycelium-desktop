@@ -102,6 +102,46 @@ export async function loadNotaScene(notaId: string): Promise<ExcalidrawScene | n
 }
 
 
+/**
+ * Cómo se encuadra un dibujo al abrirlo (`FUN-L-26`): todo lo dibujado a la
+ * vista, con margen, sin agrandar un dibujo chico más allá del 100 %
+ * (`fitToContent` ya trae ese tope) y sin que la barra de herramientas de
+ * Excalidraw —que flota sobre la franja de arriba— ni los controles de zoom y
+ * deshacer de abajo tapen nada: `canvasOffsets` saca esas franjas del área útil.
+ */
+const ENCUADRE_AL_ABRIR = {
+  fitToContent: true,
+  viewportZoomFactor: 0.9,
+  animate: false,
+  canvasOffsets: { top: 64, right: 0, bottom: 56, left: 0 },
+};
+
+/** Lo que `encuadrarDibujo` necesita de la API imperativa de Excalidraw. */
+export type ApiEncuadre = {
+  scrollToContent: (target?: undefined, opts?: typeof ENCUADRE_AL_ABRIR) => void;
+};
+
+/**
+ * ¿La escena tiene algo que encuadrar? Los borrados no cuentan: Excalidraw los
+ * conserva en la escena (`isDeleted`), pero no se ven.
+ */
+export function hayAlgoDibujado(elementos: readonly unknown[]): boolean {
+  return elementos.some((e) => !(e as { isDeleted?: boolean } | null)?.isDeleted);
+}
+
+/**
+ * Encuadra el dibujo (ver `ENCUADRE_AL_ABRIR`). Va en el cuadro siguiente: la
+ * primera `onChange` con la escena cargada puede llegar antes de que Excalidraw
+ * termine de medir su contenedor.
+ *
+ * Lo llama la vista **solo al montar el editor**: la recarga desde disco
+ * (`updateScene`) conserva la cámara a propósito, y volver a encuadrar en cada
+ * cambio de afuera movería el dibujo debajo del usuario.
+ */
+export function encuadrarDibujo(api: ApiEncuadre): void {
+  requestAnimationFrame(() => api.scrollToContent(undefined, ENCUADRE_AL_ABRIR));
+}
+
 /** Guarda la escena en el CONTENIDO de un archivo .excalidraw del vault. */
 export async function saveNotaScene(notaId: string, scene: ExcalidrawScene): Promise<void> {
   const contenido = JSON.stringify({
