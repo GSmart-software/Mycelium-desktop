@@ -1,4 +1,3 @@
-<!-- mycelium-ia v1.2.0 — generado por Mycelium; se actualiza desde Configuración → Vault -->
 
 Dividido en dos secciones:
 - Memoria (Este vault es tu memoria)
@@ -35,6 +34,34 @@ Eso te da dos obligaciones permanentes:
 **El enlace es la unidad de valor.** Una nota sin enlaces es un recuerdo que no se
 puede evocar: existe, pero nada lleva hasta él. Por eso, cada vez que escribas,
 enlazá; y cada vez que busques, seguí enlaces.
+
+## Qué puede haber en el vault (y qué de eso está en la memoria)
+
+Un vault no es solo notas. Esto es lo que podés encontrarte y qué podés hacer con
+cada cosa:
+
+| Archivo | Qué es | Podés |
+|---|---|---|
+| `.md` | **Nota**. La unidad de la memoria | Crear y editar libremente |
+| `.base` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar. Sintaxis en la skill `mycelium-vault` |
+| `.canvas` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con cuidado (es JSON) |
+| `.excalidraw` | **Dibujo** (JSON) | Leer; **no editar a mano** salvo pedido explícito |
+| `.drawio` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Leer; **no editar a mano** salvo pedido explícito |
+| Cualquier otro | PDF, imágenes, código, texto | Leerlos y editarlos como archivos normales |
+
+> [!warning] Solo las notas están en la memoria
+> Mycelium **indexa `.md`, y nada más**. Los demás archivos existen, se listan y
+> se abren, pero **no** están en la búsqueda del vault, **no** aparecen en el
+> autocompletado de `[[`, y **no** son nodos del grafo.
+>
+> Para vos eso significa una cosa concreta: un `grep` los encuentra igual, así
+> que podés terminar citando como evidencia de la memoria algo que la memoria no
+> tiene. Si una respuesta se apoya en un `.py` o en un `.csv`, decilo así —
+> «según el archivo `x.py`»— y no con un `[[enlace]]`, que no va a resolver.
+
+Un `.base` **sí** es un destino válido de `[[enlace]]` y aparece en el grafo,
+pero su contenido no se escanea: un `[[…]]` dentro de su YAML no crea una
+asociación.
 
 ## Protocolo de RECUPERACIÓN (buscar en la memoria)
 
@@ -79,7 +106,7 @@ usar cada uno:
 
 | Herramienta | Cuándo |
 |---|---|
-| skill `mycelium-vault` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, `.mycignore`. Consultala antes de escribir Markdown en este vault. |
+| skill `mycelium-vault` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, `.mycignore`, y el formato de los `.base` y los `.canvas`. Consultala antes de escribir en este vault. |
 | skill `mycelium-memoria` | **Técnicas** de recuperación y consolidación: estrategias de búsqueda, expansión por backlinks, cuándo crear vs ampliar, cómo redactar para recuperación futura. Consultala en tareas de buscar/registrar conocimiento. |
 | `/vault-buscar <pregunta>` | Responder una pregunta **con evidencia del vault** (recuperación completa + citas). Preferilo a buscar a mano. |
 | `/vault-recordar <qué recordar>` | Consolidar un hecho/decisión/aprendizaje en la memoria (crea o amplía la nota y la enlaza). |
@@ -91,25 +118,42 @@ usar cada uno:
 ## Reglas duras
 
 1. **Títulos únicos**: los `[[enlaces]]` resuelven por título, no por ruta.
-2. **Renombrar rompe enlaces**: Mycelium todavía NO reescribe los `[[enlaces]]` al
-   renombrar. Si renombrás, buscá `[[nombre viejo` (incluidos alias
-   `[[viejo|…]]` y embeds `![[viejo]]`) y actualizá cada referencia.
+2. **Si renombrás VOS, los enlaces los arreglás vos.** Mycelium repara los
+   `[[enlaces]]` entrantes al renombrar, pero solo cuando el renombrado pasa por
+   la app (explorador o el título de la nota). Un `mv` desde la terminal —que es
+   como renombrás— **no dispara nada**: buscá `[[nombre viejo` (incluidos alias
+   `[[viejo|…]]` y embeds `![[viejo]]`) y actualizá cada referencia. Y ojo con
+   el nombre: si lleva `? : * | " < >  /` el archivo no puede llamarse así.
 3. **Nada huérfano**: toda nota nueva entra a la red con al menos un enlace en cada
    dirección.
 4. **No dupliques**: buscá antes de crear; ampliá antes de fragmentar.
 5. **Estructura**: usá las carpetas/áreas que ya existen; no crees jerarquías
    paralelas.
-6. **Frontmatter YAML** (`---` al inicio): podés usarlo para metadatos, pero
-   Mycelium **aún no lo interpreta** (lo muestra como texto). Con moderación y
-   consistencia.
+6. **Propiedades** (frontmatter YAML entre `---` al inicio de la nota): Mycelium
+   **las interpreta**. Soporta un mapa PLANO cuyos valores sean texto, número,
+   casilla (`true`/`false`), fecha (`YYYY-MM-DD`), fecha y hora
+   (`YYYY-MM-DDTHH:mm`) o lista (`[a, b]` o con `- `). `tags:` son
+   **etiquetas de la nota**, igual que los `#tag` del cuerpo. Los valores se
+   consultan en la búsqueda con `clave:valor`. Lo que NO soporta —mapas
+   anidados, escalares multilínea (`|`, `>`), anclas/alias, listas de mapas,
+   claves repetidas— no se rompe, pero esa nota se muestra cruda y sin
+   propiedades: evitalo. Usá propiedades con moderación y con claves consistentes
+   (reusá las que ya existen en el vault en vez de inventar sinónimos).
 7. **Idioma**: el dominante del vault.
 8. **No toques** `.mycelium/` (índice interno + papelera). No edites `.claude/`:
    lo regenera Mycelium. Si el usuario regenera y ya hay un archivo suyo, Mycelium
    **no lo pisa**: crea `nombre (mycelium-ia vX).md` al lado y un reporte
    `Conflictos instrucciones IA.md` en la raíz.
-9. **Visibilidad**: lo ignorado por `.mycignore` (por defecto, todo directorio que
-   empieza con `.`) existe en disco pero **no aparece en la app ni en el grafo**.
-   No escondas ahí documentación que el usuario deba ver.
+9. **Visibilidad**: lo ignorado por `.mycignore` existe en disco pero **no aparece
+   en la app ni en el grafo**. Por defecto se ignoran los directorios que empiezan
+   con `.` y las carpetas de dependencias/build (`node_modules/`, `target/`,
+   `dist/`, `out/`). No escondas ahí documentación que el usuario deba ver.
+10. **Esporas** (carpeta `Esporas/` en la raíz, o la que el usuario haya
+    configurado): sus notas **no son conocimiento, son moldes** para crear otras
+    notas. Trátalas aparte: no consolides recuerdos ahí, no las cites como fuente,
+    y no las reportes como huérfanas (una plantilla sin enlaces es normal). Si vas
+    a crear una nota de un tipo que ya tiene Espora, **partí de ella**. Detalle y
+    variables en la skill `mycelium-vault`.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -117,11 +161,21 @@ No controlás la aplicación: trabajás sobre sus archivos. Pero es útil saber 
 el usuario, porque es el efecto de lo que escribís: editor Markdown con vista en
 vivo y de lectura; callouts (`note`, `tip`, `important`, `warning`, `caution`,
 `info`, `success`, `error`, `danger`, `question`; plegables con `[!tipo]-`),
-incluso anidados; **grafo de conexiones** global y mini-grafo por nota (tus enlaces
-se ven ahí); búsqueda global; panel lateral con pestañas ancladas; **terminal
+incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
+como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
+panel del rail, en la barra del editor y en el clic derecho de una carpeta;
+**tablas** `.base` con sus filtros, orden y buscador; **lienzos** `.canvas`;
+**grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
+búsqueda global —por nombre, por contenido o los dos, con `clave:valor` y
+`tag:x`, y con los resultados agrupables por carpeta—; un **visor** para los
+archivos que no son notas (PDF, imágenes, y código con resaltado de sintaxis, que
+además se puede editar); panel lateral con pestañas ancladas; **terminal
 integrada** (es probable que estés corriendo en ella, con cwd en el vault);
 exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (```mermaid) y KaTeX
-(`$…$`). Mycelium detecta tus cambios en disco y refresca la UI solo.
+(`$…$`).
+
+El usuario puede además **renombrar una nota escribiendo en su título**, arriba
+del documento. Mycelium detecta tus cambios en disco y refresca la UI solo.
 
 
 # Mycelium — guía del proyecto y flujo de trabajo (orquestador + subagentes)
@@ -131,7 +185,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **2.1.0** (publicada el 2026-09-23; la próxima es `2.2.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **2.2.0** (publicada el 2026-09-28; la próxima es `2.2.1`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 > [!warning] La versión vigente se lee del disco, no de esta tabla
@@ -394,9 +448,10 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > —`.base`, `.canvas`, y los que se guardan pero NO se indexan— más la corrección de que
 > renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv`.
 >
-> **Este vault sigue con la `1.2.0`**, o sea tres versiones por detrás: sus instrucciones
-> afirman que el frontmatter no se interpreta y que renombrar rompe los enlaces, y las dos
-> cosas ya son falsas. Hay que regenerar desde Configuración → Vault.
+> **Este vault tiene la `1.6.0`** desde el 2026-09-30. Al regenerarla, Mycelium pisó este
+> `CLAUDE.md` entero porque conservaba la marca `<!-- mycelium-ia` (`DEF-118`): la sección
+> del proyecto se recuperó de git y la marca se quitó a propósito, para que una próxima
+> regeneración lo trate como archivo del usuario y escriba la versión nueva al lado.
 
 Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
 rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
