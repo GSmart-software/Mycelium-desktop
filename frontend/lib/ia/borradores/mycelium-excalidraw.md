@@ -2,7 +2,7 @@
 name: mycelium-excalidraw
 description: Crear, leer y modificar dibujos .excalidraw del vault de Mycelium — el JSON de Excalidraw, flechas enlazadas a sus formas, texto dentro de cajas, coordenadas y disposición legible. Usar cuando el usuario pida un dibujo, boceto, flujo, mapa mental o diagrama «a mano alzada», o cuando haya que cambiar un .excalidraw existente.
 ---
-<!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # Dibujos de Excalidraw en Mycelium
 
 Un `.excalidraw` es un **dibujo**: formas con aspecto de hecho a mano, texto y
@@ -50,6 +50,10 @@ que nadie embebe no aparece en ninguna nota.
 > Mycelium recarga la pestaña cuando el archivo cambia en disco, salvo que tenga
 > cambios propios sin guardar. No edites un dibujo mientras el usuario lo está
 > dibujando: pedile que lo cierre o esperá a que termine.
+>
+> El **editor modal** que se abre con clic sobre un dibujo embebido en una nota
+> (`![[…excalidraw]]`) **no** se recarga: si está abierto mientras escribís, al
+> cerrarlo guarda lo suyo y **pisa** lo tuyo. Pedile que lo cierre antes.
 
 ## El archivo
 
@@ -670,7 +674,7 @@ existente y ubicá lo nuevo a ≥ 60 px de todo, o corré las formas vecinas.
 1. **Validá** cada archivo que escribiste:
 
    ```sh
-   node .claude/skills/mycelium-excalidraw/validar.mjs "Procesos/Pedido.excalidraw"
+   node .claude/skills/mycelium-excalidraw/validar-excalidraw.mjs "Procesos/Pedido.excalidraw"
    ```
 
    Comprueba el JSON y la forma del archivo, ids únicos, campos obligatorios por

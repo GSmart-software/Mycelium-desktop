@@ -2,7 +2,7 @@
 name: mycelium-drawio
 description: Crear, leer y modificar diagramas de draw.io (.drawio, XML de mxGraph) que se vean bien en Mycelium — figuras, flechas enganchadas, contenedores, coordenadas y disposición sin cajas encimadas ni texto cortado. Usar cuando el usuario pida un diagrama de flujo, organigrama, modelo ER, arquitectura, red o UML, o al tocar un .drawio existente.
 ---
-<!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # Diagramas de draw.io en Mycelium
 
 Un `.drawio` es un **diagrama formal**: figuras y conectores que se **enganchan**. Si el

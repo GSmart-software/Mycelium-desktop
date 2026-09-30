@@ -2,7 +2,7 @@
 name: mycelium-esporas
 description: Esporas, las plantillas de notas de Mycelium — dónde viven, sus variables ({{titulo}}, {{fecha}}, {{hora}}, {{fecha:FORMATO}}), cómo escribir una buena y cómo crear una nota a partir de una desde la terminal (expandiendo vos las variables). Usar al crear una nota de un tipo que se repite (reunión, diario, proyecto, lectura) o cuando pidan crear o corregir una plantilla.
 ---
-<!-- mycelium-ia v1.7.0 -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # Esporas: las plantillas del vault
 
 Una **Espora** es una **nota normal** (`.md`) que vive en la **carpeta de Esporas** y

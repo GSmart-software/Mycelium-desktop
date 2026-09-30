@@ -2,7 +2,7 @@
 name: mycelium-calendario
 description: Consultar el calendario de recordatorios del vault de Mycelium (.mycelium/recordatorios.json) — qué hay agendado hoy, esta semana, un día o un mes, con las repeticiones bien expandidas y lo completado. SOLO LECTURA. Usar cuando el usuario pregunte por su agenda, recordatorios, vencimientos o «qué tengo…».
 ---
-<!-- mycelium-ia v1.7.0 -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # El calendario del vault (solo lectura)
 
 Mycelium tiene un **calendario de recordatorios** por vault: un título, una fecha, una
