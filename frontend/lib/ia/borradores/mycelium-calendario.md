@@ -73,6 +73,13 @@ recordatorio sin `id`, sin `titulo` de texto, o con una `fecha` que no existe
 El calendario de la app muestra todas las ocurrencias, descartadas y pospuestas
 incluidas. Solo `completada` cambia cómo se ven.
 
+**Una marca en un día en que el recordatorio no ocurre** (`id@2026-09-30` de un
+recordatorio mensual del 31, o de uno que empieza después) no muestra nada en la app:
+suele quedar de cuando el recordatorio tenía otra fecha. **Ignorala**: no la cuentes como
+hecha ni la «corras» a la ocurrencia vecina (la del 31 de octubre sigue pendiente). Si
+toca lo que preguntaron («¿ya pagué el alquiler de septiembre?»), mencionala en una línea;
+si no, callala.
+
 ## Expandir las repeticiones
 
 Una repetición no tiene fecha de fin. Un recordatorio **ocurre** el día `F` si:
@@ -95,12 +102,35 @@ y conviene decírsela.
 
 ### Rangos
 
-- **«Hoy»**: la fecha local del sistema — `date +%F` (y `date +%H:%M` si importa la hora).
-  No la supongas.
-- **«Esta semana»**: de **lunes a domingo** (así la muestra la app), la que contiene hoy.
-- **«Este mes»**: del día 1 al último del mes.
-- **«El martes»**: el próximo martes, o hoy si hoy es martes; si hay duda, decí qué
-  fecha tomaste.
+- **«Hoy»**: la fecha **local** del sistema. No la supongas, y no te fíes de un `date`
+  a secas en Windows:
+
+  ```sh
+  # Windows (Git Bash o PowerShell): usa la zona de Windows, pase lo que pase con TZ
+  powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm'"
+  # Linux / macOS
+  date '+%F %H:%M'
+  ```
+
+  `date` y `node` obedecen la variable `TZ`: si apunta a otra zona (o a UTC), cerca de
+  medianoche te dan **otro día**. Si usás `date`, `date +%z` tiene que dar el desfase del
+  usuario (`-0300` en Argentina). Una hora rara (las 02:55) puede ser la real: no la
+  corrijas; si no cierra con la conversación, preguntá.
+- **«Esta semana»**: de **lunes a domingo** (así la muestra la app), la que contiene hoy,
+  **entera**: si hoy es jueves, lo de lunes a miércoles va igual, marcado como ya pasado
+  («ya pasó», o «✓ hecha» si está completada).
+- **«Este mes»**, **«el mes que viene»**: el mes calendario, del día 1 al último.
+- **«Los próximos N meses»**: de **hoy** al **mismo día** N meses después (si ese día no
+  existe, el último de ese mes): desde el 30/09, tres meses llega al 30/12. No redondees
+  a meses completos.
+- **«En N meses»** (un momento, no un plazo): el mes calendario que cae N meses después,
+  entero: «¿qué tengo en seis meses?» el 30/09/2026 es marzo de 2027.
+- **«Las próximas N veces»** (del alquiler, de la reunión): contá N ocurrencias desde hoy,
+  sin tope de fecha (corré el script con un rango amplio y quedate con las primeras N).
+- **«El martes»**: el próximo martes, o hoy si hoy es martes.
+
+En todos los casos, **decí el rango que tomaste** («del lunes 28/09 al domingo 04/10»):
+el usuario ve enseguida si entendiste otra cosa.
 
 ### Orden al listar
 
@@ -119,9 +149,41 @@ hora por título. Es el orden de la lista de la app.
    su alias si lo tienen—, para que el usuario pueda seguirlos. Si el detalle enlaza una
    nota que te sirve para contestar (el orden del día, la lista de regalos), leéla y usala,
    citándola.
-5. Aclará que son **recordatorios del calendario**, no notas: si además hay notas con
-   fecha que vengan al caso (propiedad `vence:`, notas diarias), buscalas aparte y
-   presentalas separadas.
+5. Si la pregunta es de agenda en general («¿qué tengo…?», «¿qué vence…?»), sumá las
+   **fechas de las notas**, en una sección aparte (abajo). Si preguntan solo por el
+   calendario o los recordatorios, no.
+
+### Aparte: las fechas de las notas
+
+El calendario no ve las notas, pero el usuario también «tiene» lo que vence en ellas.
+Presentalo **separado** («En el calendario» / «En tus notas»), nunca mezclado con los
+recordatorios, y con este criterio:
+
+- **Entran** las notas con una **propiedad de fecha** del frontmatter (`vence:`,
+  `fecha:`, `inicio:`, una fecha y hora) dentro del rango. Citalas con `[[enlace]]` y el
+  nombre de la propiedad («[[Pagar dominio]] — vence el lunes 28»).
+- **Tareas vencidas antes del rango** que siguen abiertas (`vence:` anterior a hoy y sin
+  `hecho: true` ni un `estado` de cierre): van, en una línea propia «vencidas de antes».
+  Es lo que el usuario más necesita ver. Lo cerrado (`hecho: true`) no va.
+- **Lo que ya pasó de un evento** (una reunión anotada el lunes) no es algo que «tenga»:
+  mencionalo solo si ayuda.
+- **Fechas escritas en el cuerpo** («el 2 de octubre llamo a Marta»): no las barras por
+  defecto, son ambiguas y ruidosas. Si el usuario las pide o el vault no usa
+  propiedades de fecha, buscá las fechas concretas del rango
+  (`grep -rn --include="*.md" --exclude-dir=".?*" -e "2026-10-02" -e "2/10" .`) y
+  presentalas como «menciones», no como agenda.
+- **Esporas** (plantillas) no cuentan: sus `{{fecha}}` no son fechas.
+
+Las propiedades de fecha de todas las notas, dentro de un rango (sin lo oculto ni los
+`CLAUDE*.md`):
+
+```sh
+# notas-con-fecha: propiedades de fecha entre d y h (inclusive)
+find . -name '*.md' -not -path '*/.*' -not -name 'CLAUDE*.md' -exec awk -v d=2026-09-28 -v h=2026-10-04 '{sub(/\r$/,"")} FNR==1{fm=($0=="---");next} fm&&/^---$/{fm=0} fm&&match($0,/^[A-Za-z_][A-Za-z0-9_-]*: *"?[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/){f=substr($0,RLENGTH-9,10); if(f>=d&&f<=h) print f"  "FILENAME"  "$0}' {} + | sort
+```
+
+Para las vencidas de antes, corrélo con `d=0000-01-01` y `h=` el día anterior al rango, y
+leé cada nota para ver si sigue abierta.
 
 ### Con `node` (más seguro en rangos largos)
 
@@ -162,9 +224,12 @@ const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
 const salida = [];
 for (let f = desde; f <= hasta; f = mas(f, 1))
   for (const r of recs) if (ocurre(r, f)) salida.push({ f, r });
-salida.sort((x, y) => (x.f !== y.f ? (x.f < y.f ? -1 : 1)
-  : (x.r.hora ?? "") !== (y.r.hora ?? "") ? ((x.r.hora ?? "") < (y.r.hora ?? "") ? -1 : 1)
-  : x.r.titulo.localeCompare(y.r.titulo, "es")));
+// Orden de la app: fecha; en el día, los de todo el día (hora null) primero; después hora; después título.
+const cmp = (p, q) => (p < q ? -1 : p > q ? 1 : 0);
+salida.sort((x, y) => cmp(x.f, y.f)
+  || (x.r.hora === null ? 0 : 1) - (y.r.hora === null ? 0 : 1)
+  || cmp(x.r.hora ?? "", y.r.hora ?? "")
+  || x.r.titulo.localeCompare(y.r.titulo, "es"));
 const oc = a.ocurrencias || {};
 for (const { f, r } of salida) {
   const hecha = oc[`${r.id}@${f}`]?.completada === true ? "  ✓ hecha" : "";
@@ -173,6 +238,13 @@ for (const { f, r } of salida) {
   console.log(`${f} ${DIAS[(new Date(f + "T00:00:00Z").getUTCDay() + 6) % 7]}  ${r.hora ?? "todo el día"}  ${r.titulo}${rep}${hecha}${enl ? "  → " + enl : ""}`);
 }
 if (salida.length === 0) console.log(`Nada agendado entre ${desde} y ${hasta}.`);
+// Marcas de hecha en días del rango en que ese recordatorio NO ocurre: la app no las muestra.
+const hay = new Set(salida.map(({ f, r }) => `${r.id}@${f}`));
+for (const [clave, e] of Object.entries(oc)) {
+  const i = clave.lastIndexOf("@"), f = clave.slice(i + 1), r = recs.find((x) => x.id === clave.slice(0, i));
+  if (i > 0 && r && e?.completada === true && f >= desde && f <= hasta && !hay.has(clave))
+    console.log(`Aviso: «${r.titulo}» tiene una marca de hecha el ${f}, pero ese día no ocurre: se ignora.`);
+}
 EOF
 ```
 
@@ -187,7 +259,10 @@ rango **día por día** y no «saltás» de a semanas o meses a ojo.
   en años no bisiestos. La app no lo hace.
 - **Contar ocurrencias antes de `fecha`**: la serie empieza ahí.
 - **Tratar `descartada` como hecha**: solo es el aviso.
-- **Mezclar fechas UTC**: todo el archivo es hora local. No conviertas zonas horarias.
+- **Mezclar fechas UTC**: todo el archivo es hora local. No conviertas zonas horarias, y
+  sacá «hoy» de la hora local (PowerShell en Windows), no de un `date` con otra `TZ`.
+- **Contar una marca de hecha en un día en que el recordatorio no ocurre**, o correrla a
+  la ocurrencia vecina.
 - **Semana de domingo a sábado**: en Mycelium la semana empieza el lunes.
 - **Buscar recordatorios con `grep --include="*.md"`**: no están en las notas.
 - **Citar el detalle como si fuera una nota**: el detalle no es memoria del vault; lo que

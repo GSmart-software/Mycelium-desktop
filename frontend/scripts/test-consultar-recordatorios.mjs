@@ -6,10 +6,12 @@
 //   node --test scripts/test-consultar-recordatorios.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { consultar, leerRecordatorios } from "./consultar-recordatorios.mjs";
+import { R, consultar, leerRecordatorios } from "./consultar-recordatorios.mjs";
 
 const VAULT = fileURLToPath(new URL("./fixtures/ia/calendario/vault", import.meta.url));
 const SKILL = fileURLToPath(new URL("../lib/ia/borradores/mycelium-calendario.md", import.meta.url));
@@ -112,6 +114,58 @@ for (const [desde, hasta] of [
     assert.deepEqual(correrSnippet(desde, hasta).map(esencial), esperado);
   });
 }
+
+test("script de la skill: una marca de hecha en un día sin ocurrencia se avisa y no se cuenta", () => {
+  // `a1b2c3d4-0001@2026-09-30`: el alquiler es el 31 y septiembre no tiene 31.
+  const r = spawnSync(process.execPath, ["-", "2026-09-28", "2026-10-04"], { input: snippet, cwd: VAULT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^Aviso: «Pagar alquiler» tiene una marca de hecha el 2026-09-30, pero ese día no ocurre/m);
+  assert.doesNotMatch(r.stdout, /^2026-09-30 .*Pagar alquiler/m);
+  // Un id que ya no existe (`…0099`) se ignora sin aviso, y fuera del rango tampoco se avisa.
+  assert.equal((r.stdout.match(/^Aviso:/gm) ?? []).length, 1);
+  const fuera = spawnSync(process.execPath, ["-", "2026-10-01", "2026-10-31"], { input: snippet, cwd: VAULT, encoding: "utf8" });
+  assert.doesNotMatch(fuera.stdout, /^Aviso:/m);
+});
+
+test("script de la skill: los de todo el día van primero aunque otro sea a las 00:00", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "cal-"));
+  try {
+    await mkdir(join(dir, ".mycelium"));
+    await writeFile(join(dir, ".mycelium", "recordatorios.json"), JSON.stringify({
+      version: 1,
+      recordatorios: [
+        { id: "a", titulo: "A medianoche", fecha: "2026-10-01", hora: "00:00", repeticion: "ninguna", color: 1, detalle: "" },
+        { id: "z", titulo: "Z todo el día", fecha: "2026-10-01", hora: null, repeticion: "ninguna", color: 1, detalle: "" },
+        { id: "b", titulo: "B tarde", fecha: "2026-10-01", hora: "18:00", repeticion: "ninguna", color: 1, detalle: "" },
+      ],
+      ocurrencias: {},
+    }));
+    const r = spawnSync(process.execPath, ["-", "2026-10-01", "2026-10-01"], { input: snippet, cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const orden = r.stdout.trim().split("\n").map((l) => l.split("  ")[2]);
+    assert.deepEqual(orden, ["Z todo el día", "A medianoche", "B tarde"]);
+    const modelo = consultar(R.leerArchivo(JSON.parse(await readFile(join(dir, ".mycelium", "recordatorios.json"), "utf8"))), "2026-10-01", "2026-10-01");
+    assert.deepEqual(modelo.map((o) => o.titulo), orden);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Las fechas de las notas (sección aparte de la skill) ────────────────────
+
+const sh = spawnSync("sh", ["-c", "true"]).status === 0;
+const notasConFecha = /```sh\n(# notas-con-fecha[\s\S]*?)```/.exec(md)?.[1];
+
+test("el comando de notas con fecha: propiedades del rango, sin lo oculto", { skip: !sh && "sin sh" }, () => {
+  assert.ok(notasConFecha, "no se encontró el bloque # notas-con-fecha");
+  const r = spawnSync("sh", ["-c", notasConFecha], {
+    cwd: fileURLToPath(new URL("./fixtures/ia/base/vault", import.meta.url)),
+    encoding: "utf8",
+  });
+  assert.equal(r.status, 0, r.stderr);
+  // Del 28/09 al 04/10 solo vence «Pagar dominio» (28/09); «Rediseño del API» vence el 15/10.
+  assert.deepEqual(r.stdout.trim().split("\n"), ["2026-09-28  ./Tareas/Pagar dominio.md  vence: 2026-09-28"]);
+});
 
 test("script de la skill sin calendario: lo dice y no falla", () => {
   const r = spawnSync(process.execPath, ["-", "2026-01-01", "2026-01-02"], {
