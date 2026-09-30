@@ -1,0 +1,21 @@
+filters:
+  and:
+    - file.inFolder("Proyectos")
+    - estado != "hecho"
+properties:
+  estado:
+    displayName: Estado
+  prioridad:
+    displayName: Prioridad
+views:
+  - type: table
+    name: Activos
+    order:
+      - file.name
+      - proyecto
+      - estado
+      - prioridad
+      - vence
+    sort:
+      - property: prioridad
+        direction: DESC

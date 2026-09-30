@@ -1,0 +1,22 @@
+# Tareas sin hacer, la más urgente primero.
+filters:
+  and:
+    - tipo == "tarea"
+    - hecho != true
+views:
+  - type: table
+    name: Por vencimiento
+    order:
+      - file.name
+      - vence
+    sort:
+      - property: vence
+        direction: ASC
+  - type: table
+    name: Vencidas al 30-09
+    filters:
+      and:
+        - vence < "2026-09-30"
+    order:
+      - file.name
+      - vence

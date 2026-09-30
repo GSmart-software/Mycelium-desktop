@@ -1,0 +1,6 @@
+filters:
+  and:
+    - titulo == "Reunión: equipo"
+views:
+  - type: table
+    name: Dos puntos

@@ -1,0 +1,7 @@
+filters:
+  and:
+    - estado == "activo" && prioridad > 2
+    - "!file.hasTag(\"idea\")"
+views:
+  - type: table
+    name: Mal

@@ -1,0 +1,8 @@
+filters:
+  and:
+    - file.hasTag("idea")
+views:
+  - type: table
+    name: Ideas con moldes
+    order:
+      - file.name

@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "recordatorios": [
+    {
+      "id": "a1b2c3d4-0001",
+      "titulo": "Pagar alquiler",
+      "fecha": "2026-01-31",
+      "hora": "09:00",
+      "repeticion": "mes",
+      "color": 4,
+      "detalle": "Transferencia a [[Departamento|la inmobiliaria]].\nCBU en la nota."
+    },
+    {
+      "id": "a1b2c3d4-0002",
+      "titulo": "Cumpleaños de Lucía",
+      "fecha": "2024-02-29",
+      "hora": null,
+      "repeticion": "anio",
+      "color": 5,
+      "detalle": "Ver [[Lucía]] para ideas de regalo."
+    },
+    {
+      "id": "a1b2c3d4-0003",
+      "titulo": "Reunión de equipo",
+      "fecha": "2026-09-01",
+      "hora": "10:30",
+      "repeticion": "semana",
+      "color": 1,
+      "detalle": "Orden del día en [[Reuniones/Equipo]].",
+      "vigenteDesde": "2026-08-30T18:12"
+    },
+    {
+      "id": "a1b2c3d4-0004",
+      "titulo": "Tomar la medicación",
+      "fecha": "2026-09-28",
+      "hora": "21:00",
+      "repeticion": "dia",
+      "color": 2,
+      "detalle": ""
+    },
+    {
+      "id": "a1b2c3d4-0005",
+      "titulo": "Entregar informe",
+      "fecha": "2026-10-02",
+      "hora": "18:00",
+      "repeticion": "ninguna",
+      "color": 6,
+      "detalle": "# Informe trimestral\n\n- Revisar [[Informe Q3]]\n- Mandar a Marta"
+    },
+    {
+      "id": "a1b2c3d4-0006",
+      "titulo": "Renovar pasaporte",
+      "fecha": "2026-10-05",
+      "repeticion": "ninguna",
+      "color": 3,
+      "detalle": "Sin campo hora: es de todo el día."
+    },
+    {
+      "id": "a1b2c3d4-0007",
+      "titulo": "Día 30 de cada mes",
+      "fecha": "2026-01-30",
+      "hora": "25:00",
+      "repeticion": "mes",
+      "color": 12,
+      "detalle": "Hora inválida → todo el día; color fuera de rango → 1."
+    },
+    {
+      "id": "a1b2c3d4-0008",
+      "titulo": "Repetición desconocida",
+      "fecha": "2026-09-29",
+      "hora": "08:00",
+      "repeticion": "quincenal",
+      "color": 7,
+      "detalle": "`quincenal` no existe: la app lo lee como «ninguna»."
+    },
+    {
+      "id": "a1b2c3d4-0009",
+      "titulo": "Fecha imposible",
+      "fecha": "2026-02-30",
+      "hora": null,
+      "repeticion": "ninguna",
+      "color": 1,
+      "detalle": "La app descarta este recordatorio entero."
+    },
+    {
+      "titulo": "Sin id",
+      "fecha": "2026-10-01",
+      "hora": null,
+      "repeticion": "ninguna",
+      "color": 1,
+      "detalle": "La app descarta este recordatorio entero."
+    }
+  ],
+  "ocurrencias": {
+    "a1b2c3d4-0003@2026-09-29": { "completada": true },
+    "a1b2c3d4-0004@2026-09-30": { "descartada": true },
+    "a1b2c3d4-0004@2026-10-01": { "pospuestaHasta": "2026-10-02T21:00" },
+    "a1b2c3d4-0001@2026-09-30": { "completada": true, "descartada": true },
+    "a1b2c3d4-0099@2026-09-30": { "completada": true },
+    "sin-arroba": { "completada": true }
+  }
+}
