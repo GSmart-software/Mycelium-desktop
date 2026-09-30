@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "paso-1",
+      "type": "text",
+      "text": "**1.** Elegir el producto",
+      "x": 0,
+      "y": 0,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "paso-2",
+      "type": "text",
+      "text": "**2.** Agregarlo al carrito",
+      "x": 0,
+      "y": 200,
+      "width": 240,
+      "height": 130
+    },
+    {
+      "id": "stock",
+      "type": "text",
+      "text": "**¿Hay stock?**",
+      "x": 0,
+      "y": 420,
+      "width": 240,
+      "height": 130,
+      "color": "2"
+    },
+    {
+      "id": "sin-stock",
+      "type": "text",
+      "text": "**No →** Avisar y sugerir un producto parecido",
+      "x": 360,
+      "y": 420,
+      "width": 240,
+      "height": 130
+    },
+    {
+      "id": "paso-3",
+      "type": "text",
+      "text": "**Sí →** **3.** Cargar el medio de pago",
+      "x": 0,
+      "y": 640,
+      "width": 240,
+      "height": 130
+    },
+    {
+      "id": "pago",
+      "type": "text",
+      "text": "**¿Pago aprobado?**",
+      "x": 0,
+      "y": 860,
+      "width": 240,
+      "height": 130,
+      "color": "2"
+    },
+    {
+      "id": "rechazo",
+      "type": "text",
+      "text": "**No →** Pedir otro medio de pago",
+      "x": 360,
+      "y": 860,
+      "width": 240,
+      "height": 130
+    },
+    {
+      "id": "paso-4",
+      "type": "text",
+      "text": "**Sí →** **4.** Confirmar la compra",
+      "x": 0,
+      "y": 1080,
+      "width": 240,
+      "height": 130,
+      "color": "4"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1-2",
+      "fromNode": "paso-1",
+      "fromSide": "bottom",
+      "toNode": "paso-2",
+      "toSide": "top"
+    },
+    {
+      "id": "e-2-stock",
+      "fromNode": "paso-2",
+      "fromSide": "bottom",
+      "toNode": "stock",
+      "toSide": "top"
+    },
+    {
+      "id": "e-stock-si",
+      "fromNode": "stock",
+      "fromSide": "bottom",
+      "toNode": "paso-3",
+      "toSide": "top"
+    },
+    {
+      "id": "e-stock-no",
+      "fromNode": "stock",
+      "fromSide": "right",
+      "toNode": "sin-stock",
+      "toSide": "left"
+    },
+    {
+      "id": "e-3-pago",
+      "fromNode": "paso-3",
+      "fromSide": "bottom",
+      "toNode": "pago",
+      "toSide": "top"
+    },
+    {
+      "id": "e-pago-si",
+      "fromNode": "pago",
+      "fromSide": "bottom",
+      "toNode": "paso-4",
+      "toSide": "top"
+    },
+    {
+      "id": "e-pago-no",
+      "fromNode": "pago",
+      "fromSide": "right",
+      "toNode": "rechazo",
+      "toSide": "left"
+    },
+    {
+      "id": "e-reintentar",
+      "fromNode": "rechazo",
+      "fromSide": "top",
+      "toNode": "paso-3",
+      "toSide": "right"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 name: mycelium-canvas
-description: Crear, leer y modificar lienzos .canvas (JSON Canvas) que se vean bien en Mycelium — coordenadas y tamaños, flechas con fromSide/toSide coherentes, grupos que contengan a sus tarjetas, colores y tarjetas de nota. Usar cuando el usuario pida un lienzo, mapa de ideas, tablero, línea de tiempo, organigrama o mapa de notas, o al tocar un .canvas existente.
+description: Crear, leer y modificar lienzos .canvas (JSON Canvas) que se vean bien en Mycelium — coordenadas y tamaños, flechas con fromSide/toSide coherentes, grupos que contengan a sus tarjetas, colores y tarjetas de nota. Usar cuando el usuario pida un lienzo, mapa de ideas, tablero, línea de tiempo, organigrama, flujo o mapa de notas, o al tocar un .canvas existente.
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # Lienzos `.canvas` en Mycelium
@@ -42,7 +42,7 @@ el usuario no lo ve.
 | `color` de un nodo (`"1"`…`"6"` o `"#RRGGBB"`) | Tiñe el **borde y la cabecera**; el cuerpo queda neutro |
 | Flecha (`edges`) | Curva bezier gris con punta en el destino |
 | `toEnd: "none"` / `fromEnd: "arrow"` | Sin punta / punta también en el origen |
-| `fromSide` / `toSide` | Respetados. Sin ellos, Mycelium los elige (ver «Anclas») |
+| `fromSide` / `toSide` | Respetados. Sin ellos, Mycelium los elige por centros (ver «Anclas») |
 | `label` de una flecha | **No se dibuja** |
 | `color` de una flecha | **No se dibuja**: todas son grises |
 | Claves desconocidas de nodos y flechas | Se conservan al guardar |
@@ -50,15 +50,11 @@ el usuario no lo ve.
 | `type` que no sea text/file/link/group | Se convierte en `text` al guardar |
 | Flecha a un nodo que no existe | No se dibuja y **se borra** al próximo guardado |
 
-> [!warning] Tres cosas que sorprenden
-> 1. **La vista abre en `(0, 0)`**, con ese punto en la esquina superior izquierda
->    de la pantalla y zoom 100 %. No hay «ajustar al contenido»: lo que esté en
->    coordenadas negativas queda fuera de pantalla hasta que el usuario arrastre.
->    **Empezá el contenido en `(40, 40)`** y crecé hacia la derecha y hacia abajo.
-> 2. **Las flechas se dibujan debajo de todas las tarjetas.** Una flecha que pasa
+> [!warning] Dos cosas que sorprenden
+> 1. **Las flechas se dibujan debajo de todas las tarjetas.** Una flecha que pasa
 >    por detrás de otra tarjeta desaparece bajo ella: no la verías cortada, la verías
 >    interrumpida.
-> 3. **Toda tarjeta tiene cabecera** (~22 px), incluso las de texto y los grupos. El
+> 2. **Toda tarjeta tiene cabecera** (~22 px), incluso las de texto y los grupos. El
 >    alto que das incluye esa cabecera.
 
 ## Esqueleto mínimo
@@ -66,8 +62,8 @@ el usuario no lo ve.
 ```json
 {
   "nodes": [
-    { "id": "idea", "type": "text", "text": "**Idea central**", "x": 40, "y": 40, "width": 260, "height": 110 },
-    { "id": "plan", "type": "file", "file": "Proyectos/Plan.md", "x": 420, "y": 40, "width": 360, "height": 240 }
+    { "id": "idea", "type": "text", "text": "**Idea central**", "x": 0, "y": 0, "width": 260, "height": 110 },
+    { "id": "plan", "type": "file", "file": "Proyectos/Plan.md", "x": 380, "y": 0, "width": 360, "height": 240 }
   ],
   "edges": [
     { "id": "e1", "fromNode": "idea", "fromSide": "right", "toNode": "plan", "toSide": "left" }
@@ -100,10 +96,11 @@ el usuario no lo ve.
 ### Coordenadas
 
 - `x`, `y` son la **esquina superior izquierda** del nodo; `y` crece **hacia abajo**.
-  Se admiten negativos, pero en Mycelium quedan fuera de la vista inicial.
-- La pantalla típica muestra unos **1200 × 700** a zoom 100 %. Si el lienzo es más
-  grande está bien, pero lo importante (el título, el centro del mapa) va arriba a la
-  izquierda.
+- Mycelium abre el lienzo **encuadrado en su contenido**: el origen no importa para
+  verlo, y los negativos están permitidos. Por prolijidad, poné lo primero (el título,
+  el centro del mapa) cerca de `(0, 0)` y crecé hacia la derecha y hacia abajo.
+- **Compacto se lee mejor**: el encuadre achica el zoom para que entre todo, y un
+  lienzo de más de ~2400 × 1400 abre con el texto chico. Si da para más, partilo.
 
 ### Tamaños
 
@@ -113,7 +110,7 @@ el usuario no lo ve.
 | Título + una frase | 240 × 160 |
 | Párrafo corto (~150 caracteres) | 320 × 200 |
 | Nota (`file`) como vista previa | 320 × 220 a 400 × 280 |
-| Título general del lienzo | tan ancho como el contenido, 150 de alto |
+| Título general del lienzo (`# …`) | tan ancho como el contenido; **120** de alto solo, **150** con una línea de bajada (sale de la fórmula) |
 | Mínimo que permite la app | 120 × 60 (no lo uses para texto) |
 
 **El alto de una tarjeta de texto se calcula**, no se adivina:
@@ -127,6 +124,10 @@ alto = 80
      + 8                                    por cada línea en blanco
 redondeado hacia arriba a múltiplo de 10
 ```
+
+Los caracteres se cuentan **tal como están escritos**: `**`, `[[` y `]]` incluidos.
+Sobreestima un poco a propósito (el validador sí los descuenta, así que nunca te va a
+marcar de más por eso).
 
 > [!important] Un salto de línea simple NO corta el renglón
 > Mycelium renderiza sin «breaks»: `"**1810**\nRevolución"` se ve como **un** renglón,
@@ -158,31 +159,48 @@ Cada lado tiene **un solo** punto de enganche, en su centro:
 | `left` | `(x, y + height/2)` |
 | `right` | `(x + width, y + height/2)` |
 
-**Cómo elegir los lados** (es la misma regla que usa Mycelium cuando no los das):
-
-```
-dx = centroX(destino) − centroX(origen)
-dy = centroY(destino) − centroY(origen)
-si |dx| ≥ |dy|:  dx ≥ 0 → right → left      dx < 0 → left → right
-si no:           dy ≥ 0 → bottom → top      dy < 0 → top → bottom
-```
-
-Escribilos **siempre explícitos**: Obsidian puede elegir distinto, y en un árbol
-conviene forzar `bottom → top` en todas las flechas para que se vea parejo aunque un
-hijo quede muy al costado.
-
-> [!warning] Nunca un lado que le da la espalda al destino
-> Si la flecha sale por `right` y el destino está a la izquierda, la curva sale hacia
-> la derecha, da la vuelta y pasa por detrás de la propia tarjeta. Lo mismo al entrar.
-
 La flecha es una **bezier** cuyos tiradores salen perpendiculares a cada lado, con
-largo `min(120, max(40, distancia/2))`. Consecuencias:
+largo `min(120, max(40, distancia/2))`.
+
+**La condición** (es lo que mide el validador): el lado de salida tiene que **mirar
+hacia el enganche de llegada**, y el de llegada hacia el de salida. Por ejemplo,
+`right` exige que el otro enganche no quede a la izquierda de este; `top`, que no
+quede más abajo. Si no, la curva sale para el otro lado, da la vuelta y pasa por
+detrás de la propia tarjeta.
+
+**Cómo elegirlos** (la regla que cumple siempre la condición): mirá el **hueco** entre
+los rectángulos, no la distancia entre centros.
+
+```
+hx = hueco horizontal = max(b.x − (a.x + a.width), a.x − (b.x + b.width))
+hy = hueco vertical   = max(b.y − (a.y + a.height), a.y − (b.y + b.height))
+si hx ≥ hy:  b a la derecha → right → left      b a la izquierda → left → right
+si no:       b abajo        → bottom → top      b arriba         → top → bottom
+```
+
+> [!warning] Sin `fromSide`/`toSide`, Mycelium elige por centros, y en diagonal falla
+> Compara `|dx|` con `|dy|` entre centros. Con dos tarjetas en diagonal que se solapan
+> en `x` (centros a −178, −178) elige `left → right`, y el `left` queda de espaldas
+> al enganche de llegada. Por eso: **lados siempre explícitos**, con la regla del hueco.
+
+Dentro de la condición podés elegir otros lados cuando la receta lo pide:
+
+- **Dirección fija**: en un árbol o un flujo, `bottom → top` en todas las flechas
+  aunque un hijo quede muy al costado: mientras haya hueco vertical, cumple.
+- **Lazo por el mismo lado** (`right → right`): vale cuando los dos bordes derechos
+  están **alineados** (misma columna, mismo ancho). La curva sale hacia afuera ~90 px
+  y vuelve: nada en esa franja.
+- **Codo** (`top → right`, `top → left`, `bottom → right`…): sale por un lado y entra
+  por uno perpendicular. `top → right` vale cuando el destino está **más arriba y a
+  la izquierda**: la flecha sube y entra al destino por su derecha. Los demás, igual
+  girados.
+
+Consecuencias de la bezier:
 
 - Entre tarjetas a menos de ~40 px la punta casi no se ve: dejá 60 o más.
 - Para que una flecha no cruce otra tarjeta, **conectá solo vecinos**: nivel con nivel
   siguiente, columna con columna contigua. Si una flecha tiene que saltar por encima de
-  una tarjeta intermedia, mové la tarjeta o hacé que la flecha salga por otro lado
-  (`top`/`bottom`) para rodearla.
+  una tarjeta intermedia, mové la tarjeta o usá un lazo o un codo para rodearla.
 - Varias flechas que salen del mismo lado **comparten el punto**: se abren en abanico,
   lo cual está bien. Si son más de 4 por lado, repartilas en dos lados.
 
@@ -198,14 +216,14 @@ largo `min(120, max(40, distancia/2))`. Consecuencias:
 
 ### Colores
 
-| Preset | Color | Uso sugerido |
+| Preset | Color | Significado (uno solo en todo el lienzo) |
 |---|---|---|
-| `"1"` | rojo | bloqueado, riesgo |
-| `"2"` | naranja | pendiente, atención |
+| `"1"` | rojo | bloqueado, riesgo, error |
+| `"2"` | naranja | pendiente, por hacer, **decisión** de un flujo |
 | `"3"` | amarillo | en curso |
-| `"4"` | verde | hecho, decisión tomada |
+| `"4"` | verde | hecho, decisión tomada, final feliz de un flujo |
 | `"5"` | cian | información, referencia |
-| `"6"` | morado | el centro, lo principal |
+| `"6"` | morado | el centro, lo principal, la raíz |
 
 Preferí los presets al hex: se ven igual en Obsidian. Usá **pocos** colores y con
 significado; sin color, la tarjeta toma los colores del tema.
@@ -217,12 +235,12 @@ significado; sin color, la tarjeta toma los colores del tema.
 2. **Medí**: calculá el alto de cada tarjeta con la fórmula. En una misma fila o nivel,
    igualá los altos al mayor: se lee como estructura.
 3. **Elegí la disposición** según la forma de las relaciones: centro con ramas →
-   radial; jerarquía → árbol; estados o categorías → columnas con grupos; secuencia →
-   línea de tiempo; nota con sus vecinas → dos alas.
-4. **Calculá las posiciones** con la receta (en coordenadas relativas, sin miedo a
-   negativos) y **después trasladá todo** para que el mínimo quede en `(40, 40)`.
+   radial; jerarquía → árbol; pasos con decisiones → flujo; estados o categorías →
+   columnas con grupos; secuencia → línea de tiempo; nota con sus vecinas → dos alas.
+4. **Calculá las posiciones** con la receta, con el primer elemento en `(0, 0)`, y
+   **redondeá** `x` e `y` a enteros.
 5. **Grupos** a partir de las tarjetas ya ubicadas; ponelos al principio de `nodes`.
-6. **Flechas** con los lados de la regla.
+6. **Flechas** con la regla del hueco (o los lados fijos de la receta).
 7. **Validá** y corregí hasta que no haya errores ni avisos.
 
 Para más de 5 tarjetas no calcules a mano: escribí un script de Node **fuera del
@@ -244,21 +262,17 @@ const alto = (texto, ancho) => {
 };
 const texto = (id, ancho, t, extra = {}) =>
   ({ id, type: "text", text: t, x: 0, y: 0, width: ancho, height: alto(t, ancho), ...extra });
-const centro = (n) => ({ x: n.x + n.width / 2, y: n.y + n.height / 2 });
-const lados = (a, b) => {
-  const dx = centro(b).x - centro(a).x, dy = centro(b).y - centro(a).y;
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? ["right", "left"] : ["left", "right"];
-  return dy >= 0 ? ["bottom", "top"] : ["top", "bottom"];
+const igualarAlto = (ns) => { const h = Math.max(...ns.map((n) => n.height)); ns.forEach((n) => (n.height = h)); };
+const lados = (a, b) => {   // la regla del hueco
+  const hx = Math.max(b.x - (a.x + a.width), a.x - (b.x + b.width));
+  const hy = Math.max(b.y - (a.y + a.height), a.y - (b.y + b.height));
+  const c = (n) => ({ x: n.x + n.width / 2, y: n.y + n.height / 2 });
+  if (hx >= hy) return c(b).x >= c(a).x ? ["right", "left"] : ["left", "right"];
+  return c(b).y >= c(a).y ? ["bottom", "top"] : ["top", "bottom"];
 };
-const flecha = (id, a, b) => {
-  const [fromSide, toSide] = lados(a, b);
-  return { id, fromNode: a.id, fromSide, toNode: b.id, toSide };
-};
-const alOrigen = (nodos) => {   // llamalo ANTES de crear las flechas
-  const mx = Math.min(...nodos.map((n) => n.x)), my = Math.min(...nodos.map((n) => n.y));
-  for (const n of nodos) { n.x = Math.round(n.x - mx + 40); n.y = Math.round(n.y - my + 40); }
-};
-// …ubicar, alOrigen(todos), crear flechas, y:
+// Creá las flechas DESPUÉS de ubicar las tarjetas; `fijos` = ["top", "right"] para forzar.
+const flecha = (id, a, b, [fromSide, toSide] = lados(a, b)) =>
+  ({ id, fromNode: a.id, fromSide, toNode: b.id, toSide });
 // fs.writeFileSync("Ruta/En el vault.canvas", JSON.stringify({ nodes, edges }, null, 2) + "\n");
 ```
 
@@ -266,58 +280,97 @@ const alOrigen = (nodos) => {   // llamalo ANTES de crear las flechas
 
 ### 1. Mapa de ideas radial alrededor de una nota
 
-Centro: la nota (`file`, 360 × 240, color `"6"` o `"5"`). Ramas: tarjetas de texto del
-**mismo tamaño** (`W × H`, H = el mayor de los altos), repartidas en una **elipse**
-—más ancha que alta, porque las tarjetas lo son—:
+Centro: la nota (`file`, 360 × 240, color `"6"`). Ramas: tarjetas de texto del **mismo
+tamaño** `W × H` (H = el mayor de los altos, contando también los hijos), repartidas en
+una **elipse**. Los radios salen de dos condiciones: que cada rama quede a 80 del
+centro **también en diagonal** (por eso el `1.4`), y que las ramas vecinas no se
+toquen (el término con el ángulo):
 
+```js
+const cx = 180, cy = 120;                 // centro de la nota (x, y = 0, 0)
+const paso1 = 2 * Math.PI / n;            // n ramas
+const rx = Math.max(1.4 * ((360 + W) / 2 + 80), 1.5 * (W + 40) / paso1);
+const ry = Math.max(1.4 * ((240 + H) / 2 + 80), 1.5 * (H + 40) / paso1);
+const ang = (i) => -Math.PI / 2 + i * paso1;          // i = 0 arriba, sentido horario
+// rama i: x = cx + rx·cos(ang(i)) − W/2,   y = cy + ry·sin(ang(i)) − H/2
 ```
-rx = anchoCentro/2 + W/2 + 140        ry = altoCentro/2 + H/2 + 90
-ángulo_i = −90° + i · 360°/n          (i = 0 arriba, en sentido horario)
-x_i = cx + rx·cos(ángulo_i) − W/2     y_i = cy + ry·sin(ángulo_i) − H/2
+
+**Segundo nivel** (hijos de una rama): otro anillo, más afuera **en los dos ejes**
+(`W` suma en `x`, `H` en `y`), con los hijos de cada rama repartidos **dentro de su
+porción** y centrados en el ángulo de la rama:
+
+```js
+const kmax = /* la mayor cantidad de hijos que tiene una rama */;
+const paso2 = paso1 / kmax;               // el mismo para todas las ramas
+const rx2 = Math.max(rx + 1.4 * (W + 80), 1.5 * (W + 40) / paso2);
+const ry2 = Math.max(ry + 1.4 * (H + 80), 1.5 * (H + 40) / paso2);
+// hijo j de la rama i (k hijos): a = ang(i) + (j − (k − 1) / 2) · paso2
+// x = cx + rx2·cos(a) − W/2,   y = cy + ry2·sin(a) − H/2
 ```
 
-Con más de 8 ramas multiplicá `rx` y `ry` por `n/8`, o pasá a dos alas (receta 5).
-Flechas del centro a cada rama con la regla de lados: las de arriba y abajo salen por
-`top`/`bottom`, las de los costados por `left`/`right`. Para un segundo nivel, poné
-los hijos de cada rama **más afuera en la misma dirección** (otro anillo, `rx` y `ry`
-+ `W + 80`) y conectalos a su rama, no al centro.
+Flechas del centro a cada rama y de cada rama a **sus** hijos (nunca del centro a un
+hijo), todas con la regla del hueco. Con muchas ramas o muchos hijos el mapa crece
+rápido: si pasa de ~2400 de ancho, pasá a dos alas (receta 6) o a un árbol.
 
-### 2. Árbol o flujo de arriba hacia abajo (organigrama, decisión, desglose)
+### 2. Árbol (organigrama, desglose)
 
-- Todas las tarjetas del mismo ancho `W` (200–240) y, por nivel, del mismo alto.
-- **Hojas** de izquierda a derecha: `x = i · (W + 40)`, en el orden del recorrido.
+- Todas las tarjetas del mismo ancho `W` (200–240) y, por nivel, del mismo alto `H`.
+- **Hojas** en el orden del recorrido, separadas **40** entre hermanas y **80** entre
+  hojas de padres distintos (así se ve dónde termina cada equipo).
 - **Cada padre centrado** sobre sus hijos: `x = (x_primer_hijo + x_último_hijo) / 2`.
 - `y = nivel · (H + 90)`.
 - Flechas **todas** `fromSide: "bottom"` → `toSide: "top"`.
-- Si el árbol queda más ancho que ~1600, pasalo a **izquierda → derecha**: niveles en
-  columnas (`x = nivel · (W + 120)`), hojas apiladas en `y`, flechas `right → left`.
 
-Para un flujo con decisiones: como Mycelium no dibuja la `label` de la flecha, poné la
-condición **al principio de la tarjeta destino** (`**Sí →** Aprobar el pedido`). Una
-flecha que vuelve atrás (un ciclo) sale por un costado (`right` → `right` de una tarjeta
-de más arriba) para no cruzar el flujo principal.
+**Girado, de izquierda a derecha** (si de arriba abajo queda más ancho que ~1600, o
+con muchas hojas): niveles en columnas, `x = nivel · (W + 120)`; hojas apiladas en `y`,
+con **40** entre hermanas y **80** entre equipos; cada padre centrado en `y` sobre sus
+hijos, `y = (y_primer_hijo + y_último_hijo) / 2`; flechas todas `right → left`.
 
-### 3. Tablero por columnas con grupos (kanban, categorías)
+### 3. Flujo con decisiones (y vueltas atrás)
+
+Como Mycelium no dibuja la `label` de la flecha, la condición va **al principio de la
+tarjeta destino**: `**Sí →** Confirmar la compra`.
+
+- **Columna principal** en `x = 0`: el camino feliz, de arriba abajo, con
+  `y = fila · (H + 90)` y flechas `bottom → top`.
+- **Decisión**: tarjeta `**¿Pago aprobado?**` con color `"2"`. La salida que sigue el
+  camino principal va **abajo** (`bottom → top`); la otra va a una **tarjeta lateral**
+  a la derecha, en la **misma fila**: `x = W + 120`, mismo `y`, flecha `right → left`.
+- **Igualá el alto por fila, lateral incluida**: decisión y lateral miden lo mismo, y
+  la flecha entre ellas sale recta.
+- **Vuelta atrás** (un ciclo) desde la lateral: un **codo** `top → right` a la tarjeta
+  de la columna principal a la que vuelve. Sube desde la lateral y entra por la
+  derecha del destino, sin pisar la columna.
+- **Vuelta atrás desde la columna principal**: lazo `right → right` (misma columna,
+  bordes alineados). Si hay laterales, dejalas a 120 o más: el lazo ocupa ~90 px.
+- Si entre una lateral y el destino de su vuelta hay **otra lateral** del mismo lado,
+  el codo la cruzaría: pasá una de las dos a la izquierda (`x = −(W + 120)`, flechas
+  `left → right` y el codo `top → left`).
+- Final: el último paso del camino feliz con color `"4"`; un final alternativo (la
+  lateral que no vuelve) sin color, o `"1"` si es un error.
+
+### 4. Tablero por columnas con grupos (kanban, categorías)
 
 Constantes: tarjeta `W = 260`, relleno `20`, cabecera del grupo `44`, separación
 entre tarjetas `20`, entre columnas `60`.
 
 ```
-grupo_i.x = 40 + i · (W + 40 + 60)          grupo.width = W + 40
+grupo_i.x = i · (W + 40 + 60)              grupo.width = W + 40
 tarjeta.x = grupo.x + 20
 primera tarjeta.y = grupo.y + 44;  cada siguiente: y_anterior + alto_anterior + 20
 grupo.height = (abajo de la última tarjeta) − grupo.y + 20  → igualalo al de la columna más alta
 ```
 
 Un título general (`# …`, tan ancho como el tablero) arriba, 40 px por encima de los
-grupos. Grupos con color por estado (`"1"` por hacer, `"3"` en curso, `"4"` hecho) y
-`label` con el nombre de la columna. En `nodes`: **primero los grupos**, después el
-título y las tarjetas. Un tablero no suele llevar flechas.
+grupos. Grupos con color por estado (`"2"` por hacer, `"3"` en curso, `"4"` hecho; `"1"`
+solo para una columna de bloqueados) y `label` con el nombre de la columna. En
+`nodes`: **primero los grupos**, después el título y las tarjetas. Un tablero no
+suele llevar flechas.
 
-### 4. Línea de tiempo
+### 5. Línea de tiempo
 
 Hitos del mismo tamaño (220 × H), en **serpentina** de a 4 por fila, para que no se
-salga de la pantalla:
+estire de más:
 
 ```
 fila = floor(i / 4);  col = i % 4;  si la fila es impar: col = 3 − col
@@ -326,10 +379,10 @@ x = col · (220 + 80);  y = altoTítulo + 60 + fila · (H + 100)
 
 Cada hito lleva la fecha en negrita, línea en blanco y el suceso
 (`"**1816**\n\nDeclaración de la Independencia"`). Flechas de cada hito al siguiente con
-la regla de lados: en las filas pares salen `right → left`, en las impares
+la regla del hueco: en las filas pares salen `right → left`, en las impares
 `left → right`, y el cambio de fila `bottom → top`. Con pocos hitos (≤ 5), una sola fila.
 
-### 5. Mapa de notas relacionadas (nodos `file`, en dos alas)
+### 6. Mapa de notas relacionadas (nodos `file`, en dos alas)
 
 Centro: la nota principal (`file`, 400 × 280). A la izquierda, en columna, las notas
 de las que **depende**; a la derecha, las que la **usan** o la documentan (`file`,
@@ -358,8 +411,35 @@ encontrar candidatas: los `[[enlaces]]` salientes de la nota y sus backlinks
 6. Un grupo nuevo alrededor de tarjetas existentes va **antes** de ellas en `nodes`
    (`nodes.unshift(grupo)`).
 7. Ids nuevos que no choquen con ninguno existente (Mycelium genera ids aleatorios de
-   16 caracteres: no los reuses).
-8. Recalculá los lados de las flechas que tocan lo que moviste.
+   16 caracteres: no los reuses). **Nunca renombres un id existente**.
+8. Recalculá los lados de las flechas que tocan lo que moviste, y validá.
+
+### Insertar un paso en medio de una cadena
+
+Caso: una columna `paso-1 → … → paso-6` y hay que meter uno nuevo entre el 4 y el 5.
+
+1. La tarjeta nueva va **donde estaba `paso-5`** (mismo `x`, mismo `y`, mismo ancho;
+   alto: el mayor entre el suyo y el de la columna).
+2. **Corré hacia abajo** todo lo que está a la altura de `paso-5` o más abajo, en todo
+   el lienzo (laterales incluidas): `y += alto_nuevo + 90`. **Guardá el corte antes de
+   mover** (`const corte = paso5.y`): si comparás contra `paso5.y` dentro del bucle, ya
+   cambió y el resto no se mueve.
+3. Un grupo que contenía a la cadena: agrandale el `height` en lo mismo. Uno que
+   estaba entero debajo del corte se corre con su contenido.
+4. **Redirigí la flecha vieja, no la borres**: la `e-4-5` pasa a apuntar a la nueva
+   (`toNode = "paso-4b"`, lados recalculados). Conserva sus claves y su id aunque el
+   nombre ya no describa el tramo: un id es un identificador, no un rótulo.
+5. **Agregá la flecha** de la nueva al viejo `paso-5`, con un id nuevo que no choque
+   (`e-4b-5`). La nueva se llama `paso-4b`, no `paso-5`: renumerar ids obligaría a
+   reescribir todas las flechas que los nombran.
+6. **Numeración visible**: si las tarjetas muestran el número (`**5.** Fabricar`),
+   corregí el **texto** de las que quedaron debajo (`**6.** Fabricar`). El usuario lee
+   el texto; los ids no los ve.
+7. Las vueltas atrás que entran o salen de lo que se corrió: comprobá sus lados.
+
+En una **serpentina** (línea de tiempo) no alcanza con correr: recalculá la posición de
+todos los hitos desde el insertado con la fórmula de la receta 5, y los lados de sus
+flechas (el que cambia de fila pasa a `bottom → top`).
 
 Si el usuario tiene el lienzo abierto y lo está editando, lo que guarda la app puede
 pisar lo tuyo (y al revés). Antes de reescribir un canvas que está usando, avisale.
@@ -373,14 +453,15 @@ node .claude/skills/mycelium-canvas/validar-canvas.mjs --vault . "Ruta/Al lienzo
 Sale con código ≠ 0 si hay **errores** (JSON inválido, ids repetidos, flechas a nodos
 que no existen, tarjetas encimadas, grupos que contienen a medias o tapan lo suyo,
 texto que no entra, notas `file` que no existen o no son notas). Los **avisos** también
-se corrigen: lado que da la espalda al destino, flecha que pasa por debajo de otra
-tarjeta, flecha demasiado corta, tarjetas pegadas, contenido en negativo, `label` o
-`color` de flecha que no se van a ver. Con `--estricto`, los avisos también fallan.
+se corrigen: lado que da la espalda al enganche del otro extremo (el aviso trae los
+lados que corresponden según la regla del hueco), flecha que pasa por debajo de otra
+tarjeta, flecha demasiado corta, tarjetas pegadas, `label` o `color` de flecha que no
+se van a ver. Con `--estricto`, los avisos también fallan.
 
 Sin el validador, revisá a mano: para cada par de tarjetas, que sus rectángulos no se
-toquen; para cada flecha, que el lado de salida mire al destino; para cada grupo, que
-contenga enteras a sus tarjetas y esté antes en `nodes`; para cada `file`, que la ruta
-exista.
+toquen; para cada flecha, que cada lado mire al enganche del otro extremo; para cada
+grupo, que contenga enteras a sus tarjetas y esté antes en `nodes`; para cada `file`,
+que la ruta exista.
 
 ## Qué aporta un canvas al grafo del vault
 

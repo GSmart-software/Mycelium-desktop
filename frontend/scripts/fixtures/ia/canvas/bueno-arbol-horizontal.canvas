@@ -1,0 +1,160 @@
+{
+  "nodes": [
+    {
+      "id": "p1",
+      "type": "text",
+      "text": "**Dirección**",
+      "x": 0,
+      "y": 453,
+      "width": 220,
+      "height": 110,
+      "color": "6"
+    },
+    {
+      "id": "p2",
+      "type": "text",
+      "text": "**Producto**",
+      "x": 340,
+      "y": 75,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p3",
+      "type": "text",
+      "text": "Diseño",
+      "x": 680,
+      "y": 0,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p4",
+      "type": "text",
+      "text": "Investigación",
+      "x": 680,
+      "y": 150,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p5",
+      "type": "text",
+      "text": "**Ingeniería**",
+      "x": 340,
+      "y": 490,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p6",
+      "type": "text",
+      "text": "Frontend",
+      "x": 680,
+      "y": 340,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p7",
+      "type": "text",
+      "text": "Backend",
+      "x": 680,
+      "y": 490,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p8",
+      "type": "text",
+      "text": "Datos",
+      "x": 680,
+      "y": 640,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p9",
+      "type": "text",
+      "text": "**Operaciones**",
+      "x": 340,
+      "y": 830,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "p10",
+      "type": "text",
+      "text": "Soporte",
+      "x": 680,
+      "y": 830,
+      "width": 220,
+      "height": 110
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-p2-p3",
+      "fromNode": "p2",
+      "fromSide": "right",
+      "toNode": "p3",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p2-p4",
+      "fromNode": "p2",
+      "fromSide": "right",
+      "toNode": "p4",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p5-p6",
+      "fromNode": "p5",
+      "fromSide": "right",
+      "toNode": "p6",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p5-p7",
+      "fromNode": "p5",
+      "fromSide": "right",
+      "toNode": "p7",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p5-p8",
+      "fromNode": "p5",
+      "fromSide": "right",
+      "toNode": "p8",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p9-p10",
+      "fromNode": "p9",
+      "fromSide": "right",
+      "toNode": "p10",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p1-p2",
+      "fromNode": "p1",
+      "fromSide": "right",
+      "toNode": "p2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p1-p5",
+      "fromNode": "p1",
+      "fromSide": "right",
+      "toNode": "p5",
+      "toSide": "left"
+    },
+    {
+      "id": "e-p1-p9",
+      "fromNode": "p1",
+      "fromSide": "right",
+      "toNode": "p9",
+      "toSide": "left"
+    }
+  ]
+}
