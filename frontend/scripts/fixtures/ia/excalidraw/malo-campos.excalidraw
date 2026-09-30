@@ -1,0 +1,44 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "mycelium",
+  "appState": {},
+  "files": {},
+  "elements": [
+    {
+      "id": "r1",
+      "type": "rectangle",
+      "x": 50,
+      "y": 50,
+      "width": 200,
+      "height": 80,
+      "seed": 1.5,
+      "isDeleted": false,
+      "boundElements": []
+    },
+    {
+      "id": "a1",
+      "type": "arrow",
+      "x": 260,
+      "y": 90,
+      "width": 100,
+      "height": 0
+    },
+    {
+      "id": "t1",
+      "type": "text",
+      "x": 400,
+      "y": 60,
+      "text": "sin tamaño",
+      "fontSize": 20
+    },
+    {
+      "id": "x1",
+      "type": "hexagono",
+      "x": 0,
+      "y": 0,
+      "width": 10,
+      "height": 10
+    }
+  ]
+}
