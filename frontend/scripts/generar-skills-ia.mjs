@@ -2,7 +2,8 @@
 //
 // Las skills de las herramientas del vault se escriben como Markdown en
 // `lib/ia/borradores/` (ahí las leen sus tests) y tres de ellas viajan con su
-// validador (`scripts/validar-{drawio,canvas,excalidraw}.mjs`). Pegarlos a mano
+// validador (`scripts/validar-{drawio,canvas,excalidraw}.mjs`); la de Excalidraw,
+// además, con su generador (`scripts/dibujo-excalidraw.mjs` → `dibujo.mjs`). Pegarlos a mano
 // dentro de template literals obligaría a escapar backticks y `${…}` —los
 // borradores de calendario y Excalidraw traen JavaScript—, y una copia a mano se
 // desincroniza. Este script los lee y escribe un módulo con cada contenido como
@@ -15,8 +16,8 @@
 // `scripts/test-skills-generadas.mjs` falla si alguien se olvidó.
 //
 // Marca de versión: cada borrador lleva `<!-- mycelium-ia v{{VERSION_IA}} -->` y
-// cada validador recibe en su primera línea (en lugar del shebang) un comentario
-// con esa misma marca. `framework.ts` reemplaza `{{VERSION_IA}}` por
+// cada script que viaja recibe en su primera línea (en lugar del shebang) un
+// comentario con esa misma marca. `framework.ts` reemplaza `{{VERSION_IA}}` por
 // `FRAMEWORK_IA_VERSION` al generar, así la marca `<!-- mycelium-ia v` que usa
 // `generarFramework` para saber que un archivo es suyo está también en los `.mjs`.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -30,13 +31,19 @@ export const MARCADOR_VERSION = "{{VERSION_IA}}";
 /**
  * Las skills generadas. `validador` es el script que viaja con la skill y se
  * escribe en `.claude/skills/<nombre>/<basename del validador>`, que es la ruta
- * que el borrador le indica a la IA. Solo viajan validadores sin dependencias:
- * los de bases y Esporas transpilan módulos del repo y no funcionarían en un vault.
+ * que el borrador le indica a la IA. `adjuntos` son otros scripts que viajan con
+ * ella, con el nombre que tienen en el vault (`{ fuente: nombre en el vault }`).
+ * Solo viajan scripts sin dependencias: los validadores de bases y Esporas
+ * transpilan módulos del repo y no funcionarían en un vault.
  */
 export const SKILLS = [
   { nombre: "mycelium-drawio", validador: "scripts/validar-drawio.mjs" },
   { nombre: "mycelium-canvas", validador: "scripts/validar-canvas.mjs" },
-  { nombre: "mycelium-excalidraw", validador: "scripts/validar-excalidraw.mjs" },
+  {
+    nombre: "mycelium-excalidraw",
+    validador: "scripts/validar-excalidraw.mjs",
+    adjuntos: { "scripts/dibujo-excalidraw.mjs": "dibujo.mjs" },
+  },
   { nombre: "mycelium-base" },
   { nombre: "mycelium-esporas" },
   { nombre: "mycelium-calendario" },
@@ -45,7 +52,7 @@ export const SKILLS = [
 const leer = (rel) => readFileSync(resolve(RAIZ, rel), "utf8").replace(/\r\n/g, "\n");
 const nombreDe = (rel) => rel.slice(rel.lastIndexOf("/") + 1);
 
-/** Falla si el validador importa algo que no sea un módulo propio de Node. */
+/** Falla si el script importa algo que no sea un módulo propio de Node. */
 function comprobarSinDependencias(rel, texto) {
   const especificadores = [
     ...texto.matchAll(/^\s*import\s[^;]*?from\s*["']([^"']+)["']/gm),
@@ -71,8 +78,8 @@ function skillMd(nombre) {
   return texto;
 }
 
-/** Contenido del validador que viaja: la marca reemplaza al shebang. */
-function validadorMjs(nombre, rel) {
+/** Contenido de un script que viaja: la marca reemplaza al shebang. */
+function scriptMjs(nombre, rel) {
   const texto = leer(rel);
   comprobarSinDependencias(rel, texto);
   const cabecera =
@@ -84,13 +91,16 @@ function validadorMjs(nombre, rel) {
 /** Los archivos que viajan al vault (ruta relativa → contenido con marcador). */
 export function archivosSkills() {
   const archivos = [];
-  for (const { nombre, validador } of SKILLS) {
+  for (const { nombre, validador, adjuntos = {} } of SKILLS) {
     archivos.push({ ruta: `.claude/skills/${nombre}/SKILL.md`, contenido: skillMd(nombre) });
     if (validador) {
       archivos.push({
         ruta: `.claude/skills/${nombre}/${nombreDe(validador)}`,
-        contenido: validadorMjs(nombre, validador),
+        contenido: scriptMjs(nombre, validador),
       });
+    }
+    for (const [fuente, destino] of Object.entries(adjuntos)) {
+      archivos.push({ ruta: `.claude/skills/${nombre}/${destino}`, contenido: scriptMjs(nombre, fuente) });
     }
   }
   // La ruta que cada borrador le dice a la IA tiene que ser la que se genera.
@@ -114,8 +124,9 @@ export function generarModulo() {
     .map((a) => `  {\n    ruta: ${JSON.stringify(a.ruta)},\n    contenido: ${JSON.stringify(a.contenido)},\n  },`)
     .join("\n");
   return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
-// Fuente: lib/ia/borradores/*.md y los validadores que viajan con su skill
-// (scripts/validar-{drawio,canvas,excalidraw}.mjs). Para regenerar:
+// Fuente: lib/ia/borradores/*.md y los scripts que viajan con su skill
+// (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs).
+// Para regenerar:
 //
 //   node scripts/generar-skills-ia.mjs
 //
@@ -124,7 +135,7 @@ export function generarModulo() {
 /** Marcador de versión dentro de los contenidos. */
 export const MARCADOR_VERSION_IA = ${JSON.stringify(MARCADOR_VERSION)};
 
-/** Skills de las herramientas del vault y sus validadores (ruta → contenido). */
+/** Skills de las herramientas del vault y sus scripts (ruta → contenido). */
 export const SKILLS_GENERADAS: readonly { ruta: string; contenido: string }[] = [
 ${entradas}
 ];

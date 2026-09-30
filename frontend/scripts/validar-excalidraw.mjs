@@ -7,9 +7,9 @@
 // Comprueba lo que se puede medir sin mirar el dibujo: la forma del archivo, ids
 // únicos, campos que Excalidraw necesita para no descartar (o romper) la escena,
 // enlaces recíprocos flecha↔forma y texto↔contenedor, extremos de flecha pegados
-// al borde de su forma, texto que entra en su caja, formas encimadas y flechas
-// que atraviesan formas ajenas. Sale con código 1 si hay errores (o avisos, con
-// `--estricto`).
+// al borde de su forma, texto que entra en su caja, formas encimadas o demasiado
+// juntas, etiquetas de flecha sin lugar y flechas que atraviesan formas ajenas.
+// Sale con código 1 si hay errores (o avisos, con `--estricto`).
 //
 // Lo que sabe de Excalidraw (0.18) sale de su `restore`: ver la skill
 // `mycelium-excalidraw` y `docs/features/ia-skills-herramientas.md`.
@@ -30,6 +30,11 @@ const FUENTES = { 1: "Virgil", 2: "Helvetica", 3: "Cascadia", 5: "Excalifont", 6
 // Ancho medio real de un carácter, en fracciones de fontSize (medido con las fuentes de Excalidraw).
 const ANCHO_REAL = { 1: 0.55, 2: 0.5, 3: 0.59, 5: 0.55, 6: 0.5, 7: 0.5, 8: 0.55, 9: 0.5 };
 const PADDING = 5; // BOUND_TEXT_PADDING
+// Regla de oro 6 de la skill: entre los BORDES de dos formas, al menos 60 px en
+// horizontal o 50 en vertical (basta una: están en columnas o en filas distintas).
+const SEP_H = 60, SEP_V = 50;
+// El tramo de flecha que lleva una etiqueta mide al menos la etiqueta + 40 px, y 100 px.
+const AIRE_ETIQUETA = 40, TRAMO_ETIQUETADO = 100;
 const ESTILOS_RELLENO = new Set(["hachure", "cross-hatch", "solid", "zigzag"]);
 const ESTILOS_TRAZO = new Set(["solid", "dashed", "dotted"]);
 const PUNTAS = new Set([null, "arrow", "bar", "dot", "circle", "circle_outline", "triangle", "triangle_outline", "diamond", "diamond_outline", "crowfoot_one", "crowfoot_many", "crowfoot_one_or_many"]);
@@ -361,6 +366,17 @@ export function validar(texto) {
       errores.push(`${nombre(a)} y ${nombre(b)} se superponen: separalas (o que una contenga entera a la otra)`);
     }
   }
+  for (let i = 0; i < formas.length; i++) {
+    for (let k = i + 1; k < formas.length; k++) {
+      const a = formas[i], b = formas[k], ca = caja(a), cb = caja(b);
+      if (solapa(ca, cb) || contiene(ca, cb, 0) || contiene(cb, ca, 0)) continue;
+      const h = Math.max(cb.x1 - ca.x2, ca.x1 - cb.x2), v = Math.max(cb.y1 - ca.y2, ca.y1 - cb.y2);
+      if (h < SEP_H - 1 && v < SEP_V - 1) {
+        const lado = v >= h ? `${Math.round(v)} px en vertical (mínimo ${SEP_V})` : `${Math.round(h)} px en horizontal (mínimo ${SEP_H})`;
+        avisos.push(`${nombre(a)} y ${nombre(b)} están demasiado juntas: ${lado} entre bordes`);
+      }
+    }
+  }
   for (const t of sueltos) {
     const ct = caja(t);
     for (const f of formas) {
@@ -370,6 +386,25 @@ export function validar(texto) {
     for (const u of sueltos) if (u !== t && u.id > t.id && solapa(ct, caja(u))) avisos.push(`${nombre(t)} y ${nombre(u)} se superponen`);
   }
   for (const a of validos.filter((e) => LINEALES.has(e.type))) {
+    const b = Array.isArray(a.boundElements) && a.boundElements.find((x) => x?.type === "text");
+    const t = b && vivo(b.id);
+    if (t && validos.includes(t)) {
+      const p = a.points, n = p.length;
+      if (n % 2 === 0) {
+        const [q1, q2] = [p[n / 2 - 1], p[n / 2]];
+        const L = Math.hypot(q2[0] - q1[0], q2[1] - q1[1]);
+        const along = (Math.abs(q2[0] - q1[0]) * t.width + Math.abs(q2[1] - q1[1]) * t.height) / (L || 1);
+        const min = Math.max(along + AIRE_ETIQUETA, TRAMO_ETIQUETADO);
+        if (L < min - 1) avisos.push(`${nombre(a)}: el tramo que lleva la etiqueta mide ${Math.round(L)} px y la etiqueta tapa casi todo; necesita ≥ ${Math.round(min)} px (separá más las formas)`);
+      } else if (n >= 3 && !a.roundness) {
+        // Con un número impar de puntos la etiqueta va sobre el punto del medio: si es un codo, lo tapa
+        const [q0, q1, q2] = [p[(n - 3) / 2], p[(n - 1) / 2], p[(n + 1) / 2]];
+        const cruz = (q1[0] - q0[0]) * (q2[1] - q1[1]) - (q1[1] - q0[1]) * (q2[0] - q1[0]);
+        if (Math.abs(cruz) > Math.hypot(q1[0] - q0[0], q1[1] - q0[1]) * Math.hypot(q2[0] - q1[0], q2[1] - q1[1]) * 0.05) {
+          avisos.push(`${nombre(a)}: la etiqueta cae justo en un codo y lo tapa; agregá un punto intermedio alineado sobre un tramo (cantidad par de puntos → va al medio del tramo central)`);
+        }
+      }
+    }
     const extremos = [a.startBinding?.elementId, a.endBinding?.elementId].map((id) => id && porId.get(id)).filter(Boolean);
     const cajasExt = extremos.map(caja);
     for (const f of formas) {
@@ -383,16 +418,13 @@ export function validar(texto) {
     }
   }
 
-  // 6. Área: Mycelium abre el dibujo en (0, 0), zoom 100 %, sin centrar
+  // 6. Área: Mycelium abre el dibujo encuadrado entero, y una nota lo embebe al ancho de la nota
   if (validos.length) {
-    const cs = validos.filter((e) => e.type !== "frame").map(caja);
-    if (cs.length) {
-      const x1 = Math.min(...cs.map((c) => c.x1)), y1 = Math.min(...cs.map((c) => c.y1));
-      const x2 = Math.max(...cs.map((c) => c.x2)), y2 = Math.max(...cs.map((c) => c.y2));
-      if (x1 < -2000 || y1 < -2000 || x2 > 20000 || y2 > 20000) avisos.push(`hay elementos muy lejos (${Math.round(x1)}, ${Math.round(y1)}) – (${Math.round(x2)}, ${Math.round(y2)})`);
-      if (x2 < 0 || y2 < 0 || x1 > 1200 || y1 > 700) avisos.push(`el dibujo empieza en (${Math.round(x1)}, ${Math.round(y1)}): Mycelium lo abre mirando al origen y el usuario vería la pantalla vacía. Empezá cerca de (80, 100)`);
-      else if (x1 < 0 || y1 < 0) avisos.push(`el dibujo tiene partes en coordenadas negativas (${Math.round(x1)}, ${Math.round(y1)}): al abrirlo quedan fuera de la vista`);
-    }
+    const cs = validos.map(caja);
+    const x1 = Math.min(...cs.map((c) => c.x1)), y1 = Math.min(...cs.map((c) => c.y1));
+    const x2 = Math.max(...cs.map((c) => c.x2)), y2 = Math.max(...cs.map((c) => c.y2));
+    if (x1 < -20000 || y1 < -20000 || x2 > 20000 || y2 > 20000) avisos.push(`hay elementos muy lejos (${Math.round(x1)}, ${Math.round(y1)}) – (${Math.round(x2)}, ${Math.round(y2)}): al encuadrar el dibujo entero, todo se ve diminuto`);
+    else if (x2 - x1 > 2400) avisos.push(`el dibujo mide ${Math.round(x2 - x1)} px de ancho: encuadrado al abrirlo o embebido en una nota, la letra queda ilegible. Compactalo (≤ 2400 px)`);
   }
   return { errores, avisos, elementos: validos.length };
 }

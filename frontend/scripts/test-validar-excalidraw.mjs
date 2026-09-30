@@ -128,10 +128,50 @@ test("una flecha que atraviesa una forma ajena es aviso", () => {
   hay(validar(s.json(obst)).avisos, /atraviesa rectángulo o/);
 });
 
-test("un dibujo lejos del origen avisa que se abre vacío", () => {
+test("regla 6: formas a menos de 60 px en horizontal y 50 en vertical es aviso; basta una de las dos", () => {
   const s = escena();
-  for (const e of [s.a, s.b, s.f]) e.x += 5000;
-  hay(validar(s.json()).avisos, /pantalla vacía/);
+  Object.assign(s.b, { x: 700 }); // b lejos, para medir solo contra a
+  Object.assign(s.f, { points: [[0, 0], [464, 0]], width: 464 });
+  const c = { ...s.base, id: "c", type: "rectangle", x: 100, y: 190, width: 120, height: 60 }; // 30 px debajo de a
+  hay(validar(s.json(c)).avisos, /rectángulo a y rectángulo c están demasiado juntas: 30 px en vertical/);
+  c.y = 210; // 50 px debajo: en otra fila
+  assert.ok(!validar(s.json(c)).avisos.some((m) => /demasiado juntas/.test(m)));
+  Object.assign(c, { x: 260, y: 190 }); // en diagonal, 40 px a la derecha y 30 abajo: ni 60 en horizontal ni 50 en vertical
+  hay(validar(s.json(c)).avisos, /demasiado juntas: 40 px en horizontal/);
+  c.x = 280; // 60 px en horizontal: en otra columna
+  assert.ok(!validar(s.json(c)).avisos.some((m) => /demasiado juntas/.test(m)));
+});
+
+test("una etiqueta de flecha sin lugar, o sobre un codo, es aviso", () => {
+  const s = escena();
+  const t = { ...s.base, id: "t", type: "text", x: 290, y: 120, width: 40, height: 20, text: "sí", originalText: "sí", fontSize: 16, fontFamily: 5, lineHeight: 1.25, textAlign: "center", verticalAlign: "middle", containerId: "f", autoResize: true };
+  s.f.boundElements = [{ id: "t", type: "text" }];
+  assert.deepEqual(validar(s.json(t)).avisos, []); // 164 px de flecha para 40 de etiqueta
+  s.b.x = 290; s.f.points = [[0, 0], [54, 0]]; s.f.width = 54; t.x = 235;
+  hay(validar(s.json(t)).avisos, /el tramo que lleva la etiqueta mide 54 px/);
+  // un solo punto intermedio con tramos rectos: la etiqueta tapa el codo
+  const s2 = escena();
+  Object.assign(s2.b, { x: 400, y: 300 });
+  Object.assign(s2.f, { points: [[0, 0], [232, 0], [232, 162]], width: 232, height: 162, roundness: null });
+  const t2 = { ...t, x: 440, y: 120 };
+  s2.f.boundElements = [{ id: "t", type: "text" }];
+  hay(validar(s2.json(t2)).avisos, /la etiqueta cae justo en un codo/);
+});
+
+test("un dibujo demasiado ancho para leerse encuadrado es aviso", () => {
+  const s = escena();
+  const lejos = { ...s.base, id: "l", type: "rectangle", x: 2600, y: 100, width: 120, height: 60 };
+  hay(validar(s.json(lejos)).avisos, /mide 2620 px de ancho/);
+  assert.ok(!validar(s.json()).avisos.some((m) => /de ancho/.test(m)));
+});
+
+test("una flecha con el frameId de un marco cuyo borde cruza es aviso (el marco la recorta)", () => {
+  const s = escena();
+  const m = { ...s.base, id: "m", type: "frame", name: "Zona", x: 60, y: 60, width: 200, height: 140 };
+  s.a.frameId = "m";
+  assert.deepEqual(validar(s.json(m)).avisos, []);
+  s.f.frameId = "m";
+  hay(validar(s.json(m)).avisos, /flecha f: se sale de su marco/);
 });
 
 test("la CLI sale con 1 si hay errores y con 0 si no", () => {
