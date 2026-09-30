@@ -73,7 +73,8 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   lectura: la regla 8 admite leer `.mycelium/recordatorios.json` y
  *   `.mycelium/preferencias.json`). Las skills de draw.io, canvas y Excalidraw
  *   llevan su validador (`validar-<formato>.mjs`, sin dependencias) para que la
- *   IA compruebe lo que escribió. `.drawio` y `.excalidraw` dejan de ser «no
+ *   IA compruebe lo que escribió; la de Excalidraw lleva además su generador
+ *   (`dibujo.mjs`). `.drawio` y `.excalidraw` dejan de ser «no
  *   editar a mano». También: las pestañas de lienzos, diagramas y dibujos se
  *   recargan desde disco, así que «Mycelium refresca la UI solo» es cierto para
  *   ellos. `mycelium-vault` adelgaza (bases, lienzos y Esporas remiten a su
@@ -138,7 +139,8 @@ cada cosa:
 
 Los lienzos, diagramas y dibujos **se rompen fácil** escritos a ojo: cada skill
 explica la geometría y trae un validador (\`node .claude/skills/<skill>/validar-<formato>.mjs\`)
-que se corre antes de dar el trabajo por hecho.
+que se corre antes de dar el trabajo por hecho. La de Excalidraw trae además un generador
+(\`dibujo.mjs\`) que calcula los extremos de las flechas y los enlaces por vos.
 
 > [!warning] Solo las notas están en la memoria
 > Mycelium **indexa \`.md\`, y nada más**. Los demás archivos existen, se listan y
