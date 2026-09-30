@@ -221,17 +221,31 @@ export function validarBase(texto, contexto = null) {
       }
     }
     const tags = new Set(contexto.notas.flatMap((n) => n.tags.map((t) => t.toLowerCase())));
+    // Lo que la base ya cubre de las etiquetas: los argumentos de todos sus
+    // `hasTag` y los prefijos de `file.tags.startsWith(...)`.
+    const cubiertas = new Set();
+    const prefijos = [];
+    for (const fuente of todos.flatMap(expresiones)) {
+      const e = B.analizar(fuente);
+      if (!e || e.clase !== "llamada") continue;
+      if (e.ref === "file" && e.metodo === "hasTag") for (const a of e.args) cubiertas.add(a.texto.replace(/^#/, "").toLowerCase());
+      if (e.ref === "file.tags" && e.metodo === "startsWith") for (const a of e.args) prefijos.push(a.texto.replace(/^#/, "").toLowerCase());
+    }
+    const cubierta = (x) => cubiertas.has(x) || prefijos.some((p) => x.startsWith(p));
     for (const fuente of todos.flatMap(expresiones)) {
       const e = B.analizar(fuente);
       if (!e || e.clase !== "llamada" || e.ref !== "file") continue;
       for (const a of e.args) {
         if (e.metodo === "hasTag") {
           const t = a.texto.replace(/^#/, "").toLowerCase();
+          const anidadas = [...tags].filter((x) => x.startsWith(`${t}/`) && !cubierta(x));
+          const sumar = `sumalas con un \`or:\` de \`file.hasTag("${t}")\` y \`file.tags.startsWith("${t}/")\``;
           if (!tags.has(t)) {
-            const anidadas = [...tags].filter((x) => x.startsWith(`${t}/`));
             av("etiqueta", anidadas.length > 0
-              ? `\`${fuente}\`: ninguna nota tiene \`#${t}\` exacta; \`hasTag\` NO incluye las anidadas (${anidadas.join(", ")}). Listalas: \`file.hasTag("${anidadas.join('", "')}")\`.`
+              ? `\`${fuente}\`: ninguna nota tiene \`#${t}\` exacta; \`hasTag\` NO incluye las anidadas (${anidadas.join(", ")}): ${sumar}.`
               : `\`${fuente}\`: ninguna nota del vault tiene la etiqueta \`#${t}\`.`);
+          } else if (anidadas.length > 0) {
+            av("etiqueta", `\`${fuente}\`: \`hasTag\` NO incluye las anidadas (${anidadas.join(", ")}); si también van, ${sumar}.`);
           }
         }
         if (e.metodo === "inFolder") {

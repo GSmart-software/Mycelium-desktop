@@ -140,8 +140,57 @@ la tabla** (Mycelium muestra el error y la expresión).
 | `estado` o `note.estado` | La propiedad `estado` del frontmatter. **Sin distinguir mayúsculas** en la clave |
 
 Una propiedad que ninguna nota tiene no da error: vale «vacía» en todas (y con `!=`,
-todas pasan). Revisá que la clave exista y esté escrita igual:
-`grep -rh "^estado:" --include="*.md" . | sort | uniq -c`.
+todas pasan). Revisá que la clave exista y esté escrita igual (comandos en la sección
+siguiente).
+
+## Del pedido a la consulta
+
+El usuario pide en lenguaje natural («todos los proyectos», «los no terminados», «por
+prioridad»); la base necesita **los valores que el vault usa de verdad**. Antes de escribir
+el filtro, miralos. Estos comandos recorren solo las notas que ve una base: saltean los
+directorios ocultos (`.claude/`, `.mycelium/`, `.git/`: lo que `.mycignore` ignora por
+defecto) y los `CLAUDE*.md`, que son instrucciones y no notas.
+
+```sh
+# Claves del frontmatter, las más usadas primero
+find . -name '*.md' -not -path '*/.*' -not -name 'CLAUDE*.md' -exec awk '{sub(/\r$/,"")} FNR==1{fm=($0=="---");next} fm&&/^---$/{fm=0} fm&&/^[A-Za-z_][A-Za-z0-9_-]*:/{sub(/:.*/,"");print}' {} + | sort | uniq -c | sort -rn
+
+# Valores de una clave (acá, estado)
+find . -name '*.md' -not -path '*/.*' -not -name 'CLAUDE*.md' -exec awk -v k=estado '{sub(/\r$/,"")} FNR==1{fm=($0=="---");next} fm&&/^---$/{fm=0} fm&&index($0,k":")==1{print}' {} + | sort | uniq -c
+
+# Etiquetas con «proyecto»: las de tags: y los #tag del cuerpo
+grep -rh --include="*.md" --exclude-dir=".?*" --exclude="CLAUDE*.md" "^tags:" . | sort | uniq -c
+grep -rhoE --include="*.md" --exclude-dir=".?*" --exclude="CLAUDE*.md" "#[[:alnum:]_/-]*proyecto[[:alnum:]_/-]*" . | sort | uniq -c
+```
+
+Si el `.mycignore` del vault ignora algo más que lo oculto (p. ej. `Archivo/`), sumá
+`-not -path './Archivo/*'` a `find` y `--exclude-dir=Archivo` a `grep`. **No uses
+`--exclude-dir=".*"`**: también excluye el `.` de partida y `grep` no encuentra nada.
+
+Con eso, decidí así y **decile al usuario qué decidiste** en una línea («tomé como
+activos los `estado: activo` y `en curso`; dejé afuera `pausado`»):
+
+- **«Todos los X»**: por la señal que el vault usa para X — etiqueta, `tipo:` o carpeta.
+  Si conviven varias (unos tienen `#proyecto`, otros están en `Proyectos/` sin
+  etiqueta), combinalas con `or:` y avisá.
+- **Etiquetas anidadas**: `file.hasTag("proyecto")` **no** trae `#proyecto/huerta`.
+  Para «los proyectos», sumá las hijas con un `or:` de `file.hasTag("proyecto")` y
+  `file.tags.startsWith("proyecto/")` (receta de índice por etiqueta): así también entran
+  las subetiquetas que se creen después. Evitá `file.tags.contains("proyecto")`, que
+  además casa `#proyectos` o `#anteproyecto`.
+- **«No terminados», «pendientes»**: **excluí** los valores de cierre que existen
+  (`estado != "hecho"`, y `!= "cancelado"` si aparece) en vez de **listar** los abiertos:
+  así entran también las notas **sin** `estado` y los valores que no conocías
+  (`borrador`).
+- **«Activos»**: ahí sí, listá los valores que significan activo (`or:` de `==`). Si hay
+  ambiguos (`en pausa`, `bloqueado`), elegí, decilo y ofrecé cambiarlo.
+- **Escalas (`prioridad`, `calificacion`, `urgencia`)**: la base no sabe si el número
+  alto es el más importante. Buscá la convención del vault: los valores que hay, una
+  nota que lo diga (una `prioridad: 1` que se describe como «urgente»), la Espora que
+  siembra la clave. Si nada lo aclara, **preguntá**; si tenés que avanzar, ordená `DESC`
+  (lo alto arriba) y **decí** que lo asumiste y que se invierte con `ASC`.
+- Un valor que el usuario nombra y **no existe** («las urgentes» sin ninguna
+  `urgente`): no inventes el filtro; mostrá los valores que sí hay y preguntá.
 
 ## Columnas, títulos y celdas
 
@@ -229,7 +278,7 @@ views:
       - file.folder
 ```
 
-### Tareas por fecha de vencimiento
+### Tareas: vencidas y por vencer
 
 ```yaml
 filters:
@@ -238,7 +287,22 @@ filters:
     - hecho != true
 views:
   - type: table
-    name: Pendientes
+    name: Vencidas
+    filters:
+      and:
+        - vence < "2026-09-30"
+    order:
+      - file.name
+      - vence
+      - proyecto
+    sort:
+      - property: vence
+        direction: ASC
+  - type: table
+    name: Por vencer y sin fecha
+    filters:
+      not:
+        - vence < "2026-09-30"
     order:
       - file.name
       - vence
@@ -248,15 +312,25 @@ views:
         direction: ASC
 ```
 
-Las sin `vence` quedan al final solas. Para «vencidas» hace falta una fecha fija
-(`vence < "2026-10-01"`): proponela como vista aparte y decí que hay que actualizarla.
+- `"2026-09-30"` es **hoy** al crear la base (fecha local, ver skill
+  `mycelium-calendario`). No hay `today()`: el corte queda **fijo** y hay que
+  actualizarlo a mano. Decíselo al usuario.
+- **Vencidas** = `vence < hoy`. Una tarea **sin** `vence` da falso y no entra.
+- **Por vencer y sin fecha** = `not: [vence < hoy]`, la negación exacta de la anterior:
+  entra lo que vence hoy o después **y** lo que no tiene `vence` (regla de la propiedad
+  ausente). Con `ASC`, las sin fecha quedan al final. Entre las dos vistas están
+  **todas** las pendientes.
+- `vence >= "2026-09-30"` parece lo mismo pero **pierde las tareas sin fecha**: usalo
+  solo si el usuario no las quiere ver, y avisale.
 
 ### Índice de notas por etiqueta
 
 ```yaml
 filters:
   and:
-    - file.hasTag("receta")
+    - or:
+        - file.hasTag("receta")
+        - file.tags.startsWith("receta/")
     - not:
         - file.inFolder("Esporas")
 views:
@@ -271,9 +345,9 @@ views:
         direction: ASC
 ```
 
-Si el vault usa etiquetas anidadas (`#receta/postre`), listalas todas:
-`file.hasTag("receta", "receta/postre", "receta/salada")`, o usá
-`file.tags.contains("receta")` (parcial: también casaría `#recetario`).
+El `or` suma las anidadas (`#receta/postre`, y las que se creen después). Si el vault no
+las usa, alcanza con `file.hasTag("receta")`. No uses `file.tags.contains("receta")`:
+también casaría `#recetario`.
 
 ### Notas sin clasificar
 
@@ -308,6 +382,14 @@ views:
 
 - Creá el archivo con extensión `.base` en la carpeta que corresponda (con un **nombre
   que no repita el de una nota**: los enlaces resuelven por título). Mycelium lo ve solo.
+- **Nombre**: antes de inventarlo, fijate si alguna nota ya enlaza la tabla que falta.
+  Listá los enlaces que mencionan el tema y quedate con los que no resuelven (no hay
+  `Título.md` ni `Título.base`):
+  `grep -rhoE --include="*.md" --exclude-dir=".?*" "\[\[[^]|#]*[Pp]royecto[^]|#]*" . | sort | uniq -c`.
+  Si un enlace roto describe **este** contenido (`[[Proyectos activos]]` y la tabla es de
+  proyectos activos), usá ese nombre: la base lo resuelve y ya nace enlazada. Si dice otra
+  cosa (`[[Proyectos]]` para una tabla solo de pausados), **no lo fuerces**: poné el
+  nombre que describe la tabla y mencioná el enlace roto al usuario.
 - Enlazala desde su nota madre o índice con `[[Proyectos activos]]` (o
   `[[Proyectos activos.base]]`): navega a la tabla y es un nodo del grafo. **No se
   embebe**: `![[….base]]` no dibuja la tabla. El contenido del YAML no crea aristas.
@@ -324,9 +406,9 @@ views:
    ¿literal a la derecha? ¿números sin comillas? ¿sin `&&`, `!`, `now()`?
 2. ¿Cada mapa de filtros tiene un solo combinador? ¿Sangría de espacios, sin
    comentarios al final de línea, sin `: ` en expresiones?
-3. **Cada clave existe en el vault con esa grafía** (`grep -rh "^clave:" --include="*.md" .`),
-   cada etiqueta de `hasTag` existe tal cual (ojo con las anidadas) y cada carpeta de
-   `inFolder` existe con esas mayúsculas (`ls`).
+3. **Cada clave y cada valor existen en el vault con esa grafía** (comandos de «Del
+   pedido a la consulta»), cada etiqueta de `hasTag` existe tal cual (ojo con las
+   anidadas) y cada carpeta de `inFolder` existe con esas mayúsculas (`ls`).
 4. **Simulá dos o tres notas a mano**: una que debe entrar y una que no. Si una nota sin
    la propiedad aparece donde no debería, te falta un `file.hasProperty(...)` o un
    `== ` en vez de `!=`.

@@ -3,6 +3,7 @@
 //
 //   node --test scripts/test-validar-base.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -51,7 +52,8 @@ test("Proyectos activos: filtra por carpeta y estado, ordena por prioridad numé
 test("Tareas pendientes: casilla con != true y fechas como texto ISO", async () => {
   const r = await validar("vault/Tablas/Tareas pendientes.base");
   assert.deepEqual(r.errores, []);
-  assert.deepEqual(filas(r, "Por vencimiento"), ["Pagar dominio", "Renovar pasaporte"]);
+  // La que no tiene `vence` va al final (las notas sin el valor, siempre últimas).
+  assert.deepEqual(filas(r, "Por vencimiento"), ["Pagar dominio", "Renovar pasaporte", "Llamar al plomero"]);
   // El filtro de la vista se suma (and) al de la base.
   assert.deepEqual(filas(r, "Vencidas al 30-09"), ["Pagar dominio"]);
 });
@@ -134,7 +136,18 @@ test("claves mal escritas, sort en línea y limit no numérico se ignoran en sil
 test("número entre comillas, inFolder con otra capitalización y file.mtime → avisos", async () => {
   const r = await validar("malas/silenciosos.base");
   assert.deepEqual(r.errores, []);
-  assert.deepEqual(codigos(r.avisos), ["carpeta", "fecha-indice", "numero-comillas"]);
+  // `hasTag("proyecto")` existe exacta, pero deja afuera `#proyecto/huerta`.
+  assert.deepEqual(codigos(r.avisos), ["carpeta", "etiqueta", "fecha-indice", "numero-comillas"]);
+  assert.match(r.avisos.find((a) => a.codigo === "etiqueta").msg, /startsWith\("proyecto\/"\)/);
+});
+
+test("hasTag + file.tags.startsWith cubre las anidadas: sin aviso", () => {
+  const r = validarBase(
+    'filters:\n  or:\n    - file.hasTag("proyecto")\n    - file.tags.startsWith("proyecto/")\nviews:\n  - type: table\n    name: Todos\n',
+    ctx,
+  );
+  assert.deepEqual(r.avisos, []);
+  assert.ok(filas(r, "Todos").includes("Riego automático"));
 });
 
 test("una base sin excluir la carpeta de Esporas avisa que las incluye", async () => {
@@ -175,6 +188,39 @@ test("receta por estado: las pestañas reparten los proyectos de Mycelium", () =
   const r = validarBase(receta, ctx);
   assert.deepEqual(filas(r, "Activos"), ["Rediseño del API"]);
   assert.deepEqual(filas(r, "Pausados"), ["Grafo 3D"]);
+});
+
+test("receta de tareas: vencidas y por vencer se reparten TODAS las pendientes, sin fecha incluidas", () => {
+  const receta = bloques.find((b) => b.includes("name: Por vencer y sin fecha"));
+  const r = validarBase(receta, ctx);
+  assert.deepEqual(filas(r, "Vencidas"), ["Pagar dominio"]);
+  assert.deepEqual(filas(r, "Por vencer y sin fecha"), ["Renovar pasaporte", "Llamar al plomero"]);
+  // Lo que el borrador advierte: `>=` pierde las que no tienen fecha.
+  const conMayorIgual = validarBase(receta.replace("not:\n        - vence <", "and:\n        - vence >="), ctx);
+  assert.deepEqual(filas(conMayorIgual, "Por vencer y sin fecha"), ["Renovar pasaporte"]);
+});
+
+test("receta de índice por etiqueta: el or con startsWith trae las anidadas", () => {
+  const receta = bloques.find((b) => b.includes("name: Recetas")).replaceAll("receta", "proyecto");
+  const r = validarBase(receta, ctx);
+  assert.deepEqual(r.avisos.filter((a) => a.codigo === "etiqueta"), []);
+  assert.ok(filas(r, "Recetas").includes("Riego automático"), "#proyecto/huerta");
+});
+
+// Los comandos de «Del pedido a la consulta» corren en sh; se prueban si hay uno.
+const sh = spawnSync("sh", ["-c", "true"]).status === 0;
+const comandos = /## Del pedido a la consulta[\s\S]*?```sh\n([\s\S]*?)```/.exec(SKILL)?.[1] ?? "";
+
+test("los comandos para conocer el vault saltean lo oculto y los CLAUDE*.md", { skip: !sh && "sin sh" }, () => {
+  assert.ok(comandos.includes("find ."), "no se encontró el bloque sh");
+  const r = spawnSync("sh", ["-c", comandos], { cwd: VAULT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const n = (re) => Number(re.exec(r.stdout)?.[1] ?? 0);
+  // Cinco notas con `estado` (la de `.oculto/` no cuenta) y los valores reales.
+  assert.equal(n(/^\s*(\d+) estado$/m), 5);
+  assert.equal(n(/^\s*(\d+) estado: activo$/m), 2);
+  assert.match(r.stdout, /^\s*1 tags: \[proyecto\/huerta\]$/m);
+  assert.doesNotMatch(r.stdout, /Secreta|No debería/);
 });
 
 test("sin vault: valida la sintaxis y no evalúa", () => {
