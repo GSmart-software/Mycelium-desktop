@@ -6,6 +6,8 @@ import {
   urlDelEditor,
   type TemaDrawio,
 } from "@/lib/drawio";
+import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { olvidarGuardadoPendiente, registrarGuardadoPendiente } from "@/lib/guardadoPendiente";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -63,6 +65,12 @@ type Instancia = {
   iframe: HTMLIFrameElement;
   /** El último XML conocido: lo que se escribiría si hubiera que guardar ya. */
   xml: string | null;
+  /**
+   * Lo último que este editor sabe que está en disco: lo que leyó o lo que mandó
+   * a guardar (`FUN-L-26`). Es lo que reconoce el eco del guardado propio cuando
+   * el watcher avisa de un cambio.
+   */
+  conocido: string | null;
   sucio: boolean;
   /** El editor ya dijo `init` y aceptó el diagrama. */
   cargado: boolean;
@@ -84,6 +92,9 @@ function guardar(inst: Instancia): Promise<void> {
   const xml = inst.xml;
   if (xml === null) return Promise.resolve();
   inst.sucio = false;
+  // Antes del await: si el aviso del watcher llega mientras el guardado viaja,
+  // lo que encuentre en disco es esto, y no hay que recargarlo.
+  inst.conocido = xml;
   useSyncStore.getState().setSyncState(inst.notaId, "syncing");
   return api(`/notas/${encodeURIComponent(inst.notaId)}/contenido`, {
     method: "PUT",
@@ -125,6 +136,7 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
     notaId,
     iframe,
     xml: null,
+    conocido: null,
     sucio: false,
     cargado: false,
     ancla: null,
@@ -179,6 +191,7 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
   })
     .then((d) => {
       if (instancias.get(clave) !== inst) return;
+      inst.conocido = d.contenido;
       inst.xml = contenidoParaCargar(d.contenido);
       if (inst.cargado) {
         inst.iframe.contentWindow?.postMessage(
@@ -201,6 +214,47 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
     });
 
   return inst;
+}
+
+// ── Cambios de afuera ─────────────────────────────────────────────────────────
+
+/**
+ * Relee el archivo y, si cambió por fuera, se lo carga al editor (`FUN-L-26`).
+ *
+ * Mismo criterio que `reloadFromDisk` en `NoteEditor`: no se toca un editor con
+ * cambios sin guardar, y el eco del guardado propio no cuenta como cambio.
+ *
+ * Se manda otro `load` al iframe en vez de recargarlo: la webapp sigue viva (no
+ * se vuelve a bajar ni a arrancar), y es la misma acción con que se abrió el
+ * diagrama. Lo que sí se pierde es el zoom y el deshacer: `load` reemplaza el
+ * archivo entero. La alternativa, `merge`, conserva la vista pero hace una
+ * fusión de tres vías contra la versión que el editor cargó al abrir —y como
+ * los guardados de Mycelium no pasan por draw.io, esa base queda vieja y la
+ * fusión puede resucitar lo que el cambio de afuera borró—.
+ */
+async function recargar(inst: Instancia): Promise<void> {
+  // Sin XML todavía, la lectura inicial está en camino y ya va a traer lo nuevo.
+  if (inst.sucio || inst.xml === null) return;
+  let disco: string;
+  try {
+    const d = await api<{ contenido: string }>(
+      `/notas/${encodeURIComponent(inst.notaId)}/contenido`,
+      { token: useAuthStore.getState().accessToken },
+    );
+    disco = d.contenido ?? "";
+  } catch {
+    return; // Best-effort: si falla la relectura, lo que se ve queda como está.
+  }
+  // Re-chequear tras el await: pudo soltarse, o el usuario pudo empezar a editar.
+  if (instancias.get(inst.clave) !== inst) return;
+  if (!hayQueRecargar({ disco, sucio: inst.sucio, conocido: inst.conocido, enPantalla: inst.xml }))
+    return;
+  inst.conocido = disco;
+  inst.xml = contenidoParaCargar(disco);
+  // Si el editor todavía no dijo `init`, el `init` ya le manda este XML.
+  if (inst.cargado) {
+    inst.iframe.contentWindow?.postMessage(JSON.stringify(accionCargar(inst.xml)), "*");
+  }
 }
 
 /** Suelta una instancia: vuelca lo pendiente y destruye el `iframe`. */
@@ -356,4 +410,11 @@ function barrerPestanasCerradas() {
 
 if (typeof window !== "undefined") {
   useTabsStore.subscribe(barrerPestanasCerradas);
+  // Todos los editores vivos, también los ocultos y el del panel lateral: uno
+  // oculto con lo viejo pisaría lo de afuera al volver y guardar.
+  window.addEventListener(EVENTO_RECARGA, (ev) => {
+    for (const inst of instancias.values()) {
+      if (avisoTocaA(ev, inst.notaId)) void recargar(inst);
+    }
+  });
 }
