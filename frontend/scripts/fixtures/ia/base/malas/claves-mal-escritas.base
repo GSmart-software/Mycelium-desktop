@@ -1,0 +1,13 @@
+filter:
+  and:
+    - estado == "activo"
+views:
+  - type: table
+    name: Typos
+    columns:
+      - file.name
+    order:
+      - file.nombre
+      - estdo
+    sort: [{property: prioridad, direction: DESC}]
+    limit: diez

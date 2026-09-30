@@ -1,0 +1,29 @@
+filters:
+  or:
+    - file.hasTag("proyecto", "proyecto/huerta")
+    - proyecto.contains("Mycelium")
+views:
+  - type: table
+    name: Urgentes
+    limit: 2
+    filters:
+      and:
+        - prioridad >= 3
+        - not:
+            - estado == "hecho"
+    order:
+      - file.name
+      - prioridad
+    sort:
+      - property: prioridad
+        direction: DESC
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Sin vencimiento
+    filters:
+      and:
+        - vence.isEmpty()
+    order:
+      - file.name
+      - estado

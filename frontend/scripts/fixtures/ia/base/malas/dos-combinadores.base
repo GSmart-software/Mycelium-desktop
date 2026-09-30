@@ -1,0 +1,8 @@
+filters:
+  and:
+    - estado == "activo"
+  or:
+    - prioridad > 3
+views:
+  - type: table
+    name: Ambiguo

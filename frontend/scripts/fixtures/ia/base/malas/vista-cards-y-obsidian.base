@@ -1,0 +1,13 @@
+formulas:
+  urgencia: prioridad * 2
+views:
+  - type: cards
+    name: Tarjetas
+  - type: table
+    name: Agrupada
+    groupBy:
+      property: estado
+      direction: ASC
+    order:
+      - file.name
+      - formula.urgencia

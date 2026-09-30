@@ -1,0 +1,12 @@
+filters:
+  and:
+    - prioridad > "4"
+    - file.hasTag("proyecto")
+    - file.inFolder("proyectos")
+    - file.mtime > "2026-01-01"
+views:
+  - type: table
+    name: Parece bien
+    order:
+      - file.name
+      - prioridad

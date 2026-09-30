@@ -1,0 +1,6 @@
+filters:
+  and:
+    - estado == "activo"
+   - prioridad > 2
+views:
+  - type: table

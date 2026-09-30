@@ -1,0 +1,6 @@
+filters:
+  and:
+    - estado == "activo"  # solo los activos
+views:
+  - type: table # la única vista
+    name: Activos

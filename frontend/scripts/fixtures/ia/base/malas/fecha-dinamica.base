@@ -1,0 +1,7 @@
+filters:
+  and:
+    - tipo == "tarea"
+    - vence < today()
+views:
+  - type: table
+    name: Vencidas
