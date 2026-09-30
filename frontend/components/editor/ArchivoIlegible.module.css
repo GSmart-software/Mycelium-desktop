@@ -1,0 +1,71 @@
+/* Aviso de dibujo o diagrama ilegible (DEF-119). Mismo lenguaje visual que el
+   aviso del visor de archivos (`VisorArchivo.module.css`). */
+.aviso {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  overflow: auto;
+}
+
+.icono {
+  color: var(--mic-text-muted);
+}
+
+.titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.detalle {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 12.5px;
+  color: var(--mic-text-muted);
+  line-height: 1.5;
+}
+
+.motivo {
+  margin: 0;
+  max-width: 60ch;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--mic-border);
+  font-family: var(--mic-font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--mic-border);
+  background: transparent;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.accion:hover {
+  background: var(--mic-bg-hover);
+}

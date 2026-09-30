@@ -1,8 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
-import { loadNotaScene, saveNotaScene, type ExcalidrawScene } from "@/lib/excalidraw";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  DibujoIlegible,
+  loadNotaScene,
+  saveNotaScene,
+  type ExcalidrawScene,
+} from "@/lib/excalidraw";
+import { ArchivoIlegible } from "./ArchivoIlegible";
 import styles from "./ExcalidrawModal.module.css";
 
 const Excalidraw = dynamic(
@@ -19,6 +25,10 @@ type ExcalidrawApi = {
  * Editor Excalidraw en modal (HU-16 CA3/CA5): se abre al crear o al clicar un
  * diagrama renderizado; al cerrar guarda automáticamente. Edita un archivo
  * .excalidraw del vault (`fileId`): su contenido es la escena.
+ *
+ * Si el archivo no se puede leer (`DEF-119`) no se monta el editor: se avisa, y
+ * el botón pasa a «Cerrar» **sin guardar**. Antes se abría una escena vacía y
+ * «Guardar y cerrar» la escribía encima del original.
  */
 export function ExcalidrawModal({
   fileId,
@@ -31,14 +41,42 @@ export function ExcalidrawModal({
   const [initialScene, setInitialScene] = useState<ExcalidrawScene | null | undefined>(
     undefined,
   );
+  const [ilegible, setIlegible] = useState<string | null>(null);
+
+  const cargar = useCallback(
+    (vigente: () => boolean) => {
+      void loadNotaScene(fileId).then(
+        (scene) => {
+          if (!vigente()) return;
+          // `null` es que ni se pudo leer del disco: tampoco es un dibujo vacío.
+          if (scene === null) {
+            setIlegible("No se pudo leer el archivo.");
+            return;
+          }
+          setIlegible(null);
+          setInitialScene(scene);
+        },
+        (e: unknown) => {
+          if (!vigente()) return;
+          apiRef.current = null;
+          setIlegible(e instanceof DibujoIlegible ? e.message : String(e));
+        },
+      );
+    },
+    [fileId],
+  );
 
   useEffect(() => {
-    void loadNotaScene(fileId).then((scene) => setInitialScene(scene ?? { elements: [] }));
-  }, [fileId]);
+    let vigente = true;
+    cargar(() => vigente);
+    return () => {
+      vigente = false;
+    };
+  }, [cargar]);
 
   async function saveAndClose() {
     const api = apiRef.current;
-    if (api) {
+    if (api && ilegible === null) {
       const scene: ExcalidrawScene = {
         elements: api.getSceneElements(),
         appState: {},
@@ -55,20 +93,30 @@ export function ExcalidrawModal({
         <header className={styles.header}>
           <span className={styles.title}>Dibujo</span>
           <button type="button" className={styles.save} onClick={() => void saveAndClose()}>
-            Guardar y cerrar
+            {ilegible === null ? "Guardar y cerrar" : "Cerrar"}
           </button>
         </header>
         <div className={styles.canvas}>
-          {initialScene !== undefined && (
-            <Excalidraw
-              excalidrawAPI={(api) => {
-                apiRef.current = api as unknown as ExcalidrawApi;
-              }}
-              initialData={{
-                elements: (initialScene?.elements ?? []) as never,
-                files: (initialScene?.files ?? null) as never,
-              }}
+          {ilegible !== null ? (
+            <ArchivoIlegible
+              ruta={fileId}
+              formato="dibujo de Excalidraw"
+              motivo={ilegible}
+              onReintentar={() => cargar(() => true)}
+              compacto
             />
+          ) : (
+            initialScene !== undefined && (
+              <Excalidraw
+                excalidrawAPI={(api) => {
+                  apiRef.current = api as unknown as ExcalidrawApi;
+                }}
+                initialData={{
+                  elements: (initialScene?.elements ?? []) as never,
+                  files: (initialScene?.files ?? null) as never,
+                }}
+              />
+            )
           )}
         </div>
       </div>
