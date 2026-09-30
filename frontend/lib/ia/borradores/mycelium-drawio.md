@@ -77,6 +77,14 @@ entre**. Esta skill es sobre eso.
 | `value` | El texto. Con `html=1` es HTML **escapado** |
 | `style` | `clave=valor;` separados por `;`. Un nombre suelto (`rhombus;`, `swimlane;`, `text;`) aplica un estilo predefinido |
 
+Los atributos de `<mxGraphModel>` copialos tal cual. `pageWidth`/`pageHeight` (827 × 1169,
+una hoja A4) **no hace falta ajustarlos**: solo dibujan el borde de la hoja en el editor
+y sirven para imprimir; si el diagrama se pasa, draw.io agrega hojas solo. Nada se corta.
+
+**Mycelium no abre el diagrama ajustado a la ventana.** El usuario ve primero la esquina
+de arriba a la izquierda: arrancá ahí (40, 40), poné lo principal arriba, y ante la duda
+crecé **hacia abajo** antes que a lo ancho. Un diagrama compacto se lee sin buscarlo.
+
 ## Reglas de oro
 
 1. **Siempre las celdas `0` y `1`**, y toda figura o arista con `parent`.
@@ -88,8 +96,17 @@ entre**. Esta skill es sobre eso.
    Es el error más común: una caja en (440,350) absoluta dentro de un contenedor en
    (400,300) se escribe `x="40" y="50"`.
 5. **Escapá el XML**: `&` → `&amp;`, `<` → `&lt;`, `"` → `&quot;`. Con `html=1` el valor
-   es HTML dentro de un atributo: negrita `&lt;b&gt;Ana&lt;/b&gt;`, salto `&lt;br&gt;`. Un
-   salto también puede ir como `&#xa;`. Nada de `&nbsp;` suelto (va `&amp;nbsp;`).
+   es HTML dentro de un atributo, y se escapa **dos veces** lo que tiene que *verse*:
+
+   | Querés que se vea | En el `value` (con `html=1`) |
+   |---|---|
+   | **negrita**, salto de línea | `&lt;b&gt;Ana&lt;/b&gt;`, `&lt;br&gt;` (o `&#xa;`) |
+   | `<` | `&amp;lt;` — **nunca** `&lt;` solo: «a &lt;b» se lee como etiqueta y el texto desaparece desde ahí |
+   | `>` | `&amp;gt;` (lo que escribe draw.io). Un `&gt;` también se ve bien |
+   | `&` | `&amp;amp;` |
+   | espacio que no parte | `&amp;nbsp;` (nunca `&nbsp;` suelto: rompe el XML) |
+
+   El validador mide lo que **se ve**: `&amp;gt;` cuenta como un carácter.
 6. **Sin comprimir**, UTF-8, sin BOM.
 7. **Modificar no es reescribir**: cambiá lo necesario con ediciones puntuales y
    **conservá** lo que no entiendas (páginas, `<object>`/`<UserObject>`, estilos raros,
@@ -110,11 +127,11 @@ entre**. Esta skill es sobre eso.
 | Figura | Estilo | Tamaño base |
 |---|---|---|
 | Proceso / caja | `rounded=1;whiteSpace=wrap;html=1;` | 160 × 60 (mín. 120 × 40) |
-| Decisión | `rhombus;whiteSpace=wrap;html=1;` | 180 × 90 |
+| Decisión | `rhombus;whiteSpace=wrap;html=1;` | 180 × 90 como mínimo; el ancho, con la fórmula de abajo |
 | Inicio / fin | `ellipse;whiteSpace=wrap;html=1;` | 120 × 50 |
 | Base de datos | `shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;` | 160 × 80 |
-| Contenedor con título | `swimlane;startSize=30;html=1;whiteSpace=wrap;align=left;spacingLeft=10;` | lo que ocupen sus hijos + 40 de margen; título de 30 |
-| Tabla ER | ver receta 3 | 220 de ancho; 30 de título + 26 por fila |
+| Contenedor con título | `swimlane;startSize=30;html=1;whiteSpace=wrap;align=left;spacingLeft=10;` | título de 30; el resto, lo que ocupen sus hijos + 20 por lado (receta 5) |
+| Tabla ER | ver receta 4 | 220 de ancho; 30 de título + 26 por fila |
 
 **El texto tiene que entrar.** A `fontSize` 12 (el default) calculá **~7 px por
 carácter** más 20 de margen, y **cada línea mide 18 px** de alto:
@@ -124,9 +141,11 @@ carácter** más 20 de margen, y **cada línea mide 18 px** de alto:
   y subí el alto: `height = max(60, líneas × 18 + 24)`.
 - **Sin `whiteSpace=wrap` el texto no se parte** y se sale por los costados. Ponelo
   siempre (salvo en `text;`).
-- **Rombo**: el texto se parte al ancho de la caja pero el rombo es más angosto arriba y
-  abajo; necesita **~2× el ancho del texto** y el texto en una o dos líneas cortas
-  («¿Hay stock?», no «¿El cliente tiene deuda pendiente con la empresa?»).
+- **Rombo**: es más angosto arriba y abajo que la caja que lo contiene, así que pide más
+  ancho. Con `c` = caracteres de la línea más larga:
+  `width = max(180, redondearA10(c × 10 + 40))`, y `height = 90` con una línea o `110`
+  con dos (partidas vos con `&lt;br&gt;`). «¿Hay stock?» → 180 × 90; «¿El cliente es
+  mayorista?» (25) → 290 × 90. Más de dos líneas no: acortá la pregunta.
 - Figuras chicas (actor, evento, ícono): poné la etiqueta **afuera**:
   `verticalLabelPosition=bottom;verticalAlign=top;` y dejá 30 px libres debajo.
 - Con `fontStyle=1` (negrita) sumá un 10 %.
@@ -158,7 +177,9 @@ verticales. Lo que hace draw.io (comprobado):
   | Derecha | `exitX=1;exitY=0.5;` | `entryX=1;entryY=0.5;` |
   | Izquierda | `exitX=0;exitY=0.5;` | `entryX=0;entryY=0.5;` |
 
-  Sumá `exitDx=0;exitDy=0;` / `entryDx=0;entryDy=0;` al lado de cada par.
+  Sumá `exitDx=0;exitDy=0;` / `entryDx=0;entryDy=0;` al lado de cada par. En una figura
+  con `direction=` (girada) **los puertos giran con ella** y `entryY=0` deja de ser
+  arriba: si vas a fijar puertos, usá formas que no necesiten `direction`.
 - Salida y entrada verticales (abajo → arriba) → forma de **Z**: baja, cruza en
   horizontal **a mitad de camino** entre las dos cajas, y baja. Salida vertical y
   entrada horizontal → forma de **L**.
@@ -181,6 +202,16 @@ verticales. Lo que hace draw.io (comprobado):
   decisión), una flecha vuelve hacia atrás (bucles), llegan varias al mismo lado (repartí
   las entradas: `entryX=0.3` y `entryX=0.7`, para que no se encimen las puntas), o es un
   árbol. Entre dos cajas alineadas, no hacen falta.
+- **Rombo: una flecha por punta.** Sus cuatro puntas son los puertos de la tabla. Entra
+  **por arriba**, el camino principal sale **por abajo** y la alternativa **por un
+  costado**; una entrada y una salida **nunca** comparten punta. Si llegan dos flechas al
+  rombo, o entran las dos por arriba (con los mismos puertos se funden en un empalme con
+  una sola punta: se lee bien), o la segunda entra por la punta que quedó libre (un
+  reintento que vuelve al rombo entra por la izquierda si la derecha es la salida «No»).
+- **Dos caminos que llegan al mismo paso** (confluencia): el que viene de arriba, en la
+  misma columna, entra recto; el que viene de un costado baja y entra **por su costado**
+  (`exitX=0.5;exitY=1` → `entryX=1;entryY=0.5`, forma de L). Si vienen de los dos costados,
+  uno por cada lado. Así cada punta de flecha cae en un lado distinto (receta 2).
 - **Etiqueta de flecha**: el `value` de la arista (va al medio del recorrido). Corta:
   «Sí», «No», «REST», «1..N». Dejá al menos 40 px de tramo para que se lea.
 - Puntas: `endArrow=block;endFill=1;` (proceso), `endArrow=none;` (jerarquía),
@@ -199,18 +230,28 @@ No escribas XML «a ojo». Calculá primero, en este orden:
    profundidad; capas → la capa.
 4. **Ordená dentro de cada rango** siguiendo el orden de los padres (así no se cruzan
    las flechas). En un flujo, el **camino feliz va en una sola columna recta** y las
-   ramas alternativas a la derecha.
+   ramas alternativas a la derecha. Si una decisión tiene **dos acciones normales**
+   (ninguna es «la alternativa»), van una a cada lado del rombo (receta 2).
 5. **Coordenadas**:
    - `y` de cada rango = `y` del anterior + su alto máximo + separación.
    - `x` por columnas: `x = centroColumna − width/2`.
-   - **Árbol** (de abajo hacia arriba): las hojas de un padre, lado a lado con 20 entre
-     sí; cada subárbol separado 40 del siguiente; cada padre **centrado sobre sus hijos**:
-     `centro = (centro del primer hijo + centro del último) / 2`.
-   - **Árbol muy ancho** (más de ~6 hojas bajo un padre, o el total pasa de ~1600 px):
-     apilá esas hojas en vertical debajo del padre: `x = centroDelPadre + 30`, la
-     primera 30 debajo del padre, cajas de 40 de alto separadas 20, flechas
-     `exitX=0.5;exitY=1` → `entryX=0;entryY=0.5` con `endArrow=none`. Queda un tronco
-     vertical con ramas a cada hoja.
+   - **Árbol**: primero el **ancho de cada subárbol**, de abajo hacia arriba:
+     `ancho(hoja) = su width`;
+     `ancho(padre) = max(width del padre, suma de los anchos de sus hijos + separaciones)`,
+     con 20 entre hijos que son hojas y 40 entre hijos que tienen hijos. Después, de
+     arriba hacia abajo, cada subárbol ocupa **su franja** `[izq, izq + ancho]` y el
+     siguiente hermano arranca en `izq + ancho + separación`: nadie invade la franja del
+     vecino, por ancho que sea el padre. Adentro de la franja, los hijos van juntos y
+     **centrados**; el padre, centrado sobre ellos:
+     `centro = (centro del primer hijo + centro del último) / 2`. Una hoja sola ocupa su
+     franja entera (`x = izq`).
+   - **Árbol muy ancho**: medí el **ancho entre bordes** del nivel más ancho
+     (`x + width` de la caja de más a la derecha − `x` de la de más a la izquierda). Si
+     un padre tiene **más de 6 hojas**, o ese ancho pasaría de **1600 px**, apilá las
+     hojas de los padres más cargados en vertical: `x = centroDelPadre + 30`, la primera
+     30 debajo del padre, cajas de 40 de alto separadas 20, flechas `exitX=0.5;exitY=1` →
+     `entryX=0;entryY=0.5` con `endArrow=none`. Queda un tronco vertical con ramas a cada
+     hoja. Esto rige al **crear**; al **modificar**, ver «Leer y modificar» (paso 3).
 6. **Flechas**: elegí puertos según la dirección. Para cada flecha que no una vecinos
    inmediatos, **recorré su camino** (recta, Z o L según lo de arriba) y comprobá que no
    pase sobre otra caja. Si pasa, waypoints por un pasillo libre.
@@ -221,7 +262,16 @@ No escribas XML «a ojo». Calculá primero, en este orden:
 > Hojas de 160 con 20 entre sí: Tecnología tiene 3 → ocupan x 40…560, centro 300, su
 > gerente va en `x = 300 − 80 = 220`. Comercial (2 hojas) arranca 40 después: x 600…940,
 > centro 770. Operaciones (3): x 980…1500, centro 1240. La directora va centrada sobre
-> sus gerentes: `(300 + 1240) / 2 = 770` → `x = 690`. Filas en y = 40, 160, 280.
+> sus gerentes: `(300 + 1240) / 2 = 770` → `x = 690`. Filas en y = 40, 160, 280. Ancho
+> entre bordes: 1500 − 40 = **1460**, por debajo de 1600: queda en horizontal.
+
+> [!tip] Otro: un padre más ancho que sus hijos
+> Dirección (200) con dos gerencias: Administración (220, **una** hoja de 160) y
+> Tecnología (160, tres hojas de 160). Anchos: Administración `max(220, 160) = 220`;
+> Tecnología `max(160, 3×160 + 2×20) = 520`. Administración ocupa 40…260 y su hoja va
+> centrada: `x = 40 + (220 − 160)/2 = 70`. Tecnología arranca en 260 + 40 = 300: hojas en
+> 300, 480, 660, centro 560 → `x = 480`. Dirección: `(150 + 560)/2 = 355` → `x = 255`
+> (un 5 al centrar está bien).
 
 ## Recetas (probadas en el draw.io de Mycelium)
 
@@ -261,7 +311,33 @@ alineadas con su rombo. Lo esencial:
 - Colores habituales: decisión `#fff2cc/#d6b656`, inicio `#d5e8d4/#82b366`, fin
   `#f8cecc/#b85450`.
 
-### 2. Organigrama / árbol
+### 2. Decisión con dos acciones que vuelven a juntarse
+
+Cuando las dos ramas son acciones normales («¿Paga con tarjeta?» → cobrar con tarjeta /
+generar cupón), ninguna va en la columna principal: tres columnas (centros 160, 400,
+640), el rombo en la del medio y una acción a cada lado, a la misma altura. Después, las
+dos **confluyen** en el paso siguiente, otra vez en la columna del medio:
+
+```xml
+<!-- Del rombo: sale por la punta izquierda (o derecha) y entra por arriba de la acción. -->
+<mxCell id="e-si" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tarjeta" target="cobrar">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+<!-- Confluencia: cada acción baja y entra por SU costado del paso común. -->
+<mxCell id="e-cobrar-confirmar" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cobrar" target="confirmar">
+  <mxGeometry relative="1" as="geometry" />
+</mxCell>
+```
+
+- La rama derecha es el espejo: `exitX=1;exitY=0.5` del rombo, y `entryX=1;entryY=0.5`
+  en el paso común.
+- El paso común va 60 más abajo que las acciones (el tramo horizontal de la L necesita
+  lugar), y las acciones, 40 debajo del rombo.
+- Si una rama viene de la columna principal (recta, por arriba) y la otra de un costado,
+  la de costado entra por el costado: es el caso de un «No» que termina en el mismo
+  «Fin» que el camino feliz.
+
+### 3. Organigrama / árbol
 
 Posiciones con el paso 5 del procedimiento. Nombre y cargo en dos líneas:
 
@@ -278,7 +354,7 @@ Todas las aristas iguales: de abajo del jefe a arriba del subordinado. El tramo
 horizontal cae a mitad de camino entre niveles y las de un mismo jefe se funden en un
 solo «peine». Un color por nivel (`#dae8fc`, `#d5e8d4`, `#fff2cc`).
 
-### 3. Modelo entidad-relación
+### 4. Modelo entidad-relación
 
 Cada tabla es un `swimlane` con `stackLayout`; cada campo, una fila hija de 26 de alto
 con `x` omitida (= 0), `y` = 30, 56, 82… y el ancho de la tabla. Alto de la tabla =
@@ -298,20 +374,35 @@ con `x` omitida (= 0), `y` = 30, 56, 82… y el ancho de la tabla. Alto de la ta
 </mxCell>
 ```
 
-| Cardinalidad | Punta |
+`startArrow` es la punta junto al `source` (la fila PK), `endArrow` la del `target` (la
+fila FK). Cada punta dice **cuántos del otro lado** puede haber. Se elige con dos
+preguntas:
+
+| Pregunta | Respuesta → punta |
 |---|---|
-| exactamente uno | `ERmandOne` |
-| cero o uno | `ERzeroToOne` |
-| uno o muchos | `ERoneToMany` |
-| cero o muchos | `ERzeroToMany` |
-| muchos (sin precisar) | `ERmany` |
+| Lado PK (`startArrow`): ¿la FK puede quedar vacía? | No (NOT NULL) → `ERmandOne` · Sí → `ERzeroToOne` |
+| Lado FK (`endArrow`): ¿puede existir un padre sin ningún hijo? | Sí → `ERzeroToMany` · No, al menos uno → `ERoneToMany` |
+| Uno a uno (la FK además es única) | `endArrow=ERzeroToOne` o `ERmandOne` |
 
-`startArrow` es la punta junto al `source`, `endArrow` la del `target`. Las relaciones
-enganchan **filas**, no tablas: así la línea sale a la altura del campo. Una N:M lleva su
-tabla intermedia (ponela **entre** las dos que une). Si una relación tuviera que cruzar
-una tabla intermedia, reordená las tablas en vez de cruzarla.
+Ejemplos: todo pedido tiene cliente y hay clientes sin pedidos → `ERmandOne` /
+`ERzeroToMany`. Un pedido tiene al menos un renglón → pedido–detalle `ERmandOne` /
+`ERoneToMany`. `ERmany` (muchos, sin precisar) solo si el usuario no lo sabe.
 
-### 4. Arquitectura por capas (contenedores)
+- Las relaciones enganchan **filas**, no tablas: así la línea sale a la altura del campo.
+- **N:M**: tabla intermedia **entre** las dos que une, con una fila por FK. Si juntas
+  forman la clave, marcalas `PK, FK  id_libro: INT` en negrita (`fontStyle=1`), igual que
+  una PK; si la intermedia tiene su propio id, ese es el `PK` y las otras van `FK`. Dos
+  relaciones, una desde cada tabla, cada una a su fila.
+- **Lado de la línea**: `entityRelationEdgeStyle` lo elige **por relación**, no por fila:
+  sale por la izquierda solo si la otra tabla queda **entera** a la izquierda (y al
+  revés). Si las tablas se solapan en horizontal (una debajo de otra), sale y entra
+  **por la derecha** con una curva en C. **No fijes puertos** (`exitX`/`entryX`) con este
+  estilo: mueven la punta pero no el sentido, y la línea cruza la tabla. Para cambiar el
+  lado, mové las tablas.
+- Si una relación tuviera que cruzar una tabla intermedia, reordená las tablas en vez de
+  cruzarla.
+
+### 5. Arquitectura por capas (contenedores)
 
 Una capa = un `swimlane` ancho; sus componentes, hijos con coordenadas **relativas**.
 Las aristas entre capas cuelgan de `"1"`.
@@ -330,10 +421,19 @@ Las aristas entre capas cuelgan de `"1"`.
 
 - **Título alineado a la izquierda** (`align=left;spacingLeft=10;`): las flechas que
   cruzan el encabezado por el medio **tachan un título centrado**.
-- Capas de 130 de alto (título 30 + margen 20 + caja 60 + margen 20), separadas 40: el
-  codo de las flechas cae en ese hueco.
+- **Alto de una capa**: `startSize + 20 + filas × alto + (filas − 1) × sep + 20`. Una fila
+  de cajas de 60: `30 + 20 + 60 + 20 = 130`. Dos filas separadas 40:
+  `30 + 20 + 2×60 + 40 + 20 = 230`, con la segunda fila en `y = 50 + 60 + 40 = 150`
+  (relativa). Con cilindros de 80, la fila mide 80. Capas separadas 40: el codo de las
+  flechas cae en ese pasillo.
 - Alineá cada componente con el de la capa de abajo con el que se habla: la flecha
   queda recta.
+- **Cruzar bordes**: una flecha que une dos capas cruza el borde de las dos, y está bien.
+  Lo que no: que atraviese una capa **ajena** (de la de arriba a la de abajo pasando por
+  la del medio). Rodeala por un pasillo afuera de las capas, con waypoints; el validador
+  avisa (`arista-atraviesa`, «atraviesa el contenedor…»).
+- **Asíncrono** (una cola, eventos): flecha `dashed=1;` con etiqueta corta («publica»,
+  «consume»). La cola va en la capa de datos, con la forma de la tabla de abajo.
 
 ### Otras formas (verificadas)
 
@@ -349,6 +449,16 @@ Las aristas entre capas cuelgan de `"1"`.
 | Carpeta / paquete | `shape=folder;fontStyle=1;tabWidth=80;tabHeight=20;tabPosition=left;html=1;boundedLbl=1;whiteSpace=wrap;` |
 | Texto suelto | `text;html=1;align=center;verticalAlign=middle;` |
 | Grupo invisible | `group;` (sus hijos, relativos; sin título) |
+| **Cola de mensajes** | `shape=mxgraph.flowchart.direct_data;whiteSpace=wrap;html=1;` (cilindro acostado, 160 × 70; los puertos no giran) |
+| Servicio (hexágono) | `shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;size=20;` (160 × 70) |
+| Componente UML | `shape=component;align=left;spacingLeft=36;html=1;whiteSpace=wrap;` |
+| Nodo / servidor (cubo) | `shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;size=10;` |
+| Servidor (ícono) | `shape=mxgraph.networks.server;html=1;verticalLabelPosition=bottom;verticalAlign=top;` (50 × 80) |
+| PC / celular (ícono) | `shape=mxgraph.networks.pc;…` (70 × 50) · `shape=mxgraph.networks.mobile;…` (40 × 70), con el mismo `html=1;verticalLabelPosition=bottom;verticalAlign=top;` |
+| Firewall · balanceador · internet (íconos) | `shape=mxgraph.networks.firewall;…` (70 × 70) · `shape=mxgraph.networks.load_balancer;…` (100 × 30) · `shape=mxgraph.networks.cloud;…` (90 × 60), con la etiqueta abajo como el servidor |
+
+Los íconos llevan la etiqueta **abajo**: dejá 30 libres debajo de cada uno. No uses
+`direction=` para acostar una figura si le vas a fijar puertos (giran con ella).
 
 ## Leer y modificar un diagrama existente
 
@@ -369,7 +479,15 @@ Las aristas entre capas cuelgan de `"1"`.
    hay lugar, **corré** lo que está a la derecha o debajo: sumá el mismo Δ a su `x` o `y`
    (solo a las figuras de primer nivel; los hijos viajan con su contenedor) y a los
    waypoints de las aristas afectadas. Si agregás un hijo a un árbol, recalculá ese
-   subárbol y recentrá a su padre.
+   subárbol, recentrá a su padre y corré los subárboles de la derecha.
+
+   **Si la modificación cruza el umbral del árbol ancho** (paso 5 del procedimiento), no
+   reorganices lo que no tocaste. El criterio: solo cambia de forma **el subárbol que
+   estás tocando**, y solo si **él** pasa de 6 hojas (apilalo en vertical). Si lo que
+   cruza los 1600 px es el total, agregá igual corriendo a la derecha y decíselo al
+   usuario, ofreciendo apilar los subárboles más cargados. Ejemplo: al organigrama de 12
+   (1460 px) se le suma una persona en Operaciones → 4 hojas, 1640 px: se corre y se
+   avisa; no se reescribe.
 4. **Editá con cambios puntuales** (reemplazar una celda, insertar otra antes de
    `</root>`), no regenerando el archivo: lo que no tocás queda idéntico. Antes de
    inventar un id, buscá que no exista: `grep -c 'id="nuevo-id"' archivo.drawio`.
@@ -382,6 +500,7 @@ Las aristas entre capas cuelgan de `"1"`.
 
 ```sh
 node .claude/skills/mycelium-drawio/validar-drawio.mjs archivo.drawio
+node .claude/skills/mycelium-drawio/validar-drawio.mjs --mapa archivo.drawio   # + posiciones y aristas
 ```
 
 Sale con código ≠ 0 si hay **errores**. Lo que te dice y cómo se arregla:
@@ -395,8 +514,10 @@ Sale con código ≠ 0 si hay **errores**. Lo que te dice y cómo se arregla:
 | `superposicion` | Dos hermanas se pisan: recalculá posiciones con las separaciones de arriba |
 | `encima-sin-ser-hijo` | Una caja está dibujada dentro de otra sin ser su hija: hacela hija (`parent` + coordenadas relativas) o sacala |
 | `fuera-del-contenedor` | Un hijo con coordenadas absolutas, o un contenedor chico: pasá a relativas o agrandalo |
-| `texto-no-cabe` | Agrandá la caja (regla de 7 px/carácter), poné `whiteSpace=wrap`, o acortá el texto |
-| aviso `arista-atraviesa` | La flecha pasa sobre otra caja: puertos, waypoints por un pasillo libre, o mové cajas |
+| `texto-no-cabe` | Agrandá la caja (regla de 7 px/carácter; en un rombo, su fórmula), poné `whiteSpace=wrap`, o acortá el texto |
+| aviso `arista-atraviesa` | La flecha pasa sobre otra caja, o atraviesa un contenedor ajeno: puertos, waypoints por un pasillo libre, o mové cajas. En un ER, mové las tablas (sin puertos) |
+| aviso `puerto-girado` | Puertos en una figura con `direction=`: cambiá de forma (la cola: `direct_data`) o sacá los puertos |
+| aviso `html-menor-sin-escapar` | Un `<` visible escrito `&lt;` con `html=1`: va `&amp;lt;` |
 | aviso `arista-tacha-titulo` | Cruza un título centrado: `align=left;spacingLeft=10;` en el contenedor |
 | aviso `tapa-encabezado` | Un hijo arranca sobre el título: `y ≥ startSize` (mejor `startSize + 20`) |
 | aviso `coordenadas-negativas`, `muy-lejos` | Llevá todo a partir de (40, 40) |
