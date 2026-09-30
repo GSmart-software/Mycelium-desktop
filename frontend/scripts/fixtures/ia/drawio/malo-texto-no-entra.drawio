@@ -1,0 +1,28 @@
+<mxfile host="Mycelium">
+  <diagram id="p1" name="Validación">
+    <mxGraphModel grid="1" gridSize="10" page="1" pageWidth="827" pageHeight="1169">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Con wrap: se parte en 4 líneas y 40 px de alto no alcanzan. -->
+        <mxCell id="largo" value="Validar la identidad del usuario contra el padrón nacional" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="100" height="40" as="geometry" />
+        </mxCell>
+        <!-- Sin wrap: la línea no se parte y se sale por los costados. -->
+        <mxCell id="sinwrap" value="Servicio de notificaciones push" style="rounded=1;html=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="40" width="120" height="40" as="geometry" />
+        </mxCell>
+        <!-- Rombo chico: el texto entra en la caja pero se sale del contorno del rombo. -->
+        <mxCell id="rombo" value="¿El cliente tiene deuda pendiente?" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="30" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="largo" target="sinwrap">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;" edge="1" parent="1" source="sinwrap" target="rombo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
