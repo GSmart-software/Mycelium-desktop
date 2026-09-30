@@ -1,0 +1,6 @@
+{
+  "nodes": [
+    { "id": "a", "type": "text", "text": "Hola", "x": 40, "y": 40, "width": 260, "height": 110 },
+  ],
+  "edges": []
+}

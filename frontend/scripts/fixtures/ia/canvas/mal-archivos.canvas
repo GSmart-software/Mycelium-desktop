@@ -1,0 +1,9 @@
+{
+  "nodes": [
+    { "id": "f1", "type": "file", "file": "Notas/No existe.md", "x": 40, "y": 40, "width": 320, "height": 220 },
+    { "id": "f2", "type": "file", "file": "adjuntos/plano.png", "x": 420, "y": 40, "width": 320, "height": 220 },
+    { "id": "f3", "type": "file", "file": "Notas\\Glosario.md", "x": 800, "y": 40, "width": 320, "height": 220 },
+    { "id": "f4", "type": "file", "file": "notas/glosario.md", "x": 1180, "y": 40, "width": 320, "height": 220 }
+  ],
+  "edges": []
+}

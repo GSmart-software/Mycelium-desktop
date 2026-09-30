@@ -1,0 +1,9 @@
+{
+  "nodes": [
+    { "id": "a", "type": "text", "text": "Primera idea", "x": 40, "y": 40, "width": 260, "height": 110 },
+    { "id": "b", "type": "text", "text": "Segunda idea", "x": 200, "y": 100, "width": 260, "height": 110 }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "a", "toNode": "b" }
+  ]
+}

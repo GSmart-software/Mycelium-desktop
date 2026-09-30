@@ -1,0 +1,8 @@
+{
+  "nodes": [
+    { "id": "t1", "type": "text", "text": "Dentro del grupo", "x": 60, "y": 90, "width": 260, "height": 110 },
+    { "id": "t2", "type": "text", "text": "Medio adentro, medio afuera", "x": 300, "y": 240, "width": 260, "height": 110 },
+    { "id": "g1", "type": "group", "label": "Etapa 1", "x": 40, "y": 40, "width": 400, "height": 260 }
+  ],
+  "edges": []
+}
