@@ -394,6 +394,56 @@ export function trazoArista(
 
 const RE_WIKILINK = /\[\[([^\[\]]+)\]\]/g;
 
+// ── Encuadre al abrir (`FUN-L-26`) ───────────────────────────────────────────
+
+/** Rectángulo en coordenadas del canvas. */
+export type Caja = { x: number; y: number; ancho: number; alto: number };
+
+/** Cámara del lienzo: `pantalla = mundo × escala + (x, y)`. */
+export type Encuadre = { x: number; y: number; escala: number };
+
+/** Lo que ocupan todos los nodos juntos, o `null` si no hay ninguno. */
+export function cajaDeNodos(nodos: readonly Nodo[]): Caja | null {
+  if (nodos.length === 0) return null;
+  let x1 = Infinity;
+  let y1 = Infinity;
+  let x2 = -Infinity;
+  let y2 = -Infinity;
+  for (const n of nodos) {
+    x1 = Math.min(x1, n.x);
+    y1 = Math.min(y1, n.y);
+    x2 = Math.max(x2, n.x + n.ancho);
+    y2 = Math.max(y2, n.y + n.alto);
+  }
+  return { x: x1, y: y1, ancho: x2 - x1, alto: y2 - y1 };
+}
+
+/**
+ * Cámara que muestra `caja` entera y centrada en una vista de `ancho × alto`.
+ *
+ * - `margen`: aire alrededor, en píxeles de pantalla.
+ * - `escalaMax` (1 por defecto): un lienzo chico **no** se agranda más allá del
+ *   100 %; se centra a tamaño real.
+ * - `escalaMin` (0,2 por defecto, el mismo tope que la rueda): un lienzo enorme
+ *   se aleja hasta ahí y se centra, aunque no entre entero.
+ */
+export function encuadrar(
+  caja: Caja,
+  vista: { ancho: number; alto: number },
+  opciones: { margen?: number; escalaMin?: number; escalaMax?: number } = {},
+): Encuadre {
+  const { margen = 48, escalaMin = 0.2, escalaMax = 1 } = opciones;
+  const util = (disponible: number, ocupado: number) =>
+    ocupado > 0 ? Math.max(disponible - 2 * margen, 1) / ocupado : Infinity;
+  const ajuste = Math.min(util(vista.ancho, caja.ancho), util(vista.alto, caja.alto));
+  const escala = Math.min(escalaMax, Math.max(escalaMin, ajuste));
+  return {
+    escala,
+    x: vista.ancho / 2 - (caja.x + caja.ancho / 2) * escala,
+    y: vista.alto / 2 - (caja.y + caja.alto / 2) * escala,
+  };
+}
+
 /**
  * Referencias que un canvas hace a otras notas, para el grafo del vault.
  *

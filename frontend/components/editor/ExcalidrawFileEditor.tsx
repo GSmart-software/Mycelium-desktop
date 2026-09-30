@@ -1,9 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import { EVENTO_RECARGA } from "@/lib/eventos";
+import {
+  encuadrarDibujo,
+  hayAlgoDibujado,
+  leerEscena,
+  type ApiEncuadre,
+  type EscenaLeida,
+} from "@/lib/excalidraw";
 import {
   olvidarGuardadoPendiente,
   registrarGuardadoPendiente,
@@ -11,6 +19,7 @@ import {
 import { avisoTocaA, hayQueRecargar, versionDeEscena } from "@/lib/recargaExterna";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
+import { ArchivoIlegible } from "./ArchivoIlegible";
 import styles from "./ExcalidrawFileEditor.module.css";
 
 const Excalidraw = dynamic(
@@ -23,33 +32,16 @@ type ExcalidrawApi = {
   getFiles: () => Record<string, unknown>;
   updateScene: (escena: { elements: readonly unknown[]; captureUpdate?: "NEVER" }) => void;
   addFiles: (archivos: unknown[]) => void;
-};
-
-type Scene = { elements: readonly unknown[]; files: Record<string, unknown> | null };
+} & ApiEncuadre;
 
 /**
- * La escena que guarda un `.excalidraw`, pasada por `restoreElements`: lo mismo
- * que hace Excalidraw con `initialData`. Hace falta para `updateScene`, que NO
- * restaura, y un archivo escrito a mano (por una IA) puede traer elementos con
- * campos de menos. Contenido inválido → escena vacía, como al abrir.
+ * Qué muestra la vista. `ilegible` (`DEF-119`) NO monta Excalidraw: sin editor
+ * no hay `onChange`, ni guardado, ni forma de pisar el archivo original.
  */
-async function escenaDesde(contenido: string): Promise<Scene> {
-  let crudo: { elements?: unknown; files?: unknown } = {};
-  try {
-    if (contenido) crudo = JSON.parse(contenido) ?? {};
-  } catch {
-    // contenido inválido → escena vacía
-  }
-  const elementos = Array.isArray(crudo.elements) ? crudo.elements : [];
-  const { restoreElements } = await import("@excalidraw/excalidraw");
-  return {
-    elements: restoreElements(elementos as never, null),
-    files:
-      crudo.files && typeof crudo.files === "object"
-        ? (crudo.files as Record<string, unknown>)
-        : null,
-  };
-}
+type Estado =
+  | { tipo: "cargando" }
+  | { tipo: "lista"; escena: EscenaLeida }
+  | { tipo: "ilegible"; motivo: string };
 
 /**
  * Editor Excalidraw a pantalla de pane para los archivos .excalidraw del vault
@@ -58,7 +50,15 @@ async function escenaDesde(contenido: string): Promise<Scene> {
  */
 export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const apiRef = useRef<ExcalidrawApi | null>(null);
-  const [initial, setInitial] = useState<Scene | undefined>(undefined);
+  const [estado, setEstado] = useState<Estado>({ tipo: "cargando" });
+  /**
+   * Cuántas veces se montó Excalidraw. Va de `key`: cuando un archivo ilegible
+   * se corrige, el editor se monta de cero con lo nuevo (`initialData` solo se
+   * lee al montar).
+   */
+  const [montaje, setMontaje] = useState(0);
+  /** Espejo de `estado.tipo === "ilegible"` para la recarga, que corre fuera del render. */
+  const ilegibleRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ¿Hay cambios sin escribir? Lo consulta el volcado que fuerza el updater.
   const sucioRef = useRef(false);
@@ -76,34 +76,79 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const versionBaseRef = useRef<number | null>(null);
   /** `versionDeEscena` del último `onChange`: la que queda en disco al guardar. */
   const versionActualRef = useRef<number | null>(null);
+  /**
+   * Falta encuadrar el dibujo recién montado (`FUN-L-26`). Solo al montar
+   * Excalidraw —la primera apertura, o al recuperarse de un archivo ilegible—:
+   * la recarga desde disco conserva la cámara. Y solo si hay algo dibujado: un
+   * dibujo en blanco no tiene qué encuadrar, y encuadrar su primer trazo movería
+   * la vista mientras se dibuja.
+   */
+  const encuadrePendienteRef = useRef(false);
   const dark =
     typeof document !== "undefined" && document.documentElement.dataset.dark === "true";
 
+  /**
+   * Pasa la vista a lo que dice `disco`: el editor con la escena, o el aviso de
+   * ilegible (`DEF-119`). Desde el aviso, un contenido legible monta Excalidraw
+   * de cero; con el editor ya montado, el que llama usa `updateScene`.
+   */
+  const mostrarAviso = useCallback((disco: string | null, motivo: string) => {
+    conocidoRef.current = disco;
+    ilegibleRef.current = true;
+    encuadrePendienteRef.current = false;
+    // Sin editor montado no hay API: nada puede guardar (ni el volcado del updater).
+    apiRef.current = null;
+    sucioRef.current = false;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    setEstado({ tipo: "ilegible", motivo });
+  }, []);
+
+  const mostrarEscena = useCallback((disco: string, escena: EscenaLeida) => {
+    conocidoRef.current = disco;
+    ilegibleRef.current = false;
+    versionBaseRef.current = versionDeEscena(escena.elements);
+    encuadrePendienteRef.current = hayAlgoDibujado(escena.elements);
+    setEstado({ tipo: "lista", escena });
+    setMontaje((m) => m + 1);
+  }, []);
+
+  /** Lee el archivo del disco y lo muestra. Es la carga inicial y el «Reintentar». */
+  const cargar = useCallback(
+    async (vigente: () => boolean) => {
+      let disco: string;
+      try {
+        const d = await api<{ contenido: string }>(
+          `/notas/${encodeURIComponent(notaId)}/contenido`,
+          { token: useAuthStore.getState().accessToken },
+        );
+        disco = d.contenido ?? "";
+      } catch (e) {
+        // Antes esto abría una escena vacía: un fallo de lectura quedaba igual
+        // que un dibujo en blanco, y dibujar encima pisaba el archivo.
+        if (vigente()) mostrarAviso(null, `No se pudo leer el archivo: ${motivoDeExcepcion(e)}`);
+        return;
+      }
+      const lectura = await leerEscena(disco);
+      if (!vigente()) return;
+      if ("ilegible" in lectura) mostrarAviso(disco, lectura.ilegible);
+      else mostrarEscena(disco, lectura.escena);
+    },
+    [notaId, mostrarAviso, mostrarEscena],
+  );
+
   useEffect(() => {
     let cancelled = false;
-    void api<{ contenido: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
-      token: useAuthStore.getState().accessToken,
-    })
-      .then(async (d) => {
-        if (cancelled) return;
-        const scene = await escenaDesde(d.contenido ?? "");
-        if (cancelled) return;
-        conocidoRef.current = d.contenido ?? "";
-        versionBaseRef.current = versionDeEscena(scene.elements);
-        setInitial(scene);
-      })
-      .catch(() => {
-        if (!cancelled) setInitial({ elements: [], files: null });
-      });
+    void cargar(() => !cancelled);
     return () => {
       cancelled = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [notaId]);
+  }, [cargar]);
 
   const save = () => {
     const api2 = apiRef.current;
-    if (!api2) return Promise.resolve();
+    if (!api2 || ilegibleRef.current) return Promise.resolve();
     sucioRef.current = false;
     // Lo que se escribe pasa a ser la base. Se toma la versión del último
     // `onChange` y no se recalcula de `getSceneElements`, que omite los
@@ -134,6 +179,13 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   const onChange = (elementos: readonly unknown[]) => {
     const version = versionDeEscena(elementos);
     versionActualRef.current = version;
+    // La primera `onChange` con la escena cargada: es cuando ya se puede
+    // encuadrar. Alguna anterior puede llegar todavía sin elementos, antes de
+    // que Excalidraw termine de leer `initialData`.
+    if (encuadrePendienteRef.current && apiRef.current && hayAlgoDibujado(elementos)) {
+      encuadrePendienteRef.current = false;
+      encuadrarDibujo(apiRef.current);
+    }
     // Mover la cámara, seleccionar o la escena recién cargada desde disco no
     // cambian el archivo: no se marca nada ni se escribe. Antes cada `onChange`
     // guardaba, y eso —además de escribir de balde— reescribía en el formato de
@@ -153,10 +205,16 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   // y la selección (de lo que siga existiendo) quedan como estaban. Va con
   // `captureUpdate: "NEVER"`, lo que la librería indica para cambios remotos:
   // el deshacer no «deshace» lo que escribió otro.
+  //
+  // Y con un archivo ilegible (`DEF-119`) es la vía de salida: cuando se corrige
+  // desde fuera —lo típico: la IA arregla su propio error de sintaxis— la vista
+  // se recupera sola. Al revés, si lo que llega está roto, la vista pasa al aviso
+  // en vez de mostrar una escena vacía que invite a dibujar encima.
   useEffect(() => {
     async function recargar() {
       const a = apiRef.current;
-      if (!a || sucioRef.current) return;
+      const desdeAviso = ilegibleRef.current;
+      if ((!a && !desdeAviso) || sucioRef.current) return;
       let disco: string;
       try {
         const d = await api<{ contenido: string }>(
@@ -169,20 +227,29 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
       }
       if (!hayQueRecargar({ disco, sucio: sucioRef.current, conocido: conocidoRef.current }))
         return;
-      const escena = await escenaDesde(disco);
-      // Re-chequear tras los await: pudo desmontarse o empezar a editarse.
-      if (apiRef.current !== a || sucioRef.current) return;
+      const lectura = await leerEscena(disco);
+      // Re-chequear tras los await: pudo desmontarse, cambiar de estado o
+      // empezar a editarse.
+      if (sucioRef.current || ilegibleRef.current !== desdeAviso || apiRef.current !== a) return;
+      if ("ilegible" in lectura) {
+        mostrarAviso(disco, lectura.ilegible);
+        return;
+      }
+      if (desdeAviso || !a) {
+        mostrarEscena(disco, lectura.escena);
+        return;
+      }
       conocidoRef.current = disco;
-      versionBaseRef.current = versionDeEscena(escena.elements);
-      if (escena.files) a.addFiles(Object.values(escena.files));
-      a.updateScene({ elements: escena.elements, captureUpdate: "NEVER" });
+      versionBaseRef.current = versionDeEscena(lectura.escena.elements);
+      if (lectura.escena.files) a.addFiles(Object.values(lectura.escena.files));
+      a.updateScene({ elements: lectura.escena.elements, captureUpdate: "NEVER" });
     }
     function onRecarga(ev: Event) {
       if (avisoTocaA(ev, notaId)) void recargar();
     }
     window.addEventListener(EVENTO_RECARGA, onRecarga);
     return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
-  }, [notaId]);
+  }, [notaId, mostrarAviso, mostrarEscena]);
 
   // Actualizar cierra la app (FUN-L-14): si el debounce de 800 ms todavía no
   // corrió, el updater fuerza acá la escritura y espera a que termine.
@@ -198,17 +265,31 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notaId]);
 
+  if (estado.tipo === "ilegible") {
+    return (
+      <div className={styles.host}>
+        <ArchivoIlegible
+          ruta={notaId}
+          formato="dibujo de Excalidraw"
+          motivo={estado.motivo}
+          onReintentar={() => void cargar(() => true)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={styles.host}>
-      {initial !== undefined && (
+      {estado.tipo === "lista" && (
         <Excalidraw
+          key={montaje}
           excalidrawAPI={(a) => {
             apiRef.current = a as unknown as ExcalidrawApi;
           }}
           theme={dark ? "dark" : "light"}
           initialData={{
-            elements: initial.elements as never,
-            files: initial.files as never,
+            elements: estado.escena.elements as never,
+            files: estado.escena.files as never,
           }}
           onChange={onChange}
         />

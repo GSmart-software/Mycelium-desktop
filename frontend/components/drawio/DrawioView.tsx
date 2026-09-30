@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { adjuntar, aplicarTema, desadjuntar } from "@/lib/drawioInstancias";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { ArchivoIlegible } from "@/components/editor/ArchivoIlegible";
+import {
+  adjuntar,
+  aplicarTema,
+  desadjuntar,
+  motivoIlegible,
+  reintentar,
+  suscribirEstado,
+} from "@/lib/drawioInstancias";
 import type { TemaDrawio } from "@/lib/drawio";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./DrawioView.module.css";
@@ -50,5 +58,26 @@ export function DrawioView({
     aplicarTema(instanceId, tema);
   }, [instanceId, tema]);
 
-  return <div ref={anclaRef} className={styles.host} />;
+  // Si el archivo no se pudo leer (`DEF-119`), el gestor oculta el `iframe` y
+  // no le manda nada; en el hueco va el aviso. Cuando el archivo se corrige
+  // (recarga desde disco o «Reintentar»), el gestor lo avisa y vuelve el editor.
+  const suscribir = useCallback((f: () => void) => suscribirEstado(instanceId, f), [instanceId]);
+  const ilegible = useSyncExternalStore(
+    suscribir,
+    () => motivoIlegible(instanceId),
+    () => null,
+  );
+
+  return (
+    <div ref={anclaRef} className={styles.host}>
+      {ilegible !== null && (
+        <ArchivoIlegible
+          ruta={notaId}
+          formato="diagrama de draw.io"
+          motivo={ilegible}
+          onReintentar={() => reintentar(instanceId)}
+        />
+      )}
+    </div>
+  );
 }

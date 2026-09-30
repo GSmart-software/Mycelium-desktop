@@ -1,7 +1,8 @@
 import { api } from "@/lib/api";
+import { analizarXml, diagnosticarDrawio, motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import {
   accionCargar,
-  contenidoParaCargar,
+  diagramaInicial,
   leerEvento,
   urlDelEditor,
   type TemaDrawio,
@@ -74,6 +75,12 @@ type Instancia = {
   sucio: boolean;
   /** El editor ya dijo `init` y aceptó el diagrama. */
   cargado: boolean;
+  /**
+   * Por qué el archivo no se pudo leer, o `null` si se pudo (`DEF-119`).
+   * Mientras no es `null`, `xml` también lo es —nada que guardar— y el `iframe`
+   * queda oculto: la vista muestra el aviso en su lugar.
+   */
+  ilegible: string | null;
   /** Dónde se está mostrando ahora (null = oculto, en otra pestaña). */
   ancla: HTMLElement | null;
   tema: TemaDrawio;
@@ -85,6 +92,60 @@ type Instancia = {
 
 const instancias = new Map<string, Instancia>();
 let sincronizando = 0;
+
+// ── Archivo ilegible (`DEF-119`) ──────────────────────────────────────────────
+//
+// draw.io embebido no avisa por el protocolo cuando un `load` falla: muestra su
+// diálogo («No es un archivo de diagrama»), igual emite `load`, deja editar el
+// diagrama vacío y su autoguardado lo manda como cualquier otro. Y antes, lo que
+// ni siquiera parecía un diagrama se reemplazaba acá mismo por uno nuevo
+// (`contenidoParaCargar`). Las dos cosas terminaban pisando el original. Por eso
+// el contenido se revisa ANTES de mandarlo al iframe; si no se puede leer, no se
+// manda nada y la vista muestra el aviso (lo escucha con `suscribirEstado`).
+
+/** Quién escucha los cambios de estado de cada editor, por clave. */
+const oyentes = new Map<string, Set<() => void>>();
+
+function notificar(clave: string) {
+  for (const f of oyentes.get(clave) ?? []) f();
+}
+
+/**
+ * Carga en el editor lo que dice `disco`, o lo pasa a ilegible. Es el camino
+ * único de la lectura inicial, la recarga desde disco y el «Reintentar».
+ */
+function aplicarDisco(inst: Instancia, disco: string) {
+  inst.conocido = disco;
+  const lectura = diagnosticarDrawio(disco, analizarXml);
+  if (lectura.estado === "ilegible") {
+    marcarIlegible(inst, lectura.motivo);
+    return;
+  }
+  const estabaIlegible = inst.ilegible !== null;
+  inst.ilegible = null;
+  // Un archivo vacío (recién creado) sí es un diagrama en blanco válido.
+  inst.xml = lectura.estado === "vacio" ? diagramaInicial() : disco;
+  // Si el editor todavía no dijo `init`, el `init` ya le manda este XML.
+  if (inst.cargado) {
+    inst.iframe.contentWindow?.postMessage(JSON.stringify(accionCargar(inst.xml)), "*");
+  }
+  if (estabaIlegible) {
+    inst.rect = null; // que `sincronizar` lo vuelva a posicionar y mostrar
+    notificar(inst.clave);
+  }
+}
+
+function marcarIlegible(inst: Instancia, motivo: string) {
+  inst.ilegible = motivo;
+  // Sin XML no hay nada que guardar: `guardar` sale sin escribir.
+  inst.xml = null;
+  inst.sucio = false;
+  if (inst.temporizador) clearTimeout(inst.temporizador);
+  inst.temporizador = null;
+  inst.iframe.style.display = "none";
+  inst.rect = null;
+  notificar(inst.clave);
+}
 
 // ── Guardado ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +200,7 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
     conocido: null,
     sucio: false,
     cargado: false,
+    ilegible: null,
     ancla: null,
     tema,
     temporizador: null,
@@ -165,6 +227,9 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
       }
       return;
     }
+    // Con el archivo ilegible no se acepta nada del editor (`DEF-119`): está
+    // oculto, pero un autoguardado tardío escribiría un diagrama vacío encima.
+    if (inst.ilegible !== null) return;
     if (msg.event === "autosave" && typeof msg.xml === "string") {
       inst.xml = msg.xml;
       programarGuardado(inst);
@@ -186,34 +251,25 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
   // El contenido del archivo, una sola vez por instancia. Volver a la pestaña
   // NO vuelve a leer del disco a propósito: el `iframe` puede tener cambios sin
   // guardar, y releer los pisaría.
-  void api<{ contenido: string }>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
+  leerInicial(inst);
+
+  return inst;
+}
+
+function leerInicial(inst: Instancia) {
+  void api<{ contenido: string }>(`/notas/${encodeURIComponent(inst.notaId)}/contenido`, {
     token: useAuthStore.getState().accessToken,
   })
     .then((d) => {
-      if (instancias.get(clave) !== inst) return;
-      inst.conocido = d.contenido;
-      inst.xml = contenidoParaCargar(d.contenido);
-      if (inst.cargado) {
-        inst.iframe.contentWindow?.postMessage(
-          JSON.stringify(accionCargar(inst.xml)),
-          "*",
-        );
-      }
+      if (instancias.get(inst.clave) !== inst) return;
+      aplicarDisco(inst, d.contenido ?? "");
     })
-    .catch(() => {
-      if (instancias.get(clave) !== inst) return;
-      // Un archivo que no se puede leer se abre como diagrama nuevo antes que
-      // dejar el iframe colgado esperando un XML que no llega.
-      inst.xml = contenidoParaCargar("");
-      if (inst.cargado) {
-        inst.iframe.contentWindow?.postMessage(
-          JSON.stringify(accionCargar(inst.xml)),
-          "*",
-        );
-      }
+    .catch((e: unknown) => {
+      if (instancias.get(inst.clave) !== inst) return;
+      // Antes esto abría un diagrama nuevo «para no dejar el iframe colgado», y
+      // su autoguardado lo escribía encima del archivo que no se pudo leer.
+      marcarIlegible(inst, `No se pudo leer el archivo: ${motivoDeExcepcion(e)}`);
     });
-
-  return inst;
 }
 
 // ── Cambios de afuera ─────────────────────────────────────────────────────────
@@ -233,8 +289,10 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
  * fusión puede resucitar lo que el cambio de afuera borró—.
  */
 async function recargar(inst: Instancia): Promise<void> {
-  // Sin XML todavía, la lectura inicial está en camino y ya va a traer lo nuevo.
-  if (inst.sucio || inst.xml === null) return;
+  // Sin XML todavía (y sin estar ilegible), la lectura inicial está en camino y
+  // ya va a traer lo nuevo. Con el archivo ilegible (`DEF-119`) sí se relee: es
+  // como la vista se recupera cuando lo corrigen desde fuera.
+  if (inst.sucio || (inst.xml === null && inst.ilegible === null)) return;
   let disco: string;
   try {
     const d = await api<{ contenido: string }>(
@@ -249,12 +307,9 @@ async function recargar(inst: Instancia): Promise<void> {
   if (instancias.get(inst.clave) !== inst) return;
   if (!hayQueRecargar({ disco, sucio: inst.sucio, conocido: inst.conocido, enPantalla: inst.xml }))
     return;
-  inst.conocido = disco;
-  inst.xml = contenidoParaCargar(disco);
-  // Si el editor todavía no dijo `init`, el `init` ya le manda este XML.
-  if (inst.cargado) {
-    inst.iframe.contentWindow?.postMessage(JSON.stringify(accionCargar(inst.xml)), "*");
-  }
+  // Si lo que llegó está roto, el editor pasa al aviso en vez de quedarse con
+  // un diagrama que, al tocarlo, se guardaría encima (`DEF-119`).
+  aplicarDisco(inst, disco);
 }
 
 /** Suelta una instancia: vuelca lo pendiente y destruye el `iframe`. */
@@ -263,6 +318,8 @@ function soltar(clave: string) {
   if (!inst) return;
   instancias.delete(clave);
   void volcar(inst);
+  // La vista que lo mostraba (si queda alguna) deja de ver el aviso.
+  if (inst.ilegible !== null) notificar(clave);
   olvidarGuardadoPendiente(`drawio:${clave}`);
   window.removeEventListener("message", inst.alRecibir);
   inst.iframe.remove();
@@ -289,6 +346,13 @@ function sincronizar() {
     const ancla = inst.ancla;
     if (ancla === null) continue;
     hayVisibles = true;
+    // Ilegible (`DEF-119`): en el hueco va el aviso de la vista, no el editor.
+    // El bucle sigue, para mostrarlo apenas el archivo se corrija.
+    if (inst.ilegible !== null) {
+      if (inst.iframe.style.display !== "none") inst.iframe.style.display = "none";
+      inst.rect = null;
+      continue;
+    }
     const r = ancla.getBoundingClientRect();
     // Un pane sin tamaño (colapsado, o el árbol a mitad de reacomodarse) oculta
     // el editor en vez de dibujarlo en un rectángulo degenerado.
@@ -366,6 +430,31 @@ export function desadjuntar(clave: string): void {
   inst.ancla = null;
   inst.rect = null;
   inst.iframe.style.display = "none";
+}
+
+/**
+ * Por qué el archivo de este editor no se pudo leer, o `null` (`DEF-119`). Es
+ * el «snapshot» de `useSyncExternalStore` en la vista.
+ */
+export function motivoIlegible(clave: string): string | null {
+  return instancias.get(clave)?.ilegible ?? null;
+}
+
+/** Avisa a `f` cada vez que el editor de `clave` pasa a ilegible o vuelve. */
+export function suscribirEstado(clave: string, f: () => void): () => void {
+  let set = oyentes.get(clave);
+  if (!set) oyentes.set(clave, (set = new Set()));
+  set.add(f);
+  return () => {
+    set.delete(f);
+    if (set.size === 0) oyentes.delete(clave);
+  };
+}
+
+/** «Reintentar» del aviso: vuelve a leer el archivo del disco. */
+export function reintentar(clave: string): void {
+  const inst = instancias.get(clave);
+  if (inst) leerInicial(inst);
 }
 
 /**

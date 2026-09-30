@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { analizarXml, diagnosticarDrawio } from "@/lib/archivosIlegibles";
 import {
   accionCargar,
   accionExportarSvg,
@@ -148,6 +149,12 @@ export async function dibujarDrawioEn(
     const r = await api<{ contenido?: string }>(
       `/notas/${encodeURIComponent(destino.id)}/contenido`,
     );
+    // Un diagrama ilegible (`DEF-119`) se dice como tal, en vez de dibujar uno
+    // en blanco que lo hacía pasar por vacío.
+    const lectura = diagnosticarDrawio(r.contenido ?? "", analizarXml);
+    if (lectura.estado === "ilegible") {
+      throw new Error(`${lectura.motivo} El archivo no se modificó.`);
+    }
     const svg = await diagramaASvg(contenidoParaCargar(r.contenido));
     const img = document.createElement("img");
     img.src = svg;

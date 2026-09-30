@@ -2,13 +2,15 @@
 
 import { Ban, FileText, Maximize2, Save, Trash2, Type } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   anclaDe,
   buscarPorPrefijo,
+  cajaDeNodos,
   colorCss,
   COLORES,
+  encuadrar,
   ladosAutomaticos,
   nodoArchivo,
   nodoTexto,
@@ -111,6 +113,26 @@ export function CanvasView({ notaId }: { notaId: string }) {
       cancelado = true;
     };
   }, [notaId]);
+
+  // ── Encuadre al abrir (`FUN-L-26`) ─────────────────────────────────────────
+  //
+  // Antes el lienzo abría mirando a (0, 0) al 100 %: uno grande quedaba
+  // cortado. Ahora la primera vez que llega el contenido se encuadran todos los
+  // nodos (sin agrandar uno chico más allá del 100 %). Solo esa vez: la recarga
+  // desde disco conserva la cámara, y re-encuadrar en cada cambio de afuera
+  // movería el lienzo debajo del usuario. Va en un efecto de layout para que el
+  // primer cuadro ya salga encuadrado, sin un salto desde (0, 0).
+  const encuadrePendienteRef = useRef(true);
+  useLayoutEffect(() => {
+    if (!encuadrePendienteRef.current || canvas === null) return;
+    const host = hostRef.current;
+    if (!host) return;
+    encuadrePendienteRef.current = false;
+    const r = host.getBoundingClientRect();
+    const caja = cajaDeNodos(canvas.nodos);
+    if (caja === null || r.width < 1 || r.height < 1) return;
+    setVista(encuadrar(caja, { ancho: r.width, alto: r.height }));
+  }, [canvas]);
 
   // ── Guardado con retardo ───────────────────────────────────────────────────
   const guardar = useCallback(

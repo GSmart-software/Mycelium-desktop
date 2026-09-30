@@ -17,7 +17,9 @@ const { outputText } = ts.transpileModule(await readFile(rutaTs, "utf8"), {
 const {
   anclaDe,
   buscarPorPrefijo,
+  cajaDeNodos,
   canvasInicial,
+  encuadrar,
   colorCss,
   ErrorCanvas,
   ladosAutomaticos,
@@ -373,4 +375,48 @@ test("sin consulta se devuelve todo", () => {
 
 test("una consulta que no casa con nada devuelve vacío", () => {
   assert.deepEqual(buscarPorPrefijo(NOTAS_BUSQUEDA, "zzz"), []);
+});
+
+// ── Encuadre al abrir (`FUN-L-26`) ──────────────────────────────────────────
+
+/** Punto de pantalla donde cae un punto del canvas con esa cámara. */
+const enPantalla = (v, x, y) => ({ x: x * v.escala + v.x, y: y * v.escala + v.y });
+
+test("la caja de los nodos los abarca a todos; sin nodos no hay caja", () => {
+  assert.equal(cajaDeNodos([]), null);
+  const caja = cajaDeNodos([
+    nodoTexto("a", -100, 50),
+    { ...nodoTexto("b", 300, -20), ancho: 100, alto: 40 },
+  ]);
+  assert.deepEqual(caja, { x: -100, y: -20, ancho: 500, alto: 210 });
+});
+
+test("un lienzo grande se aleja hasta entrar entero, con margen y centrado", () => {
+  const caja = { x: 1000, y: 2000, ancho: 3000, alto: 1000 };
+  const v = encuadrar(caja, { ancho: 1000, alto: 800 }, { margen: 50 });
+  assert.equal(v.escala, 0.3); // (1000 - 100) / 3000
+  const ini = enPantalla(v, caja.x, caja.y);
+  const fin = enPantalla(v, caja.x + caja.ancho, caja.y + caja.alto);
+  assert.ok(Math.abs(ini.x - 50) < 1e-9 && Math.abs(fin.x - 950) < 1e-9, "margen a los costados");
+  assert.ok(Math.abs((ini.y + fin.y) / 2 - 400) < 1e-9, "centrado en alto");
+});
+
+test("un lienzo chico no se agranda más allá del 100 %: se centra a tamaño real", () => {
+  const caja = { x: -50, y: -50, ancho: 100, alto: 100 };
+  const v = encuadrar(caja, { ancho: 1000, alto: 800 });
+  assert.equal(v.escala, 1);
+  assert.deepEqual(enPantalla(v, 0, 0), { x: 500, y: 400 });
+});
+
+test("uno enorme no baja del mínimo de la rueda", () => {
+  const v = encuadrar({ x: 0, y: 0, ancho: 100000, alto: 100 }, { ancho: 1000, alto: 800 });
+  assert.equal(v.escala, 0.2);
+});
+
+test("un nodo sin tamaño, o una vista mínima, no dan NaN ni infinito", () => {
+  const v1 = encuadrar({ x: 10, y: 10, ancho: 0, alto: 0 }, { ancho: 800, alto: 600 });
+  assert.equal(v1.escala, 1);
+  assert.deepEqual(enPantalla(v1, 10, 10), { x: 400, y: 300 });
+  const v2 = encuadrar({ x: 0, y: 0, ancho: 500, alto: 500 }, { ancho: 40, alto: 40 });
+  for (const n of [v2.x, v2.y, v2.escala]) assert.ok(Number.isFinite(n));
 });
