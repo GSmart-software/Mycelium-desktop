@@ -12,7 +12,7 @@ import { carpetaEsporasDe, expandir, validarEspora } from "./validar-espora.mjs"
 
 const DIR = fileURLToPath(new URL("./fixtures/ia/esporas/", import.meta.url));
 const VAULT = `${DIR}vault`;
-const SKILL = await readFile(fileURLToPath(new URL("../lib/ia/borradores/mycelium-esporas.md", import.meta.url)), "utf8");
+const SKILL = (await readFile(fileURLToPath(new URL("../lib/ia/borradores/mycelium-esporas.md", import.meta.url)), "utf8")).replace(/\r\n/g, "\n");
 const AHORA = new Date(2026, 8, 30, 14, 5, 9);
 const codigos = (l) => [...new Set(l.map((x) => x.codigo))].sort();
 

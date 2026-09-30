@@ -79,7 +79,7 @@ test("orden: todo el día primero, después por hora", () => {
 
 // ── El script de la skill da lo mismo que la app ────────────────────────────
 
-const md = await readFile(SKILL, "utf8");
+const md = (await readFile(SKILL, "utf8")).replace(/\r\n/g, "\n");
 const snippet = /<<'EOF'\n([\s\S]*?)\nEOF/.exec(md)?.[1];
 
 function correrSnippet(desde, hasta) {

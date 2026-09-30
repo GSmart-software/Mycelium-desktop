@@ -154,7 +154,7 @@ test("hasTag no incluye las etiquetas anidadas: el validador lo sugiere", () => 
 
 // ── Lo que enseña el borrador de la skill ───────────────────────────────────
 
-const SKILL = await readFile(fileURLToPath(new URL("../lib/ia/borradores/mycelium-base.md", import.meta.url)), "utf8");
+const SKILL = (await readFile(fileURLToPath(new URL("../lib/ia/borradores/mycelium-base.md", import.meta.url)), "utf8")).replace(/\r\n/g, "\n");
 const bloques = [...SKILL.matchAll(/```yaml\n([\s\S]*?)```/g)].map((m) => m[1]).filter((b) => !/^\s/.test(b));
 
 test("el borrador trae ejemplos completos", () => {
