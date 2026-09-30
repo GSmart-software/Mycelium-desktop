@@ -69,6 +69,40 @@ test("la tabla de formatos del borrador es exacta", () => {
   }
 });
 
+/**
+ * Lo que daría el plugin Templates de Obsidian: `{{title}}`, `{{date}}`
+ * (`YYYY-MM-DD`), `{{time}}` (`HH:mm`) y `{{date|time:FORMATO}}` con las letras
+ * de Moment que usa la tabla del borrador.
+ */
+function obsidian(token, titulo, d) {
+  const dos = (n) => String(n).padStart(2, "0");
+  const moment = (f) =>
+    f.replace(/YYYY|MM|DD|HH|mm|ss/g, (t) =>
+      ({ YYYY: d.getFullYear(), MM: dos(d.getMonth() + 1), DD: dos(d.getDate()), HH: dos(d.getHours()), mm: dos(d.getMinutes()), ss: dos(d.getSeconds()) })[t],
+    );
+  const m = /^\{\{(title|date|time)(?::(.*))?\}\}$/.exec(token);
+  assert.ok(m, `token de Obsidian inesperado: ${token}`);
+  if (m[1] === "title") return titulo;
+  return moment(m[2] ?? (m[1] === "date" ? "YYYY-MM-DD" : "HH:mm"));
+}
+
+test("la tabla de equivalencias Obsidian → Mycelium del borrador es exacta", () => {
+  const filas = [...SKILL.matchAll(/^\| `(\{\{(?:title|date|time)[^`]*\}\})` \| `(\{\{[^`]+\}\})` \| `([^`]+)` \|$/gm)];
+  assert.ok(filas.length >= 8, `solo ${filas.length} filas`);
+  for (const [, obs, myc, sale] of filas) {
+    assert.equal(expandir(myc, "Acta", AHORA), sale, myc);
+    assert.equal(obsidian(obs, "Acta", AHORA), sale, obs);
+    // El validador sugiere lo mismo que la tabla.
+    const msg = validarEspora(`x ${obs}`).errores.map((e) => e.msg).join("\n");
+    assert.ok(msg.includes(`en Mycelium: \`${myc}\``), `${obs}: ${msg}`);
+  }
+});
+
+test("lo que no tiene equivalente en Mycelium, el validador lo nombra", () => {
+  const msg = validarEspora("x {{date:dddd D [de] MMMM}}").errores.map((e) => e.msg).join("\n");
+  assert.match(msg, /sin equivalente para dddd, D, \[de\], MMMM/);
+});
+
 test("la tabla de variables del borrador es exacta", () => {
   assert.equal(expandir("{{fecha}}", "", AHORA), "2026-09-30");
   assert.equal(expandir("{{hora}}", "", AHORA), "14:05");
