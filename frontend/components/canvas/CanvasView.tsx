@@ -23,7 +23,9 @@ import {
 } from "@/lib/canvas";
 import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { EVENTO_RECARGA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
+import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -71,6 +73,20 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const arrastre = useRef<Arrastre | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const guardadoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Espejos del estado para la recarga desde disco (`FUN-L-26`), que corre fuera
+  // del render: el lienzo que se ve, si hay cambios sin escribir y si se está
+  // editando el texto de una tarjeta.
+  const canvasRef = useRef<Canvas | null>(null);
+  canvasRef.current = canvas;
+  const sucioRef = useRef(false);
+  const editandoRef = useRef<string | null>(null);
+  editandoRef.current = editando;
+  /**
+   * Lo último que este lienzo sabe que está en disco: lo que leyó o lo que mandó
+   * a guardar. Reconoce el eco del guardado propio (el mismo criterio que
+   * `ultimoGuardadoRef` en `NoteEditor`, `DEF-117`).
+   */
+  const conocidoRef = useRef<string | null>(null);
 
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
@@ -85,6 +101,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
           { token: useAuthStore.getState().accessToken },
         );
         if (cancelado) return;
+        conocidoRef.current = r.contenido ?? "";
         setCanvas(parsearCanvas(r.contenido ?? ""));
       } catch (e) {
         if (!cancelado) setError(e instanceof Error ? e.message : String(e));
@@ -98,12 +115,21 @@ export function CanvasView({ notaId }: { notaId: string }) {
   // ── Guardado con retardo ───────────────────────────────────────────────────
   const guardar = useCallback(
     async (c: Canvas) => {
+      const contenido = serializarCanvas(c);
+      // Antes del await: si el watcher avisa mientras el guardado viaja, lo que
+      // encuentre en disco es esto, y no es un cambio de afuera.
+      conocidoRef.current = contenido;
       try {
         await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
           method: "PUT",
           token: useAuthStore.getState().accessToken,
-          body: { contenido: serializarCanvas(c) },
+          body: { contenido },
         });
+        // Solo queda limpio si no se cambió nada mientras se guardaba: si no, lo
+        // nuevo sigue pendiente (lo escribe el guardado ya programado) y una
+        // recarga desde disco no debe pisarlo. Antes se limpiaba siempre.
+        if (canvasRef.current !== c) return;
+        sucioRef.current = false;
         setSucio(false);
         // Las tarjetas pueden traer `[[enlaces]]`: el grafo queda desactualizado.
         useGraphStore.getState().markStale();
@@ -120,6 +146,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       setCanvas((prev) => {
         if (prev === null) return prev;
         const siguiente = fn(prev);
+        sucioRef.current = true;
         setSucio(true);
         if (guardadoRef.current) clearTimeout(guardadoRef.current);
         guardadoRef.current = setTimeout(() => void guardar(siguiente), GUARDADO_MS);
@@ -128,6 +155,49 @@ export function CanvasView({ notaId }: { notaId: string }) {
     },
     [guardar],
   );
+
+  // ── Cambios de afuera (`FUN-L-26`) ─────────────────────────────────────────
+  //
+  // Cuando el archivo cambia en disco por fuera de la app (una IA desde la
+  // terminal, otro editor), el watcher avisa con `EVENTO_RECARGA` y se relee.
+  // No se toca un lienzo con cambios sin escribir ni uno con una tarjeta en
+  // edición: se pisaría lo que el usuario está haciendo. La cámara (`vista`) no
+  // es parte del archivo y queda como estaba; la selección, si la tarjeta sigue.
+  useEffect(() => {
+    async function recargar() {
+      if (sucioRef.current || editandoRef.current !== null || canvasRef.current === null) return;
+      let disco: string;
+      try {
+        const r = await api<{ contenido: string }>(
+          `/notas/${encodeURIComponent(notaId)}/contenido`,
+          { token: useAuthStore.getState().accessToken },
+        );
+        disco = r.contenido ?? "";
+      } catch {
+        return; // Best-effort: si falla la relectura, lo que se ve queda como está.
+      }
+      // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
+      if (editandoRef.current !== null || canvasRef.current === null) return;
+      if (
+        !hayQueRecargar({
+          disco,
+          sucio: sucioRef.current,
+          conocido: conocidoRef.current,
+          enPantalla: serializarCanvas(canvasRef.current),
+        })
+      )
+        return;
+      conocidoRef.current = disco;
+      const nuevo = parsearCanvas(disco);
+      setCanvas(nuevo);
+      setSeleccion((s) => (s !== null && nuevo.nodos.some((n) => n.id === s) ? s : null));
+    }
+    function onRecarga(ev: Event) {
+      if (avisoTocaA(ev, notaId)) void recargar();
+    }
+    window.addEventListener(EVENTO_RECARGA, onRecarga);
+    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
+  }, [notaId]);
 
   // Al cerrar la pestaña puede quedar un guardado en vuelo: se fuerza.
   useEffect(

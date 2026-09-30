@@ -117,8 +117,15 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
       // que se mostraba como roto pase a resolver.
       refreshAllLiveViews();
       // Avisar a los editores abiertos para que recarguen su nota si no tienen
-      // cambios locales sin guardar (lo decide cada NoteEditor).
-      window.dispatchEvent(new Event(EVENTO_RECARGA));
+      // cambios locales sin guardar (lo decide cada vista). Con las rutas de la
+      // ráfaga (`FUN-L-26`): un lienzo o un diagrama abierto solo relee su
+      // archivo si está entre ellas. Sin rutas (no debería pasar) va sin
+      // detalle, que significa «pudo cambiar cualquier cosa».
+      window.dispatchEvent(
+        cambios.length > 0
+          ? new CustomEvent(EVENTO_RECARGA, { detail: { rutas: cambios.map(([r]) => r) } })
+          : new Event(EVENTO_RECARGA),
+      );
     } catch (e) {
       // Un reindex fallido no debe romper la UI, pero tampoco pasar en silencio:
       // sin este rastro, un archivo que no aparece no tiene explicación.

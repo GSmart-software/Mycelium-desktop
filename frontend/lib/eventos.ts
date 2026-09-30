@@ -15,6 +15,11 @@
  *
  * Lo emite el watcher (solo-desktop). Lo escuchan los editores abiertos —para
  * recargar su nota si no tienen cambios sin guardar— y el panel de conexiones.
+ *
+ * El watcher lo emite como `CustomEvent` con `detail.rutas`: las rutas que traía
+ * la ráfaga (`FUN-L-26`). Otros emisores lo mandan sin detalle, y eso quiere
+ * decir «cualquier cosa pudo cambiar». Los lienzos, diagramas y dibujos lo usan
+ * para no releer su archivo por un cambio ajeno (`lib/recargaExterna.ts`).
  */
 export const EVENTO_RECARGA = "micelio:vault-recargar";
 
