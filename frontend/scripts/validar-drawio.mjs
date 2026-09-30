@@ -8,8 +8,18 @@
 // Es la herramienta con la que la IA verifica lo que escribió; la skill
 // `mycelium-drawio` explica cómo leer su salida.
 //
-//   node scripts/validar-drawio.mjs <archivo.drawio>...    (exit 1 si hay errores)
-//   node scripts/validar-drawio.mjs --json <archivo.drawio>
+// En el vault del usuario viaja con la skill y se corre desde la raíz del vault:
+//
+//   node .claude/skills/mycelium-drawio/validar-drawio.mjs <archivo.drawio>...
+//        → lista errores y avisos; sale con código 1 si hay algún error
+//   node .claude/skills/mycelium-drawio/validar-drawio.mjs --mapa <archivo.drawio>
+//        → además imprime cada figura con su posición ABSOLUTA, su tamaño, su
+//          contenedor (y la x,y relativa que va en el XML), las aristas y el
+//          lugar libre: es lo que se mira antes de modificar un diagrama
+//   node .claude/skills/mycelium-drawio/validar-drawio.mjs --json <archivo.drawio>
+//        → el mismo resultado (problemas y mapa) en JSON, para otro programa
+//
+// En este repo vive en `frontend/scripts/validar-drawio.mjs`.
 //
 // > OJO: sin dependencias a propósito. Viaja con la skill al vault del usuario,
 // > donde no hay `node_modules`: solo Node 20 y sus módulos propios.
@@ -260,7 +270,7 @@ function encabezadoDe(est) {
 export function anchoTexto(texto, fontSize = 12, negrita = false) {
   let em = 0;
   for (const ch of texto) {
-    if (ch === " ") em += 0.28;
+    if (ch === " " || ch === " ") em += 0.28;
     else if ("iljtfrI.,;:'!|()[]".includes(ch)) em += 0.3;
     else if ("mwMW@%".includes(ch)) em += 0.85;
     else if (/[A-ZÁÉÍÓÚÑÜ0-9]/.test(ch)) em += 0.66;
@@ -269,25 +279,46 @@ export function anchoTexto(texto, fontSize = 12, negrita = false) {
   return em * fontSize * (negrita ? 1.08 : 1);
 }
 
-/** Texto visible de una etiqueta (HTML si `html=1`). */
+/** Entidades HTML que importan al medir; cualquier otra cuenta como un carácter. */
+const ENTIDADES_HTML = { nbsp: " ", lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+
+/**
+ * Texto visible de una etiqueta (HTML si `html=1`). Llega ya decodificado del
+ * XML: el `&amp;gt;` del archivo es acá `&gt;`, una entidad HTML que el
+ * navegador muestra como UN carácter, y así se cuenta. Se decodifica en una
+ * sola pasada para que `&amp;lt;` (que se ve «&lt;») no se decodifique dos veces.
+ */
 export function textoVisible(valor, esHtml) {
   if (!esHtml) return valor;
   return valor
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(div|p|li|h\d|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
-    .replace(/&amp;/g, "&")
+    .replace(/<\/?[A-Za-z][^>]*>/g, "")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi, (m, n) => {
+      if (n[0] === "#") {
+        const cp = n[1] === "x" || n[1] === "X" ? parseInt(n.slice(2), 16) : parseInt(n.slice(1), 10);
+        return Number.isFinite(cp) && cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+      }
+      return ENTIDADES_HTML[n.toLowerCase()] ?? "•";
+    })
     .replace(/\n+$/, "");
+}
+
+/**
+ * Con `html=1`, un `<` seguido de una letra y sin `>` después abre una etiqueta
+ * que nunca cierra: el navegador se come todo lo que sigue (comprobado: «a &lt;b
+ * (x)» se ve «a»). Devuelve el fragmento culpable, o `null`.
+ */
+export function menorSinEscapar(valor, esHtml) {
+  if (!esHtml) return null;
+  const m = /<\/?[A-Za-z][^>]*$/.exec(valor);
+  return m ? m[0].slice(0, 20) : null;
 }
 
 /** Parte en líneas como lo hace el navegador con `white-space: normal`. */
 function envolver(linea, anchoMax, fontSize, negrita) {
-  const palabras = linea.split(/\s+/).filter(Boolean);
+  // Un &nbsp; no parte la línea: solo se corta en los espacios comunes.
+  const palabras = linea.split(/[ \t\r\n]+/).filter(Boolean);
   const lineas = [];
   let actual = "";
   for (const p of palabras) {
@@ -354,7 +385,7 @@ export function motivoTextoNoCabe(valor, est, w, h) {
     const factor = forma === "rhombus" ? 1 - d : Math.sqrt(1 - d * d);
     const anchoFigura = w * factor - 8;
     if (maxAncho > anchoFigura + tol) {
-      return `en ${forma === "rhombus" ? "el rombo" : "la elipse"} el texto se sale del contorno: el renglón más ancho mide ~${Math.round(maxAncho)} px y la figura deja ~${Math.round(anchoFigura)} px a esa altura (agrandala; un rombo necesita ~2× el ancho del texto)`;
+      return `en ${forma === "rhombus" ? "el rombo" : "la elipse"} el texto se sale del contorno: el renglón más ancho mide ~${Math.round(maxAncho)} px y la figura deja ~${Math.round(anchoFigura)} px a esa altura (agrandala: en un rombo, width = max(180, caracteres de la línea más larga × 10 + 40))`;
     }
   }
   return null;
@@ -446,11 +477,21 @@ function recorrido(arista, rs, rt, puntosAbs) {
   if (!ortogonal) return [ini, fin];
 
   if (/entityRelation/i.test(estilo)) {
-    const derecha = ct.x >= cs.x;
-    const s = { x: derecha ? rs.x + rs.w : rs.x, y: cs.y };
-    const t = { x: derecha ? rt.x : rt.x + rt.w, y: ct.y };
-    const midX = (s.x + t.x) / 2;
-    return [s, { x: midX, y: s.y }, { x: midX, y: t.y }, t];
+    // Lo que hace `mxEdgeStyle.EntityRelation` (comprobado en el draw.io
+    // empaquetado): sale por la izquierda solo si el destino queda ENTERO a la
+    // izquierda del origen, y entra por la izquierda solo si el origen queda
+    // entero a la izquierda del destino. Con tablas apiladas, sale y entra por
+    // la derecha. Hace un tramo de 30 px hacia afuera en cada punta y los une en
+    // línea recta. Un puerto fijado (exitX/entryX) mueve la punta pero no el
+    // sentido del tramo, y la línea termina cruzando la tabla.
+    const p0 = exit ? ini : null;
+    const pe = entry ? fin : null;
+    const izqS = (pe ? pe.x : rt.x + rt.w) < (p0 ? p0.x : rs.x);
+    const izqT = (p0 ? p0.x : rs.x + rs.w) < (pe ? pe.x : rt.x);
+    const s = p0 ?? { x: izqS ? rs.x : rs.x + rs.w, y: cs.y };
+    const t = pe ?? { x: izqT ? rt.x : rt.x + rt.w, y: ct.y };
+    const seg = 30;
+    return [s, { x: s.x + (izqS ? -seg : seg), y: s.y }, { x: t.x + (izqT ? -seg : seg), y: t.y }, t];
   }
 
   // Sin puertos: si las cajas se solapan en X, draw.io traza una vertical recta
@@ -743,6 +784,16 @@ function validarModelo(modelo, reportar) {
   }
 
   // Texto que no cabe.
+  for (const c of celdas) {
+    const frag = c.value && menorSinEscapar(c.value, c.est.html === "1");
+    if (frag)
+      reportar(
+        "A",
+        "html-menor-sin-escapar",
+        c.id,
+        `con html=1, «${frag}» se lee como una etiqueta HTML sin cerrar y el texto desde ahí no se ve: un «<» visible va como &amp;lt; en el XML`,
+      );
+  }
   for (const v of vertices) {
     if (!v.value) continue;
     const r = abs.get(v.id);
@@ -788,6 +839,20 @@ function validarModelo(modelo, reportar) {
       }
     }
     if (!ok) continue;
+
+    // Con `direction` distinto de east, draw.io gira los puertos junto con la
+    // figura (comprobado: en un cilindro con direction=south, entryX=0.5;entryY=0
+    // entra por la DERECHA). El recorrido de acá no lo modela: se avisa.
+    for (const [lado, px] of [["source", "exitX"], ["target", "entryX"]]) {
+      const dir = porId.get(e[lado])?.est.direction;
+      if (e.est[px] !== undefined && dir && dir !== "east")
+        reportar(
+          "A",
+          "puerto-girado",
+          e.id,
+          `${lado}="${e[lado]}" tiene direction=${dir}: sus puertos giran con la figura y ${px === "exitX" ? "exitX/exitY" : "entryX/entryY"} no cae en el lado que dice; usá una forma que no necesite direction o sacá los puertos`,
+        );
+    }
     if (!esVertice.has(e.source) || !esVertice.has(e.target)) continue;
     if (e.source === e.target) continue;
 
@@ -814,13 +879,23 @@ function validarModelo(modelo, reportar) {
     }
     // Si cruza un contenedor Y a sus hijos, basta con nombrar a los hijos.
     const nombradas = cruzadas.filter((id) => !cruzadas.some((o) => o !== id && ancestros(o).has(id)));
-    if (nombradas.length > 0)
-      reportar(
-        "A",
-        "arista-atraviesa",
-        e.id,
-        `la arista ${e.source}→${e.target} pasa por encima de ${nombradas.map((x) => `"${x}"`).join(", ")}: desviala con waypoints o puertos (exitX/entryX), o mové las cajas`,
-      );
+    // Cruzar el borde de los contenedores de sus extremos es normal (así sale
+    // una flecha de una capa a otra) y ya quedó excluido; cruzar un contenedor
+    // AJENO —una capa intermedia— se avisa aparte, porque se arregla distinto.
+    if (nombradas.length > 0) {
+      const ajenos = nombradas.filter((id) => esContenedor(porId.get(id).est));
+      const cajas = nombradas.filter((id) => !ajenos.includes(id));
+      const lista = (ids) => ids.map((x) => `"${x}"`).join(", ");
+      const partes = [];
+      if (cajas.length) partes.push(`pasa por encima de ${lista(cajas)}`);
+      if (ajenos.length) partes.push(`atraviesa ${ajenos.length > 1 ? "los contenedores" : "el contenedor"} ${lista(ajenos)}, que no ${ajenos.length > 1 ? "son" : "es"} de ninguno de sus extremos`);
+      const arreglo = /entityRelation/i.test(e.est.edgeStyle ?? "")
+        ? "con entityRelationEdgeStyle no fijes puertos: mové las tablas (la línea sale hacia el lado donde la otra tabla queda entera; si están apiladas, por la derecha)"
+        : ajenos.length && !cajas.length
+          ? "rodealo con waypoints por el pasillo entre contenedores, o poné la figura en una capa vecina"
+          : "desviala con waypoints o puertos (exitX/entryX), o mové las cajas";
+      reportar("A", "arista-atraviesa", e.id, `la arista ${e.source}→${e.target} ${partes.join(" y ")}: ${arreglo}`);
+    }
 
     // Títulos de contenedores: una arista que entra o sale de una capa cruza su
     // encabezado, y si el título está centrado lo tacha. Acá no se excluyen los

@@ -1,0 +1,82 @@
+<mxfile host="Mycelium">
+  <diagram id="cobro" name="Cobro">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Tres columnas: izquierda centro 160, principal 400, derecha 640. -->
+        <mxCell id="inicio" value="Inicio" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="recibir" value="Recibir pedido" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="130" width="160" height="60" as="geometry" />
+        </mxCell>
+        <!-- Rombo: «¿Paga con tarjeta?» = 18 caracteres → width = max(180, 18×10+40) = 220. -->
+        <mxCell id="tarjeta" value="¿Paga con tarjeta?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="290" y="230" width="220" height="90" as="geometry" />
+        </mxCell>
+        <!-- Las dos ramas son acciones normales: una a cada lado, a la misma altura. -->
+        <mxCell id="cobrar" value="Cobrar con tarjeta" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="360" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cupon" value="Generar cupón de pago" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="360" width="180" height="60" as="geometry" />
+        </mxCell>
+        <!-- Donde confluyen: en la columna principal, debajo de las dos ramas. -->
+        <mxCell id="confirmar" value="Confirmar pedido" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="480" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stock" value="¿Hay stock?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="310" y="580" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="despachar" value="Despachar" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="730" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="demora" value="Avisar la demora" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="595" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fin" value="Fin" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="340" y="830" width="120" height="50" as="geometry" />
+        </mxCell>
+        <!-- Camino recto por la columna principal: sin puertos. -->
+        <mxCell id="e-inicio-recibir" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="inicio" target="recibir">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-recibir-tarjeta" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="recibir" target="tarjeta">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Rombo con dos acciones: sale por las puntas IZQUIERDA y DERECHA y entra por ARRIBA de cada acción (forma de L). -->
+        <mxCell id="e-si" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tarjeta" target="cobrar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tarjeta" target="cupon">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Confluencia: cada rama baja y entra por SU costado del paso común. -->
+        <mxCell id="e-cobrar-confirmar" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cobrar" target="confirmar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cupon-confirmar" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cupon" target="confirmar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-confirmar-stock" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="confirmar" target="stock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Rombo clásico: entra por arriba, «Sí» sigue abajo, «No» sale por la derecha. -->
+        <mxCell id="e-stock-si" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="stock" target="despachar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-stock-no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="stock" target="demora">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Dos caminos al mismo final: uno por arriba (recto), el otro por el costado. -->
+        <mxCell id="e-despachar-fin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="despachar" target="fin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-demora-fin" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="demora" target="fin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

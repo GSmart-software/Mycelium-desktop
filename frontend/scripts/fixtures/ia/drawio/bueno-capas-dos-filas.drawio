@@ -1,0 +1,70 @@
+<mxfile host="Mycelium">
+  <diagram id="tienda" name="Tienda">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <!-- Capas de 680 de ancho, separadas 40. Centro de las capas: x=380 (absoluto). -->
+        <mxCell id="capa-pres" value="Presentación" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="680" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="movil" value="App móvil" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="capa-pres">
+          <mxGeometry x="160" y="50" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="web" value="Sitio web" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="capa-pres">
+          <mxGeometry x="360" y="50" width="160" height="60" as="geometry" />
+        </mxCell>
+        <!-- Dos filas internas: alto = 30 + 20 + 2×60 + 1×40 + 20 = 230. -->
+        <mxCell id="capa-serv" value="Servicios" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="680" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="gateway" value="API Gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="capa-serv">
+          <mxGeometry x="260" y="50" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="pedidos" value="Pedidos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="capa-serv">
+          <mxGeometry x="40" y="150" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="catalogo" value="Catálogo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="capa-serv">
+          <mxGeometry x="260" y="150" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="avisos" value="Notificaciones" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="capa-serv">
+          <mxGeometry x="480" y="150" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="capa-datos" value="Datos" style="swimlane;startSize=30;html=1;whiteSpace=wrap;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="680" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="bd-pedidos" value="BD de pedidos" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="capa-datos">
+          <mxGeometry x="40" y="50" width="160" height="80" as="geometry" />
+        </mxCell>
+        <!-- Cola de mensajes: cilindro acostado de flowchart (sin direction, así los puertos no giran). -->
+        <mxCell id="cola" value="Cola de mensajes" style="shape=mxgraph.flowchart.direct_data;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="capa-datos">
+          <mxGeometry x="260" y="55" width="160" height="70" as="geometry" />
+        </mxCell>
+        <!-- Aristas: todas cuelgan de "1". Dos entradas al mismo lado del gateway: repartidas en 0.3 y 0.7. -->
+        <mxCell id="e-movil" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="movil" target="gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-web" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.7;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="web" target="gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-gw-pedidos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="gateway" target="pedidos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-gw-catalogo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="gateway" target="catalogo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-pedidos-bd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="pedidos" target="bd-pedidos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Asíncrono (punteado): Pedidos publica en la cola; el codo cae en el pasillo entre capas. -->
+        <mxCell id="e-pedidos-cola" value="publica" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="pedidos" target="cola">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Notificaciones consume de la cola: sale por la derecha de la cola y sube a la capa de arriba (cruza los bordes de SUS capas: está bien). -->
+        <mxCell id="e-cola-avisos" value="consume" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="cola" target="avisos">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
