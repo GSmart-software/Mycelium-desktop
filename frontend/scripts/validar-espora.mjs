@@ -32,6 +32,27 @@ const AJENOS = {
 
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
 
+/**
+ * `{{date:FORMATO}}` / `{{time:FORMATO}}` de Obsidian (letras de Moment) →
+ * `{{fecha:…}}` de Mycelium, como la tabla de equivalencias de la skill:
+ * `YYYY`→`AAAA`, `HH`→`hh`; `MM`, `DD`, `mm`, `ss` no cambian. Lo que no tiene
+ * equivalente (`dddd`, `MMMM`, `Do`, `A`, `[texto]`…) se señala. `null` si no
+ * es un token de Moment.
+ */
+function deMoment(interior) {
+  const m = /^(?:date|time):(.*)$/.exec(interior);
+  if (!m) return null;
+  const EQUIV = { YYYY: "AAAA", MM: "MM", DD: "DD", HH: "hh", mm: "mm", ss: "ss" };
+  const sin = new Set();
+  // Tokens de Moment, los largos primero (`MMMM` no es dos `MM`).
+  const convertido = m[1].trim().replace(
+    /\[[^\]]*\]|YYYY|YY|MMMM|MMM|MM|M|Do|DD|D|dddd|ddd|dd|d|HH|H|hh|h|mm|m|ss|s|A|a|ww|w/g,
+    (t) => EQUIV[t] ?? (sin.add(t), t),
+  );
+  const sugerido = `{{fecha:${convertido}}}`;
+  return sin.size ? `${sugerido} — sin equivalente para ${[...sin].join(", ")}` : sugerido;
+}
+
 /** Un momento fijo para validar sin depender del reloj. */
 const AHORA_PRUEBA = new Date(2026, 8, 30, 14, 5, 9);
 
@@ -78,7 +99,7 @@ export function validarEspora(texto, { rutaEnVault = null, carpetaEsporas = "Esp
       }
       continue;
     }
-    const ajeno = AJENOS[interior] ?? (/^date:/.test(interior) ? "{{fecha:FORMATO}} (con AAAA/MM/DD)" : null);
+    const ajeno = AJENOS[interior] ?? deMoment(interior);
     const sugerencia = ajeno ? ` Es sintaxis de otra herramienta; en Mycelium: \`${ajeno}\`.` : "";
     if (enFm && !/^\s*[^:]+:\s*["']/.test(lineas[texto.slice(0, m.index).split("\n").length - 1])) {
       err("token-desconocido", `\`${m[0]}\` no es una variable de Mycelium y queda escrito tal cual; en el frontmatter sin comillas se lee como mapa en línea y **la nota creada queda sin propiedades**.${sugerencia}`);

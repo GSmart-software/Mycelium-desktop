@@ -65,7 +65,8 @@ hora · `mm` minuto · `ss` segundo. **Todo lo demás se copia literal.**
 > `{{cursor}}`, `{{Titulo}}` con mayúscula, ni letras `YYYY`/`dd`/`HH`. **Un token
 > desconocido llega a la nota escrito tal cual** (`{{autor}}` sigue diciendo `{{autor}}`),
 > y `{{fecha:YYYY-MM-DD}}` produce `YYYY-09-30`. Tampoco hay día de la semana, fechas
-> relativas («mañana») ni nombres de mes.
+> relativas («mañana») ni nombres de mes. Para pasar una plantilla de Obsidian, ver
+> «Adaptar una plantilla de Obsidian».
 
 ## Cómo escribir una buena Espora
 
@@ -112,16 +113,37 @@ Reglas, por orden de importancia:
    `true`/`false`, fecha, fecha y hora, lista (ver skill `mycelium-vault`). `tags` como
    **lista** (`tags: [reunion]`).
 5. **Reusá las claves que ya hay en el vault** (`estado`, no `Estado` ni `status`): la
-   plantilla las va a multiplicar en cada nota.
-   `grep -rh "^[a-zA-Z_-]*:" --include="*.md" . | sort | uniq -c | sort -rn | head -30`
+   plantilla las va a multiplicar en cada nota. Las claves del frontmatter de las notas,
+   sin lo oculto (`.claude/`, `.mycelium/`) ni los `CLAUDE*.md`:
+
+   ```sh
+   find . -name '*.md' -not -path '*/.*' -not -name 'CLAUDE*.md' -exec awk '{sub(/\r$/,"")} FNR==1{fm=($0=="---");next} fm&&/^---$/{fm=0} fm&&/^[A-Za-z_][A-Za-z0-9_-]*:/{sub(/:.*/,"");print}' {} + | sort | uniq -c | sort -rn | head -30
+   ```
+
 6. **Dejá los enlaces de entrada puestos**: un `[[Reuniones]]` o `[[Mapa del vault]]` en
    la plantilla hace que cada nota creada nazca enlazada a su índice (y no huérfana).
+   Tiene que ser una nota **que exista**: si no hay índice del tema, enlazá el mapa que sí
+   hay, o proponé crear el índice (y crealo enlazado, si el usuario acepta). Un enlace a
+   una nota inexistente en la plantilla hace nacer **cada** nota con un enlace roto.
 7. **No repitas el título como propiedad**: el título ya es el nombre del archivo. Si lo
    necesitás en el cuerpo, `# {{titulo}}`.
 8. Dejá la estructura vacía pero con **indicaciones breves** («Qué tiene que ser verdad
    cuando esto termine»); nada de contenido de ejemplo que después haya que borrar.
 9. Guardala **directamente** en la carpeta de Esporas, con un nombre corto que diga el
    tipo de nota (`Reunión`, `Diario`, `Proyecto`, `Lectura`).
+
+### Si ya hay una Espora parecida
+
+Antes de crear, `ls Esporas/` y leé las que se parezcan.
+
+- **Ya hay una para ese tipo de nota** (piden «una plantilla de actas» y existe
+  `Reunión.md` con lo mismo): no la dupliques. Decilo y usala; si el pedido suma algo (una
+  sección, una propiedad), proponé **mejorar la existente**. Editarla cambia solo las
+  notas que se creen después: las ya creadas no se tocan.
+- **Es otro tipo, aunque cercano** (acta de directorio con votaciones frente a reunión de
+  equipo): creá otra, con un nombre que diga la diferencia (`Acta de directorio`), nunca
+  `Reunión 2`.
+- Nunca pises una Espora sin avisar: es del usuario, aunque la hayas creado vos.
 
 ## Crear una nota A PARTIR de una Espora (desde la terminal)
 
@@ -136,12 +158,19 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
    específico y único (`grep -ril` antes), en la carpeta del área. La app, en cambio,
    usaría el nombre de la plantilla desambiguado (`Reunión`, `Reunión 1`, `Reunión 2`…);
    no lo imites, poné un título que se pueda buscar.
-3. **Tomá la fecha y la hora del sistema**, no las supongas:
+3. **Tomá la fecha y la hora LOCALES del sistema**, no las supongas:
 
    ```sh
-   date +%F        # {{fecha}}  → 2026-09-30
-   date +%H:%M     # {{hora}}   → 14:05
+   # Windows (Git Bash o PowerShell): usa la zona de Windows, pase lo que pase con TZ
+   powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-dd HH:mm'"
+   # Linux / macOS
+   date '+%F %H:%M'
    ```
+
+   `date` (y `node`) obedecen la variable `TZ`: si está puesta a otra zona, dan otra hora.
+   Si usás `date`, mirá `date +%z`: tiene que ser el desfase del usuario (`-0300` en
+   Argentina), no `+0000` por defecto. Una hora rara (las 02:55) **puede ser la real**: no
+   la «corrijas»; si no cierra con la conversación, preguntá.
 
 4. **Sustituí** en el texto crudo (frontmatter incluido):
    - `{{titulo}}` → el título final (el nombre del archivo que vas a crear, sin `.md`);
@@ -154,8 +183,8 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
 6. Revisá que el frontmatter resultante quede dentro del subconjunto soportado, y
    **enlazala** desde su índice o nota madre.
 
-Ejemplo — `Esporas/Reunión.md` de arriba, pedido «anotá la reunión de hoy con
-proveedores», 30/09/2026 a las 14:05:
+Ejemplo — `Esporas/Reunión.md` de arriba, pedido «estoy en la reunión con proveedores,
+con Marta y Juan: anotala», el 30/09/2026 a las 14:05:
 
 ```md
 ---
@@ -171,6 +200,32 @@ tags: [reunion]
 …
 ```
 
+### `{{fecha}}` y `{{hora}}` cuando el evento ya pasó
+
+En la app, las dos valen **el momento en que se crea la nota**, aunque la reunión haya
+sido hace tres horas. Vos hacés lo mismo, salvo cuando **sabés** que la nota es de algo
+ya ocurrido y la plantilla usa ese valor como el momento **del evento** (`fecha:`, `a las
+{{hora}}`, `inicio:`):
+
+- Si el usuario dijo cuándo fue («la de ayer a las 10»), poné **esa** fecha y hora: es
+  contenido de la nota, como los participantes.
+- Si fue hoy y no sabés la hora: `{{fecha}}` → hoy; la **hora** no la inventes ni pongas
+  la de creación como si fuera la del evento. Dejala vacía (`hora: ""`, y sacá el «a las
+  …» del cuerpo) y preguntala en una línea al final. Una hora falsa en la memoria es peor
+  que ninguna.
+- Si el evento es ahora («estoy en la reunión, anotá»), la hora de creación es la buena.
+
+### Personas
+
+- **Escribilas como ya las escribe el vault.** Mirá dos o tres notas del mismo tipo: si
+  enlazan (`"[[Marta]]"`) y existe la nota de la persona, enlazá; si ponen nombres
+  sueltos, nombres sueltos. Sin convención, **nombre suelto**: un `[[Marta]]` sin nota es
+  un enlace roto (`/vault-huerfanas` lo reporta). No crees notas de personas por tu
+  cuenta; si hacen falta, proponelo.
+- En el frontmatter, un enlace va **entre comillas**: `participantes: ["[[Marta]]", Juan]`.
+- **El usuario**: si las notas anteriores lo cuentan entre los participantes, con el
+  mismo nombre; si no, no lo agregues (es el autor). No inventes su nombre ni pongas «yo».
+
 ### Insertar una Espora en una nota que ya existe
 
 Si te piden «agregá la estructura de reunión a esta nota»:
@@ -182,6 +237,46 @@ Si te piden «agregá la estructura de reunión a esta nota»:
   nota no tenía; **las que ya tenía, ganan** (no las pises); `tags` se **unen** sin
   duplicar. Si la nota no tenía frontmatter, se crea arriba de todo.
 - `{{titulo}}` es el título de **esa** nota.
+
+## Adaptar una plantilla de Obsidian
+
+Las plantillas del plugin Templates de Obsidian usan otros tokens y letras de Moment.js.
+Equivalencias (ejemplo: nota «Acta», 30/09/2026 a las 14:05:09):
+
+| Obsidian | Mycelium | Sale |
+|---|---|---|
+| `{{title}}` | `{{titulo}}` | `Acta` |
+| `{{date}}` | `{{fecha}}` | `2026-09-30` |
+| `{{time}}` | `{{hora}}` | `14:05` |
+| `{{date:YYYY-MM-DD}}` | `{{fecha:AAAA-MM-DD}}` | `2026-09-30` |
+| `{{date:DD/MM/YYYY}}` | `{{fecha:DD/MM/AAAA}}` | `30/09/2026` |
+| `{{date:YYYY-MM-DD HH:mm}}` | `{{fecha:AAAA-MM-DD hh:mm}}` | `2026-09-30 14:05` |
+| `{{date:YYYY-MM-DDTHH:mm}}` | `{{fecha:AAAA-MM-DDThh:mm}}` | `2026-09-30T14:05` |
+| `{{time:HH:mm:ss}}` | `{{fecha:hh:mm:ss}}` | `14:05:09` |
+| `{{date:YYYY-MM}}` | `{{fecha:AAAA-MM}}` | `2026-09` |
+
+Letras: `YYYY`→`AAAA` · `MM`→`MM` · `DD`→`DD` · `HH`→`hh` · `mm`→`mm` · `ss`→`ss`.
+`{{time:…}}` también pasa a `{{fecha:…}}`. Ojo con `hh`: en Moment es la hora **de 12**;
+en Mycelium, la de **24**.
+
+**Sin equivalente** (no hay forma de escribirlos en una Espora): `YY`, `M`, `D` (sin cero),
+`Do`, `MMM`/`MMMM` (nombre del mes), `ddd`/`dddd` (día de la semana), `ww` (semana), `A`
+(AM/PM), el texto escapado entre `[corchetes]`, fechas relativas y todo Templater
+(`<% … %>`). Qué hacer: usá la versión con números más cercana (`DD` por `D`, 24 h por
+12 h), sacá el texto fijo **afuera** del token (`Acta del {{fecha:DD/MM/AAAA}}`, no
+`{{date:[Acta del] DD/MM/YYYY}}`) y **decile al usuario** qué cambió.
+
+Además:
+
+- **Frontmatter**: `created: "{{date}}"` pasa a `created: {{fecha}}`, **sin comillas**, o
+  la propiedad queda de texto (regla 1).
+- **Claves del usuario** (`created`, `status`): si el vault ya usa una equivalente
+  (`creado`, `estado`: miralo con el comando de la regla 5), usá la del vault y decilo; si
+  no, **conservá la del usuario**: es su vocabulario, y quizá la sigue usando en Obsidian.
+  No traduzcas claves por tu cuenta.
+- **Nombre**: el que dio el usuario; si no, el del archivo de la plantilla original si dice
+  el tipo de nota (`Reunión semanal.md` → `Reunión semanal`); si tampoco, el tipo
+  (`Acta`). Comprobá que no choque con otra Espora ni con una nota del vault.
 
 ## Recetas
 
