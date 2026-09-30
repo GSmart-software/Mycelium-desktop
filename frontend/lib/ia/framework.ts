@@ -693,13 +693,64 @@ Crear la nota: $ARGUMENTS
    (que no quede huérfana). Informá dónde la creaste y desde dónde la enlazaste.
 `;
 
-/** Marcador de versión (JSON) que se escribe en el vault. */
-const versionJson = () =>
-  JSON.stringify({ version: FRAMEWORK_IA_VERSION, generado: new Date().toISOString() }, null, 2) +
-  "\n";
+/**
+ * Marcador de versión (JSON) que se escribe en el vault. `huellas` guarda el
+ * sha256 de lo que se escribió en cada archivo protegido (`DEF-118`): es lo que
+ * permite saber, la próxima vez, si el usuario lo tocó.
+ */
+const versionJson = (huellas: Record<string, string>) =>
+  JSON.stringify(
+    { version: FRAMEWORK_IA_VERSION, generado: new Date().toISOString(), huellas },
+    null,
+    2,
+  ) + "\n";
 
 /** Marca presente en todo archivo generado por el framework. */
 const MARCA_FRAMEWORK = "<!-- mycelium-ia v";
+
+/**
+ * Archivos del framework que el usuario puede ampliar a mano (`DEF-118`). Solo
+ * se sobrescriben si están **intactos**; si no, la versión nueva va al lado.
+ * Lo de `.claude/` no entra: es de Mycelium («No edites `.claude/`») y una
+ * copia al lado de un comando sería un comando más.
+ */
+const RUTAS_PROTEGIDAS = new Set(["CLAUDE.md"]);
+
+/**
+ * sha256 de cada `CLAUDE.md` que generó Mycelium antes de que existieran las
+ * `huellas` de `mycelium-ia.json` (framework 1.0.0 a 1.6.0), calculados desde el
+ * historial de git de este archivo. Reconocen un `CLAUDE.md` viejo sin tocar
+ * sin tener que adivinar. **Lista cerrada**: lo generado desde la 1.6.0 en
+ * adelante queda registrado en `huellas` al escribirlo.
+ */
+const HUELLAS_CLAUDE_MD_PREVIAS = new Set([
+  "bc507f4dc66893c998967e6104a87e5b46ddd4c2a75e8ffa090521b007b587b7", // 1.0.0
+  "ea63278e65346ff3968131cb29040ded59aea68f9334ce22725ac3a7377e6840", // 1.1.0
+  "1778489db8861bfa06afec4d1d5ceb0c601d1b067012b5b38cf5dbeef1568c7f", // 1.2.0
+  "ddfa96650c361c1d0662f243141723561657a133f681eae252ed8b4e0b9d5e96", // 1.2.1
+  "4a64363990f492d70f147a39313f5313ef8a079e5782a0c25eff17b1a346a572", // 1.3.0
+  "41c0ec8bf7364ee93e064fc04bd900a71c7f6786a703d0bb7c35fd2907fb1276", // 1.4.0
+  "14e416b1135990104ac720d6b9e25b745727b7984b1d03c215f73b1b6cea644a", // 1.5.0
+  "b852f037cb45df3e3b7008986639b289d0b09ca1ee9897b7ac9661d8f9a7ed2b", // 1.6.0
+]);
+
+/** sha256 en hex, con los saltos de línea normalizados (git puede pasarlos a CRLF). */
+async function huella(texto: string): Promise<string> {
+  const datos = new TextEncoder().encode(texto.replace(/\r\n/g, "\n"));
+  const digesto = await crypto.subtle.digest("SHA-256", datos);
+  return Array.from(new Uint8Array(digesto), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Las huellas registradas en `mycelium-ia.json` (vacío si no hay o es viejo). */
+async function huellasRegistradas(vaultRuta: string): Promise<Record<string, string>> {
+  const crudo = await leerTexto(vaultRuta, RUTA_VERSION);
+  if (!crudo) return {};
+  try {
+    return (JSON.parse(crudo) as { huellas?: Record<string, string> }).huellas ?? {};
+  } catch {
+    return {};
+  }
+}
 
 /** Reporte de conflictos que se escribe en la raíz del vault. */
 const RUTA_REPORTE = "Conflictos instrucciones IA.md";
@@ -767,35 +818,53 @@ async function rutaAlternativa(vaultRuta: string, ruta: string): Promise<string>
  * usuario:
  * - Si la ruta está libre, se escribe normalmente.
  * - Si existe un archivo GENERADO por el framework (lleva la marca
- *   `<!-- mycelium-ia … -->`), se sobrescribe (es la actualización esperada).
- * - Si existe un archivo del usuario (sin la marca), NO se toca: la versión
- *   nueva se escribe al lado como `nombre (mycelium-ia vX).ext` (con `(1)`,
- *   `(2)`… si hiciera falta) para que el usuario la integre a mano.
+ *   `<!-- mycelium-ia … -->`), se sobrescribe (es la actualización esperada)…
+ * - …salvo que sea protegido (`CLAUDE.md`) y el usuario lo haya editado
+ *   (`DEF-118`): la marca sobrevive a la edición, así que no alcanza. Se lo da
+ *   por intacto solo si su huella es la de algo que Mycelium escribió —la
+ *   registrada en `mycelium-ia.json` o la de un `CLAUDE.md` publicado—.
+ * - Si existe un archivo del usuario (sin la marca, o editado), NO se toca: la
+ *   versión nueva se escribe al lado como `nombre (mycelium-ia vX).ext` (con
+ *   `(1)`, `(2)`… si hiciera falta) para que el usuario la integre a mano.
  * Si hubo conflictos, escribe además un reporte en la raíz
  * (`Conflictos instrucciones IA.md`) con archivos y rutas.
  */
 export async function generarFramework(vaultRuta: string): Promise<ConflictoIa[]> {
   const conflictos: ConflictoIa[] = [];
+  const registradas = await huellasRegistradas(vaultRuta);
+  const huellas: Record<string, string> = {};
 
   for (const archivo of archivosFramework()) {
     const existente = await leerTexto(vaultRuta, archivo.ruta);
+    const protegido = RUTAS_PROTEGIDAS.has(archivo.ruta);
     let destino = archivo.ruta;
-    if (existente !== null && !existente.includes(MARCA_FRAMEWORK)) {
-      destino = await rutaAlternativa(vaultRuta, archivo.ruta);
-      conflictos.push({ original: archivo.ruta, generado: destino });
+    if (existente !== null) {
+      let delFramework = existente.includes(MARCA_FRAMEWORK);
+      if (delFramework && protegido) {
+        const actual = await huella(existente);
+        delFramework = actual === registradas[archivo.ruta] || HUELLAS_CLAUDE_MD_PREVIAS.has(actual);
+      }
+      if (!delFramework) {
+        destino = await rutaAlternativa(vaultRuta, archivo.ruta);
+        conflictos.push({ original: archivo.ruta, generado: destino });
+      }
     }
     await invoke("escribir_nota", {
       vaultRuta,
       rutaRel: destino,
       contenido: archivo.contenido,
     });
+    // Se registra lo generado aunque haya ido al lado: el original del usuario
+    // no coincide con esta huella (se sigue respetando), y si el usuario adopta
+    // la copia como su `CLAUDE.md`, la próxima actualización la reconoce.
+    if (protegido) huellas[archivo.ruta] = await huella(archivo.contenido);
   }
 
   // Marcador de versión: es siempre del framework, se sobrescribe.
   await invoke("escribir_nota", {
     vaultRuta,
     rutaRel: RUTA_VERSION,
-    contenido: versionJson(),
+    contenido: versionJson(huellas),
   });
 
   if (conflictos.length > 0) {
