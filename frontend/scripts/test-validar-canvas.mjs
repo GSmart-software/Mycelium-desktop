@@ -18,6 +18,7 @@ import {
   anclaDe,
   controlesArista,
   ladosAutomaticos,
+  ladosSugeridos,
   validarCanvas,
 } from "./validar-canvas.mjs";
 
@@ -34,7 +35,10 @@ const buenos = readdirSync(DIR).filter((f) => f.startsWith("bueno-") && f.endsWi
 
 test("hay un fixture bueno por receta", () => {
   assert.deepEqual(buenos.sort(), [
+    "bueno-arbol-horizontal.canvas",
     "bueno-arbol.canvas",
+    "bueno-flujo-decisiones.canvas",
+    "bueno-insertar-en-cadena.canvas",
     "bueno-linea-de-tiempo.canvas",
     "bueno-mapa-radial.canvas",
     "bueno-notas-relacionadas.canvas",
@@ -68,7 +72,7 @@ const MALOS = {
   // Solo avisos: el archivo es válido, pero se ve mal.
   "mal-lados.canvas": {
     errores: [],
-    avisos: ["ARISTA_CRUZA_NODO", "ETIQUETA_ARISTA_NO_DIBUJADA", "FUERA_DE_VISTA", "LADO_OPUESTO"],
+    avisos: ["ARISTA_CRUZA_NODO", "ETIQUETA_ARISTA_NO_DIBUJADA", "LADO_OPUESTO"],
   },
 };
 
@@ -149,6 +153,75 @@ test("altoNecesario: una línea corta entra en los 110 de la regla de la skill; 
   assert.ok(altoNecesario("Una idea", 260) <= 110);
   const largo = "palabra ".repeat(40).trim();
   assert.ok(altoNecesario(largo, 200) > altoNecesario(largo, 400));
+});
+
+// ── Lados: un solo criterio, el de los enganches ──────────────────────────────
+
+const e = (id, fromNode, fromSide, toNode, toSide) => ({ id, fromNode, fromSide, toNode, toSide });
+
+test("coordenadas negativas o lejos del origen no avisan: el lienzo abre encuadrado", () => {
+  const r = validarCanvas(canvas([t("a", -900, -700), t("b", -500, -700)], [e("e", "a", "right", "b", "left")]));
+  assert.deepEqual(r.errores, []);
+  assert.deepEqual(r.avisos, []);
+});
+
+test("diagonal solapada en x: la regla por centros avisa y la sugerencia sale por el hueco", () => {
+  const nodos = [t("a", 0, 0), t("b", -178, -178)];
+  // left → right es lo que elige la regla por centros (|dx| = |dy|).
+  assert.deepEqual(ladosAutomaticos(nodos[0], nodos[1]), { desde: "left", hasta: "right" });
+  const mal = validarCanvas(canvas(nodos, [e("e", "a", "left", "b", "right")]));
+  assert.deepEqual(codigos(mal.avisos), ["LADO_OPUESTO"]);
+  assert.match(mal.avisos[0].mensaje, /fromSide: "top"` → `toSide: "bottom"/);
+  // Sin lados explícitos, el aviso explica que Mycelium eligió por centros.
+  const implicito = validarCanvas(canvas(nodos, [{ id: "e", fromNode: "a", toNode: "b" }]));
+  assert.match(implicito.avisos[0].mensaje, /por centros/);
+  // La sugerencia no avisa.
+  const bien = validarCanvas(canvas(nodos, [e("e", "a", "top", "b", "bottom")]));
+  assert.deepEqual(bien.avisos, []);
+});
+
+test("ladosSugeridos cumple siempre el chequeo de enganches", () => {
+  let semilla = 11;
+  const azar = () => {
+    semilla = (semilla * 16807) % 2147483647;
+    return semilla / 2147483647;
+  };
+  let probados = 0;
+  while (probados < 300) {
+    const a = t("a", Math.round(azar() * 1600 - 800), Math.round(azar() * 1600 - 800), 120 + Math.round(azar() * 280), 60 + Math.round(azar() * 240));
+    const b = t("b", Math.round(azar() * 1600 - 800), Math.round(azar() * 1600 - 800), 120 + Math.round(azar() * 280), 60 + Math.round(azar() * 240));
+    const hx = Math.max(b.x - (a.x + a.width), a.x - (b.x + b.width));
+    const hy = Math.max(b.y - (a.y + a.height), a.y - (b.y + b.height));
+    if (hx < 0 && hy < 0) continue; // encimadas: es otro error
+    probados++;
+    const { desde, hasta } = ladosSugeridos(a, b);
+    const r = validarCanvas(canvas([a, b], [e("e", "a", desde, "b", hasta)]));
+    assert.ok(!r.avisos.some((x) => x.codigo === "LADO_OPUESTO"), JSON.stringify({ a, b, desde, hasta }));
+  }
+});
+
+test("lazo right → right en la misma columna y codo top → right desde una lateral: sin avisos", () => {
+  // Columna de 4 pasos, una lateral a W + 120 en la fila 3 que vuelve al paso 2.
+  const nodos = [t("p1", 0, 0, 240), t("p2", 0, 200, 240), t("p3", 0, 400, 240), t("lat", 360, 400, 240), t("p4", 0, 600, 240)];
+  const r = validarCanvas(
+    canvas(nodos, [
+      e("e1", "p1", "bottom", "p2", "top"),
+      e("e2", "p2", "bottom", "p3", "top"),
+      e("e3", "p3", "bottom", "p4", "top"),
+      e("e4", "p3", "right", "lat", "left"),
+      e("vuelta-lateral", "lat", "top", "p2", "right"),
+      e("vuelta-columna", "p4", "right", "p1", "right"),
+    ]),
+  );
+  assert.deepEqual(r.errores, []);
+  assert.deepEqual(r.avisos, []);
+});
+
+test("lazo right → right desde una lateral (bordes no alineados) sí avisa", () => {
+  const r = validarCanvas(
+    canvas([t("p2", 0, 200, 240), t("lat", 360, 400, 240)], [e("e", "lat", "right", "p2", "right")]),
+  );
+  assert.deepEqual(codigos(r.avisos), ["LADO_OPUESTO"]);
 });
 
 // ── La geometría es la de Mycelium ────────────────────────────────────────────

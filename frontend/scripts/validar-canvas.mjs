@@ -82,6 +82,23 @@ export function ladosAutomaticos(a, b) {
   return dy >= 0 ? { desde: "bottom", hasta: "top" } : { desde: "top", hasta: "bottom" };
 }
 
+/**
+ * Lados que el validador SUGIERE (y que enseña la skill): se elige el eje por el
+ * HUECO entre los rectángulos, no por la distancia entre centros. Con hueco
+ * horizontal mayor o igual que el vertical, la flecha va de costado; si no, de
+ * arriba abajo. Como el eje elegido siempre tiene hueco (≥ 0) cuando las
+ * tarjetas no se encimen, el par sugerido pasa siempre el chequeo de enganches
+ * (`LADO_OPUESTO`). La regla por centros de Mycelium (`ladosAutomaticos`) no:
+ * en diagonal, con las tarjetas solapadas en x, puede dar un lado de espaldas.
+ */
+export function ladosSugeridos(a, b) {
+  const { sx, sy } = separacion(a, b);
+  if (sx >= sy) {
+    return b.x + b.width / 2 >= a.x + a.width / 2 ? { desde: "right", hasta: "left" } : { desde: "left", hasta: "right" };
+  }
+  return b.y + b.height / 2 >= a.y + a.height / 2 ? { desde: "bottom", hasta: "top" } : { desde: "top", hasta: "bottom" };
+}
+
 function normal(lado) {
   switch (lado) {
     case "top":
@@ -398,19 +415,9 @@ export function validarCanvas(contenido, opciones = {}) {
   const grupos = nodos.filter((n) => n.type === "group");
   const tarjetas = nodos.filter((n) => n.type !== "group");
 
-  // ── Vista inicial ──
-  if (nodos.length > 0) {
-    const minX = Math.min(...nodos.map((n) => n.x));
-    const minY = Math.min(...nodos.map((n) => n.y));
-    if (minX < 0 || minY < 0) {
-      aviso(
-        "FUERA_DE_VISTA",
-        `Hay nodos en coordenadas negativas (mín. x=${minX}, y=${minY}). Mycelium abre el lienzo con (0,0) en la esquina superior izquierda: eso queda fuera de pantalla hasta que el usuario lo arrastre.`,
-      );
-    } else if (minX > 400 || minY > 300) {
-      aviso("LEJOS_DEL_ORIGEN", `El contenido empieza en (${minX}, ${minY}): al abrir, la pantalla muestra un hueco vacío arriba a la izquierda.`);
-    }
-  }
+  // Sin chequeo de «vista inicial»: Mycelium abre el lienzo ENCUADRADO en su
+  // contenido, así que dónde empiezan las coordenadas (negativas, lejos del
+  // origen) no cambia lo que se ve al abrir.
 
   // ── Superposición entre tarjetas ──
   for (let i = 0; i < tarjetas.length; i++) {
@@ -527,23 +534,29 @@ export function validarCanvas(contenido, opciones = {}) {
     // geometría que evaluar.
     if (seSuperponen(a, b)) return;
 
-    // Coherencia: el lado de salida tiene que mirar hacia donde está la llegada,
-    // y el de llegada hacia donde está la salida. Si no, la curva da la vuelta
-    // por detrás de la tarjeta.
+    // Coherencia, medida en los PUNTOS DE ENGANCHE: el lado de salida tiene que
+    // mirar hacia el enganche de llegada, y el de llegada hacia el de salida. Si
+    // no, la curva da la vuelta por detrás de la tarjeta. Es el único criterio:
+    // la skill enseña a elegir lados con `ladosSugeridos`, que siempre lo cumple.
+    // Un lazo por el mismo lado (`right → right`) pasa si los dos bordes están
+    // alineados; un codo (`top → right`) pasa si el destino queda arriba y al
+    // costado.
     const p1 = anclaDe(a, ladoA);
     const p2 = anclaDe(b, ladoB);
     const n1 = normal(ladoA);
     const n2 = normal(ladoB);
-    if ((p2.x - p1.x) * n1.x + (p2.y - p1.y) * n1.y < -10) {
+    const saleMal = (p2.x - p1.x) * n1.x + (p2.y - p1.y) * n1.y < -10;
+    const entraMal = (p1.x - p2.x) * n2.x + (p1.y - p2.y) * n2.y < -10;
+    if (saleMal || entraMal) {
+      const sug = ladosSugeridos(a, b);
+      const implicitos = !LADOS.has(e.fromSide) || !LADOS.has(e.toSide);
+      const que = [
+        saleMal ? `sale de "${a.id}" por \`${ladoA}\`, que le da la espalda a "${b.id}"` : null,
+        entraMal ? `entra a "${b.id}" por \`${ladoB}\`, que le da la espalda a "${a.id}"` : null,
+      ].filter(Boolean).join(" y ");
       aviso(
         "LADO_OPUESTO",
-        `${nombre}: sale de "${a.id}" por \`${ladoA}\`, pero "${b.id}" está del otro lado; la curva da la vuelta por detrás. Lo coherente acá: ${auto.desde}.`,
-      );
-    }
-    if ((p1.x - p2.x) * n2.x + (p1.y - p2.y) * n2.y < -10) {
-      aviso(
-        "LADO_OPUESTO",
-        `${nombre}: entra a "${b.id}" por \`${ladoB}\`, pero "${a.id}" está del otro lado. Lo coherente acá: ${auto.hasta}.`,
+        `${nombre}: ${que}; la curva da la vuelta por detrás.${implicitos ? " (Sin fromSide/toSide, Mycelium elige por centros y en diagonal falla.)" : ""} Lo coherente acá: \`fromSide: "${sug.desde}"\` → \`toSide: "${sug.hasta}"\`.`,
       );
     }
 

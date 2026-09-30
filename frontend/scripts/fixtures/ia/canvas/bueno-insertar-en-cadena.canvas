@@ -1,0 +1,111 @@
+{
+  "nodes": [
+    {
+      "id": "paso-1",
+      "type": "text",
+      "text": "**1.** Relevar el pedido",
+      "x": 0,
+      "y": 0,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "paso-2",
+      "type": "text",
+      "text": "**2.** Presupuestar",
+      "x": 0,
+      "y": 200,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "paso-3",
+      "type": "text",
+      "text": "**3.** Aprobar el presupuesto",
+      "x": 0,
+      "y": 400,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "paso-4",
+      "type": "text",
+      "text": "**4.** Comprar materiales",
+      "x": 0,
+      "y": 600,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "paso-4b",
+      "type": "text",
+      "text": "**5.** Controlar los materiales",
+      "x": 0,
+      "y": 800,
+      "width": 260,
+      "height": 130
+    },
+    {
+      "id": "paso-5",
+      "type": "text",
+      "text": "**6.** Fabricar",
+      "x": 0,
+      "y": 1020,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "paso-6",
+      "type": "text",
+      "text": "**7.** Entregar",
+      "x": 0,
+      "y": 1220,
+      "width": 260,
+      "height": 110
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1-2",
+      "fromNode": "paso-1",
+      "fromSide": "bottom",
+      "toNode": "paso-2",
+      "toSide": "top"
+    },
+    {
+      "id": "e-2-3",
+      "fromNode": "paso-2",
+      "fromSide": "bottom",
+      "toNode": "paso-3",
+      "toSide": "top"
+    },
+    {
+      "id": "e-3-4",
+      "fromNode": "paso-3",
+      "fromSide": "bottom",
+      "toNode": "paso-4",
+      "toSide": "top"
+    },
+    {
+      "id": "e-4-5",
+      "fromNode": "paso-4",
+      "fromSide": "bottom",
+      "toNode": "paso-4b",
+      "toSide": "top"
+    },
+    {
+      "id": "e-4b-5",
+      "fromNode": "paso-4b",
+      "fromSide": "bottom",
+      "toNode": "paso-5",
+      "toSide": "top"
+    },
+    {
+      "id": "e-5-6",
+      "fromNode": "paso-5",
+      "fromSide": "bottom",
+      "toNode": "paso-6",
+      "toSide": "top"
+    }
+  ]
+}

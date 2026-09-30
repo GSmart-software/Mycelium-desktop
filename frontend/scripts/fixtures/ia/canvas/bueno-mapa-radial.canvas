@@ -3,66 +3,138 @@
     {
       "id": "nota",
       "type": "file",
-      "file": "Notas/Mudanza a Córdoba.md",
-      "x": 361,
-      "y": 290,
+      "file": "Notas/Proyectos/Rediseño del API.md",
+      "x": 0,
+      "y": 0,
       "width": 360,
       "height": 240,
-      "color": "5"
+      "color": "6"
     },
     {
-      "id": "idea-1",
+      "id": "rama-1",
       "type": "text",
-      "text": "**Presupuesto**\n\nFlete, depósito y dos meses de alquiler",
-      "x": 421,
-      "y": 40,
+      "text": "**Objetivos**",
+      "x": 60,
+      "y": -292,
       "width": 240,
-      "height": 160
+      "height": 110
     },
     {
-      "id": "idea-2",
+      "id": "rama-1-1",
       "type": "text",
-      "text": "**Trabajo**\n\nPedir el traslado o buscar remoto",
-      "x": 802,
-      "y": 185,
+      "text": "Bajar la latencia",
+      "x": -149,
+      "y": -570,
       "width": 240,
-      "height": 160
+      "height": 110
     },
     {
-      "id": "idea-3",
+      "id": "rama-1-2",
       "type": "text",
-      "text": "**Vivienda**\n\nBarrios: Nueva Córdoba, Güemes, Cerro",
-      "x": 802,
-      "y": 475,
+      "text": "Versionar el API",
+      "x": 269,
+      "y": -570,
       "width": 240,
-      "height": 160
+      "height": 110
     },
     {
-      "id": "idea-4",
+      "id": "rama-2",
       "type": "text",
-      "text": "**Colegio**\n\nInscripción antes de diciembre",
-      "x": 421,
-      "y": 620,
+      "text": "**Riesgos**",
+      "x": 521,
+      "y": -113,
       "width": 240,
-      "height": 160
+      "height": 110
     },
     {
-      "id": "idea-5",
+      "id": "rama-2-1",
       "type": "text",
-      "text": "**Trámites**\n\nDomicilio, obra social, patente",
-      "x": 40,
-      "y": 475,
+      "text": "Clientes viejos",
+      "x": 833,
+      "y": -429,
       "width": 240,
-      "height": 160
+      "height": 110
     },
     {
-      "id": "idea-6",
+      "id": "rama-2-2",
       "type": "text",
-      "text": "**Despedida**\n\nAsado con amigos el último finde",
-      "x": 40,
-      "y": 185,
+      "text": "Migración de datos",
+      "x": 1102,
+      "y": -257,
       "width": 240,
-      "height": 160
+      "height": 110
+    },
+    {
+      "id": "rama-2-3",
+      "type": "text",
+      "text": "Plazos",
+      "x": 1245,
+      "y": -47,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-3",
+      "type": "text",
+      "text": "**Equipo**",
+      "x": 521,
+      "y": 243,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-4",
+      "type": "text",
+      "text": "**Decisiones**",
+      "x": 60,
+      "y": 422,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-4-1",
+      "type": "text",
+      "text": "REST, no GraphQL",
+      "x": 60,
+      "y": 710,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-5",
+      "type": "text",
+      "text": "**Pendientes**",
+      "x": -401,
+      "y": 244,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-5-1",
+      "type": "text",
+      "text": "Documentar errores",
+      "x": -862,
+      "y": 479,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-5-2",
+      "type": "text",
+      "text": "Pruebas de carga",
+      "x": -1071,
+      "y": 285,
+      "width": 240,
+      "height": 110
+    },
+    {
+      "id": "rama-6",
+      "type": "text",
+      "text": "**Referencias**",
+      "x": -401,
+      "y": -114,
+      "width": 240,
+      "height": 110
     }
   ],
   "edges": [
@@ -70,42 +142,98 @@
       "id": "e-1",
       "fromNode": "nota",
       "fromSide": "top",
-      "toNode": "idea-1",
+      "toNode": "rama-1",
+      "toSide": "bottom"
+    },
+    {
+      "id": "e-1-1",
+      "fromNode": "rama-1",
+      "fromSide": "top",
+      "toNode": "rama-1-1",
+      "toSide": "bottom"
+    },
+    {
+      "id": "e-1-2",
+      "fromNode": "rama-1",
+      "fromSide": "top",
+      "toNode": "rama-1-2",
       "toSide": "bottom"
     },
     {
       "id": "e-2",
       "fromNode": "nota",
       "fromSide": "right",
-      "toNode": "idea-2",
+      "toNode": "rama-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2-1",
+      "fromNode": "rama-2",
+      "fromSide": "top",
+      "toNode": "rama-2-1",
+      "toSide": "bottom"
+    },
+    {
+      "id": "e-2-2",
+      "fromNode": "rama-2",
+      "fromSide": "right",
+      "toNode": "rama-2-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2-3",
+      "fromNode": "rama-2",
+      "fromSide": "right",
+      "toNode": "rama-2-3",
       "toSide": "left"
     },
     {
       "id": "e-3",
       "fromNode": "nota",
       "fromSide": "right",
-      "toNode": "idea-3",
+      "toNode": "rama-3",
       "toSide": "left"
     },
     {
       "id": "e-4",
       "fromNode": "nota",
       "fromSide": "bottom",
-      "toNode": "idea-4",
+      "toNode": "rama-4",
+      "toSide": "top"
+    },
+    {
+      "id": "e-4-1",
+      "fromNode": "rama-4",
+      "fromSide": "bottom",
+      "toNode": "rama-4-1",
       "toSide": "top"
     },
     {
       "id": "e-5",
       "fromNode": "nota",
       "fromSide": "left",
-      "toNode": "idea-5",
+      "toNode": "rama-5",
+      "toSide": "right"
+    },
+    {
+      "id": "e-5-1",
+      "fromNode": "rama-5",
+      "fromSide": "left",
+      "toNode": "rama-5-1",
+      "toSide": "right"
+    },
+    {
+      "id": "e-5-2",
+      "fromNode": "rama-5",
+      "fromSide": "left",
+      "toNode": "rama-5-2",
       "toSide": "right"
     },
     {
       "id": "e-6",
       "fromNode": "nota",
       "fromSide": "left",
-      "toNode": "idea-6",
+      "toNode": "rama-6",
       "toSide": "right"
     }
   ]
