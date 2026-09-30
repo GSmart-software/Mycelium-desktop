@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
 
 /**
  * Framework IA del vault (FUN-L-08, solo-desktop). Genera en el vault un conjunto
@@ -64,8 +65,26 @@ import { invoke } from "@tauri-apps/api/core";
  *   (lo escribe una herramienta, y tocar el XML a ciegas rompe el diagrama).
  *   Tampoco se indexa, como el resto de lo que no es `.md`.
  *   **Minor**: un tipo de archivo nuevo que la IA se va a encontrar.
+ * - 1.7.0 — **una skill por herramienta** (`FUN-L-26`): `mycelium-drawio`,
+ *   `mycelium-canvas`, `mycelium-excalidraw`, `mycelium-base`,
+ *   `mycelium-esporas` y `mycelium-calendario`. La IA pasa de saber que esos
+ *   formatos existen a **crearlos y modificarlos** bien —geometría, flechas
+ *   enganchadas, texto que entra— y a **consultar el calendario** (solo
+ *   lectura: la regla 8 admite leer `.mycelium/recordatorios.json` y
+ *   `.mycelium/preferencias.json`). Las skills de draw.io, canvas y Excalidraw
+ *   llevan su validador (`validar-<formato>.mjs`, sin dependencias) para que la
+ *   IA compruebe lo que escribió. `.drawio` y `.excalidraw` dejan de ser «no
+ *   editar a mano». También: las pestañas de lienzos, diagramas y dibujos se
+ *   recargan desde disco, así que «Mycelium refresca la UI solo» es cierto para
+ *   ellos. `mycelium-vault` adelgaza (bases, lienzos y Esporas remiten a su
+ *   skill) y se corrigen dos errores: el `.canvas` **sí** aporta aristas al
+ *   grafo, y renombrar desde la app **sí** repara los enlaces.
+ *   El contenido de las seis skills y sus validadores sale de
+ *   `lib/ia/borradores/` y `scripts/validar-*.mjs` por `scripts/generar-skills-ia.mjs`
+ *   (`lib/ia/skillsGeneradas.ts`); no se copia a mano.
+ *   **Minor**: la IA gana capacidades nuevas.
  */
-export const FRAMEWORK_IA_VERSION = "1.6.0";
+export const FRAMEWORK_IA_VERSION = "1.7.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -111,11 +130,15 @@ cada cosa:
 | Archivo | Qué es | Podés |
 |---|---|---|
 | \`.md\` | **Nota**. La unidad de la memoria | Crear y editar libremente |
-| \`.base\` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar. Sintaxis en la skill \`mycelium-vault\` |
-| \`.canvas\` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con cuidado (es JSON) |
-| \`.excalidraw\` | **Dibujo** (JSON) | Leer; **no editar a mano** salvo pedido explícito |
-| \`.drawio\` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Leer; **no editar a mano** salvo pedido explícito |
+| \`.base\` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar con la skill \`mycelium-base\` (Mycelium entiende un subconjunto cerrado) |
+| \`.canvas\` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con la skill \`mycelium-canvas\` |
+| \`.excalidraw\` | **Dibujo** a mano alzada (JSON de Excalidraw) | Crear y editar con la skill \`mycelium-excalidraw\` |
+| \`.drawio\` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Crear y editar con la skill \`mycelium-drawio\` |
 | Cualquier otro | PDF, imágenes, código, texto | Leerlos y editarlos como archivos normales |
+
+Los lienzos, diagramas y dibujos **se rompen fácil** escritos a ojo: cada skill
+explica la geometría y trae un validador (\`node .claude/skills/<skill>/validar-<formato>.mjs\`)
+que se corre antes de dar el trabajo por hecho.
 
 > [!warning] Solo las notas están en la memoria
 > Mycelium **indexa \`.md\`, y nada más**. Los demás archivos existen, se listan y
@@ -127,9 +150,11 @@ cada cosa:
 > tiene. Si una respuesta se apoya en un \`.py\` o en un \`.csv\`, decilo así —
 > «según el archivo \`x.py\`»— y no con un \`[[enlace]]\`, que no va a resolver.
 
-Un \`.base\` **sí** es un destino válido de \`[[enlace]]\` y aparece en el grafo,
-pero su contenido no se escanea: un \`[[…]]\` dentro de su YAML no crea una
-asociación.
+Dos excepciones: un \`.base\` y un \`.canvas\` **sí** son destinos válidos de
+\`[[enlace]]\` y nodos del grafo. El \`.canvas\` además **aporta aristas**: hacia
+cada \`[[enlace]]\` de sus tarjetas de texto y hacia cada nota de una tarjeta de
+nota (las flechas del lienzo, no). El contenido de un \`.base\` no se escanea: un
+\`[[…]]\` dentro de su YAML no crea una asociación.
 
 ## Protocolo de RECUPERACIÓN (buscar en la memoria)
 
@@ -169,13 +194,19 @@ Al escribir:
 
 ## Tus herramientas aquí
 
-Tenés una **skill de referencia**, una **skill de memoria** y **comandos**. Cuándo
-usar cada uno:
+Tenés una **skill de referencia**, una **skill de memoria**, **una skill por
+herramienta** del vault y **comandos**. Cuándo usar cada uno:
 
 | Herramienta | Cuándo |
 |---|---|
-| skill \`mycelium-vault\` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, \`.mycignore\`, y el formato de los \`.base\` y los \`.canvas\`. Consultala antes de escribir en este vault. |
+| skill \`mycelium-vault\` | Referencia de **sintaxis** de las notas y de cómo explorar el vault: enlaces, alias, embeds, tags, propiedades, callouts, Mermaid, KaTeX, \`.mycignore\`. Consultala antes de escribir en este vault. |
 | skill \`mycelium-memoria\` | **Técnicas** de recuperación y consolidación: estrategias de búsqueda, expansión por backlinks, cuándo crear vs ampliar, cómo redactar para recuperación futura. Consultala en tareas de buscar/registrar conocimiento. |
+| skill \`mycelium-drawio\` | Crear o modificar un **diagrama formal** \`.drawio\` (flujo, organigrama, ER, arquitectura, red, UML): XML, coordenadas, flechas enganchadas. Trae validador. |
+| skill \`mycelium-canvas\` | Crear o modificar un **lienzo** \`.canvas\` (mapa de ideas, tablero, línea de tiempo, mapa de notas): tarjetas, grupos, lados de las flechas. Trae validador. |
+| skill \`mycelium-excalidraw\` | Crear o modificar un **dibujo** \`.excalidraw\` (boceto, pizarra, flujo informal): flechas enlazadas, texto en su caja. Trae validador. |
+| skill \`mycelium-base\` | Crear, corregir o leer una **tabla** \`.base\` («una lista de las notas que…»): el subconjunto exacto de filtros, columnas y orden que Mycelium entiende. |
+| skill \`mycelium-esporas\` | Crear una nota **a partir de una Espora** (plantilla) expandiendo vos sus variables, o crear/corregir una Espora. |
+| skill \`mycelium-calendario\` | Responder «¿qué tengo hoy / esta semana…?» leyendo los **recordatorios** del calendario, con las repeticiones bien expandidas. Solo lectura. |
 | \`/vault-buscar <pregunta>\` | Responder una pregunta **con evidencia del vault** (recuperación completa + citas). Preferilo a buscar a mano. |
 | \`/vault-recordar <qué recordar>\` | Consolidar un hecho/decisión/aprendizaje en la memoria (crea o amplía la nota y la enlaza). |
 | \`/vault-nota <título>\` | Crear una nota nueva respetando las convenciones (ubicación, enlaces, no dejarla huérfana). |
@@ -208,10 +239,13 @@ usar cada uno:
    propiedades: evitalo. Usá propiedades con moderación y con claves consistentes
    (reusá las que ya existen en el vault en vez de inventar sinónimos).
 7. **Idioma**: el dominante del vault.
-8. **No toques** \`.mycelium/\` (índice interno + papelera). No edites \`.claude/\`:
-   lo regenera Mycelium. Si el usuario regenera y ya hay un archivo suyo, Mycelium
-   **no lo pisa**: crea \`nombre (mycelium-ia vX).md\` al lado y un reporte
-   \`Conflictos instrucciones IA.md\` en la raíz.
+8. **No toques** \`.mycelium/\` (índice interno, papelera, calendario, preferencias):
+   **escribir** ahí, nunca. La única excepción es de **lectura**: podés leer
+   \`.mycelium/recordatorios.json\` (el calendario, skill \`mycelium-calendario\`) y
+   \`.mycelium/preferencias.json\` (p. ej. cuál es la carpeta de Esporas). No edites
+   \`.claude/\`: lo regenera Mycelium. Si el usuario regenera y ya hay un archivo
+   suyo, Mycelium **no lo pisa**: crea \`nombre (mycelium-ia vX).md\` al lado y un
+   reporte \`Conflictos instrucciones IA.md\` en la raíz.
 9. **Visibilidad**: lo ignorado por \`.mycignore\` existe en disco pero **no aparece
    en la app ni en el grafo**. Por defecto se ignoran los directorios que empiezan
    con \`.\` y las carpetas de dependencias/build (\`node_modules/\`, \`target/\`,
@@ -220,8 +254,9 @@ usar cada uno:
     configurado): sus notas **no son conocimiento, son moldes** para crear otras
     notas. Trátalas aparte: no consolides recuerdos ahí, no las cites como fuente,
     y no las reportes como huérfanas (una plantilla sin enlaces es normal). Si vas
-    a crear una nota de un tipo que ya tiene Espora, **partí de ella**. Detalle y
-    variables en la skill \`mycelium-vault\`.
+    a crear una nota de un tipo que ya tiene Espora, **partí de ella** —y expandí
+    vos sus variables: copiarla deja \`{{fecha}}\` escrito—. Cómo, en la skill
+    \`mycelium-esporas\`.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -233,6 +268,9 @@ incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota
 como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
 panel del rail, en la barra del editor y en el clic derecho de una carpeta;
 **tablas** \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`;
+**diagramas** \`.drawio\` con el editor de draw.io y **dibujos** \`.excalidraw\`, en
+su pestaña o embebidos en una nota; un **calendario** con recordatorios (fecha,
+hora, repetición y avisos) en su panel del rail;
 **grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
 búsqueda global —por nombre, por contenido o los dos, con \`clave:valor\` y
 \`tag:x\`, y con los resultados agrupables por carpeta—; un **visor** para los
@@ -243,7 +281,13 @@ exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (\`\`\`mermaid) y 
 (\`$…$\`).
 
 El usuario puede además **renombrar una nota escribiendo en su título**, arriba
-del documento. Mycelium detecta tus cambios en disco y refresca la UI solo.
+del documento. Mycelium detecta tus cambios en disco y refresca la UI solo:
+notas, tablas, lienzos, diagramas y dibujos abiertos se recargan con lo que
+escribiste. **Salvo** que el usuario tenga ahí cambios sin guardar (o una tarjeta
+de lienzo en edición): entonces no recarga, y lo que guarde después pisa lo tuyo.
+Y el **editor modal** de un dibujo embebido en una nota no recarga nunca: si está
+abierto, al cerrarlo pisa lo que escribiste. Si sabés que el usuario está
+editando ese archivo, avisale antes de escribir.
 `;
 
 const SKILL_MD = `---
@@ -264,7 +308,7 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
 | Embed de nota | \`![[Título]]\` | Muestra el contenido inline |
-| Embed de diagrama | \`![[Título.excalidraw]]\` | Renderiza el dibujo |
+| Embed de diagrama | \`![[Título.excalidraw]]\` / \`![[Título.drawio]]\` | Renderiza el dibujo o el diagrama |
 | Etiqueta | \`#tag\` | Píldora clicable |
 | Propiedades | bloque \`---\` al inicio | Mapa plano \`clave: valor\` (ver abajo) |
 | Callout | \`> [!note] Título\` | Tipos: note, tip, important, warning, caution, info, success, error, danger, question |
@@ -277,15 +321,17 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 
 - **Notas**: \`.md\`. El título de la nota es su nombre de archivo (sin extensión).
   **Son lo único que Mycelium indexa** (ver \`CLAUDE.md\`).
-- **Tablas**: \`.base\` (YAML). Ver abajo.
-- **Lienzos**: \`.canvas\` (JSON Canvas). Ver abajo.
-- **Dibujos**: \`.excalidraw\` (JSON). No editar a mano salvo pedido explícito.
+- **Tablas**: \`.base\` (YAML). Skill \`mycelium-base\`.
+- **Lienzos**: \`.canvas\` (JSON Canvas). Skill \`mycelium-canvas\`.
+- **Dibujos**: \`.excalidraw\` (JSON). Skill \`mycelium-excalidraw\`.
 - **Diagramas**: \`.drawio\` (XML de mxGraph). Figuras y conectores que se enganchan,
-  para el diagrama que hay que retocar dentro de seis meses. Tampoco a mano.
+  para el diagrama que hay que retocar dentro de seis meses. Skill \`mycelium-drawio\`.
 - **Cualquier otro archivo** (PDF, imágenes, código, texto): el vault los guarda y
   la app los muestra, pero no están indexados.
 - **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
-- **\`.mycelium/\`**: índice interno y papelera (\`.mycelium/.trash/\`). No tocar.
+- **\`.mycelium/\`**: índice interno, papelera (\`.mycelium/.trash/\`), calendario
+  (\`recordatorios.json\`) y preferencias. No escribir nunca; leer, solo esos dos
+  JSON (skills \`mycelium-calendario\` y \`mycelium-esporas\`).
 - **\`.claude/\`**: este framework (skills + comandos). Lo regenera Mycelium.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium.
 
@@ -353,108 +399,32 @@ relacionada: "[[Mapa del vault]]"
 ---
 \`\`\`
 
-## Tablas: los archivos \`.base\`
+## Tablas, lienzos, diagramas, dibujos y Esporas
 
-Un \`.base\` es un **YAML** que define una consulta sobre las notas del vault y la
-muestra como tabla. Es el formato de Obsidian, así que el mismo archivo se abre
-allá. Mínimo utilizable:
+Cada uno tiene **su skill**, con el formato exacto que Mycelium entiende, la
+geometría y recetas. Consultala antes de crear o modificar uno:
 
-\`\`\`yaml
-filters:
-  and:
-    - file.inFolder("Proyectos")
-    - estado != "archivado"
-views:
-  - type: table
-    name: Activos
-    order:
-      - file.name
-      - estado
-      - prioridad
-    sort:
-      - property: prioridad
-        direction: DESC
-    limit: 50
-\`\`\`
-
-- **\`filters\`**: \`and\` / \`or\` / \`not\` anidables, con expresiones sueltas
-  dentro. Cada expresión es una **comparación** \`referencia OP valor\`
-  (\`== != > >= < <=\`) o una **llamada** \`referencia.funcion(arg)\` — siempre con
-  su receptor delante:
-
-  | Sobre el archivo | Sobre una propiedad |
-  |---|---|
-  | \`file.inFolder("Proyectos")\` | \`resumen.contains("api")\` |
-  | \`file.hasTag("idea")\` | \`titulo.startsWith("HU-")\` |
-  | \`file.hasProperty("estado")\` | \`notas.endsWith("!")\` |
-  | | \`notas.isEmpty()\` |
-
-- **Referencias**: \`file.name\`, \`file.folder\`, \`file.path\`, \`file.ext\`,
-  \`file.tags\`, \`file.ctime\`, \`file.mtime\`, \`file.size\`; y cualquier
-  **propiedad** del frontmatter por su clave.
-- **\`views\`**: por ahora solo \`type: table\`. \`order\` son las columnas.
-
-> [!warning] Si Mycelium no entiende un filtro, NO muestra la tabla
-> Se niega y explica por qué, en vez de enseñar un resultado a medias. Es
-> deliberado: una fila de más o de menos en una tabla no se nota, y contamina la
-> decisión que se estaba tomando. Así que escribí solo lo de arriba — lo que
-> quede fuera del subconjunto deja la tabla inservible hasta que se corrija.
-
-Un \`.base\` **es** un destino válido de \`[[enlace]]\` y un nodo del grafo, pero su
-contenido no se escanea: un \`[[…]]\` dentro de su YAML no crea una asociación.
-
-## Lienzos: los archivos \`.canvas\`
-
-**JSON Canvas** (también formato de Obsidian): nodos colocados en el espacio y
-flechas entre ellos.
-
-\`\`\`json
-{
-  "nodes": [
-    { "id": "a", "type": "text", "text": "Una idea", "x": 0, "y": 0, "width": 250, "height": 60 },
-    { "id": "b", "type": "file", "file": "Notas/Rediseño del API.md", "x": 400, "y": 0, "width": 300, "height": 200 }
-  ],
-  "edges": [{ "id": "e1", "fromNode": "a", "toNode": "b" }]
-}
-\`\`\`
-
-- \`type: "text"\` lleva markdown en \`text\`; \`type: "file"\` apunta a una nota con
-  su **ruta** (no su título).
-- Editalo solo si hace falta, y **conservá las claves que no entiendas**: un canvas
-  hecho en Obsidian puede traer campos que Mycelium todavía no dibuja, y borrarlos
-  al reescribir el archivo perdería trabajo ajeno.
-- Un nodo \`file\` **no** cuenta como \`[[enlace]]\`: el canvas no aporta aristas al
-  grafo.
-
-## Esporas: las plantillas del vault
-
-Una **Espora** es una nota normal que vive en una carpeta designada —\`Esporas/\`
-en la raíz por defecto, configurable en Configuración → Vault— y que sirve de
-**molde**: al usarla, Mycelium crea una nota nueva con ese contenido (o lo inserta
-en una nota que ya existe) sustituyendo sus variables.
-
-| Token | Se sustituye por |
+| Qué | Skill |
 |---|---|
-| \`{{titulo}}\` | Título final de la nota destino |
-| \`{{fecha}}\` | Fecha de hoy (\`AAAA-MM-DD\`) |
-| \`{{hora}}\` | Hora actual (\`hh:mm\`, 24 h) |
-| \`{{fecha:FORMATO}}\` | Fecha/hora con formato propio: \`AAAA\` año · \`MM\` mes · \`DD\` día · \`hh\` hora · \`mm\` minuto · \`ss\` segundo |
+| Tabla \`.base\` (YAML; subconjunto cerrado: lo que no entiende rompe la tabla o la equivoca en silencio) | \`mycelium-base\` |
+| Lienzo \`.canvas\` (JSON Canvas) | \`mycelium-canvas\` |
+| Diagrama \`.drawio\` (XML de mxGraph) | \`mycelium-drawio\` |
+| Dibujo \`.excalidraw\` (JSON de Excalidraw) | \`mycelium-excalidraw\` |
+| Esporas (plantillas de notas) y sus variables | \`mycelium-esporas\` |
+| Calendario de recordatorios (solo lectura) | \`mycelium-calendario\` |
 
-- Un token **desconocido se deja escrito tal cual** (\`{{autor}}\` llega así a la
-  nota): no es un error silencioso, es una señal.
-- La sustitución es sobre el texto crudo, así que **también aplica dentro del
-  frontmatter**: una Espora con \`fecha: {{fecha}}\` produce una propiedad de tipo
-  fecha ya rellena. Es la sinergia natural con las propiedades.
-- La lista es **plana**: las subcarpetas de la carpeta de Esporas no se recorren.
-- Al insertar una Espora en una nota que ya existe, su **cuerpo** va al cursor y
-  sus **propiedades** se fusionan con el frontmatter de la nota (gana lo que la
-  nota ya tenía; los \`tags\` se unen).
+Lo que importa para la memoria: un \`.base\` y un \`.canvas\` son **nodos del
+grafo** y destinos válidos de \`[[enlace]]\`. El \`.canvas\` **aporta aristas**
+hacia cada \`[[enlace]]\` de sus tarjetas de texto y hacia cada nota de sus
+tarjetas \`file\` (las **flechas** del lienzo no crean aristas). El YAML de un
+\`.base\` no se escanea. \`.drawio\` y \`.excalidraw\` no se indexan: para que no
+queden huérfanos, embebelos en una nota (\`![[Nombre.drawio]]\`).
 
-**Cómo tratarlas vos**: son moldes, no memoria. No consolides conocimiento ahí, no
-las cites como fuente de una respuesta y no las reportes como huérfanas. Si el
-usuario pide una nota de un tipo que ya tiene Espora (reunión, diario, receta…),
-**partí de esa plantilla** en vez de inventar una estructura nueva; y si crea la
-misma estructura una y otra vez a mano, proponé convertirla en Espora.
+Las **Esporas** son moldes, no memoria: no consolides ahí, no las cites como
+fuente, no las reportes como huérfanas. Viven directamente en \`Esporas/\` (o la
+carpeta configurada) y sus variables son \`{{titulo}}\`, \`{{fecha}}\`, \`{{hora}}\` y
+\`{{fecha:FORMATO}}\`: Mycelium las sustituye **solo cuando se usa desde la app**;
+si creás una nota a partir de una, expandilas vos.
 
 ## \`.mycignore\`: qué ve Mycelium
 
@@ -477,7 +447,9 @@ revisá este archivo primero.
 
 ## Precauciones
 
-- Renombrar una nota **no** actualiza los \`[[enlaces]]\` que la apuntaban: hacelo vos.
+- Renombrar una nota **desde la app** repara los \`[[enlaces]]\` que la apuntaban;
+  un \`mv\` desde la terminal —como renombrás vos— **no**: actualizalos vos
+  (alias \`[[viejo|…]]\` y embeds \`![[viejo]]\` incluidos).
 - Mycelium reindexa solo al detectar cambios en disco: no hace falta avisar.
 - El frontmatter que cae fuera del subconjunto soportado se muestra crudo y la
   nota queda sin propiedades indexadas: revisalo antes de dar por hecho que se
@@ -554,8 +526,8 @@ Cómo redactar para tu vos futuro:
   nota faltante.
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
   reenlazá.
-- **Al renombrar**: actualizá todos los \`[[enlaces]]\` que la apuntaban (Mycelium
-  todavía no lo hace).
+- **Al renombrar con \`mv\`**: actualizá todos los \`[[enlaces]]\` que la apuntaban
+  (Mycelium solo los repara cuando el renombrado pasa por la app).
 
 ## Antipatrones
 
@@ -658,7 +630,10 @@ desconectada es conocimiento que no se puede evocar.
 
 1. **Huérfanas**: notas sin enlaces entrantes ni salientes. Listalas con su ruta.
    Excluí la carpeta de **Esporas** (las plantillas son moldes: que no tengan
-   enlaces es lo normal, no un defecto de la memoria).
+   enlaces es lo normal, no un defecto de la memoria). Una nota que solo aparece
+   en un \`.canvas\` (como tarjeta de nota o con un \`[[enlace]]\` en una tarjeta de
+   texto) **no** es huérfana: el lienzo la enlaza. Buscá también ahí
+   (\`grep -rl "Título" --include="*.canvas" .\`).
 2. **Enlaces rotos**: \`[[Objetivo]]\` cuyo archivo \`Objetivo.md\` no existe
    (contemplá alias \`[[Objetivo|...]]\` y embeds \`![[Objetivo]]\`). Indicá en qué
    nota está cada uno.
@@ -683,8 +658,10 @@ Crear la nota: $ARGUMENTS
 2. Elegí la carpeta temática adecuada según la estructura actual (si el usuario
    indicó una, usala).
 3. Mirá si hay una **Espora** (plantilla) para este tipo de nota en \`Esporas/\` —o
-   la carpeta configurada—; si la hay, partí de ella y resolvé sus variables
-   (\`{{titulo}}\`, \`{{fecha}}\`, \`{{hora}}\`, \`{{fecha:FORMATO}}\`).
+   la carpeta configurada—; si la hay, partí de ella siguiendo la skill
+   \`mycelium-esporas\`. Las variables (\`{{titulo}}\`, \`{{fecha}}\`, \`{{hora}}\`,
+   \`{{fecha:FORMATO}}\`) las **expandís vos** —fecha y hora con \`date\`, no
+   supuestas—: copiar la plantilla tal cual deja \`{{fecha}}\` escrito en la nota.
 4. Redactá contenido **autosuficiente** (se entiende sin esta conversación) con la
    sintaxis de Mycelium: callouts para avisos, \`[[enlaces]]\` en las menciones a
    notas existentes.
@@ -770,6 +747,15 @@ export function archivosFramework(): { ruta: string; contenido: string }[] {
     { ruta: ".claude/commands/vault-vincular.md", contenido: CMD_VINCULAR },
     { ruta: ".claude/commands/vault-huerfanas.md", contenido: CMD_HUERFANAS },
     { ruta: ".claude/commands/vault-nota.md", contenido: CMD_NOTA },
+    // Una skill por herramienta (`FUN-L-26`), con los validadores que viajan
+    // con ellas. Salen de `lib/ia/borradores/` y `scripts/validar-*.mjs` vía
+    // `scripts/generar-skills-ia.mjs`; los `.mjs` llevan la marca en un
+    // comentario de su primera línea, así que se actualizan como el resto de
+    // `.claude/`.
+    ...SKILLS_GENERADAS.map(({ ruta, contenido }) => ({
+      ruta,
+      contenido: contenido.split(MARCADOR_VERSION_IA).join(FRAMEWORK_IA_VERSION),
+    })),
   ];
 }
 

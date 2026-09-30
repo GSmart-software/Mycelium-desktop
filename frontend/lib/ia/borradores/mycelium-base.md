@@ -2,7 +2,7 @@
 name: mycelium-base
 description: Bases de Mycelium (archivos .base, YAML) — tablas que consultan las notas del vault por carpeta, etiquetas y propiedades. Sintaxis EXACTA que Mycelium entiende (filtros, operadores, funciones, columnas, orden, límite, vistas), recetas y los errores que dan una tabla equivocada sin avisar. Usar al crear, corregir o leer un .base, o cuando pidan «una tabla/lista de notas que…».
 ---
-<!-- mycelium-ia v1.7.0 -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # Bases: tablas consultables (`.base`)
 
 Una **base** es un archivo `.base` en YAML que define una **consulta** sobre las notas

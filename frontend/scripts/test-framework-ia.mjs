@@ -12,15 +12,27 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import ts from "typescript";
 
+/** Transpila un módulo TS y lo importa desde memoria. */
+async function importarTs(texto) {
+  const { outputText } = ts.transpileModule(texto, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  });
+  return import(`data:text/javascript,${encodeURIComponent(outputText)}`);
+}
+
+// Un módulo importado desde `data:` no resuelve imports relativos: las skills
+// generadas se cargan aparte y se le pasan por `globalThis`.
+const rutaSkills = fileURLToPath(new URL("../lib/ia/skillsGeneradas.ts", import.meta.url));
+globalThis.__skillsGeneradas = await importarTs(await readFile(rutaSkills, "utf8"));
+
 const rutaTs = fileURLToPath(new URL("../lib/ia/framework.ts", import.meta.url));
-const fuente = (await readFile(rutaTs, "utf8")).replace(
-  'import { invoke } from "@tauri-apps/api/core";',
-  "const invoke = (cmd, args) => globalThis.__invoke(cmd, args);",
-);
-const { outputText } = ts.transpileModule(fuente, {
-  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
-});
-const mod = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
+const fuente = (await readFile(rutaTs, "utf8"))
+  .replace('import { invoke } from "@tauri-apps/api/core";', "const invoke = (cmd, args) => globalThis.__invoke(cmd, args);")
+  .replace(
+    'import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";',
+    "const { MARCADOR_VERSION_IA, SKILLS_GENERADAS } = globalThis.__skillsGeneradas;",
+  );
+const mod = await importarTs(fuente);
 const { generarFramework, archivosFramework, FRAMEWORK_IA_VERSION } = mod;
 
 /** Un vault en memoria: ruta relativa → texto. */
@@ -114,6 +126,46 @@ test("un archivo sin marca sigue yendo al lado (comportamiento previo)", async (
   const disco = montarVault({ "CLAUDE.md": "# Mis instrucciones\n" });
   assert.equal((await generarFramework("V")).length, 1);
   assert.equal(disco.get("CLAUDE.md"), "# Mis instrucciones\n");
+});
+
+// ── Las skills por herramienta (`FUN-L-26`) ─────────────────────────────────
+
+const SKILLS = ["drawio", "canvas", "excalidraw", "base", "esporas", "calendario"].map((s) => `mycelium-${s}`);
+const VALIDADORES = ["drawio", "canvas", "excalidraw"].map(
+  (f) => `.claude/skills/mycelium-${f}/validar-${f}.mjs`,
+);
+
+test("genera las seis skills y los tres validadores, con la versión puesta", async () => {
+  const disco = montarVault();
+  await generarFramework("V");
+  for (const s of SKILLS) {
+    const skill = disco.get(`.claude/skills/${s}/SKILL.md`);
+    assert.ok(skill, `falta la skill ${s}`);
+    assert.match(skill, new RegExp(`^---\\nname: ${s}\\n`));
+    assert.ok(skill.includes(`<!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->`), `${s} sin marca de versión`);
+  }
+  for (const v of VALIDADORES) {
+    const js = disco.get(v);
+    assert.ok(js, `falta ${v}`);
+    assert.ok(js.split("\n")[0].startsWith(`// <!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->`), `${v}: la marca no está en la primera línea`);
+    assert.ok(!js.includes("#!/usr/bin/env node"), `${v}: quedó el shebang`);
+  }
+  for (const [ruta, texto] of disco) assert.ok(!texto.includes("{{VERSION_IA}}"), `${ruta}: quedó el marcador sin reemplazar`);
+});
+
+test("regenerar no da conflictos y restaura un validador tocado", async () => {
+  const disco = montarVault();
+  await generarFramework("V");
+  const ruta = VALIDADORES[0];
+  const original = disco.get(ruta);
+  disco.set(ruta, `${original}\n// retocado\n`);
+  assert.deepEqual(await generarFramework("V"), []);
+  assert.equal(disco.get(ruta), original);
+});
+
+test("CLAUDE.md lista cada skill y ya no manda a no editar .drawio ni .excalidraw", () => {
+  for (const s of SKILLS) assert.ok(CLAUDE_NUEVO.includes(`skill \`${s}\``), `CLAUDE.md no menciona ${s}`);
+  assert.ok(!/no editar a mano/i.test(CLAUDE_NUEVO));
 });
 
 test("HUELLAS_CLAUDE_MD_PREVIAS cubre cada CLAUDE.md publicado hasta la 1.6.0", () => {

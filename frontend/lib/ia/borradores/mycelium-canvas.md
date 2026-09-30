@@ -2,7 +2,7 @@
 name: mycelium-canvas
 description: Crear, leer y modificar lienzos .canvas (JSON Canvas) que se vean bien en Mycelium — coordenadas y tamaños, flechas con fromSide/toSide coherentes, grupos que contengan a sus tarjetas, colores y tarjetas de nota. Usar cuando el usuario pida un lienzo, mapa de ideas, tablero, línea de tiempo, organigrama o mapa de notas, o al tocar un .canvas existente.
 ---
-<!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->
+<!-- mycelium-ia v{{VERSION_IA}} -->
 # Lienzos `.canvas` en Mycelium
 
 Un `.canvas` es un **lienzo infinito**: tarjetas colocadas en el espacio y unidas por
