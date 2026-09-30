@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    {
+      "id": "largo",
+      "type": "text",
+      "text": "# Resumen de la reunión\nSe acordó postergar el lanzamiento dos semanas para cerrar las pruebas de carga y la migración de datos.\n\n- Revisar el presupuesto con finanzas\n- Confirmar la fecha con el cliente\n- Preparar el comunicado para el equipo",
+      "x": 40,
+      "y": 40,
+      "width": 260,
+      "height": 60
+    }
+  ],
+  "edges": []
+}

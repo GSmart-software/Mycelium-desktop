@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "api",
+      "type": "file",
+      "file": "Notas/Proyectos/Rediseño del API.md",
+      "x": 480,
+      "y": 140,
+      "width": 400,
+      "height": 280,
+      "color": "6"
+    },
+    {
+      "id": "dep1",
+      "type": "file",
+      "file": "Notas/Proyectos/Autenticación.md",
+      "x": 40,
+      "y": 40,
+      "width": 320,
+      "height": 220
+    },
+    {
+      "id": "dep2",
+      "type": "file",
+      "file": "Notas/Proyectos/Base de datos.md",
+      "x": 40,
+      "y": 300,
+      "width": 320,
+      "height": 220
+    },
+    {
+      "id": "ref1",
+      "type": "file",
+      "file": "Notas/Decisiones.md",
+      "x": 1000,
+      "y": 40,
+      "width": 320,
+      "height": 220
+    },
+    {
+      "id": "ref2",
+      "type": "file",
+      "file": "Notas/Glosario.md",
+      "x": 1000,
+      "y": 300,
+      "width": 320,
+      "height": 220
+    },
+    {
+      "id": "leyenda",
+      "type": "text",
+      "text": "Izquierda: **de qué depende**.\n\nDerecha: **dónde se documenta**.",
+      "x": 480,
+      "y": 480,
+      "width": 400,
+      "height": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "d1",
+      "fromNode": "api",
+      "fromSide": "left",
+      "toNode": "dep1",
+      "toSide": "right"
+    },
+    {
+      "id": "d2",
+      "fromNode": "api",
+      "fromSide": "left",
+      "toNode": "dep2",
+      "toSide": "right"
+    },
+    {
+      "id": "r1",
+      "fromNode": "api",
+      "fromSide": "right",
+      "toNode": "ref1",
+      "toSide": "left"
+    },
+    {
+      "id": "r2",
+      "fromNode": "api",
+      "fromSide": "right",
+      "toNode": "ref2",
+      "toSide": "left"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Glosario
+
+Términos del proyecto.

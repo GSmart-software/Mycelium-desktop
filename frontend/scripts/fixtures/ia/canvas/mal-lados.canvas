@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    { "id": "a", "type": "text", "text": "Inicio", "x": -300, "y": 40, "width": 220, "height": 110 },
+    { "id": "b", "type": "text", "text": "En el medio", "x": 40, "y": 40, "width": 220, "height": 110 },
+    { "id": "c", "type": "text", "text": "Final", "x": 380, "y": 40, "width": 220, "height": 110 }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "a", "fromSide": "left", "toNode": "b", "toSide": "right" },
+    { "id": "e2", "fromNode": "a", "fromSide": "right", "toNode": "c", "toSide": "left", "label": "salta" }
+  ]
+}

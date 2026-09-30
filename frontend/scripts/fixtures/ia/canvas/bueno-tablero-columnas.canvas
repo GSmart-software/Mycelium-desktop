@@ -1,0 +1,116 @@
+{
+  "nodes": [
+    {
+      "id": "col-1",
+      "type": "group",
+      "label": "Por hacer",
+      "color": "1",
+      "x": 40,
+      "y": 230,
+      "width": 300,
+      "height": 434
+    },
+    {
+      "id": "col-2",
+      "type": "group",
+      "label": "En curso",
+      "color": "3",
+      "x": 400,
+      "y": 230,
+      "width": 300,
+      "height": 434
+    },
+    {
+      "id": "col-3",
+      "type": "group",
+      "label": "Hecho",
+      "color": "4",
+      "x": 760,
+      "y": 230,
+      "width": 300,
+      "height": 434
+    },
+    {
+      "id": "titulo",
+      "type": "text",
+      "text": "# Lanzamiento — tablero\n\nActualizado cada lunes. Mové las tarjetas entre columnas.",
+      "x": 40,
+      "y": 40,
+      "width": 1020,
+      "height": 150
+    },
+    {
+      "id": "c1-1",
+      "type": "text",
+      "text": "Definir el alcance del MVP",
+      "x": 60,
+      "y": 274,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "c1-2",
+      "type": "text",
+      "text": "Entrevistar a tres usuarios",
+      "x": 60,
+      "y": 404,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "c1-3",
+      "type": "text",
+      "text": "Elegir proveedor de correo",
+      "x": 60,
+      "y": 534,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "c2-1",
+      "type": "text",
+      "text": "Maqueta de la pantalla de inicio",
+      "x": 420,
+      "y": 274,
+      "width": 260,
+      "height": 130
+    },
+    {
+      "id": "c2-2",
+      "type": "text",
+      "text": "Esquema de la base de datos:\n\n- usuarios\n- pedidos\n- pagos",
+      "x": 420,
+      "y": 424,
+      "width": 260,
+      "height": 190
+    },
+    {
+      "id": "c3-1",
+      "type": "text",
+      "text": "Registrar el dominio",
+      "x": 780,
+      "y": 274,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "c3-2",
+      "type": "text",
+      "text": "Repositorio y CI",
+      "x": 780,
+      "y": 404,
+      "width": 260,
+      "height": 110
+    },
+    {
+      "id": "c3-3",
+      "type": "text",
+      "text": "Logo provisorio",
+      "x": 780,
+      "y": 534,
+      "width": 260,
+      "height": 110
+    }
+  ],
+  "edges": []
+}

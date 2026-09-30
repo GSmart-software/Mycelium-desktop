@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    { "id": "a", "type": "text", "text": "Origen", "x": 40, "y": 40, "width": 260, "height": 110 },
+    { "id": "b", "type": "text", "text": "Destino", "x": 420, "y": 40, "width": 260, "height": 110 }
+  ],
+  "edges": [
+    { "id": "e1", "fromNode": "a", "fromSide": "right", "toNode": "fantasma", "toSide": "left" },
+    { "id": "a", "fromNode": "a", "toNode": "b" },
+    { "id": "e3", "fromNode": "a", "fromSide": "derecha", "toNode": "b", "toEnd": "flecha" }
+  ]
+}

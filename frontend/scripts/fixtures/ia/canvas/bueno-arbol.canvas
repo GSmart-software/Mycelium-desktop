@@ -1,0 +1,160 @@
+{
+  "nodes": [
+    {
+      "id": "p1",
+      "type": "text",
+      "text": "**Dirección**\n\nAna Pérez",
+      "x": 700,
+      "y": 40,
+      "width": 200,
+      "height": 140,
+      "color": "6"
+    },
+    {
+      "id": "p2",
+      "type": "text",
+      "text": "**Producto**\n\nLuis Gómez",
+      "x": 160,
+      "y": 270,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p3",
+      "type": "text",
+      "text": "Diseño\n\nSol Ríos",
+      "x": 40,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p4",
+      "type": "text",
+      "text": "Investigación\n\nIván Paz",
+      "x": 280,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p5",
+      "type": "text",
+      "text": "**Ingeniería**\n\nMarta Díaz",
+      "x": 760,
+      "y": 270,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p6",
+      "type": "text",
+      "text": "Frontend\n\nLeo Sosa",
+      "x": 520,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p7",
+      "type": "text",
+      "text": "Backend\n\nEva Ruiz",
+      "x": 760,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p8",
+      "type": "text",
+      "text": "Datos\n\nTomás Vera",
+      "x": 1000,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p9",
+      "type": "text",
+      "text": "**Operaciones**\n\nRaúl Luna",
+      "x": 1240,
+      "y": 270,
+      "width": 200,
+      "height": 140
+    },
+    {
+      "id": "p10",
+      "type": "text",
+      "text": "Soporte\n\nNoe Gil",
+      "x": 1240,
+      "y": 500,
+      "width": 200,
+      "height": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "a1",
+      "fromNode": "p2",
+      "fromSide": "bottom",
+      "toNode": "p3",
+      "toSide": "top"
+    },
+    {
+      "id": "a2",
+      "fromNode": "p2",
+      "fromSide": "bottom",
+      "toNode": "p4",
+      "toSide": "top"
+    },
+    {
+      "id": "a3",
+      "fromNode": "p5",
+      "fromSide": "bottom",
+      "toNode": "p6",
+      "toSide": "top"
+    },
+    {
+      "id": "a4",
+      "fromNode": "p5",
+      "fromSide": "bottom",
+      "toNode": "p7",
+      "toSide": "top"
+    },
+    {
+      "id": "a5",
+      "fromNode": "p5",
+      "fromSide": "bottom",
+      "toNode": "p8",
+      "toSide": "top"
+    },
+    {
+      "id": "a6",
+      "fromNode": "p9",
+      "fromSide": "bottom",
+      "toNode": "p10",
+      "toSide": "top"
+    },
+    {
+      "id": "a7",
+      "fromNode": "p1",
+      "fromSide": "bottom",
+      "toNode": "p2",
+      "toSide": "top"
+    },
+    {
+      "id": "a8",
+      "fromNode": "p1",
+      "fromSide": "bottom",
+      "toNode": "p5",
+      "toSide": "top"
+    },
+    {
+      "id": "a9",
+      "fromNode": "p1",
+      "fromSide": "bottom",
+      "toNode": "p9",
+      "toSide": "top"
+    }
+  ]
+}

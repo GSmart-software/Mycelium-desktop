@@ -1,0 +1,120 @@
+{
+  "nodes": [
+    {
+      "id": "titulo",
+      "type": "text",
+      "text": "# Hitos de la historia argentina\n\nDe izquierda a derecha y, en la segunda fila, de derecha a izquierda.",
+      "x": 40,
+      "y": 40,
+      "width": 1120,
+      "height": 150
+    },
+    {
+      "id": "h1",
+      "type": "text",
+      "text": "**1810**\n\nRevolución de Mayo",
+      "x": 40,
+      "y": 250,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h2",
+      "type": "text",
+      "text": "**1816**\n\nDeclaración de la Independencia",
+      "x": 340,
+      "y": 250,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h3",
+      "type": "text",
+      "text": "**1853**\n\nConstitución Nacional",
+      "x": 640,
+      "y": 250,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h4",
+      "type": "text",
+      "text": "**1880**\n\nBuenos Aires, capital federal",
+      "x": 940,
+      "y": 250,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h5",
+      "type": "text",
+      "text": "**1912**\n\nLey Sáenz Peña",
+      "x": 940,
+      "y": 510,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h6",
+      "type": "text",
+      "text": "**1947**\n\nVoto femenino",
+      "x": 640,
+      "y": 510,
+      "width": 220,
+      "height": 160
+    },
+    {
+      "id": "h7",
+      "type": "text",
+      "text": "**1983**\n\nVuelta a la democracia",
+      "x": 340,
+      "y": 510,
+      "width": 220,
+      "height": 160
+    }
+  ],
+  "edges": [
+    {
+      "id": "t1",
+      "fromNode": "h1",
+      "fromSide": "right",
+      "toNode": "h2",
+      "toSide": "left"
+    },
+    {
+      "id": "t2",
+      "fromNode": "h2",
+      "fromSide": "right",
+      "toNode": "h3",
+      "toSide": "left"
+    },
+    {
+      "id": "t3",
+      "fromNode": "h3",
+      "fromSide": "right",
+      "toNode": "h4",
+      "toSide": "left"
+    },
+    {
+      "id": "t4",
+      "fromNode": "h4",
+      "fromSide": "bottom",
+      "toNode": "h5",
+      "toSide": "top"
+    },
+    {
+      "id": "t5",
+      "fromNode": "h5",
+      "fromSide": "left",
+      "toNode": "h6",
+      "toSide": "right"
+    },
+    {
+      "id": "t6",
+      "fromNode": "h6",
+      "fromSide": "left",
+      "toNode": "h7",
+      "toSide": "right"
+    }
+  ]
+}
