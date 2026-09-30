@@ -24,6 +24,18 @@ Una nota muestra el dibujo con `![[Nombre.excalidraw]]` (se renderiza como image
 clic para editarlo). Si creás un dibujo para una nota, **embebelo ahí**: un dibujo
 que nadie embebe no aparece en ninguna nota.
 
+El embed resuelve **por nombre**, como un `[[enlace]]`: `![[Pedido.excalidraw]]`
+encuentra `Procesos/Pedido.excalidraw` aunque la nota esté en otra carpeta. Pero el
+nombre se compara **sin la extensión** y contra **todos** los archivos del vault: si
+hay otro `Pedido` (una nota `Pedido.md`, un `Pedido.drawio` u otro dibujo), gana el
+más cercano a la raíz, y si ese no es un dibujo el embed muestra «No se pudo cargar
+el diagrama». Por eso:
+
+- **Poné al dibujo un nombre que no tenga ningún otro archivo**, tampoco la nota que
+  lo embebe: con `Pedido.md` y `Pedido.excalidraw` en la misma carpeta, hasta
+  `[[Pedido]]` puede terminar abriendo el dibujo. Por ejemplo, `Pedido (flujo)`.
+- Si igual hay homónimos, desambiguá con la carpeta: `![[Procesos/Pedido.excalidraw]]`.
+
 ## Lo que hace Mycelium con el archivo (leído de su código)
 
 - Lee **solo** `elements` y `files`. `appState` se ignora al abrir y se guarda
@@ -31,10 +43,21 @@ que nadie embebe no aparece en ninguna nota.
 - Pasa los elementos por el `restore` de Excalidraw 0.18: completa los campos de
   estilo que falten, pero **no recalcula posiciones**. Lo que escribís en `x`, `y`,
   `width`, `height` y `points` es exactamente lo que el usuario ve.
-- Lo abre mirando al **origen (0, 0), con zoom 100 % y sin centrar**. Si el dibujo
-  empieza en (3000, 2000), el usuario ve una pantalla en blanco. **Arrancá cerca de
-  (80, 100)** (la barra de herramientas tapa la franja de arriba) y crecé hacia la
-  derecha y hacia abajo.
+- Lo abre **encuadrado**: ajusta la vista para que se vea el dibujo entero. Dos
+  consecuencias:
+  - **Lo más alto del dibujo queda pegado al borde superior de la vista**, donde
+    flotan la barra de herramientas (al centro) y, debajo, un cartel de ayuda. No
+    pongas ahí nada que haga falta leer: el **título** de un dibujo embebido va en la
+    nota, no en el dibujo; si el dibujo va suelto, ponelo arriba a la **izquierda**
+    y chico (28). Un **marco** no debería ser lo más alto: su nombre se dibuja
+    **encima** del borde, en letra chica, y es lo primero que se tapa.
+  - Cuanto más grande el dibujo, más chica se ve la letra (y lo mismo embebido en
+    una nota, que lo escala al ancho de la nota). Más de ~2400 px de ancho ya no se
+    lee: compactalo (ver «Organigrama compacto»).
+
+  El origen ya no importa para verlo, pero **arrancá cerca de (80, 100)** y crecé
+  hacia la derecha y hacia abajo: es la convención de las recetas y de quien lo
+  edite después.
 - **Al abrirlo lo reescribe**: normaliza cada elemento (agrega `index`, sube
   `version`), descarta lo borrado y lo que no entiende, y lo guarda. No te
   sorprendas si el archivo cambia después de que el usuario lo mira.
@@ -166,7 +189,14 @@ en la forma** — `x = forma.x + (forma.width − texto.width) / 2`, igual en `y
 
 - **Marco** (`frame`): una zona con nombre (`"name": "Backend"`), `roughness: 0`.
   Cada hijo lleva `"frameId": "<id del marco>"` —su texto también— y tiene que
-  quedar **adentro**: el marco recorta lo que sobresale.
+  quedar **adentro**: el marco **recorta** lo que sobresale de sus hijos.
+  - Una **flecha que une dos formas del marco** es hija del marco: `frameId` en la
+    flecha **y en su etiqueta**.
+  - Una **flecha que cruza el borde** (de adentro hacia afuera) lleva
+    `frameId: null`, y su etiqueta también. Con el `frameId` del marco, el tramo de
+    afuera **no se ve**, ni la etiqueta si cae afuera.
+  - El nombre se dibuja arriba del borde superior, por fuera: dejá ~30 px libres
+    encima del marco.
 - **Grupo**: el mismo id en `groupIds` de cada forma **y de su texto**. Se
   seleccionan y mueven juntas. No cambia el dibujo.
 
@@ -182,9 +212,13 @@ en la forma** — `x = forma.x + (forma.width − texto.width) / 2`, igual en `y
    `fontFamily` y `lineHeight` en los textos.
 5. **Extremos sobre el borde**: la punta de una flecha enganchada queda a `gap` px
    del contorno de su forma, ni adentro ni lejos (se calcula abajo).
-6. **Nada encimado**: entre dos formas, al menos 60 px en horizontal y 50 en
-   vertical; si la flecha que las une lleva etiqueta, **al menos 120 px**. Una forma
-   puede contener **entera** a otra (una zona, una pantalla); pisarla a medias, no.
+6. **Nada encimado ni pegado**. Se mide entre **bordes**, no entre centros: dos
+   formas tienen que estar a **≥ 60 px en horizontal o a ≥ 50 px en vertical**
+   (basta una: o están en columnas distintas, o en filas distintas). Si la flecha que
+   las une lleva **etiqueta**, a **≥ 120 px** entre bordes en la dirección de la
+   flecha, y más si la etiqueta es larga: el tramo que la lleva tiene que medir la
+   etiqueta + 40 px. Una forma puede contener **entera** a otra (una zona, una
+   pantalla); pisarla a medias, no.
 7. **El texto entra** en su forma (ver «Área útil»). Si no, agrandá la forma o partí
    la línea con `\n`.
 8. **Conservá lo que no entendés**: al modificar, cargá el JSON, cambiá solo lo
@@ -197,9 +231,11 @@ en la forma** — `x = forma.x + (forma.width − texto.width) / 2`, igual en `y
 ### Coordenadas
 
 - Coordenadas de **escena**, en píxeles: `x` crece hacia la derecha, **`y` hacia
-  abajo**. (0, 0) es la esquina superior izquierda de lo que ve el usuario al abrir.
+  abajo**.
 - El **centro** de una forma es `(x + width/2, y + height/2)`. Pensá la disposición
   en centros y derivá `x = cx − width/2`, `y = cy − height/2`.
+- **Centros enteros y tamaños pares**: si el centro cae en `.5`, una flecha
+  «horizontal» entre dos formas alineadas sale torcida medio píxel.
 - Alineá centros en **columnas y filas**: da un dibujo prolijo aunque el trazo sea
   a mano.
 
@@ -240,274 +276,78 @@ intermedios van en `points` relativos a `P1`.
 
 Etiqueta de flecha: texto con `containerId` = id de la flecha, centrado en el
 **medio** de la flecha — con una cantidad impar de puntos, el punto del medio; con
-una par, el medio del tramo central. Con **un** punto intermedio la etiqueta cae
-**en el codo**: usá dos (o ninguno) si la flecha lleva etiqueta.
+una par, el medio del tramo central. Con **un** punto intermedio y tramos rectos
+(`roundness: null`) la etiqueta cae **en el codo**, y como Excalidraw corta la línea
+donde va la etiqueta, el codo desaparece y la flecha parece rota. Si una flecha en L
+lleva etiqueta, agregale un segundo punto intermedio **alineado** sobre el tramo
+largo: con cuatro puntos, la etiqueta va al medio del tramo central.
 
 ### Disposiciones legibles
 
-- **Flujo vertical**: una columna principal (mismo `cx`), filas cada ~120–150 px
-  según la altura de las formas; las ramas laterales en una segunda columna a
-  ≥ 350 px; los retornos rodean por afuera con dos puntos intermedios.
+**Calculá el paso desde el tamaño real**, nunca con un número fijo: el centro de la
+forma siguiente es el de la anterior + su medio tamaño + la separación + el medio
+tamaño de la nueva (`tamanoPara` da el tamaño antes de crearla, y `junto` hace la
+cuenta). Un paso fijo de «70 px» se encima en cuanto una etiqueta es más larga.
+
+- **Flujo vertical**: una columna principal (mismo `cx`), cada paso debajo del
+  anterior a 50 px entre bordes (120 si la flecha lleva etiqueta); las ramas
+  laterales en otra columna; los retornos rodean por afuera con dos puntos
+  intermedios.
 - **Árbol / organigrama**: el ancho de cada subárbol es la suma de los anchos de
-  sus hijos más 40 px entre hermanos; el padre va centrado sobre sus hijos; niveles
-  cada ~150 px. Calculalo recursivo desde las hojas (receta abajo).
-- **Mapa mental**: la idea central en el medio; las ramas sobre una elipse
-  (radios ~300 × 190, porque las cajas son más anchas que altas); las hojas, si la
-  rama sale hacia un costado, **apiladas en vertical** (cada 70 px) más afuera; si
-  sale hacia arriba o abajo, **en fila** (cada 170 px).
+  sus hijos más 60 px entre hermanos; el padre va centrado sobre sus hijos. Si el
+  último nivel tiene muchas hojas, el árbol se va a lo ancho: **apilá las hojas**
+  debajo de su jefe (receta compacta).
+- **Mapa mental**: la idea central al medio y las ramas **en dos columnas**, a la
+  derecha y a la izquierda; cada rama ocupa una banda del alto de sus hojas, y las
+  hojas van en otra columna más afuera. Las líneas, curvas y sin punta.
 - **Arquitectura**: capas en columnas (cliente → servicios → datos) cada ~350 px;
   lo que comparte zona, en un `frame`.
 - Nada debe cruzar una forma que no sea su origen o su destino: si pasa, mové
   formas o agregá puntos intermedios.
 
-## El generador de referencia
+## El generador: `dibujo.mjs`
 
-Calcular todo lo anterior a mano es donde se cometen los errores. Escribí el
-dibujo con un **script de Node** que use este generador. Copialo a un archivo
-temporal **fuera del vault** (por ejemplo en el directorio temporal del sistema:
-`$TMPDIR`, `/tmp` o `%TEMP%`), junto con tu script, y corrélo con `node`.
+Calcular todo lo anterior a mano es donde se cometen los errores. Al lado de esta
+skill está **`.claude/skills/mycelium-excalidraw/dibujo.mjs`**, un generador sin
+dependencias que hace la geometría: tamaño de cada forma según su texto, extremos de
+flecha sobre el borde, enlaces recíprocos, marcos y escritura atómica.
 
-```js
-// dibujo.mjs — generador de dibujos .excalidraw para Mycelium
-import fs from "node:fs";
+1. Copialo a un directorio temporal **fuera del vault** (`$TMPDIR`, `/tmp` o
+   `%TEMP%`), y escribí ahí tu script, que lo importa con `./dibujo.mjs`:
 
-const GAP = 8; // separación entre la punta de la flecha y el borde de la forma
-const ANCHO = { 1: 0.6, 2: 0.55, 3: 0.6, 5: 0.6, 6: 0.55, 8: 0.6 }; // ancho por carácter / fontSize (con margen)
-const ALTO = { 1: 1.25, 2: 1.15, 3: 1.2, 5: 1.25, 6: 1.35, 8: 1.25 }; // lineHeight de cada fuente
-const azar = () => Math.floor(Math.random() * 2 ** 31);
+   ```sh
+   cp .claude/skills/mycelium-excalidraw/dibujo.mjs "$TMPDIR/"
+   ```
 
-export function medir(texto, fontSize = 20, fontFamily = 5) {
-  const lineas = texto.split("\n");
-  return {
-    w: Math.ceil(Math.max(...lineas.map((l) => [...l].length)) * fontSize * ANCHO[fontFamily]),
-    h: Math.ceil(lineas.length * fontSize * ALTO[fontFamily]),
-  };
-}
+2. Corré el script **desde la raíz del vault**, así las rutas que le pasás a
+   `guardar` son relativas al vault:
 
-/** Tamaño de forma para que la etiqueta entre con aire (inverso del área útil de Excalidraw). */
-export function tamanoPara(tipo, texto, fontSize = 20, fontFamily = 5) {
-  const m = medir(texto, fontSize, fontFamily);
-  if (tipo === "ellipse") return { w: Math.ceil((m.w + 30) * 1.42), h: Math.ceil((m.h + 20) * 1.42) };
-  if (tipo === "diamond") return { w: Math.ceil(2 * (m.w + 30)), h: Math.ceil(2 * (m.h + 20)) };
-  return { w: m.w + 40, h: m.h + 30 };
-}
+   ```sh
+   node "$TMPDIR/pedido.mjs"
+   ```
 
-export const centro = (f) => ({ x: f.x + f.width / 2, y: f.y + f.height / 2 });
-
-/** Distancia del centro al borde de la forma en la dirección unitaria (dx, dy). */
-function alBorde(f, dx, dy) {
-  const a = f.width / 2, b = f.height / 2;
-  if (f.type === "ellipse") return 1 / Math.sqrt((dx / a) ** 2 + (dy / b) ** 2);
-  if (f.type === "diamond") return 1 / (Math.abs(dx) / a + Math.abs(dy) / b);
-  return Math.min(dx ? a / Math.abs(dx) : Infinity, dy ? b / Math.abs(dy) : Infinity);
-}
-
-/** Punto a GAP del borde de `f`, sobre la recta que va del centro de `f` hacia `hacia`. */
-export function puntoDeBorde(f, hacia) {
-  const c = centro(f);
-  const L = Math.hypot(hacia.x - c.x, hacia.y - c.y) || 1;
-  const dx = (hacia.x - c.x) / L, dy = (hacia.y - c.y) / L;
-  const t = alBorde(f, dx, dy) + GAP;
-  return { x: c.x + dx * t, y: c.y + dy * t };
-}
-
-export class Dibujo {
-  constructor(elementos = [], resto = {}) {
-    this.elementos = elementos;
-    this.resto = resto; // appState, files y campos que no tocamos
-    this.n = 0;
-  }
-
-  static desde(ruta) {
-    const texto = fs.readFileSync(ruta, "utf8");
-    const j = texto.trim() ? JSON.parse(texto) : {};
-    const { elements = [], ...resto } = j;
-    return new Dibujo(elements, resto);
-  }
-
-  id(prefijo) {
-    let id;
-    do id = prefijo + "-" + (++this.n) + "-" + azar().toString(36).slice(0, 4);
-    while (this.porId(id));
-    return id;
-  }
-  porId(id) { return this.elementos.find((e) => e.id === id); }
-  /** Forma (o texto suelto) cuyo texto visible es `t`. */
-  buscar(t) {
-    const txt = this.elementos.find((e) => e.type === "text" && !e.isDeleted && e.originalText === t);
-    if (!txt) return undefined;
-    return txt.containerId ? this.porId(txt.containerId) : txt;
-  }
-  textoDe(f) {
-    const b = (f.boundElements || []).find((x) => x.type === "text");
-    return b && this.porId(b.id);
-  }
-
-  base(type, x, y, width, height, extra = {}) {
-    const e = {
-      id: this.id(type), type, x, y, width, height, angle: 0,
-      strokeColor: "#1e1e1e", backgroundColor: "transparent", fillStyle: "solid",
-      strokeWidth: 2, strokeStyle: "solid", roughness: 1, opacity: 100,
-      groupIds: [], frameId: null, roundness: null,
-      seed: azar(), version: 1, versionNonce: azar(), isDeleted: false,
-      boundElements: [], updated: Date.now(), link: null, locked: false,
-      ...extra,
-    };
-    this.elementos.push(e);
-    return e;
-  }
-
-  /** Texto suelto. (x, y) es su esquina superior izquierda. */
-  texto(t, x, y, o = {}) {
-    const fontSize = o.fontSize ?? 20, fontFamily = o.fontFamily ?? 5;
-    const m = medir(t, fontSize, fontFamily);
-    return this.base("text", x, y, m.w, m.h, {
-      text: t, originalText: t, fontSize, fontFamily, textAlign: o.alinear ?? "left",
-      verticalAlign: "top", containerId: null, lineHeight: ALTO[fontFamily], autoResize: true,
-      strokeColor: o.color ?? "#1e1e1e",
-    });
-  }
-
-  /** Forma con etiqueta centrada. (cx, cy) es el CENTRO de la forma. */
-  caja(etiqueta, cx, cy, o = {}) {
-    const type = o.forma ?? "rectangle";
-    const fontSize = o.fontSize ?? 20, fontFamily = o.fontFamily ?? 5;
-    const auto = tamanoPara(type, etiqueta || " ", fontSize, fontFamily);
-    const w = Math.max(o.ancho ?? 0, auto.w), h = Math.max(o.alto ?? 0, auto.h);
-    const f = this.base(type, Math.round(cx - w / 2), Math.round(cy - h / 2), w, h, {
-      strokeColor: o.borde ?? "#1e1e1e", backgroundColor: o.fondo ?? "transparent",
-      roundness: type === "rectangle" ? { type: 3 } : { type: 2 },
-      strokeStyle: o.trazo ?? "solid", roughness: o.rugosidad ?? 1,
-    });
-    if (etiqueta) this.etiquetar(f, etiqueta, { fontSize, fontFamily, color: o.color });
-    return f;
-  }
-
-  /** Texto dentro de un contenedor (forma o flecha): enlace recíproco y centrado. */
-  etiquetar(cont, etiqueta, o = {}) {
-    const fontSize = o.fontSize ?? (cont.type === "arrow" ? 16 : 20), fontFamily = o.fontFamily ?? 5;
-    const m = medir(etiqueta, fontSize, fontFamily);
-    const c = cont.type === "arrow" ? this.medioDeFlecha(cont) : centro(cont);
-    const t = this.base("text", c.x - m.w / 2, c.y - m.h / 2, m.w, m.h, {
-      text: etiqueta, originalText: etiqueta, fontSize, fontFamily,
-      textAlign: "center", verticalAlign: "middle", containerId: cont.id,
-      lineHeight: ALTO[fontFamily], autoResize: true, strokeColor: o.color ?? "#1e1e1e",
-      groupIds: [...cont.groupIds], frameId: cont.frameId,
-    });
-    cont.boundElements = [...(cont.boundElements || []), { id: t.id, type: "text" }];
-    return t;
-  }
-
-  medioDeFlecha(a) {
-    const p = a.points, n = p.length;
-    if (n % 2 === 1) { const q = p[(n - 1) / 2]; return { x: a.x + q[0], y: a.y + q[1] }; }
-    const q1 = p[n / 2 - 1], q2 = p[n / 2];
-    return { x: a.x + (q1[0] + q2[0]) / 2, y: a.y + (q1[1] + q2[1]) / 2 };
-  }
-
-  /**
-   * Flecha enlazada de `desde` a `hasta` (formas). `o.via`: puntos intermedios
-   * absolutos [{x,y}] para rodear obstáculos; `o.etiqueta`; `o.trazo`: "dashed".
-   */
-  flecha(desde, hasta, o = {}) {
-    const a = this.base("arrow", 0, 0, 0, 0, {
-      points: [[0, 0], [1, 1]], roundness: o.via ? null : { type: 2 },
-      strokeColor: o.color ?? "#1e1e1e", strokeStyle: o.trazo ?? "solid",
-      startBinding: { elementId: desde.id, focus: 0, gap: GAP },
-      endBinding: { elementId: hasta.id, focus: 0, gap: GAP },
-      startArrowhead: o.puntaInicio ?? null, endArrowhead: o.puntaFin === undefined ? "arrow" : o.puntaFin,
-      elbowed: false,
-    });
-    desde.boundElements = [...(desde.boundElements || []), { id: a.id, type: "arrow" }];
-    hasta.boundElements = [...(hasta.boundElements || []), { id: a.id, type: "arrow" }];
-    this.trazar(a, o.via ?? []);
-    if (o.etiqueta) this.etiquetar(a, o.etiqueta, { fontFamily: o.fontFamily, color: o.color });
-    return a;
-  }
-
-  /** Recalcula los extremos de una flecha enlazada (después de mover sus formas). */
-  trazar(a, via) {
-    const s = a.startBinding && this.porId(a.startBinding.elementId);
-    const e = a.endBinding && this.porId(a.endBinding.elementId);
-    const abs = a.points.map(([px, py]) => ({ x: a.x + px, y: a.y + py }));
-    const medio = via ?? abs.slice(1, -1);
-    const fin0 = e ? centro(e) : abs[abs.length - 1];
-    const ini0 = s ? centro(s) : abs[0];
-    const p1 = s ? puntoDeBorde(s, medio[0] ?? fin0) : ini0;
-    const p2 = e ? puntoDeBorde(e, medio[medio.length - 1] ?? ini0) : fin0;
-    const todos = [p1, ...medio, p2];
-    a.x = p1.x; a.y = p1.y;
-    a.points = todos.map((p) => [p.x - p1.x, p.y - p1.y]);
-    const xs = a.points.map((p) => p[0]), ys = a.points.map((p) => p[1]);
-    a.width = Math.max(...xs) - Math.min(...xs);
-    a.height = Math.max(...ys) - Math.min(...ys);
-    this.tocar(a);
-    const t = this.textoDe(a);
-    if (t) { const c = this.medioDeFlecha(a); t.x = c.x - t.width / 2; t.y = c.y - t.height / 2; this.tocar(t); }
-  }
-
-  /** Mueve una forma con su texto y reengancha sus flechas. */
-  mover(f, dx, dy) {
-    f.x += dx; f.y += dy; this.tocar(f);
-    const t = this.textoDe(f);
-    if (t) { t.x += dx; t.y += dy; this.tocar(t); }
-    for (const b of f.boundElements || []) {
-      const a = this.porId(b.id);
-      if (a && a.type === "arrow") this.trazar(a, null);
-    }
-  }
-
-  /** Borra una forma, su texto y las flechas que la tocan, limpiando las referencias. */
-  borrar(f) {
-    const fuera = new Set([f.id]);
-    for (const b of f.boundElements || []) fuera.add(b.id);
-    for (const id of [...fuera]) { const x = this.porId(id); const t = x && x.type === "arrow" && this.textoDe(x); if (t) fuera.add(t.id); }
-    this.elementos = this.elementos.filter((e) => !fuera.has(e.id));
-    for (const e of this.elementos) {
-      if (e.boundElements && e.boundElements.some((b) => fuera.has(b.id))) {
-        e.boundElements = e.boundElements.filter((b) => !fuera.has(b.id)); this.tocar(e);
-      }
-    }
-  }
-
-  tocar(e) { e.version = (e.version || 1) + 1; e.versionNonce = azar(); e.updated = Date.now(); }
-
-  /** Agrupa formas (con su texto): se seleccionan y mueven juntas. */
-  agrupar(formas) {
-    const g = this.id("grupo");
-    for (const f of formas) { f.groupIds = [...f.groupIds, g]; const t = this.textoDe(f); if (t) t.groupIds = [...t.groupIds, g]; }
-    return g;
-  }
-
-  /** Marco con nombre alrededor de `formas` (con margen). Va al final: se dibuja detrás. */
-  marco(nombre, formas, margen = 40) {
-    const x1 = Math.min(...formas.map((f) => f.x)) - margen, y1 = Math.min(...formas.map((f) => f.y)) - margen;
-    const x2 = Math.max(...formas.map((f) => f.x + f.width)) + margen, y2 = Math.max(...formas.map((f) => f.y + f.height)) + margen;
-    const m = this.base("frame", x1, y1, x2 - x1, y2 - y1, { name: nombre, roughness: 0, strokeWidth: 2 });
-    for (const f of formas) { f.frameId = m.id; const t = this.textoDe(f); if (t) t.frameId = m.id; }
-    return m;
-  }
-
-  guardar(ruta) {
-    const j = { type: "excalidraw", version: 2, source: "mycelium", ...this.resto, elements: this.elementos };
-    j.appState = j.appState ?? {}; j.files = j.files ?? {};
-    const tmp = ruta + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(j, null, 2));
-    fs.renameSync(tmp, ruta); // escritura atómica: Mycelium nunca ve un JSON a medias
-  }
-}
-```
-
-Resumen de uso:
+No escribas scripts ni copias del generador dentro del vault: el usuario los vería
+como archivos suyos.
 
 | Llamada | Qué hace |
 |---|---|
-| `d.caja(etiqueta, cx, cy, { forma, ancho, alto, fondo, borde, trazo, rugosidad, fontSize, fontFamily })` | Forma con su etiqueta; `(cx, cy)` es el **centro**; el tamaño se ajusta solo al texto (`ancho`/`alto` son mínimos) |
-| `d.texto(t, x, y, { fontSize, fontFamily, color })` | Texto suelto; `(x, y)` es su esquina |
-| `d.flecha(a, b, { etiqueta, via, trazo, color, puntaFin, puntaInicio, fontFamily })` | Flecha enganchada a las dos formas, extremos calculados |
-| `d.marco(nombre, formas, margen)` / `d.agrupar(formas)` | Zona con nombre / grupo |
-| `Dibujo.desde(ruta)`, `d.buscar(texto)`, `d.mover(f, dx, dy)`, `d.borrar(f)` | Modificar uno existente |
-| `d.guardar(ruta)` | Escribe el archivo de una vez |
+| `new Dibujo()` / `Dibujo.desde(ruta)` | Dibujo nuevo / uno existente, conservando todo lo que no toques |
+| `d.caja(etiqueta, cx, cy, o)` | Forma con su etiqueta. `(cx, cy)` es el **centro** (se redondea a entero). Opciones: `forma` (`"rectangle"`, `"ellipse"`, `"diamond"`), `ancho`, `alto`, `fondo`, `borde`, `trazo`, `rugosidad`, `fontSize`, `fontFamily`, `color`. El tamaño sale del texto; **`ancho` y `alto` son mínimos**: la forma crece si el texto no entra |
+| `d.junto(ref, lado, etiqueta, o)` | Forma nueva `"abajo"`, `"arriba"`, `"derecha"` o `"izquierda"` de `ref`, alineada con su centro y a `o.sep` px entre bordes (por defecto la regla 6: 50 en vertical, 60 en horizontal; pasá `sep: 120` si la flecha que las une lleva etiqueta). Mismas opciones que `caja` |
+| `d.texto(t, x, y, o)` | Texto suelto; `(x, y)` es su esquina. Opciones: `fontSize`, `fontFamily`, `color`, `alinear` |
+| `d.flecha(a, b, o)` | Flecha enganchada de `a` a `b` (formas o textos sueltos). Opciones: `etiqueta`, `via` (puntos intermedios absolutos `[{x, y}]`, tramos rectos), `curva` (con `via`, curva en vez de tramos rectos), `trazo`, `color`, `puntaFin`, `puntaInicio`, `fontFamily`. Si `a` y `b` están en el mismo marco, la flecha también |
+| `d.trazar(flecha, via)` | Recalcula los extremos y recoloca la etiqueta. Con `via` nuevo, rehace el recorrido; sin él, conserva los puntos intermedios; `trazar(f, [])` la deja recta |
+| `d.mover(forma o [formas], dx, dy)` | Mueve formas con su texto y reengancha sus flechas (ver «Modificar») |
+| `d.reconectar(flecha, { desde, hasta, via })` | Cambia una punta (o las dos) a otra forma: binding, `boundElements` de la forma vieja y de la nueva, y el trazo (recto, salvo que pases `via`) |
+| `d.borrar(forma)` | Borra la forma, su texto y sus flechas (con sus etiquetas), y limpia las referencias |
+| `d.marco(nombre, formas, margen)` | Marco alrededor de las formas. Las flechas entre ellas, creadas antes o después, quedan adentro |
+| `d.enMarco(marco, formas, margen)` / `d.encuadrar(marco, margen)` | Mete formas a un marco existente / lo ajusta a sus hijos. Los dos reasignan las flechas: adentro las que unen dos hijos, afuera las que cruzan el borde |
+| `d.agrupar(formas)` | Grupo: se seleccionan y mueven juntas |
+| `d.buscar(texto)` | La forma cuya etiqueta es `texto` (o el texto suelto). Ignora saltos de línea y espacios repetidos, y si no hay coincidencia exacta, mayúsculas. Si hay dos iguales, falla: usá `porId` |
+| `d.porId(id)`, `d.textoDe(forma)`, `d.formas()`, `d.flechasEntre(a, b)`, `d.via(flecha)` | Consultas: elemento por id, la etiqueta de una forma o flecha, todas las formas, las flechas de `a` a `b`, los puntos intermedios absolutos de una flecha |
+| `d.tocar(e)` | Marca un elemento como modificado (`version`, `versionNonce`, `updated`). Hacelo si cambiás un campo a mano |
+| `d.guardar(ruta)` | Escribe el archivo de una vez (a un temporal y `rename`) |
+| `tamanoPara(tipo, texto, fontSize, fontFamily)`, `medir(texto, …)`, `centro(f)`, `SEP_H`, `SEP_V` | Tamaño de una forma para un texto (antes de crearla), tamaño del texto solo, centro de una forma, separaciones de la regla 6 |
 
 Con `caja` las etiquetas quedan adentro y con `flecha` los enlaces quedan
 recíprocos y los extremos en el borde. **Lo que el generador no hace es la
@@ -515,100 +355,156 @@ disposición**: los centros los elegís vos, con las reglas de «Disposiciones»
 
 ## Recetas
 
-Cada receta es el script que importa el generador. Todas pasan el validador
-y se comprobaron cargándolas en Excalidraw.
+Cada receta es un script que importa el generador. Todas pasan el validador sin
+avisos y se comprobaron cargándolas en Excalidraw.
 
 ### Flujo con decisión (y un retorno)
 
 ```js
 import { Dibujo, centro } from "./dibujo.mjs";
 const d = new Dibujo();
-d.texto("Proceso de pedido", 180, 40, { fontSize: 28 });
-const ini = d.caja("Inicio", 300, 130, { forma: "ellipse", fondo: "#b2f2bb" });
-const rec = d.caja("Recibir pedido", 300, 250, { fondo: "#a5d8ff" });
-const dec = d.caja("¿Hay stock?", 300, 400, { forma: "diamond", fondo: "#ffec99" });
-const env = d.caja("Preparar envío", 300, 600, { fondo: "#a5d8ff" });
-const fin = d.caja("Fin", 300, 720, { forma: "ellipse", fondo: "#ffc9c9" });
-const pro = d.caja("Pedir al\nproveedor", 720, 400, { fondo: "#d0bfff" });
+d.texto("Proceso de pedido", 80, 60, { fontSize: 28 });           // solo si no va embebido: arriba a la izquierda
+const ini = d.caja("Inicio", 300, 170, { forma: "ellipse", fondo: "#b2f2bb" });
+const rec = d.junto(ini, "abajo", "Recibir pedido", { fondo: "#a5d8ff" });
+const dec = d.junto(rec, "abajo", "¿Hay stock?", { forma: "diamond", fondo: "#ffec99" });
+const env = d.junto(dec, "abajo", "Preparar envío", { fondo: "#a5d8ff", sep: 120 }); // su flecha lleva etiqueta
+const fin = d.junto(env, "abajo", "Fin", { forma: "ellipse", fondo: "#ffc9c9" });
+const pro = d.junto(dec, "derecha", "Pedir al\nproveedor", { fondo: "#d0bfff", sep: 160 });
 d.flecha(ini, rec);
 d.flecha(rec, dec);
-d.flecha(dec, env, { etiqueta: "sí" });  // 200 px entre centros: sobra lugar para la etiqueta
+d.flecha(dec, env, { etiqueta: "sí" });
 d.flecha(env, fin);
 d.flecha(dec, pro, { etiqueta: "no" });
 // retorno: sale por la derecha, sube por afuera y entra a «Recibir pedido» por la derecha;
 // dos puntos intermedios → la etiqueta cae en el tramo vertical, no en un codo
 const cp = centro(pro), cr = centro(rec), xr = pro.x + pro.width + 60;
 d.flecha(pro, rec, { via: [{ x: xr, y: cp.y }, { x: xr, y: cr.y }], trazo: "dashed", etiqueta: "cuando\nllega" });
-d.guardar("Procesos/Pedido.excalidraw");
+d.guardar("Procesos/Pedido (flujo).excalidraw");
 ```
 
 ### Árbol u organigrama
 
 ```js
-import { Dibujo, tamanoPara } from "./dibujo.mjs";
+import { Dibujo, tamanoPara, SEP_H } from "./dibujo.mjs";
 const d = new Dibujo();
 const arbol = { t: "Dirección", h: [
   { t: "Producto", h: [{ t: "Diseño" }, { t: "Desarrollo" }] },
   { t: "Operaciones", h: [{ t: "Soporte" }, { t: "Finanzas" }, { t: "Personas" }] },
 ] };
-const SEP = 40, NIVEL = 150;
-const ancho = (n) => n.h ? Math.max(tamanoPara("rectangle", n.t).w, n.h.reduce((s, h) => s + ancho(h), 0) + SEP * (n.h.length - 1)) : tamanoPara("rectangle", n.t).w;
-function colocar(n, x0, nivel) {                 // x0 = borde izquierdo del subárbol
+const NIVEL = 140;                                   // entre centros de niveles: cajas de ~56 px + 84 de aire
+const propio = (n) => tamanoPara("rectangle", n.t).w;
+const hijos = (n) => (n.h ?? []).reduce((s, h) => s + ancho(h), 0) + SEP_H * ((n.h?.length ?? 1) - 1);
+const ancho = (n) => Math.max(propio(n), n.h ? hijos(n) : 0);  // ancho del subárbol, entre bordes
+function colocar(n, x0, nivel) {                      // x0 = borde izquierdo del subárbol
   const w = ancho(n);
-  const f = d.caja(n.t, x0 + w / 2, 150 + nivel * NIVEL, { fondo: nivel ? "#e9ecef" : "#a5d8ff" });
-  let x = x0 + (w - (n.h ?? []).reduce((s, h) => s + ancho(h), 0) - SEP * ((n.h?.length ?? 1) - 1)) / 2;
-  for (const h of n.h ?? []) { const fh = colocar(h, x, nivel + 1); d.flecha(f, fh); x += ancho(h) + SEP; }
+  const f = d.caja(n.t, x0 + w / 2, 120 + nivel * NIVEL, { fondo: nivel ? "#e9ecef" : "#a5d8ff" });
+  let x = x0 + (w - hijos(n)) / 2;
+  for (const h of n.h ?? []) { d.flecha(f, colocar(h, x, nivel + 1)); x += ancho(h) + SEP_H; }
   return f;
 }
 colocar(arbol, 80, 0);
 d.guardar("Equipo/Organigrama.excalidraw");
 ```
 
+### Organigrama compacto (muchas hojas)
+
+Con una docena de hojas en el último nivel, el árbol de arriba mide ~3000 px de
+ancho y no se lee. Acá las hojas se **apilan** debajo de su jefe, colgadas de una
+línea vertical, y los jefes cuelgan de un **bus** horizontal:
+
+```js
+import { Dibujo, tamanoPara, centro, SEP_H, SEP_V } from "./dibujo.mjs";
+const d = new Dibujo();
+const areas = [
+  ["Producto", ["Diseño", "Desarrollo", "Calidad"]],
+  ["Operaciones", ["Soporte", "Finanzas", "Personas", "Compras"]],
+  ["Comercial", ["Ventas", "Marketing", "Alianzas", "Eventos"]],
+];
+const SANGRIA = 30;                                   // las hojas cuelgan 30 px a la derecha de la línea del jefe
+const hoja = (t) => tamanoPara("rectangle", t, 16);
+const cols = areas.map(([g, hs]) => {
+  const wg = tamanoPara("rectangle", g).w, wh = Math.max(...hs.map((h) => hoja(h).w));
+  return { g, hs, wh, izq: wg / 2, der: Math.max(wg / 2, SANGRIA + wh) }; // cuánto ocupa a cada lado de su centro
+});
+const total = cols.reduce((s, c) => s + c.izq + c.der, 0) + SEP_H * (cols.length - 1);
+const raiz = d.caja("Dirección", 80 + total / 2, 120, { fondo: "#a5d8ff" });
+const yG = 260, yBus = (raiz.y + raiz.height + yG - 28) / 2;          // el bus corre entre la raíz y los jefes
+let x = 80;
+for (const c of cols) {
+  const cx = x + c.izq;
+  const g = d.caja(c.g, cx, yG, { fondo: "#e9ecef" });
+  d.flecha(raiz, g, { via: [{ x: centro(raiz).x, y: yBus }, { x: cx, y: yBus }] }); // bus ortogonal
+  let y = g.y + g.height + SEP_V;
+  for (const t of c.hs) {
+    const hh = hoja(t).h;
+    const f = d.caja(t, cx + SANGRIA + c.wh / 2, y + hh / 2, { fontSize: 16, ancho: c.wh });
+    d.flecha(g, f, { via: [{ x: cx, y: y + hh / 2 }] }); // baja por la línea del jefe y entra por la izquierda
+    y += hh + SEP_V;
+  }
+  x += c.izq + c.der + SEP_H;
+}
+d.guardar("Equipo/Organigrama compacto.excalidraw");
+```
+
 ### Mapa mental
 
 ```js
-import { Dibujo } from "./dibujo.mjs";
+import { Dibujo, tamanoPara, SEP_V } from "./dibujo.mjs";
 const d = new Dibujo();
-const C = { x: 700, y: 440 };
-const raiz = d.caja("Mycelium", C.x, C.y, { forma: "ellipse", fondo: "#ffec99", fontSize: 28 });
 const ramas = [["Notas", ["Markdown", "Propiedades"]], ["Grafo", ["Hubs", "Huérfanas"]],
-  ["Dibujos", ["Excalidraw", "draw.io"]], ["IA", ["Skills", "Memoria"]],
-  ["Tablas", [".base"]], ["Calendario", ["Recordatorios"]]];
+  ["Dibujos", ["Excalidraw", "draw.io"]], ["IA", ["Skills", "Memoria"]], ["Tablas", [".base"]]];
 const colores = ["#a5d8ff", "#b2f2bb", "#ffc9c9", "#d0bfff", "#ffd8a8", "#c3fae8"];
-ramas.forEach(([nombre, hojas], i) => {
-  const ang = (i / ramas.length) * 2 * Math.PI - Math.PI / 2;   // la primera, arriba
-  const cos = Math.cos(ang), sin = Math.sin(ang);
-  const hx = C.x + 300 * cos, hy = C.y + 190 * sin;             // elipse 300 × 190
-  const h = d.caja(nombre, hx, hy, { fondo: colores[i] });
-  d.flecha(raiz, h, { puntaFin: null });                         // línea sin punta
-  hojas.forEach((hoja, j) => {
-    const k = j - (hojas.length - 1) / 2;
-    const [lx, ly] = Math.abs(cos) >= 0.5
-      ? [hx + Math.sign(cos) * 230, hy + k * 70]                // rama al costado: hojas en columna
-      : [hx + k * 170, hy + Math.sign(sin) * 120];              // rama arriba/abajo: hojas en fila
-    d.flecha(h, d.caja(hoja, lx, ly, { fontSize: 16, trazo: "dashed" }), { puntaFin: null });
-  });
+const H = 100;                                                     // entre columnas: ≥ 60 y lugar para la curva
+const tRama = (t) => tamanoPara("rectangle", t), tHoja = (t) => tamanoPara("rectangle", t, 16);
+const altoHojas = (hs) => hs.reduce((s, h) => s + tHoja(h).h, 0) + SEP_V * (hs.length - 1);
+const altoRama = ([r, hs]) => Math.max(tRama(r).h, altoHojas(hs));
+const alto = (rs) => rs.reduce((s, r) => s + altoRama(r), 0) + SEP_V * (rs.length - 1);
+const lados = [ramas.filter((_, i) => i % 2 === 0), ramas.filter((_, i) => i % 2 === 1)]; // derecha, izquierda
+const wRama = Math.max(...ramas.map(([r]) => tRama(r).w));
+const wHoja = Math.max(...ramas.flatMap(([, hs]) => hs.map((h) => tHoja(h).w)));
+const wRaiz = tamanoPara("ellipse", "Mycelium", 28).w;
+const C = { x: 80 + wHoja + H + wRama + H + wRaiz / 2, y: 100 + Math.max(...lados.map(alto)) / 2 };
+const raiz = d.caja("Mycelium", C.x, C.y, { forma: "ellipse", fondo: "#ffec99", fontSize: 28 });
+lados.forEach((rs, lado) => {
+  const s = lado === 0 ? 1 : -1;
+  const xR = C.x + s * (wRaiz / 2 + H + wRama / 2), xH = xR + s * (wRama / 2 + H + wHoja / 2);
+  let y = C.y - alto(rs) / 2;                                      // borde superior de la banda de la rama
+  for (const rama of rs) {
+    const [nombre, hojas] = rama, a = altoRama(rama), cy = y + a / 2;
+    const r = d.caja(nombre, xR, cy, { fondo: colores[ramas.indexOf(rama)], ancho: wRama });
+    // curva que pasa por la mitad del hueco, a la altura de la rama, y entra de costado
+    d.flecha(raiz, r, { puntaFin: null, curva: true, via: [{ x: xR - s * (wRama / 2 + H / 2), y: cy }] });
+    let yh = cy - altoHojas(hojas) / 2;
+    for (const t of hojas) {
+      const hh = tHoja(t).h;
+      const f = d.caja(t, xH, yh + hh / 2, { fontSize: 16, trazo: "dashed", ancho: wHoja });
+      d.flecha(r, f, { puntaFin: null, curva: true, via: [{ x: xH - s * (wHoja / 2 + H / 2), y: yh + hh / 2 }] });
+      yh += hh + SEP_V;
+    }
+    y += a + SEP_V;
+  }
 });
-d.guardar("Mapas/Mycelium.excalidraw");
+d.guardar("Mapas/Mycelium (mapa).excalidraw");
 ```
 
-### Arquitectura: cajas, zona y flechas etiquetadas
+### Arquitectura: cajas, marco y flechas etiquetadas
 
 ```js
 import { Dibujo } from "./dibujo.mjs";
 const d = new Dibujo();
-const tec = { rugosidad: 0, fontFamily: 6 };                     // trazo prolijo, letra Nunito
-const web = d.caja("Navegador", 140, 300, { ...tec, fondo: "#e9ecef" });
-const api = d.caja("API REST", 520, 180, { ...tec, fondo: "#a5d8ff", ancho: 200 });
-const auth = d.caja("Servicio de\nautenticación", 520, 420, { ...tec, fondo: "#d0bfff", ancho: 200 });
-const db = d.caja("PostgreSQL", 880, 300, { ...tec, forma: "ellipse", fondo: "#b2f2bb" });
-d.marco("Backend", [api, auth, db], 50);
-d.flecha(web, api, { etiqueta: "HTTPS", fontFamily: 6 });
-d.flecha(api, auth, { etiqueta: "valida token", trazo: "dashed", fontFamily: 6 });
+const tec = { rugosidad: 0, fontFamily: 6 };                        // trazo prolijo, letra Nunito
+d.texto("Arquitectura del backend", 80, 60, { fontSize: 28, fontFamily: 6 }); // encima del marco, no al revés
+const web = d.caja("Navegador", 160, 360, { ...tec, fondo: "#e9ecef" });
+const api = d.caja("API REST", 520, 240, { ...tec, fondo: "#a5d8ff", ancho: 200 });
+const auth = d.caja("Servicio de\nautenticación", 520, 480, { ...tec, fondo: "#d0bfff", ancho: 200 });
+const db = d.caja("PostgreSQL", 880, 360, { ...tec, forma: "ellipse", fondo: "#b2f2bb" });
+d.marco("Nube", [api, auth, db], 50);
+d.flecha(web, api, { etiqueta: "HTTPS", fontFamily: 6 });           // cruza el borde: queda fuera del marco
+d.flecha(api, auth, { etiqueta: "valida token", trazo: "dashed", fontFamily: 6 }); // adentro: va al marco
 d.flecha(api, db, { etiqueta: "SQL", fontFamily: 6 });
 d.flecha(auth, db);
 d.agrupar([api, auth]);
-d.guardar("Arquitectura/Backend.excalidraw");
+d.guardar("Arquitectura/Backend (esquema).excalidraw");
 ```
 
 ### Boceto anotado (una pantalla con notas al margen)
@@ -616,13 +512,13 @@ d.guardar("Arquitectura/Backend.excalidraw");
 ```js
 import { Dibujo } from "./dibujo.mjs";
 const d = new Dibujo();
-d.caja("", 400, 320, { ancho: 360, alto: 440, rugosidad: 2 });  // la pantalla contiene al resto
-const barra = d.caja("Buscar…", 400, 150, { ancho: 300, alto: 50, fontSize: 16 });
-d.caja("Resultados", 400, 320, { ancho: 300, alto: 220, fontSize: 16, fondo: "#e9ecef" });
-const boton = d.caja("Guardar", 400, 490, { ancho: 140, alto: 50, fondo: "#a5d8ff", fontSize: 16 });
-const n1 = d.texto("La búsqueda filtra\nmientras escribís", 700, 110, { color: "#e03131", fontSize: 16 });
-const n2 = d.texto("Botón principal:\nun solo color fuerte", 700, 480, { color: "#e03131", fontSize: 16 });
-d.flecha(n1, barra, { color: "#e03131" });                       // un texto suelto también se engancha
+d.caja("", 320, 360, { ancho: 380, alto: 480, rugosidad: 2 });       // la pantalla contiene al resto
+const barra = d.caja("Buscar…", 320, 180, { ancho: 300, alto: 50, fontSize: 16 });
+d.caja("Resultados", 320, 340, { ancho: 300, alto: 170, fontSize: 16, fondo: "#e9ecef" });
+const boton = d.caja("Guardar", 320, 530, { ancho: 140, alto: 50, fondo: "#a5d8ff", fontSize: 16 });
+const n1 = d.texto("La búsqueda filtra\nmientras escribís", 620, 140, { color: "#e03131", fontSize: 16 });
+const n2 = d.texto("Botón principal:\nun solo color fuerte", 620, 510, { color: "#e03131", fontSize: 16 });
+d.flecha(n1, barra, { color: "#e03131" });                          // un texto suelto también se engancha
 d.flecha(n2, boton, { color: "#e03131" });
 d.guardar("Diseño/Pantalla de búsqueda.excalidraw");
 ```
@@ -634,11 +530,45 @@ flechas: `startBinding.elementId` → `endBinding.elementId`, resolviendo cada i
 forma y cada forma a su texto (`boundElements` de tipo `text`). Ignorá lo que tenga
 `isDeleted: true`.
 
-**Modificar** con el generador, que conserva todo lo que no toca:
+**Modificar** con el generador, que conserva todo lo que no toca. Los ids nuevos
+siguen la numeración de los que ya hay.
+
+`mover` corre la forma, su texto y reengancha sus flechas. Con los **puntos
+intermedios** de esas flechas hace esto:
+
+- si las dos puntas de la flecha se mueven juntas (pasale un array de formas),
+  corre todos los puntos lo mismo;
+- si se mueve una sola punta, el punto intermedio **vecino** a esa punta copia el
+  desplazamiento en el eje en que estaba **alineado** con el centro de la forma
+  (mismo `x` o mismo `y`): un retorno con codos sigue siendo ortogonal;
+- si el recorrido igual queda mal (la forma pasó al otro lado), rehacelo con
+  `d.trazar(flecha, via)`.
+
+### Insertar un paso entre A y B
+
+```js
+import { Dibujo, centro, tamanoPara } from "./dibujo.mjs";
+const ruta = "Procesos/Pedido (flujo).excalidraw";
+const d = Dibujo.desde(ruta);
+const a = d.buscar("Recibir pedido"), b = d.buscar("¿Hay stock?");
+const [f] = d.flechasEntre(a, b);
+const hueco = b.y - (a.y + a.height);                                 // aire actual entre A y B (flujo vertical)
+const h = tamanoPara("rectangle", "Validar pago").h;
+// 1. correr hacia abajo todo lo que está debajo de A (sus flechas y retornos se reenganchan solos)
+d.mover(d.formas().filter((x) => centro(x).y > centro(a).y), 0, h + hueco);
+// 2. el paso nuevo, donde estaba B, con el mismo aire arriba y abajo
+const v = d.caja("Validar pago", centro(a).x, a.y + a.height + hueco + h / 2, { fondo: "#a5d8ff" });
+// 3. la flecha A→B pasa a ser A→nuevo (conserva su etiqueta, si tenía) y se agrega nuevo→B
+d.reconectar(f, { hasta: v });
+d.flecha(v, b);
+d.guardar(ruta);
+```
+
+### Mover una forma y agregar otra a un marco
 
 ```js
 import { Dibujo, centro } from "./dibujo.mjs";
-const ruta = "Arquitectura/Backend.excalidraw";
+const ruta = "Arquitectura/Backend (esquema).excalidraw";
 const d = Dibujo.desde(ruta);
 const db = d.buscar("PostgreSQL");                 // forma por el texto de su etiqueta
 const api = d.buscar("API REST");
@@ -646,12 +576,8 @@ d.mover(db, 0, 140);                               // mueve su texto y reenganch
 const c = centro(db);
 const redis = d.caja("Caché Redis", c.x, c.y - 260, { forma: "ellipse", fondo: "#ffc9c9", rugosidad: 0, fontFamily: 6 });
 d.flecha(api, redis, { etiqueta: "lee", fontFamily: 6 });
-// si la forma nueva va dentro de un marco: frameId en ella y en su texto, y el marco la abarca
-const marco = d.elementos.find((e) => e.type === "frame" && e.name === "Backend");
-redis.frameId = marco.id; d.textoDe(redis).frameId = marco.id;
-marco.width = Math.max(marco.width, redis.x + redis.width + 50 - marco.x);
-marco.height = Math.max(marco.height, db.y + db.height + 50 - marco.y);
-d.tocar(marco);
+const marco = d.elementos.find((e) => e.type === "frame" && e.name === "Nube");
+d.enMarco(marco, [redis], 50);                     // la mete al marco, lo agranda y reasigna las flechas
 d.guardar(ruta);
 ```
 
@@ -659,15 +585,16 @@ Qué arrastra cada cambio (lo hace el generador; si editás a mano, hacelo vos):
 
 | Cambio | Además hay que… |
 |---|---|
-| Mover una forma | mover su texto lo mismo y **recalcular los extremos de cada flecha** de sus `boundElements` (y la posición de la etiqueta de esa flecha) |
+| Mover una forma | mover su texto lo mismo y **recalcular los extremos de cada flecha** de sus `boundElements` (y la posición de la etiqueta de esa flecha); correr los puntos intermedios que dependían de ella |
 | Agrandar una forma | recentrar su texto y recalcular sus flechas |
 | Cambiar una etiqueta | `text` y `originalText`, `width`/`height` del texto, recentrarlo, y agrandar la forma si no entra |
 | Reconectar una flecha | sacarla de `boundElements` de la forma vieja, agregarla a la nueva, cambiar el binding y recalcular sus extremos |
 | Borrar una forma | borrar su texto y sus flechas (con sus etiquetas), y **sacar esos ids** de los `boundElements` de las demás formas |
+| Agregar o mover algo dentro de un marco | `frameId` en la forma, su texto y las flechas internas; agrandar el marco para que la abarque |
 | Cualquier cambio | `version` + 1, `versionNonce` nuevo, `updated` = ahora |
 
 Antes de agregar algo, buscá lugar libre: calculá la caja envolvente de lo
-existente y ubicá lo nuevo a ≥ 60 px de todo, o corré las formas vecinas.
+existente y ubicá lo nuevo respetando la regla 6, o corré las formas vecinas.
 
 ## Verificar
 
@@ -680,15 +607,16 @@ existente y ubicá lo nuevo a ≥ 60 px de todo, o corré las formas vecinas.
    Comprueba el JSON y la forma del archivo, ids únicos, campos obligatorios por
    tipo, enlaces recíprocos (flecha↔forma, texto↔contenedor) y a elementos que
    existen, extremos de flecha sobre el borde de su forma, `points`, texto que no
-   entra, formas encimadas, flechas que atraviesan formas ajenas y dibujos lejos
-   del origen. Sale con código 1 si hay **errores**: corregilos todos. Los
+   entra, formas encimadas o más juntas que la regla 6, etiquetas de flecha sin
+   lugar o sobre un codo, hijos que se salen de su marco, flechas que atraviesan
+   formas ajenas y dibujos demasiado grandes para leerse. Sale con código 1 si hay **errores**: corregilos todos. Los
    **avisos** son cosas que se ven mal pero no rompen; resolvelos salvo que sean
    deliberados. Acepta varias rutas o una carpeta.
 2. **Repasá la disposición** con los números: ¿las filas y columnas están
-   alineadas?, ¿las flechas etiquetadas miden ≥ 120 px?, ¿el dibujo empieza cerca
-   de (80, 100)?
-3. Si el dibujo es para una nota, **embebelo** (`![[Nombre.excalidraw]]`) y decile
-   al usuario dónde quedó.
+   alineadas?, ¿hay algo importante arriba de todo, donde lo tapa la barra?, ¿el
+   dibujo empieza cerca de (80, 100)?
+3. Si el dibujo es para una nota, **embebelo** (`![[Nombre.excalidraw]]`, con un
+   nombre que no tenga otro archivo) y decile al usuario dónde quedó.
 
 ## Estilo
 
@@ -721,5 +649,8 @@ existente y ubicá lo nuevo a ≥ 60 px de todo, o corré las formas vecinas.
 | El texto sale de la caja | línea demasiado larga para el área útil (sobre todo en rombos y elipses) |
 | El texto no se mueve con su caja | falta `containerId` en el texto o `{ type: "text" }` en la forma |
 | Un elemento desapareció | tipo desconocido, `width` y `height` en 0, `text` vacío o id repetido |
-| La pantalla abre en blanco | el dibujo está lejos de (0, 0) o en coordenadas negativas |
+| Parte de una flecha o su etiqueta no se ve | la flecha tiene el `frameId` de un marco y cruza su borde: el marco la recorta |
+| El embed dice «No se pudo cargar el diagrama» | no hay dibujo con ese nombre, u otro archivo con el mismo nombre (una nota, otro diagrama) está más cerca de la raíz |
+| El título o el nombre de un marco quedan tapados al abrir | son lo más alto del dibujo y caen bajo la barra de herramientas |
+| Todo se ve diminuto | el dibujo es muy ancho, o hay algo perdido lejos del resto |
 | Lo que dibujó el usuario se perdió | se escribió encima mientras la pestaña tenía cambios sin guardar |
