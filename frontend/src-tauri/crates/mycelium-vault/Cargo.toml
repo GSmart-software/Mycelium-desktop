@@ -1,0 +1,33 @@
+[package]
+name = "mycelium-vault"
+version = "0.1.0"
+description = "Qué es un vault de Mycelium: .mycignore, rutas, tipos de archivo, parsers y el índice de recuperación"
+edition = "2021"
+rust-version = "1.77.2"
+publish = false
+
+# Biblioteca compartida entre la app (Tauri) y el servidor MCP (`FUN-L-09` /
+# `FUN-L-10`). Existe para que «qué es un enlace», «qué es una sección» o «qué
+# ignora el `.mycignore`» se contesten en UN solo lugar: ver
+# `docs/arquitectura/MCP de Mycelium - plan.md` § 3.
+#
+# La parte que escribe SQLite va detrás de la feature `indice`: la app todavía
+# indexa desde el frontend (con `tauri-plugin-sql`), así que hoy solo usa los
+# módulos puros y no tiene por qué compilar rusqlite.
+
+[lib]
+name = "mycelium_vault"
+
+[features]
+default = []
+indice = ["dep:rusqlite"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1"
+sha2 = "0.10"
+# MISMA `libsqlite3-sys` (0.30) que la de sqlx/`tauri-plugin-sql`: el crate
+# declara `links = "sqlite3"` y cargo no admite dos versiones en el mismo
+# workspace. `bundled` compila SQLite con FTS5 activado.
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
