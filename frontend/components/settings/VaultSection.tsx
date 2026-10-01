@@ -9,7 +9,7 @@ import {
   versionInstalada,
 } from "@/lib/ia/framework";
 import { collectFromZip } from "@/lib/import";
-import { asegurarMcpJson, cambiarControl } from "@/lib/mcpControl";
+import { asegurarIntegracion, cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { useBorradoresStore } from "@/stores/borradoresStore";
@@ -144,8 +144,9 @@ export function VaultSection() {
       const conflictos = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
       // Con el control encendido, el framework también registra el servidor
-      // en `.mcp.json` (spec § 4): regenerar deja todo lo de la IA al día.
-      if (controlIa) await asegurarMcpJson(rutaVault);
+      // en `.mcp.json` y el hook de mv/rm en `.claude/settings.json` (spec
+      // § 4): regenerar deja todo lo de la IA al día.
+      if (controlIa) await asegurarIntegracion(rutaVault);
       if (conflictos.length === 0) {
         informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,

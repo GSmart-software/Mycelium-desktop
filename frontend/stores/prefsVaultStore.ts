@@ -80,6 +80,12 @@ export type PrefsVault = {
    * quedó vacío **y** era nuestro: uno del usuario no se toca aunque quede vacío.
    */
   mcpJsonCreado: boolean;
+  /**
+   * Lo mismo para `.claude/settings.json`, donde va el hook que frena `mv` y
+   * `rm` (`FUN-L-09`, Parte 3): si lo creó Mycelium, al apagar el control se
+   * borra cuando queda vacío; si era del usuario, solo se quita nuestra entrada.
+   */
+  settingsCreado: boolean;
 };
 
 /**
@@ -99,6 +105,7 @@ export const POR_DEFECTO: PrefsVault = {
   preferencias: {},
   controlIa: false,
   mcpJsonCreado: false,
+  settingsCreado: false,
 };
 
 /** Si `v` es un objeto plano (no `null`, no una lista). */
@@ -136,6 +143,7 @@ export function normalizar(crudo: unknown): PrefsVault {
     preferencias: esObjeto(o.preferencias) ? { ...o.preferencias } : {},
     controlIa: o.controlIa === true,
     mcpJsonCreado: o.mcpJsonCreado === true,
+    settingsCreado: o.settingsCreado === true,
   };
 }
 
