@@ -270,7 +270,11 @@ const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
  */
 function grafoPorEscaneo({ notas, carpetas, papelera }, { sinAncla = false } = {}) {
   const filas = notas.filter((n) => !papelera.has(n.id));
-  const indice = indexarPorTitulo(filas.map((f) => ({ id: f.id, titulo: f.titulo, carpetaId: f.carpeta_id })));
+  // Con el `tipo` (`DEF-120`): el resolutor lo necesita para que `x.excalidraw`
+  // busque solo entre dibujos, igual que el índice de `crearResolutor`.
+  const indice = indexarPorTitulo(
+    filas.map((f) => ({ id: f.id, titulo: f.titulo, carpetaId: f.carpeta_id, tipo: f.tipo })),
+  );
   const cs = carpetas.map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
   const resolver = (ref) => {
     const entero = resolveWikilinkEnIndice(ref, indice, cs)?.id;

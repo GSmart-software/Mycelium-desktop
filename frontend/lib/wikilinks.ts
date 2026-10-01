@@ -25,7 +25,7 @@
  * > Por eso el separador es `\|` **o** `|`: las dos formas son el mismo enlace.
  */
 
-import { sinExtensionDeNota } from "@/lib/extensionesDeTipo";
+import { sinExtensionDeNota, tipoDeExtension } from "@/lib/extensionesDeTipo";
 
 /**
  * El separador entre destino y alias. La barra invertida es opcional porque
@@ -92,8 +92,12 @@ export const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
 // > —que reescribe los enlaces entrantes a partir de las conexiones— podía
 // > reescribir la nota equivocada. Ahora las dos puntas llaman a esta.
 
-/** Lo mínimo de una nota para resolver un enlace hacia ella. */
-export type NotaEnlazable = { id: string; titulo: string; carpetaId: string | null };
+/**
+ * Lo mínimo de una nota para resolver un enlace hacia ella. El `tipo` (`DEF-120`)
+ * es el de `NotaTipo` (`markdown`, `excalidraw`…): con él, `![[x.excalidraw]]`
+ * busca solo entre dibujos y `[[x]]` prefiere la nota `.md`.
+ */
+export type NotaEnlazable = { id: string; titulo: string; carpetaId: string | null; tipo: string };
 /** Lo mínimo de una carpeta para leer la ruta de una nota. */
 export type CarpetaEnlazable = { id: string; nombre: string; padreId: string | null };
 
@@ -170,6 +174,30 @@ export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Ma
  * ruta, elige el de ruta más corta (más cercano a la raíz), como Obsidian.
  *
  * `ref` es el destino ya sin alias (`partirWikilink`), con su ruta si la traía.
+ *
+ * Las reglas, en orden (`DEF-120`):
+ *
+ * 1. **Con extensión de nota** (`x.excalidraw`, `x.drawio`, `x.canvas`,
+ *    `x.base`, `x.md`): candidatos = los archivos **de ese tipo** con título
+ *    `x`. Si no hay ninguno, se prueba el título literal (una nota que se llame
+ *    `x.excalidraw`), como antes.
+ * 2. **Sin extensión**: candidatos = todo lo que se llame así.
+ * 3. **Pista de carpeta**: si la hay, se quedan solo los candidatos cuya ruta
+ *    termina en ella; **si ninguno calza, no hay destino** —también con un solo
+ *    candidato—, para que `Otra/x` no lleve a la `x` de otra carpeta.
+ * 4. **Sin extensión**, entre los que quedan se prefiere la nota markdown
+ *    (convención de Obsidian: `[[Pedido]]` es `Pedido.md`, no `Pedido.excalidraw`).
+ * 5. Empate: la ruta más corta, y a igual profundidad el id.
+ *
+ * > [!warning] Antes el tipo no participaba (`DEF-120`)
+ * > Los candidatos eran **todos** los archivos con ese título, sin importar la
+ * > extensión pedida, y el desempate elegía el de ruta más corta. Con
+ * > `Devoluciones.md` en la raíz y `Eval/excalidraw/Devoluciones.excalidraw`,
+ * > `![[Devoluciones.excalidraw]]` resolvía **a la nota**, y
+ * > `resolveExcalidrawTarget` —que exige un dibujo— la descartaba: «No se pudo
+ * > cargar el diagrama». Con la pista, una que no calzaba caía igual a todos los
+ * > candidatos y repetía el desempate. Y `[[Pedido]]` podía abrir el dibujo si
+ * > estaba más cerca de la raíz o a la misma altura con un id menor.
  */
 export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
   ref: string,
@@ -185,40 +213,51 @@ export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
   const title = parts[parts.length - 1].toLowerCase();
   const hint = parts.slice(0, -1).map((s) => s.toLowerCase());
 
-  let matches = porTitulo.get(title) ?? [];
-  // Las referencias a archivos llevan extensión (`archivo.excalidraw`), pero el
-  // título de la nota no la incluye: si no hubo match exacto, se prueba sin la
-  // extensión para que el enlace/embed resuelva y no se estile como inexistente.
-  //
-  // Las extensiones salen de `lib/extensionesDeTipo` y no de una lista escrita
-  // acá: cuando estaban a mano decían solo `excalidraw|md`, así que
-  // `![[diagrama.drawio]]` no resolvía a nada y el embed se dibujaba como
-  // «no existe» aunque el archivo estuviera ahí al lado.
-  if (matches.length === 0) {
-    const stripped = sinExtensionDeNota(title);
-    if (stripped !== title) matches = porTitulo.get(stripped) ?? [];
+  // 1) Con extensión: solo los archivos de ese tipo. El título de una nota no
+  // lleva la extensión, así que se busca por el título sin ella y se filtra por
+  // tipo. Las extensiones salen de `lib/extensionesDeTipo` y no de una lista
+  // escrita acá: cuando estaban a mano decían solo `excalidraw|md`, y
+  // `![[diagrama.drawio]]` no resolvía a nada.
+  const tipoPedido = tipoDeExtension(title);
+  let matches: N[] = [];
+  if (tipoPedido !== null) {
+    matches = (porTitulo.get(sinExtensionDeNota(title)) ?? []).filter((n) => n.tipo === tipoPedido);
   }
+  const porExtension = matches.length > 0;
+  // 2) Sin extensión —o con una que ningún archivo de ese tipo tiene—: el
+  // título tal cual.
+  if (!porExtension) matches = porTitulo.get(title) ?? [];
   if (matches.length === 0) return undefined;
+
+  // 3) La pista de carpeta: la ruta del archivo debe terminar con sus
+  // segmentos. Una pista que no calza con ninguno no resuelve —ni siquiera con
+  // un único candidato—: antes caía a todos y `Otra/x` llevaba a la `x` de otra
+  // carpeta (o, entre homónimos de distinto tipo, al de la raíz: `DEF-120`).
+  if (hint.length > 0) {
+    matches = matches.filter((n) => {
+      const segs = folderSegments(n.carpetaId, carpetas).map((s) => s.toLowerCase());
+      if (hint.length > segs.length) return false;
+      return hint.every((h, i) => segs[segs.length - hint.length + i] === h);
+    });
+    if (matches.length === 0) return undefined;
+  }
+
+  // 4) Sin extensión, la nota markdown le gana a un dibujo, un lienzo o una
+  // tabla con el mismo nombre (lo que hace Obsidian).
+  if (!porExtension && matches.length > 1) {
+    const notas = matches.filter((n) => n.tipo === "markdown");
+    if (notas.length > 0) matches = notas;
+  }
   if (matches.length === 1) return matches[0];
 
-  // Empate de profundidad → por ruta, y no por el orden de la lista: el editor
+  // 5) Empate de profundidad → por ruta, y no por el orden de la lista: el editor
   // recibe las notas en el orden del store y el grafo en el de su consulta, y
   // con el orden de llegada dos homónimas a la misma altura podían resolver
   // distinto en cada punta.
   const byDepth = (a: N, b: N) =>
     folderSegments(a.carpetaId, carpetas).length - folderSegments(b.carpetaId, carpetas).length ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
-  if (hint.length === 0) return [...matches].sort(byDepth)[0];
-
-  // Desambiguar: la ruta de la nota debe terminar con los segmentos de la pista.
-  const matchHint = matches.filter((n) => {
-    const segs = folderSegments(n.carpetaId, carpetas).map((s) => s.toLowerCase());
-    if (hint.length > segs.length) return false;
-    return hint.every((h, i) => segs[segs.length - hint.length + i] === h);
-  });
-  const pool = matchHint.length > 0 ? matchHint : matches;
-  return [...pool].sort(byDepth)[0];
+  return [...matches].sort(byDepth)[0];
 }
 
 /**

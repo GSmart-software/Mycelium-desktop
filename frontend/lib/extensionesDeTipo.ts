@@ -50,6 +50,24 @@ export const TITULO_POR_DEFECTO: Record<NotaTipo, string> = {
 export const EXTENSIONES_DE_NOTA: readonly string[] = Object.values(EXTENSION_POR_TIPO);
 
 /**
+ * El tipo de documento que nombra la extensión del final de un nombre, o `null`
+ * si no termina en una extensión de nota.
+ *
+ * `"Eval/Devoluciones.excalidraw"` → `"excalidraw"`; `"Plan.MD"` → `"markdown"`;
+ * `"notas.de.ayer"` → `null`. Es lo que usa la resolución de wikilinks para que
+ * `![[x.excalidraw]]` busque **solo entre dibujos** (`DEF-120`).
+ */
+export function tipoDeExtension(nombre: string): NotaTipo | null {
+  const i = nombre.lastIndexOf(".");
+  if (i <= 0) return null;
+  const ext = nombre.slice(i + 1).toLowerCase();
+  const tipo = (Object.keys(EXTENSION_POR_TIPO) as NotaTipo[]).find(
+    (t) => EXTENSION_POR_TIPO[t] === ext,
+  );
+  return tipo ?? null;
+}
+
+/**
  * Quita la extensión de nota del final de un nombre, si la tiene.
  *
  * `"diagrama.drawio"` → `"diagrama"`; `"notas.de.ayer"` → `"notas.de.ayer"`
