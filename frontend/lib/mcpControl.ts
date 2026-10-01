@@ -14,8 +14,15 @@
  * 3. **Las operaciones**: `estado` y `abrir`, sobre los stores que ya existen
  *    (`tabsStore`, `vaultStore`, `syncStore`). La lógica pura —resolver el
  *    objetivo, el salto, las candidatas— está en `lib/mcpControlLogica.ts`.
+ *    Desde la Parte 2, las del calendario (`lib/mcpCalendario.ts`).
+ * 4. **El registro de actividad** (Parte 2): cada operación —salvo `estado`—
+ *    queda en `.mycelium/actividad.jsonl` con su efecto, lo que falló y cómo
+ *    deshacerla (`stores/actividadIaStore.ts`, panel del rail).
  */
 import { invoke } from "@tauri-apps/api/core";
+import { seRegistra, type Resultado } from "@/lib/actividadIa";
+import * as calendario from "@/lib/mcpCalendario";
+import { FalloCalendario, type Atendido } from "@/lib/mcpCalendario";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
@@ -30,6 +37,7 @@ import { nombreDeVault } from "@/lib/vaultMode";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useSyncStore } from "@/stores/syncStore";
+import { useActividadIaStore } from "@/stores/actividadIaStore";
 import { allLeaves, useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { ETIQUETA_ETAPA, useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -99,18 +107,51 @@ async function contestar(pedido: Pedido): Promise<void> {
   const sesion = useVaultSessionStore.getState();
   const propia = sesion.rutaActual ?? sesion.rutaAbriendo;
   if (propia === null || !mismaRuta(pedido.vault, propia)) return;
+  const actividad = useActividadIaStore.getState();
+  actividad.pedidoRecibido();
   let respuesta: Respuesta;
+  let atendido: Atendido | null = null;
   try {
-    respuesta = { ok: true, resultado: await atender(pedido) };
+    atendido = await atender(pedido);
+    respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp
+      e instanceof FalloMcp || e instanceof FalloCalendario
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
+  registrar(pedido.op, respuesta, atendido);
   await invoke("mcp_responder", { id: pedido.id, respuesta }).catch((e) =>
     console.warn("[mcp] no se pudo contestar el pedido", pedido.op, e),
   );
+}
+
+/** Deja la operación en el registro de actividad (spec § 2.3), si es de las que se registran. */
+function registrar(op: string, respuesta: Respuesta, atendido: Atendido | null): void {
+  const resultado: Resultado = respuesta.ok ? "hecho" : respuesta.error.codigo === "RECHAZADO" ? "rechazado" : "fallo";
+  if (!seRegistra(op, resultado)) return;
+  try {
+    if (respuesta.ok) {
+      const a = atendido?.actividad;
+      useActividadIaStore.getState().registrar({
+        op,
+        resultado,
+        efecto: a?.efecto ?? "Hecho.",
+        ...(a?.objetivo ? { objetivo: a.objetivo } : {}),
+        ...(a?.deshacer ? { deshacer: a.deshacer } : {}),
+      });
+    } else {
+      useActividadIaStore.getState().registrar({
+        op,
+        resultado,
+        efecto: respuesta.error.mensaje,
+        codigo: respuesta.error.codigo,
+      });
+    }
+  } catch (e) {
+    // El registro nunca impide contestar.
+    console.warn("[mcp] no se pudo registrar la actividad", op, e);
+  }
 }
 
 /** El vault no está listo para operar: se está abriendo, o el workspace no está montado. */
@@ -130,13 +171,24 @@ function comprobarListo(): void {
   }
 }
 
-async function atender(pedido: Pedido): Promise<unknown> {
+async function atender(pedido: Pedido): Promise<Atendido> {
   comprobarListo();
+  const args = pedido.args ?? {};
   switch (pedido.op) {
     case "estado":
-      return estado();
+      return { resultado: estado() };
     case "abrir":
-      return abrir(pedido.args);
+      return abrir(args);
+    case "recordatorios":
+      return calendario.recordatorios(args);
+    case "recordatorio_crear":
+      return calendario.crear(args);
+    case "recordatorio_editar":
+      return calendario.editar(args);
+    case "recordatorio_completar":
+      return calendario.completar(args);
+    case "recordatorio_borrar":
+      return calendario.borrar(args);
     default:
       throw fallo("INVALIDO", `Operación desconocida: ${pedido.op}.`);
   }
@@ -249,7 +301,7 @@ function revelar(notaId: string): boolean {
   return true;
 }
 
-async function abrir(args: Record<string, unknown>) {
+async function abrir(args: Record<string, unknown>): Promise<Atendido> {
   const objetivo = typeof args.objetivo === "string" ? args.objetivo : "";
   const conFoco = args.foco === true;
   const { destino, ancla } = destinoDe(objetivo);
@@ -312,15 +364,31 @@ async function abrir(args: Record<string, unknown>) {
   const revelado = args.revelar === true && destino.ruta !== null && revelar(destino.id);
   if (args.revelar === true && !revelado) avisos.push("Esto no tiene lugar en el explorador: no se reveló.");
 
+  const efecto =
+    `${previa ? "Mostró" : "Abrió"} «${destino.titulo}» en el panel ${ahora.panel}` +
+    (enFoco ? ", con el foco" : ", en segundo plano") +
+    (descripcionSalto && salto ? `, en ${descripcionSalto}` : "") +
+    ".";
   return {
-    abierto: { titulo: destino.titulo, ruta: destino.ruta, tipo: destino.tipo },
-    panel: ahora.panel,
-    foco: enFoco,
-    ya_estaba: previa !== null,
-    salto,
-    revelado,
-    avisos,
-    paneles: paneles(),
+    resultado: {
+      abierto: { titulo: destino.titulo, ruta: destino.ruta, tipo: destino.tipo },
+      panel: ahora.panel,
+      foco: enFoco,
+      ya_estaba: previa !== null,
+      salto,
+      revelado,
+      avisos,
+      paneles: paneles(),
+    },
+    actividad: {
+      efecto,
+      objetivo:
+        destino.id === GRAPH_TAB_ID
+          ? { tipo: "grafo" }
+          : destino.id === CALENDAR_TAB_ID
+            ? { tipo: "calendario" }
+            : { tipo: "nota", ruta: destino.id },
+    },
   };
 }
 
@@ -367,8 +435,21 @@ export async function quitarMcpJson(vault: string, borrarSiVacio: boolean): Prom
 
 /** Abre el canal de esta ventana para `vault`. */
 async function abrirCanal(vault: string): Promise<void> {
-  await asegurarEscucha();
-  await invoke<string>("mcp_control_encender", { ruta: vault });
+  const actividad = useActividadIaStore.getState();
+  try {
+    await asegurarEscucha();
+    await invoke<string>("mcp_control_encender", { ruta: vault });
+    actividad.fijarCanal(true);
+  } catch (e) {
+    actividad.fijarCanal(false, String((e as Error)?.message ?? e));
+    throw e;
+  }
+}
+
+/** Cierra el canal de esta ventana. */
+async function cerrarCanal(): Promise<void> {
+  await invoke("mcp_control_apagar");
+  useActividadIaStore.getState().fijarCanal(false);
 }
 
 /**
@@ -384,7 +465,7 @@ export async function sincronizarControlAlAbrir(vault: string): Promise<void> {
       await abrirCanal(vault);
       await asegurarMcpJson(vault);
     } else {
-      await invoke("mcp_control_apagar");
+      await cerrarCanal();
     }
   } catch (e) {
     console.warn("[mcp] no se pudo preparar el control de la IA:", e);
@@ -413,7 +494,7 @@ export async function cambiarControl(vault: string, encender: boolean): Promise<
       "(la primera vez te pide aprobar el servidor «mycelium» del .mcp.json)."
     );
   }
-  await invoke("mcp_control_apagar");
+  await cerrarCanal();
   prefs.set("controlIa", false);
   await quitarMcpJson(vault, prefs.prefs.mcpJsonCreado);
   prefs.set("mcpJsonCreado", false);

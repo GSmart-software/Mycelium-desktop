@@ -89,12 +89,12 @@ export function resolverObjetivo<N extends NotaEnlazable>(
 }
 
 /** Minúsculas y sin tildes: «Árbol» y «arbol» se parecen del todo. */
-function plano(s: string): string {
+export function plano(s: string): string {
   return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 /** Distancia de edición (Levenshtein), con una sola fila de memoria. */
-function distancia(a: string, b: string): number {
+export function distancia(a: string, b: string): number {
   const fila = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
     let diagonal = fila[0];

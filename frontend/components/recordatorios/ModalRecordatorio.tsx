@@ -9,6 +9,7 @@ import {
   COLORES,
   esFechaValida,
   esHoraValida,
+  normalizarTitulo,
   REPETICIONES,
   varColor,
   type Recordatorio,
@@ -233,7 +234,7 @@ function Editar({ modal }: { modal: Extract<Modal, { tipo: "editar" }> }) {
     if (!valido) return;
     const r: Recordatorio = {
       ...modal.borrador,
-      titulo: titulo.trim().replace(/\s*\n\s*/g, " "),
+      titulo: normalizarTitulo(titulo),
       fecha,
       hora: todoElDia ? null : hora,
       repeticion,

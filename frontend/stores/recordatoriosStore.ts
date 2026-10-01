@@ -5,12 +5,15 @@ import {
   avisosPendientes,
   descartar,
   fechaLocal,
+  fijarCompletada,
   leerArchivo,
   limpiarOcurrencias,
   momentoLocal,
   posponer,
+  restaurarRecordatorio,
   type ArchivoRecordatorios,
   type Aviso,
+  type EstadoOcurrencia,
   type Recordatorio,
 } from "@/lib/recordatorios";
 import {
@@ -70,6 +73,14 @@ type Estado = {
   posponer: (clave: string, hasta: Date) => void;
   /** Marca o desmarca una ocurrencia como completada. */
   alternarCompletada: (clave: string) => void;
+  /** Deja una ocurrencia completada o no (el MCP de control y su Deshacer). */
+  fijarCompletada: (clave: string, completada: boolean) => void;
+  /**
+   * Vuelve a poner un recordatorio borrado con su id y el estado de sus
+   * ocurrencias (el Deshacer del registro de actividad). Como al crearlo, su
+   * `vigenteDesde` es ahora: restaurar no avisa lo que venció mientras no estaba.
+   */
+  restaurar: (r: Recordatorio, ocurrencias: Record<string, EstadoOcurrencia>) => void;
   /** Recalcula qué hay que avisar. La llama el programador cada minuto. */
   revisar: () => void;
   enfocar: (fecha: string, id: string | null) => void;
@@ -212,6 +223,15 @@ export const useRecordatoriosStore = create<Estado>((set, get) => {
 
     alternarCompletada(clave) {
       aplicar(alternarCompletada(get().archivo, clave));
+    },
+
+    fijarCompletada(clave, completada) {
+      aplicar(fijarCompletada(get().archivo, clave, completada));
+    },
+
+    restaurar(r, ocurrencias) {
+      const nuevo: Recordatorio = { ...r, vigenteDesde: momentoLocal(new Date()) };
+      aplicar(restaurarRecordatorio(get().archivo, nuevo, ocurrencias));
     },
 
     revisar() {
