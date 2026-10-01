@@ -656,7 +656,19 @@ export function reescribirEnlaces(
 ): { texto: string; cambios: number } {
   const buscado = viejo.trim().toLowerCase();
   if (buscado === "" || viejo.trim() === nuevo.trim()) return { texto, cambios: 0 };
+  return cambiarDestinos(texto, (destino) => (destino.toLowerCase() === buscado ? nuevo.trim() : null));
+}
 
+/**
+ * Recorre los `[[enlaces]]` fuera de los bloques de código y le pregunta a
+ * `nuevoDestino` por cada destino (ya sin espacios alrededor, sin ancla ni
+ * alias): `null` lo deja como está; un texto lo reemplaza. Conserva el `!` de un
+ * embed, el ancla (`#`, `^`), el alias y el espaciado del destino.
+ */
+function cambiarDestinos(
+  texto: string,
+  nuevoDestino: (destino: string) => string | null,
+): { texto: string; cambios: number } {
   const codigo = zonasDeCodigo(texto);
   const enCodigo = (i: number) => codigo.some((z) => i >= z.desde && i < z.hasta);
 
@@ -681,14 +693,89 @@ export function reescribirEnlaces(
     const destino = corte === -1 ? destinoYAncla : destinoYAncla.slice(0, corte);
     const ancla = corte === -1 ? "" : destinoYAncla.slice(corte);
 
-    if (destino.trim().toLowerCase() !== buscado) return todo;
+    const nuevo = nuevoDestino(destino.trim());
+    if (nuevo === null) return todo;
 
     cambios++;
     // Se respeta el espaciado que hubiera alrededor del destino.
     const izq = /^\s*/.exec(destino)?.[0] ?? "";
     const der = /\s*$/.exec(destino)?.[0] ?? "";
-    return embed + "[[" + izq + nuevo.trim() + der + ancla + alias + "]]";
+    return embed + "[[" + izq + nuevo + der + ancla + alias + "]]";
   });
 
   return { texto: salida, cambios };
+}
+
+/**
+ * Un archivo que cambia de nombre, de carpeta o las dos cosas: lo que hace
+ * falta para reparar los enlaces que llegaban a él (`FUN-L-09`, Parte 3).
+ * Las carpetas son rutas relativas al vault (`"Área/Proyectos"`), `""` en la
+ * raíz; la extensión es la del archivo (`".md"`, `".excalidraw"`…).
+ */
+export type CambioDeRuta = {
+  tituloViejo: string;
+  tituloNuevo: string;
+  carpetaVieja: string;
+  carpetaNueva: string;
+  extension: string;
+};
+
+/**
+ * Reescribe los enlaces que apuntaban a un archivo que se renombró o se movió
+ * (`FUN-L-09`, Parte 3). Es `reescribirEnlaces` más **las pistas de carpeta**:
+ *
+ * - `[[Título]]` (sin pista) solo cambia si cambió el título: mover no rompe un
+ *   enlace por título, así que no se toca.
+ * - `[[Carpeta/Título]]` resuelve si `Carpeta` es el final de la ruta del
+ *   archivo (`lib/wikilinks.ts`). Si apuntaba a este archivo y el archivo
+ *   cambió de carpeta, deja de resolver: pasa a la **ruta completa nueva**
+ *   (la única pista que seguro sigue resolviendo). Si solo cambió el título,
+ *   la pista se conserva.
+ * - Con la extensión escrita (`[[Dibujo.excalidraw]]`) se conserva.
+ *
+ * Se aplica solo a las notas que **ya enlazaban** al archivo (sus
+ * retroenlaces), igual que el renombrado de la app: no decide a qué homónima
+ * apunta un enlace, eso lo dijo el índice.
+ */
+export function reescribirEnlacesMovidos(
+  texto: string,
+  cambios: readonly CambioDeRuta[],
+): { texto: string; cambios: number } {
+  const utiles = cambios.filter(
+    (c) => c.tituloViejo.trim() !== c.tituloNuevo.trim() || c.carpetaVieja !== c.carpetaNueva,
+  );
+  if (utiles.length === 0) return { texto, cambios: 0 };
+  const segmentos = (ruta: string) =>
+    ruta
+      .split("/")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+  return cambiarDestinos(texto, (destino) => {
+    const partes = destino.split("/").map((s) => s.trim());
+    const ultimo = partes[partes.length - 1] ?? "";
+    const pista = partes.slice(0, -1).filter(Boolean).map((s) => s.toLowerCase());
+    for (const c of utiles) {
+      const ext = c.extension.toLowerCase();
+      const conExtension = ext !== "" && ultimo.toLowerCase().endsWith(ext);
+      const titulo = conExtension ? ultimo.slice(0, ultimo.length - ext.length) : ultimo;
+      if (titulo.toLowerCase() !== c.tituloViejo.trim().toLowerCase()) continue;
+      const nombre = c.tituloNuevo.trim() + (conExtension ? ultimo.slice(ultimo.length - ext.length) : "");
+      if (pista.length === 0) {
+        // Por título: solo lo rompe un cambio de nombre.
+        if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
+        return nombre;
+      }
+      // Con pista: tiene que calzar con el final de la carpeta de antes.
+      const vieja = segmentos(c.carpetaVieja);
+      if (pista.length > vieja.length) continue;
+      if (!pista.every((p, i) => vieja[vieja.length - pista.length + i] === p)) continue;
+      if (c.carpetaVieja === c.carpetaNueva) {
+        if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
+        return [...partes.slice(0, -1), nombre].join("/");
+      }
+      return c.carpetaNueva === "" ? nombre : `${c.carpetaNueva}/${nombre}`;
+    }
+    return null;
+  });
 }

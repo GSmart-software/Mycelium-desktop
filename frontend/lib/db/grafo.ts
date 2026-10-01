@@ -98,6 +98,24 @@ export async function grafo(vaultId: string): Promise<GraphDataDto> {
  * Consultas sobre `enlaces`/`notas` por índice, y una de contenido: solo el de
  * las notas que citan a esta, para el fragmento de contexto de cada retroenlace.
  */
+/**
+ * `POST /vaults/{id}/retroenlaces`: quién enlaza a cada una de `ids` —pares
+ * `(desde, destino)` con las mismas reglas que una arista—. Es lo que necesita
+ * quien renombra o mueve para reparar los enlaces entrantes (`FUN-M-08`,
+ * `FUN-L-09`): una consulta para todo el lote, sin leer contenido (las
+ * `conexiones` de cada nota leen el de sus citantes para el fragmento).
+ */
+export async function retroenlaces(ids: string[]): Promise<{ pares: { desde: string; destino: string }[] }> {
+  if (ids.length === 0) return { pares: [] };
+  const pares = await select<{ desde: string; destino: string }>(
+    `SELECT DISTINCT e.desde_id AS desde, e.destino_id AS destino
+     FROM enlaces e
+     WHERE e.destino_id IN (SELECT value FROM json_each(?)) AND ${ES_ARISTA}`,
+    [JSON.stringify(ids)],
+  );
+  return { pares };
+}
+
 export async function conexiones(notaId: string): Promise<unknown> {
   const nota = await select<{
     id: string;
