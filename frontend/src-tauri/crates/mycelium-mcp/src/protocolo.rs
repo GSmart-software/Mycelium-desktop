@@ -6,7 +6,7 @@
 //! > `notifications/initialized`, `ping`, `tools/list` y `tools/call`. Eso son
 //! > unas 150 líneas sin dependencias nuevas. El SDK trae un runtime asíncrono
 //! > (tokio), macros y `schemars` para un servidor que atiende **una** llamada a
-//! > la vez sobre SQLite síncrono; sube el tiempo de compilación en una máquina
+//! > la vez y la pasa por un canal síncrono; sube el tiempo de compilación en una máquina
 //! > que ya compila Tauri con `CARGO_BUILD_JOBS=2`, suma peso a un binario que
 //! > va a viajar en el instalador, y su API todavía cambia entre versiones
 //! > menores. Si el servidor crece hacia lo que el SDK resuelve de verdad

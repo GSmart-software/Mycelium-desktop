@@ -5,9 +5,9 @@
 //! | Pregunta | Función | Qué hace con la cadena |
 //! |---|---|---|
 //! | ¿Son la misma carpeta? | [`misma_ruta`] | **Normaliza**: barras, barra final, mayúsculas |
-//! | ¿Cómo se llama su índice? | [`hash_ruta`] | **Nada**: hashea la cadena tal cual |
+//! | ¿Cómo se llama lo suyo? | [`hash_ruta`] | **Nada**: hashea la cadena tal cual |
 //!
-//! Para derivar nombres (el índice de la app, el del MCP) se usa **la cadena
+//! Para derivar nombres (el índice de la app, el canal del MCP de control) se usa **la cadena
 //! registrada en `vaults.json`**, sin normalizar: cambiar lo que se hashea
 //! dejaría huérfanos todos los índices existentes. Por eso quien tiene una ruta
 //! escrita de otra forma primero la resuelve contra el registro con
@@ -60,11 +60,6 @@ pub fn nombre_indice_app(ruta_registrada: &str) -> String {
     format!("index-{}.db", hash_ruta(ruta_registrada))
 }
 
-/// Nombre del índice propio del MCP para ese vault (`mcp-<hash>.db`).
-pub fn nombre_indice_mcp(ruta_registrada: &str) -> String {
-    format!("mcp-{}.db", hash_ruta(ruta_registrada))
-}
-
 /// La carpeta de configuración de la app, la misma que resuelve Tauri con
 /// `app_config_dir()` (ahí están `vaults.json` y los `index-<hash>.db`, porque
 /// `tauri-plugin-sql` resuelve las bases contra ese directorio).
@@ -103,21 +98,18 @@ mod tests {
     }
 
     /// Los valores de la derecha los calculó **la función `hashRuta` de la app**
-    /// (extraída de `lib/db/client.ts` y ejecutada en Node) el 2026-09-24, y
-    /// coinciden con los `index-<hash>.db` que la app ya había creado en el
-    /// app-data de la máquina de desarrollo para esos cinco vaults. Incluye una
-    /// ruta con tilde para fijar que se hashean los bytes UTF-8.
+    /// (extraída tal cual de `lib/db/client.ts` y ejecutada en Node). El de
+    /// este repo coincide además con el `index-<hash>.db` que la app creó para
+    /// él. Incluye rutas con tilde y eñe para fijar que se hashean los bytes
+    /// UTF-8, y una ruta Unix. Son rutas inventadas: el repo es público.
     #[test]
     fn hash_ruta_es_el_de_la_app() {
         let casos = [
-            ("C:\\Trabajo\\Trabajo y Estudio", "8a3bd2f8da7b086c"),
-            ("C:\\Users\\gabip\\Videos\\Contenido Visto", "db699e99e2a28540"),
+            ("C:\\Notas\\Trabajo y Estudio", "f9b1ddcd51344d8f"),
+            ("D:\\Vaults\\Recetas", "cbf113a7de5cfba9"),
             ("C:\\Trabajo\\GSmart\\Mycelium", "a6180dffa8ec68ba"),
-            (
-                "C:\\Users\\gabip\\OneDrive\\Desktop\\Universidad, Cursos y Educación\\Universidad\\Tesina",
-                "6d721bd90b44a3c1",
-            ),
-            ("C:\\Trabajo\\GSmart\\Arrecife\\Proyecto Arrecife", "1affd3f4cd4e10a0"),
+            ("C:\\Users\\ana\\Documentos\\Vault de Pruebas Ñandú", "e547e08704d2065c"),
+            ("/home/ana/vaults/Proyecto Arrecife", "fa2b455c72b64ce2"),
         ];
         for (ruta, esperado) in casos {
             assert_eq!(hash_ruta(ruta), esperado, "hash de {ruta}");
@@ -136,6 +128,5 @@ mod tests {
     #[test]
     fn nombres_de_indice() {
         assert_eq!(nombre_indice_app("C:\\Trabajo\\GSmart\\Mycelium"), "index-a6180dffa8ec68ba.db");
-        assert_eq!(nombre_indice_mcp("C:\\Trabajo\\GSmart\\Mycelium"), "mcp-a6180dffa8ec68ba.db");
     }
 }

@@ -1,4 +1,4 @@
-//! Qué vault sirve este proceso (plan del MCP § 7.3).
+//! Qué vault sirve este proceso (`mcp-control` § 2).
 //!
 //! 1. La ruta candidata sale de `MYCELIUM_VAULT`, si no de `--vault`, si no del
 //!    directorio actual — la primera que exista decide, sin caer a la siguiente:
@@ -6,28 +6,28 @@
 //!    silencio sería peor que decirlo.
 //! 2. Se resuelve **contra `vaults.json`** con `misma_ruta` (subiendo por los
 //!    ancestros, para poder lanzar el MCP desde una subcarpeta).
-//! 3. Desde ahí se usa **la cadena registrada tal cual** para nombrar el índice:
-//!    la misma carpeta escrita de otra forma deriva el mismo nombre.
+//! 3. Desde ahí se usa **la cadena registrada tal cual**: es la que hashea la
+//!    app para nombrar lo de ese vault (el canal de control, desde la Parte 1),
+//!    así que la misma carpeta escrita de otra forma llega al mismo nombre.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use mycelium_vault::registro::{self, VaultRef};
+use mycelium_vault::registro::{self, Registro, VaultRef};
 use mycelium_vault::rutas;
 
-/// El vault resuelto y los archivos que le tocan.
+/// El vault resuelto.
 #[derive(Debug, Clone)]
 pub struct VaultResuelto {
     /// La entrada de `vaults.json` (la cadena registrada, tal cual).
     pub registrado: VaultRef,
     /// La carpeta del vault.
     pub raiz: PathBuf,
-    /// Dónde va el índice propio (`mcp-<hash>.db` en el app-data).
-    pub db: PathBuf,
     /// De dónde salió la ruta candidata.
     pub origen: &'static str,
 }
 
-/// Resuelve el vault, o devuelve el mensaje de `VAULT_DESCONOCIDO`.
+/// Resuelve el vault desde el entorno, o devuelve el mensaje de
+/// `VAULT_DESCONOCIDO`.
 pub fn resolver(arg_vault: Option<String>) -> Result<VaultResuelto, String> {
     let dir_app = rutas::dir_app().ok_or_else(|| {
         "VAULT_DESCONOCIDO: no se pudo ubicar la carpeta de configuración de Mycelium \
@@ -43,7 +43,11 @@ pub fn resolver(arg_vault: Option<String>) -> Result<VaultResuelto, String> {
     } else {
         (std::env::current_dir().map_err(|e| format!("VAULT_DESCONOCIDO: sin directorio actual: {e}"))?, "cwd")
     };
+    resolver_en(&reg, candidata, origen)
+}
 
+/// La resolución propiamente dicha, sin tocar el entorno (testeable).
+pub fn resolver_en(reg: &Registro, candidata: PathBuf, origen: &'static str) -> Result<VaultResuelto, String> {
     let Some(entrada) = reg.vault_que_contiene(&candidata) else {
         let registrados: Vec<String> = reg.vaults.iter().map(|v| format!("  - {} ({})", v.nombre, v.ruta)).collect();
         return Err(format!(
@@ -61,21 +65,55 @@ pub fn resolver(arg_vault: Option<String>) -> Result<VaultResuelto, String> {
             entrada.nombre, entrada.ruta
         ));
     }
-    Ok(VaultResuelto {
-        db: dir_app.join(rutas::nombre_indice_mcp(&entrada.ruta)),
-        registrado: entrada.clone(),
-        raiz,
-        origen,
-    })
+    Ok(VaultResuelto { registrado: entrada.clone(), raiz, origen })
 }
 
-/// Dónde reintentar si el app-data no se puede escribir (§ 2 de la nota).
-pub fn db_de_respaldo(v: &VaultResuelto) -> PathBuf {
-    std::env::temp_dir().join("mycelium").join(rutas::nombre_indice_mcp(&v.registrado.ruta))
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// El registro de búsquedas va al lado del índice que se esté usando.
-pub fn bitacora_para(db: &Path) -> PathBuf {
-    let nombre = db.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "mcp".into());
-    db.with_file_name(format!("{nombre}-busquedas.jsonl"))
+    /// Un vault real en el temporal y un registro que lo contiene.
+    fn con_vault(nombre: &str) -> (Registro, PathBuf) {
+        let raiz = std::env::temp_dir().join(format!("mycelium-mcp-vault-{nombre}-{}", std::process::id()));
+        std::fs::create_dir_all(raiz.join("docs")).unwrap();
+        let reg = Registro {
+            vaults: vec![VaultRef { ruta: raiz.to_string_lossy().to_string(), nombre: "Prueba".into(), ultimo_acceso: None }],
+            abrir_ultimo: false,
+        };
+        (reg, raiz)
+    }
+
+    #[test]
+    fn resuelve_desde_una_subcarpeta_a_la_cadena_registrada() {
+        let (reg, raiz) = con_vault("sub");
+        let v = resolver_en(&reg, raiz.join("docs"), "cwd").unwrap();
+        assert_eq!(v.registrado.ruta, reg.vaults[0].ruta);
+        assert_eq!(v.raiz, raiz);
+        assert_eq!(v.origen, "cwd");
+        let _ = std::fs::remove_dir_all(raiz);
+    }
+
+    #[test]
+    fn una_carpeta_suelta_es_vault_desconocido_con_los_registrados() {
+        let (reg, raiz) = con_vault("suelta");
+        let err = resolver_en(&reg, std::env::temp_dir().join("otra-cosa"), "MYCELIUM_VAULT").unwrap_err();
+        assert!(err.starts_with("VAULT_DESCONOCIDO"), "{err}");
+        assert!(err.contains("de MYCELIUM_VAULT"), "{err}");
+        assert!(err.contains(&format!("  - Prueba ({})", reg.vaults[0].ruta)), "{err}");
+        let _ = std::fs::remove_dir_all(raiz);
+    }
+
+    #[test]
+    fn sin_vaults_registrados_lo_dice() {
+        let err = resolver_en(&Registro::default(), PathBuf::from("C:/Notas"), "cwd").unwrap_err();
+        assert!(err.contains("(no hay ninguno registrado)"), "{err}");
+    }
+
+    #[test]
+    fn un_vault_registrado_que_ya_no_existe_lo_dice() {
+        let (reg, raiz) = con_vault("borrado");
+        let _ = std::fs::remove_dir_all(&raiz);
+        let err = resolver_en(&reg, raiz.clone(), "--vault").unwrap_err();
+        assert!(err.starts_with("VAULT_DESCONOCIDO") && err.contains("esa carpeta no existe"), "{err}");
+    }
 }
