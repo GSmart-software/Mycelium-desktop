@@ -38,8 +38,10 @@ test("hay un fixture bueno por receta", () => {
     "bueno-arbol-horizontal.canvas",
     "bueno-arbol.canvas",
     "bueno-flujo-decisiones.canvas",
+    "bueno-flujo-reunion.canvas",
     "bueno-insertar-en-cadena.canvas",
     "bueno-linea-de-tiempo.canvas",
+    "bueno-mapa-peine.canvas",
     "bueno-mapa-radial.canvas",
     "bueno-notas-relacionadas.canvas",
     "bueno-tablero-columnas.canvas",
@@ -153,6 +155,29 @@ test("altoNecesario: una línea corta entra en los 110 de la regla de la skill; 
   assert.ok(altoNecesario("Una idea", 260) <= 110);
   const largo = "palabra ".repeat(40).trim();
   assert.ok(altoNecesario(largo, 200) > altoNecesario(largo, 400));
+});
+
+test("el mapa en peine de 6 × 3 entra en 1800 × 1200 (abre a ≥ 55 % en 1150 × 800)", () => {
+  const { nodes } = JSON.parse(readFileSync(`${DIR}bueno-mapa-peine.canvas`, "utf8"));
+  const ancho = Math.max(...nodes.map((n) => n.x + n.width)) - Math.min(...nodes.map((n) => n.x));
+  const alto = Math.max(...nodes.map((n) => n.y + n.height)) - Math.min(...nodes.map((n) => n.y));
+  assert.equal(nodes.length, 1 + 6 + 17);
+  assert.ok(ancho <= 1800 && alto <= 1200, `${ancho}×${alto}`);
+  // El encuadre de `lib/canvas.ts`: margen 48, zoom ≤ 1.
+  assert.ok(Math.min(1, (1150 - 96) / ancho, (800 - 96) / alto) >= 0.55);
+});
+
+test("título de tablero: avisa si no cubre las columnas (la agregada incluida)", () => {
+  const g = (id, x) => ({ id, type: "group", label: id, x, y: 190, width: 300, height: 200 });
+  const titulo = (width) => ({ ...t("titulo", 0, 0, width, 150, "# Tablero"), text: "# Tablero" });
+  const tablero = (width) => canvas([g("a", 0), g("b", 360), g("c", 720), g("nueva", 1080), titulo(width)]);
+  const angosto = validarCanvas(tablero(1020));
+  assert.deepEqual(codigos(angosto.avisos), ["TITULO_ANGOSTO"]);
+  assert.match(angosto.avisos[0].mensaje, /`width: 1380`/);
+  assert.deepEqual(validarCanvas(tablero(1380)).avisos, []);
+  // Un texto que no es título (`#` en la primera línea), no avisa.
+  const nota = canvas([g("a", 0), g("b", 360), t("nota", 0, 0, 300, 150, "Notas sueltas")]);
+  assert.deepEqual(validarCanvas(nota).avisos, []);
 });
 
 // ── Lados: un solo criterio, el de los enganches ──────────────────────────────

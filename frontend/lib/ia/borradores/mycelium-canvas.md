@@ -86,10 +86,8 @@ el usuario no lo ve.
    grupo, y lo contiene **por completo**.
 7. **Los grupos van primero** en `nodes`: el orden del array es el orden de dibujo, y
    un grupo listado después de sus tarjetas se dibuja encima y las tapa.
-8. **Conservá lo que no entendés**: al modificar un canvas ajeno, editá el objeto
-   parseado y reescribilo; nunca lo regeneres desde cero.
-9. `fromSide`/`toSide` **explícitos y coherentes** con la posición (ver «Anclas»).
-10. **Verificá con el validador** antes de dar el trabajo por hecho.
+8. `fromSide`/`toSide` **explícitos y coherentes** con la posición (ver «Anclas»).
+9. **Todo en ~1800 × 1200** como mucho, para que abra legible (ver «Geometría»).
 
 ## Geometría
 
@@ -99,8 +97,15 @@ el usuario no lo ve.
 - Mycelium abre el lienzo **encuadrado en su contenido**: el origen no importa para
   verlo, y los negativos están permitidos. Por prolijidad, poné lo primero (el título,
   el centro del mapa) cerca de `(0, 0)` y crecé hacia la derecha y hacia abajo.
-- **Compacto se lee mejor**: el encuadre achica el zoom para que entre todo, y un
-  lienzo de más de ~2400 × 1400 abre con el texto chico. Si da para más, partilo.
+
+> [!important] Tamaño máximo: ~1800 × 1200
+> El encuadre abre con `zoom = min(1, (ancho_vista − 96) / ancho, (alto_vista − 96) / alto)`.
+> En una ventana típica (~1150 × 800 de lienzo), **1800 × 1200 abre al ~59 %**, lo
+> mínimo para leer las tarjetas; 2400 × 1600 abre al ~44 % y no se lee. Medí el
+> rectángulo que ocupa todo y, si se pasa en **cualquiera** de los dos ejes, en este
+> orden: (1) una disposición más compacta (radial con ideas → **peine**, árbol ancho →
+> **girado**); (2) tarjetas más cortas, o las ideas como **lista** dentro de su
+> tarjeta; (3) partir en dos lienzos y unirlos con una tarjeta `[[Parte 2.canvas]]`.
 
 ### Tamaños
 
@@ -235,13 +240,16 @@ significado; sin color, la tarjeta toma los colores del tema.
 2. **Medí**: calculá el alto de cada tarjeta con la fórmula. En una misma fila o nivel,
    igualá los altos al mayor: se lee como estructura.
 3. **Elegí la disposición** según la forma de las relaciones: centro con ramas →
-   radial; jerarquía → árbol; pasos con decisiones → flujo; estados o categorías →
-   columnas con grupos; secuencia → línea de tiempo; nota con sus vecinas → dos alas.
+   radial (con ideas en cada rama → peine); jerarquía → árbol; pasos con decisiones →
+   flujo; estados o categorías → columnas con grupos; secuencia → línea de tiempo;
+   nota con sus vecinas → dos alas.
 4. **Calculá las posiciones** con la receta, con el primer elemento en `(0, 0)`, y
    **redondeá** `x` e `y` a enteros.
 5. **Grupos** a partir de las tarjetas ya ubicadas; ponelos al principio de `nodes`.
 6. **Flechas** con la regla del hueco (o los lados fijos de la receta).
-7. **Validá** y corregí hasta que no haya errores ni avisos.
+7. **Validá** y corregí hasta que no haya errores ni avisos. Medí el tamaño total
+   (≤ ~1800 × 1200).
+8. **Que no quede huérfano** (ver el final).
 
 Para más de 5 tarjetas no calcules a mano: escribí un script de Node **fuera del
 vault** (en el directorio temporal del sistema, o borralo al terminar), que genere el
@@ -278,39 +286,57 @@ const flecha = (id, a, b, [fromSide, toSide] = lados(a, b)) =>
 
 ## Recetas
 
-### 1. Mapa de ideas radial alrededor de una nota
+### 1. Mapa de ideas: radial (solo ramas) o en peine (ramas con ideas)
 
-Centro: la nota (`file`, 360 × 240, color `"6"`). Ramas: tarjetas de texto del **mismo
-tamaño** `W × H` (H = el mayor de los altos, contando también los hijos), repartidas en
-una **elipse**. Los radios salen de dos condiciones: que cada rama quede a 80 del
-centro **también en diagonal** (por eso el `1.4`), y que las ramas vecinas no se
-toquen (el término con el ángulo):
+El centro mide `W0 × H0` y lleva color `"6"`: un título de texto (`# Aprender
+japonés`, 300 × 120) o una nota (`file`, 360 × 240). Las ramas, todas del **mismo
+tamaño** `W × H`.
+
+**¿Las ramas tienen ideas propias (un segundo nivel)?** Entonces **peine** (1b), aunque
+sean pocas: un segundo anillo alrededor del radial ya mide ~1800 de ancho con 3 ramas ×
+1 idea, y 6 ramas × 3 ideas llegan a ~2400 × 1600 (abren al 44 %).
+
+**1a. Radial** (solo ramas): repartidas en una **elipse**. Los radios salen de dos
+condiciones: que cada rama quede a 80 del centro **también en diagonal** (el `1.4`), y
+que las vecinas no se toquen (el término con el ángulo):
 
 ```js
-const cx = 180, cy = 120;                 // centro de la nota (x, y = 0, 0)
-const paso1 = 2 * Math.PI / n;            // n ramas
-const rx = Math.max(1.4 * ((360 + W) / 2 + 80), 1.5 * (W + 40) / paso1);
-const ry = Math.max(1.4 * ((240 + H) / 2 + 80), 1.5 * (H + 40) / paso1);
-const ang = (i) => -Math.PI / 2 + i * paso1;          // i = 0 arriba, sentido horario
+const cx = W0 / 2, cy = H0 / 2;           // centro en (0, 0)
+const paso = 2 * Math.PI / n;             // n ramas
+const rx = Math.max(1.4 * ((W0 + W) / 2 + 80), 1.5 * (W + 40) / paso);
+const ry = Math.max(1.4 * ((H0 + H) / 2 + 80), 1.5 * (H + 40) / paso);
+const ang = (i) => -Math.PI / 2 + i * paso;           // i = 0 arriba, sentido horario
 // rama i: x = cx + rx·cos(ang(i)) − W/2,   y = cy + ry·sin(ang(i)) − H/2
 ```
 
-**Segundo nivel** (hijos de una rama): otro anillo, más afuera **en los dos ejes**
-(`W` suma en `x`, `H` en `y`), con los hijos de cada rama repartidos **dentro de su
-porción** y centrados en el ángulo de la rama:
+Flechas del centro a cada rama con la regla del hueco. Ocho ramas de 220 × 130
+alrededor de un título miden ~1200 × 800.
 
-```js
-const kmax = /* la mayor cantidad de hijos que tiene una rama */;
-const paso2 = paso1 / kmax;               // el mismo para todas las ramas
-const rx2 = Math.max(rx + 1.4 * (W + 80), 1.5 * (W + 40) / paso2);
-const ry2 = Math.max(ry + 1.4 * (H + 80), 1.5 * (H + 40) / paso2);
-// hijo j de la rama i (k hijos): a = ang(i) + (j − (k − 1) / 2) · paso2
-// x = cx + rx2·cos(a) − W/2,   y = cy + ry2·sin(a) − H/2
+**1b. Peine** (ramas con ideas): el centro en el medio; las ramas en **dos columnas**,
+a sus costados, y las ideas de cada rama **apiladas hacia afuera**, pegadas a ella.
+Las ideas, de **un renglón** (alto 110): ancho `Wi = 56 + 7 × caracteres` de la más
+larga, redondeado a 10 hacia arriba y entre 220 y 360 (si alguna pasa de ~43
+caracteres, acortala).
+
+```
+ramas W × H, ideas Wi × Hi; k = ideas de esa rama
+bloque = max(H, k·Hi + (k − 1)·20)
+derecha: ramas 0 … ⌈n/2⌉−1, de arriba abajo; izquierda: el resto, de abajo arriba
+(sentido horario). Cada lado apila sus bloques con 40 entre uno y otro;
+T = el alto del lado más alto, y el otro lado se centra en T.
+centro:   x = 0,                  y = (T − H0) / 2
+rama:     x = W0 + 100 (der.)  ·  −100 − W (izq.)      y = y_bloque + (bloque − H) / 2
+idea j:   x = W0 + 100 + W + 60 (der.)  ·  −100 − W − 60 − Wi (izq.)
+          y = y_bloque + (bloque − (k·Hi + (k−1)·20)) / 2 + j · (Hi + 20)
 ```
 
-Flechas del centro a cada rama y de cada rama a **sus** hijos (nunca del centro a un
-hijo), todas con la regla del hueco. Con muchas ramas o muchos hijos el mapa crece
-rápido: si pasa de ~2400 de ancho, pasá a dos alas (receta 6) o a un árbol.
+Flechas **todas horizontales**: a la derecha `right → left`, a la izquierda
+`left → right`, del centro a cada rama y de cada rama a **sus** ideas (nunca del centro
+a una idea). Tamaño: ancho `W0 + 2·(160 + W + Wi)`, alto
+`⌈n/2⌉ · bloque + (⌈n/2⌉ − 1) · 40`. Con 6 ramas × 3 ideas (W0 = 300, W = 220,
+Wi = 350): **1760 × 1190**, abre al 59 %. Si el alto se pasa de 1200 (más de 3 ideas
+por rama, o más de 6 ramas con 3), pasá las ideas a una **lista** dentro de la tarjeta
+de su rama y usá el radial, o partí el mapa.
 
 ### 2. Árbol (organigrama, desglose)
 
@@ -321,7 +347,7 @@ rápido: si pasa de ~2400 de ancho, pasá a dos alas (receta 6) o a un árbol.
 - `y = nivel · (H + 90)`.
 - Flechas **todas** `fromSide: "bottom"` → `toSide: "top"`.
 
-**Girado, de izquierda a derecha** (si de arriba abajo queda más ancho que ~1600, o
+**Girado, de izquierda a derecha** (si de arriba abajo queda más ancho que ~1800, o
 con muchas hojas): niveles en columnas, `x = nivel · (W + 120)`; hojas apiladas en `y`,
 con **40** entre hermanas y **80** entre equipos; cada padre centrado en `y` sobre sus
 hijos, `y = (y_primer_hijo + y_último_hijo) / 2`; flechas todas `right → left`.
@@ -341,11 +367,14 @@ tarjeta destino**: `**Sí →** Confirmar la compra`.
 - **Vuelta atrás** (un ciclo) desde la lateral: un **codo** `top → right` a la tarjeta
   de la columna principal a la que vuelve. Sube desde la lateral y entra por la
   derecha del destino, sin pisar la columna.
+- **Rama que se reúne** más abajo (no vuelve: se salta pasos y se junta con el camino
+  principal): un **codo** `bottom → right` desde la lateral a la tarjeta de la columna
+  donde se reúne. Baja desde la lateral y entra por la derecha del destino.
 - **Vuelta atrás desde la columna principal**: lazo `right → right` (misma columna,
   bordes alineados). Si hay laterales, dejalas a 120 o más: el lazo ocupa ~90 px.
-- Si entre una lateral y el destino de su vuelta hay **otra lateral** del mismo lado,
-  el codo la cruzaría: pasá una de las dos a la izquierda (`x = −(W + 120)`, flechas
-  `left → right` y el codo `top → left`).
+- Si entre una lateral y el destino de su codo (vuelta o reunión) hay **otra lateral**
+  del mismo lado, el codo la cruzaría: pasá una de las dos a la izquierda
+  (`x = −(W + 120)`, flechas `left → right` y el codo `top → left` o `bottom → left`).
 - Final: el último paso del camino feliz con color `"4"`; un final alternativo (la
   lateral que no vuelve) sin color, o `"1"` si es un error.
 
@@ -363,9 +392,26 @@ grupo.height = (abajo de la última tarjeta) − grupo.y + 20  → igualalo al d
 
 Un título general (`# …`, tan ancho como el tablero) arriba, 40 px por encima de los
 grupos. Grupos con color por estado (`"2"` por hacer, `"3"` en curso, `"4"` hecho; `"1"`
-solo para una columna de bloqueados) y `label` con el nombre de la columna. En
-`nodes`: **primero los grupos**, después el título y las tarjetas. Un tablero no
-suele llevar flechas.
+solo para una columna de bloqueados) y `label` con el nombre de la columna. Un estado
+que no está en la paleta (descartado, archivado, en pausa) va **sin color**: queda
+gris, con los colores del tema, y no compite con los que significan algo. No le
+pongas `"5"`: el cian es «referencia». En `nodes`: **primero los grupos**, después el
+título y las tarjetas. Un tablero no suele llevar flechas.
+
+**Modificar un tablero** (agregar una columna, mover tarjetas):
+
+- **Columna nueva** a la derecha de la última: `x = última.x + última.width + 60`,
+  mismo `y`, ancho y alto que las otras. **Ensanchá el título** hasta cubrirla
+  (`width = derecha de la última columna − título.x`); el validador avisa
+  `TITULO_ANGOSTO` si no.
+- **Tarjeta movida**: al **final** de la columna de destino, debajo de la última, en
+  el orden en que el usuario las nombró (si no dijo, en el que tenían).
+- **Compactá la columna de origen**: subí las que quedaron debajo del hueco para que
+  vuelvan a ir pegadas desde arriba (`y = grupo.y + 44`, y cada una `+ alto + 20`),
+  sin cambiar su orden. Después recalculá el alto de **todos** los grupos al de la
+  columna más alta (puede achicarse).
+- **Lo que ya está no se corrige** (ver «Modificar»): un título de 150 sin bajada se
+  queda en 150, aunque la receta diga 120.
 
 ### 5. Línea de tiempo
 
@@ -384,16 +430,32 @@ la regla del hueco: en las filas pares salen `right → left`, en las impares
 
 ### 6. Mapa de notas relacionadas (nodos `file`, en dos alas)
 
-Centro: la nota principal (`file`, 400 × 280). A la izquierda, en columna, las notas
-de las que **depende**; a la derecha, las que la **usan** o la documentan (`file`,
-320 × 220, separadas 40 en vertical, la columna centrada en `y` respecto del centro, y a
-120 del centro en horizontal). Flechas del centro a cada una (`left → right` hacia la
-izquierda, `right → left` hacia la derecha). Debajo del centro, una tarjeta de texto que
-explique qué significa cada ala.
+Centro: la nota principal (`file`, 400 × 280). A la izquierda, en columna, sus
+**enlaces salientes** (de lo que depende, a lo que pertenece); a la derecha, sus
+**backlinks** (las notas que la enlazan). Las vecinas: `file`, 320 × 220, separadas 40
+en vertical, cada columna centrada en `y` respecto del centro y a 120 de él en
+horizontal. Flechas del centro a cada una (`left → right` hacia la izquierda,
+`right → left` hacia la derecha). Debajo del centro, una tarjeta de texto que explique
+qué significa cada ala.
 
-Antes de escribir cada `file`, comprobá la ruta: `ls "Carpeta/Nota.md"`. Para
-encontrar candidatas: los `[[enlaces]]` salientes de la nota y sus backlinks
-(`grep -rl "\[\[Título" --include="*.md" .`).
+Las candidatas salen del vault, no de tu criterio:
+
+- **Salientes**: los `[[enlaces]]` del texto **y de las propiedades**: un
+  `proyecto: "[[Mycelium]]"` en el frontmatter **es** un enlace saliente (Mycelium lo
+  cuenta en el grafo). El padre así enlazado va a la izquierda.
+- **Backlinks**: `grep -rl "\[\[Título" --include="*.md" .`
+- **Hermanas** (notas del mismo proyecto que no se enlazan con el centro) y demás
+  relaciones de **dos saltos**: van en una **segunda columna**, a 120 de la vecina por
+  la que pasan (las hermanas, junto al padre), y la flecha sale de **esa vecina**, no
+  del centro: la flecha cuenta el camino real. Hasta ~4 por columna, y segunda
+  columna de **un solo** lado (con las dos, pasa de 1800 de ancho); lo que sobre,
+  nombralo en la tarjeta explicativa.
+- Cada ruta, comprobada antes de escribirla: `ls "Carpeta/Nota.md"`.
+
+**Si la nota casi no tiene enlaces** (0–1 vecinas directas): decíselo al usuario y
+**no inventes** relaciones por parecido de tema. Ofrecé enlazarla (es mejor arreglo
+que el lienzo), o, si lo pide igual, poné las sugeridas **sin flecha** y en un grupo
+`Sugeridas (sin enlace)`.
 
 ## Modificar un canvas existente
 
@@ -401,18 +463,26 @@ encontrar candidatas: los `[[enlaces]]` salientes de la nota y sus backlinks
 2. Editá **el objeto parseado** (agregar a `nodes`/`edges`, cambiar campos) y
    reescribilo con `JSON.stringify(c, null, 2) + "\n"`. Así sobreviven las claves que
    no conocés. No reescribas el JSON a mano entero.
-3. **Buscá espacio libre** para lo nuevo: poné la tarjeta donde corresponde (a la
+
+   > [!warning] Un script de modificación no es idempotente
+   > `y += 200` o `nodes.push(…)` corridos dos veces corren el doble o duplican
+   > tarjetas. Leé, modificá y guardá **una sola vez**. Antes, copiá el archivo fuera
+   > del vault: si algo sale mal o tenés que repetir, partí de la copia, nunca del
+   > resultado.
+3. **Lo nuevo copia lo existente**: ancho, alto, separaciones y colores de las
+   tarjetas vecinas, aunque no sean los de las recetas. No «corrijas» lo que ya está.
+4. **Buscá espacio libre** para lo nuevo: poné la tarjeta donde corresponde (a la
    derecha de la que la origina, a 80 px) y, mientras choque con alguna tarjeta
    —rectángulos agrandados 24 px—, bajala `alto + 24`. Si cae dentro de un grupo,
    **agrandá el grupo** para que la contenga con su margen.
-4. **Mover una rama**: mové el nodo y todos sus descendientes con el mismo `dx, dy`.
+5. **Mover una rama**: mové el nodo y todos sus descendientes con el mismo `dx, dy`.
    **Mover un grupo**: mové también todo lo que contiene (Mycelium no lo hace solo).
-5. **Borrar un nodo**: borrá también todas las flechas que lo tocan.
-6. Un grupo nuevo alrededor de tarjetas existentes va **antes** de ellas en `nodes`
+6. **Borrar un nodo**: borrá también todas las flechas que lo tocan.
+7. Un grupo nuevo alrededor de tarjetas existentes va **antes** de ellas en `nodes`
    (`nodes.unshift(grupo)`).
-7. Ids nuevos que no choquen con ninguno existente (Mycelium genera ids aleatorios de
+8. Ids nuevos que no choquen con ninguno existente (Mycelium genera ids aleatorios de
    16 caracteres: no los reuses). **Nunca renombres un id existente**.
-8. Recalculá los lados de las flechas que tocan lo que moviste, y validá.
+9. Recalculá los lados de las flechas que tocan lo que moviste, y validá.
 
 ### Insertar un paso en medio de una cadena
 
@@ -455,13 +525,9 @@ que no existen, tarjetas encimadas, grupos que contienen a medias o tapan lo suy
 texto que no entra, notas `file` que no existen o no son notas). Los **avisos** también
 se corrigen: lado que da la espalda al enganche del otro extremo (el aviso trae los
 lados que corresponden según la regla del hueco), flecha que pasa por debajo de otra
-tarjeta, flecha demasiado corta, tarjetas pegadas, `label` o `color` de flecha que no
-se van a ver. Con `--estricto`, los avisos también fallan.
-
-Sin el validador, revisá a mano: para cada par de tarjetas, que sus rectángulos no se
-toquen; para cada flecha, que cada lado mire al enganche del otro extremo; para cada
-grupo, que contenga enteras a sus tarjetas y esté antes en `nodes`; para cada `file`,
-que la ruta exista.
+tarjeta, flecha demasiado corta, tarjetas pegadas, título de tablero más angosto que
+sus columnas, `label` o `color` de flecha que no se van a ver. Con `--estricto`, los
+avisos también fallan. El **tamaño total** no lo mide: calculalo vos (≤ ~1800 × 1200).
 
 ## Qué aporta un canvas al grafo del vault
 
@@ -473,3 +539,9 @@ El `.canvas` es un **nodo** del grafo. De él salen aristas hacia:
 Las **flechas no** crean aristas: son disposición visual. Si una relación entre dos
 notas tiene que quedar en la memoria, escribila como `[[enlace]]` en una de las notas;
 una flecha del lienzo no la registra.
+
+**Que el lienzo no quede huérfano.** Lo que sale del lienzo no lo hace encontrable:
+falta que algo **llegue** a él. Si hay una **nota natural** —la nota central del mapa,
+la del proyecto, el índice del área—, agregale `[[Nombre.canvas]]` ahí mismo (un lienzo
+se enlaza: un `![[….canvas]]` en una nota todavía no se dibuja). Si no la hay, no inventes una: **ofrecelo** en la respuesta
+(«¿Lo enlazo desde X?»).

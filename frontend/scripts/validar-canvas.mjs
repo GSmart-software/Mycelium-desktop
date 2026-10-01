@@ -8,8 +8,9 @@
 // Comprueba lo que se puede medir sin abrir la app: que el JSON sea un canvas,
 // que las flechas apunten a nodos que existen y salgan por el lado que mira a su
 // destino, que las tarjetas no se encimen, que los grupos contengan por completo
-// a lo que tocan, que el texto quepa en su caja y, con `--vault`, que las
-// tarjetas de nota apunten a notas reales.
+// a lo que tocan, que el texto quepa en su caja, que el título de un tablero
+// cubra sus columnas y, con `--vault`, que las tarjetas de nota apunten a notas
+// reales.
 //
 // > [!important] La geometría es la de Mycelium, copiada a propósito
 // > `anclaDe`, `ladosAutomaticos` y `trazoArista` replican `lib/canvas.ts`. Van
@@ -462,6 +463,39 @@ export function validarCanvas(contenido, opciones = {}) {
           `"${n.id}" está pegado al borde del grupo "${g.id}" (arriba ${arriba}px, lados ${lados}px): dejá 40 arriba —ahí va la etiqueta— y 20 en los demás.`,
         );
       }
+    }
+  }
+
+  // ── Título de un tablero ──
+  // Un título (`# …` en la primera línea) que encabeza una fila de grupos tiene
+  // que cubrirla entera. Es lo que se olvida al agregar una columna: la columna
+  // nueva queda fuera del título y el tablero se ve cortado.
+  for (const t of tarjetas) {
+    if (t.type !== "text" || !esTexto(t.text) || !/^#\s/.test(t.text.trimStart())) continue;
+    // La fila: grupos que empiezan hasta 200 px debajo del título, encadenados
+    // de costado (a menos de 200 px del tramo ya juntado).
+    const banda = grupos.filter((g) => g.y >= abajo(t) && g.y - abajo(t) <= 200);
+    let desde = t.x;
+    let hasta = derecha(t);
+    const fila = new Set();
+    for (let cambio = true; cambio; ) {
+      cambio = false;
+      for (const g of banda) {
+        if (fila.has(g) || derecha(g) < desde - 200 || g.x > hasta + 200) continue;
+        fila.add(g);
+        cambio = true;
+        desde = Math.min(desde, g.x);
+        hasta = Math.max(hasta, derecha(g));
+      }
+    }
+    if (fila.size < 2) continue;
+    desde = Math.min(...[...fila].map((g) => g.x));
+    hasta = Math.max(...[...fila].map(derecha));
+    if (t.x > desde + 10 || derecha(t) < hasta - 10) {
+      aviso(
+        "TITULO_ANGOSTO",
+        `El título "${t.id}" va de x = ${t.x} a ${derecha(t)} y los grupos que encabeza, de ${desde} a ${hasta}: ensanchalo (\`x: ${desde}\`, \`width: ${hasta - desde}\`).`,
+      );
     }
   }
 

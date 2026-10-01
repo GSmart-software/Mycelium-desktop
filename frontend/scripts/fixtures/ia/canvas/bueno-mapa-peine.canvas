@@ -1,0 +1,384 @@
+{
+  "nodes": [
+    {
+      "id": "centro",
+      "type": "text",
+      "text": "# Aprender japonés",
+      "x": 0,
+      "y": 535,
+      "width": 300,
+      "height": 120,
+      "color": "6"
+    },
+    {
+      "id": "rama-1",
+      "type": "text",
+      "text": "**Kana**",
+      "x": 400,
+      "y": 130,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "rama-2",
+      "type": "text",
+      "text": "**Kanji**",
+      "x": 400,
+      "y": 540,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "rama-3",
+      "type": "text",
+      "text": "**Gramática**",
+      "x": 400,
+      "y": 950,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "rama-4",
+      "type": "text",
+      "text": "**Vocabulario**",
+      "x": -320,
+      "y": 885,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "rama-5",
+      "type": "text",
+      "text": "**Escucha**",
+      "x": -320,
+      "y": 540,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "rama-6",
+      "type": "text",
+      "text": "**Práctica**",
+      "x": -320,
+      "y": 195,
+      "width": 220,
+      "height": 110
+    },
+    {
+      "id": "idea-1-1",
+      "type": "text",
+      "text": "Hiragana primero: las 46 sílabas básicas",
+      "x": 680,
+      "y": 0,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-1-2",
+      "type": "text",
+      "text": "Katakana para palabras extranjeras",
+      "x": 680,
+      "y": 130,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-1-3",
+      "type": "text",
+      "text": "Dakuten y combinaciones (kya, sho…)",
+      "x": 680,
+      "y": 260,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-2-1",
+      "type": "text",
+      "text": "Radicales como piezas de memoria",
+      "x": 680,
+      "y": 410,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-2-2",
+      "type": "text",
+      "text": "Repaso espaciado con tarjetas (SRS)",
+      "x": 680,
+      "y": 540,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-2-3",
+      "type": "text",
+      "text": "Aprenderlos dentro de palabras, no sueltos",
+      "x": 680,
+      "y": 670,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-3-1",
+      "type": "text",
+      "text": "Partículas: は, が, を, に",
+      "x": 680,
+      "y": 820,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-3-2",
+      "type": "text",
+      "text": "Conjugación de verbos (forma て, ます)",
+      "x": 680,
+      "y": 950,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-3-3",
+      "type": "text",
+      "text": "Orden sujeto–objeto–verbo",
+      "x": 680,
+      "y": 1080,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-4-1",
+      "type": "text",
+      "text": "Las 1000 palabras más frecuentes",
+      "x": -730,
+      "y": 755,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-4-2",
+      "type": "text",
+      "text": "Frases enteras en vez de listas",
+      "x": -730,
+      "y": 885,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-4-3",
+      "type": "text",
+      "text": "Mazo propio con lo que leés",
+      "x": -730,
+      "y": 1015,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-5-1",
+      "type": "text",
+      "text": "Anime y series con subtítulos en japonés",
+      "x": -730,
+      "y": 475,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-5-2",
+      "type": "text",
+      "text": "Podcasts para principiantes",
+      "x": -730,
+      "y": 605,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-6-1",
+      "type": "text",
+      "text": "Intercambio con hablantes nativos",
+      "x": -730,
+      "y": 65,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-6-2",
+      "type": "text",
+      "text": "Diario corto en japonés",
+      "x": -730,
+      "y": 195,
+      "width": 350,
+      "height": 110
+    },
+    {
+      "id": "idea-6-3",
+      "type": "text",
+      "text": "Shadowing: repetir en voz alta",
+      "x": -730,
+      "y": 325,
+      "width": 350,
+      "height": 110
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1",
+      "fromNode": "centro",
+      "fromSide": "right",
+      "toNode": "rama-1",
+      "toSide": "left"
+    },
+    {
+      "id": "e-1-1",
+      "fromNode": "rama-1",
+      "fromSide": "right",
+      "toNode": "idea-1-1",
+      "toSide": "left"
+    },
+    {
+      "id": "e-1-2",
+      "fromNode": "rama-1",
+      "fromSide": "right",
+      "toNode": "idea-1-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-1-3",
+      "fromNode": "rama-1",
+      "fromSide": "right",
+      "toNode": "idea-1-3",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2",
+      "fromNode": "centro",
+      "fromSide": "right",
+      "toNode": "rama-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2-1",
+      "fromNode": "rama-2",
+      "fromSide": "right",
+      "toNode": "idea-2-1",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2-2",
+      "fromNode": "rama-2",
+      "fromSide": "right",
+      "toNode": "idea-2-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-2-3",
+      "fromNode": "rama-2",
+      "fromSide": "right",
+      "toNode": "idea-2-3",
+      "toSide": "left"
+    },
+    {
+      "id": "e-3",
+      "fromNode": "centro",
+      "fromSide": "right",
+      "toNode": "rama-3",
+      "toSide": "left"
+    },
+    {
+      "id": "e-3-1",
+      "fromNode": "rama-3",
+      "fromSide": "right",
+      "toNode": "idea-3-1",
+      "toSide": "left"
+    },
+    {
+      "id": "e-3-2",
+      "fromNode": "rama-3",
+      "fromSide": "right",
+      "toNode": "idea-3-2",
+      "toSide": "left"
+    },
+    {
+      "id": "e-3-3",
+      "fromNode": "rama-3",
+      "fromSide": "right",
+      "toNode": "idea-3-3",
+      "toSide": "left"
+    },
+    {
+      "id": "e-4",
+      "fromNode": "centro",
+      "fromSide": "left",
+      "toNode": "rama-4",
+      "toSide": "right"
+    },
+    {
+      "id": "e-4-1",
+      "fromNode": "rama-4",
+      "fromSide": "left",
+      "toNode": "idea-4-1",
+      "toSide": "right"
+    },
+    {
+      "id": "e-4-2",
+      "fromNode": "rama-4",
+      "fromSide": "left",
+      "toNode": "idea-4-2",
+      "toSide": "right"
+    },
+    {
+      "id": "e-4-3",
+      "fromNode": "rama-4",
+      "fromSide": "left",
+      "toNode": "idea-4-3",
+      "toSide": "right"
+    },
+    {
+      "id": "e-5",
+      "fromNode": "centro",
+      "fromSide": "left",
+      "toNode": "rama-5",
+      "toSide": "right"
+    },
+    {
+      "id": "e-5-1",
+      "fromNode": "rama-5",
+      "fromSide": "left",
+      "toNode": "idea-5-1",
+      "toSide": "right"
+    },
+    {
+      "id": "e-5-2",
+      "fromNode": "rama-5",
+      "fromSide": "left",
+      "toNode": "idea-5-2",
+      "toSide": "right"
+    },
+    {
+      "id": "e-6",
+      "fromNode": "centro",
+      "fromSide": "left",
+      "toNode": "rama-6",
+      "toSide": "right"
+    },
+    {
+      "id": "e-6-1",
+      "fromNode": "rama-6",
+      "fromSide": "left",
+      "toNode": "idea-6-1",
+      "toSide": "right"
+    },
+    {
+      "id": "e-6-2",
+      "fromNode": "rama-6",
+      "fromSide": "left",
+      "toNode": "idea-6-2",
+      "toSide": "right"
+    },
+    {
+      "id": "e-6-3",
+      "fromNode": "rama-6",
+      "fromSide": "left",
+      "toNode": "idea-6-3",
+      "toSide": "right"
+    }
+  ]
+}
