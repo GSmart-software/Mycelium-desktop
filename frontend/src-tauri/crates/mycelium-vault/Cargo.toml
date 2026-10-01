@@ -11,8 +11,9 @@ publish = false
 # de rutas (`misma_ruta`) y el hash que nombra lo que es de cada vault
 # (`hashRuta`). Ver `docs/features/mcp-control.md` § 2.
 #
-# La app NO depende de este crate: su código de vault vive en `src/`, y las
-# reglas de acá son copia fiel de las suyas (hay tests con valores de la app).
+# Desde la Parte 1 la app depende de este crate para lo que comparte con el
+# servidor: el nombre del canal (`canal`), la resolución contra el registro y
+# el hash. El resto de su código de vault sigue en `src/`.
 # La versión del MCP de memoria traía además el walker, los parsers y el índice
 # en SQLite; quedó en la historia de `feat/mcp-desktop`.
 

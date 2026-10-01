@@ -18,7 +18,8 @@ rust-version = "1.77.2"
 #   - `crates/mycelium-vault`: lo que el servidor necesita saber de los vaults
 #     (registro `vaults.json`, rutas canónicas, `hashRuta`).
 #   - `crates/mycelium-mcp`: el servidor MCP de control, un binario aparte.
-# La app NO depende de ellos: su código de vault vive en `src/` (ver [[mcp-control]]).
+# Desde la Parte 1 la app depende de `mycelium-vault` (el canal de control,
+# `src/control.rs`); el resto de su código de vault sigue en `src/`.
 [workspace]
 members = [".", "crates/mycelium-vault", "crates/mycelium-mcp"]
 resolver = "2"
@@ -79,6 +80,15 @@ trash = "5.2.3"
 # En Windows el toast se arma con `tauri-winrt-notification` (abajo) para poder
 # atender el clic; el plugin queda para los demás sistemas.
 tauri-plugin-notification = "2"
+# MCP de control (`FUN-L-09`, src/control.rs): lo que la app comparte con el
+# servidor `mycelium-mcp` —el nombre del canal, la resolución contra el
+# registro, el hash— vive en este crate del workspace, para que las dos puntas
+# no se puedan desalinear.
+mycelium-vault = { path = "crates/mycelium-vault" }
+# La escucha del canal (named pipe / socket) corre en el runtime que ya trae
+# Tauri; se piden solo las features que faltan (`net`, `macros`). Misma versión:
+# no se compila dos veces.
+tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros", "rt"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
@@ -90,6 +100,10 @@ tauri-plugin-single-instance = "2"
 windows = { version = "0.61", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
+  # El descriptor de seguridad del canal de control (src/control.rs).
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Threading",
   "Win32_System_LibraryLoader",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",

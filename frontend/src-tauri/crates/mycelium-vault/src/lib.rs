@@ -10,6 +10,10 @@
 //! |---|---|
 //! | [`registro`] | el formato de `vaults.json` y qué vault contiene una carpeta |
 //! | [`rutas`] | si dos rutas son el mismo vault, el hash de su ruta y dónde está la configuración de la app |
+//! | [`canal`] | cómo se llama el canal de la ventana de un vault y qué viaja por él |
+//! | [`preferencias`] | si el control está encendido en un vault (`.mycelium/preferencias.json`) |
 
+pub mod canal;
+pub mod preferencias;
 pub mod registro;
 pub mod rutas;

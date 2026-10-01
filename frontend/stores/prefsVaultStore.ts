@@ -65,6 +65,21 @@ export type PrefsVault = {
    * (`sanearContraDefectos`), que es quien los conoce. Solo-desktop.
    */
   preferencias: Record<string, unknown>;
+  /**
+   * «Dejar que la IA controle Mycelium» (`FUN-L-09`): si esta ventana abre el
+   * canal del MCP de control para el vault. **Apagado por defecto**: que un
+   * proceso externo pueda manejar la app se concede, no viene puesto. El
+   * servidor MCP lee esta clave del disco para distinguir «app cerrada» de
+   * «control apagado» (`crates/mycelium-vault/src/preferencias.rs`): si se
+   * renombra, hay que renombrarla allá.
+   */
+  controlIa: boolean;
+  /**
+   * Si el `.mcp.json` de la raíz lo creó Mycelium al encender el control. Al
+   * apagarlo se quita solo nuestra entrada, y el archivo se borra únicamente si
+   * quedó vacío **y** era nuestro: uno del usuario no se toca aunque quede vacío.
+   */
+  mcpJsonCreado: boolean;
 };
 
 /**
@@ -82,6 +97,8 @@ export const POR_DEFECTO: PrefsVault = {
   tema: "bioluminiscencia",
   modoOscuro: true,
   preferencias: {},
+  controlIa: false,
+  mcpJsonCreado: false,
 };
 
 /** Si `v` es un objeto plano (no `null`, no una lista). */
@@ -117,6 +134,8 @@ export function normalizar(crudo: unknown): PrefsVault {
     tema: o.tema === "bioluminiscencia" || o.tema === "cantarela" ? o.tema : POR_DEFECTO.tema,
     modoOscuro: typeof o.modoOscuro === "boolean" ? o.modoOscuro : POR_DEFECTO.modoOscuro,
     preferencias: esObjeto(o.preferencias) ? { ...o.preferencias } : {},
+    controlIa: o.controlIa === true,
+    mcpJsonCreado: o.mcpJsonCreado === true,
   };
 }
 

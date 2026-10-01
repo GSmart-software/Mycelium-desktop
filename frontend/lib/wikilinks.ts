@@ -204,11 +204,37 @@ export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
   porTitulo: Map<string, N[]>,
   carpetas: readonly CarpetaEnlazable[],
 ): N | undefined {
+  const matches = candidatosWikilinkEnIndice(ref, porTitulo, carpetas);
+  if (matches.length <= 1) return matches[0];
+
+  // 5) Empate de profundidad → por ruta, y no por el orden de la lista: el editor
+  // recibe las notas en el orden del store y el grafo en el de su consulta, y
+  // con el orden de llegada dos homónimas a la misma altura podían resolver
+  // distinto en cada punta.
+  const byDepth = (a: N, b: N) =>
+    folderSegments(a.carpetaId, carpetas).length - folderSegments(b.carpetaId, carpetas).length ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return [...matches].sort(byDepth)[0];
+}
+
+/**
+ * Los candidatos de una referencia tras las reglas 1 a 4 de
+ * `resolveWikilinkEnIndice`, **antes** del desempate. Un enlace escrito se
+ * resuelve igual con homónimos —elige el más cercano a la raíz, como
+ * Obsidian—, pero quien pregunta por un título para actuar sobre él (el MCP de
+ * control, `FUN-L-09`) necesita saber que había más de uno para no elegir a
+ * ciegas: con dos o más, contesta `AMBIGUO` con las rutas.
+ */
+export function candidatosWikilinkEnIndice<N extends NotaEnlazable>(
+  ref: string,
+  porTitulo: Map<string, N[]>,
+  carpetas: readonly CarpetaEnlazable[],
+): N[] {
   const parts = ref
     .split("/")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (parts.length === 0) return undefined;
+  if (parts.length === 0) return [];
 
   const title = parts[parts.length - 1].toLowerCase();
   const hint = parts.slice(0, -1).map((s) => s.toLowerCase());
@@ -227,7 +253,7 @@ export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
   // 2) Sin extensión —o con una que ningún archivo de ese tipo tiene—: el
   // título tal cual.
   if (!porExtension) matches = porTitulo.get(title) ?? [];
-  if (matches.length === 0) return undefined;
+  if (matches.length === 0) return [];
 
   // 3) La pista de carpeta: la ruta del archivo debe terminar con sus
   // segmentos. Una pista que no calza con ninguno no resuelve —ni siquiera con
@@ -239,7 +265,7 @@ export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
       if (hint.length > segs.length) return false;
       return hint.every((h, i) => segs[segs.length - hint.length + i] === h);
     });
-    if (matches.length === 0) return undefined;
+    if (matches.length === 0) return [];
   }
 
   // 4) Sin extensión, la nota markdown le gana a un dibujo, un lienzo o una
@@ -248,16 +274,7 @@ export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
     const notas = matches.filter((n) => n.tipo === "markdown");
     if (notas.length > 0) matches = notas;
   }
-  if (matches.length === 1) return matches[0];
-
-  // 5) Empate de profundidad → por ruta, y no por el orden de la lista: el editor
-  // recibe las notas en el orden del store y el grafo en el de su consulta, y
-  // con el orden de llegada dos homónimas a la misma altura podían resolver
-  // distinto en cada punta.
-  const byDepth = (a: N, b: N) =>
-    folderSegments(a.carpetaId, carpetas).length - folderSegments(b.carpetaId, carpetas).length ||
-    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  return [...matches].sort(byDepth)[0];
+  return matches;
 }
 
 /**

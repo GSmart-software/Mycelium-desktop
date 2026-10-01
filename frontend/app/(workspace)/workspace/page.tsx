@@ -25,6 +25,7 @@ import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
 import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { registrarNavegadorMcp } from "@/lib/mcpControl";
 import { listarOtrosArchivos } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
@@ -185,6 +186,14 @@ function WorkspaceShell() {
       useTabsStore.getState().reconcileArchivos(new Set(lista.map((a) => a.ruta)));
     });
   }, [rutaVault]);
+
+  // El MCP de control (`FUN-L-09`) abre pestañas con foco por la misma vía que
+  // un clic: poniendo la nota en la URL. Mientras el workspace no esté montado
+  // no hay navegador, y los pedidos reciben `OCUPADA`.
+  useEffect(() => {
+    registrarNavegadorMcp((notaId) => router.replace(`/workspace?note=${encodeURIComponent(notaId)}`));
+    return () => registrarNavegadorMcp(null);
+  }, [router]);
 
   // La URL es la fuente de navegación (HU-20): abrir la nota en el pane activo
   useEffect(() => {
