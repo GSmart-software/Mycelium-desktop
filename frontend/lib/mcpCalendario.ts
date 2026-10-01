@@ -121,7 +121,7 @@ export function crear(args: Record<string, unknown>): Atendido {
   const efecto = efectoCrear(r, ahora);
   return {
     resultado: { efecto, recordatorio: paraIa(r), ...proximaParaIa(r, ahora) },
-    actividad: { efecto, objetivo: objetivoDe(r, ahora), deshacer: { tipo: "borrar", id } },
+    actividad: { efecto, objetivo: objetivoDe(r, ahora), deshacer: { tipo: "borrar", id, despues: r } },
   };
 }
 
@@ -136,7 +136,7 @@ export function editar(args: Record<string, unknown>): Atendido {
   const efecto = efectoEditar(antes, despues, ahora);
   return {
     resultado: { efecto, recordatorio: paraIa(despues), ...proximaParaIa(despues, ahora) },
-    actividad: { efecto, objetivo: objetivoDe(despues, ahora), deshacer: { tipo: "reponer", recordatorio: antes } },
+    actividad: { efecto, objetivo: objetivoDe(despues, ahora), deshacer: { tipo: "reponer", recordatorio: antes, despues } },
   };
 }
 

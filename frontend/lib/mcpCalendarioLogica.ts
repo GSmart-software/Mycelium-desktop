@@ -475,15 +475,22 @@ export function comprobarOcurrencia(r: Recordatorio, fecha: string): Validado<nu
 /**
  * Lo que hace falta para deshacer una operación del calendario: se guarda en
  * el registro de actividad (`.mycelium/actividad.jsonl`) junto a la operación.
+ *
+ * > [!important] Cada uno guarda también **cómo lo dejó** la operación
+ * > (`despues`, o el `completado` que fijó). Deshacer solo se aplica si el
+ * > recordatorio sigue así: si el usuario —o el agente— lo cambió después,
+ * > volver a «lo de antes» pisaría ese cambio posterior sin decir nada. Los
+ * > renglones escritos antes de este campo no lo traen; con ellos no se puede
+ * > comprobar, y se deshace como antes.
  */
 export type DeshacerCalendario =
-  /** Deshacer un crear. */
-  | { tipo: "borrar"; id: string }
+  /** Deshacer un crear. `despues`: cómo quedó creado. */
+  | { tipo: "borrar"; id: string; despues?: Recordatorio }
   /** Deshacer un borrar: el recordatorio entero y el estado de sus ocurrencias. */
   | { tipo: "restaurar"; recordatorio: Recordatorio; ocurrencias: Record<string, EstadoOcurrencia> }
-  /** Deshacer un editar: los valores de antes. */
-  | { tipo: "reponer"; recordatorio: Recordatorio }
-  /** Deshacer un completar: cómo estaba la ocurrencia. */
+  /** Deshacer un editar: los valores de antes, y cómo quedó (`despues`). */
+  | { tipo: "reponer"; recordatorio: Recordatorio; despues?: Recordatorio }
+  /** Deshacer un completar: cómo estaba la ocurrencia (la operación la dejó en `!completado`). */
   | { tipo: "completar"; id: string; fecha: string; completado: boolean };
 
 /** El texto del botón y de la confirmación, por tipo. */
@@ -500,19 +507,43 @@ export function describirDeshacer(d: DeshacerCalendario): string {
   }
 }
 
+/** Lo que cambia el usuario de un recordatorio: si esto es igual, sigue como estaba. */
+const CAMPOS_VISIBLES = ["titulo", "fecha", "hora", "repeticion", "color", "detalle"] as const;
+
+export function mismoRecordatorio(a: Recordatorio, b: Recordatorio): boolean {
+  return CAMPOS_VISIBLES.every((k) => (a[k] ?? null) === (b[k] ?? null));
+}
+
+/** El motivo cuando lo que dejó la operación ya no está como lo dejó. */
+export const CAMBIO_DESPUES = "cambió después";
+
 /**
  * Si se puede deshacer contra el calendario de hoy: lo creado tiene que
- * seguir existiendo para borrarlo, y lo borrado no tiene que haber vuelto.
+ * seguir existiendo para borrarlo, lo borrado no tiene que haber vuelto, y
+ * —lo que importa— **nada cambió después**: lo editado, creado o completado
+ * tiene que estar todavía como lo dejó la operación. Si no, deshacer pisaría
+ * la edición posterior, así que se niega con el motivo.
  */
 export function puedeDeshacer(archivo: ArchivoRecordatorios, d: DeshacerCalendario): { ok: true } | { ok: false; porque: string } {
-  const existe = (id: string) => archivo.recordatorios.some((r) => r.id === id);
+  const buscar = (id: string) => archivo.recordatorios.find((r) => r.id === id);
+  const cambio = { ok: false as const, porque: CAMBIO_DESPUES };
   switch (d.tipo) {
     case "restaurar":
-      return existe(d.recordatorio.id) ? { ok: false, porque: "ya está otra vez en el calendario" } : { ok: true };
-    case "borrar":
-    case "completar":
-      return existe(d.id) ? { ok: true } : { ok: false, porque: "el recordatorio ya no existe" };
-    case "reponer":
-      return existe(d.recordatorio.id) ? { ok: true } : { ok: false, porque: "el recordatorio ya no existe" };
+      return buscar(d.recordatorio.id) ? { ok: false, porque: "ya está otra vez en el calendario" } : { ok: true };
+    case "borrar": {
+      const actual = buscar(d.id);
+      if (!actual) return { ok: false, porque: "el recordatorio ya no existe" };
+      return d.despues && !mismoRecordatorio(actual, d.despues) ? cambio : { ok: true };
+    }
+    case "reponer": {
+      const actual = buscar(d.recordatorio.id);
+      if (!actual) return { ok: false, porque: "el recordatorio ya no existe" };
+      return d.despues && !mismoRecordatorio(actual, d.despues) ? cambio : { ok: true };
+    }
+    case "completar": {
+      if (!buscar(d.id)) return { ok: false, porque: "el recordatorio ya no existe" };
+      // La operación dejó la ocurrencia en `!completado`; si ya no está así, cambió después.
+      return estaCompletada(archivo, claveOcurrencia(d.id, d.fecha)) === !d.completado ? { ok: true } : cambio;
+    }
   }
 }

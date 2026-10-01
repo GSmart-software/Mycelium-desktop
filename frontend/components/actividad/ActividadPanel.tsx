@@ -10,7 +10,7 @@ import {
   type EstadoCanal,
   type Objetivo,
 } from "@/lib/actividadIa";
-import { describirDeshacer } from "@/lib/mcpCalendarioLogica";
+import { describirDeshacer, puedeDeshacer } from "@/lib/mcpCalendarioLogica";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { fechaLocal, horaLocal } from "@/lib/recordatorios";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
@@ -155,6 +155,12 @@ const ETIQUETA_RESULTADO = { fallo: "Falló", rechazado: "Rechazado" } as const;
 function Fila({ entrada: e }: { entrada: EntradaVista }) {
   const router = useRouter();
   const deshecha = e.deshechaEn !== null;
+  // Se recalcula con el calendario: si lo que dejó la operación cambió
+  // después, deshacer pisaría ese cambio, así que el botón queda deshabilitado
+  // con el motivo.
+  const archivoCal = useRecordatoriosStore((s) => s.archivo);
+  const posible = e.deshacer && !deshecha ? puedeDeshacer(archivoCal, e.deshacer) : null;
+  const motivoNo = posible && !posible.ok ? posible.porque : null;
 
   const ir = (o: Objetivo) => {
     const tabs = useTabsStore.getState();
@@ -208,7 +214,8 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
             <button
               type="button"
               className={styles.boton}
-              title={`Deshacer: ${describirDeshacer(e.deshacer)}`}
+              title={motivoNo ? `No se puede deshacer: ${motivoNo}` : `Deshacer: ${describirDeshacer(e.deshacer)}`}
+              disabled={motivoNo !== null}
               onClick={() => void deshacer()}
             >
               Deshacer
@@ -216,6 +223,7 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
           )}
         </div>
       )}
+      {motivoNo && e.resultado === "hecho" && <p className={styles.sinDeshacer}>No se puede deshacer: {motivoNo}.</p>}
     </li>
   );
 }

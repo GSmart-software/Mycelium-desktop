@@ -140,7 +140,8 @@
   overflow-wrap: anywhere;
 }
 
-.deshecho {
+.deshecho,
+.sinDeshacer {
   font-size: 0.75rem;
   color: var(--mic-text-muted);
 }
