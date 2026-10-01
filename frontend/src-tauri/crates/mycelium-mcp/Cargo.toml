@@ -10,11 +10,10 @@ publish = false
 # por stdio (JSON-RPC 2.0, un mensaje por línea) implementado a mano: ver el
 # porqué en `src/protocolo.rs`. Sin runtime asíncrono.
 #
-# Empaquetado (todavía sin cablear, Parte 1): va como `bundle.externalBin` de
-# Tauri (sidecar), que exige `binaries/mycelium-mcp-<target-triple>.exe` al
-# compilar y lo instala junto a `Mycelium.exe` como `mycelium-mcp.exe`. El
-# nombre del binario ya es ese, y comparte `target/` con la app por estar en el
-# workspace.
+# Empaquetado (Parte 1): va como `bundle.externalBin` de Tauri (sidecar), que
+# exige `binaries/mycelium-mcp-<target-triple>.exe` al compilar y lo instala
+# junto a `Mycelium.exe` como `mycelium-mcp.exe`. Lo compila y lo deja ahí
+# `scripts/preparar-mcp.mjs` (en el `beforeBuildCommand`/`beforeDevCommand`).
 
 [[bin]]
 name = "mycelium-mcp"
@@ -23,3 +22,14 @@ path = "src/main.rs"
 [dependencies]
 mycelium-vault = { path = "../mycelium-vault" }
 serde_json = "1.0"
+
+# Solo para los tests: el servidor de canal falso (`src/canal_falso.rs`) crea un
+# named pipe de verdad. Misma versión que ya usa la app: no se compila dos veces.
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+] }

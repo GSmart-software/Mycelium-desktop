@@ -15,6 +15,7 @@
 //! directorio actual, **siempre contra una entrada de `vaults.json`**: el MCP
 //! sirve vaults de Mycelium, no carpetas sueltas.
 
+mod canal;
 mod herramientas;
 mod protocolo;
 mod servidor;

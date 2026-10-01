@@ -8,6 +8,8 @@
 //! entonces `VAULT_DESCONOCIDO` con los vaults registrados.
 
 use std::io::{BufRead, Write};
+use std::path::PathBuf;
+use std::time::Duration;
 
 use serde_json::{json, Value};
 
@@ -17,6 +19,24 @@ use crate::vault::{self, VaultResuelto};
 
 pub struct Estado {
     pub vault: Result<VaultResuelto, String>,
+    /// El canal con la ventana del vault (`mycelium-<hash>`, ver
+    /// `mycelium_vault::canal::nombre_canal`). Vacío
+    /// si el vault no se resolvió: nadie lo va a usar.
+    pub canal: PathBuf,
+    /// Plazo de lectura del canal; `None` = el del protocolo
+    /// ([`crate::canal::ESPERA_CLIENTE`]). Los tests lo acortan.
+    pub espera: Option<Duration>,
+}
+
+impl Estado {
+    /// El estado para un vault (o su error), con el canal ya calculado.
+    pub fn nuevo(vault: Result<VaultResuelto, String>) -> Self {
+        let canal = match (&vault, mycelium_vault::rutas::dir_app()) {
+            (Ok(v), Some(dir)) => mycelium_vault::canal::nombre_canal(&v.registrado.ruta, &dir),
+            _ => PathBuf::new(),
+        };
+        Estado { vault, canal, espera: None }
+    }
 }
 
 pub fn correr(arg_vault: Option<String>) {
@@ -32,7 +52,7 @@ pub fn correr(arg_vault: Option<String>) {
         Err(msg) => eprintln!("mycelium-mcp: {msg}"),
     }
 
-    let mut estado = Estado { vault };
+    let mut estado = Estado::nuevo(vault);
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     for linea in stdin.lock().lines() {
