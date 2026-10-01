@@ -116,6 +116,22 @@ export async function ftsPoner(id: string, titulo: string, contenido: string): P
   );
 }
 
+/**
+ * Borra las filas de `notas_fts` que ninguna nota reclama en `fts_filas`
+ * (`DEF-121`). No las escribe ningún camino actual: las deja una versión de
+ * Mycelium anterior a `fts_filas` que abrió el mismo índice —borraba e insertaba
+ * por `nota_id`, con un `rowid` nuevo que nadie anotó—. Medido en un índice
+ * real que alternó la 2.1.0 y una de desarrollo: 32 notas con su fila de
+ * búsqueda sin anotar y 5 anotadas a filas que ya no existían.
+ *
+ * Va ANTES de reindexar esas notas: si no, la fila nueva se suma a la vieja y la
+ * búsqueda la encuentra dos veces. Recorre la tabla entera, así que solo se
+ * llama cuando el indexado encontró notas incompletas.
+ */
+export async function ftsBorrarHuerfanas(): Promise<void> {
+  await execute("DELETE FROM notas_fts WHERE rowid NOT IN (SELECT fila FROM fts_filas)");
+}
+
 /** Borra las filas de búsqueda de estas notas, por tandas. */
 export async function ftsBorrar(ids: string[]): Promise<void> {
   for (const tanda of enTandas(ids)) {

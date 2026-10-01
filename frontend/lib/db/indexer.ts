@@ -21,7 +21,7 @@ import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from 
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import { execute, select } from "./client";
 import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
-import { crearFtsFilas, enTandas, ftsBorrar, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
+import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 import { LOCAL_VAULT_ID } from "./vaultContext";
@@ -303,9 +303,12 @@ export function tituloDeRuta(ruta: string): string {
  * H1 de la auditoría): la tanda entera viaja como un parámetro JSON que SQLite
  * despliega con `json_each`. Antes eran 5 sentencias por nota más una por
  * propiedad —13.496 viajes por el puente IPC en un vault de 1.300 notas, a
- * 4–5 ms cada uno—; ahora son 6 por tanda de 250. No se usa `BEGIN`/`COMMIT`:
- * el pool de conexiones de `tauri-plugin-sql` no garantiza que caigan en la
- * misma conexión, así que cada sentencia tiene que ser correcta por sí sola.
+ * 4–5 ms cada uno—; ahora son unas pocas por tanda de 250. No se usa
+ * `BEGIN`/`COMMIT`: el pool de conexiones de `tauri-plugin-sql` no garantiza que
+ * caigan en la misma conexión, así que cada sentencia tiene que ser correcta por
+ * sí sola. Y por lo mismo la tanda puede cortarse a la mitad: el `mtime` de cada
+ * nota se escribe en la ÚLTIMA sentencia, para que una tanda cortada se relea
+ * entera en el próximo indexado (`DEF-121`).
  *
  * Un `.excalidraw` se indexa como cualquier nota: su escena va a `contenidos`.
  *
@@ -355,10 +358,37 @@ export async function indexarVault(
   }
 
   // Estado actual del índice: mtime por nota y carpetas existentes (para limpieza).
-  const notasExistentes = await select<{ id: string; mtime: number }>(
-    "SELECT id, mtime FROM notas",
+  //
+  // Y qué notas están INCOMPLETAS (`DEF-121`): sin su fila de `contenidos` o sin
+  // la de búsqueda. Un índice dañado por una tanda que se cortó antes del
+  // arreglo tiene la nota con el `mtime` al día, así que comparar `mtime`s la
+  // salteaba para siempre —y la app la abría vacía—. Se releen aunque el `mtime`
+  // coincida: es la reparación de esos índices.
+  //
+  // La fila de búsqueda se mira en `notas_fts_docsize`, la tabla sombra en la
+  // que FTS5 anota una fila por documento con su mismo `id`, y no en `notas_fts`:
+  // unir contra la tabla virtual hace que FTS5 lea cada documento, y en un índice
+  // de 1.366 notas eran 1,9 s en CADA indexado; contra la sombra, 13 ms. Existe
+  // siempre: `notas_fts` se crea sin `columnsize=0` (ver `ESQUEMA_INDICE`).
+  const notasExistentes = await select<{ id: string; mtime: number; incompleta: number }>(
+    `SELECT n.id, n.mtime,
+            (c.nota_id IS NULL OR d.id IS NULL) AS incompleta
+     FROM notas n
+     LEFT JOIN contenidos c ON c.nota_id = n.id
+     LEFT JOIN fts_filas f ON f.nota_id = n.id
+     LEFT JOIN notas_fts_docsize d ON d.id = f.fila`,
   );
   const mtimePorId = new Map(notasExistentes.map((r) => [r.id, r.mtime]));
+  // Solo cuentan las que siguen en disco: las demás no se releen (se van en la
+  // limpieza, o están en la papelera), y contarlas repetiría la limpieza de
+  // abajo en cada indexado.
+  const enDisco = new Set(archivos.map((a) => a.rutaRelativa));
+  const incompletas = new Set(
+    notasExistentes.filter((r) => Number(r.incompleta) === 1 && enDisco.has(r.id)).map((r) => r.id),
+  );
+  // Antes de reescribirlas, las filas de búsqueda que nadie reclama: si no, la
+  // de una nota sin anotar en `fts_filas` quedaría duplicada (`ftsBorrarHuerfanas`).
+  if (incompletas.size > 0) await ftsBorrarHuerfanas();
   const carpetasExistentes = await select<{ id: string }>("SELECT id FROM carpetas");
   const idsCarpetasExistentes = new Set(carpetasExistentes.map((c) => c.id));
 
@@ -391,7 +421,7 @@ export async function indexarVault(
   // 2) Fase (a): qué hay que reindexar. Solo se comparan `mtime`s: el contenido
   // todavía no cruzó el puente IPC.
   const porReindexar = archivos.filter((a) => {
-    if (forzarTodo) return true;
+    if (forzarTodo || incompletas.has(a.rutaRelativa)) return true;
     const previo = mtimePorId.get(a.rutaRelativa);
     return previo === undefined || previo !== a.mtime;
   });
@@ -472,21 +502,31 @@ export async function indexarVault(
     }
 
     if (filasNotas.length > 0) {
+      // > [!warning] El `mtime` va AL FINAL de la tanda (`DEF-121`)
+      // > El `mtime` de `notas` es la marca de «esta nota ya está indexada»: el
+      // > próximo indexado solo relee las que no coinciden. Antes iba en esta
+      // > primera sentencia, junto con las huellas, y las demás —`contenidos`,
+      // > búsqueda, propiedades, enlaces— después, sueltas y sin transacción
+      // > (ver la cabecera de `indexarVault`). Si algo cortaba la tanda en el
+      // > medio —una sentencia que falla con el índice ocupado, la ventana que
+      // > se recarga—, la nota quedaba con el `mtime` al día y SIN contenido, y
+      // > nadie la volvía a leer: la app la abría vacía, y guardar pisaba el
+      // > disco. Ahora la fila de `notas` entra primero —las demás tablas la
+      // > referencian— con `mtime` 0 si es nueva, o con el que tenía si ya
+      // > estaba, y el `mtime` real y las huellas se escriben en la ÚLTIMA
+      // > sentencia: un corte en cualquier punto deja el `mtime` desfasado, y el
+      // > próximo indexado la relee entera.
       await execute(
-        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_indexable, hash_enlaces, creado_en, actualizado_en)
+        `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
          SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.carpetaId'),
                 json_extract(value, '$.titulo'), json_extract(value, '$.tipo'),
-                json_extract(value, '$.bytes'), json_extract(value, '$.mtime'),
-                json_extract(value, '$.huella'), json_extract(value, '$.huellaEnlaces'), ?, ?
+                json_extract(value, '$.bytes'), 0, ?, ?
          FROM json_each(?) WHERE true
          ON CONFLICT(id) DO UPDATE SET
            carpeta_id = excluded.carpeta_id,
            titulo = excluded.titulo,
            tipo = excluded.tipo,
            tamano_bytes = excluded.tamano_bytes,
-           mtime = excluded.mtime,
-           hash_indexable = excluded.hash_indexable,
-           hash_enlaces = excluded.hash_enlaces,
            actualizado_en = excluded.actualizado_en`,
         [VAULT_ID, now, now, JSON.stringify(filasNotas)],
       );
@@ -502,6 +542,17 @@ export async function indexarVault(
       await ftsPonerTanda(filasFts);
       await reindexarPropiedadesTanda(entradasPropiedades);
       await escribirEnlacesTanda(entradasEnlaces);
+      // La tanda entera ya está escrita: recién ahora el `mtime` del disco y las
+      // huellas (ver el aviso de arriba). `UPDATE … FROM` como en `enlacesIndice.ts`.
+      await execute(
+        `UPDATE notas SET
+           mtime = json_extract(j.value, '$.mtime'),
+           hash_indexable = json_extract(j.value, '$.huella'),
+           hash_enlaces = json_extract(j.value, '$.huellaEnlaces')
+         FROM json_each(?) AS j
+         WHERE notas.id = json_extract(j.value, '$.id')`,
+        [JSON.stringify(filasNotas.map(({ id, mtime, huella, huellaEnlaces }) => ({ id, mtime, huella, huellaEnlaces })))],
+      );
     }
 
     // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
@@ -529,7 +580,7 @@ export async function indexarVault(
   // cada una un viaje por el puente IPC, y la de `notas_fts` recorría la tabla
   // entera: tras un `git worktree remove` de 5.000 notas con la app cerrada, la
   // apertura se quedaba horas en «Leyendo los archivos… N de N».
-  const rutasActuales = new Set(archivos.map((a) => a.rutaRelativa));
+  const rutasActuales = enDisco;
   const desaparecidas = notasExistentes
     .map((n) => n.id)
     .filter((id) => !rutasActuales.has(id) && !enPapelera.has(id));
