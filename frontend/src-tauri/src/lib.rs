@@ -4,6 +4,7 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod control;
 mod diccionarios;
 mod marco;
 mod mycignore;
@@ -167,6 +168,8 @@ pub fn run() {
         // Descargas de diccionarios del corrector en curso (`FUN-L-12`).
         .manage(diccionarios::DescargasState::default())
         .manage(ventanas::VentanasState::default())
+        // La escucha del MCP de control, una por ventana (`FUN-L-09`).
+        .manage(control::ControlState::default())
         // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
         // watcher, sus terminales y el vault que tenía abierto. Sin esto el vault
         // quedaría marcado como abierto para siempre —no se podría reabrir en
@@ -203,6 +206,11 @@ pub fn run() {
             ventanas::registrar_vault,
             ventanas::soltar_vault,
             ventanas::abrir_vault_en_ventana,
+            control::mcp_control_encender,
+            control::mcp_control_apagar,
+            control::mcp_responder,
+            control::mcp_ruta_binario,
+            control::mcp_config_borrar,
             prefs_vault::leer_estado_vault,
             prefs_vault::escribir_estado_vault,
             prefs_vault::borrar_estado_vault,
