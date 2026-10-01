@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { Dibujo, centro, tamanoPara } from "./dibujo-excalidraw.mjs";
+import { Dibujo, centro, tamanoPara, sepPara } from "./dibujo-excalidraw.mjs";
 import { validar } from "./validar-excalidraw.mjs";
 
 const limpio = (d) => {
@@ -23,8 +23,8 @@ function flujo() {
   const ini = d.caja("Inicio", 300, 170, { forma: "ellipse" });
   const rec = d.junto(ini, "abajo", "Recibir pedido");
   const dec = d.junto(rec, "abajo", "¿Hay stock?", { forma: "diamond" });
-  const env = d.junto(dec, "abajo", "Preparar envío", { sep: 120 });
-  const pro = d.junto(dec, "derecha", "Pedir al\nproveedor", { sep: 160 });
+  const env = d.junto(dec, "abajo", "Preparar envío", { etiquetaFlecha: "sí" });
+  const pro = d.junto(dec, "derecha", "Pedir al\nproveedor", { etiquetaFlecha: "no" });
   d.flecha(ini, rec); d.flecha(rec, dec); d.flecha(dec, env, { etiqueta: "sí" }); d.flecha(dec, pro, { etiqueta: "no" });
   const cp = centro(pro), cr = centro(rec), xr = pro.x + pro.width + 60;
   const ret = d.flecha(pro, rec, { via: [{ x: xr, y: cp.y }, { x: xr, y: cr.y }], etiqueta: "cuando\nllega" });
@@ -44,12 +44,38 @@ test("caja: centro entero y tamaño par, aunque el centro pedido tenga decimales
   assert.equal(a.height, 0, "dos formas alineadas dan una flecha horizontal exacta");
 });
 
-test("junto: separa a la regla 6 entre bordes (o a sep)", () => {
-  const { rec, dec, env, pro } = flujo();
+test("junto: separa a la regla 6 entre bordes, con lugar para la etiqueta de la flecha (o a sep)", () => {
+  const { d, rec, dec, env, pro } = flujo();
   assert.equal(dec.y - (rec.y + rec.height), 50);
   assert.equal(env.y - (dec.y + dec.height), 120);
-  assert.equal(pro.x - (dec.x + dec.width), 160);
+  assert.equal(pro.x - (dec.x + dec.width), 120);
   assert.equal(centro(pro).y, centro(dec).y);
+  const lejos = d.junto(pro, "derecha", "Otra", { sep: 200 });
+  assert.equal(lejos.x - (pro.x + pro.width), 200);
+});
+
+test("sepPara: regla 6 sin etiqueta; con una larga, el tramo la abarca; con margen, la deja afuera del marco", () => {
+  assert.equal(sepPara(undefined, "abajo"), 50);
+  assert.equal(sepPara("", "derecha"), 60);
+  assert.equal(sepPara("sí", "abajo"), 120);
+  const larga = "pedido / respuesta HTTPS";
+  assert.ok(sepPara(larga, "derecha") >= tamanoPara("rectangle", larga, 16).w);
+  assert.ok(sepPara("HTTPS", "derecha", { margen: 50 }) > sepPara("HTTPS", "derecha"));
+  // dos formas a sepPara con etiqueta larga en horizontal: el validador no protesta
+  const d = new Dibujo();
+  const a = d.caja("Celular", 200, 200);
+  const b = d.junto(a, "derecha", "API", { etiquetaFlecha: larga });
+  d.flecha(a, b, { etiqueta: larga });
+  limpio(d);
+});
+
+test("sepPara con margen: la etiqueta de una flecha que cruza el borde de un marco no lo pisa", () => {
+  const d = new Dibujo();
+  const api = d.caja("API", 600, 300);
+  d.marco("Nube", [api], 50);
+  const web = d.junto(api, "izquierda", "Navegador", { etiquetaFlecha: "HTTPS", sep: sepPara("HTTPS", "izquierda", { margen: 50 }) });
+  d.flecha(web, api, { etiqueta: "HTTPS" });
+  limpio(d);
 });
 
 test("el flujo de la receta pasa el validador sin avisos", () => {
@@ -88,12 +114,21 @@ test("insertar un paso entre A y B (receta de la skill) deja el dibujo limpio", 
   const [f] = d.flechasEntre(rec, dec);
   const hueco = dec.y - (rec.y + rec.height);
   const h = tamanoPara("rectangle", "Validar pago").h;
-  d.mover(d.formas().filter((x) => centro(x).y > centro(rec).y), 0, h + hueco);
+  const nota = d.texto("ojo: demora", centro(dec).x - 300, centro(dec).y);  // texto suelto debajo de A
+  d.mover([...d.formas(), ...d.sueltos()].filter((x) => centro(x).y > centro(rec).y), 0, h + hueco);
   const v = d.caja("Validar pago", centro(rec).x, rec.y + rec.height + hueco + h / 2);
   d.reconectar(f, { hasta: v });
   d.flecha(v, dec);
   limpio(d);
   assert.equal(dec.y - (v.y + v.height), hueco);
+  assert.equal(nota.y, centro(dec).y, "el texto suelto bajó con su forma vecina");
+});
+
+test("sueltos: los textos sin contenedor, que formas() no trae", () => {
+  const { d } = flujo();
+  const t = d.texto("Título", 80, 40);
+  assert.deepEqual(d.sueltos(), [t]);
+  assert.ok(!d.formas().includes(t));
 });
 
 test("buscar ignora saltos de línea y espacios, y falla si hay dos iguales", () => {

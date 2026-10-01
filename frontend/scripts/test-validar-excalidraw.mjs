@@ -174,6 +174,20 @@ test("una flecha con el frameId de un marco cuyo borde cruza es aviso (el marco 
   hay(validar(s.json(m)).avisos, /flecha f: se sale de su marco/);
 });
 
+test("la etiqueta de una flecha (o un texto suelto) que pisa el borde de un marco es aviso", () => {
+  const s = escena();
+  const m = { ...s.base, id: "m", type: "frame", name: "Nube", x: 380, y: 60, width: 180, height: 140 };
+  s.b.frameId = "m";
+  const etiqueta = (x) => ({ ...s.base, id: "t", type: "text", x, y: 120, width: 48, height: 20, text: "HTTPS", originalText: "HTTPS", fontSize: 16, fontFamily: 5, lineHeight: 1.25, textAlign: "center", verticalAlign: "middle", containerId: "f" });
+  s.f.boundElements = [{ id: "t", type: "text" }];
+  // flecha de 164 px: el medio (310) cae lejos del borde (380)
+  assert.deepEqual(validar(s.json(m, etiqueta(286))).avisos, []);
+  hay(validar(s.json(m, etiqueta(360))).avisos, /HTTPS» pisa el borde de marco m «Nube»/);
+  const suelto = { ...etiqueta(370), id: "u", text: "nota", originalText: "nota", containerId: null, textAlign: "left", verticalAlign: "top" };
+  s.f.boundElements = [];
+  hay(validar(s.json(m, suelto)).avisos, /nota» pisa el borde/);
+});
+
 test("la CLI sale con 1 si hay errores y con 0 si no", () => {
   const cli = fileURLToPath(new URL("./validar-excalidraw.mjs", import.meta.url));
   const ok = spawnSync(process.execPath, [cli, DIR + buenos[0]], { encoding: "utf8" });

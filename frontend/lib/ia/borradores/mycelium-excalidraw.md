@@ -20,21 +20,26 @@ en su caja y que **nada se encime**. Para eso hay que pensar en coordenadas.
 | `.canvas` | Notas del vault puestas en el espacio | los nodos son **notas** (`[[…]]`) o tarjetas de texto largo |
 | Mermaid en una nota | Diagrama de texto dentro de la nota | alcanza con un flujo o secuencia sin cuidar la disposición |
 
-Una nota muestra el dibujo con `![[Nombre.excalidraw]]` (se renderiza como imagen;
-clic para editarlo). Si creás un dibujo para una nota, **embebelo ahí**: un dibujo
-que nadie embebe no aparece en ninguna nota.
+### Embeberlo en una nota
 
-El embed resuelve **por nombre**, como un `[[enlace]]`: `![[Pedido.excalidraw]]`
-encuentra `Procesos/Pedido.excalidraw` aunque la nota esté en otra carpeta. Pero el
-nombre se compara **sin la extensión** y contra **todos** los archivos del vault: si
-hay otro `Pedido` (una nota `Pedido.md`, un `Pedido.drawio` u otro dibujo), gana el
-más cercano a la raíz, y si ese no es un dibujo el embed muestra «No se pudo cargar
-el diagrama». Por eso:
+Una nota muestra el dibujo con `![[Nombre.excalidraw]]` (se ve como imagen; clic para
+editarlo). Escribí el embed **siempre con la extensión**: así busca solo entre
+dibujos, aunque haya una nota `Nombre.md` (sin extensión, `[[Nombre]]` va a la nota).
+Resuelve por nombre desde cualquier carpeta; si hay dos dibujos con el mismo nombre,
+desambiguá con la carpeta: `![[Procesos/Pedido.excalidraw]]`. Igual, evitá los
+homónimos cuando puedas: `Pedido (flujo)` no se confunde con nada.
 
-- **Poné al dibujo un nombre que no tenga ningún otro archivo**, tampoco la nota que
-  lo embebe: con `Pedido.md` y `Pedido.excalidraw` en la misma carpeta, hasta
-  `[[Pedido]]` puede terminar abriendo el dibujo. Por ejemplo, `Pedido (flujo)`.
-- Si igual hay homónimos, desambiguá con la carpeta: `![[Procesos/Pedido.excalidraw]]`.
+Un `.excalidraw` no se indexa: si ninguna nota lo embebe, queda **huérfano** (no está
+en el grafo ni en la búsqueda). Entonces:
+
+- Si el dibujo es para una nota —la que nombró el usuario, o la natural del tema: la
+  del proceso, el proyecto, el área—, **embebelo ahí** y decí dónde quedó.
+- Si no hay una nota así, **no inventes** enlaces ni notas: dejá el dibujo y, en la
+  respuesta, **ofrecé** embeberlo en una nota que propongas o crear una que lo presente.
+- Si creás la nota y el dibujo va a una carpeta de salida (`Dibujos/`, la que te
+  pidan), la nota va **donde viven las notas de su tema**, no al lado del dibujo: el
+  embed lo encuentra igual. Y enlazala desde su mapa o nota madre (skill
+  `mycelium-vault`), para que tampoco ella quede huérfana.
 
 ## Lo que hace Mycelium con el archivo (leído de su código)
 
@@ -43,21 +48,12 @@ el diagrama». Por eso:
 - Pasa los elementos por el `restore` de Excalidraw 0.18: completa los campos de
   estilo que falten, pero **no recalcula posiciones**. Lo que escribís en `x`, `y`,
   `width`, `height` y `points` es exactamente lo que el usuario ve.
-- Lo abre **encuadrado**: ajusta la vista para que se vea el dibujo entero. Dos
-  consecuencias:
-  - **Lo más alto del dibujo queda pegado al borde superior de la vista**, donde
-    flotan la barra de herramientas (al centro) y, debajo, un cartel de ayuda. No
-    pongas ahí nada que haga falta leer: el **título** de un dibujo embebido va en la
-    nota, no en el dibujo; si el dibujo va suelto, ponelo arriba a la **izquierda**
-    y chico (28). Un **marco** no debería ser lo más alto: su nombre se dibuja
-    **encima** del borde, en letra chica, y es lo primero que se tapa.
-  - Cuanto más grande el dibujo, más chica se ve la letra (y lo mismo embebido en
-    una nota, que lo escala al ancho de la nota). Más de ~2400 px de ancho ya no se
-    lee: compactalo (ver «Organigrama compacto»).
-
-  El origen ya no importa para verlo, pero **arrancá cerca de (80, 100)** y crecé
-  hacia la derecha y hacia abajo: es la convención de las recetas y de quien lo
-  edite después.
+- Lo abre **encuadrado**: el dibujo entero a la vista, **debajo** de la barra de
+  herramientas (no le tapa nada) y sin agrandar uno chico más allá del 100 %. Por eso
+  el origen no importa: usá coordenadas positivas y crecé hacia la derecha y hacia
+  abajo. Lo que importa es el **tamaño**: cuanto más grande, más chica se ve la letra
+  (y embebido, igual: se escala al ancho de la nota). Más de ~2400 px de ancho ya no
+  se lee: compactalo (ver «Organigrama compacto»).
 - **Al abrirlo lo reescribe**: normaliza cada elemento (agrega `index`, sube
   `version`), descarta lo borrado y lo que no entiende, y lo guarda. No te
   sorprendas si el archivo cambia después de que el usuario lo mira.
@@ -194,7 +190,10 @@ en la forma** — `x = forma.x + (forma.width − texto.width) / 2`, igual en `y
     flecha **y en su etiqueta**.
   - Una **flecha que cruza el borde** (de adentro hacia afuera) lleva
     `frameId: null`, y su etiqueta también. Con el `frameId` del marco, el tramo de
-    afuera **no se ve**, ni la etiqueta si cae afuera.
+    afuera **no se ve**, ni la etiqueta si cae afuera. Si lleva etiqueta, que quede
+    **entera de un lado** del borde, no tachada por él: `sepPara(etiqueta, lado,
+    { margen })` da la separación, con `margen` = lo que hay entre la forma de adentro
+    y el borde en esa dirección (hacia la izquierda, `forma.x − marco.x`).
   - El nombre se dibuja arriba del borde superior, por fuera: dejá ~30 px libres
     encima del marco.
 - **Grupo**: el mismo id en `groupIds` de cada forma **y de su texto**. Se
@@ -217,8 +216,8 @@ en la forma** — `x = forma.x + (forma.width − texto.width) / 2`, igual en `y
    (basta una: o están en columnas distintas, o en filas distintas). Si la flecha que
    las une lleva **etiqueta**, a **≥ 120 px** entre bordes en la dirección de la
    flecha, y más si la etiqueta es larga: el tramo que la lleva tiene que medir la
-   etiqueta + 40 px. Una forma puede contener **entera** a otra (una zona, una
-   pantalla); pisarla a medias, no.
+   etiqueta + 40 px (`sepPara` hace la cuenta). Una forma puede contener **entera**
+   a otra (una zona, una pantalla); pisarla a medias, no.
 7. **El texto entra** en su forma (ver «Área útil»). Si no, agrandá la forma o partí
    la línea con `\n`.
 8. **Conservá lo que no entendés**: al modificar, cargá el JSON, cambiá solo lo
@@ -286,8 +285,9 @@ largo: con cuatro puntos, la etiqueta va al medio del tramo central.
 
 **Calculá el paso desde el tamaño real**, nunca con un número fijo: el centro de la
 forma siguiente es el de la anterior + su medio tamaño + la separación + el medio
-tamaño de la nueva (`tamanoPara` da el tamaño antes de crearla, y `junto` hace la
-cuenta). Un paso fijo de «70 px» se encima en cuanto una etiqueta es más larga.
+tamaño de la nueva (`tamanoPara` da el tamaño antes de crearla, `sepPara` la
+separación, y `junto` hace la cuenta). Un paso fijo de «70 px» se encima en cuanto
+una etiqueta es más larga.
 
 - **Flujo vertical**: una columna principal (mismo `cx`), cada paso debajo del
   anterior a 50 px entre bordes (120 si la flecha lleva etiqueta); las ramas
@@ -333,7 +333,7 @@ como archivos suyos.
 |---|---|
 | `new Dibujo()` / `Dibujo.desde(ruta)` | Dibujo nuevo / uno existente, conservando todo lo que no toques |
 | `d.caja(etiqueta, cx, cy, o)` | Forma con su etiqueta. `(cx, cy)` es el **centro** (se redondea a entero). Opciones: `forma` (`"rectangle"`, `"ellipse"`, `"diamond"`), `ancho`, `alto`, `fondo`, `borde`, `trazo`, `rugosidad`, `fontSize`, `fontFamily`, `color`. El tamaño sale del texto; **`ancho` y `alto` son mínimos**: la forma crece si el texto no entra |
-| `d.junto(ref, lado, etiqueta, o)` | Forma nueva `"abajo"`, `"arriba"`, `"derecha"` o `"izquierda"` de `ref`, alineada con su centro y a `o.sep` px entre bordes (por defecto la regla 6: 50 en vertical, 60 en horizontal; pasá `sep: 120` si la flecha que las une lleva etiqueta). Mismas opciones que `caja` |
+| `d.junto(ref, lado, etiqueta, o)` | Forma nueva `"abajo"`, `"arriba"`, `"derecha"` o `"izquierda"` de `ref`, alineada con su centro y a la separación de la regla 6. Si la flecha que las va a unir lleva etiqueta, pasala en `etiquetaFlecha` y la separación alcanza para ella; `sep` la fija a mano. Mismas opciones que `caja` |
 | `d.texto(t, x, y, o)` | Texto suelto; `(x, y)` es su esquina. Opciones: `fontSize`, `fontFamily`, `color`, `alinear` |
 | `d.flecha(a, b, o)` | Flecha enganchada de `a` a `b` (formas o textos sueltos). Opciones: `etiqueta`, `via` (puntos intermedios absolutos `[{x, y}]`, tramos rectos), `curva` (con `via`, curva en vez de tramos rectos), `trazo`, `color`, `puntaFin`, `puntaInicio`, `fontFamily`. Si `a` y `b` están en el mismo marco, la flecha también |
 | `d.trazar(flecha, via)` | Recalcula los extremos y recoloca la etiqueta. Con `via` nuevo, rehace el recorrido; sin él, conserva los puntos intermedios; `trazar(f, [])` la deja recta |
@@ -344,10 +344,11 @@ como archivos suyos.
 | `d.enMarco(marco, formas, margen)` / `d.encuadrar(marco, margen)` | Mete formas a un marco existente / lo ajusta a sus hijos. Los dos reasignan las flechas: adentro las que unen dos hijos, afuera las que cruzan el borde |
 | `d.agrupar(formas)` | Grupo: se seleccionan y mueven juntas |
 | `d.buscar(texto)` | La forma cuya etiqueta es `texto` (o el texto suelto). Ignora saltos de línea y espacios repetidos, y si no hay coincidencia exacta, mayúsculas. Si hay dos iguales, falla: usá `porId` |
-| `d.porId(id)`, `d.textoDe(forma)`, `d.formas()`, `d.flechasEntre(a, b)`, `d.via(flecha)` | Consultas: elemento por id, la etiqueta de una forma o flecha, todas las formas, las flechas de `a` a `b`, los puntos intermedios absolutos de una flecha |
+| `d.porId(id)`, `d.textoDe(forma)`, `d.formas()`, `d.sueltos()`, `d.flechasEntre(a, b)`, `d.via(flecha)` | Consultas: elemento por id, la etiqueta de una forma o flecha, todas las formas (sin textos), los textos sueltos, las flechas de `a` a `b`, los puntos intermedios absolutos de una flecha |
 | `d.tocar(e)` | Marca un elemento como modificado (`version`, `versionNonce`, `updated`). Hacelo si cambiás un campo a mano |
 | `d.guardar(ruta)` | Escribe el archivo de una vez (a un temporal y `rename`) |
-| `tamanoPara(tipo, texto, fontSize, fontFamily)`, `medir(texto, …)`, `centro(f)`, `SEP_H`, `SEP_V` | Tamaño de una forma para un texto (antes de crearla), tamaño del texto solo, centro de una forma, separaciones de la regla 6 |
+| `tamanoPara(tipo, texto, fontSize, fontFamily)`, `medir(texto, …)`, `centro(f)` | Tamaño de una forma para un texto (antes de crearla), tamaño del texto solo, centro de una forma |
+| `sepPara(etiquetaFlecha, lado, { margen })`, `SEP_H`, `SEP_V` | Separación mínima entre bordes (regla 6) para la flecha que une dos formas: sin etiqueta, `SEP_V` (50) o `SEP_H` (60); con etiqueta, lo que pida su largo; con `margen` (de la forma de adentro al borde de un marco), además deja la etiqueta afuera del marco |
 
 Con `caja` las etiquetas quedan adentro y con `flecha` los enlaces quedan
 recíprocos y los extremos en el borde. **Lo que el generador no hace es la
@@ -363,13 +364,13 @@ avisos y se comprobaron cargándolas en Excalidraw.
 ```js
 import { Dibujo, centro } from "./dibujo.mjs";
 const d = new Dibujo();
-d.texto("Proceso de pedido", 80, 60, { fontSize: 28 });           // solo si no va embebido: arriba a la izquierda
+d.texto("Proceso de pedido", 80, 60, { fontSize: 28 });           // título, solo si va suelto: embebido, lo da la nota
 const ini = d.caja("Inicio", 300, 170, { forma: "ellipse", fondo: "#b2f2bb" });
 const rec = d.junto(ini, "abajo", "Recibir pedido", { fondo: "#a5d8ff" });
 const dec = d.junto(rec, "abajo", "¿Hay stock?", { forma: "diamond", fondo: "#ffec99" });
-const env = d.junto(dec, "abajo", "Preparar envío", { fondo: "#a5d8ff", sep: 120 }); // su flecha lleva etiqueta
+const env = d.junto(dec, "abajo", "Preparar envío", { fondo: "#a5d8ff", etiquetaFlecha: "sí" });
 const fin = d.junto(env, "abajo", "Fin", { forma: "ellipse", fondo: "#ffc9c9" });
-const pro = d.junto(dec, "derecha", "Pedir al\nproveedor", { fondo: "#d0bfff", sep: 160 });
+const pro = d.junto(dec, "derecha", "Pedir al\nproveedor", { fondo: "#d0bfff", etiquetaFlecha: "no" });
 d.flecha(ini, rec);
 d.flecha(rec, dec);
 d.flecha(dec, env, { etiqueta: "sí" });
@@ -428,7 +429,8 @@ const cols = areas.map(([g, hs]) => {
 });
 const total = cols.reduce((s, c) => s + c.izq + c.der, 0) + SEP_H * (cols.length - 1);
 const raiz = d.caja("Dirección", 80 + total / 2, 120, { fondo: "#a5d8ff" });
-const yG = 260, yBus = (raiz.y + raiz.height + yG - 28) / 2;          // el bus corre entre la raíz y los jefes
+const yG = 260, altoG = Math.max(...areas.map(([g]) => tamanoPara("rectangle", g).h));
+const yBus = (raiz.y + raiz.height + yG - altoG / 2) / 2;            // el bus corre entre la raíz y los jefes
 let x = 80;
 for (const c of cols) {
   const cx = x + c.izq;
@@ -493,7 +495,7 @@ d.guardar("Mapas/Mycelium (mapa).excalidraw");
 import { Dibujo } from "./dibujo.mjs";
 const d = new Dibujo();
 const tec = { rugosidad: 0, fontFamily: 6 };                        // trazo prolijo, letra Nunito
-d.texto("Arquitectura del backend", 80, 60, { fontSize: 28, fontFamily: 6 }); // encima del marco, no al revés
+d.texto("Arquitectura del backend", 80, 60, { fontSize: 28, fontFamily: 6 }); // título, solo si va suelto
 const web = d.caja("Navegador", 160, 360, { ...tec, fondo: "#e9ecef" });
 const api = d.caja("API REST", 520, 240, { ...tec, fondo: "#a5d8ff", ancho: 200 });
 const auth = d.caja("Servicio de\nautenticación", 520, 480, { ...tec, fondo: "#d0bfff", ancho: 200 });
@@ -554,8 +556,9 @@ const a = d.buscar("Recibir pedido"), b = d.buscar("¿Hay stock?");
 const [f] = d.flechasEntre(a, b);
 const hueco = b.y - (a.y + a.height);                                 // aire actual entre A y B (flujo vertical)
 const h = tamanoPara("rectangle", "Validar pago").h;
-// 1. correr hacia abajo todo lo que está debajo de A (sus flechas y retornos se reenganchan solos)
-d.mover(d.formas().filter((x) => centro(x).y > centro(a).y), 0, h + hueco);
+// 1. correr hacia abajo todo lo que está debajo de A, textos sueltos incluidos (`formas()` no
+//    los trae); sus flechas y retornos se reenganchan solos. Con marcos, `encuadrar` después
+d.mover([...d.formas(), ...d.sueltos()].filter((x) => centro(x).y > centro(a).y), 0, h + hueco);
 // 2. el paso nuevo, donde estaba B, con el mismo aire arriba y abajo
 const v = d.caja("Validar pago", centro(a).x, a.y + a.height + hueco + h / 2, { fondo: "#a5d8ff" });
 // 3. la flecha A→B pasa a ser A→nuevo (conserva su etiqueta, si tenía) y se agrega nuevo→B
@@ -608,15 +611,15 @@ existente y ubicá lo nuevo respetando la regla 6, o corré las formas vecinas.
    tipo, enlaces recíprocos (flecha↔forma, texto↔contenedor) y a elementos que
    existen, extremos de flecha sobre el borde de su forma, `points`, texto que no
    entra, formas encimadas o más juntas que la regla 6, etiquetas de flecha sin
-   lugar o sobre un codo, hijos que se salen de su marco, flechas que atraviesan
-   formas ajenas y dibujos demasiado grandes para leerse. Sale con código 1 si hay **errores**: corregilos todos. Los
-   **avisos** son cosas que se ven mal pero no rompen; resolvelos salvo que sean
-   deliberados. Acepta varias rutas o una carpeta.
+   lugar, sobre un codo o sobre el borde de un marco, hijos que se salen de su
+   marco, flechas que atraviesan formas ajenas y dibujos demasiado grandes para
+   leerse. Sale con código 1 si hay **errores**: corregilos todos. Los **avisos**
+   son cosas que se ven mal pero no rompen; resolvelos salvo que sean deliberados.
+   Acepta varias rutas o una carpeta.
 2. **Repasá la disposición** con los números: ¿las filas y columnas están
-   alineadas?, ¿hay algo importante arriba de todo, donde lo tapa la barra?, ¿el
-   dibujo empieza cerca de (80, 100)?
-3. Si el dibujo es para una nota, **embebelo** (`![[Nombre.excalidraw]]`, con un
-   nombre que no tenga otro archivo) y decile al usuario dónde quedó.
+   alineadas?, ¿quedó algo suelto lejos del resto?
+3. **Embebelo** (`![[Nombre.excalidraw]]`, con la extensión) si hay una nota para
+   él, o ofrecelo (ver «Embeberlo en una nota»).
 
 ## Estilo
 
@@ -650,7 +653,7 @@ existente y ubicá lo nuevo respetando la regla 6, o corré las formas vecinas.
 | El texto no se mueve con su caja | falta `containerId` en el texto o `{ type: "text" }` en la forma |
 | Un elemento desapareció | tipo desconocido, `width` y `height` en 0, `text` vacío o id repetido |
 | Parte de una flecha o su etiqueta no se ve | la flecha tiene el `frameId` de un marco y cruza su borde: el marco la recorta |
-| El embed dice «No se pudo cargar el diagrama» | no hay dibujo con ese nombre, u otro archivo con el mismo nombre (una nota, otro diagrama) está más cerca de la raíz |
-| El título o el nombre de un marco quedan tapados al abrir | son lo más alto del dibujo y caen bajo la barra de herramientas |
+| El embed dice «No se pudo cargar el diagrama» | no hay dibujo con ese nombre: revisá la carpeta y que lleve `.excalidraw` |
+| La etiqueta de una flecha queda tachada por el borde de un marco | la flecha cruza el borde y su medio cae justo ahí: separá más las formas (`sepPara` con `margen`) |
 | Todo se ve diminuto | el dibujo es muy ancho, o hay algo perdido lejos del resto |
 | Lo que dibujó el usuario se perdió | se escribió encima mientras la pestaña tenía cambios sin guardar |
