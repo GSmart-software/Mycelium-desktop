@@ -2565,6 +2565,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mycelium-mcp"
+version = "0.1.0"
+dependencies = [
+ "mycelium-vault",
+ "serde_json",
+]
+
+[[package]]
+name = "mycelium-vault"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

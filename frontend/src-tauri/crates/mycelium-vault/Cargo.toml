@@ -1,0 +1,25 @@
+[package]
+name = "mycelium-vault"
+version = "0.1.0"
+description = "Qué vault es una carpeta para Mycelium: el registro vaults.json y la comparación y el hash de rutas"
+edition = "2021"
+rust-version = "1.77.2"
+publish = false
+
+# Lo que el servidor MCP de control (`FUN-L-09`) necesita saber de los vaults
+# para resolver el suyo: el formato de `vaults.json`, la comparación canónica
+# de rutas (`misma_ruta`) y el hash que nombra lo que es de cada vault
+# (`hashRuta`). Ver `docs/features/mcp-control.md` § 2.
+#
+# La app NO depende de este crate: su código de vault vive en `src/`, y las
+# reglas de acá son copia fiel de las suyas (hay tests con valores de la app).
+# La versión del MCP de memoria traía además el walker, los parsers y el índice
+# en SQLite; quedó en la historia de `feat/mcp-desktop`.
+
+[lib]
+name = "mycelium_vault"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"

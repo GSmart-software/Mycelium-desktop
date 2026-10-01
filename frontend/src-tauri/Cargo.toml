@@ -10,6 +10,19 @@ rust-version = "1.77.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# Workspace (FUN-L-09): la app es el paquete RAÍZ y los crates del servidor MCP
+# viven en `crates/`. Así el directorio `target/` y el `Cargo.lock` siguen donde
+# estaban y `tauri build` / `tauri dev` no se enteran: en la raíz de un workspace
+# con paquete raíz, `cargo build` compila solo ese paquete. Para todo el
+# workspace: `cargo test --workspace`.
+#   - `crates/mycelium-vault`: lo que el servidor necesita saber de los vaults
+#     (registro `vaults.json`, rutas canónicas, `hashRuta`).
+#   - `crates/mycelium-mcp`: el servidor MCP de control, un binario aparte.
+# La app NO depende de ellos: su código de vault vive en `src/` (ver [[mcp-control]]).
+[workspace]
+members = [".", "crates/mycelium-vault", "crates/mycelium-mcp"]
+resolver = "2"
+
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
