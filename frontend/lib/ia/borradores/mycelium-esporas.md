@@ -102,7 +102,9 @@ Reglas, por orden de importancia:
 1. **Propiedades de fecha: `{{fecha}}` SIN comillas.** `fecha: {{fecha}}` produce
    `fecha: 2026-09-30`, una propiedad **de tipo fecha** (ordenable y comparable en una
    base). Con comillas (`"{{fecha}}"`) sale **texto**. Para fecha y hora:
-   `inicio: {{fecha:AAAA-MM-DDThh:mm}}`.
+   `inicio: {{fecha:AAAA-MM-DDThh:mm}}`. Una fecha **solo en el cuerpo** («Creada el
+   {{fecha}}») no la ve ninguna base: si al revisar una Espora la encontrás así, proponé
+   sumarla como propiedad (`creado: {{fecha}}`).
 2. **Por eso la plantilla en sí se ve «cruda».** Mientras dice `{{fecha}}`, Mycelium lee
    `{…}` como un mapa en línea y no le muestra la tarjeta de propiedades **a la Espora**.
    Las notas que crea sí la tienen. Es esperable: no lo «arregles» entrecomillando.
@@ -122,14 +124,21 @@ Reglas, por orden de importancia:
 
 6. **Dejá los enlaces de entrada puestos**: un `[[Reuniones]]` o `[[Mapa del vault]]` en
    la plantilla hace que cada nota creada nazca enlazada a su índice (y no huérfana).
-   Tiene que ser una nota **que exista**: si no hay índice del tema, enlazá el mapa que sí
-   hay, o proponé crear el índice (y crealo enlazado, si el usuario acepta). Un enlace a
-   una nota inexistente en la plantilla hace nacer **cada** nota con un enlace roto.
-7. **No repitas el título como propiedad**: el título ya es el nombre del archivo. Si lo
+   Tiene que ser una nota **que exista**: si no hay índice del tema, enlazá la nota más
+   cercana que sí exista (el mapa del vault, la nota madre del área) y proponé crear el
+   índice (crealo enlazado si el usuario acepta). Un enlace a una nota inexistente en la
+   plantilla hace nacer **cada** nota con un enlace roto.
+7. **¿Propiedad o sección?** Un campo que se va a **filtrar u ordenar** en una base, o
+   buscar con `clave:valor` (`animo: 3`, `estado`, `calificacion`, una fecha), va como
+   **propiedad**, con un valor corto y de vocabulario fijo. Lo que se escribe en prosa
+   (qué pasó, qué aprendí, por qué) va como **sección** del cuerpo. Un «ánimo» que se va a
+   seguir en el tiempo es `animo: ""` (o un número); uno para contarlo, una sección. Si no
+   queda claro, propiedad, y decí qué elegiste.
+8. **No repitas el título como propiedad**: el título ya es el nombre del archivo. Si lo
    necesitás en el cuerpo, `# {{titulo}}`.
-8. Dejá la estructura vacía pero con **indicaciones breves** («Qué tiene que ser verdad
+9. Dejá la estructura vacía pero con **indicaciones breves** («Qué tiene que ser verdad
    cuando esto termine»); nada de contenido de ejemplo que después haya que borrar.
-9. Guardala **directamente** en la carpeta de Esporas, con un nombre corto que diga el
+10. Guardala **directamente** en la carpeta de Esporas, con un nombre corto que diga el
    tipo de nota (`Reunión`, `Diario`, `Proyecto`, `Lectura`).
 
 ### Si ya hay una Espora parecida
@@ -155,9 +164,12 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
    pidió «una reunión» y hay `Esporas/Reunión.md`, partí de ella en vez de inventar una
    estructura.
 2. **Decidí título y carpeta** como con cualquier nota (skill `mycelium-memoria`): título
-   específico y único (`grep -ril` antes), en la carpeta del área. La app, en cambio,
-   usaría el nombre de la plantilla desambiguado (`Reunión`, `Reunión 1`, `Reunión 2`…);
-   no lo imites, poné un título que se pueda buscar.
+   específico y único (`grep -ril` antes). La app, en cambio, usaría el nombre de la
+   plantilla desambiguado (`Reunión`, `Reunión 1`…); no lo imites. **Carpeta**: la que el
+   vault ya usa para ese tipo (mirá dónde están las otras notas del mismo `tipo` o
+   etiqueta). Si no hay ninguna, no inventes una jerarquía nueva en silencio: proponé la
+   carpeta (o la raíz) y, si el usuario no está para contestar, usá la del área más
+   cercana y decilo.
 3. **Tomá la fecha y la hora LOCALES del sistema**, no las supongas:
 
    ```sh
@@ -172,6 +184,11 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
    Argentina), no `+0000` por defecto. Una hora rara (las 02:55) **puede ser la real**: no
    la «corrijas»; si no cierra con la conversación, preguntá.
 
+   **De madrugada** (antes de las 6, más o menos), «hoy» es ambiguo: un diario escrito a
+   las 03:36 que cuenta «hoy fui a…» en pasado suele ser del **día anterior**. No elijas en
+   silencio: preguntá en una línea («¿lo fecho el 29 o el 30?»). Si tenés que avanzar,
+   usá el día anterior y decilo.
+
 4. **Sustituí** en el texto crudo (frontmatter incluido):
    - `{{titulo}}` → el título final (el nombre del archivo que vas a crear, sin `.md`);
    - `{{fecha}}`, `{{hora}}` y cada `{{fecha:FORMATO}}` → con las letras de la tabla;
@@ -181,7 +198,9 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
 5. **Escribí la nota** con el resultado y **completá lo que sepas** (participantes,
    proyecto, orden del día) en lugar de dejar el esqueleto vacío.
 6. Revisá que el frontmatter resultante quede dentro del subconjunto soportado, y
-   **enlazala** desde su índice o nota madre.
+   **enlazala** desde su índice o nota madre. Si no hay índice, desde la nota más cercana
+   que exista; si no hay ninguna razonable, creala igual y **proponé** el índice en la
+   respuesta. Nunca la dejes huérfana en silencio.
 
 Ejemplo — `Esporas/Reunión.md` de arriba, pedido «estoy en la reunión con proveedores,
 con Marta y Juan: anotala», el 30/09/2026 a las 14:05:
@@ -287,8 +306,9 @@ Además:
 | **Proyecto** | `tipo: proyecto`, `estado: activo`, `prioridad: 3`, `creado: {{fecha}}`, `vence: ""`, `tags: [proyecto]` | Objetivo (callout) · Contexto · Tareas · Decisiones · `[[Proyectos]]` |
 | **Lectura** | `tipo: lectura`, `autor: ""`, `estado: leyendo`, `empezado: {{fecha}}`, `calificacion: 0`, `tags: [lectura]` | Ideas principales · Citas · Qué me llevo · `[[Lecturas]]` |
 
-Una nota diaria se suele nombrar por su fecha: creala como `Diario/2026-09-30.md` y ahí
-`{{titulo}}` vale `2026-09-30`.
+Una nota diaria se suele nombrar por su fecha (`2026-09-30.md`, y ahí `{{titulo}}` vale
+`2026-09-30`), en la carpeta donde el vault ya guarda los diarios. Si todavía no hay
+ninguna, preguntá o proponé una (`Diario/`) antes de crearla.
 
 Estas propiedades combinan con las bases: una Espora `Proyecto` con `estado` y
 `prioridad` alimenta directamente una tabla de proyectos activos (skill

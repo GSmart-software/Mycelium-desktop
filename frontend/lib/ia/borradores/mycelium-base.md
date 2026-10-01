@@ -189,6 +189,17 @@ activos los `estado: activo` y `en curso`; dejé afuera `pausado`»):
   nota que lo diga (una `prioridad: 1` que se describe como «urgente»), la Espora que
   siembra la clave. Si nada lo aclara, **preguntá**; si tenés que avanzar, ordená `DESC`
   (lo alto arriba) y **decí** que lo asumiste y que se invierte con `ASC`.
+- **«Las más nuevas arriba»**: ordená por la propiedad de creación del vault (`creado`,
+  `fecha`, `empezado`: buscala con el primer comando). Si no hay ninguna, usá
+  `file.ctime` **y avisá** que es cuándo Mycelium indexó la nota, no cuándo se escribió
+  (un vault copiado o reindexado las deja todas el mismo día). Proponé agregar
+  `creado: {{fecha}}` a la Espora de ese tipo (skill `mycelium-esporas`), para que las
+  próximas lo traigan. Si la Espora escribe la fecha en el **cuerpo** («Creada el
+  {{fecha}}») y no como propiedad, decilo: la base no la puede leer.
+- **Una nota en dos categorías** (`tags: [proyecto, idea]` en una tabla de proyectos):
+  entra, porque cumple el filtro. Incluila y nombrala en la respuesta («[[Grafo 3D]] también
+  es una idea»). Preguntá antes solo si el pedido la excluye de forma explícita («los
+  proyectos que no son ideas»): ahí va un `not:` con la otra etiqueta.
 - Un valor que el usuario nombra y **no existe** («las urgentes» sin ninguna
   `urgente`): no inventes el filtro; mostrá los valores que sí hay y preguntá.
 
@@ -276,7 +287,22 @@ views:
     order:
       - file.name
       - file.folder
+  - type: table
+    name: Otros
+    filters:
+      not:
+        - or:
+            - estado == "activo"
+            - estado == "pausado"
+            - estado.isEmpty()
+    order:
+      - file.name
+      - estado
 ```
+
+«Otros» es la negación de todas las pestañas anteriores: junta los valores que no tienen
+pestaña propia (`hecho`, y los que aparezcan después, como `bloqueado`), así ninguna nota
+se pierde entre pestañas. Agregala siempre que agrupes por un valor libre.
 
 ### Tareas: vencidas y por vencer
 
@@ -390,15 +416,21 @@ views:
   proyectos activos), usá ese nombre: la base lo resuelve y ya nace enlazada. Si dice otra
   cosa (`[[Proyectos]]` para una tabla solo de pausados), **no lo fuerces**: poné el
   nombre que describe la tabla y mencioná el enlace roto al usuario.
-- Enlazala desde su nota madre o índice con `[[Proyectos activos]]` (o
-  `[[Proyectos activos.base]]`): navega a la tabla y es un nodo del grafo. **No se
-  embebe**: `![[….base]]` no dibuja la tabla. El contenido del YAML no crea aristas.
+- **Enlazala** con `[[Proyectos activos]]` (o `[[Proyectos activos.base]]`): navega a la
+  tabla y es un nodo del grafo. **No se embebe**: `![[….base]]` no dibuja la tabla. El
+  contenido del YAML no crea aristas. Desde dónde: su índice o MOC; si no hay, la nota
+  **más cercana que exista** (el mapa del proyecto, la nota madre del tema). Si no hay
+  ninguna razonable, no inventes un enlace a una nota que no existe: creá la base y
+  **proponé** en la respuesta el índice que la enlazaría. Nunca la dejes suelta en
+  silencio.
 - **Al modificar una base existente, conservá lo que no entiendas** (`formulas`,
   `summaries`, `groupBy`, claves de Obsidian): Mycelium las ignora pero el usuario
   puede usarlas en Obsidian. Con cualquiera de ellas en el archivo, los botones
   Filtros/Columnas de la app se deshabilitan y solo se edita la fuente.
 - Si el usuario después edita la base con esos botones, Mycelium **regenera el YAML**:
-  tus comentarios se pierden. Poné las explicaciones en la nota que enlaza la base.
+  tus comentarios se pierden. Poné las explicaciones en la nota que enlaza la base; si
+  no hay ninguna, un comentario **en su propia línea** (`# Corte fijo: actualizar la fecha`)
+  es aceptable.
 
 ## Verificar antes de entregar
 
