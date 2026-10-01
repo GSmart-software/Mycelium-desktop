@@ -84,6 +84,14 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   `lib/ia/borradores/` y `scripts/validar-*.mjs` por `scripts/generar-skills-ia.mjs`
  *   (`lib/ia/skillsGeneradas.ts`); no se copia a mano.
  *   **Minor**: la IA gana capacidades nuevas.
+ *
+ *   La misma `1.7.0` (todavía sin publicar: un release lleva un solo
+ *   incremento) suma el **MCP de control** (`FUN-L-09`), por partes. Parte 1:
+ *   la sección «Operar Mycelium» del `CLAUDE.md` —la línea divisoria entre el
+ *   contenido (archivos) y operar la app (herramientas `mycelium_*`), con una
+ *   tabla a la que las partes 2–4 agregan filas— y el `.mcp.json`, que no es un
+ *   template: lo escribe `lib/mcpControl.ts` al encender el control o al
+ *   generar con el control encendido.
  */
 export const FRAMEWORK_IA_VERSION = "1.7.0";
 
@@ -215,6 +223,7 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
 | \`/vault-vincular <nota>\` | Reforzar las asociaciones de una nota existente (agrega \`[[enlaces]]\` a lo relacionado). |
 | \`/vault-mapa\` | Generar/actualizar el índice general (MOC) del vault. Útil tras incorporar mucho material. |
 | \`/vault-huerfanas\` | Auditar la salud de la memoria: notas desconectadas y enlaces rotos. |
+| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario y saber qué tiene abierto. Ver «Operar Mycelium». |
 
 ## Reglas duras
 
@@ -260,11 +269,40 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
     vos sus variables: copiarla deja \`{{fecha}}\` escrito—. Cómo, en la skill
     \`mycelium-esporas\`.
 
+## Operar Mycelium (herramientas \`mycelium_*\`)
+
+Si tenés las herramientas \`mycelium_*\` (el servidor MCP «mycelium», registrado en
+\`.mcp.json\` cuando el usuario enciende «Dejar que la IA controle Mycelium» en
+Configuración → Vault), podés **operar la app**, no solo sus archivos. La línea
+divisoria es una sola:
+
+> [!important] El contenido va por los archivos; operar la app va por Mycelium
+> **Leer y escribir** notas, lienzos, tablas o dibujos se hace como siempre, en los
+> archivos. **Mostrarle algo al usuario y saber qué tiene abierto** pasa por las
+> herramientas: no adivines qué está mirando ni le pidas que abra algo a mano.
+
+| Querés… | Herramienta |
+|---|---|
+| Saber qué tiene abierto el usuario: pestañas por panel, la visible, las que tienen **cambios sin guardar** | \`mycelium_estado\` |
+| Mostrarle una nota o archivo, el grafo o el calendario —y llevarlo a un encabezado, una línea o un texto— | \`mycelium_abrir\` |
+
+- **Antes de escribir un archivo que el usuario podría estar editando**, mirá
+  \`mycelium_estado\`: si su pestaña figura **sin guardar**, avisale antes, porque lo
+  que guarde después pisa lo tuyo.
+- \`mycelium_abrir\` **no le roba el foco** salvo que pidas \`foco: true\`: pedilo solo
+  cuando tengas algo que mostrarle ahora («mirá esta nota»), no cada vez que abrís algo.
+- Los errores dicen qué hacer: \`NO_ENCONTRADO\` trae las notas más parecidas,
+  \`AMBIGUO\` las rutas para repetir la llamada, \`APP_CERRADA\` que Mycelium no está
+  abierto con este vault y \`MCP_DESACTIVADO\` dónde se enciende. Contáselo al usuario
+  en vez de reintentar a ciegas.
+- **Si no tenés las herramientas**, nada de esto cambia tu trabajo con los archivos:
+  solo no podés mostrar ni saber qué está abierto.
+
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
-No controlás la aplicación: trabajás sobre sus archivos. Pero es útil saber qué ve
-el usuario, porque es el efecto de lo que escribís: editor Markdown con vista en
-vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`caution\`,
+Fuera de las herramientas \`mycelium_*\` no controlás la aplicación: trabajás sobre
+sus archivos. Pero es útil saber qué ve el usuario, porque es el efecto de lo que
+escribís: editor Markdown con vista en vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`caution\`,
 \`info\`, \`success\`, \`error\`, \`danger\`, \`question\`; plegables con \`[!tipo]-\`),
 incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
 como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
