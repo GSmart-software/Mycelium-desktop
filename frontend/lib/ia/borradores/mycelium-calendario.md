@@ -1,9 +1,9 @@
 ---
 name: mycelium-calendario
-description: Consultar el calendario de recordatorios del vault de Mycelium (.mycelium/recordatorios.json) — qué hay agendado hoy, esta semana, un día o un mes, con las repeticiones bien expandidas y lo completado. SOLO LECTURA. Usar cuando el usuario pregunte por su agenda, recordatorios, vencimientos o «qué tengo…».
+description: El calendario de recordatorios del vault de Mycelium — consultar qué hay agendado hoy, esta semana, un día o un mes (con las repeticiones bien expandidas y lo completado) y agendar, cambiar, completar o borrar recordatorios. Leer, preferentemente con la herramienta mycelium_recordatorios (o el script de esta skill); modificar, SOLO con las herramientas mycelium_recordatorio_* del MCP, nunca escribiendo .mycelium/recordatorios.json. Usar cuando el usuario pregunte por su agenda, recordatorios, vencimientos o «qué tengo…», o pida «recordame…».
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
-# El calendario del vault (solo lectura)
+# El calendario del vault
 
 Mycelium tiene un **calendario de recordatorios** por vault: un título, una fecha, una
 hora opcional, una repetición, un color y un detalle en markdown que puede tener
@@ -11,17 +11,50 @@ hora opcional, una repetición, un color y un detalle en markdown que puede tene
 el explorador, en la búsqueda ni en el grafo, así que un `grep` sobre `*.md` no los
 encuentra.
 
-> [!danger] Regla dura: solo LEÉS este archivo
+> [!danger] Regla dura: el archivo se LEE; el calendario se modifica SOLO por MCP
 > **Nunca escribas en `.mycelium/`** — ni en `recordatorios.json` ni en ningún otro.
-> La app no vigila ese archivo: lo que escribas no aparece hasta reabrir el vault, y
-> el próximo guardado de la app lo pisa (o peor, lo pisás vos a ella). Es decisión
-> del usuario: la IA consulta el calendario, no lo maneja.
+> La app no vigila ese archivo: lo que escribas no aparece ni avisa hasta reabrir el
+> vault, y el próximo guardado de la app lo pisa (o peor, lo pisás vos a ella).
 >
-> Si te piden **agendar, mover, borrar o completar** un recordatorio, no lo hagas:
-> decile que lo haga desde el calendario de Mycelium (ícono «Calendario» del rail, o
-> doble clic en un día) y ofrecé redactarle el título y el detalle para que lo pegue.
-> Lo que sí podés hacer es crear o actualizar la **nota** a la que el recordatorio va
-> a enlazar.
+> Para **agendar, mover, completar o borrar** un recordatorio usá las herramientas
+> `mycelium_recordatorio_*` del MCP de Mycelium (abajo): la app lo hace como si lo
+> hubiera hecho el usuario —lo muestra, lo agenda, avisa— y lo deja en su registro de
+> actividad, con Deshacer. **Si no tenés esas herramientas** (el control está apagado
+> o Mycelium está cerrado), **decíselo** al usuario y no toques el archivo: que lo
+> haga desde el calendario de Mycelium (ícono «Calendario» del rail, o doble clic en
+> un día), o que encienda el control en Configuración → Vault → «Asistente IA». Podés
+> redactarle el título y el detalle, y crear o actualizar la **nota** a la que el
+> recordatorio va a enlazar.
+
+## Leer: primero `mycelium_recordatorios`
+
+Si tenés la herramienta **`mycelium_recordatorios({desde, hasta})`**, usala: devuelve las
+ocurrencias del rango (tope 366 días) **calculadas por la misma lógica que la app** —
+repeticiones expandidas, orden de la lista, color, ✓ completada, el **id** que necesitan
+las demás herramientas y el primer renglón del detalle—. Si contesta `APP_CERRADA` o
+`MCP_DESACTIVADO`, o no la tenés, leé el archivo con el **script** de esta skill
+(§ «Cómo responder»). El formato y las reglas de abajo sirven para los dos caminos: el
+script las aplica igual, y para entender lo que te devuelve la herramienta.
+
+## Modificar: solo con las herramientas del MCP
+
+| Querés… | Herramienta | Detalle |
+|---|---|---|
+| Agendar | `mycelium_recordatorio_crear({titulo, fecha, hora?, repeticion?, color?, detalle?})` | `fecha` AAAA-MM-DD local; `hora` HH:MM de 24 h, o sin hora = todo el día; `repeticion` `ninguna`·`dia`·`semana`·`mes`·`anio`; `color` **por nombre** (Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma; por defecto Hifa). Devuelve el id, la próxima ocurrencia y si va a avisar |
+| Cambiar | `mycelium_recordatorio_editar({id, ...campos})` | Solo los campos que mandes; `hora: null` lo pasa a todo el día |
+| Marcar hecho | `mycelium_recordatorio_completar({id, fecha, completado?})` | La **ocurrencia** de esa fecha (tiene que ser un día en que ocurre); `completado: false` la desmarca |
+| Borrar | `mycelium_recordatorio_borrar({id})` | Si se repite, la serie entera. No pregunta: el usuario lo restaura desde el registro de actividad |
+
+- **El id** sale de `mycelium_recordatorios` (o de la respuesta de crear). Si mandás un
+  título en su lugar, `NO_ENCONTRADO` te ofrece los parecidos con su id.
+- **Interpretá vos la fecha** antes de llamar («el viernes», «mañana a las 10»): sacá
+  «hoy» como dice § «Rangos» y mandá AAAA-MM-DD. Si es ambigua, preguntá.
+- **Contale al usuario el efecto** con el texto que devuelve la herramienta («Creé
+  “Revisar conclusiones” para el viernes 3 de octubre a las 10:00, color Hifa. Va a
+  avisar.»). No repitas la llamada para comprobar.
+- `INVALIDO` dice qué campo y por qué (fecha inexistente, hora mal formada, color fuera
+  de la paleta, título vacío o de varias líneas, repetición desconocida): corregí y
+  repetí una vez.
 
 ## El formato
 
@@ -139,7 +172,8 @@ hora por título. Es el orden de la lista de la app.
 
 ## Cómo responder «¿qué tengo…?»
 
-1. **Corré el script que viaja con esta skill**, desde la raíz del vault. Solo lee, no
+1. **Con el MCP**, `mycelium_recordatorios` con el rango (decí cuál tomaste). **Sin el
+   MCP**, corré el script que viaja con esta skill, desde la raíz del vault. Solo lee, no
    tiene dependencias y aplica exactamente las reglas de la app (descartes, repeticiones,
    orden, marcas):
 
@@ -212,7 +246,8 @@ leé cada nota para ver si sigue abierta.
 ## Errores comunes
 
 - **Escribir en `.mycelium/`**. Nunca, ni para «marcar como hecho» algo que el usuario
-  te pide. Explicale dónde hacerlo en la app.
+  te pide: eso es `mycelium_recordatorio_completar`. Sin las herramientas, explicale
+  dónde hacerlo en la app.
 - **Correr el día 31 al 30** en una repetición mensual, o poner el 29 de febrero en el 28
   en años no bisiestos. La app no lo hace.
 - **Contar ocurrencias antes de `fecha`**: la serie empieza ahí.

@@ -4,13 +4,15 @@ import { persist } from "zustand/middleware";
 /** Secciones del panel izquierdo activadas desde el rail (HU-28). El grafo ya
  * no es una sección: se abre como ventana en el área de panes. `terminal` es el
  * panel de consolas (FUN-L-07, solo-desktop), `esporas` el de plantillas
- * (FUN-M-03) y `calendario` el de recordatorios (FUN-L-22). */
+ * (FUN-M-03), `calendario` el de recordatorios (FUN-L-22) y `actividad` el
+ * registro de lo que hizo la IA por el MCP de control (FUN-L-09). */
 export type RailSection =
   | "explorer"
   | "search"
   | "tags"
   | "esporas"
   | "calendario"
+  | "actividad"
   | "trash"
   | "terminal";
 

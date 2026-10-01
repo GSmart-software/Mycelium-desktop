@@ -420,6 +420,53 @@ export function alternarCompletada(archivo: ArchivoRecordatorios, clave: string)
   return { ...archivo, ocurrencias };
 }
 
+/**
+ * Deja una ocurrencia completada o no, sea cual sea su estado: lo que necesita
+ * quien pide un valor y no un cambio (el MCP de control y su «Deshacer»).
+ */
+export function fijarCompletada(
+  archivo: ArchivoRecordatorios,
+  clave: string,
+  completada: boolean,
+): ArchivoRecordatorios {
+  return estaCompletada(archivo, clave) === completada ? archivo : alternarCompletada(archivo, clave);
+}
+
+/**
+ * Las ocurrencias con estado de un recordatorio (por clave): lo que hay que
+ * guardar para poder **restaurarlo** tal cual después de borrarlo.
+ */
+export function ocurrenciasDe(archivo: ArchivoRecordatorios, id: string): Record<string, EstadoOcurrencia> {
+  const prefijo = `${id}@`;
+  const salida: Record<string, EstadoOcurrencia> = {};
+  for (const [clave, estado] of Object.entries(archivo.ocurrencias)) {
+    if (clave.startsWith(prefijo)) salida[clave] = estado;
+  }
+  return salida;
+}
+
+/** Vuelve a poner un recordatorio borrado, con el mismo id y el estado de sus ocurrencias. */
+export function restaurarRecordatorio(
+  archivo: ArchivoRecordatorios,
+  r: Recordatorio,
+  ocurrencias: Record<string, EstadoOcurrencia>,
+): ArchivoRecordatorios {
+  return {
+    ...archivo,
+    recordatorios: [...archivo.recordatorios.filter((x) => x.id !== r.id), r],
+    ocurrencias: { ...archivo.ocurrencias, ...ocurrencias },
+  };
+}
+
+/**
+ * El título como se guarda: una línea, sin espacios en los bordes. El
+ * formulario junta los renglones que se hayan pegado; el MCP, en cambio,
+ * rechaza un título multilínea (`lib/mcpCalendarioLogica.ts`).
+ */
+export function normalizarTitulo(titulo: string): string {
+  return titulo.trim().replace(/\s*\n\s*/g, " ");
+}
+
 /** «Posponer»: vuelve a avisar en `hasta`, aunque la app se cierre entre medio. */
 export function posponer(
   archivo: ArchivoRecordatorios,

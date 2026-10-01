@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Bot,
   CalendarDays,
   CircleDot,
   Files,
@@ -28,6 +29,9 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   // Calendario de recordatorios (FUN-L-22): el panel es la vista compacta; desde
   // ahí se abre como pestaña.
   { section: "calendario", icon: CalendarDays, label: "Calendario" },
+  // Registro de actividad de la IA (FUN-L-09): lo que hizo Claude Code por el
+  // MCP de control, con Deshacer, y el estado del canal.
+  { section: "actividad", icon: Bot, label: "Actividad de la IA" },
 ];
 
 const BOTTOM_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [

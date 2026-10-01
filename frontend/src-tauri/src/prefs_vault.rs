@@ -44,12 +44,16 @@ const DIR: &str = ".mycelium";
 /// - `diccionario.txt`: el diccionario personal del corrector ortográfico
 ///   (`FUN-L-12`), una palabra por renglón. Es del vault y viaja con él:
 ///   «Agregar al diccionario» en un vault no afecta a los demás.
+/// - `actividad.jsonl`: el registro de lo que hizo la IA por el MCP de control
+///   (`FUN-L-09`, Parte 2), una entrada JSON por renglón y con tope. Lo recorta
+///   el frontend al escribir (`stores/actividadIaStore.ts`).
 const ESTADOS: &[&str] = &[
     "preferencias.json",
     "snippets.json",
     "papelera.json",
     "recordatorios.json",
     "diccionario.txt",
+    "actividad.jsonl",
 ];
 
 /// Archivos de estado de versiones anteriores que solo se **leen y borran** una
@@ -182,6 +186,19 @@ mod tests {
         escribir(&v, "recordatorios.json", r#"{"version":1}"#).unwrap();
         assert!(Path::new(&v).join(DIR).join("recordatorios.json").is_file());
         assert_eq!(leer(&v, "recordatorios.json").as_deref(), Some(r#"{"version":1}"#));
+    }
+
+    #[test]
+    fn el_registro_de_actividad_es_un_estado_valido() {
+        // El registro de la IA (`FUN-L-09`) vive en `.mycelium/`: sin el nombre
+        // en la lista, lo que hizo el agente no quedaría en ningún lado.
+        let v = vault_temporal("actividad");
+        assert_eq!(leer(&v, "actividad.jsonl"), None);
+        let jsonl = "{\"id\":\"a\"}\n{\"id\":\"b\"}\n";
+        escribir(&v, "actividad.jsonl", jsonl).unwrap();
+        assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some(jsonl));
+        // Y no se borra desde la webview: se recorta al escribir.
+        assert!(borrar_estado_vault(v, "actividad.jsonl".into()).is_err());
     }
 
     #[test]
