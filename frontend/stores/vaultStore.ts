@@ -198,6 +198,10 @@ export const useVaultStore = create<VaultState>()(
         }));
 
         set({ vaultId, carpetas, notas });
+        // Un editor montado antes de que llegara el árbol —las pestañas que se
+        // restauran al abrir la app— decoró sus [[enlaces]] contra una lista vacía
+        // y los marcó todos como inexistentes; nada lo volvía a evaluar (`DEF-122`).
+        refreshAllLiveViews();
       },
 
       async loadPapelera() {
