@@ -52,12 +52,12 @@ export type Resolutor = (enlace: { tipo: string; texto: string }) => string | nu
  *
  * Se leen TODAS las notas y no solo las del título buscado porque el `lower()`
  * de SQLite solo entiende ASCII (ver `claveDeEnlace`): filtrar en SQL perdería
- * los títulos con tildes. Son `id`, `titulo` y `carpeta_id`: en la Tesina
+ * los títulos con tildes. Son `id`, `titulo`, `carpeta_id` y `tipo` (`DEF-120`): en la Tesina
  * (1.306 notas) unos 150 KB.
  */
 export async function crearResolutor(): Promise<Resolutor> {
-  const notas = await select<{ id: string; titulo: string; carpeta_id: string | null }>(
-    "SELECT id, titulo, carpeta_id FROM notas WHERE id NOT IN (SELECT nota_id FROM papelera)",
+  const notas = await select<{ id: string; titulo: string; carpeta_id: string | null; tipo: string }>(
+    "SELECT id, titulo, carpeta_id, tipo FROM notas WHERE id NOT IN (SELECT nota_id FROM papelera)",
   );
   const carpetas: CarpetaEnlazable[] = (
     await select<{ id: string; nombre: string; padre_id: string | null }>(
@@ -65,7 +65,7 @@ export async function crearResolutor(): Promise<Resolutor> {
     )
   ).map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
   const porTitulo = indexarPorTitulo<NotaEnlazable>(
-    notas.map((n) => ({ id: n.id, titulo: n.titulo, carpetaId: n.carpeta_id })),
+    notas.map((n) => ({ id: n.id, titulo: n.titulo, carpetaId: n.carpeta_id, tipo: n.tipo })),
   );
   const ids = new Set(notas.map((n) => n.id));
   return (enlace) => resolverEnlace(enlace, porTitulo, carpetas, ids);

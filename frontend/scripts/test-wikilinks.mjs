@@ -141,7 +141,17 @@ test("la pista de carpeta elige entre homónimas, aunque sea parcial", () => {
   assert.equal(id("2025/Plan"), "Archivo/2025/Plan.md");
   assert.equal(id("Archivo/2025/Plan"), "Archivo/2025/Plan.md");
   assert.equal(id("proyectos/plan"), "Proyectos/Plan.md");
-  assert.equal(id("NoExiste/Plan"), "Plan.md", "una pista que no calza no impide resolver");
+});
+
+test("una pista que no calza no resuelve, ni con un único candidato (DEF-120)", () => {
+  // Antes caía a todos los candidatos: `NoExiste/Plan` llevaba a `Plan.md` y
+  // `Otra/Boceto` al único `Boceto`, que está en `Proyectos`.
+  assert.equal(id("NoExiste/Plan"), undefined);
+  assert.equal(id("Otra/Boceto"), undefined);
+  assert.equal(id("Otra/Boceto.excalidraw"), undefined);
+  assert.equal(id("Archivo/Proyectos/Plan"), undefined, "la pista es un sufijo de la ruta entera");
+  // La pista que sí calza sigue resolviendo, aunque sea parcial.
+  assert.equal(id("Proyectos/Boceto"), "Proyectos/Boceto.excalidraw");
 });
 
 test("la extensión del archivo no forma parte del título", () => {
@@ -170,6 +180,107 @@ test("refUnivoca: el título solo si nadie más se llama así, y si no la ruta",
   assert.equal(refUnivoca(plan, NOTAS, CARPETAS), "Archivo/2025/Plan");
   // Y lo que devuelve vuelve a la misma nota: es lo que inserta el editor.
   for (const n of NOTAS) assert.equal(id(refUnivoca(n, NOTAS, CARPETAS)), n.id, n.id);
+});
+
+// ── Homónimos de distinto tipo (`DEF-120`) ────────────────────────────────────
+//
+// El caso del reporte: `Devoluciones.md` en la raíz y el dibujo
+// `Eval/excalidraw/Devoluciones.excalidraw`. Y el de la misma carpeta:
+// `Pedidos/Pedido.md` junto a `Pedidos/Pedido.excalidraw`, `Pedido.drawio`,
+// `Pedido.canvas` y `Pedido.base`; más un `Boceto.excalidraw` en la raíz y una
+// nota `Boceto` en una carpeta, para ver que el markdown gana aunque esté más hondo.
+
+const CARPETAS_H = [
+  { id: "Eval", nombre: "Eval", padreId: null },
+  { id: "Eval/excalidraw", nombre: "excalidraw", padreId: "Eval" },
+  { id: "Pedidos", nombre: "Pedidos", padreId: null },
+  { id: "Notas", nombre: "Notas", padreId: null },
+];
+const NOTAS_H = [
+  { id: "Devoluciones.md", titulo: "Devoluciones", carpetaId: null, tipo: "markdown" },
+  { id: "Eval/excalidraw/Devoluciones.excalidraw", titulo: "Devoluciones", carpetaId: "Eval/excalidraw", tipo: "excalidraw" },
+  { id: "Pedidos/Pedido.base", titulo: "Pedido", carpetaId: "Pedidos", tipo: "base" },
+  { id: "Pedidos/Pedido.canvas", titulo: "Pedido", carpetaId: "Pedidos", tipo: "canvas" },
+  { id: "Pedidos/Pedido.drawio", titulo: "Pedido", carpetaId: "Pedidos", tipo: "drawio" },
+  { id: "Pedidos/Pedido.excalidraw", titulo: "Pedido", carpetaId: "Pedidos", tipo: "excalidraw" },
+  { id: "Pedidos/Pedido.md", titulo: "Pedido", carpetaId: "Pedidos", tipo: "markdown" },
+  { id: "Boceto.excalidraw", titulo: "Boceto", carpetaId: null, tipo: "excalidraw" },
+  { id: "Notas/Boceto.md", titulo: "Boceto", carpetaId: "Notas", tipo: "markdown" },
+];
+const idH = (ref) => resolveWikilink(ref, NOTAS_H, CARPETAS_H)?.id;
+
+test("embed con extensión, sin carpeta: resuelve al dibujo aunque la nota esté en la raíz", () => {
+  // Era el defecto: el desempate por profundidad elegía `Devoluciones.md`.
+  assert.equal(idH("Devoluciones.excalidraw"), "Eval/excalidraw/Devoluciones.excalidraw");
+  assert.equal(idH("devoluciones.EXCALIDRAW"), "Eval/excalidraw/Devoluciones.excalidraw");
+});
+
+test("embed con extensión y con carpeta: resuelve al dibujo", () => {
+  assert.equal(idH("Eval/excalidraw/Devoluciones.excalidraw"), "Eval/excalidraw/Devoluciones.excalidraw");
+  assert.equal(idH("excalidraw/Devoluciones.excalidraw"), "Eval/excalidraw/Devoluciones.excalidraw");
+  // Con carpeta y sin extensión también: la pista ya deja solo al dibujo.
+  assert.equal(idH("Eval/excalidraw/Devoluciones"), "Eval/excalidraw/Devoluciones.excalidraw");
+});
+
+test("con extensión, una carpeta que no es la del archivo de ese tipo no resuelve", () => {
+  // La nota está en la raíz: `Eval/Devoluciones.md` no la nombra.
+  assert.equal(idH("Eval/Devoluciones.md"), undefined);
+  assert.equal(idH("Pedidos/Devoluciones.excalidraw"), undefined);
+});
+
+test("enlace sin extensión: la nota markdown gana a los homónimos de otro tipo", () => {
+  assert.equal(idH("Devoluciones"), "Devoluciones.md");
+  assert.equal(idH("Pedido"), "Pedidos/Pedido.md", "misma carpeta: antes ganaba `Pedido.base` por id");
+  assert.equal(idH("Pedidos/Pedido"), "Pedidos/Pedido.md");
+  assert.equal(idH("Boceto"), "Notas/Boceto.md", "la nota gana aunque el dibujo esté más cerca de la raíz");
+});
+
+test("en la misma carpeta, cada extensión elige su archivo", () => {
+  for (const ext of ["md", "excalidraw", "drawio", "canvas", "base"]) {
+    assert.equal(idH(`Pedido.${ext}`), `Pedidos/Pedido.${ext}`, ext);
+    assert.equal(idH(`Pedidos/Pedido.${ext}`), `Pedidos/Pedido.${ext}`, `Pedidos/ + ${ext}`);
+  }
+  assert.equal(idH("Boceto.excalidraw"), "Boceto.excalidraw");
+  assert.equal(idH("Boceto.md"), "Notas/Boceto.md");
+});
+
+test("con extensión de un tipo que nadie tiene con ese título, no resuelve", () => {
+  assert.equal(idH("Devoluciones.drawio"), undefined);
+  assert.equal(idH("Boceto.canvas"), undefined);
+});
+
+test("sin markdown entre los homónimos, el desempate de siempre", () => {
+  // `Pedido` sin la nota: gana el de id menor a la misma altura.
+  const sinNota = NOTAS_H.filter((n) => n.id !== "Pedidos/Pedido.md");
+  assert.equal(resolveWikilink("Pedido", sinNota, CARPETAS_H)?.id, "Pedidos/Pedido.base");
+});
+
+test("la variante indexada da lo mismo con homónimos de distinto tipo", () => {
+  const indice = indexarPorTitulo(NOTAS_H);
+  for (const ref of [
+    "Devoluciones", "Devoluciones.excalidraw", "Eval/excalidraw/Devoluciones.excalidraw",
+    "Pedido", "Pedido.drawio", "Pedidos/Pedido.canvas", "Boceto", "Otra/Boceto.excalidraw",
+  ]) {
+    assert.equal(resolveWikilinkEnIndice(ref, indice, CARPETAS_H)?.id, idH(ref), ref);
+  }
+});
+
+test("el grafo apunta al mismo archivo que el editor con homónimos de distinto tipo", () => {
+  const porTitulo = indexarPorTitulo(NOTAS_H);
+  const ids = new Set(NOTAS_H.map((n) => n.id));
+  const r = (tipo, texto) => enlacesNota.resolverEnlace({ tipo, texto }, porTitulo, CARPETAS_H, ids);
+  assert.equal(r("embed", "Devoluciones.excalidraw"), "Eval/excalidraw/Devoluciones.excalidraw");
+  assert.equal(r("embed", "Eval/excalidraw/Devoluciones.excalidraw"), "Eval/excalidraw/Devoluciones.excalidraw");
+  assert.equal(r("enlace", "Devoluciones"), "Devoluciones.md");
+  assert.equal(r("enlace", "Pedido#Sección"), "Pedidos/Pedido.md", "el corte del ancla sigue la misma regla");
+});
+
+test("refUnivoca con homónimos de distinto tipo sigue volviendo a su archivo", () => {
+  // Quien inserta el embed de un dibujo le agrega `.excalidraw` (NoteEditor).
+  const dibujo = NOTAS_H.find((n) => n.id === "Eval/excalidraw/Devoluciones.excalidraw");
+  assert.equal(idH(`${refUnivoca(dibujo, NOTAS_H, CARPETAS_H)}.excalidraw`), dibujo.id);
+  const nota = NOTAS_H.find((n) => n.id === "Devoluciones.md");
+  assert.equal(idH(refUnivoca(nota, NOTAS_H, CARPETAS_H)), nota.id);
 });
 
 test("EXCALIDRAW_RE captura la referencia sin la extensión, con su ruta", () => {

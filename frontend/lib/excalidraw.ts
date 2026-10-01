@@ -158,11 +158,20 @@ export async function saveNotaScene(notaId: string, scene: ExcalidrawScene): Pro
   });
 }
 
-/** Resuelve `![[ref.excalidraw]]` a un archivo .excalidraw del vault (por título
- *  o ruta), o undefined si no corresponde a una nota tipo excalidraw. */
+/**
+ * Resuelve `![[ref.excalidraw]]` a un archivo .excalidraw del vault (por título
+ * o ruta), o undefined si no corresponde a una nota tipo excalidraw.
+ *
+ * `EXCALIDRAW_RE` entrega `ref` **sin** la extensión; se le devuelve antes de
+ * resolver (`DEF-120`). Sin ella, el resolutor buscaba entre todos los archivos
+ * con ese título y, con una nota homónima más cerca de la raíz, elegía la nota;
+ * acá se descartaba por no ser un dibujo y el embed decía «No se pudo cargar».
+ * Con la extensión, el resolutor busca solo entre dibujos.
+ */
 export function resolveExcalidrawTarget(ref: string): TreeNota | undefined {
   const { notas, carpetas } = useVaultStore.getState();
-  const target = resolveWikilink(ref, notas, carpetas);
+  const conExtension = /\.excalidraw$/i.test(ref) ? ref : `${ref}.excalidraw`;
+  const target = resolveWikilink(conExtension, notas, carpetas);
   return target && target.tipo === "excalidraw" ? target : undefined;
 }
 
