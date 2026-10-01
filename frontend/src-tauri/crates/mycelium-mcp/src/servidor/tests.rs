@@ -20,7 +20,7 @@ fn con_vault(nombre: &str, control: Option<bool>) -> Estado {
         raiz,
         origen: "test",
     };
-    Estado { vault: Ok(v), canal: canal_de_prueba(nombre), espera: Some(std::time::Duration::from_secs(5)) }
+    Estado { vault: Ok(v), canal: canal_de_prueba(nombre), espera: Some(std::time::Duration::from_secs(5)), confirmacion: None }
 }
 
 fn uno(e: &mut Estado, msg: Value) -> Value {
@@ -64,6 +64,10 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_recordatorio_editar",
             "mycelium_recordatorio_completar",
             "mycelium_recordatorio_borrar",
+            "mycelium_renombrar",
+            "mycelium_mover",
+            "mycelium_borrar",
+            "mycelium_papelera",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {

@@ -25,3 +25,21 @@ export async function confirmar(mensaje: string, confirmarTexto = "Aceptar"): Pr
   if (!store.montado) return false;
   return store.preguntar(mensaje, confirmarTexto);
 }
+
+/**
+ * Una pregunta que pide **la IA** por el MCP de control (`FUN-L-09`, Parte 3):
+ * se encola detrás de las del usuario —nunca las desplaza ni las cancela— y el
+ * diálogo dice que la pide Claude Code. Devuelve su id, para retirarla si nadie
+ * contesta a tiempo, y la respuesta. Sin interfaz montada, `null`: ante la
+ * duda, no se hace (el MCP lo contesta como `RECHAZADO`).
+ */
+export function confirmarIa(mensaje: string, confirmarTexto: string): { id: number; respuesta: Promise<boolean> } | null {
+  const store = useConfirmarStore.getState();
+  if (!store.montado) return null;
+  return store.encolar(mensaje, confirmarTexto, "ia");
+}
+
+/** Retira una pregunta de la IA que quedó sin contestar (cuenta como «no»). */
+export function retirarConfirmacion(id: number): void {
+  useConfirmarStore.getState().retirar(id);
+}

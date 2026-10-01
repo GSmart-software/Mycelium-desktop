@@ -18,11 +18,17 @@
  * 4. **El registro de actividad** (Parte 2): cada operación —salvo `estado`—
  *    queda en `.mycelium/actividad.jsonl` con su efecto, lo que falló y cómo
  *    deshacerla (`stores/actividadIaStore.ts`, panel del rail).
+ * 5. **Archivos y confirmaciones** (Parte 3): renombrar, mover, borrar y la
+ *    papelera (`lib/mcpArchivos.ts`), y el permiso del usuario cuando el alcance
+ *    es grande (abajo, «Confirmaciones»).
  */
 import { invoke } from "@tauri-apps/api/core";
-import { seRegistra, type Resultado } from "@/lib/actividadIa";
+import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
+import { confirmarIa, retirarConfirmacion } from "@/lib/confirmar";
+import * as archivos from "@/lib/mcpArchivos";
+import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos";
 import * as calendario from "@/lib/mcpCalendario";
-import { FalloCalendario, type Atendido } from "@/lib/mcpCalendario";
+import { FalloCalendario } from "@/lib/mcpCalendario";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
@@ -116,11 +122,11 @@ async function contestar(pedido: Pedido): Promise<void> {
     respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp || e instanceof FalloCalendario
+      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
-  registrar(pedido.op, respuesta, atendido);
+  if (!atendido?.sinRegistro) registrar(pedido.op, respuesta, atendido);
   await invoke("mcp_responder", { id: pedido.id, respuesta }).catch((e) =>
     console.warn("[mcp] no se pudo contestar el pedido", pedido.op, e),
   );
@@ -189,9 +195,118 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return calendario.completar(args);
     case "recordatorio_borrar":
       return calendario.borrar(args);
+    case "renombrar":
+      return conPermiso(pedido.op, await archivos.renombrar(args));
+    case "mover":
+      return conPermiso(pedido.op, await archivos.mover(args));
+    case "borrar":
+      return conPermiso(pedido.op, await archivos.borrar(args));
+    case "papelera":
+      return conPermiso(pedido.op, await archivos.papelera(args));
+    case "confirmacion":
+      return consultarConfirmacion(args, false);
+    case "confirmacion_retirar":
+      return consultarConfirmacion(args, true);
     default:
       throw fallo("INVALIDO", `Operación desconocida: ${pedido.op}.`);
   }
+}
+
+// ── Confirmaciones (Parte 3) ────────────────────────────────────────────────
+//
+// Una operación de alcance grande (renombrar o mover reescribiendo enlaces en
+// más de 5 notas, borrar una carpeta) le pide permiso al usuario. Eso tarda lo
+// que tarde una persona, y el canal tiene un plazo de 10 s por pedido (si no,
+// `OCUPADA`). Así que la operación **no espera** dentro del pedido:
+//
+// 1. Contesta enseguida `{ esperando_confirmacion: { id, pregunta } }`, con la
+//    pregunta ya en pantalla (en la cola de `confirmarStore`, detrás de las del
+//    usuario).
+// 2. El servidor pregunta por el resultado con `confirmacion({id})` cada medio
+//    segundo; cada consulta contesta al instante —«sigue esperando» o el
+//    resultado final, una sola vez—. Para el agente es una sola llamada.
+// 3. Si el usuario no contesta en el plazo del servidor (2 min), éste pide
+//    `confirmacion_retirar({id})`: la pregunta se saca de la pantalla y cuenta
+//    como un «no» (`RECHAZADO`, «no contestó»). Ante la duda, no se hace.
+//
+// La operación confirmada se registra en la actividad **cuando el usuario
+// contesta** (hecha, fallida o rechazada), no al preguntar.
+
+type Confirmacion = {
+  op: string;
+  preguntaId: number;
+  /** El servidor se cansó de esperar y la retiró: el «no» es por silencio. */
+  retirada: boolean;
+  respuesta: Respuesta | null;
+  /** Se cumple cuando hay respuesta (también si se retiró). */
+  fin: Promise<void>;
+};
+
+const confirmaciones = new Map<string, Confirmacion>();
+let siguienteConfirmacion = 1;
+
+/** Si la operación pide permiso, lo pide y contesta «esperando»; si no, pasa tal cual. */
+function conPermiso(op: string, r: Atendible): Atendido {
+  if (!("confirmar" in r)) return r;
+  const { mensaje, boton, pedido, ejecutar } = r.confirmar;
+  const pregunta = confirmarIa(mensaje, boton);
+  if (pregunta === null) {
+    // Sin interfaz montada no se puede preguntar: ante la duda, no se hace.
+    throw fallo("RECHAZADO", `No hay una ventana de Mycelium a la vista para preguntarle al usuario: no se hizo nada (${pedido}).`);
+  }
+  const id = `c${Date.now().toString(36)}-${siguienteConfirmacion++}`;
+  let terminar: () => void = () => {};
+  const c: Confirmacion = { op, preguntaId: pregunta.id, retirada: false, respuesta: null, fin: new Promise((r) => (terminar = r)) };
+  confirmaciones.set(id, c);
+  void pregunta.respuesta.then(async (acepto) => {
+    let atendido: Atendido | null = null;
+    let respuesta: Respuesta;
+    if (!acepto) {
+      respuesta = { ok: false, error: { codigo: "RECHAZADO", mensaje: mensajeRechazo(pedido, c.retirada), datos: null } };
+    } else {
+      try {
+        atendido = await ejecutar();
+        respuesta = { ok: true, resultado: atendido.resultado };
+      } catch (e) {
+        respuesta = {
+          ok: false,
+          error:
+            e instanceof FalloArchivos || e instanceof FalloMcp
+              ? { codigo: e.codigo, mensaje: e.message, datos: e.datos }
+              : { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null },
+        };
+      }
+    }
+    c.respuesta = respuesta;
+    registrar(op, respuesta, atendido);
+    terminar();
+  });
+  return {
+    resultado: { esperando_confirmacion: { id, pregunta: mensaje } },
+    sinRegistro: true,
+  };
+}
+
+/**
+ * `confirmacion({id})`: cómo va una pregunta. Esperando → lo mismo de antes;
+ * contestada → el resultado de la operación (o su error), una sola vez. Con
+ * `retirar`, primero la saca de la pantalla y espera a que se resuelva.
+ */
+async function consultarConfirmacion(args: Record<string, unknown>, retirar: boolean): Promise<Atendido> {
+  const id = typeof args.id === "string" ? args.id : "";
+  const c = confirmaciones.get(id);
+  if (!c) throw fallo("NO_ENCONTRADO", `No hay ninguna confirmación pendiente «${id}» (ya se contestó o la ventana se recargó).`);
+  if (retirar && c.respuesta === null) {
+    c.retirada = true;
+    retirarConfirmacion(c.preguntaId);
+    await c.fin;
+  }
+  if (c.respuesta === null) {
+    return { resultado: { esperando_confirmacion: { id } }, sinRegistro: true };
+  }
+  confirmaciones.delete(id);
+  if (!c.respuesta.ok) throw fallo(c.respuesta.error.codigo, c.respuesta.error.mensaje, c.respuesta.error.datos);
+  return { resultado: c.respuesta.resultado, sinRegistro: true };
 }
 
 // ── estado ──────────────────────────────────────────────────────────────────

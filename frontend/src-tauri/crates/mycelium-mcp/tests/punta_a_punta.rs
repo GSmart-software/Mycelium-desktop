@@ -8,6 +8,8 @@
 //! las dos puntas por separado, y el ciclo app abierta → app cerrada → control
 //! apagado. Desde la Parte 2, también el calendario: una app falsa con
 //! recordatorios en memoria a la que el agente le crea, lista, completa y borra.
+//! Desde la Parte 3, los archivos: renombrar, borrar y restaurar contra un vault
+//! en memoria, y una confirmación que el «usuario» acepta y otra que rechaza.
 
 #[path = "../src/canal_falso.rs"]
 mod falso;
@@ -101,7 +103,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 7);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 11);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -246,6 +248,152 @@ fn el_calendario_de_punta_a_punta() {
     let (t, err) = mcp.herramienta("mycelium_recordatorio_borrar", json!({"id": "r1"}));
     assert!(err && t.starts_with("NO_ENCONTRADO"), "{t}");
     assert!(calendario.lock().unwrap().is_empty());
+
+    drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// Una app falsa con un vault en memoria (ruta → títulos a los que enlaza) y una
+/// papelera: renombrar reescribe los enlaces de las que apuntaban; más de cinco
+/// pide confirmación —el «usuario» acepta la primera y rechaza la segunda—, y
+/// lo borrado vuelve de la papelera.
+#[test]
+fn los_archivos_de_punta_a_punta() {
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+
+    struct App {
+        notas: BTreeMap<String, Vec<String>>,
+        papelera: Vec<String>,
+        /// Confirmaciones pendientes: id → (el usuario acepta, el pedido).
+        pendientes: BTreeMap<String, (bool, Value)>,
+        n: usize,
+    }
+
+    fn renombrar(app: &mut App, objetivo: &str, nombre: &str) -> Value {
+        let enlaces = app.notas.remove(&format!("{objetivo}.md")).unwrap();
+        let nuevo = format!("{nombre}.md");
+        app.notas.insert(nuevo.clone(), enlaces);
+        let mut reescritas = vec![];
+        for (ruta, e) in app.notas.iter_mut() {
+            if e.iter().any(|t| t == objetivo) {
+                e.iter_mut().filter(|t| *t == objetivo).for_each(|t| *t = nombre.to_string());
+                reescritas.push(ruta.clone());
+            }
+        }
+        json!({"efecto": format!("Renombré «{objetivo}» a «{nombre}». Reparé los enlaces en {} notas.", reescritas.len()),
+               "ruta": nuevo, "reescritas": {"total": reescritas.len(), "notas": reescritas}})
+    }
+
+    let (base, dir_app, vault) = preparar("archivos");
+    control(&vault, true);
+    let ruta_registrada = vault.to_string_lossy().to_string();
+    let canal = mycelium_vault::canal::nombre_canal(&ruta_registrada, &dir_app);
+    let mut mcp = Mcp::lanzar(&dir_app, &vault);
+    mcp.pedir("initialize", json!({}));
+
+    let mut notas = BTreeMap::new();
+    notas.insert("Plan.md".to_string(), vec![]);
+    notas.insert("Hub.md".to_string(), vec![]);
+    for i in 0..2 {
+        notas.insert(format!("a{i}.md"), vec!["Plan".to_string()]);
+    }
+    for i in 0..7 {
+        notas.insert(format!("h{i}.md"), vec!["Hub".to_string()]);
+    }
+    let app = Arc::new(Mutex::new(App { notas, papelera: vec![], pendientes: BTreeMap::new(), n: 0 }));
+    let a2 = app.clone();
+    let _app = falso::levantar(canal, move |p| {
+        let id = p["id"].clone();
+        let a = p["args"].clone();
+        let mut app = a2.lock().unwrap();
+        let ok = |r: Value| json!({"id": id, "ok": true, "resultado": r});
+        let err = |c: &str, m: &str| json!({"id": id, "ok": false, "error": {"codigo": c, "mensaje": m, "datos": null}});
+        let s = |k: &str| a[k].as_str().unwrap_or_default().to_string();
+        Some(match p["op"].as_str().unwrap_or_default() {
+            "renombrar" => {
+                let (objetivo, nombre) = (s("objetivo"), s("nombre"));
+                if nombre.contains(':') {
+                    return Some(err("INVALIDO", "`nombre`: Un nombre de archivo no puede llevar :"));
+                }
+                if !app.notas.contains_key(&format!("{objetivo}.md")) {
+                    return Some(err("NO_ENCONTRADO", "no existe"));
+                }
+                let alcance = app.notas.values().filter(|e| e.iter().any(|t| *t == objetivo)).count();
+                if alcance > 5 {
+                    app.n += 1;
+                    let cid = format!("c{}", app.n);
+                    let acepta = app.n == 1;
+                    app.pendientes.insert(cid.clone(), (acepta, a.clone()));
+                    return Some(ok(json!({"esperando_confirmacion": {"id": cid, "pregunta": "¿Renombrar?"}})));
+                }
+                ok(renombrar(&mut app, &objetivo, &nombre))
+            }
+            "confirmacion" => match app.pendientes.remove(&s("id")) {
+                Some((true, pedido)) => {
+                    let (o, n) = (pedido["objetivo"].as_str().unwrap().to_string(), pedido["nombre"].as_str().unwrap().to_string());
+                    ok(renombrar(&mut app, &o, &n))
+                }
+                Some((false, _)) => err(
+                    "RECHAZADO",
+                    "El usuario dijo que no a renombrar «Centro»: no se hizo nada. Es una respuesta, no un error para reintentar.",
+                ),
+                None => err("NO_ENCONTRADO", "no hay"),
+            },
+            "borrar" => {
+                let ruta = format!("{}.md", s("objetivo"));
+                if app.notas.remove(&ruta).is_none() {
+                    return Some(err("NO_ENCONTRADO", "no existe"));
+                }
+                app.papelera.push(ruta.clone());
+                ok(json!({"efecto": format!("Mandé «{ruta}» a la papelera de Mycelium."), "entrada": ruta}))
+            }
+            "papelera" if a["accion"] == "restaurar" => {
+                let ruta = s("id");
+                if !app.papelera.contains(&ruta) {
+                    return Some(err("NO_ENCONTRADO", "no está en la papelera"));
+                }
+                app.papelera.retain(|r| *r != ruta);
+                app.notas.insert(ruta.clone(), vec![]);
+                ok(json!({"efecto": format!("Restauré «{ruta}»."), "rutas": [ruta]}))
+            }
+            "papelera" => {
+                let entradas: Vec<Value> = app
+                    .papelera
+                    .iter()
+                    .map(|r| json!({"id": r, "titulo": r.trim_end_matches(".md"), "carpeta": "", "eliminada": "2026-10-01T10:00:00Z"}))
+                    .collect();
+                ok(json!({ "entradas": entradas }))
+            }
+            _ => err("INVALIDO", "?"),
+        })
+    });
+
+    // Pocos enlaces: no pregunta.
+    let (t, err) = mcp.herramienta("mycelium_renombrar", json!({"objetivo": "Plan", "nombre": "Plan 2026"}));
+    assert!(!err && t.contains("Reparé los enlaces en 2 notas") && t.ends_with("ruta: Plan 2026.md"), "{t}");
+    assert!(app.lock().unwrap().notas["a0.md"].contains(&"Plan 2026".to_string()), "el enlace se reescribió");
+
+    let (t, err) = mcp.herramienta("mycelium_renombrar", json!({"objetivo": "Plan 2026", "nombre": "a:b"}));
+    assert!(err && t.starts_with("INVALIDO"), "{t}");
+
+    // Muchos enlaces: espera la confirmación, y el usuario acepta.
+    let (t, err) = mcp.herramienta("mycelium_renombrar", json!({"objetivo": "Hub", "nombre": "Centro"}));
+    assert!(!err && t.contains("Reparé los enlaces en 7 notas"), "{t}");
+    // Otra vez; ahora el usuario dice que no.
+    let (t, err) = mcp.herramienta("mycelium_renombrar", json!({"objetivo": "Centro", "nombre": "Nodo"}));
+    assert!(err && t.starts_with("RECHAZADO") && t.contains("no un error para reintentar"), "{t}");
+    assert!(app.lock().unwrap().notas.contains_key("Centro.md"), "lo rechazado no se hizo");
+
+    // Borrar y restaurar.
+    let (t, err) = mcp.herramienta("mycelium_borrar", json!({"objetivo": "Plan 2026"}));
+    assert!(!err && t.contains("papelera"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_papelera", json!({}));
+    assert!(!err && t.starts_with("1 entrada en la papelera") && t.contains("id Plan 2026.md"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_papelera", json!({"accion": "restaurar", "id": "Plan 2026.md"}));
+    assert!(!err && t.starts_with("Restauré"), "{t}");
+    let (t, _) = mcp.herramienta("mycelium_papelera", json!({"accion": "listar"}));
+    assert_eq!(t, "La papelera de Mycelium está vacía.");
 
     drop(mcp);
     let _ = std::fs::remove_dir_all(base);

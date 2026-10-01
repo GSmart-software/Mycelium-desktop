@@ -14,7 +14,11 @@
  * que no se entiende se ignora, sin romper el resto: el registro es
  * descartable, perderlo no pierde nada del vault.
  */
+import type { DeshacerArchivos } from "@/lib/mcpArchivosLogica";
 import type { DeshacerCalendario } from "@/lib/mcpCalendarioLogica";
+
+/** Lo que se guarda para deshacer, del calendario (Parte 2) o de archivos (Parte 3). */
+export type DeshacerIa = DeshacerCalendario | DeshacerArchivos;
 
 export const ARCHIVO_ACTIVIDAD = "actividad.jsonl";
 
@@ -29,9 +33,22 @@ export type Objetivo =
   | { tipo: "nota"; ruta: string }
   | { tipo: "grafo" }
   | { tipo: "calendario" }
-  | { tipo: "recordatorio"; id: string; fecha: string };
+  | { tipo: "recordatorio"; id: string; fecha: string }
+  | { tipo: "carpeta"; ruta: string }
+  | { tipo: "papelera" };
 
 export type Resultado = "hecho" | "fallo" | "rechazado";
+
+/**
+ * Lo que vuelve de una operación del canal: el resultado para el agente y lo
+ * que va al registro. `sinRegistro`: no se anota (listar la papelera, o la
+ * respuesta «esperando confirmación», cuya operación se anota al contestar).
+ */
+export type Atendido = {
+  resultado: unknown;
+  actividad?: { efecto: string; objetivo?: Objetivo; deshacer?: DeshacerIa };
+  sinRegistro?: boolean;
+};
 
 export type Entrada = {
   v: number;
@@ -46,7 +63,7 @@ export type Entrada = {
   /** El código del error, si falló. */
   codigo?: string;
   objetivo?: Objetivo;
-  deshacer?: DeshacerCalendario;
+  deshacer?: DeshacerIa;
   /** Solo en `deshacer`: la entrada que deshace. */
   ref?: string;
 };
@@ -97,18 +114,23 @@ function esObjetivo(x: unknown): x is Objetivo {
       return typeof o.ruta === "string";
     case "grafo":
     case "calendario":
+    case "papelera":
       return true;
     case "recordatorio":
       return typeof o.id === "string" && typeof o.fecha === "string";
+    case "carpeta":
+      return typeof o.ruta === "string";
     default:
       return false;
   }
 }
 
 /** Lo justo para no intentar un deshacer con datos rotos; el resto lo valida quien deshace. */
-function esDeshacer(x: unknown): x is DeshacerCalendario {
+function esDeshacer(x: unknown): x is DeshacerIa {
   if (typeof x !== "object" || x === null) return false;
   const o = x as Record<string, unknown>;
+  const s = (k: string) => typeof o[k] === "string";
+  const clase = o.clase === "nota" || o.clase === "carpeta";
   const r = o.recordatorio as Record<string, unknown> | undefined;
   const recordatorioOk = typeof r === "object" && r !== null && typeof r.id === "string" && typeof r.titulo === "string" && typeof r.fecha === "string";
   switch (o.tipo) {
@@ -120,6 +142,15 @@ function esDeshacer(x: unknown): x is DeshacerCalendario {
       return recordatorioOk;
     case "completar":
       return typeof o.id === "string" && typeof o.fecha === "string" && typeof o.completado === "boolean";
+    // Parte 3: archivos.
+    case "archivo_renombrar":
+      return clase && s("ruta") && s("rutaAntes") && s("nombre");
+    case "archivo_mover":
+      return clase && s("ruta") && s("rutaAntes") && (o.carpeta === null || s("carpeta"));
+    case "archivo_restaurar":
+      return clase && s("ruta") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
+    case "archivo_borrar":
+      return s("ruta");
     default:
       return false;
   }
@@ -178,15 +209,23 @@ export const NOMBRE_OP: Record<string, string> = {
   recordatorio_editar: "Editar recordatorio",
   recordatorio_completar: "Completar recordatorio",
   recordatorio_borrar: "Borrar recordatorio",
+  renombrar: "Renombrar",
+  mover: "Mover",
+  borrar: "Mandar a la papelera",
+  papelera: "Papelera",
 };
 
 /**
  * Qué operaciones se registran. `estado` no: es la primera llamada de casi
  * toda sesión y no cambia nada, así que solo ensuciaría. Leer el calendario
- * tampoco, por lo mismo; sí sus fallos, que ayudan a entender qué pidió.
+ * tampoco, por lo mismo; sí sus fallos, que ayudan a entender qué pidió. Ni
+ * listar la papelera (lo decide la operación: `Atendido.sinRegistro`).
  */
 export function seRegistra(op: string, resultado: Resultado): boolean {
   if (op === "estado" || op === "ping") return false;
+  // Consultar o retirar una confirmación pendiente no es una operación: la
+  // operación confirmada se registra sola, cuando el usuario contesta.
+  if (op === "confirmacion" || op === "confirmacion_retirar") return false;
   if (op === "recordatorios") return resultado !== "hecho";
   return true;
 }

@@ -27,14 +27,13 @@ import {
   type DeshacerCalendario,
   type Validado,
 } from "@/lib/mcpCalendarioLogica";
-import type { Entrada, Objetivo } from "@/lib/actividadIa";
+import type { Atendido, Objetivo } from "@/lib/actividadIa";
 import {
   claveOcurrencia,
   estaCompletada,
   ocurrenciasDe,
   type Recordatorio,
 } from "@/lib/recordatorios";
-import { useActividadIaStore } from "@/stores/actividadIaStore";
 import { idRecordatorio, useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 
@@ -49,11 +48,7 @@ export class FalloCalendario extends Error {
   }
 }
 
-/** Lo que vuelve de una operación: el resultado para el agente y lo que va al registro. */
-export type Atendido = {
-  resultado: unknown;
-  actividad?: { efecto: string; objetivo?: Objetivo; deshacer?: DeshacerCalendario };
-};
+export type { Atendido };
 
 function exigir<T>(v: Validado<T>): T {
   if (!v.ok) throw new FalloCalendario(v.error.codigo, v.error.mensaje, v.error.datos);
@@ -207,21 +202,5 @@ export function deshacer(d: DeshacerCalendario): string {
       store.fijarCompletada(claveOcurrencia(d.id, d.fecha), d.completado);
       return `«${r.titulo}» del ${d.fecha} quedó ${d.completado ? "completado" : "pendiente"} otra vez.`;
     }
-  }
-}
-
-/**
- * El «Deshacer» de una entrada del registro de actividad: deshace y deja
- * constancia (una entrada `deshacer` que apunta a la original; el registro es
- * *append-only*). Devuelve el texto para el aviso.
- */
-export function deshacerEntrada(e: Entrada): { ok: boolean; texto: string } {
-  if (!e.deshacer) return { ok: false, texto: "Esto no se puede deshacer." };
-  try {
-    const texto = deshacer(e.deshacer);
-    useActividadIaStore.getState().registrar({ op: "deshacer", ref: e.id, resultado: "hecho", efecto: texto });
-    return { ok: true, texto };
-  } catch (err) {
-    return { ok: false, texto: err instanceof Error ? err.message : String(err) };
   }
 }

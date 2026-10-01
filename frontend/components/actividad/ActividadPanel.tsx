@@ -10,10 +10,11 @@ import {
   type EstadoCanal,
   type Objetivo,
 } from "@/lib/actividadIa";
-import { describirDeshacer, puedeDeshacer } from "@/lib/mcpCalendarioLogica";
+import { describir, motivoSinDeshacer } from "@/lib/deshacerIa";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { fechaLocal, horaLocal } from "@/lib/recordatorios";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
+import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { avisar } from "@/stores/avisosStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
@@ -34,6 +35,10 @@ import styles from "./ActividadPanel.module.css";
 export function ActividadPanel() {
   const entradas = useActividadIaStore((s) => s.entradas);
   const vista = useMemo(() => vistaActividad(entradas), [entradas]);
+  // Para saber si lo borrado sigue en la papelera (el Deshacer de un borrar).
+  useEffect(() => {
+    void useVaultStore.getState().loadPapelera().catch(() => {});
+  }, []);
 
   return (
     <div className={styles.panel}>
@@ -41,7 +46,8 @@ export function ActividadPanel() {
       {vista.length === 0 ? (
         <p className={styles.vacio}>
           Todavía no hay actividad. Lo que Claude Code haga en Mycelium —abrir notas, agendar o cambiar
-          recordatorios— aparece acá, con <strong>Deshacer</strong> donde se pueda.
+          recordatorios, renombrar, mover o mandar a la papelera— aparece acá, con <strong>Deshacer</strong>{" "}
+          donde se pueda.
         </p>
       ) : (
         <ul className={styles.lista} aria-label="Lo que hizo la IA, de lo más nuevo a lo más viejo">
@@ -155,15 +161,45 @@ const ETIQUETA_RESULTADO = { fallo: "Falló", rechazado: "Rechazado" } as const;
 function Fila({ entrada: e }: { entrada: EntradaVista }) {
   const router = useRouter();
   const deshecha = e.deshechaEn !== null;
-  // Se recalcula con el calendario: si lo que dejó la operación cambió
-  // después, deshacer pisaría ese cambio, así que el botón queda deshabilitado
-  // con el motivo.
+  const [deshaciendo, setDeshaciendo] = useState(false);
+  // Se recalcula con el calendario y el vault: si lo que dejó la operación
+  // cambió después, deshacer pisaría ese cambio, así que el botón queda
+  // deshabilitado con el motivo.
   const archivoCal = useRecordatoriosStore((s) => s.archivo);
-  const posible = e.deshacer && !deshecha ? puedeDeshacer(archivoCal, e.deshacer) : null;
-  const motivoNo = posible && !posible.ok ? posible.porque : null;
+  const notas = useVaultStore((s) => s.notas);
+  const carpetas = useVaultStore((s) => s.carpetas);
+  const papelera = useVaultStore((s) => s.papelera);
+  const motivoNo = useMemo(() => {
+    if (!e.deshacer || deshecha) return null;
+    return motivoSinDeshacer(e.deshacer, archivoCal, {
+      notas: new Set(notas.map((n) => n.id)),
+      carpetas: new Set(carpetas.map((c) => c.id)),
+      papelera: new Set(papelera.map((p) => p.notaId)),
+    });
+  }, [e.deshacer, deshecha, archivoCal, notas, carpetas, papelera]);
 
   const ir = (o: Objetivo) => {
     const tabs = useTabsStore.getState();
+    if (o.tipo === "papelera") {
+      const layout = usePanelLayoutStore.getState();
+      if (layout.activeSection !== "trash") layout.toggleSection("trash");
+      return;
+    }
+    if (o.tipo === "carpeta") {
+      const { carpetas: todas } = useVaultStore.getState();
+      if (!todas.some((c) => c.id === o.ruta)) {
+        avisar(`La carpeta «${o.ruta}» ya no existe (puede haberse renombrado, movido o borrado).`);
+        return;
+      }
+      // Desplegar la carpeta y las de arriba, y mostrar el explorador.
+      const expandir: Record<string, boolean> = {};
+      const partes = o.ruta.split("/");
+      for (let i = 1; i <= partes.length; i++) expandir[partes.slice(0, i).join("/")] = true;
+      useVaultStore.setState((s) => ({ expanded: { ...s.expanded, ...expandir } }));
+      const layout = usePanelLayoutStore.getState();
+      if (layout.activeSection !== "explorer") layout.toggleSection("explorer");
+      return;
+    }
     if (o.tipo === "recordatorio") {
       if (!useRecordatoriosStore.getState().archivo.recordatorios.some((r) => r.id === o.id)) {
         avisar("Ese recordatorio ya no está en el calendario.");
@@ -182,9 +218,14 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
   };
 
   const deshacer = async () => {
-    const { deshacerEntrada } = await import("@/lib/mcpCalendario");
-    const r = deshacerEntrada(e);
-    avisar(r.ok ? `Deshecho: ${r.texto}` : r.texto);
+    setDeshaciendo(true);
+    try {
+      const { deshacerEntrada } = await import("@/lib/deshacerIa");
+      const r = await deshacerEntrada(e);
+      avisar(r.ok ? `Deshecho: ${r.texto}` : r.texto);
+    } finally {
+      setDeshaciendo(false);
+    }
   };
 
   return (
@@ -214,11 +255,11 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
             <button
               type="button"
               className={styles.boton}
-              title={motivoNo ? `No se puede deshacer: ${motivoNo}` : `Deshacer: ${describirDeshacer(e.deshacer)}`}
-              disabled={motivoNo !== null}
+              title={motivoNo ? `No se puede deshacer: ${motivoNo}` : `Deshacer: ${describir(e.deshacer)}`}
+              disabled={motivoNo !== null || deshaciendo}
               onClick={() => void deshacer()}
             >
-              Deshacer
+              {deshaciendo ? "Deshaciendo…" : "Deshacer"}
             </button>
           )}
         </div>

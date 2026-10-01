@@ -26,6 +26,10 @@ pub struct Estado {
     /// Plazo de lectura del canal; `None` = el del protocolo
     /// ([`crate::canal::ESPERA_CLIENTE`]). Los tests lo acortan.
     pub espera: Option<Duration>,
+    /// Cuánto se espera a que el usuario conteste una confirmación y cada
+    /// cuánto se consulta; `None` = los del protocolo
+    /// (`ESPERA_CONFIRMACION`, `INTERVALO_CONFIRMACION`). Los tests los acortan.
+    pub confirmacion: Option<(Duration, Duration)>,
 }
 
 impl Estado {
@@ -35,7 +39,7 @@ impl Estado {
             (Ok(v), Some(dir)) => mycelium_vault::canal::nombre_canal(&v.registrado.ruta, &dir),
             _ => PathBuf::new(),
         };
-        Estado { vault, canal, espera: None }
+        Estado { vault, canal, espera: None, confirmacion: None }
     }
 }
 
