@@ -8,7 +8,8 @@
 // únicos, campos que Excalidraw necesita para no descartar (o romper) la escena,
 // enlaces recíprocos flecha↔forma y texto↔contenedor, extremos de flecha pegados
 // al borde de su forma, texto que entra en su caja, formas encimadas o demasiado
-// juntas, etiquetas de flecha sin lugar y flechas que atraviesan formas ajenas.
+// juntas, etiquetas de flecha sin lugar o sobre el borde de un marco y flechas que
+// atraviesan formas ajenas.
 // Sale con código 1 si hay errores (o avisos, con `--estricto`).
 //
 // Lo que sabe de Excalidraw (0.18) sale de su `restore`: ver la skill
@@ -175,6 +176,7 @@ export function validar(texto) {
     const t = NOMBRE_TIPO[e?.type] ?? e?.type ?? "elemento";
     let etiqueta = "";
     if (e?.type === "text" && typeof e.text === "string") etiqueta = e.text;
+    else if (typeof e?.name === "string") etiqueta = e.name; // marco
     else if (Array.isArray(e?.boundElements)) {
       const b = e.boundElements.find((x) => x?.type === "text");
       const tx = b && porId.get(b.id);
@@ -354,6 +356,15 @@ export function validar(texto) {
     if (!m || m.isDeleted === true) { errores.push(`${nombre(e)}: frameId «${e.frameId}» no existe`); continue; }
     if (m.type !== "frame" && m.type !== "magicframe") { errores.push(`${nombre(e)}: frameId apunta a ${nombre(m)}, que no es un marco`); continue; }
     if (validos.includes(m) && !contiene(caja(m), caja(e), 1)) avisos.push(`${nombre(e)}: se sale de su marco ${nombre(m)} — lo que queda afuera no se ve (el marco recorta)`);
+  }
+  // Un texto suelto o la etiqueta de una flecha que cruza el borde de un marco queda tachado por la línea del borde
+  const marcos = validos.filter((e) => e.type === "frame" || e.type === "magicframe");
+  for (const t of validos.filter((e) => e.type === "text" && (!e.containerId || LINEALES.has(porId.get(e.containerId)?.type)))) {
+    for (const m of marcos) {
+      if (t.frameId === m.id) continue; // ese caso ya es «se sale de su marco»
+      const cm = caja(m), c = caja(t), ct = { x1: c.x1 - 6, y1: c.y1 - 6, x2: c.x2 + 6, y2: c.y2 + 6 }; // con aire: pegado al borde también se lee mal
+      if (solapa(ct, cm) && !contiene(cm, ct, 0)) avisos.push(`${nombre(t)} pisa el borde de ${nombre(m)}: ${t.containerId ? "alargá la flecha para que su etiqueta quede entera afuera (o adentro) del marco" : "movelo afuera o adentro del marco"}`);
+    }
   }
 
   // 5. Disposición: formas encimadas, texto suelto encima de formas, flechas que atraviesan

@@ -45,6 +45,23 @@ export function tamanoPara(tipo, texto, fontSize = 20, fontFamily = 5) {
   return { w: par(m.w + 40), h: par(m.h + 30) };
 }
 
+/**
+ * Separación mínima entre los BORDES de dos formas vecinas (regla 6), según la
+ * flecha que las va a unir: sin etiqueta, 50 en vertical y 60 en horizontal; con
+ * etiqueta, que el tramo mida la etiqueta + 40 (y no menos de 120 entre bordes).
+ * Con `o.margen` —la flecha cruza el borde de un marco, y `margen` es lo que hay
+ * entre la forma de adentro y ese borde— alcanza además para que la etiqueta quede
+ * entera afuera del marco, sin pisar el borde.
+ */
+export function sepPara(etiqueta, lado = "abajo", o = {}) {
+  const v = lado === "abajo" || lado === "arriba";
+  if (!etiqueta) return v ? SEP_V : SEP_H;
+  const m = medir(etiqueta, o.fontSize ?? 16, o.fontFamily ?? 5), largo = v ? m.h : m.w;
+  // y en horizontal, que la etiqueta no ocupe más del 70 % de la flecha
+  const sep = Math.max(120, largo + 40 + 2 * GAP, v ? 0 : m.w / 0.7 + 2 * GAP);
+  return par(o.margen ? Math.max(sep, 2 * o.margen + largo + 40) : sep); // 20 px de aire entre la etiqueta y el borde
+}
+
 export const centro = (f) => ({ x: f.x + f.width / 2, y: f.y + f.height / 2 });
 
 /** Distancia del centro al borde de la forma en la dirección unitaria (dx, dy). */
@@ -89,6 +106,8 @@ export class Dibujo {
   porId(id) { return this.elementos.find((e) => e.id === id && !e.isDeleted); }
   /** Formas vivas (rectángulos, elipses, rombos, imágenes): sin textos, flechas ni marcos. */
   formas() { return this.elementos.filter((e) => FORMAS.has(e.type) && !e.isDeleted); }
+  /** Textos sueltos vivos (títulos, notas al margen): los que `formas()` no incluye. */
+  sueltos() { return this.elementos.filter((e) => e.type === "text" && !e.containerId && !e.isDeleted); }
   /**
    * Forma (o texto suelto) cuyo texto visible es `t`. Compara sin mirar saltos de
    * línea ni espacios repetidos («Pedir al proveedor» encuentra «Pedir al\nproveedor»),
@@ -160,15 +179,16 @@ export class Dibujo {
 
   /**
    * Forma nueva al lado de `ref` («abajo», «arriba», «derecha» o «izquierda»),
-   * alineada con su centro y a `o.sep` px entre BORDES (por defecto, la regla 6:
-   * 50 en vertical, 60 en horizontal; pasá 120 si la flecha que las une lleva
-   * etiqueta). Acepta las mismas opciones que `caja`.
+   * alineada con su centro y a `o.sep` px entre BORDES. Por defecto, la regla 6
+   * (`sepPara`): si la flecha que las va a unir lleva etiqueta, pasala en
+   * `o.etiquetaFlecha` y la separación se calcula para que entre. Acepta las
+   * mismas opciones que `caja`.
    */
   junto(ref, lado, etiqueta, o = {}) {
     const t = tamanoPara(o.forma ?? "rectangle", etiqueta, o.fontSize ?? 20, o.fontFamily ?? 5);
     const w = par(Math.max(o.ancho ?? 0, t.w)), h = par(Math.max(o.alto ?? 0, t.h));
     const c = centro(ref), v = lado === "abajo" || lado === "arriba";
-    const sep = o.sep ?? (v ? SEP_V : SEP_H), s = lado === "abajo" || lado === "derecha" ? 1 : -1;
+    const sep = o.sep ?? sepPara(o.etiquetaFlecha, lado, { fontFamily: o.fontFamily }), s = lado === "abajo" || lado === "derecha" ? 1 : -1;
     const cx = v ? c.x : c.x + s * (ref.width / 2 + sep + w / 2);
     const cy = v ? c.y + s * (ref.height / 2 + sep + h / 2) : c.y;
     return this.caja(etiqueta, cx, cy, o);
