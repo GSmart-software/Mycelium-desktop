@@ -419,8 +419,10 @@ Lo que importa para la memoria: un \`.base\` y un \`.canvas\` son **nodos del
 grafo** y destinos válidos de \`[[enlace]]\`. El \`.canvas\` **aporta aristas**
 hacia cada \`[[enlace]]\` de sus tarjetas de texto y hacia cada nota de sus
 tarjetas \`file\` (las **flechas** del lienzo no crean aristas). El YAML de un
-\`.base\` no se escanea. \`.drawio\` y \`.excalidraw\` no se indexan: para que no
-queden huérfanos, embebelos en una nota (\`![[Nombre.drawio]]\`).
+\`.base\` no se escanea. \`.drawio\` y \`.excalidraw\` no se indexan: solo una nota que
+los embebe (\`![[Nombre.drawio]]\`, con la extensión) los conecta. Si hay una nota natural
+—la que nombró el usuario o la del tema—, embebelos ahí y decí dónde; si no la hay, no
+inventes una: creá el archivo y ofrecé embeberlo donde el usuario elija.
 
 Las **Esporas** son moldes, no memoria: no consolides ahí, no las cites como
 fuente, no las reportes como huérfanas. Viven directamente en \`Esporas/\` (o la
