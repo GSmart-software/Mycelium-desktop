@@ -16,7 +16,7 @@ import { derivarIndice, reindexarPropiedadesTanda } from "./propiedades";
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
 import { getVaultActual } from "./vaultContext";
-import { escribirNota } from "./vaultFs";
+import { escribirNota, leerArchivoTexto } from "./vaultFs";
 
 /** `GET /notas/{id}/contenido`. */
 export async function getContenido(id: string): Promise<ContenidoResponse> {
@@ -27,7 +27,39 @@ export async function getContenido(id: string): Promise<ContenidoResponse> {
     [id],
   );
   if (rows.length === 0) throw new DbError(404, "La nota no existe.");
-  return { contenido: rows[0].contenido ?? "", actualizadoEn: rows[0].actualizado_en };
+  if (rows[0].contenido === null) {
+    return { contenido: await reponerDesdeDisco(id), actualizadoEn: rows[0].actualizado_en };
+  }
+  return { contenido: rows[0].contenido, actualizadoEn: rows[0].actualizado_en };
+}
+
+/**
+ * La nota está en el índice pero su contenido NO (`DEF-121`): se lee del disco,
+ * que es la fuente de verdad, y se repone en `contenidos`.
+ *
+ * Antes se devolvía `""`, y no es lo mismo: «vacío» es un archivo de 0 bytes,
+ * no un índice al que le falta la fila. Una vista que recibía `""` mostraba la
+ * página en blanco —un `.drawio` de 6 KB, abierto como diagrama nuevo— y al
+ * guardar pisaba el archivo real. El resto de lo que se deriva del contenido
+ * (búsqueda, propiedades, enlaces) no se rehace acá: el `mtime` de la nota se
+ * pone en 0 para que el próximo indexado la relea entera, que es justo lo que
+ * hace con una nota a medio indexar (ver `indexarVault`), y las huellas en NULL
+ * para que, si antes se guarda, `putContenido` no saltee nada.
+ *
+ * Si el archivo ya no está, es vacío como antes (el watcher lo sacará del
+ * índice). Si existe pero no se puede leer, LANZA: mostrar un error es mejor que
+ * mostrar vacío algo que guardar pisaría.
+ */
+async function reponerDesdeDisco(id: string): Promise<string> {
+  const texto = await leerArchivoTexto(getVaultActual(), id);
+  if (texto === null) return "";
+  await execute(
+    `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
+     ON CONFLICT(nota_id) DO UPDATE SET contenido = excluded.contenido, actualizado_en = excluded.actualizado_en`,
+    [id, texto, ahoraIso()],
+  );
+  await execute("UPDATE notas SET mtime = 0, hash_indexable = NULL, hash_enlaces = NULL WHERE id = ?", [id]);
+  return texto;
 }
 
 /** `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS. */
@@ -38,7 +70,17 @@ export async function putContenido(id: string, contenido: string | null): Promis
     tipo: string;
     hash_indexable: string | null;
     hash_enlaces: string | null;
-  }>("SELECT titulo, tipo, hash_indexable, hash_enlaces FROM notas WHERE id = ?", [id]);
+    con_busqueda: number;
+  }>(
+    // `con_busqueda` (`DEF-121`): si a la nota le falta su fila de búsqueda, la
+    // huella no prueba nada —describe una fila que no está— y hay que escribirla.
+    // Se mira en la tabla sombra de FTS5, como en `indexarVault`.
+    `SELECT n.titulo, n.tipo, n.hash_indexable, n.hash_enlaces,
+            EXISTS (SELECT 1 FROM fts_filas f JOIN notas_fts_docsize d ON d.id = f.fila
+                    WHERE f.nota_id = n.id) AS con_busqueda
+     FROM notas n WHERE n.id = ?`,
+    [id],
+  );
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
 
   const texto = contenido ?? "";
@@ -64,7 +106,7 @@ export async function putContenido(id: string, contenido: string | null): Promis
   // `propiedades` se reescriben —en una nota de 500 KB, cientos de ms de FTS5
   // por cada guardado que no las tocaba—.
   const { indexable, propiedades, huella } = derivarIndice(texto);
-  if (huella !== notas[0].hash_indexable) {
+  if (huella !== notas[0].hash_indexable || Number(notas[0].con_busqueda) !== 1) {
     await ftsPoner(id, notas[0].titulo, indexable);
     await reindexarPropiedadesTanda([{ id, propiedades }]);
   }
