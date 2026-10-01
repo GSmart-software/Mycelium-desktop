@@ -91,7 +91,11 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   contenido (archivos) y operar la app (herramientas `mycelium_*`), con una
  *   tabla a la que las partes 2–4 agregan filas— y el `.mcp.json`, que no es un
  *   template: lo escribe `lib/mcpControl.ts` al encender el control o al
- *   generar con el control encendido.
+ *   generar con el control encendido. Parte 2: el **calendario** por MCP
+ *   (`mycelium_recordatorios` y `mycelium_recordatorio_*`) en «Operar
+ *   Mycelium», la regla 8 (el calendario se modifica **solo** con esas
+ *   herramientas) y la skill `mycelium-calendario`, que deja de ser solo
+ *   lectura: lee preferentemente por MCP y modifica únicamente por MCP.
  */
 export const FRAMEWORK_IA_VERSION = "1.7.0";
 
@@ -216,14 +220,14 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
 | skill \`mycelium-excalidraw\` | Crear o modificar un **dibujo** \`.excalidraw\` (boceto, pizarra, flujo informal): flechas enlazadas, texto en su caja. Trae validador. |
 | skill \`mycelium-base\` | Crear, corregir o leer una **tabla** \`.base\` («una lista de las notas que…»): el subconjunto exacto de filtros, columnas y orden que Mycelium entiende. |
 | skill \`mycelium-esporas\` | Crear una nota **a partir de una Espora** (plantilla) expandiendo vos sus variables, o crear/corregir una Espora. |
-| skill \`mycelium-calendario\` | Responder «¿qué tengo hoy / esta semana…?» leyendo los **recordatorios** del calendario, con las repeticiones bien expandidas. Solo lectura. |
+| skill \`mycelium-calendario\` | Responder «¿qué tengo hoy / esta semana…?» con los **recordatorios** del calendario, con las repeticiones bien expandidas, y agendar, cambiar, completar o borrar recordatorios **por las herramientas \`mycelium_recordatorio_*\`** (sin ellas, el calendario no se modifica). |
 | \`/vault-buscar <pregunta>\` | Responder una pregunta **con evidencia del vault** (recuperación completa + citas). Preferilo a buscar a mano. |
 | \`/vault-recordar <qué recordar>\` | Consolidar un hecho/decisión/aprendizaje en la memoria (crea o amplía la nota y la enlaza). |
 | \`/vault-nota <título>\` | Crear una nota nueva respetando las convenciones (ubicación, enlaces, no dejarla huérfana). |
 | \`/vault-vincular <nota>\` | Reforzar las asociaciones de una nota existente (agrega \`[[enlaces]]\` a lo relacionado). |
 | \`/vault-mapa\` | Generar/actualizar el índice general (MOC) del vault. Útil tras incorporar mucho material. |
 | \`/vault-huerfanas\` | Auditar la salud de la memoria: notas desconectadas y enlaces rotos. |
-| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario y saber qué tiene abierto. Ver «Operar Mycelium». |
+| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto y **leer y modificar el calendario**. Ver «Operar Mycelium». |
 
 ## Reglas duras
 
@@ -253,7 +257,9 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
 8. **No toques** \`.mycelium/\` (índice interno, papelera, calendario, preferencias):
    **escribir** ahí, nunca. La única excepción es de **lectura**: podés leer
    \`.mycelium/recordatorios.json\` (el calendario, skill \`mycelium-calendario\`) y
-   \`.mycelium/preferencias.json\` (p. ej. cuál es la carpeta de Esporas). No edites
+   \`.mycelium/preferencias.json\` (p. ej. cuál es la carpeta de Esporas). El
+   calendario se **modifica solo** con las herramientas \`mycelium_recordatorio_*\`:
+   si no las tenés, decíselo al usuario y no toques el archivo. No edites
    \`.claude/\`: lo regenera Mycelium. Si el usuario regenera y ya hay un archivo
    suyo, Mycelium **no lo pisa**: crea \`nombre (mycelium-ia vX).md\` al lado y un
    reporte \`Conflictos instrucciones IA.md\` en la raíz.
@@ -278,13 +284,19 @@ divisoria es una sola:
 
 > [!important] El contenido va por los archivos; operar la app va por Mycelium
 > **Leer y escribir** notas, lienzos, tablas o dibujos se hace como siempre, en los
-> archivos. **Mostrarle algo al usuario y saber qué tiene abierto** pasa por las
-> herramientas: no adivines qué está mirando ni le pidas que abra algo a mano.
+> archivos. **Mostrarle algo al usuario, saber qué tiene abierto y el calendario**
+> pasan por las herramientas: no adivines qué está mirando, no le pidas que abra
+> algo a mano y **no escribas \`.mycelium/recordatorios.json\`**.
 
 | Querés… | Herramienta |
 |---|---|
 | Saber qué tiene abierto el usuario: pestañas por panel, la visible, las que tienen **cambios sin guardar** | \`mycelium_estado\` |
 | Mostrarle una nota o archivo, el grafo o el calendario —y llevarlo a un encabezado, una línea o un texto— | \`mycelium_abrir\` |
+| Leer el calendario entre dos fechas (las repeticiones ya expandidas, con id y si está completada) | \`mycelium_recordatorios\` |
+| Agendar un recordatorio (título, fecha, hora, repetición, color por nombre, detalle) | \`mycelium_recordatorio_crear\` |
+| Cambiar uno existente | \`mycelium_recordatorio_editar\` |
+| Marcar o desmarcar como hecha una ocurrencia | \`mycelium_recordatorio_completar\` |
+| Borrar uno (la serie entera, si se repite) | \`mycelium_recordatorio_borrar\` |
 
 - **Antes de escribir un archivo que el usuario podría estar editando**, mirá
   \`mycelium_estado\`: si su pestaña figura **sin guardar**, avisale antes, porque lo
@@ -295,8 +307,13 @@ divisoria es una sola:
   \`AMBIGUO\` las rutas para repetir la llamada, \`APP_CERRADA\` que Mycelium no está
   abierto con este vault y \`MCP_DESACTIVADO\` dónde se enciende. Contáselo al usuario
   en vez de reintentar a ciegas.
+- **Lo que escribís en el calendario no pregunta**: queda en el **registro de
+  actividad** de Mycelium (su ícono en el rail), con **Deshacer**. Decile al usuario
+  qué hiciste con el texto que te devuelve la herramienta —dice el efecto— y no
+  repitas la llamada para «confirmar».
 - **Si no tenés las herramientas**, nada de esto cambia tu trabajo con los archivos:
-  solo no podés mostrar ni saber qué está abierto.
+  solo no podés mostrar, saber qué está abierto ni modificar el calendario (leerlo
+  sí, con la skill \`mycelium-calendario\`).
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -370,8 +387,9 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
   la app los muestra, pero no están indexados.
 - **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
 - **\`.mycelium/\`**: índice interno, papelera (\`.mycelium/.trash/\`), calendario
-  (\`recordatorios.json\`) y preferencias. No escribir nunca; leer, solo esos dos
-  JSON (skills \`mycelium-calendario\` y \`mycelium-esporas\`).
+  (\`recordatorios.json\`), preferencias y el registro de actividad de la IA. No
+  escribir nunca; leer, solo esos dos JSON (skills \`mycelium-calendario\` y
+  \`mycelium-esporas\`). El calendario se modifica por MCP.
 - **\`.claude/\`**: este framework (skills + comandos). Lo regenera Mycelium.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium.
 
@@ -451,7 +469,7 @@ geometría y recetas. Consultala antes de crear o modificar uno:
 | Diagrama \`.drawio\` (XML de mxGraph) | \`mycelium-drawio\` |
 | Dibujo \`.excalidraw\` (JSON de Excalidraw) | \`mycelium-excalidraw\` |
 | Esporas (plantillas de notas) y sus variables | \`mycelium-esporas\` |
-| Calendario de recordatorios (solo lectura) | \`mycelium-calendario\` |
+| Calendario de recordatorios (leer; modificar, solo por MCP) | \`mycelium-calendario\` |
 
 Lo que importa para la memoria: un \`.base\` y un \`.canvas\` son **nodos del
 grafo** y destinos válidos de \`[[enlace]]\`. El \`.canvas\` **aporta aristas**

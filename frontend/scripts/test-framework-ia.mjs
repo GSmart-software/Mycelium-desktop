@@ -178,3 +178,33 @@ test("HUELLAS_CLAUDE_MD_PREVIAS cubre cada CLAUDE.md publicado hasta la 1.6.0", 
     assert.ok(enFuente.has(h), `falta la huella del CLAUDE.md de ${c}`);
   }
 });
+
+// ── El calendario por MCP (`FUN-L-09`, Parte 2) ─────────────────────────────
+
+const HERRAMIENTAS_CALENDARIO = [
+  "mycelium_recordatorios",
+  "mycelium_recordatorio_crear",
+  "mycelium_recordatorio_editar",
+  "mycelium_recordatorio_completar",
+  "mycelium_recordatorio_borrar",
+];
+
+test("«Operar Mycelium» enseña las cinco herramientas del calendario", () => {
+  const operar = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("## Operar Mycelium"));
+  for (const h of HERRAMIENTAS_CALENDARIO) assert.ok(operar.includes(`\`${h}\``), `falta ${h} en «Operar Mycelium»`);
+  assert.match(CLAUDE_NUEVO, /registro de\s+actividad/);
+  // La regla 8 sigue: leer sí, escribir en .mycelium/ nunca, y el calendario solo por MCP.
+  assert.match(CLAUDE_NUEVO, /calendario se \*\*modifica solo\*\* con las herramientas/);
+  assert.ok(!/Solo lectura\. \|/.test(CLAUDE_NUEVO), "la fila de la skill ya no dice solo lectura");
+});
+
+test("la skill del calendario lee por MCP primero y modifica solo por MCP", () => {
+  const skill = archivosFramework().find((a) => a.ruta === ".claude/skills/mycelium-calendario/SKILL.md").contenido;
+  assert.match(skill, /^description: .*SOLO con las herramientas mycelium_recordatorio_\*/m);
+  assert.ok(skill.indexOf("mycelium_recordatorios") < skill.indexOf("consultar.mjs"), "primero la herramienta, después el script");
+  for (const h of HERRAMIENTAS_CALENDARIO) assert.ok(skill.includes(h), `la skill no menciona ${h}`);
+  assert.match(skill, /Nunca escribas en `\.mycelium\/`/);
+  assert.match(skill, /\*\*Si no tenés esas herramientas\*\*/);
+  // Y el script sigue viajando con la skill.
+  assert.ok(archivosFramework().some((a) => a.ruta === ".claude/skills/mycelium-calendario/consultar.mjs"));
+});
