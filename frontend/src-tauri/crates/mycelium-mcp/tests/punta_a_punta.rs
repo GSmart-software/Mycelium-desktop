@@ -1,4 +1,4 @@
-//! Prueba de punta a punta **sin la app** (`FUN-L-09`, Parte 1): el binario
+//! Prueba de punta a punta **sin la app** (`FUN-L-09`, partes 1 y 2): el binario
 //! real de `mycelium-mcp`, lanzado como lo lanza Claude Code (stdio, con
 //! `MYCELIUM_VAULT`), contra un servidor de canal falso que hace de ventana de
 //! Mycelium en el mismo pipe que usaría la app.
@@ -6,7 +6,8 @@
 //! Cubre lo que no cubren los tests unitarios: la resolución del vault desde el
 //! entorno contra un `vaults.json` de verdad, el nombre del canal calculado por
 //! las dos puntas por separado, y el ciclo app abierta → app cerrada → control
-//! apagado.
+//! apagado. Desde la Parte 2, también el calendario: una app falsa con
+//! recordatorios en memoria a la que el agente le crea, lista, completa y borra.
 
 #[path = "../src/canal_falso.rs"]
 mod falso;
@@ -100,7 +101,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 2);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 7);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -161,6 +162,91 @@ fn un_vault_sin_registrar_es_vault_desconocido() {
     mcp.pedir("initialize", json!({}));
     let (t, err) = mcp.herramienta("mycelium_estado", json!({}));
     assert!(err && t.starts_with("VAULT_DESCONOCIDO") && t.contains("Vault de Prueba"), "{t}");
+    drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// Una app falsa con un calendario en memoria: lo justo para ver que lo que
+/// escribe una herramienta lo lee la siguiente, por el pipe de verdad.
+#[test]
+fn el_calendario_de_punta_a_punta() {
+    use std::sync::{Arc, Mutex};
+
+    let (base, dir_app, vault) = preparar("calendario");
+    control(&vault, true);
+    let ruta_registrada = vault.to_string_lossy().to_string();
+    let canal = mycelium_vault::canal::nombre_canal(&ruta_registrada, &dir_app);
+    let mut mcp = Mcp::lanzar(&dir_app, &vault);
+    mcp.pedir("initialize", json!({}));
+
+    let calendario: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+    let cal = calendario.clone();
+    let _app = falso::levantar(canal, move |p| {
+        let id = p["id"].clone();
+        let a = p["args"].clone();
+        let mut cal = cal.lock().unwrap();
+        let ok = |r: Value| json!({"id": id, "ok": true, "resultado": r});
+        Some(match p["op"].as_str().unwrap_or_default() {
+            "recordatorio_crear" => {
+                if a["fecha"] == "2026-02-30" {
+                    return Some(json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO",
+                        "mensaje": "`fecha`: «2026-02-30» no existe en el calendario.", "datos": {"campo": "fecha"}}}));
+                }
+                let rid = format!("r{}", cal.len() + 1);
+                cal.push(json!({"id": rid, "titulo": a["titulo"], "fecha": a["fecha"], "hora": a["hora"], "completada": false}));
+                ok(json!({"efecto": format!("Creé «{}».", a["titulo"].as_str().unwrap()), "recordatorio": {"id": rid}}))
+            }
+            "recordatorios" => {
+                let ocurrencias: Vec<Value> = cal
+                    .iter()
+                    .filter(|r| r["fecha"].as_str() >= a["desde"].as_str() && r["fecha"].as_str() <= a["hasta"].as_str())
+                    .map(|r| json!({"id": r["id"], "titulo": r["titulo"], "fecha": r["fecha"], "dia": "vie 2 oct",
+                        "hora": r["hora"], "color": "Hifa", "repeticion": "ninguna", "completada": r["completada"], "detalle": ""}))
+                    .collect();
+                ok(json!({"desde": a["desde"], "hasta": a["hasta"], "ocurrencias": ocurrencias}))
+            }
+            "recordatorio_completar" => match cal.iter_mut().find(|r| r["id"] == a["id"]) {
+                Some(r) => {
+                    r["completada"] = json!(true);
+                    ok(json!({"efecto": "Marqué como completado.", "id": a["id"]}))
+                }
+                None => json!({"id": id, "ok": false, "error": {"codigo": "NO_ENCONTRADO", "mensaje": "no existe", "datos": null}}),
+            },
+            "recordatorio_borrar" => {
+                let antes = cal.len();
+                cal.retain(|r| r["id"] != a["id"]);
+                if cal.len() == antes {
+                    json!({"id": id, "ok": false, "error": {"codigo": "NO_ENCONTRADO", "mensaje": "no existe", "datos": null}})
+                } else {
+                    ok(json!({"efecto": "Borré el recordatorio.", "id": a["id"]}))
+                }
+            }
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    });
+
+    let (t, err) = mcp.herramienta("mycelium_recordatorio_crear", json!({"titulo": "Médico", "fecha": "2026-10-02", "hora": "09:00"}));
+    assert!(!err && t.starts_with("Creé «Médico».") && t.ends_with("id: r1"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_recordatorio_crear", json!({"titulo": "X", "fecha": "2026-02-30"}));
+    assert!(err && t.starts_with("INVALIDO: `fecha`"), "{t}");
+
+    let rango = json!({"desde": "2026-10-01", "hasta": "2026-10-07"});
+    let (t, err) = mcp.herramienta("mycelium_recordatorios", rango.clone());
+    assert!(!err && t.contains("09:00 · «Médico» · Hifa · id r1") && !t.contains("completada"), "{t}");
+
+    let (_, err) = mcp.herramienta("mycelium_recordatorio_completar", json!({"id": "r1", "fecha": "2026-10-02"}));
+    assert!(!err);
+    let (t, _) = mcp.herramienta("mycelium_recordatorios", rango.clone());
+    assert!(t.contains("✓ completada"), "lo completado se lee de vuelta: {t}");
+
+    let (_, err) = mcp.herramienta("mycelium_recordatorio_borrar", json!({"id": "r1"}));
+    assert!(!err);
+    let (t, _) = mcp.herramienta("mycelium_recordatorios", rango);
+    assert!(t.starts_with("No hay recordatorios"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_recordatorio_borrar", json!({"id": "r1"}));
+    assert!(err && t.starts_with("NO_ENCONTRADO"), "{t}");
+    assert!(calendario.lock().unwrap().is_empty());
+
     drop(mcp);
     let _ = std::fs::remove_dir_all(base);
 }

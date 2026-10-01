@@ -54,7 +54,18 @@ fn habla_mcp_de_punta_a_punta() {
     let lista = uno(&mut e, json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
     let nombres: Vec<&str> =
         lista["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(nombres, ["mycelium_estado", "mycelium_abrir"]);
+    assert_eq!(
+        nombres,
+        [
+            "mycelium_estado",
+            "mycelium_abrir",
+            "mycelium_recordatorios",
+            "mycelium_recordatorio_crear",
+            "mycelium_recordatorio_editar",
+            "mycelium_recordatorio_completar",
+            "mycelium_recordatorio_borrar",
+        ]
+    );
     for t in lista["result"]["tools"].as_array().unwrap() {
         assert_eq!(t["inputSchema"]["type"], "object", "{t}");
     }
@@ -235,4 +246,87 @@ fn ocupada_con_etapa_se_redacta_entera() {
         t,
         "OCUPADA: Mycelium está abriendo el vault.\nEtapa: Leyendo los archivos de la carpeta. Reintentá en 1.5 s."
     );
+}
+
+// ── El calendario (Parte 2) ────────────────────────────────────────────────
+
+/// Una app que atiende el calendario como la de verdad: valida (la validación
+/// es suya) y contesta con el efecto ya redactado.
+fn app_calendario(e: &Estado) -> crate::canal::falso::Servidor {
+    levantar(e.canal.clone(), move |p| {
+        let id = p["id"].clone();
+        let a = &p["args"];
+        Some(match p["op"].as_str() {
+            Some("recordatorios") if a["desde"] == "2026-10-01" => json!({"id": id, "ok": true, "resultado": {
+                "desde": "2026-10-01", "hasta": "2026-10-07", "ocurrencias": [
+                    {"id": "r1", "titulo": "Médico", "fecha": "2026-10-02", "dia": "vie 2 oct", "hora": null,
+                     "color": "Coral", "repeticion": "ninguna", "completada": false, "detalle": "Llevar estudios"},
+                    {"id": "r2", "titulo": "Reunión", "fecha": "2026-10-05", "dia": "lun 5 oct", "hora": "10:30",
+                     "color": "Hifa", "repeticion": "semana", "completada": true, "detalle": ""}
+                ]}}),
+            Some("recordatorios") => json!({"id": id, "ok": true, "resultado": {"desde": a["desde"], "hasta": a["hasta"], "ocurrencias": []}}),
+            Some("recordatorio_crear") if a["color"] == "Violeta" => json!({"id": id, "ok": false, "error": {
+                "codigo": "INVALIDO", "mensaje": "`color`: «Violeta» no está en la paleta.", "datos": {"campo": "color"}}}),
+            Some("recordatorio_crear") => json!({"id": id, "ok": true, "resultado": {
+                "efecto": "Creé «Revisar conclusiones» para el viernes 3 de octubre a las 10:00, color Hifa. Va a avisar.",
+                "recordatorio": {"id": "nuevo-1", "titulo": "Revisar conclusiones"}, "avisa": true}}),
+            Some("recordatorio_borrar") => json!({"id": id, "ok": false, "error": {
+                "codigo": "NO_ENCONTRADO", "mensaje": "No hay ningún recordatorio con id «Medico».",
+                "datos": {"candidatas": [{"titulo": "Médico", "ruta": "id r1"}]}}}),
+            Some("recordatorio_completar") => json!({"id": id, "ok": true, "resultado": {
+                "efecto": "Marqué como completado «Médico» de mañana, todo el día.", "id": "r1"}}),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    })
+}
+
+#[test]
+fn el_calendario_se_lee_en_el_orden_de_la_app() {
+    let mut e = con_vault("cal-leer", Some(true));
+    let _app = app_calendario(&e);
+    let (t, err) = llamar(&mut e, "mycelium_recordatorios", json!({"desde": "2026-10-01", "hasta": "2026-10-07"}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("2 ocurrencias entre el 2026-10-01 y el 2026-10-07"), "{t}");
+    assert!(t.contains("\n- vie 2 oct 2026-10-02 · todo el día · «Médico» · Coral · id r1\n    Llevar estudios"), "{t}");
+    assert!(t.contains("- lun 5 oct 2026-10-05 · 10:30 · «Reunión» · Hifa · se repite cada semana · ✓ completada · id r2"), "{t}");
+    let (t, err) = llamar(&mut e, "mycelium_recordatorios", json!({"desde": "2027-01-01", "hasta": "2027-01-02"}));
+    assert!(!err && t == "No hay recordatorios entre el 2027-01-01 y el 2027-01-02.", "{t}");
+}
+
+#[test]
+fn escribir_el_calendario_dice_el_efecto_y_el_id() {
+    let mut e = con_vault("cal-escribir", Some(true));
+    let _app = app_calendario(&e);
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_crear", json!({"titulo": "Revisar conclusiones", "fecha": "2026-10-03", "hora": "10:00"}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Creé «Revisar conclusiones» para el viernes 3 de octubre a las 10:00"), "{t}");
+    assert!(t.ends_with("\nid: nuevo-1"), "{t}");
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_completar", json!({"id": "r1", "fecha": "2026-10-02"}));
+    assert!(!err && t.starts_with("Marqué como completado") && !t.contains("id:"), "{t}");
+
+    // Los errores de la app llegan con lo que sirve para corregir.
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_crear", json!({"titulo": "X", "fecha": "2026-10-03", "color": "Violeta"}));
+    assert!(err && t.starts_with("INVALIDO: `color`"), "{t}");
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_borrar", json!({"id": "Medico"}));
+    assert!(err && t.starts_with("NO_ENCONTRADO") && t.contains("Médico — id r1"), "{t}");
+}
+
+#[test]
+fn el_calendario_sin_app_dice_que_no_se_escribe_a_mano() {
+    let mut e = con_vault("cal-cerrada", Some(true));
+    for (nombre, args) in [
+        ("mycelium_recordatorios", json!({"desde": "2026-10-01", "hasta": "2026-10-07"})),
+        ("mycelium_recordatorio_crear", json!({"titulo": "X", "fecha": "2026-10-03"})),
+        ("mycelium_recordatorio_borrar", json!({"id": "r1"})),
+    ] {
+        let (t, err) = llamar(&mut e, nombre, args);
+        assert!(err && t.starts_with("APP_CERRADA"), "{nombre}: {t}");
+        assert!(t.contains("no escribas .mycelium/recordatorios.json") && t.contains("mycelium-calendario"), "{t}");
+    }
+    let mut e = con_vault("cal-apagado", Some(false));
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_crear", json!({"titulo": "X", "fecha": "2026-10-03"}));
+    assert!(err && t.starts_with("MCP_DESACTIVADO") && t.contains("Configuración → Vault"), "{t}");
+    // Lo único que valida el servidor: que los argumentos sean un objeto.
+    let (t, err) = llamar(&mut e, "mycelium_recordatorio_borrar", json!("r1"));
+    assert!(err && t.starts_with("INVALIDO"), "{t}");
 }
