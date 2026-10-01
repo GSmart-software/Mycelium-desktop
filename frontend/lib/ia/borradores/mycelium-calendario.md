@@ -125,8 +125,8 @@ y conviene decírsela.
   a meses completos.
 - **«En N meses»** (un momento, no un plazo): el mes calendario que cae N meses después,
   entero: «¿qué tengo en seis meses?» el 30/09/2026 es marzo de 2027.
-- **«Las próximas N veces»** (del alquiler, de la reunión): contá N ocurrencias desde hoy,
-  sin tope de fecha (corré el script con un rango amplio y quedate con las primeras N).
+- **«Las próximas N veces»** (del alquiler, de la reunión): N ocurrencias desde hoy, sin
+  tope de fecha (`--proximas N --buscar <título>`).
 - **«El martes»**: el próximo martes, o hoy si hoy es martes.
 
 En todos los casos, **decí el rango que tomaste** («del lunes 28/09 al domingo 04/10»):
@@ -139,17 +139,37 @@ hora por título. Es el orden de la lista de la app.
 
 ## Cómo responder «¿qué tengo…?»
 
-1. Leé el archivo (`cat .mycelium/recordatorios.json`). Si no existe, el vault no tiene
-   recordatorios: decilo.
-2. Calculá el rango con la fecha de hoy.
-3. Expandí cada recordatorio día por día con la tabla de arriba y cruzá cada ocurrencia
-   con `ocurrencias["id@fecha"]`.
-4. Respondé por día, con hora (o «todo el día»), título, repetición si la tiene, «✓ hecha»
+1. **Corré el script que viaja con esta skill**, desde la raíz del vault. Solo lee, no
+   tiene dependencias y aplica exactamente las reglas de la app (descartes, repeticiones,
+   orden, marcas):
+
+   ```sh
+   node .claude/skills/mycelium-calendario/consultar.mjs --semana            # esta semana
+   node .claude/skills/mycelium-calendario/consultar.mjs --hoy               # o --dia 2026-10-02
+   node .claude/skills/mycelium-calendario/consultar.mjs --mes 2026-10-01    # el mes que contiene esa fecha
+   node .claude/skills/mycelium-calendario/consultar.mjs --desde 2026-09-30 --hasta 2026-12-30
+   node .claude/skills/mycelium-calendario/consultar.mjs --proximas 3 --buscar medicacion
+   ```
+
+   `--semana` y `--mes` sin fecha toman la de hoy. `--buscar` filtra por título (sin
+   mayúsculas ni tildes); `--json` da la salida estructurada. El script toma «hoy» del
+   reloj de `node`, que obedece a `TZ`: la primera línea dice qué fecha y hora usó. Si no
+   coincide con la de PowerShell/`date` de arriba, repetí con `--fecha-hoy AAAA-MM-DD`.
+   Sin `node`, razoná con la tabla **día por día**, sin «saltar» semanas o meses a ojo.
+2. Si el script dice que no hay calendario, el vault no tiene recordatorios: decilo.
+3. Respondé por día, con hora (o «todo el día»), título, repetición si la tiene, «✓ hecha»
    si está completada, y los `[[enlaces]]` del detalle **tal como están escritos** —con
    su alias si lo tienen—, para que el usuario pueda seguirlos. Si el detalle enlaza una
    nota que te sirve para contestar (el orden del día, la lista de regalos), leéla y usala,
    citándola.
-5. Si la pregunta es de agenda en general («¿qué tengo…?», «¿qué vence…?»), sumá las
+4. **De hoy**, lo que tiene hora anterior a la actual ya pasó: decilo («la de las 21:00 ya
+   pasó»), y en «las próximas N» no la cuentes si el usuario habla de lo que viene.
+5. **Avisos corridos** (`[aviso pospuesto hasta …]` en la salida): la ocurrencia sigue
+   siendo de **su** día; no la muevas. Mencioná el aviso en una línea solo si puede
+   confundir —el usuario lo pospuso a otro día, o pregunta «¿cuándo tengo que…?» y el
+   aviso le va a sonar en otro momento—. `descartada` no se menciona salvo que pregunten
+   por los avisos.
+6. Si la pregunta es de agenda en general («¿qué tengo…?», «¿qué vence…?»), sumá las
    **fechas de las notas**, en una sección aparte (abajo). Si preguntan solo por el
    calendario o los recordatorios, no.
 
@@ -173,6 +193,10 @@ recordatorios, y con este criterio:
   (`grep -rn --include="*.md" --exclude-dir=".?*" -e "2026-10-02" -e "2/10" .`) y
   presentalas como «menciones», no como agenda.
 - **Esporas** (plantillas) no cuentan: sus `{{fecha}}` no son fechas.
+- **Un recordatorio y una nota que hablan de lo mismo con fechas distintas** (el
+  recordatorio «Entregar informe» el 02/10 y `vence: 2026-10-09` en [[Informe Q3]]):
+  mostrá los dos, cada uno en su sección, y señalá la diferencia en una línea como posible
+  inconsistencia. No elijas por tu cuenta cuál vale.
 
 Las propiedades de fecha de todas las notas, dentro de un rango (sin lo oculto ni los
 `CLAUDE*.md`):
@@ -184,72 +208,6 @@ find . -name '*.md' -not -path '*/.*' -not -name 'CLAUDE*.md' -exec awk -v d=202
 
 Para las vencidas de antes, corrélo con `d=0000-01-01` y `h=` el día anterior al rango, y
 leé cada nota para ver si sigue abierta.
-
-### Con `node` (más seguro en rangos largos)
-
-Si `node` está disponible (Claude Code suele instalarse con él), este script aplica
-exactamente las reglas de la app. Solo lee. Correlo desde la raíz del vault, con el
-rango como argumentos:
-
-```sh
-node - 2026-09-28 2026-10-04 <<'EOF'
-// consultar-recordatorios: ocurrencias entre dos fechas (inclusive). Solo lee.
-const fs = require("fs");
-const [desde, hasta] = process.argv.slice(-2);
-let a;
-try { a = JSON.parse(fs.readFileSync(".mycelium/recordatorios.json", "utf8")); }
-catch { console.log("Sin calendario (.mycelium/recordatorios.json no existe o no se lee)."); process.exit(0); }
-const valida = (f) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || ""); if (!m) return false;
-  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3]; };
-const mas = (f, n) => { const [y, m, d] = f.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
-const entre = (x, y) => Math.round((Date.parse(y) - Date.parse(x)) / 864e5);
-const REP = ["ninguna", "dia", "semana", "mes", "anio"];
-const recs = (Array.isArray(a.recordatorios) ? a.recordatorios : [])
-  .filter((r) => r && typeof r.id === "string" && r.id !== "" && typeof r.titulo === "string" && valida(r.fecha))
-  .map((r) => ({ ...r, hora: /^([01]\d|2[0-3]):[0-5]\d$/.test(r.hora) ? r.hora : null,
-    repeticion: REP.includes(r.repeticion) ? r.repeticion : "ninguna", detalle: typeof r.detalle === "string" ? r.detalle : "" }));
-const ocurre = (r, f) => {
-  if (f < r.fecha) return false;
-  if (f === r.fecha) return true;
-  const [, rm, rd] = r.fecha.split("-"), [, fm, fd] = f.split("-");
-  switch (r.repeticion) {
-    case "dia": return true;
-    case "semana": return entre(r.fecha, f) % 7 === 0;
-    case "mes": return fd === rd;
-    case "anio": return fm === rm && fd === rd;
-    default: return false;
-  }
-};
-const DIAS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
-const salida = [];
-for (let f = desde; f <= hasta; f = mas(f, 1))
-  for (const r of recs) if (ocurre(r, f)) salida.push({ f, r });
-// Orden de la app: fecha; en el día, los de todo el día (hora null) primero; después hora; después título.
-const cmp = (p, q) => (p < q ? -1 : p > q ? 1 : 0);
-salida.sort((x, y) => cmp(x.f, y.f)
-  || (x.r.hora === null ? 0 : 1) - (y.r.hora === null ? 0 : 1)
-  || cmp(x.r.hora ?? "", y.r.hora ?? "")
-  || x.r.titulo.localeCompare(y.r.titulo, "es"));
-const oc = a.ocurrencias || {};
-for (const { f, r } of salida) {
-  const hecha = oc[`${r.id}@${f}`]?.completada === true ? "  ✓ hecha" : "";
-  const rep = r.repeticion === "ninguna" ? "" : `  (cada ${{ dia: "día", semana: "semana", mes: "mes", anio: "año" }[r.repeticion]})`;
-  const enl = (r.detalle.match(/\[\[[^\]]+\]\]/g) || []).join(" ");
-  console.log(`${f} ${DIAS[(new Date(f + "T00:00:00Z").getUTCDay() + 6) % 7]}  ${r.hora ?? "todo el día"}  ${r.titulo}${rep}${hecha}${enl ? "  → " + enl : ""}`);
-}
-if (salida.length === 0) console.log(`Nada agendado entre ${desde} y ${hasta}.`);
-// Marcas de hecha en días del rango en que ese recordatorio NO ocurre: la app no las muestra.
-const hay = new Set(salida.map(({ f, r }) => `${r.id}@${f}`));
-for (const [clave, e] of Object.entries(oc)) {
-  const i = clave.lastIndexOf("@"), f = clave.slice(i + 1), r = recs.find((x) => x.id === clave.slice(0, i));
-  if (i > 0 && r && e?.completada === true && f >= desde && f <= hasta && !hay.has(clave))
-    console.log(`Aviso: «${r.titulo}» tiene una marca de hecha el ${f}, pero ese día no ocurre: se ignora.`);
-}
-EOF
-```
-
-Sin `node`, hacelo razonando con la tabla: para rangos cortos es seguro si recorrés el
-rango **día por día** y no «saltás» de a semanas o meses a ojo.
 
 ## Errores comunes
 

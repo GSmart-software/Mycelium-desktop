@@ -3,7 +3,8 @@
 // Las skills de las herramientas del vault se escriben como Markdown en
 // `lib/ia/borradores/` (ahí las leen sus tests) y tres de ellas viajan con su
 // validador (`scripts/validar-{drawio,canvas,excalidraw}.mjs`); la de Excalidraw,
-// además, con su generador (`scripts/dibujo-excalidraw.mjs` → `dibujo.mjs`). Pegarlos a mano
+// además, con su generador (`scripts/dibujo-excalidraw.mjs` → `dibujo.mjs`), y la de
+// calendario con su consulta (`scripts/consultar-recordatorios-vault.mjs` → `consultar.mjs`). Pegarlos a mano
 // dentro de template literals obligaría a escapar backticks y `${…}` —los
 // borradores de calendario y Excalidraw traen JavaScript—, y una copia a mano se
 // desincroniza. Este script los lee y escribe un módulo con cada contenido como
@@ -46,7 +47,10 @@ export const SKILLS = [
   },
   { nombre: "mycelium-base" },
   { nombre: "mycelium-esporas" },
-  { nombre: "mycelium-calendario" },
+  {
+    nombre: "mycelium-calendario",
+    adjuntos: { "scripts/consultar-recordatorios-vault.mjs": "consultar.mjs" },
+  },
 ];
 
 const leer = (rel) => readFileSync(resolve(RAIZ, rel), "utf8").replace(/\r\n/g, "\n");
@@ -125,7 +129,8 @@ export function generarModulo() {
     .join("\n");
   return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
 // Fuente: lib/ia/borradores/*.md y los scripts que viajan con su skill
-// (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs).
+// (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs,
+// scripts/consultar-recordatorios-vault.mjs).
 // Para regenerar:
 //
 //   node scripts/generar-skills-ia.mjs
