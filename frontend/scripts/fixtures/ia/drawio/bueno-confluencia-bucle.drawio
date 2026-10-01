@@ -1,0 +1,63 @@
+<mxfile host="Mycelium">
+  <diagram id="pagina-1" name="Reparación">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="inicio" value="Llega el equipo" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="garantia" value="¿Está en garantía?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="290" y="130" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="sinCargo" value="Reparar sin cargo" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="presupuesto" value="Presupuestar" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="280" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="reparar" value="Reparar" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="400" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="prueba" value="¿Pasó la prueba?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="300" y="500" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="ajustar" value="Ajustar" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="515" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="fin" value="Entregar" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="340" y="650" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e-inicio-garantia" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="inicio" target="garantia">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-si" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="garantia" target="sinCargo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="garantia" target="presupuesto">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Tres entradas a «Reparar»: la rama izquierda por la izquierda; por la derecha, la rama de arriba a 0.3 y el bucle de abajo a 0.7. -->
+        <mxCell id="e-sincargo-reparar" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="sinCargo" target="reparar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-presupuesto-reparar" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="presupuesto" target="reparar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-reparar-prueba" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="reparar" target="prueba">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-prueba-fin" value="Sí" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;" edge="1" parent="1" source="prueba" target="fin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-prueba-ajustar" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="prueba" target="ajustar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- El bucle sale corrido (exitX=0.75): su tramo vertical no queda en la misma línea que el de «Presupuestar». -->
+        <mxCell id="e-ajustar-reparar" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="ajustar" target="reparar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

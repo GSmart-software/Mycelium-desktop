@@ -30,15 +30,15 @@ entre**. Esta skill es sobre eso.
   que el usuario guarda queda sin comprimir. **Vos nunca escribas comprimido.**
 - **Varias páginas**: un `<diagram>` por página; se conservan todas. Los ids pueden
   repetirse entre páginas, no dentro de una.
-- **XML inválido = lienzo vacío.** Si el XML no se puede leer, draw.io muestra «No es un
-  archivo de diagrama» y abre un diagrama **en blanco**; si el usuario guarda, **pisa el
-  archivo y se pierde todo**. Por eso se valida siempre (abajo).
-- Errores que draw.io **tapa en silencio**: un `id` repetido se renombra (y las flechas
-  quedan en el primero); un `source`/`target` que no existe se borra (la flecha queda
-  colgando). Nada avisa: por eso el validador.
+- **XML inválido = lienzo vacío**: draw.io muestra «No es un archivo de diagrama», abre
+  **en blanco** y, si el usuario guarda, **se pierde todo**. Otros errores los tapa en
+  silencio (un `id` repetido se renombra; un `source` que no existe se borra y la flecha
+  queda colgando). Por eso se valida siempre (abajo).
 - Un `.drawio` **no se indexa** ni aporta enlaces al grafo: un `[[…]]` adentro no crea
-  una asociación. Para que el diagrama no quede huérfano, **embebelo o enlazalo desde una
-  nota** (`![[Arquitectura.drawio]]`).
+  una asociación. Solo una nota que lo embebe (`![[Arquitectura.drawio]]`) lo conecta.
+  **¿Embeberlo?** Si hay una nota natural —la que nombró el usuario, o la nota del
+  tema—, embebelo ahí y decí dónde quedó. Si solo pidió el archivo y no hay ninguna, no
+  inventes una nota: creá el archivo y ofrecé embeberlo donde él elija.
 - Si el diagrama está abierto en una pestaña, Mycelium lo recarga al detectar tu cambio,
   salvo que el usuario tenga cambios sin guardar ahí. Si sabés que lo está editando,
   avisale antes de escribir.
@@ -77,9 +77,9 @@ entre**. Esta skill es sobre eso.
 | `value` | El texto. Con `html=1` es HTML **escapado** |
 | `style` | `clave=valor;` separados por `;`. Un nombre suelto (`rhombus;`, `swimlane;`, `text;`) aplica un estilo predefinido |
 
-Los atributos de `<mxGraphModel>` copialos tal cual. `pageWidth`/`pageHeight` (827 × 1169,
-una hoja A4) **no hace falta ajustarlos**: solo dibujan el borde de la hoja en el editor
-y sirven para imprimir; si el diagrama se pasa, draw.io agrega hojas solo. Nada se corta.
+Los atributos de `<mxGraphModel>` copialos tal cual. `pageWidth`/`pageHeight` (una hoja
+A4) no se ajustan: solo dibujan el borde de la hoja; si el diagrama se pasa, draw.io
+agrega hojas. Nada se corta.
 
 **Mycelium no abre el diagrama ajustado a la ventana.** El usuario ve primero la esquina
 de arriba a la izquierda: arrancá ahí (40, 40), poné lo principal arriba, y ante la duda
@@ -119,8 +119,7 @@ crecé **hacia abajo** antes que a lo ancho. Un diagrama compacto se lee sin bus
 - **`x`,`y` son la esquina superior izquierda** de la caja, no su centro.
   Centro = `(x + width/2, y + height/2)`. Para alinear dos cajas de anchos distintos en
   una columna, alineá los **centros**: `x = centroColumna − width/2`.
-- **Grilla de 10**: usá múltiplos de 10 para posiciones y tamaños.
-- Empezá en `x=40, y=40`. Nada negativo.
+- **Grilla de 10**: usá múltiplos de 10 para posiciones y tamaños. Nada negativo.
 
 ### Tamaños
 
@@ -131,7 +130,7 @@ crecé **hacia abajo** antes que a lo ancho. Un diagrama compacto se lee sin bus
 | Inicio / fin | `ellipse;whiteSpace=wrap;html=1;` | 120 × 50 |
 | Base de datos | `shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;` | 160 × 80 |
 | Contenedor con título | `swimlane;startSize=30;html=1;whiteSpace=wrap;align=left;spacingLeft=10;` | título de 30; el resto, lo que ocupen sus hijos + 20 por lado (receta 5) |
-| Tabla ER | ver receta 4 | 220 de ancho; 30 de título + 26 por fila |
+| Tabla ER | ver receta 4 | ancho por su fila más larga (receta 4); 30 de título + 26 por fila |
 
 **El texto tiene que entrar.** A `fontSize` 12 (el default) calculá **~7 px por
 carácter** más 20 de margen, y **cada línea mide 18 px** de alto:
@@ -146,8 +145,13 @@ carácter** más 20 de margen, y **cada línea mide 18 px** de alto:
   `width = max(180, redondearA10(c × 10 + 40))`, y `height = 90` con una línea o `110`
   con dos (partidas vos con `&lt;br&gt;`). «¿Hay stock?» → 180 × 90; «¿El cliente es
   mayorista?» (25) → 290 × 90. Más de dos líneas no: acortá la pregunta.
-- Figuras chicas (actor, evento, ícono): poné la etiqueta **afuera**:
-  `verticalLabelPosition=bottom;verticalAlign=top;` y dejá 30 px libres debajo.
+- Figuras chicas (actor, evento, ícono): la etiqueta va **afuera**, del lado por donde
+  **no** salen flechas (una flecha que sale por ahí la tacha: `arista-pisa-etiqueta`).
+  **Abajo** (`verticalLabelPosition=bottom;verticalAlign=top;`, 30 libres debajo) si
+  las flechas van de costado; **al costado**
+  (`labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;`,
+  ancho del texto + 20 libres) en un flujo vertical. Con etiquetas largas o flechas por
+  los cuatro lados, mejor una caja (el cubo) con el texto adentro.
 - Con `fontStyle=1` (negrita) sumá un 10 %.
 
 ### Separación
@@ -155,7 +159,7 @@ carácter** más 20 de margen, y **cada línea mide 18 px** de alto:
 | Entre | Mínimo |
 |---|---|
 | Cajas consecutivas de un flujo (vertical) | 40 |
-| Si la flecha lleva etiqueta («Sí», «REST») | 60 |
+| Debajo de un rombo, o si la flecha lleva etiqueta («Sí», «REST») | 60 |
 | Hermanos en un árbol (horizontal) | 20; entre subárboles, 40 |
 | Columnas de un flujo | 80 (lugar para la flecha y su etiqueta) |
 | Contenedores entre sí | 40 |
@@ -197,21 +201,32 @@ verticales. Lo que hace draw.io (comprobado):
 
   Los puntos son **absolutos** (porque la arista cuelga de `"1"`). Para rodear, elegí un
   **pasillo libre**: una `x` 60 px a la derecha de la caja más ancha, o una `y` entre dos
-  filas.
+  filas. El primer punto, **alineado con el puerto de salida** y el último con el de
+  entrada (`x = x + exitX × width` si el puerto es arriba o abajo; `y`, si es de
+  costado): si no, draw.io mete un codo y la punta llega de costado. La fracción es del
+  rectángulo entero, también en figuras con relieve como el cubo.
 - **Fijá puertos cuando**: sale más de una flecha de la misma caja (ramas de una
-  decisión), una flecha vuelve hacia atrás (bucles), llegan varias al mismo lado (repartí
-  las entradas: `entryX=0.3` y `entryX=0.7`, para que no se encimen las puntas), o es un
-  árbol. Entre dos cajas alineadas, no hacen falta.
+  decisión), una flecha vuelve hacia atrás (bucles), llegan varias a la misma caja, o es
+  un árbol. Entre dos cajas alineadas, no hacen falta.
 - **Rombo: una flecha por punta.** Sus cuatro puntas son los puertos de la tabla. Entra
   **por arriba**, el camino principal sale **por abajo** y la alternativa **por un
-  costado**; una entrada y una salida **nunca** comparten punta. Si llegan dos flechas al
-  rombo, o entran las dos por arriba (con los mismos puertos se funden en un empalme con
-  una sola punta: se lee bien), o la segunda entra por la punta que quedó libre (un
-  reintento que vuelve al rombo entra por la izquierda si la derecha es la salida «No»).
-- **Dos caminos que llegan al mismo paso** (confluencia): el que viene de arriba, en la
-  misma columna, entra recto; el que viene de un costado baja y entra **por su costado**
-  (`exitX=0.5;exitY=1` → `entryX=1;entryY=0.5`, forma de L). Si vienen de los dos costados,
-  uno por cada lado. Así cada punta de flecha cae en un lado distinto (receta 2).
+  costado**; una entrada y una salida **nunca** comparten punta. **Toda salida lleva
+  etiqueta**, también la principal («Sí»). Si llegan dos al rombo, entran las dos por
+  arriba (con los mismos puertos se funden en un empalme) o la segunda por la punta libre.
+- **Varias flechas al mismo paso** (confluencia, bucle): la que viene de arriba, en la
+  misma columna, entra recta; la que viene de un costado baja y entra **por su costado**
+  (`exitX=0.5;exitY=1` → `entryX=1;entryY=0.5`, forma de L). Una por lado mientras
+  alcancen. Si dos comparten lado, la que llega de más arriba entra a `0.3` y la de más
+  abajo (el bucle) a `0.7`: así no se cruzan. Si además usan la misma columna, corré la
+  salida de una (`exitX=0.75`) para que sus tramos verticales no queden en la misma
+  línea (receta 2).
+- **Cruces entre flechas.** Casi todos se evitan con el orden: cada fila como sus padres
+  (paso 4), cada flecha por el lado que mira a su destino, los bucles por afuera. Son
+  **inevitables** cuando una caja se conecta con dos que quedan a lados opuestos de otra
+  conexión (tres servidores contra una base y una cola). Ahí marcalo con
+  `jumpStyle=arc;jumpSize=10;` en la flecha que está **más adelante en el archivo**: es
+  la que dibuja el salto. Peor que un cruce: dos flechas que **corren una encima de
+  otra**, que se leen como una sola.
 - **Etiqueta de flecha**: el `value` de la arista (va al medio del recorrido). Corta:
   «Sí», «No», «REST», «1..N». Dejá al menos 40 px de tramo para que se lea.
 - Puntas: `endArrow=block;endFill=1;` (proceso), `endArrow=none;` (jerarquía),
@@ -254,7 +269,8 @@ No escribas XML «a ojo». Calculá primero, en este orden:
      hoja. Esto rige al **crear**; al **modificar**, ver «Leer y modificar» (paso 3).
 6. **Flechas**: elegí puertos según la dirección. Para cada flecha que no una vecinos
    inmediatos, **recorré su camino** (recta, Z o L según lo de arriba) y comprobá que no
-   pase sobre otra caja. Si pasa, waypoints por un pasillo libre.
+   pase sobre otra caja, sobre una etiqueta externa ni sobre otra flecha. Si pasa,
+   reordená o usá waypoints por un pasillo libre.
 7. **Escribí** en orden: contenedores, figuras, aristas al final.
 8. **Validá** y corregí hasta cero errores.
 
@@ -285,7 +301,7 @@ alineadas con su rombo. Lo esencial:
   <mxGeometry x="210" y="230" width="180" height="90" as="geometry" />
 </mxCell>
 <mxCell id="cobrar" value="Cobrar al cliente" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-  <mxGeometry x="220" y="360" width="160" height="60" as="geometry" />
+  <mxGeometry x="220" y="380" width="160" height="60" as="geometry" />
 </mxCell>
 <mxCell id="sinStock" value="Avisar: sin stock" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
   <mxGeometry x="480" y="245" width="160" height="60" as="geometry" />
@@ -331,11 +347,14 @@ dos **confluyen** en el paso siguiente, otra vez en la columna del medio:
 
 - La rama derecha es el espejo: `exitX=1;exitY=0.5` del rombo, y `entryX=1;entryY=0.5`
   en el paso común.
-- El paso común va 60 más abajo que las acciones (el tramo horizontal de la L necesita
-  lugar), y las acciones, 40 debajo del rombo.
+- Las acciones van 60 debajo del rombo, y el paso común 60 más abajo que ellas (el
+  tramo horizontal de la L necesita lugar).
 - Si una rama viene de la columna principal (recta, por arriba) y la otra de un costado,
   la de costado entra por el costado: es el caso de un «No» que termina en el mismo
   «Fin» que el camino feliz.
+- **Más un bucle** que vuelve al paso común: su acción va a la derecha del rombo que lo
+  decide, sale por arriba corrida (`exitX=0.75;exitY=0`) y entra por la derecha a
+  `entryY=0.7`; la rama derecha de arriba entra por ese lado a `entryY=0.3`.
 
 ### 3. Organigrama / árbol
 
@@ -358,14 +377,19 @@ solo «peine». Un color por nivel (`#dae8fc`, `#d5e8d4`, `#fff2cc`).
 
 Cada tabla es un `swimlane` con `stackLayout`; cada campo, una fila hija de 26 de alto
 con `x` omitida (= 0), `y` = 30, 56, 82… y el ancho de la tabla. Alto de la tabla =
-`30 + 26 × filas`. Tablas en fila, separadas 80, para que las relaciones vayan de costado.
+`30 + 26 × filas`. **Ancho**: `max(160, redondearA10(c × 7 + 30))`, con `c` = caracteres
+de la fila más larga (con el `PK  ` adelante) o del título; en una misma fila de tablas,
+el mayor. Una fila que no entra se parte en dos renglones y el segundo queda **oculto**
+(`overflow=hidden`). Tablas en fila, separadas 80, para que las relaciones vayan de
+costado.
 
 ```xml
+<!-- Ancho 180: la fila más larga, «telefono: VARCHAR(20)», tiene 21 caracteres → 21 × 7 + 30 = 177. -->
 <mxCell id="cliente" value="Cliente" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-  <mxGeometry x="40" y="40" width="220" height="108" as="geometry" />
+  <mxGeometry x="40" y="40" width="180" height="108" as="geometry" />
 </mxCell>
 <mxCell id="cliente-id" value="PK  id_cliente: INT" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;fontStyle=1;" vertex="1" parent="cliente">
-  <mxGeometry y="30" width="220" height="26" as="geometry" />
+  <mxGeometry y="30" width="180" height="26" as="geometry" />
 </mxCell>
 <!-- …una fila por campo… -->
 <!-- Relación: de la fila PK (lado "uno") a la fila FK (lado "muchos"). -->
@@ -401,6 +425,16 @@ Ejemplos: todo pedido tiene cliente y hay clientes sin pedidos → `ERmandOne` /
   lado, mové las tablas.
 - Si una relación tuviera que cruzar una tabla intermedia, reordená las tablas en vez de
   cruzarla.
+- **Más de 4 tablas, o una fila de más de ~1200 px**: no la estires; seguí en una
+  **segunda fila** (el «crecé hacia abajo»), 60 debajo de la tabla más alta, en
+  **serpentina**: la cadena sigue de derecha a izquierda, y la tabla que salta de fila va
+  **justo debajo** de su par en la última columna (su relación sale en C por la derecha,
+  afuera de todo).
+- **Ramificaciones** (una tabla con tres o más relaciones): ella en una columna del
+  medio, sus relacionadas a los costados, y la que sobre **debajo** de ella (la C sale
+  de la misma fila PK que la relación de la derecha: se lee como una bifurcación). Dos
+  relaciones que cruzan en diagonal el mismo pasillo se cruzan (`cruce-de-aristas`): mové
+  tablas.
 
 ### 5. Arquitectura por capas (contenedores)
 
@@ -453,12 +487,11 @@ Las aristas entre capas cuelgan de `"1"`.
 | Servicio (hexágono) | `shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;size=20;` (160 × 70) |
 | Componente UML | `shape=component;align=left;spacingLeft=36;html=1;whiteSpace=wrap;` |
 | Nodo / servidor (cubo) | `shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;size=10;` |
-| Servidor (ícono) | `shape=mxgraph.networks.server;html=1;verticalLabelPosition=bottom;verticalAlign=top;` (50 × 80) |
-| PC / celular (ícono) | `shape=mxgraph.networks.pc;…` (70 × 50) · `shape=mxgraph.networks.mobile;…` (40 × 70), con el mismo `html=1;verticalLabelPosition=bottom;verticalAlign=top;` |
-| Firewall · balanceador · internet (íconos) | `shape=mxgraph.networks.firewall;…` (70 × 70) · `shape=mxgraph.networks.load_balancer;…` (100 × 30) · `shape=mxgraph.networks.cloud;…` (90 × 60), con la etiqueta abajo como el servidor |
+| Íconos de red | `shape=mxgraph.networks.server;html=1;` + la posición de la etiqueta. Tamaños: `server` 50 × 80 · `pc` 70 × 50 · `mobile` 40 × 70 · `firewall` 70 × 70 · `load_balancer` 100 × 30 · `cloud` 90 × 60 |
 
-Los íconos llevan la etiqueta **abajo**: dejá 30 libres debajo de cada uno. No uses
-`direction=` para acostar una figura si le vas a fijar puertos (giran con ella).
+La etiqueta de un ícono va afuera, del lado sin flechas (ver «Tamaños»): en una red
+vertical, **al costado**. No uses `direction=` para acostar una figura si le vas a fijar
+puertos (giran con ella).
 
 ## Leer y modificar un diagrama existente
 
@@ -471,15 +504,19 @@ Los íconos llevan la etiqueta **abajo**: dejá 30 libres debajo de cada uno. No
 
    Si tenés que modificarlo, reescribí esa página **sin comprimir** (con el XML de
    arriba dentro de `<diagram>`), conservando el `id` y el `name` de la página.
-2. **Mirá el mapa**: `node .claude/skills/mycelium-drawio/validar-drawio.mjs --mapa archivo.drawio` lista cada figura con su
-   posición **absoluta**, su tamaño, su contenedor (y la posición relativa que va en el
-   XML), las aristas, y el lugar libre del diagrama.
+2. **Mirá el mapa y validalo ANTES de tocarlo**: `node .claude/skills/mycelium-drawio/validar-drawio.mjs --mapa archivo.drawio`
+   lista cada figura con su posición **absoluta**, su tamaño, su contenedor (y la
+   posición relativa que va en el XML), las aristas, y el lugar libre. Si el archivo
+   **ya** tenía errores o avisos, no los arregles sin avisar: hacé lo pedido,
+   mencionalos y ofrecé corregirlos. Al terminar no tiene que haber nada **nuevo**.
 3. **Agregar** una figura: seguí el patrón de sus vecinos — mismo tamaño, **mismo
    `style` copiado**, misma separación, en la fila o columna que le corresponde. Si no
    hay lugar, **corré** lo que está a la derecha o debajo: sumá el mismo Δ a su `x` o `y`
    (solo a las figuras de primer nivel; los hijos viajan con su contenedor) y a los
    waypoints de las aristas afectadas. Si agregás un hijo a un árbol, recalculá ese
-   subárbol, recentrá a su padre y corré los subárboles de la derecha.
+   subárbol, recentrá **la cadena de sus ancestros** hasta la raíz (su posición depende
+   de los hijos: moverlos es parte del cambio, no «reorganizar») y corré los subárboles
+   de la derecha. Los subárboles hermanos no cambian de forma ni de orden.
 
    **Si la modificación cruza el umbral del árbol ancho** (paso 5 del procedimiento), no
    reorganices lo que no tocaste. El criterio: solo cambia de forma **el subárbol que
@@ -518,6 +555,9 @@ Sale con código ≠ 0 si hay **errores**. Lo que te dice y cómo se arregla:
 | aviso `arista-atraviesa` | La flecha pasa sobre otra caja, o atraviesa un contenedor ajeno: puertos, waypoints por un pasillo libre, o mové cajas. En un ER, mové las tablas (sin puertos) |
 | aviso `puerto-girado` | Puertos en una figura con `direction=`: cambiá de forma (la cola: `direct_data`) o sacá los puertos |
 | aviso `html-menor-sin-escapar` | Un `<` visible escrito `&lt;` con `html=1`: va `&amp;lt;` |
+| aviso `arista-pisa-etiqueta` | Pasa sobre la etiqueta externa de un ícono: etiqueta al costado sin flechas, o una caja en vez del ícono |
+| aviso `cruce-de-aristas`, `aristas-superpuestas` | Reordená o cambiá de lado; un cruce inevitable, con `jumpStyle=arc;jumpSize=10;` en la de más adelante; dos que corren juntas, con puertos distintos (`0.3`/`0.7`) o waypoints |
+| aviso `waypoint-desalineado` | Alineá el primer/último waypoint con su puerto (`x + exitX × width`) |
 | aviso `arista-tacha-titulo` | Cruza un título centrado: `align=left;spacingLeft=10;` en el contenedor |
 | aviso `tapa-encabezado` | Un hijo arranca sobre el título: `y ≥ startSize` (mejor `startSize + 20`) |
 | aviso `coordenadas-negativas`, `muy-lejos` | Llevá todo a partir de (40, 40) |

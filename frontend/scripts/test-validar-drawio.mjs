@@ -56,6 +56,10 @@ const ESPERADOS = {
   "malo-xml-ampersand.drawio": { nivel: "error", codigo: "xml-malformado", id: null },
   "aviso-arista-atraviesa.drawio": { nivel: "aviso", codigo: "arista-atraviesa", id: "e3" },
   "aviso-titulo-tachado.drawio": { nivel: "aviso", codigo: "arista-tacha-titulo", ids: ["e-web", "e-movil", "e-gw-cache"] },
+  "aviso-etiqueta-pisada.drawio": { nivel: "aviso", codigo: "arista-pisa-etiqueta", id: "e1" },
+  "aviso-cruce-de-aristas.drawio": { nivel: "aviso", codigo: "cruce-de-aristas", id: "e2" },
+  "aviso-aristas-superpuestas.drawio": { nivel: "aviso", codigo: "aristas-superpuestas", id: "e2" },
+  "aviso-waypoint-desalineado.drawio": { nivel: "aviso", codigo: "waypoint-desalineado", id: "e1" },
 };
 
 for (const f of fixtures.filter((f) => !f.startsWith("bueno-"))) {
@@ -218,6 +222,39 @@ test("rombo: la fórmula width = max(180, caracteres × 10 + 40) siempre entra",
   const dos = ["¿Se pudo entregar", "en el primer intento?"];
   const w = Math.max(...dos.map(ancho));
   assert.equal(motivoTextoNoCabe(dos.join("<br>"), est, w, 110), null);
+});
+
+test("ER: el ancho max(160, c × 7 + 30) entra para la fila más larga", () => {
+  const fila = (negrita) => parsearEstilo(`text;align=left;spacingLeft=4;spacingRight=4;overflow=hidden;whiteSpace=wrap;html=1;${negrita ? "fontStyle=1;" : ""}`);
+  const ancho = (t) => Math.max(160, Math.ceil(([...t].length * 7 + 30) / 10) * 10);
+  for (const t of ["precio_unitario: DECIMAL(10,2)", "fecha_de_actualizacion: TIMESTAMP", "descripcion: VARCHAR(255)", "id: INT", "MONTO_TOTAL: NUMERIC(12,2)"])
+    assert.equal(motivoTextoNoCabe(t, fila(false), ancho(t), 26), null, t);
+  for (const t of ["PK, FK  id_producto: INT", "PK  ID_CLIENTE: INT", "PK, FK  id_categoria_padre: BIGINT"])
+    assert.equal(motivoTextoNoCabe(t, fila(true), ancho(t), 26), null, t);
+});
+
+test("cruces: el salto lo dibuja la arista que está más adelante en el archivo", () => {
+  const cajas = caja("h1", 40, 100, 80, 40) + caja("h2", 300, 100, 80, 40) + caja("v1", 170, 20, 80, 40) + caja("v2", 170, 180, 80, 40);
+  const arista = (id, s, t, st = "") =>
+    `<mxCell id="${id}" style="edgeStyle=orthogonalEdgeStyle;html=1;${st}" edge="1" parent="1" source="${s}" target="${t}"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+  const sinSalto = validarDrawio(modelo(cajas + arista("eh", "h1", "h2") + arista("ev", "v1", "v2")));
+  assert.deepEqual(sinSalto.problemas.map((p) => [p.codigo, p.id]), [["cruce-de-aristas", "ev"]]);
+  // jumpStyle en la de más adelante: se ve el salto, no hay aviso.
+  assert.deepEqual(validarDrawio(modelo(cajas + arista("eh", "h1", "h2") + arista("ev", "v1", "v2", "jumpStyle=arc;"))).problemas, []);
+  // jumpStyle en la anterior: no se ve; el aviso lo explica.
+  const atras = validarDrawio(modelo(cajas + arista("eh", "h1", "h2", "jumpStyle=arc;") + arista("ev", "v1", "v2")));
+  assert.deepEqual(codigos(atras, "aviso"), ["cruce-de-aristas"]);
+  assert.match(atras.problemas[0].mensaje, /MÁS ADELANTE/);
+});
+
+test("aristas que salen del mismo punto (peine) o llegan al mismo punto no se superponen", () => {
+  // Una sin puertos y otra con puerto abajo: las dos arrancan en el borde inferior del padre.
+  const cajas = caja("p", 200, 40, 160, 60) + caja("a", 40, 160, 160, 60) + caja("b", 200, 160, 160, 60) + caja("c", 360, 160, 160, 60);
+  const arista = (id, s, t, st = "") =>
+    `<mxCell id="${id}" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=none;${st}" edge="1" parent="1" source="${s}" target="${t}"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+  const abajo = "exitX=0.5;exitY=1;entryX=0.5;entryY=0;";
+  const peine = arista("ea", "p", "a", abajo) + arista("eb", "p", "b") + arista("ec", "p", "c", abajo);
+  assert.deepEqual(validarDrawio(modelo(cajas.replace(/x="360" y="160"/, 'x="380" y="160"') + peine)).problemas, []);
 });
 
 test("estimación de texto: calibrada contra Helvetica 12 px", () => {

@@ -4,7 +4,8 @@
 // Comprueba lo que se puede medir sin mirar el dibujo: que el XML esté bien
 // formado, que el modelo de mxGraph sea coherente (celdas raíz, ids, `parent`,
 // extremos de las aristas) y que la disposición sea legible (cajas encimadas,
-// hijos fuera de su contenedor, texto que no entra, aristas que atraviesan cajas).
+// hijos fuera de su contenedor, texto que no entra, aristas que atraviesan cajas,
+// que se cruzan o corren una encima de otra, o que tachan una etiqueta externa).
 // Es la herramienta con la que la IA verifica lo que escribió; la skill
 // `mycelium-drawio` explica cómo leer su salida.
 //
@@ -435,6 +436,101 @@ function segmentoCruza(p, q, r) {
 
 const centro = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
+/**
+ * Punto donde los segmentos p1→p2 y q1→q2 se cruzan de verdad (en el interior
+ * de los dos, a más de 1 px de cada punta), o `null`. Paralelos y colineales no
+ * cuentan: dos flechas que comparten un tramo (el «peine» de un árbol, un
+ * empalme) se funden, no se cruzan; y una que termina sobre otra es un empalme.
+ */
+function cruceDeSegmentos(p1, p2, q1, q2) {
+  const rx = p2.x - p1.x;
+  const ry = p2.y - p1.y;
+  const sx = q2.x - q1.x;
+  const sy = q2.y - q1.y;
+  const d = rx * sy - ry * sx;
+  const l1 = Math.hypot(rx, ry);
+  const l2 = Math.hypot(sx, sy);
+  if (l1 < 1 || l2 < 1 || Math.abs(d) < 1e-9 * l1 * l2) return null;
+  const qx = q1.x - p1.x;
+  const qy = q1.y - p1.y;
+  const t = (qx * sy - qy * sx) / d;
+  const u = (qx * ry - qy * rx) / d;
+  if (t * l1 <= 1 || (1 - t) * l1 <= 1 || u * l2 <= 1 || (1 - u) * l2 <= 1) return null;
+  return { x: Math.round(p1.x + t * rx), y: Math.round(p1.y + t * ry) };
+}
+
+/**
+ * Recorta la punta de una ruta que arranca adentro de su caja (sin puerto, el
+ * recorrido sale del centro) hasta el borde: así dos flechas que salen del
+ * mismo lado de la misma caja arrancan en el mismo punto, como en el dibujo.
+ */
+function recortarAlBorde(ruta, r) {
+  const dentro = (p) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h;
+  const out = ruta.slice();
+  while (out.length > 1 && dentro(out[0])) {
+    const [p, q] = out;
+    if (dentro(q)) {
+      out.shift();
+      continue;
+    }
+    const ts = [];
+    if (q.x !== p.x) ts.push(((q.x > p.x ? r.x + r.w : r.x) - p.x) / (q.x - p.x));
+    if (q.y !== p.y) ts.push(((q.y > p.y ? r.y + r.h : r.y) - p.y) / (q.y - p.y));
+    const t = Math.min(...ts.filter((x) => x >= 0));
+    out[0] = { x: p.x + t * (q.x - p.x), y: p.y + t * (q.y - p.y) };
+  }
+  return out;
+}
+
+/**
+ * Tramo que comparten dos segmentos horizontales (o verticales) sobre la misma
+ * línea, si mide más de 5 px: `{ x, y, largo }` en su punto medio, o `null`.
+ */
+function tramoComun(p1, p2, q1, q2) {
+  const horiz = (a, b) => Math.abs(a.y - b.y) < 1 && Math.abs(a.x - b.x) >= 1;
+  const vert = (a, b) => Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) >= 1;
+  for (const [es, k, o] of [[horiz, "x", "y"], [vert, "y", "x"]]) {
+    if (!es(p1, p2) || !es(q1, q2) || Math.abs(p1[o] - q1[o]) >= 1) continue;
+    const ini = Math.max(Math.min(p1[k], p2[k]), Math.min(q1[k], q2[k]));
+    const fin = Math.min(Math.max(p1[k], p2[k]), Math.max(q1[k], q2[k]));
+    if (fin - ini > 5) return { [k]: Math.round((ini + fin) / 2), [o]: Math.round(p1[o]), largo: Math.round(fin - ini) };
+  }
+  return null;
+}
+
+/**
+ * Rectángulo que ocupa una etiqueta EXTERNA (íconos, actores: la etiqueta va
+ * abajo, arriba o a un costado de la figura), o `null` si la etiqueta va
+ * adentro. draw.io la pone en una caja del tamaño de la figura corrida hacia
+ * ese lado, y adentro la alinea con `align`/`verticalAlign`.
+ */
+function rectEtiquetaExterna(valor, est, r) {
+  const vp = est.verticalLabelPosition ?? "middle";
+  const lp = est.labelPosition ?? "center";
+  if ((vp === "middle" || vp === "center") && lp === "center") return null;
+  const texto = textoVisible(valor, est.html === "1").trim();
+  if (!texto) return null;
+  const fontSize = num(est.fontSize, 12);
+  const negrita = (num(est.fontStyle, 0) & 1) === 1;
+  const lineas = [];
+  for (const l of texto.split("\n"))
+    if (est.whiteSpace === "wrap") lineas.push(...envolver(l, r.w - 4, fontSize, negrita));
+    else lineas.push(l);
+  const tw = Math.max(...lineas.map((l) => anchoTexto(l, fontSize, negrita)));
+  const th = lineas.length * fontSize * 1.2;
+  const caja = {
+    x: r.x + (lp === "right" ? r.w : lp === "left" ? -r.w : 0),
+    y: r.y + (vp === "bottom" ? r.h : vp === "top" ? -r.h : 0),
+  };
+  const align = est.align ?? "center";
+  const valign = est.verticalAlign ?? "middle";
+  const sp = num(est.spacing, 2);
+  const x = align === "left" ? caja.x + sp : align === "right" ? caja.x + r.w - sp - tw : caja.x + (r.w - tw) / 2;
+  const y = valign === "top" ? caja.y + sp : valign === "bottom" ? caja.y + r.h - sp - th : caja.y + (r.h - th) / 2;
+  const lado = vp === "bottom" ? "abajo" : vp === "top" ? "arriba" : lp === "right" ? "a la derecha" : "a la izquierda";
+  return { x, y, w: tw, h: th, lado };
+}
+
 /** Punto del borde de `r` indicado por un puerto relativo (exitX/exitY…). */
 function puerto(r, px, py) {
   return { x: r.x + r.w * px, y: r.y + r.h * py };
@@ -802,6 +898,7 @@ function validarModelo(modelo, reportar) {
   }
 
   // Aristas.
+  const rutas = []; // { e, ruta } en orden del documento: el orden importa para los saltos
   for (const e of celdas) {
     if (!e.edge || porId.get(e.id) !== e) continue;
     const puntos = { source: null, target: null, array: [] };
@@ -863,6 +960,32 @@ function validarModelo(modelo, reportar) {
     const origen = padreE && esVertice.has(padreE.id) ? abs.get(padreE.id) : { x: 0, y: 0 };
     const wps = puntos.array.map((p) => ({ x: p.x + origen.x, y: p.y + origen.y }));
     const ruta = recorrido(e, rs, rt, wps);
+    rutas.push({ e, ruta: recortarAlBorde(recortarAlBorde(ruta, rs).reverse(), rt).reverse() });
+
+    // Waypoints desalineados con su puerto: el router de draw.io une el puerto y
+    // el waypoint con un codo, y si es la ENTRADA la punta llega de costado,
+    // corriendo pegada al borde de la caja (comprobado con un cubo y exitX=0.8).
+    if (wps.length > 0) {
+      const chequeos = [
+        ["salida", "exitX", "exitY", rs, wps[0]],
+        ["entrada", "entryX", "entryY", rt, wps[wps.length - 1]],
+      ];
+      for (const [nombre, kx, ky, r, wp] of chequeos) {
+        if (e.est[kx] === undefined || e.est[ky] === undefined) continue;
+        const px = num(e.est[kx], 0.5);
+        const py = num(e.est[ky], 0.5);
+        const eje = ejeDePuerto(px, py);
+        const pt = puerto(r, px, py);
+        const fuera = eje === "v" ? Math.abs(wp.x - pt.x) > 1 : eje === "h" ? Math.abs(wp.y - pt.y) > 1 : false;
+        if (fuera)
+          reportar(
+            "A",
+            "waypoint-desalineado",
+            e.id,
+            `el ${nombre === "salida" ? "primer" : "último"} waypoint (${wp.x}, ${wp.y}) no está alineado con el puerto de ${nombre} (${Math.round(pt.x)}, ${Math.round(pt.y)}): draw.io agrega un codo${nombre === "entrada" ? " y la punta entra de costado" : ""}. Poné ${eje === "v" ? `x = ${Math.round(pt.x)}` : `y = ${Math.round(pt.y)}`} (x + ${kx} × width, y + ${ky} × height)`,
+          );
+      }
+    }
     const excluir = new Set([e.source, e.target, ...ancestros(e.source), ...ancestros(e.target)]);
     const cruzadas = [];
     for (const v of vertices) {
@@ -918,6 +1041,75 @@ function validarModelo(modelo, reportar) {
           e.id,
           `la arista ${e.source}→${e.target} pasa por el título de "${v.id}": alineá el título a un lado (align=left;spacingLeft=10) o mové la arista`,
         );
+    }
+  }
+
+  // Etiquetas externas (íconos de red, actores): la flecha que sale o pasa por
+  // el lado donde está la etiqueta la tacha. Comprobado: en un flujo vertical
+  // de íconos con la etiqueta abajo, cada flecha que baja pasa sobre el texto.
+  for (const v of vertices) {
+    if (!v.value) continue;
+    const et = rectEtiquetaExterna(v.value, v.est, abs.get(v.id));
+    if (!et) continue;
+    for (const { e, ruta } of rutas) {
+      if (!ruta.some((p, k) => k + 1 < ruta.length && segmentoCruza(p, ruta[k + 1], et))) continue;
+      const propia = e.source === v.id || e.target === v.id;
+      reportar(
+        "A",
+        "arista-pisa-etiqueta",
+        e.id,
+        `la arista ${e.source}→${e.target} pasa sobre la etiqueta de "${v.id}", que va ${et.lado} de la figura: ${
+          propia
+            ? "llevá la etiqueta a un costado donde no salgan flechas (labelPosition=right;align=left;verticalLabelPosition=middle;verticalAlign=middle) o sacá la flecha por otro lado"
+            : "desviá la arista o mové la figura"
+        }`,
+      );
+    }
+  }
+
+  // Cruces entre aristas. Un cruce no siempre se puede evitar, pero sin marca
+  // se lee como un empalme. Con `jumpStyle` draw.io dibuja un salto en la arista
+  // que está MÁS ADELANTE en el archivo (comprobado: en la anterior no se ve).
+  // Y dos aristas que corren una sobre otra se leen como una sola: eso solo vale
+  // si salen del mismo punto (el «peine» de un árbol) o llegan al mismo punto
+  // (una confluencia con los mismos puertos).
+  const mismo = (p, q) => Math.abs(p.x - q.x) < 1 && Math.abs(p.y - q.y) < 1;
+  for (let b = 1; b < rutas.length; b++) {
+    for (let a = 0; a < b; a++) {
+      const A = rutas[a];
+      const B = rutas[b];
+      const comparteSalida = A.e.source === B.e.source && mismo(A.ruta[0], B.ruta[0]);
+      const comparteLlegada = A.e.target === B.e.target && mismo(A.ruta[A.ruta.length - 1], B.ruta[B.ruta.length - 1]);
+      if (!comparteSalida && !comparteLlegada) {
+        let comun = null;
+        for (let i = 0; !comun && i + 1 < A.ruta.length; i++)
+          for (let j = 0; !comun && j + 1 < B.ruta.length; j++)
+            comun = tramoComun(A.ruta[i], A.ruta[i + 1], B.ruta[j], B.ruta[j + 1]);
+        if (comun) {
+          reportar(
+            "A",
+            "aristas-superpuestas",
+            B.e.id,
+            `la arista ${B.e.source}→${B.e.target} corre ${comun.largo} px encima de ${A.e.source}→${A.e.target} cerca de (${comun.x}, ${comun.y}) y se leen como una sola: separalas con puertos distintos (exitX/entryX 0.3 y 0.7, o lados distintos) o con waypoints por otra línea`,
+          );
+          continue;
+        }
+      }
+      let punto = null;
+      for (let i = 0; !punto && i + 1 < A.ruta.length; i++)
+        for (let j = 0; !punto && j + 1 < B.ruta.length; j++)
+          punto = cruceDeSegmentos(A.ruta[i], A.ruta[i + 1], B.ruta[j], B.ruta[j + 1]);
+      if (!punto) continue;
+      const salta = (x) => x.e.est.jumpStyle !== undefined && x.e.est.jumpStyle !== "none";
+      if (salta(B)) continue;
+      reportar(
+        "A",
+        "cruce-de-aristas",
+        B.e.id,
+        `la arista ${B.e.source}→${B.e.target} cruza a ${A.e.source}→${A.e.target} cerca de (${punto.x}, ${punto.y}): probá otro orden de las cajas en la fila o sacala por otro lado; si el cruce es inevitable, poné jumpStyle=arc;jumpSize=10; en "${B.e.id}"${
+          salta(A) ? ` (el salto lo dibuja la que está MÁS ADELANTE en el archivo: el jumpStyle de "${A.e.id}" acá no se ve)` : ""
+        }`,
+      );
     }
   }
 
