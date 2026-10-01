@@ -186,6 +186,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // workspace, para que no parpadee con la del vault anterior.
       await migrarEstadoLegado(ruta);
       await usePrefsVaultStore.getState().cargar(ruta);
+      // El MCP de control (`FUN-L-09`) es una preferencia de ESTE vault: con
+      // ella encendida, la ventana abre su canal. Desde acá y no al final para
+      // que un pedido durante el resto de la apertura reciba `OCUPADA` con la
+      // etapa, en vez de «la app está cerrada». Sin esperar y por `import()`:
+      // `lib/mcpControl` importa este store, y el control nunca debe demorar
+      // ni impedir abrir el vault.
+      void import("@/lib/mcpControl").then((m) => m.sincronizarControlAlAbrir(ruta));
       usePreferencesStore.getState().hydrateFromUser();
       await useCssStore.getState().load();
       // Las pestañas también son de ESTE vault (`DEF-044`): antes seguían

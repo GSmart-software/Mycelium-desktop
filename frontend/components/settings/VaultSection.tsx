@@ -9,17 +9,20 @@ import {
   versionInstalada,
 } from "@/lib/ia/framework";
 import { collectFromZip } from "@/lib/import";
+import { asegurarMcpJson, cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { useBorradoresStore } from "@/stores/borradoresStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { usePrefVault } from "@/stores/prefsVaultStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ENLACES_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -66,6 +69,9 @@ export function VaultSection() {
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
+  // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
+  const controlIa = usePrefVault("controlIa");
+  const [cambiandoControl, setCambiandoControl] = useState(false);
   // .mycignore por vault (FUN-M-11): null = editor cerrado. El texto vive en un
   // store y no en estado local (`FUN-M-34`): el panel se remonta al cambiar de
   // categoría, y con estado local el borrador moría por ir a mirar otra cosa.
@@ -137,6 +143,9 @@ export function VaultSection() {
     try {
       const conflictos = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
+      // Con el control encendido, el framework también registra el servidor
+      // en `.mcp.json` (spec § 4): regenerar deja todo lo de la IA al día.
+      if (controlIa) await asegurarMcpJson(rutaVault);
       if (conflictos.length === 0) {
         informar(
           `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
@@ -153,6 +162,20 @@ export function VaultSection() {
       fallar((e as Error).message ?? String(e));
     } finally {
       setGenerandoIa(false);
+    }
+  };
+
+  const onToggleControl = async (valor: boolean) => {
+    if (!rutaVault) return;
+    setMensaje(null);
+    setError(null);
+    setCambiandoControl(true);
+    try {
+      informar(await cambiarControl(rutaVault, valor));
+    } catch (e) {
+      fallar(`No se pudo ${valor ? "encender" : "apagar"} el control: ${(e as Error).message ?? String(e)}`);
+    } finally {
+      setCambiandoControl(false);
     }
   };
 
@@ -460,6 +483,24 @@ export function VaultSection() {
           <p className={styles.hint}>
             Disponible solo con un vault en carpeta (los archivos se escriben en disco).
           </p>
+        )}
+        {rutaVault && (
+          <Interruptor
+            etiqueta="Dejar que la IA controle Mycelium"
+            valor={controlIa}
+            disabled={cambiandoControl}
+            onChange={(v) => void onToggleControl(v)}
+            ayuda={
+              <>
+                Le deja a Claude Code, por el servidor MCP de Mycelium, <strong>operar la
+                app</strong>: mostrarte una nota, el grafo o el calendario, y saber qué tenés
+                abierto. Lo registra en <code>.mcp.json</code>, en la raíz del vault. Apagado,
+                ningún programa puede pedirle nada a Mycelium — pero{" "}
+                <strong>no impide que la IA lea o escriba los archivos del vault</strong>: eso
+                lo hace con sus propias herramientas, como siempre.
+              </>
+            }
+          />
         )}
       </div>
 
