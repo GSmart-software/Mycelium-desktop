@@ -188,6 +188,10 @@ test("receta por estado: las pestañas reparten los proyectos de Mycelium", () =
   const r = validarBase(receta, ctx);
   assert.deepEqual(filas(r, "Activos"), ["Rediseño del API"]);
   assert.deepEqual(filas(r, "Pausados"), ["Grafo 3D"]);
+  // «Otros» junta lo que no tiene pestaña: entre todas, cada nota del proyecto aparece una vez.
+  assert.deepEqual(filas(r, "Otros"), ["Migrar índice"]);
+  const todas = ["Activos", "Pausados", "Sin estado", "Otros"].flatMap((v) => filas(r, v)).sort();
+  assert.deepEqual(todas, ["Grafo 3D", "Migrar índice", "Rediseño del API"]);
 });
 
 test("receta de tareas: vencidas y por vencer se reparten TODAS las pendientes, sin fecha incluidas", () => {
