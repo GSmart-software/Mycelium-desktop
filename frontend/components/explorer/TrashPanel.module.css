@@ -1,3 +1,61 @@
+/* Panel con la barra de selección múltiple arriba y la lista abajo (`FUN-S-04`). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+}
+
+.todo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.accionesLote {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.aviso {
+  font-size: 0.75rem;
+  color: var(--mic-callout-caution-border);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.casilla {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.item.marcado {
+  background: color-mix(in srgb, var(--mic-accent) 12%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--mic-accent) 35%, transparent);
+}
+
+.restore:disabled,
+.deleteForever:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .list {
   list-style: none;
   display: flex;
