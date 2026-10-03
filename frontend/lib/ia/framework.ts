@@ -96,6 +96,14 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   Mycelium», la regla 8 (el calendario se modifica **solo** con esas
  *   herramientas) y la skill `mycelium-calendario`, que deja de ser solo
  *   lectura: lee preferentemente por MCP y modifica únicamente por MCP.
+ *   Parte 3: **archivos** por MCP (`mycelium_renombrar`, `_mover`, `_borrar`,
+ *   `_papelera`) en «Operar Mycelium», la **regla dura 2** al revés —para
+ *   renombrar o mover, la herramienta; `mv` solo sin MCP, y entonces los
+ *   enlaces los arregla la IA—, qué hacer con un `RECHAZADO`, y un **hook
+ *   `PreToolUse`** (`lib/ia/hookMvRm.ts`) que frena `mv`/`rm` sobre notas. El
+ *   hook, como el `.mcp.json`, no es un template: lo instala `lib/mcpControl.ts`
+ *   solo con el control encendido, fusionándolo con el `.claude/settings.json`
+ *   del usuario.
  */
 export const FRAMEWORK_IA_VERSION = "1.7.0";
 
@@ -227,17 +235,22 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
 | \`/vault-vincular <nota>\` | Reforzar las asociaciones de una nota existente (agrega \`[[enlaces]]\` a lo relacionado). |
 | \`/vault-mapa\` | Generar/actualizar el índice general (MOC) del vault. Útil tras incorporar mucho material. |
 | \`/vault-huerfanas\` | Auditar la salud de la memoria: notas desconectadas y enlaces rotos. |
-| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto y **leer y modificar el calendario**. Ver «Operar Mycelium». |
+| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto, **leer y modificar el calendario** y **renombrar, mover o mandar a la papelera** notas y carpetas sin romper enlaces. Ver «Operar Mycelium». |
 
 ## Reglas duras
 
 1. **Títulos únicos**: los \`[[enlaces]]\` resuelven por título, no por ruta.
-2. **Si renombrás VOS, los enlaces los arreglás vos.** Mycelium repara los
-   \`[[enlaces]]\` entrantes al renombrar, pero solo cuando el renombrado pasa por
-   la app (explorador o el título de la nota). Un \`mv\` desde la terminal —que es
-   como renombrás— **no dispara nada**: buscá \`[[nombre viejo\` (incluidos alias
-   \`[[viejo|…]]\` y embeds \`![[viejo]]\`) y actualizá cada referencia. Y ojo con
-   el nombre: si lleva \`? : * | " < > \ /\` el archivo no puede llamarse así.
+2. **Para renombrar o mover, usá la herramienta**: \`mycelium_renombrar\` y
+   \`mycelium_mover\` reparan los \`[[enlaces]]\` entrantes con el mismo código que
+   usa la app cuando el usuario renombra desde el explorador o el título. Para
+   borrar, \`mycelium_borrar\`: va a la **papelera de Mycelium**, de donde se
+   restaura. \`mv\` y \`rm\` solo si el MCP no está (no tenés las herramientas, o
+   contestan \`APP_CERRADA\` o \`MCP_DESACTIVADO\`), y entonces **los enlaces los
+   arreglás vos**: un \`mv\` no dispara nada, así que buscá \`[[nombre viejo\`
+   (incluidos alias \`[[viejo|…]]\`, embeds \`![[viejo]]\` y los que llevan carpeta
+   \`[[Carpeta/viejo]]\`) y actualizá cada referencia; un \`rm\` no pasa por la
+   papelera. Y ojo con el nombre: si lleva \`? : * | " < > \ /\` el archivo no
+   puede llamarse así.
 3. **Nada huérfano**: toda nota nueva entra a la red con al menos un enlace en cada
    dirección.
 4. **No dupliques**: buscá antes de crear; ampliá antes de fragmentar.
@@ -284,9 +297,10 @@ divisoria es una sola:
 
 > [!important] El contenido va por los archivos; operar la app va por Mycelium
 > **Leer y escribir** notas, lienzos, tablas o dibujos se hace como siempre, en los
-> archivos. **Mostrarle algo al usuario, saber qué tiene abierto y el calendario**
-> pasan por las herramientas: no adivines qué está mirando, no le pidas que abra
-> algo a mano y **no escribas \`.mycelium/recordatorios.json\`**.
+> archivos. **Mostrarle algo al usuario, saber qué tiene abierto, el calendario,
+> y renombrar, mover o borrar** pasan por las herramientas: no adivines qué está
+> mirando, no le pidas que abra algo a mano, **no escribas
+> \`.mycelium/recordatorios.json\`** y **no uses \`mv\` ni \`rm\`** con notas o carpetas.
 
 | Querés… | Herramienta |
 |---|---|
@@ -297,6 +311,10 @@ divisoria es una sola:
 | Cambiar uno existente | \`mycelium_recordatorio_editar\` |
 | Marcar o desmarcar como hecha una ocurrencia | \`mycelium_recordatorio_completar\` |
 | Borrar uno (la serie entera, si se repite) | \`mycelium_recordatorio_borrar\` |
+| Renombrar una nota o carpeta **reparando los enlaces** que llegaban a ella | \`mycelium_renombrar\` |
+| Moverla a otra carpeta (que exista), con la misma reparación | \`mycelium_mover\` |
+| Mandarla a la **papelera de Mycelium** (nunca se borra para siempre) | \`mycelium_borrar\` |
+| Ver la papelera, o **restaurar** algo en su lugar | \`mycelium_papelera\` |
 
 - **Antes de escribir un archivo que el usuario podría estar editando**, mirá
   \`mycelium_estado\`: si su pestaña figura **sin guardar**, avisale antes, porque lo
@@ -307,13 +325,25 @@ divisoria es una sola:
   \`AMBIGUO\` las rutas para repetir la llamada, \`APP_CERRADA\` que Mycelium no está
   abierto con este vault y \`MCP_DESACTIVADO\` dónde se enciende. Contáselo al usuario
   en vez de reintentar a ciegas.
-- **Lo que escribís en el calendario no pregunta**: queda en el **registro de
+- **Lo reversible no pregunta**: lo que hacés en el calendario, renombrar o mover
+  algo con pocos enlaces y mandar una nota a la papelera quedan en el **registro de
   actividad** de Mycelium (su ícono en el rail), con **Deshacer**. Decile al usuario
-  qué hiciste con el texto que te devuelve la herramienta —dice el efecto— y no
-  repitas la llamada para «confirmar».
+  qué hiciste con el texto que te devuelve la herramienta —dice el efecto: qué notas
+  se reescribieron, con qué id se restaura— y no repitas la llamada para «confirmar».
+- **Lo de alcance grande le pregunta al usuario**: renombrar o mover reescribiendo
+  enlaces en **más de 5 notas**, y borrar una **carpeta**. La llamada espera su
+  respuesta (hasta 2 minutos). Si contesta que no —o no contesta—, recibís
+  \`RECHAZADO\`: **es una respuesta, no un error**. No lo pidas de nuevo con otras
+  palabras ni en partes más chicas para que no pregunte, y no lo hagas por otro
+  camino (\`mv\`, \`rm\`): contáselo y seguí.
+- \`CAMBIOS_SIN_GUARDAR\`: la nota (o una de las que habría que reescribir) tiene un
+  borrador en su pestaña. Mycelium guarda solo en unos segundos: esperá y repetí.
 - **Si no tenés las herramientas**, nada de esto cambia tu trabajo con los archivos:
   solo no podés mostrar, saber qué está abierto ni modificar el calendario (leerlo
-  sí, con la skill \`mycelium-calendario\`).
+  sí, con la skill \`mycelium-calendario\`), y si renombrás o movés con \`mv\`, los
+  enlaces los arreglás vos (regla dura 2). Un hook te recuerda las herramientas
+  cuando corrés \`mv\` o \`rm\` sobre notas con el control encendido: si el MCP no
+  responde, repetí el comando con \`MYCELIUM_SIN_MCP=1\` delante y él te deja pasar.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
@@ -507,9 +537,10 @@ revisá este archivo primero.
 
 ## Precauciones
 
-- Renombrar una nota **desde la app** repara los \`[[enlaces]]\` que la apuntaban;
-  un \`mv\` desde la terminal —como renombrás vos— **no**: actualizalos vos
-  (alias \`[[viejo|…]]\` y embeds \`![[viejo]]\` incluidos).
+- Renombrar o mover **por Mycelium** —desde la app, o vos con \`mycelium_renombrar\`
+  y \`mycelium_mover\`— repara los \`[[enlaces]]\` que la apuntaban; un \`mv\` desde
+  la terminal **no**: si no tenés las herramientas, actualizalos vos (alias
+  \`[[viejo|…]]\`, embeds \`![[viejo]]\` y \`[[Carpeta/viejo]]\` incluidos).
 - Mycelium reindexa solo al detectar cambios en disco: no hace falta avisar.
 - El frontmatter que cae fuera del subconjunto soportado se muestra crudo y la
   nota queda sin propiedades indexadas: revisalo antes de dar por hecho que se
@@ -586,8 +617,9 @@ Cómo redactar para tu vos futuro:
   nota faltante.
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
   reenlazá.
-- **Al renombrar con \`mv\`**: actualizá todos los \`[[enlaces]]\` que la apuntaban
-  (Mycelium solo los repara cuando el renombrado pasa por la app).
+- **Al renombrar o mover**: con \`mycelium_renombrar\` / \`mycelium_mover\` Mycelium
+  repara los \`[[enlaces]]\` que la apuntaban; con \`mv\` (solo si no tenés las
+  herramientas), actualizalos vos.
 
 ## Antipatrones
 

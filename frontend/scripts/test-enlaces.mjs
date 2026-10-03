@@ -25,6 +25,7 @@ const {
   escribirLexico,
   leerLexico,
   reescribirEnlaces,
+  reescribirEnlacesMovidos,
   zonasProtegidas,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
@@ -487,4 +488,43 @@ test("las dos formas del alias se renombran igual", () => {
   const normal = reescribirEnlaces("[[Vieja|a]]", "Vieja", "Nueva");
   const escapado = reescribirEnlaces("[[Vieja" + ESC_ALIAS + "a]]", "Vieja", "Nueva");
   assert.equal(normal.cambios, escapado.cambios);
+});
+
+// ── Reescritura al renombrar o mover, con pistas de carpeta (FUN-L-09) ────────
+
+const cambio = (c) => ({ tituloViejo: "Plan", tituloNuevo: "Plan", carpetaVieja: "Área/Proyectos", carpetaNueva: "Área/Proyectos", extension: ".md", ...c });
+
+test("renombrar: por título y con pista, conservando la pista", () => {
+  const t = "[[Plan]] y [[Proyectos/Plan|el plan]] y ![[Área/Proyectos/Plan#Uno]] y [[Plan.md]]";
+  const r = reescribirEnlacesMovidos(t, [cambio({ tituloNuevo: "Plan 2026" })]);
+  assert.equal(r.texto, "[[Plan 2026]] y [[Proyectos/Plan 2026|el plan]] y ![[Área/Proyectos/Plan 2026#Uno]] y [[Plan 2026.md]]");
+  assert.equal(r.cambios, 4);
+});
+
+test("mover: el enlace por título no se toca; el de pista pasa a la ruta completa nueva", () => {
+  const t = "[[Plan]] · [[proyectos/plan]] · [[Otra/Plan]] · [[Plan|alias]]";
+  const r = reescribirEnlacesMovidos(t, [cambio({ carpetaNueva: "Archivo/2026" })]);
+  assert.equal(r.texto, "[[Plan]] · [[Archivo/2026/Plan]] · [[Otra/Plan]] · [[Plan|alias]]");
+  assert.equal(r.cambios, 1);
+});
+
+test("mover a la raíz deja el título solo; mover y renombrar cambia las dos cosas", () => {
+  assert.equal(reescribirEnlacesMovidos("[[Proyectos/Plan]]", [cambio({ carpetaNueva: "" })]).texto, "[[Plan]]");
+  const r = reescribirEnlacesMovidos("[[Plan]] [[Proyectos/Plan]]", [cambio({ carpetaNueva: "X", tituloNuevo: "Hoja" })]);
+  assert.equal(r.texto, "[[Hoja]] [[X/Hoja]]");
+});
+
+test("una carpeta movida repara a cada uno de sus archivos, y respeta la extensión escrita", () => {
+  const cambios = [
+    cambio({ tituloViejo: "A", tituloNuevo: "A", carpetaVieja: "Viejo", carpetaNueva: "Nuevo" }),
+    cambio({ tituloViejo: "Dibujo", tituloNuevo: "Dibujo", carpetaVieja: "Viejo/Sub", carpetaNueva: "Nuevo/Sub", extension: ".excalidraw" }),
+  ];
+  const r = reescribirEnlacesMovidos("[[Viejo/A]] ![[Sub/Dibujo.excalidraw]] [[Dibujo]]\n```\n[[Viejo/A]]\n```", cambios);
+  assert.equal(r.texto, "[[Nuevo/A]] ![[Nuevo/Sub/Dibujo.excalidraw]] [[Dibujo]]\n```\n[[Viejo/A]]\n```");
+  assert.equal(r.cambios, 2);
+});
+
+test("sin cambio real no se toca nada", () => {
+  const r = reescribirEnlacesMovidos("[[Plan]] [[Proyectos/Plan]]", [cambio({})]);
+  assert.equal(r.cambios, 0);
 });

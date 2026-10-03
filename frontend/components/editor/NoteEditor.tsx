@@ -559,7 +559,7 @@ export function NoteEditor({
             // vez y el facet no se reconfigura, así que no puede capturar el
             // `notaId` de este render — al renombrar, el id cambia.
             renombrarPorTitulo.of((titulo) =>
-              useVaultStore.getState().renameNota(notaIdRef.current, titulo),
+              useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
             ),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),

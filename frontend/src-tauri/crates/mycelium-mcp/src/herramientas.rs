@@ -5,7 +5,10 @@
 //! solo comprueban que los argumentos sean un objeto: fechas, horas, colores y
 //! repeticiones los valida la app con las reglas del calendario
 //! (`lib/mcpCalendarioLogica.ts`), para no tenerlas dos veces y para que lo que
-//! falla quede en su registro de actividad. Cada herramienta nueva se
+//! falla quede en su registro de actividad. Parte 3: las de archivos
+//! (`mycelium_renombrar`, `_mover`, `_borrar`, `_papelera`), igual de finas,
+//! más la **espera de una confirmación** del usuario ([`pedir_con_permiso`]).
+//! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
 //! se valida lo evidente, se habla por el canal y se **redacta la respuesta**:
@@ -16,8 +19,9 @@
 //! protocolo.md` § 9); su código quedó en la historia de `feat/mcp-desktop`.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
-use mycelium_vault::canal::{self as protocolo_canal, codigo};
+use mycelium_vault::canal::{self as protocolo_canal, codigo, ESPERA_CONFIRMACION, INTERVALO_CONFIRMACION};
 use mycelium_vault::preferencias::control_encendido;
 use serde_json::{json, Value};
 
@@ -27,7 +31,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 7] = [
+const NOMBRES: [&str; 11] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -35,6 +39,10 @@ const NOMBRES: [&str; 7] = [
     "mycelium_recordatorio_editar",
     "mycelium_recordatorio_completar",
     "mycelium_recordatorio_borrar",
+    "mycelium_renombrar",
+    "mycelium_mover",
+    "mycelium_borrar",
+    "mycelium_papelera",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -188,6 +196,76 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_renombrar",
+            "title": "Renombrar una nota o carpeta",
+            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Usala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "objetivo": {
+                        "type": "string",
+                        "description": "La nota (ruta `docs/Plan.md` o título `Plan`) o la carpeta (`Área/Proyectos`, o con `/` al final para que sea la carpeta)."
+                    },
+                    "nombre": { "type": "string", "description": "El nombre nuevo, sin carpeta (la extensión de una nota se puede omitir)." }
+                },
+                "required": ["objetivo", "nombre"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_mover",
+            "title": "Mover una nota o carpeta",
+            "description": "Mueve una nota o una carpeta a otra carpeta que ya exista (no crea carpetas), REPARANDO LOS \
+                ENLACES que la nombraban con su carpeta (`[[Carpeta/Nota]]`; los enlaces por título siguen andando solos). \
+                Usala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
+                notas. Se deshace desde el registro de actividad.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "objetivo": { "type": "string", "description": "La nota o la carpeta, como en mycelium_renombrar." },
+                    "carpeta": { "type": "string", "description": "Ruta de la carpeta de destino (`Archivo/2026`); vacía es la raíz del vault." }
+                },
+                "required": ["objetivo", "carpeta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_borrar",
+            "title": "Mandar a la papelera",
+            "description": "Manda una nota o una carpeta (con todo lo que tiene) a la PAPELERA DE MYCELIUM: nunca borra \
+                para siempre. Usala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
+                carpeta SIEMPRE le pregunta al usuario y esta llamada espera su respuesta. Devuelve con qué id se \
+                restaura (mycelium_papelera) y qué pestañas se cerraron. Una nota con cambios sin guardar no se borra: \
+                CAMBIOS_SIN_GUARDAR.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "objetivo": { "type": "string", "description": "La nota o la carpeta, como en mycelium_renombrar." }
+                },
+                "required": ["objetivo"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_papelera",
+            "title": "La papelera de Mycelium",
+            "description": "Lista lo que hay en la papelera de Mycelium (`listar`: id, título, carpeta de origen, cuándo se \
+                borró) o restaura una entrada en su lugar (`restaurar` con su `id`; la ruta de una carpeta borrada \
+                restaura todas sus notas y recrea las carpetas). La papelera se vacía sola a los 30 días.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "accion": { "type": "string", "enum": ["listar", "restaurar"], "description": "Por defecto listar." },
+                    "id": { "type": "string", "description": "Para restaurar: el id de la entrada (la ruta original de la nota) o la ruta de una carpeta borrada." }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+        }),
     ]
 }
 
@@ -214,6 +292,10 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
             herramienta_calendario(estado, vault, "recordatorio_completar", args, redactar_escritura)
         }
         "mycelium_recordatorio_borrar" => herramienta_calendario(estado, vault, "recordatorio_borrar", args, redactar_escritura),
+        "mycelium_renombrar" => herramienta_archivos(estado, vault, "renombrar", args, redactar_archivo),
+        "mycelium_mover" => herramienta_archivos(estado, vault, "mover", args, redactar_archivo),
+        "mycelium_borrar" => herramienta_archivos(estado, vault, "borrar", args, redactar_archivo),
+        "mycelium_papelera" => herramienta_archivos(estado, vault, "papelera", args, redactar_papelera),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -550,4 +632,213 @@ pub fn redactar_escritura(r: &Value) -> String {
         t.push_str(&format!("\nid: {id}"));
     }
     t
+}
+
+// ── Archivos (Parte 3) ─────────────────────────────────────────────────────
+
+/// El id de una respuesta «esperando confirmación», si lo es.
+fn id_esperando(r: &Value) -> Option<String> {
+    r.pointer("/esperando_confirmacion/id").and_then(Value::as_str).map(str::to_string)
+}
+
+/// Pide una operación que puede necesitar **el permiso del usuario**. Si la app
+/// contesta «esperando confirmación», consulta cada medio segundo hasta tener
+/// el resultado; si el usuario no contesta en el plazo, retira la pregunta
+/// (cuenta como un «no»). Para el agente es una sola llamada, por larga que sea.
+///
+/// Por qué no una espera dentro del pedido: el canal corta a los 10 s
+/// (`OCUPADA`), y una persona tarda más. Así cada pedido sigue siendo corto y
+/// el plazo humano vive acá, donde se ve.
+fn pedir_con_permiso(estado: &Estado, vault: &VaultResuelto, op: &str, args: Value) -> Result<Value, SinResultado> {
+    let r = pedir(estado, vault, op, args)?;
+    let Some(id) = id_esperando(&r) else { return Ok(r) };
+    let (espera, intervalo) = estado.confirmacion.unwrap_or((ESPERA_CONFIRMACION, INTERVALO_CONFIRMACION));
+    let limite = Instant::now() + espera;
+    loop {
+        std::thread::sleep(intervalo);
+        let retirar = Instant::now() >= limite;
+        let consulta = if retirar { "confirmacion_retirar" } else { "confirmacion" };
+        match pedir(estado, vault, consulta, json!({ "id": id })) {
+            Ok(r) if id_esperando(&r).is_some() => {
+                if retirar {
+                    return Err(SinResultado::Error(format!(
+                        "{}: el usuario no contestó a tiempo; no se hizo nada.",
+                        codigo::RECHAZADO
+                    )));
+                }
+            }
+            Ok(r) => return Ok(r),
+            // Si la ventana se cierra mientras pregunta, la pregunta se va con ella.
+            Err(SinResultado::NadieEscucha) => {
+                return Err(SinResultado::Error(format!(
+                    "{}: Mycelium se cerró mientras esperaba que el usuario contestara. Lo más probable es que \
+                     no se haya hecho nada: comprobalo (mycelium_estado, mycelium_papelera) antes de repetirlo.",
+                    codigo::APP_CERRADA
+                )))
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// Renombrar, mover, borrar y la papelera: comprueban que los argumentos sean
+/// un objeto y los pasan a la app, que resuelve el objetivo, valida el nombre
+/// con sus reglas y opera con el código de la UI.
+fn herramienta_archivos(
+    estado: &Estado,
+    vault: &VaultResuelto,
+    op: &str,
+    args: &Value,
+    redactar: fn(&Value) -> String,
+) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir_con_permiso(estado, vault, op, args) {
+        Ok(r) => texto(redactar(&r), false),
+        Err(SinResultado::NadieEscucha) => texto(sin_ventana_archivos(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Sin la app no se puede renombrar reparando enlaces: qué hacer entonces.
+fn sin_ventana_archivos(vault: &VaultResuelto) -> String {
+    let mut t = sin_ventana_base(vault);
+    t.push_str(
+        "\nSin estas herramientas, renombrar o mover con `mv` deja los [[enlaces]] rotos: si lo hacés igual, \
+         arreglalos vos (regla dura 2 del CLAUDE.md; el hook te deja pasar con MYCELIUM_SIN_MCP=1 delante del \
+         comando). Para borrar, mejor esperar a que el usuario abra Mycelium: un `rm` no pasa por la papelera.",
+    );
+    t
+}
+
+/// Renombrar, mover, borrar o restaurar: el efecto que redactó la app, y la ruta.
+pub fn redactar_archivo(r: &Value) -> String {
+    let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
+    if let Some(ruta) = r.get("ruta").and_then(Value::as_str) {
+        t.push_str(&format!("\nruta: {ruta}"));
+    }
+    t
+}
+
+/// La papelera: el listado, o el efecto de restaurar.
+pub fn redactar_papelera(r: &Value) -> String {
+    let Some(lista) = r.get("entradas").and_then(Value::as_array) else {
+        return redactar_archivo(r);
+    };
+    if lista.is_empty() {
+        return "La papelera de Mycelium está vacía.".to_string();
+    }
+    let cuantas = if lista.len() == 1 { "1 entrada".to_string() } else { format!("{} entradas", lista.len()) };
+    let mut t = format!("{cuantas} en la papelera (se restaura con accion «restaurar» y el id):");
+    for e in lista {
+        let s = |k: &str| e.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+        let carpeta = s("carpeta");
+        let de = if carpeta.is_empty() { "de la raíz".to_string() } else { format!("de {carpeta}") };
+        t.push_str(&format!("\n- «{}» · id {} · {de} · borrada {}", s("titulo"), s("id"), s("eliminada")));
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_archivos {
+    use super::*;
+    use crate::canal::falso::{canal_de_prueba, levantar};
+    use mycelium_vault::registro::VaultRef;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    fn estado(nombre: &str) -> Estado {
+        let raiz = std::env::temp_dir().join(format!("mycelium-mcp-arch-{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raiz);
+        std::fs::create_dir_all(raiz.join(".mycelium")).unwrap();
+        std::fs::write(raiz.join(".mycelium/preferencias.json"), r#"{"controlIa":true}"#).unwrap();
+        let v = VaultResuelto {
+            registrado: VaultRef { ruta: raiz.to_string_lossy().to_string(), nombre: "Prueba".into(), ultimo_acceso: None },
+            raiz,
+            origen: "test",
+        };
+        Estado {
+            vault: Ok(v),
+            canal: canal_de_prueba(nombre),
+            espera: Some(Duration::from_secs(5)),
+            confirmacion: Some((Duration::from_millis(400), Duration::from_millis(50))),
+        }
+    }
+
+    fn herr(e: &Estado, nombre: &str, args: Value) -> (String, bool) {
+        let r = llamar(e, nombre, &args).unwrap();
+        (r["content"][0]["text"].as_str().unwrap().to_string(), r["isError"].as_bool().unwrap())
+    }
+
+    #[test]
+    fn sin_confirmacion_contesta_de_una() {
+        let e = estado("directo");
+        let _app = levantar(e.canal.clone(), |p| {
+            Some(json!({"id": p["id"], "ok": true, "resultado": {"efecto": "Renombré «Plan» a «Plan 2026».", "ruta": "Plan 2026.md"}}))
+        });
+        let (t, err) = herr(&e, "mycelium_renombrar", json!({"objetivo": "Plan", "nombre": "Plan 2026"}));
+        assert!(!err && t.starts_with("Renombré") && t.ends_with("ruta: Plan 2026.md"), "{t}");
+    }
+
+    #[test]
+    fn espera_la_confirmacion_y_devuelve_el_resultado() {
+        let e = estado("espera");
+        let consultas = Arc::new(AtomicUsize::new(0));
+        let c = consultas.clone();
+        let _app = levantar(e.canal.clone(), move |p| {
+            let id = p["id"].clone();
+            Some(match p["op"].as_str().unwrap_or_default() {
+                "borrar" => json!({"id": id, "ok": true, "resultado": {"esperando_confirmacion": {"id": "c1", "pregunta": "?"}}}),
+                "confirmacion" if c.fetch_add(1, Ordering::SeqCst) < 2 => {
+                    json!({"id": id, "ok": true, "resultado": {"esperando_confirmacion": {"id": "c1"}}})
+                }
+                "confirmacion" => json!({"id": id, "ok": true, "resultado": {"efecto": "Eliminé la carpeta «Viejo»."}}),
+                _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+            })
+        });
+        let (t, err) = herr(&e, "mycelium_borrar", json!({"objetivo": "Viejo/"}));
+        assert!(!err && t.starts_with("Eliminé la carpeta"), "{t}");
+        assert_eq!(consultas.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn sin_respuesta_del_usuario_retira_la_pregunta() {
+        let e = estado("retira");
+        let retiradas = Arc::new(AtomicUsize::new(0));
+        let r2 = retiradas.clone();
+        let _app = levantar(e.canal.clone(), move |p| {
+            let id = p["id"].clone();
+            Some(match p["op"].as_str().unwrap_or_default() {
+                "renombrar" | "confirmacion" => {
+                    json!({"id": id, "ok": true, "resultado": {"esperando_confirmacion": {"id": "c9"}}})
+                }
+                "confirmacion_retirar" => {
+                    r2.fetch_add(1, Ordering::SeqCst);
+                    json!({"id": id, "ok": false, "error": {"codigo": "RECHAZADO",
+                        "mensaje": "El usuario no contestó a tiempo la pregunta: se retiró y no se hizo nada.", "datos": null}})
+                }
+                _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+            })
+        });
+        let inicio = Instant::now();
+        let (t, err) = herr(&e, "mycelium_renombrar", json!({"objetivo": "Plan", "nombre": "X"}));
+        assert!(err && t.starts_with("RECHAZADO") && t.contains("no contestó"), "{t}");
+        assert_eq!(retiradas.load(Ordering::SeqCst), 1, "se retira una sola vez");
+        assert!(inicio.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn la_papelera_se_lista_con_su_id() {
+        let t = redactar_papelera(&json!({"entradas": [
+            {"id": "docs/Plan.md", "titulo": "Plan", "carpeta": "docs", "eliminada": "2026-10-01T10:00:00Z"},
+            {"id": "Suelta.md", "titulo": "Suelta", "carpeta": "", "eliminada": "2026-10-01T11:00:00Z"}]}));
+        assert!(t.starts_with("2 entradas en la papelera"), "{t}");
+        assert!(t.contains("«Plan» · id docs/Plan.md · de docs"), "{t}");
+        assert!(t.contains("«Suelta» · id Suelta.md · de la raíz"), "{t}");
+        assert_eq!(redactar_papelera(&json!({"entradas": []})), "La papelera de Mycelium está vacía.");
+    }
 }

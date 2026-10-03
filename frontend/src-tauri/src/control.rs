@@ -191,12 +191,22 @@ pub fn mcp_ruta_binario() -> Result<BinarioMcp, String> {
     Ok(BinarioMcp { ruta: ruta.to_string_lossy().to_string(), existe })
 }
 
-/// Borra el `.mcp.json` de la raíz del vault. Solo ese archivo: el frontend
-/// lo pide cuando, al apagar el control, quedó vacío y lo había creado
-/// Mycelium. Que no exista no es un error.
+/// Los únicos archivos que [`mcp_config_borrar`] puede borrar: los que el
+/// control de la IA instala en el vault (el `.mcp.json`; desde la Parte 3, el
+/// hook de `mv`/`rm` y los ajustes que lo registran).
+const BORRABLES: [&str; 3] = [".mcp.json", ".claude/settings.json", ".claude/hooks/mycelium-mv-rm.mjs"];
+
+/// Borra un archivo que instaló el control de la IA: el `.mcp.json` de la
+/// raíz (por defecto), `.claude/settings.json` o el script del hook. **Lista
+/// cerrada**: el frontend lo pide cuando, al apagar el control, quedó vacío y
+/// lo había creado Mycelium (o el script es suyo). Que no exista no es un error.
 #[tauri::command]
-pub fn mcp_config_borrar(vault_ruta: String) -> Result<(), String> {
-    let archivo = Path::new(&vault_ruta).join(".mcp.json");
+pub fn mcp_config_borrar(vault_ruta: String, archivo: Option<String>) -> Result<(), String> {
+    let rel = archivo.as_deref().unwrap_or(BORRABLES[0]);
+    if !BORRABLES.contains(&rel) {
+        return Err(format!("«{rel}» no es un archivo del control de la IA: no se borra."));
+    }
+    let archivo = Path::new(&vault_ruta).join(rel);
     match std::fs::remove_file(&archivo) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -520,6 +530,23 @@ mod tests {
         assert_eq!(r["id"], 42);
         assert_eq!(r["error"]["codigo"], "AMBIGUO");
         assert_eq!(r["error"]["datos"]["rutas"][1], "b");
+    }
+
+    #[test]
+    fn solo_se_borran_los_archivos_del_control() {
+        let dir = std::env::temp_dir().join(format!("mic-control-borrar-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join(".claude/hooks")).unwrap();
+        std::fs::write(dir.join(".claude/settings.json"), "{}").unwrap();
+        std::fs::write(dir.join("Nota.md"), "x").unwrap();
+        let v = dir.to_string_lossy().to_string();
+        assert!(mcp_config_borrar(v.clone(), Some("Nota.md".into())).is_err());
+        assert!(mcp_config_borrar(v.clone(), Some("../fuera.json".into())).is_err());
+        assert!(dir.join("Nota.md").exists());
+        mcp_config_borrar(v.clone(), Some(".claude/settings.json".into())).unwrap();
+        assert!(!dir.join(".claude/settings.json").exists());
+        // Lo que no existe no es un error (el `.mcp.json`, por defecto).
+        mcp_config_borrar(v, None).unwrap();
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

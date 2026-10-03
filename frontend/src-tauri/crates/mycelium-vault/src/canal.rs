@@ -29,6 +29,17 @@ pub const ESPERA_VENTANA: Duration = Duration::from_secs(10);
 /// este plazo es la red de seguridad por si la app misma no contesta.
 pub const ESPERA_CLIENTE: Duration = Duration::from_secs(13);
 
+/// Cuánto espera el servidor a que **el usuario** conteste una confirmación
+/// (`FUN-L-09`, Parte 3). Una persona tarda más que los 10 s de un pedido, así
+/// que la operación no espera dentro del pedido: la app contesta enseguida
+/// `{"esperando_confirmacion": {"id"}}` y el servidor consulta con el pedido
+/// `confirmacion` cada [`INTERVALO_CONFIRMACION`]. Vencido este plazo, pide
+/// `confirmacion_retirar`: la pregunta sale de la pantalla y cuenta como «no».
+pub const ESPERA_CONFIRMACION: Duration = Duration::from_secs(120);
+
+/// Cada cuánto consulta el servidor una confirmación pendiente.
+pub const INTERVALO_CONFIRMACION: Duration = Duration::from_millis(500);
+
 /// Los códigos de error del contrato (spec § 3.1). Son texto a propósito: el
 /// agente los lee y ramifica por ellos.
 pub mod codigo {

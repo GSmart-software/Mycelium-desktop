@@ -18,13 +18,22 @@
  * 4. **El registro de actividad** (Parte 2): cada operación —salvo `estado`—
  *    queda en `.mycelium/actividad.jsonl` con su efecto, lo que falló y cómo
  *    deshacerla (`stores/actividadIaStore.ts`, panel del rail).
+ * 5. **Archivos y confirmaciones** (Parte 3): renombrar, mover, borrar y la
+ *    papelera (`lib/mcpArchivos.ts`), y el permiso del usuario cuando el alcance
+ *    es grande (abajo, «Confirmaciones»).
  */
 import { invoke } from "@tauri-apps/api/core";
-import { seRegistra, type Resultado } from "@/lib/actividadIa";
+import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
+import { confirmarIa, retirarConfirmacion } from "@/lib/confirmar";
+import * as archivos from "@/lib/mcpArchivos";
+import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos";
 import * as calendario from "@/lib/mcpCalendario";
-import { FalloCalendario, type Atendido } from "@/lib/mcpCalendario";
+import { FalloCalendario } from "@/lib/mcpCalendario";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
+import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
+import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
+import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/skillsGeneradas";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
 import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {
@@ -116,11 +125,11 @@ async function contestar(pedido: Pedido): Promise<void> {
     respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp || e instanceof FalloCalendario
+      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
-  registrar(pedido.op, respuesta, atendido);
+  if (!atendido?.sinRegistro) registrar(pedido.op, respuesta, atendido);
   await invoke("mcp_responder", { id: pedido.id, respuesta }).catch((e) =>
     console.warn("[mcp] no se pudo contestar el pedido", pedido.op, e),
   );
@@ -189,9 +198,118 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return calendario.completar(args);
     case "recordatorio_borrar":
       return calendario.borrar(args);
+    case "renombrar":
+      return conPermiso(pedido.op, await archivos.renombrar(args));
+    case "mover":
+      return conPermiso(pedido.op, await archivos.mover(args));
+    case "borrar":
+      return conPermiso(pedido.op, await archivos.borrar(args));
+    case "papelera":
+      return conPermiso(pedido.op, await archivos.papelera(args));
+    case "confirmacion":
+      return consultarConfirmacion(args, false);
+    case "confirmacion_retirar":
+      return consultarConfirmacion(args, true);
     default:
       throw fallo("INVALIDO", `Operación desconocida: ${pedido.op}.`);
   }
+}
+
+// ── Confirmaciones (Parte 3) ────────────────────────────────────────────────
+//
+// Una operación de alcance grande (renombrar o mover reescribiendo enlaces en
+// más de 5 notas, borrar una carpeta) le pide permiso al usuario. Eso tarda lo
+// que tarde una persona, y el canal tiene un plazo de 10 s por pedido (si no,
+// `OCUPADA`). Así que la operación **no espera** dentro del pedido:
+//
+// 1. Contesta enseguida `{ esperando_confirmacion: { id, pregunta } }`, con la
+//    pregunta ya en pantalla (en la cola de `confirmarStore`, detrás de las del
+//    usuario).
+// 2. El servidor pregunta por el resultado con `confirmacion({id})` cada medio
+//    segundo; cada consulta contesta al instante —«sigue esperando» o el
+//    resultado final, una sola vez—. Para el agente es una sola llamada.
+// 3. Si el usuario no contesta en el plazo del servidor (2 min), éste pide
+//    `confirmacion_retirar({id})`: la pregunta se saca de la pantalla y cuenta
+//    como un «no» (`RECHAZADO`, «no contestó»). Ante la duda, no se hace.
+//
+// La operación confirmada se registra en la actividad **cuando el usuario
+// contesta** (hecha, fallida o rechazada), no al preguntar.
+
+type Confirmacion = {
+  op: string;
+  preguntaId: number;
+  /** El servidor se cansó de esperar y la retiró: el «no» es por silencio. */
+  retirada: boolean;
+  respuesta: Respuesta | null;
+  /** Se cumple cuando hay respuesta (también si se retiró). */
+  fin: Promise<void>;
+};
+
+const confirmaciones = new Map<string, Confirmacion>();
+let siguienteConfirmacion = 1;
+
+/** Si la operación pide permiso, lo pide y contesta «esperando»; si no, pasa tal cual. */
+function conPermiso(op: string, r: Atendible): Atendido {
+  if (!("confirmar" in r)) return r;
+  const { mensaje, boton, pedido, ejecutar } = r.confirmar;
+  const pregunta = confirmarIa(mensaje, boton);
+  if (pregunta === null) {
+    // Sin interfaz montada no se puede preguntar: ante la duda, no se hace.
+    throw fallo("RECHAZADO", `No hay una ventana de Mycelium a la vista para preguntarle al usuario: no se hizo nada (${pedido}).`);
+  }
+  const id = `c${Date.now().toString(36)}-${siguienteConfirmacion++}`;
+  let terminar: () => void = () => {};
+  const c: Confirmacion = { op, preguntaId: pregunta.id, retirada: false, respuesta: null, fin: new Promise((r) => (terminar = r)) };
+  confirmaciones.set(id, c);
+  void pregunta.respuesta.then(async (acepto) => {
+    let atendido: Atendido | null = null;
+    let respuesta: Respuesta;
+    if (!acepto) {
+      respuesta = { ok: false, error: { codigo: "RECHAZADO", mensaje: mensajeRechazo(pedido, c.retirada), datos: null } };
+    } else {
+      try {
+        atendido = await ejecutar();
+        respuesta = { ok: true, resultado: atendido.resultado };
+      } catch (e) {
+        respuesta = {
+          ok: false,
+          error:
+            e instanceof FalloArchivos || e instanceof FalloMcp
+              ? { codigo: e.codigo, mensaje: e.message, datos: e.datos }
+              : { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null },
+        };
+      }
+    }
+    c.respuesta = respuesta;
+    registrar(op, respuesta, atendido);
+    terminar();
+  });
+  return {
+    resultado: { esperando_confirmacion: { id, pregunta: mensaje } },
+    sinRegistro: true,
+  };
+}
+
+/**
+ * `confirmacion({id})`: cómo va una pregunta. Esperando → lo mismo de antes;
+ * contestada → el resultado de la operación (o su error), una sola vez. Con
+ * `retirar`, primero la saca de la pantalla y espera a que se resuelva.
+ */
+async function consultarConfirmacion(args: Record<string, unknown>, retirar: boolean): Promise<Atendido> {
+  const id = typeof args.id === "string" ? args.id : "";
+  const c = confirmaciones.get(id);
+  if (!c) throw fallo("NO_ENCONTRADO", `No hay ninguna confirmación pendiente «${id}» (ya se contestó o la ventana se recargó).`);
+  if (retirar && c.respuesta === null) {
+    c.retirada = true;
+    retirarConfirmacion(c.preguntaId);
+    await c.fin;
+  }
+  if (c.respuesta === null) {
+    return { resultado: { esperando_confirmacion: { id } }, sinRegistro: true };
+  }
+  confirmaciones.delete(id);
+  if (!c.respuesta.ok) throw fallo(c.respuesta.error.codigo, c.respuesta.error.mensaje, c.respuesta.error.datos);
+  return { resultado: c.respuesta.resultado, sinRegistro: true };
 }
 
 // ── estado ──────────────────────────────────────────────────────────────────
@@ -433,6 +551,69 @@ export async function quitarMcpJson(vault: string, borrarSiVacio: boolean): Prom
   if (cambia) await invoke("escribir_nota", { vaultRuta: vault, rutaRel: ARCHIVO_MCP_JSON, contenido: texto });
 }
 
+// ── El hook de `mv`/`rm` (Parte 3) ──────────────────────────────────────────
+
+const leerRel = (vault: string, rutaRel: string) => invoke<string | null>("leer_archivo_texto", { vaultRuta: vault, rutaRel });
+const escribirRel = (vault: string, rutaRel: string, contenido: string) =>
+  invoke("escribir_nota", { vaultRuta: vault, rutaRel, contenido });
+
+/**
+ * Instala el hook `PreToolUse` que frena `mv`/`rm` sobre notas: el script en
+ * `.claude/hooks/` y su entrada en `.claude/settings.json`, **fusionada** con
+ * lo que el usuario tenga. Como el `.mcp.json`, solo con el control encendido.
+ * Si en la ruta del script hay un archivo del usuario, no se pisa y no se
+ * registra (`instalado: false` con el motivo). Lanza si `settings.json` no es
+ * JSON (no se toca).
+ */
+export async function asegurarHook(vault: string): Promise<{ instalado: boolean; creado: boolean; motivo?: string }> {
+  const actual = await leerRel(vault, RUTA_HOOK);
+  if (!scriptLibre(actual)) {
+    return { instalado: false, creado: false, motivo: `${RUTA_HOOK} es un archivo tuyo: no se pisa, y el hook de mv/rm no se instaló.` };
+  }
+  const script = HOOK_MV_RM.split(MARCADOR_VERSION_IA).join(FRAMEWORK_IA_VERSION);
+  if (actual !== script) await escribirRel(vault, RUTA_HOOK, script);
+  const { texto, cambia, creado } = fusionarSettings(await leerRel(vault, ARCHIVO_SETTINGS));
+  if (cambia) await escribirRel(vault, ARCHIVO_SETTINGS, texto);
+  return { instalado: true, creado };
+}
+
+/**
+ * Quita el hook: nuestra entrada de `settings.json` (el archivo entero si quedó
+ * vacío y lo había creado Mycelium) y el script, si es nuestro.
+ */
+export async function quitarHook(vault: string, borrarSiVacio: boolean): Promise<void> {
+  const ajustes = await leerRel(vault, ARCHIVO_SETTINGS);
+  if (ajustes !== null) {
+    const { texto, cambia } = quitarDeSettings(ajustes);
+    if (texto === null) {
+      if (borrarSiVacio) await invoke("mcp_config_borrar", { vaultRuta: vault, archivo: ARCHIVO_SETTINGS });
+      else if (cambia) await escribirRel(vault, ARCHIVO_SETTINGS, "{}\n");
+    } else if (cambia) {
+      await escribirRel(vault, ARCHIVO_SETTINGS, texto);
+    }
+  }
+  const script = await leerRel(vault, RUTA_HOOK);
+  if (script !== null && scriptLibre(script)) await invoke("mcp_config_borrar", { vaultRuta: vault, archivo: RUTA_HOOK });
+}
+
+/**
+ * Lo que el control instala en el vault además del canal: el `.mcp.json` y
+ * el hook. Lo llaman encender, abrir el vault y regenerar el framework.
+ * Devuelve el aviso del hook si no se pudo instalar (no impide lo demás).
+ */
+export async function asegurarIntegracion(vault: string): Promise<{ mcp: Awaited<ReturnType<typeof asegurarMcpJson>>; avisoHook: string | null }> {
+  const mcp = await asegurarMcpJson(vault);
+  let avisoHook: string | null = null;
+  try {
+    const h = await asegurarHook(vault);
+    if (h.creado) usePrefsVaultStore.getState().set("settingsCreado", true);
+    if (!h.instalado) avisoHook = h.motivo ?? null;
+  } catch (e) {
+    avisoHook = String((e as Error)?.message ?? e);
+  }
+  return { mcp, avisoHook };
+}
+
 /** Abre el canal de esta ventana para `vault`. */
 async function abrirCanal(vault: string): Promise<void> {
   const actividad = useActividadIaStore.getState();
@@ -463,7 +644,8 @@ export async function sincronizarControlAlAbrir(vault: string): Promise<void> {
   try {
     if (usePrefsVaultStore.getState().prefs.controlIa) {
       await abrirCanal(vault);
-      await asegurarMcpJson(vault);
+      const { avisoHook } = await asegurarIntegracion(vault);
+      if (avisoHook) console.warn("[mcp] hook de mv/rm:", avisoHook);
     } else {
       await cerrarCanal();
     }
@@ -481,22 +663,29 @@ export async function cambiarControl(vault: string, encender: boolean): Promise<
   if (encender) {
     await abrirCanal(vault);
     prefs.set("controlIa", true);
-    const r = await asegurarMcpJson(vault);
+    const { mcp: r, avisoHook } = await asegurarIntegracion(vault);
     if (r.creado) prefs.set("mcpJsonCreado", true);
+    const hook = avisoHook ? ` (Ojo: ${avisoHook})` : "";
     if (!r.binario) {
       return (
         "Control encendido, pero no se encontró el servidor MCP junto a Mycelium, así que el " +
-        ".mcp.json no se escribió (en desarrollo: npm run preparar-mcp -- --dev)."
+        `.mcp.json no se escribió (en desarrollo: npm run preparar-mcp -- --dev).${hook}`
       );
     }
     return (
       "Control encendido. Claude Code lo toma al abrir una sesión nueva en este vault " +
-      "(la primera vez te pide aprobar el servidor «mycelium» del .mcp.json)."
+      `(la primera vez te pide aprobar el servidor «mycelium» del .mcp.json).${hook}`
     );
   }
   await cerrarCanal();
   prefs.set("controlIa", false);
   await quitarMcpJson(vault, prefs.prefs.mcpJsonCreado);
   prefs.set("mcpJsonCreado", false);
+  try {
+    await quitarHook(vault, usePrefsVaultStore.getState().prefs.settingsCreado);
+  } catch (e) {
+    console.warn("[mcp] no se pudo quitar el hook de mv/rm:", e);
+  }
+  prefs.set("settingsCreado", false);
   return "Control apagado: ningún proceso puede pedirle a Mycelium que muestre nada.";
 }

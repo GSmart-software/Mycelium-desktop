@@ -90,7 +90,7 @@ export function EsporasPanel() {
     setRenombrando(null);
     const actual = esporas.find((e) => e.id === id);
     if (valor === "" || !actual || valor === actual.titulo) return;
-    void correr(() => useVaultStore.getState().renameNota(id, valor));
+    void correr(() => useVaultStore.getState().renameNota(id, valor).then(() => {}));
   };
 
   return (

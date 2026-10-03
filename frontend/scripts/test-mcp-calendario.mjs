@@ -209,6 +209,27 @@ test("deshacer: lo creado tiene que existir, lo borrado no tiene que haber vuelt
   assert.equal(cal.puedeDeshacer(archivo([]), { tipo: "completar", id: "r1", fecha: "2026-10-03", completado: false }).ok, false);
 });
 
+test("deshacer no pisa lo que cambió después: el objeto tiene que seguir como lo dejó la operación", () => {
+  // Editar: de 10:00 a 11:00. Si después alguien lo pasó a 12:00, deshacer no vuelve a las 10.
+  const antes = r({ hora: "10:00" });
+  const despues = r({ hora: "11:00" });
+  const d = { tipo: "reponer", recordatorio: antes, despues };
+  assert.deepEqual(cal.puedeDeshacer(archivo([despues]), d), { ok: true });
+  assert.deepEqual(cal.puedeDeshacer(archivo([r({ hora: "12:00" })]), d), { ok: false, porque: cal.CAMBIO_DESPUES });
+  // `vigenteDesde` no es un cambio del usuario.
+  assert.equal(cal.puedeDeshacer(archivo([{ ...despues, vigenteDesde: "2026-10-01T12:00" }]), d).ok, true);
+  // Crear: si se editó después, borrarlo perdería la edición.
+  const creado = r({});
+  assert.equal(cal.puedeDeshacer(archivo([creado]), { tipo: "borrar", id: "r1", despues: creado }).ok, true);
+  assert.equal(cal.puedeDeshacer(archivo([r({ titulo: "Otro" })]), { tipo: "borrar", id: "r1", despues: creado }).porque, cal.CAMBIO_DESPUES);
+  // Completar: la dejó completada (antes no lo estaba); si se desmarcó después, no se toca.
+  const c = { tipo: "completar", id: "r1", fecha: "2026-10-03", completado: false };
+  assert.equal(cal.puedeDeshacer(archivo([r({})], { "r1@2026-10-03": { completada: true } }), c).ok, true);
+  assert.equal(cal.puedeDeshacer(archivo([r({})], {}), c).porque, cal.CAMBIO_DESPUES);
+  // Un renglón viejo, sin `despues`, se deshace como antes.
+  assert.equal(cal.puedeDeshacer(archivo([r({ hora: "12:00" })]), { tipo: "reponer", recordatorio: antes }).ok, true);
+});
+
 test("restaurar devuelve el recordatorio con su id y el estado de sus ocurrencias", () => {
   const original = archivo([r({ repeticion: "dia" }), r({ id: "otro" })], {
     "r1@2026-10-02": { completada: true },
