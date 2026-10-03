@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
@@ -91,6 +91,18 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     pushUrl();
   }
 
+  /**
+   * Clic con la rueda en una flecha (`FUN-S-13`): el documento anterior o
+   * siguiente se abre en una pestaña nueva en segundo plano, y la actual no se
+   * mueve. Es la misma convención que la rueda sobre un archivo del explorador.
+   */
+  function abrirDestinoAparte(e: MouseEvent, destino: string | null) {
+    if (e.button !== 1 || destino === null) return;
+    e.preventDefault();
+    store.openNoteBackground(destino, pane.id);
+    pushUrl();
+  }
+
   /** Tooltip: nombre completo + ruta de carpetas (HU-25 comportamiento). */
   function tooltipOf(tab: Tab) {
     const tipo = tipoDePestana(tab.notaId);
@@ -129,9 +141,12 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           type="button"
           className={styles.navButton}
           disabled={atras === null}
-          title={atras !== null ? `Atrás: ${tituloDeNotaId(atras)}` : "Atrás"}
+          title={atras !== null ? `Atrás: ${tituloDeNotaId(atras)} (rueda: en pestaña nueva)` : "Atrás"}
           aria-label="Atrás"
           onClick={() => navegar(-1)}
+          // Evita el auto-scroll del navegador al pulsar la rueda.
+          onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+          onAuxClick={(e) => abrirDestinoAparte(e, atras)}
         >
           <ArrowLeft size={14} aria-hidden />
         </button>
@@ -139,9 +154,12 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           type="button"
           className={styles.navButton}
           disabled={adelante === null}
-          title={adelante !== null ? `Adelante: ${tituloDeNotaId(adelante)}` : "Adelante"}
+          title={adelante !== null ? `Adelante: ${tituloDeNotaId(adelante)} (rueda: en pestaña nueva)` : "Adelante"}
           aria-label="Adelante"
           onClick={() => navegar(1)}
+          // Evita el auto-scroll del navegador al pulsar la rueda.
+          onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+          onAuxClick={(e) => abrirDestinoAparte(e, adelante)}
         >
           <ArrowRight size={14} aria-hidden />
         </button>

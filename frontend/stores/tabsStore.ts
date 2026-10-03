@@ -159,8 +159,12 @@ type TabsState = {
   draggingSidebarNota: string | null;
 
   openNote: (notaId: string) => void;
-  /** Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda). */
-  openNoteBackground: (notaId: string) => void;
+  /**
+   * Abre la nota en una pestaña nueva sin robar el foco (clic con la rueda).
+   * Con `paneId`, en ese panel —las flechas del historial de un panel que no es el
+   * activo (`FUN-S-13`)—; sin él, en el activo.
+   */
+  openNoteBackground: (notaId: string, paneId?: string) => void;
   /** Fija una pestaña de preview como permanente (al editar o doble-clic). */
   pinTab: (paneId: string, tabId: string) => void;
   /**
@@ -394,9 +398,9 @@ export const useTabsStore = create<TabsState>()(
     });
   },
 
-  openNoteBackground(notaId) {
+  openNoteBackground(notaId, paneId) {
     const { root, activePaneId } = get();
-    let targetLeaf = findLeaf(root, activePaneId) ?? firstLeaf(root);
+    let targetLeaf = findLeaf(root, paneId ?? activePaneId) ?? firstLeaf(root);
     if (targetLeaf.linkedTo !== null) {
       targetLeaf = allLeaves(root).find((l) => l.linkedTo === null) ?? targetLeaf;
     }

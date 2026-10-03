@@ -109,6 +109,14 @@ type VaultState = {
   moveNota: (id: string, destinoId: string | null) => Promise<ResultadoMover>;
   restoreNota: (id: string) => Promise<void>;
   deleteNotaForever: (id: string) => Promise<void>;
+  /**
+   * Recupera varias de la papelera de una vez (`FUN-S-04`). Sigue con las demás si
+   * una falla, recarga papelera y árbol **una sola vez** al final, y devuelve los
+   * ids que no se pudieron recuperar.
+   */
+  restoreNotas: (ids: readonly string[]) => Promise<string[]>;
+  /** Elimina varias definitivamente (`FUN-S-04`), con el mismo criterio. */
+  deleteNotasForever: (ids: readonly string[]) => Promise<string[]>;
   undoLastMove: () => Promise<void>;
   toggleExpanded: (id: string) => void;
   setActiveFolder: (id: string | null) => void;
@@ -449,6 +457,35 @@ export const useVaultStore = create<VaultState>()(
       async deleteNotaForever(id) {
         await api(`/notas/${encodeURIComponent(id)}/permanente`, { method: "DELETE", token: token() });
         await get().loadPapelera();
+      },
+
+      async restoreNotas(ids) {
+        const fallidas: string[] = [];
+        // De a una y en orden: dos recuperadas que vuelven a la misma carpeta con el
+        // mismo nombre tienen que desambiguarse una después de la otra.
+        for (const id of ids) {
+          try {
+            await api(`/notas/${encodeURIComponent(id)}/recuperar`, { method: "POST", token: token() });
+          } catch {
+            fallidas.push(id);
+          }
+        }
+        await Promise.all([get().loadPapelera(), get().loadTree(get().vaultId!)]);
+        markGraphStale();
+        return fallidas;
+      },
+
+      async deleteNotasForever(ids) {
+        const fallidas: string[] = [];
+        for (const id of ids) {
+          try {
+            await api(`/notas/${encodeURIComponent(id)}/permanente`, { method: "DELETE", token: token() });
+          } catch {
+            fallidas.push(id);
+          }
+        }
+        await get().loadPapelera();
+        return fallidas;
       },
 
       async undoLastMove() {
