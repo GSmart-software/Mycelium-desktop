@@ -185,7 +185,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **2.2.0** (publicada el 2026-09-28; la próxima es `2.2.1`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **2.3.0** (publicada el 2026-10-03; la próxima es `2.4.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 > [!warning] La versión vigente se lee del disco, no de esta tabla
