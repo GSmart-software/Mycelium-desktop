@@ -181,6 +181,9 @@ export function TrashPanel() {
               key={item.notaId}
               className={`${styles.item} ${marcado ? styles.marcado : ""}`}
               onClick={(e) => clicEnFila(e, item.notaId)}
+              // Shift+clic selecciona un rango de elementos, no el texto de las
+              // filas: la selección de texto arranca en el mousedown.
+              onMouseDown={(e) => e.shiftKey && e.preventDefault()}
             >
               <div className={styles.cabecera}>
                 <input
