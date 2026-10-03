@@ -29,10 +29,12 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   // Calendario de recordatorios (FUN-L-22): el panel es la vista compacta; desde
   // ahí se abre como pestaña.
   { section: "calendario", icon: CalendarDays, label: "Calendario" },
-  // Registro de actividad de la IA (FUN-L-09): lo que hizo Claude Code por el
-  // MCP de control, con Deshacer, y el estado del canal.
-  { section: "actividad", icon: Bot, label: "Actividad de la IA" },
 ];
+
+// Registro de actividad de la IA (FUN-L-09): lo que hizo Claude Code por el
+// MCP de control, con Deshacer, y el estado del canal. Va último del grupo, después
+// de las consolas (pedido del usuario, 2026-10-03).
+const ACTIVIDAD = { section: "actividad" as RailSection, icon: Bot, label: "Actividad de la IA" };
 
 const BOTTOM_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   { section: "trash", icon: Trash2, label: "Papelera" },
@@ -92,6 +94,7 @@ export function Rail() {
         >
           <Terminal size={20} aria-hidden />
         </button>
+        {renderButton(ACTIVIDAD)}
       </div>
       <div className={styles.spacer} />
       <div className={styles.group}>
