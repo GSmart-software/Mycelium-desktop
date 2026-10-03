@@ -124,11 +124,23 @@
  *   **Minor, y uno solo** para tres funcionalidades: el salto lo decide el
  *   cambio más significativo, no cuántos hay. Ver `docs/estado/Version 2.2.0.md`.
  *
+ * - `2.3.0` — **la IA trabaja con Mycelium**: el MCP de control (`FUN-L-09`:
+ *   12 herramientas por un named pipe por vault, interruptor apagado por
+ *   defecto, registro de actividad con Deshacer) y las skills por herramienta
+ *   (`FUN-L-26`, framework de IA `1.7.0`), con la recarga desde disco y el
+ *   encuadre al abrir de lienzos, diagramas y dibujos. Absorbe `FUN-S-04`,
+ *   `FUN-S-13` y `DEF-118` a `DEF-122` y `DEF-124`; la `2.2.1` que se había
+ *   anotado para `DEF-118` nunca salió.
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
+ *   `docs/estado/Version 2.3.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
  * `.canvas`— se saldó con la **1.5.0 del framework**. Con la `2.1.0` el
  * framework va por **1.6.0**: la IA tiene que saber que existe `.drawio` y que
- * no se edita a mano.
+ * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
+ * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.2.0";
+export const APP_VERSION = "2.3.0";
