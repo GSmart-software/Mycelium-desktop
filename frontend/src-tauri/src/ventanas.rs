@@ -156,6 +156,11 @@ pub async fn abrir_vault_en_ventana(
         // sombra se mantiene para que la ventana siga despegada del fondo.
         .decorations(false)
         .shadow(true)
+        // Igual que la ventana principal (`dragDropEnabled: false` en
+        // tauri.conf.json): sin esto, el arrastre de archivos nativo de Tauri se
+        // queda con los eventos de arrastrar y soltar del HTML, y las pestañas no
+        // se pueden arrastrar para dividir la pantalla (`DEF-124`).
+        .disable_drag_drop_handler()
         .inner_size(1280.0, 800.0)
         .min_inner_size(640.0, 480.0)
         .build()
@@ -218,6 +223,8 @@ pub fn abrir_ventana_de_seleccion(app: &AppHandle) {
             .title("Mycelium")
             .decorations(false)
             .shadow(true)
+            // Mismo motivo que en `abrir_vault_en_ventana` (`DEF-124`).
+            .disable_drag_drop_handler()
             .inner_size(1280.0, 800.0)
             .min_inner_size(640.0, 480.0)
             .build();
