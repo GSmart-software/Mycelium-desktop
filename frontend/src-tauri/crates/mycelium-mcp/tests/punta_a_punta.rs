@@ -10,6 +10,8 @@
 //! recordatorios en memoria a la que el agente le crea, lista, completa y borra.
 //! Desde la Parte 3, los archivos: renombrar, borrar y restaurar contra un vault
 //! en memoria, y una confirmación que el «usuario» acepta y otra que rechaza.
+//! Desde la Parte 4, el diccionario del vault: una app falsa con las palabras en
+//! memoria a la que se le agrega, lista, quita y rechaza, y el ciclo sin app.
 
 #[path = "../src/canal_falso.rs"]
 mod falso;
@@ -103,7 +105,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 11);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 12);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -394,6 +396,96 @@ fn los_archivos_de_punta_a_punta() {
     assert!(!err && t.starts_with("Restauré"), "{t}");
     let (t, _) = mcp.herramienta("mycelium_papelera", json!({"accion": "listar"}));
     assert_eq!(t, "La papelera de Mycelium está vacía.");
+
+    drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// Una app falsa con el diccionario del vault en memoria: agregar cuenta las
+/// nuevas y rechaza lo que no es una palabra; quitar dice cuáles no estaban;
+/// listar las devuelve. Con la app cerrada, la herramienta recuerda que el
+/// archivo no se escribe a mano, y no lo crea.
+#[test]
+fn el_diccionario_de_punta_a_punta() {
+    use std::collections::BTreeSet;
+    use std::sync::{Arc, Mutex};
+
+    let (base, dir_app, vault) = preparar("diccionario");
+    control(&vault, true);
+    let ruta_registrada = vault.to_string_lossy().to_string();
+    let canal = mycelium_vault::canal::nombre_canal(&ruta_registrada, &dir_app);
+    let mut mcp = Mcp::lanzar(&dir_app, &vault);
+    mcp.pedir("initialize", json!({}));
+
+    let palabras: Arc<Mutex<BTreeSet<String>>> = Arc::new(Mutex::new(BTreeSet::new()));
+    let pal = palabras.clone();
+    let app = falso::levantar(canal, move |p| {
+        let id = p["id"].clone();
+        let a = p["args"].clone();
+        let mut pal = pal.lock().unwrap();
+        let ok = |r: Value| json!({"id": id, "ok": true, "resultado": r});
+        if p["op"] != "diccionario" {
+            return Some(json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}));
+        }
+        let pedidas: Vec<String> =
+            a["palabras"].as_array().map(|l| l.iter().map(|x| x.as_str().unwrap().to_string()).collect()).unwrap_or_default();
+        Some(match a["accion"].as_str().unwrap_or("listar") {
+            "listar" => ok(json!({"palabras": pal.iter().collect::<Vec<_>>(), "total": pal.len(), "recortado": false})),
+            "agregar" => {
+                let (mut agregadas, mut ya, mut rechazadas) = (vec![], vec![], vec![]);
+                for w in pedidas {
+                    if w.contains(' ') {
+                        rechazadas.push(json!({"palabra": w, "motivo": "lleva espacios"}));
+                    } else if pal.insert(w.clone()) {
+                        agregadas.push(w);
+                    } else {
+                        ya.push(w);
+                    }
+                }
+                ok(json!({"efecto": format!("Agregué {} al diccionario del vault.", agregadas.len()),
+                    "agregadas": agregadas, "ya_estaban": ya, "rechazadas": rechazadas, "total": pal.len()}))
+            }
+            "quitar" => {
+                let (mut quitadas, mut no) = (vec![], vec![]);
+                for w in pedidas {
+                    if pal.remove(&w) {
+                        quitadas.push(w);
+                    } else {
+                        no.push(json!({"palabra": w, "parecida": null}));
+                    }
+                }
+                ok(json!({"efecto": format!("Quité {} del diccionario del vault.", quitadas.len()),
+                    "quitadas": quitadas, "no_estaban": no, "rechazadas": [], "total": pal.len()}))
+            }
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO",
+                "mensaje": "`accion`: no es una acción.", "datos": {"campo": "accion"}}}),
+        })
+    });
+
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!({}));
+    assert!(!err && t == "El diccionario del vault está vacío.", "{t}");
+    let (t, err) =
+        mcp.herramienta("mycelium_diccionario", json!({"accion": "agregar", "palabras": ["Mycelium", "rizoma", "dos palabras"]}));
+    assert!(!err && t.starts_with("Agregué 2") && t.contains("«dos palabras»: lleva espacios"), "{t}");
+    let (t, _) = mcp.herramienta("mycelium_diccionario", json!({"accion": "listar"}));
+    assert_eq!(t, "El diccionario del vault tiene 2 palabras:\nMycelium, rizoma");
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!({"accion": "quitar", "palabras": ["rizoma", "otra"]}));
+    assert!(!err && t.starts_with("Quité 1"), "{t}");
+    assert_eq!(palabras.lock().unwrap().iter().cloned().collect::<Vec<_>>(), ["Mycelium"]);
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!({"accion": "borrar"}));
+    assert!(err && t.starts_with("INVALIDO: `accion`"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!(["no", "es", "objeto"]));
+    assert!(err && t.starts_with("INVALIDO"), "{t}");
+
+    // Sin la app: APP_CERRADA, y que no escriba el archivo a mano.
+    drop(app);
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!({"accion": "agregar", "palabras": ["hifa"]}));
+    assert!(err && t.starts_with("APP_CERRADA") && t.contains("no escribas .mycelium/diccionario.txt"), "{t}");
+    assert!(!vault.join(".mycelium/diccionario.txt").exists());
+    // Con el control apagado: MCP_DESACTIVADO.
+    control(&vault, false);
+    let (t, err) = mcp.herramienta("mycelium_diccionario", json!({}));
+    assert!(err && t.starts_with("MCP_DESACTIVADO"), "{t}");
 
     drop(mcp);
     let _ = std::fs::remove_dir_all(base);

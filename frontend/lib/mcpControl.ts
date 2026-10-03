@@ -21,6 +21,8 @@
  * 5. **Archivos y confirmaciones** (Parte 3): renombrar, mover, borrar y la
  *    papelera (`lib/mcpArchivos.ts`), y el permiso del usuario cuando el alcance
  *    es grande (abajo, «Confirmaciones»).
+ * 6. **El diccionario del vault** (Parte 4): listar, agregar y quitar palabras
+ *    por el mismo camino que el corrector (`lib/mcpDiccionario.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -29,6 +31,7 @@ import * as archivos from "@/lib/mcpArchivos";
 import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos";
 import * as calendario from "@/lib/mcpCalendario";
 import { FalloCalendario } from "@/lib/mcpCalendario";
+import { diccionario, FalloDiccionario } from "@/lib/mcpDiccionario";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
@@ -125,7 +128,7 @@ async function contestar(pedido: Pedido): Promise<void> {
     respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos
+      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos || e instanceof FalloDiccionario
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
@@ -206,6 +209,8 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return conPermiso(pedido.op, await archivos.borrar(args));
     case "papelera":
       return conPermiso(pedido.op, await archivos.papelera(args));
+    case "diccionario":
+      return diccionario(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":

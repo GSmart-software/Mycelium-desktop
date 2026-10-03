@@ -10,7 +10,7 @@ import {
   type EstadoCanal,
   type Objetivo,
 } from "@/lib/actividadIa";
-import { describir, motivoSinDeshacer } from "@/lib/deshacerIa";
+import { describir, esDelDiccionario, motivoSinDeshacer } from "@/lib/deshacerIa";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { fechaLocal, horaLocal } from "@/lib/recordatorios";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
@@ -46,8 +46,8 @@ export function ActividadPanel() {
       {vista.length === 0 ? (
         <p className={styles.vacio}>
           Todavía no hay actividad. Lo que Claude Code haga en Mycelium —abrir notas, agendar o cambiar
-          recordatorios, renombrar, mover o mandar a la papelera— aparece acá, con <strong>Deshacer</strong>{" "}
-          donde se pueda.
+          recordatorios, renombrar, mover o mandar a la papelera, agregar o quitar palabras del diccionario
+          del vault— aparece acá, con <strong>Deshacer</strong> donde se pueda.
         </p>
       ) : (
         <ul className={styles.lista} aria-label="Lo que hizo la IA, de lo más nuevo a lo más viejo">
@@ -143,6 +143,35 @@ function Canal() {
 
 // ── Una entrada ─────────────────────────────────────────────────────────────
 
+/**
+ * Las palabras del diccionario del vault, al día: el Deshacer de un agregar o
+ * un quitar de la IA se apaga si después alguien las cambió. Solo se lee si la
+ * entrada lo necesita (`activo`); `null` mientras no se leyó.
+ */
+function usePalabrasDelVault(activo: boolean): ReadonlySet<string> | null {
+  const [palabras, setPalabras] = useState<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    if (!activo) return;
+    let vivo = true;
+    let baja: (() => void) | null = null;
+    void import("@/lib/ortografia/corrector").then((c) => {
+      if (!vivo) return;
+      const cargar = () =>
+        c
+          .palabrasDe("vault")
+          .then((p) => vivo && setPalabras(new Set(p)))
+          .catch(() => {});
+      void cargar();
+      baja = c.suscribirPersonales(() => void cargar());
+    });
+    return () => {
+      vivo = false;
+      baja?.();
+    };
+  }, [activo]);
+  return activo ? palabras : null;
+}
+
 /** «10:42», «ayer 10:42» o «3 oct 10:42», en la hora local. */
 function momentoCorto(iso: string): string {
   const d = new Date(iso);
@@ -169,14 +198,20 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const papelera = useVaultStore((s) => s.papelera);
+  const diccionario = usePalabrasDelVault(!deshecha && e.deshacer !== undefined && esDelDiccionario(e.deshacer));
   const motivoNo = useMemo(() => {
     if (!e.deshacer || deshecha) return null;
-    return motivoSinDeshacer(e.deshacer, archivoCal, {
-      notas: new Set(notas.map((n) => n.id)),
-      carpetas: new Set(carpetas.map((c) => c.id)),
-      papelera: new Set(papelera.map((p) => p.notaId)),
-    });
-  }, [e.deshacer, deshecha, archivoCal, notas, carpetas, papelera]);
+    return motivoSinDeshacer(
+      e.deshacer,
+      archivoCal,
+      {
+        notas: new Set(notas.map((n) => n.id)),
+        carpetas: new Set(carpetas.map((c) => c.id)),
+        papelera: new Set(papelera.map((p) => p.notaId)),
+      },
+      diccionario,
+    );
+  }, [e.deshacer, deshecha, archivoCal, notas, carpetas, papelera, diccionario]);
 
   const ir = (o: Objetivo) => {
     const tabs = useTabsStore.getState();

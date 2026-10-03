@@ -103,7 +103,10 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   `PreToolUse`** (`lib/ia/hookMvRm.ts`) que frena `mv`/`rm` sobre notas. El
  *   hook, como el `.mcp.json`, no es un template: lo instala `lib/mcpControl.ts`
  *   solo con el control encendido, fusionándolo con el `.claude/settings.json`
- *   del usuario.
+ *   del usuario. Parte 4: el **diccionario del vault** por MCP
+ *   (`mycelium_diccionario`) en «Operar Mycelium» —cuándo usarlo: los términos
+ *   propios del vault— y en la regla 8: `.mycelium/diccionario.txt` no se
+ *   escribe a mano.
  */
 export const FRAMEWORK_IA_VERSION = "1.7.0";
 
@@ -235,7 +238,7 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
 | \`/vault-vincular <nota>\` | Reforzar las asociaciones de una nota existente (agrega \`[[enlaces]]\` a lo relacionado). |
 | \`/vault-mapa\` | Generar/actualizar el índice general (MOC) del vault. Útil tras incorporar mucho material. |
 | \`/vault-huerfanas\` | Auditar la salud de la memoria: notas desconectadas y enlaces rotos. |
-| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto, **leer y modificar el calendario** y **renombrar, mover o mandar a la papelera** notas y carpetas sin romper enlaces. Ver «Operar Mycelium». |
+| herramientas \`mycelium_*\` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto, **leer y modificar el calendario**, **renombrar, mover o mandar a la papelera** notas y carpetas sin romper enlaces, y **agregar o quitar palabras del diccionario del vault** del corrector. Ver «Operar Mycelium». |
 
 ## Reglas duras
 
@@ -272,7 +275,9 @@ herramienta** del vault y **comandos**. Cuándo usar cada uno:
    \`.mycelium/recordatorios.json\` (el calendario, skill \`mycelium-calendario\`) y
    \`.mycelium/preferencias.json\` (p. ej. cuál es la carpeta de Esporas). El
    calendario se **modifica solo** con las herramientas \`mycelium_recordatorio_*\`:
-   si no las tenés, decíselo al usuario y no toques el archivo. No edites
+   si no las tenés, decíselo al usuario y no toques el archivo. Lo mismo el
+   **diccionario del vault** del corrector (\`.mycelium/diccionario.txt\`): solo con
+   \`mycelium_diccionario\`, nunca a mano. No edites
    \`.claude/\`: lo regenera Mycelium. Si el usuario regenera y ya hay un archivo
    suyo, Mycelium **no lo pisa**: crea \`nombre (mycelium-ia vX).md\` al lado y un
    reporte \`Conflictos instrucciones IA.md\` en la raíz.
@@ -298,9 +303,10 @@ divisoria es una sola:
 > [!important] El contenido va por los archivos; operar la app va por Mycelium
 > **Leer y escribir** notas, lienzos, tablas o dibujos se hace como siempre, en los
 > archivos. **Mostrarle algo al usuario, saber qué tiene abierto, el calendario,
-> y renombrar, mover o borrar** pasan por las herramientas: no adivines qué está
-> mirando, no le pidas que abra algo a mano, **no escribas
-> \`.mycelium/recordatorios.json\`** y **no uses \`mv\` ni \`rm\`** con notas o carpetas.
+> el diccionario del vault, y renombrar, mover o borrar** pasan por las
+> herramientas: no adivines qué está mirando, no le pidas que abra algo a mano,
+> **no escribas \`.mycelium/recordatorios.json\` ni \`.mycelium/diccionario.txt\`** y
+> **no uses \`mv\` ni \`rm\`** con notas o carpetas.
 
 | Querés… | Herramienta |
 |---|---|
@@ -315,6 +321,7 @@ divisoria es una sola:
 | Moverla a otra carpeta (que exista), con la misma reparación | \`mycelium_mover\` |
 | Mandarla a la **papelera de Mycelium** (nunca se borra para siempre) | \`mycelium_borrar\` |
 | Ver la papelera, o **restaurar** algo en su lugar | \`mycelium_papelera\` |
+| Ver, agregar o quitar palabras del **diccionario del vault** del corrector ortográfico | \`mycelium_diccionario\` |
 
 - **Antes de escribir un archivo que el usuario podría estar editando**, mirá
   \`mycelium_estado\`: si su pestaña figura **sin guardar**, avisale antes, porque lo
@@ -336,11 +343,21 @@ divisoria es una sola:
   \`RECHAZADO\`: **es una respuesta, no un error**. No lo pidas de nuevo con otras
   palabras ni en partes más chicas para que no pregunte, y no lo hagas por otro
   camino (\`mv\`, \`rm\`): contáselo y seguí.
+- **El diccionario del vault** es para los **términos propios de este vault** que
+  el corrector subraya: nombres de proyectos y personas, siglas, jerga del área. Si
+  el usuario te pide «agregá al diccionario los términos de esta nota», elegí esos,
+  no cualquier palabra marcada: una errata no se agrega, se corrige. Cada entrada es
+  **una palabra** como la ve el corrector (sin espacios ni guiones ni dígitos); la
+  respuesta dice cuáles se rechazaron y por qué. En minúscula vale también
+  Capitalizada y EN MAYÚSCULAS; con mayúscula («Mycelium»), solo así. Se deshace
+  desde el registro de actividad. El diccionario **de Mycelium** (el de todos los
+  vaults) no es tuyo: ese lo maneja el usuario.
 - \`CAMBIOS_SIN_GUARDAR\`: la nota (o una de las que habría que reescribir) tiene un
   borrador en su pestaña. Mycelium guarda solo en unos segundos: esperá y repetí.
 - **Si no tenés las herramientas**, nada de esto cambia tu trabajo con los archivos:
   solo no podés mostrar, saber qué está abierto ni modificar el calendario (leerlo
-  sí, con la skill \`mycelium-calendario\`), y si renombrás o movés con \`mv\`, los
+  sí, con la skill \`mycelium-calendario\`) ni el diccionario del vault (el usuario
+  agrega la palabra con el clic derecho), y si renombrás o movés con \`mv\`, los
   enlaces los arreglás vos (regla dura 2). Un hook te recuerda las herramientas
   cuando corrés \`mv\` o \`rm\` sobre notas con el control encendido: si el MCP no
   responde, repetí el comando con \`MYCELIUM_SIN_MCP=1\` delante y él te deja pasar.
@@ -417,9 +434,10 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
   la app los muestra, pero no están indexados.
 - **\`Esporas/\`** (o la carpeta configurada): plantillas, no conocimiento (ver abajo).
 - **\`.mycelium/\`**: índice interno, papelera (\`.mycelium/.trash/\`), calendario
-  (\`recordatorios.json\`), preferencias y el registro de actividad de la IA. No
-  escribir nunca; leer, solo esos dos JSON (skills \`mycelium-calendario\` y
-  \`mycelium-esporas\`). El calendario se modifica por MCP.
+  (\`recordatorios.json\`), preferencias, el diccionario del vault del corrector
+  (\`diccionario.txt\`) y el registro de actividad de la IA. No escribir nunca;
+  leer, solo esos dos JSON (skills \`mycelium-calendario\` y
+  \`mycelium-esporas\`). El calendario y el diccionario se modifican por MCP.
 - **\`.claude/\`**: este framework (skills + comandos). Lo regenera Mycelium.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium.
 

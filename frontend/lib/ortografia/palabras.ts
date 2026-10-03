@@ -54,6 +54,37 @@ export function normalizarPalabra(texto: string): string {
 }
 
 /**
+ * Por qué un texto **no sirve** como entrada de un diccionario personal, o
+ * `null` si sirve. La regla es la de `extraerPalabras`: una entrada vale si el
+ * corrector la revisaría tal cual —un solo token, sin dígitos ni `_`, sin
+ * `camelCase`, de más de una letra—. Lo que el corrector nunca revisa no hace
+ * falta agregarlo, y lo que parte en varias palabras («Wi-Fi», «a b») no
+ * desmarcaría nada: se revisa cada parte por separado.
+ *
+ * La usa el MCP de control (`mycelium_diccionario`, `FUN-L-09`); el menú del
+ * editor no la necesita porque solo ofrece agregar palabras ya extraídas.
+ * Espera el texto ya recortado y normalizado (`normalizarPalabra`).
+ */
+export function motivoPalabraNoAceptada(texto: string): string | null {
+  if (texto === "") return "está vacía";
+  if (/\s/u.test(texto)) {
+    return "lleva espacios: cada entrada es una sola palabra (agregá cada una por separado)";
+  }
+  const tokens = [...texto.matchAll(TOKEN_RE)].map((m) => m[0]);
+  if (tokens.length !== 1 || tokens[0] !== texto) {
+    const raros = [...new Set([...texto.replace(TOKEN_RE, "")])].map((c) => `«${c}»`).join(" ");
+    const partes = tokens.length > 1 ? `: revisa ${tokens.map((t) => `«${t}»`).join(", ")} por separado` : "";
+    return `tiene ${raros}, que el corrector no toma como parte de una palabra${partes}`;
+  }
+  if (NO_PROSA_RE.test(texto)) return "tiene dígitos o «_»: el corrector no revisa esas palabras, no hace falta agregarla";
+  if (CAMEL_RE.test(texto)) {
+    return "tiene una mayúscula en medio (camelCase): el corrector no revisa esas palabras, no hace falta agregarla";
+  }
+  if ([...texto].length < 2) return "es una sola letra: el corrector no la revisa";
+  return null;
+}
+
+/**
  * Las palabras que **no** tocan ningún intervalo excluido. Una palabra que se
  * superpone aunque sea en parte con uno —la mitad de un `[[enlace]]`— queda
  * afuera: mejor no marcar que marcar algo que no es prosa.
@@ -178,6 +209,16 @@ export function filtrarPalabras(palabras: readonly string[], filtro: string): st
   const f = plegar(filtro.trim());
   if (!f) return [...palabras];
   return palabras.filter((p) => plegar(p).includes(f));
+}
+
+/**
+ * La entrada que es la misma palabra salvo tildes o mayúsculas («mycelium»
+ * para «Mycelium»), o `null`. Para decirle a quien quiere quitar una palabra
+ * que no está cuál quiso decir.
+ */
+export function entradaParecida(palabras: readonly string[], palabra: string): string | null {
+  const p = plegar(palabra);
+  return palabras.find((w) => w !== palabra && plegar(w) === p) ?? null;
 }
 
 function ordenarPalabras(palabras: string[]): string[] {

@@ -319,3 +319,18 @@ test("settings.json: quitar deja lo del usuario; si no queda nada, se puede borr
   assert.equal(settings.scriptLibre("// mi script"), false, "un archivo del usuario no se pisa");
   assert.equal(settings.scriptLibre(globalThis.__skillsGeneradas.HOOK_MV_RM), true);
 });
+
+// ── El diccionario del vault por MCP (`FUN-L-09`, Parte 4) ──────────────────
+
+test("«Operar Mycelium» enseña mycelium_diccionario y para qué sirve", () => {
+  const operar = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("## Operar Mycelium"), CLAUDE_NUEVO.indexOf("## Qué es Mycelium por fuera"));
+  assert.ok(operar.includes("`mycelium_diccionario`"), "falta mycelium_diccionario en «Operar Mycelium»");
+  assert.match(operar, /términos propios de este vault/);
+  assert.match(operar, /no escribas `\.mycelium\/recordatorios\.json` ni `\.mycelium\/diccionario\.txt`/);
+  assert.match(operar, /diccionario \*\*de Mycelium\*\*/);
+});
+
+test("la regla 8 dice que el diccionario del vault no se escribe a mano", () => {
+  const regla = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("8. **No toques**"), CLAUDE_NUEVO.indexOf("9. **Visibilidad**"));
+  assert.match(regla, /`\.mycelium\/diccionario\.txt`\): solo con\s+`mycelium_diccionario`, nunca a mano/);
+});

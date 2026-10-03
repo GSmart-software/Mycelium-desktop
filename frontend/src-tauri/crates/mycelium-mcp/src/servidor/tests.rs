@@ -68,6 +68,7 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_mover",
             "mycelium_borrar",
             "mycelium_papelera",
+            "mycelium_diccionario",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {

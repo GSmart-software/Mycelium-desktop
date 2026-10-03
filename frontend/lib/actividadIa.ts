@@ -16,9 +16,13 @@
  */
 import type { DeshacerArchivos } from "@/lib/mcpArchivosLogica";
 import type { DeshacerCalendario } from "@/lib/mcpCalendarioLogica";
+import type { DeshacerDiccionario } from "@/lib/mcpDiccionarioLogica";
 
-/** Lo que se guarda para deshacer, del calendario (Parte 2) o de archivos (Parte 3). */
-export type DeshacerIa = DeshacerCalendario | DeshacerArchivos;
+/**
+ * Lo que se guarda para deshacer: del calendario (Parte 2), de archivos
+ * (Parte 3) o del diccionario del vault (Parte 4).
+ */
+export type DeshacerIa = DeshacerCalendario | DeshacerArchivos | DeshacerDiccionario;
 
 export const ARCHIVO_ACTIVIDAD = "actividad.jsonl";
 
@@ -151,6 +155,10 @@ function esDeshacer(x: unknown): x is DeshacerIa {
       return clase && s("ruta") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
     case "archivo_borrar":
       return s("ruta");
+    // Parte 4: el diccionario del vault.
+    case "diccionario_quitar":
+    case "diccionario_agregar":
+      return Array.isArray(o.palabras) && o.palabras.length > 0 && o.palabras.every((p) => typeof p === "string");
     default:
       return false;
   }
@@ -213,13 +221,15 @@ export const NOMBRE_OP: Record<string, string> = {
   mover: "Mover",
   borrar: "Mandar a la papelera",
   papelera: "Papelera",
+  diccionario: "Diccionario del vault",
 };
 
 /**
  * Qué operaciones se registran. `estado` no: es la primera llamada de casi
  * toda sesión y no cambia nada, así que solo ensuciaría. Leer el calendario
  * tampoco, por lo mismo; sí sus fallos, que ayudan a entender qué pidió. Ni
- * listar la papelera (lo decide la operación: `Atendido.sinRegistro`).
+ * listar la papelera ni el diccionario (lo decide la operación:
+ * `Atendido.sinRegistro`).
  */
 export function seRegistra(op: string, resultado: Resultado): boolean {
   if (op === "estado" || op === "ping") return false;
