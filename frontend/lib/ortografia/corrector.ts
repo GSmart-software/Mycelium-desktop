@@ -177,6 +177,45 @@ export function apagar(): void {
 }
 
 /**
+ * Lecturas de los diccionarios personales en curso (`cargar`, `recargarVault`).
+ * Mientras hay alguna, el MCP contesta `OCUPADA` en vez de escribir: lo que
+ * escribiera podría quedar debajo de lo que esa lectura trae.
+ */
+let lecturasEnCurso = 0;
+
+/** ¿Está el corrector leyendo los diccionarios personales? */
+export function cargandoPersonales(): boolean {
+  return lecturasEnCurso > 0;
+}
+
+/**
+ * Lee el diccionario del vault y el de Mycelium. Si un «Agregar» terminó
+ * mientras se leía, se vuelve a leer: el archivo ya tiene algo que esta
+ * lectura puede no traer, y guardarla pisaría lo nuevo con lo viejo.
+ */
+async function leerPersonales(): Promise<[string[], string[]]> {
+  lecturasEnCurso++;
+  try {
+    for (;;) {
+      const epoca = epocaPersonales;
+      const r = await Promise.all([
+        leerPalabrasDelVault(vaultActual()),
+        // Un diccionario de Mycelium ilegible no debe dejar al corrector sin
+        // diccionarios: se sigue sin sus palabras (y «Agregar» lo relee y falla
+        // con el error, en vez de pisarlo).
+        leerPalabrasDeMycelium().catch((e) => {
+          console.error("[Mycelium] corrector · no se pudo leer el diccionario de Mycelium", e);
+          return [] as string[];
+        }),
+      ]);
+      if (epoca === epocaPersonales) return r;
+    }
+  } finally {
+    lecturasEnCurso--;
+  }
+}
+
+/**
  * (Re)carga los diccionarios activos y el del vault en el worker. Sin
  * diccionarios descargados, propone —una sola vez— bajar el del idioma del
  * sistema.
@@ -185,17 +224,10 @@ async function cargar(): Promise<void> {
   const gen = ++generacion;
   cache.vaciar();
   try {
-    const [config, descargados, palabras, deMycelium] = await Promise.all([
+    const [config, descargados, [palabras, deMycelium]] = await Promise.all([
       leerConfig(),
       listarDescargados(),
-      leerPalabrasDelVault(vaultActual()),
-      // Un diccionario de Mycelium ilegible no debe dejar al corrector sin
-      // diccionarios: se sigue sin sus palabras (y «Agregar» lo relee y falla
-      // con el error, en vez de pisarlo).
-      leerPalabrasDeMycelium().catch((e) => {
-        console.error("[Mycelium] corrector · no se pudo leer el diccionario de Mycelium", e);
-        return [];
-      }),
+      leerPersonales(),
     ]);
     vaultCargado = vaultActual();
     palabrasVault = palabras;
@@ -299,11 +331,21 @@ function mismasPalabras(a: string[], b: string[]): boolean {
 async function recargarVault(): Promise<void> {
   const vault = vaultActual();
   vaultCargado = vault;
+  lecturasEnCurso++;
   try {
-    palabrasVault = await leerPalabrasDelVault(vault);
+    // Como en `leerPersonales`: si un «Agregar» terminó mientras se leía, se relee.
+    for (;;) {
+      const epoca = epocaPersonales;
+      const leidas = await leerPalabrasDelVault(vault);
+      if (epoca !== epocaPersonales) continue;
+      palabrasVault = leidas;
+      break;
+    }
   } catch (e) {
     console.error("[Mycelium] corrector · no se pudo leer el diccionario del vault", e);
     palabrasVault = [];
+  } finally {
+    lecturasEnCurso--;
   }
   cambiaronPersonales();
 }
@@ -382,9 +424,14 @@ export async function palabrasDe(dic: DiccionarioPersonal): Promise<string[]> {
  */
 let colaEscrituras: Promise<void> = Promise.resolve();
 
-async function reescribir(dic: DiccionarioPersonal, cambiar: (palabras: string[]) => string[]): Promise<void> {
+async function reescribir(
+  dic: DiccionarioPersonal,
+  cambiar: (palabras: string[]) => string[],
+): Promise<{ antes: string[]; despues: string[] }> {
   const vault = vaultActual();
   if (dic === "vault" && vault === null) throw new Error("No hay un vault abierto donde guardar la palabra.");
+  let antes: string[] = [];
+  let despues: string[] = [];
   const tarea = colaEscrituras.then(async () => {
     // Se relee el archivo: puede haber cambiado desde que se cargó (otra
     // ventana, una edición a mano o una sincronización).
@@ -393,22 +440,28 @@ async function reescribir(dic: DiccionarioPersonal, cambiar: (palabras: string[]
     // (`recargarMycelium`) ve que no cambió nada.
     const comoEnDisco = (ps: string[]) => leerDiccionarioPersonal(escribirDiccionarioPersonal(ps));
     if (dic === "mycelium") {
-      const nuevas = comoEnDisco(cambiar(await leerPalabrasDeMycelium()));
-      await guardarPalabrasDeMycelium(nuevas);
-      palabrasMycelium = nuevas;
+      antes = await leerPalabrasDeMycelium();
+      despues = comoEnDisco(cambiar(antes));
+      // Sin cambios no se escribe (ni se avisa a las otras ventanas).
+      if (!mismasPalabras(antes, despues)) await guardarPalabrasDeMycelium(despues);
+      palabrasMycelium = despues;
     } else if (vault !== null) {
-      const nuevas = comoEnDisco(cambiar(await leerPalabrasDelVault(vault)));
-      await guardarPalabrasDelVault(vault, nuevas);
+      antes = await leerPalabrasDelVault(vault);
+      despues = comoEnDisco(cambiar(antes));
+      if (!mismasPalabras(antes, despues)) await guardarPalabrasDelVault(vault, despues);
       if (vault === vaultCargado || !worker) {
-        palabrasVault = nuevas;
+        palabrasVault = despues;
         vaultCargado = vault;
       }
     }
   });
   colaEscrituras = tarea.catch(() => {});
   await tarea;
+  // Aun sin cambios en el archivo se avisa: lo que había en memoria puede ser
+  // más viejo que el archivo (una edición a mano).
   cambiaronPersonales();
   for (const fn of oyentesPersonales) fn();
+  return { antes, despues };
 }
 
 const oyentesPersonales = new Set<() => void>();
@@ -434,6 +487,22 @@ export async function agregarA(dic: DiccionarioPersonal, palabra: string): Promi
 /** Quitar una palabra (desde Configuración): vuelve a marcarse. */
 export async function quitarDe(dic: DiccionarioPersonal, palabra: string): Promise<void> {
   await reescribir(dic, (actuales) => actuales.filter((w) => w !== palabra));
+}
+
+/**
+ * Varias palabras a la vez, en una sola escritura (el MCP de control,
+ * `mycelium_diccionario`). `cambiar` recibe lo que hay **en el archivo** en ese
+ * momento —no lo que estaba en memoria— y devuelve cómo tiene que quedar; si
+ * lanza, no se escribe nada. Devuelve las palabras de antes y las de después,
+ * para que quien llama cuente el efecto contra el archivo real. Es el mismo
+ * camino que «Agregar» y «Quitar»: el formato del archivo, la cola de
+ * escrituras y el aviso al worker y a los editores abiertos.
+ */
+export function cambiarPalabrasDe(
+  dic: DiccionarioPersonal,
+  cambiar: (palabras: string[]) => string[],
+): Promise<{ antes: string[]; despues: string[] }> {
+  return reescribir(dic, cambiar);
 }
 
 /** «Ignorar»: no la marca más hasta cerrar la app, en ningún editor. */

@@ -8,6 +8,9 @@
 //! falla quede en su registro de actividad. Parte 3: las de archivos
 //! (`mycelium_renombrar`, `_mover`, `_borrar`, `_papelera`), igual de finas,
 //! más la **espera de una confirmación** del usuario ([`pedir_con_permiso`]).
+//! Parte 4: `mycelium_diccionario`, el diccionario del vault del corrector,
+//! igual de fina: qué es una palabra y el tope por llamada los decide la app
+//! con la regla del corrector (`lib/mcpDiccionarioLogica.ts`).
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
@@ -31,7 +34,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 11] = [
+const NOMBRES: [&str; 12] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -43,6 +46,7 @@ const NOMBRES: [&str; 11] = [
     "mycelium_mover",
     "mycelium_borrar",
     "mycelium_papelera",
+    "mycelium_diccionario",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -266,6 +270,31 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_diccionario",
+            "title": "El diccionario del vault",
+            "description": "Lista, agrega o quita palabras del DICCIONARIO DEL VAULT del corrector ortográfico de Mycelium \
+                (el que viaja con el vault: .mycelium/diccionario.txt, que NO se escribe a mano). Para los términos propios \
+                del vault que el corrector subraya: nombres de proyectos y personas, siglas, jerga. El corrector abierto se \
+                entera al instante: lo agregado deja de subrayarse sin recargar. Agregar y quitar aceptan una lista (tope 200 \
+                por llamada) y devuelven el efecto: cuáles se agregaron o quitaron, cuáles ya estaban o no estaban, y las \
+                rechazadas con el motivo (una entrada es UNA palabra, como la ve el corrector: sin espacios ni guiones, sin \
+                dígitos). Se deshace desde el registro de actividad de Mycelium.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "accion": { "type": "string", "enum": ["listar", "agregar", "quitar"], "description": "Por defecto listar." },
+                    "palabras": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "maxItems": 200,
+                        "description": "Para agregar o quitar: las palabras, tal como se escriben (`Mycelium`; en minúscula también vale Capitalizada y EN MAYÚSCULAS)."
+                    }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+        }),
     ]
 }
 
@@ -296,6 +325,7 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_mover" => herramienta_archivos(estado, vault, "mover", args, redactar_archivo),
         "mycelium_borrar" => herramienta_archivos(estado, vault, "borrar", args, redactar_archivo),
         "mycelium_papelera" => herramienta_archivos(estado, vault, "papelera", args, redactar_papelera),
+        "mycelium_diccionario" => herramienta_diccionario(estado, vault, args),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -740,6 +770,105 @@ pub fn redactar_papelera(r: &Value) -> String {
         t.push_str(&format!("\n- «{}» · id {} · {de} · borrada {}", s("titulo"), s("id"), s("eliminada")));
     }
     t
+}
+
+// ── El diccionario del vault (Parte 4) ─────────────────────────────────────
+
+/// Comprueba que los argumentos sean un objeto y los pasa a la app, que valida
+/// con la regla del corrector y escribe por el mismo camino que el clic derecho.
+fn herramienta_diccionario(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir(estado, vault, "diccionario", args) {
+        Ok(r) => texto(redactar_diccionario(&r), false),
+        Err(SinResultado::NadieEscucha) => texto(sin_ventana_diccionario(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Sin la app, el diccionario no se toca: decirlo, y que no se escriba a mano.
+fn sin_ventana_diccionario(vault: &VaultResuelto) -> String {
+    let mut t = sin_ventana_base(vault);
+    t.push_str(
+        "\nEl diccionario del vault solo se modifica con esta herramienta: sin ella, no escribas \
+         .mycelium/diccionario.txt (decíselo al usuario; lo puede agregar él con el clic derecho sobre la palabra).",
+    );
+    t
+}
+
+fn strs(v: &Value, k: &str) -> Vec<String> {
+    v.get(k)
+        .and_then(Value::as_array)
+        .map(|l| l.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
+}
+
+/// El listado, o el efecto de agregar o quitar con el detalle que sirve para
+/// corregir en la misma vuelta: por qué se rechazó cada una y, de las que no
+/// estaban, cuál se quiso decir.
+pub fn redactar_diccionario(r: &Value) -> String {
+    if r.get("efecto").is_none() {
+        let palabras = strs(r, "palabras");
+        let total = r.get("total").and_then(Value::as_u64).unwrap_or(palabras.len() as u64);
+        if total == 0 {
+            return "El diccionario del vault está vacío.".to_string();
+        }
+        let mut t = format!("El diccionario del vault tiene {total} {}:", if total == 1 { "palabra" } else { "palabras" });
+        t.push('\n');
+        t.push_str(&palabras.join(", "));
+        if r.get("recortado").and_then(Value::as_bool) == Some(true) {
+            t.push_str(&format!("\n(se muestran las primeras {} de {total}, en orden alfabético)", palabras.len()));
+        }
+        return t;
+    }
+    let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
+    for n in r.get("no_estaban").and_then(Value::as_array).into_iter().flatten() {
+        if let (Some(p), Some(par)) = (n.get("palabra").and_then(Value::as_str), n.get("parecida").and_then(Value::as_str)) {
+            t.push_str(&format!("\n«{p}» no estaba, pero sí «{par}»: para quitarla, pedila así."));
+        }
+    }
+    let rechazadas = r.get("rechazadas").and_then(Value::as_array).cloned().unwrap_or_default();
+    if !rechazadas.is_empty() {
+        t.push_str("\nRechazadas:");
+        for x in rechazadas {
+            let p = x.get("palabra").and_then(Value::as_str).unwrap_or_default();
+            let m = x.get("motivo").and_then(Value::as_str).unwrap_or("no es una palabra");
+            t.push_str(&format!("\n  - «{p}»: {m}"));
+        }
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_diccionario {
+    use super::*;
+
+    #[test]
+    fn el_listado_dice_el_total_y_si_se_recorto() {
+        assert_eq!(redactar_diccionario(&json!({"palabras": [], "total": 0, "recortado": false})), "El diccionario del vault está vacío.");
+        let t = redactar_diccionario(&json!({"palabras": ["Mycelium", "rizoma"], "total": 2, "recortado": false}));
+        assert_eq!(t, "El diccionario del vault tiene 2 palabras:\nMycelium, rizoma");
+        let t = redactar_diccionario(&json!({"palabras": ["a1"], "total": 900, "recortado": true}));
+        assert!(t.ends_with("(se muestran las primeras 1 de 900, en orden alfabético)"), "{t}");
+    }
+
+    #[test]
+    fn el_efecto_trae_las_rechazadas_y_la_parecida() {
+        let t = redactar_diccionario(&json!({
+            "efecto": "Quité 1 palabra del diccionario del vault: «rizoma». No estaban: «mycelium».",
+            "quitadas": ["rizoma"],
+            "no_estaban": [{"palabra": "mycelium", "parecida": "Mycelium"}, {"palabra": "otra", "parecida": null}],
+            "rechazadas": [{"palabra": "", "motivo": "está vacía"}],
+            "total": 1
+        }));
+        assert!(t.starts_with("Quité 1 palabra"), "{t}");
+        assert!(t.contains("«mycelium» no estaba, pero sí «Mycelium»"), "{t}");
+        assert!(!t.contains("«otra» no estaba, pero"), "{t}");
+        assert!(t.ends_with("Rechazadas:\n  - «»: está vacía"), "{t}");
+    }
 }
 
 #[cfg(test)]
