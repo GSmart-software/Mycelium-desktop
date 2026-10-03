@@ -87,6 +87,7 @@ version = "2.2.0"
 dependencies = [
  "flate2",
  "log",
+ "mycelium-vault",
  "notify-debouncer-full",
  "portable-pty",
  "reqwest",
@@ -104,6 +105,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tauri-plugin-updater",
  "tauri-winrt-notification",
+ "tokio",
  "trash",
  "windows 0.61.3",
 ]
@@ -2565,6 +2567,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mycelium-mcp"
+version = "0.1.0"
+dependencies = [
+ "mycelium-vault",
+ "serde_json",
+ "windows 0.61.3",
+]
+
+[[package]]
+name = "mycelium-vault"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4583,6 +4603,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5235,7 +5266,19 @@ dependencies = [
  "mio 1.2.1",
  "pin-project-lite",
  "socket2",
+ "tokio-macros",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
 ]
 
 [[package]]

@@ -2,3 +2,7 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+
+# El servidor MCP de control como sidecar (`FUN-L-09`): lo compila y lo deja
+# acá `npm run preparar-mcp`. Es un artefacto de build, como `target/`.
+/binaries/

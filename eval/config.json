@@ -1,0 +1,14 @@
+{
+  "_que_es": "Lo que la § 9.4 de «MCP de Mycelium - evaluacion» deja para completar al congelar, más los valores fijos del protocolo (§ 7). Cambiar algo de esto separa tandas: se anota, no se pisa.",
+  "commit_vault": "c0a33b8ec71a32b1ef49da61c0a487aa42625b3c",
+  "commit_vault_motivo": "Punta de desktop-tauri el 2026-09-24, antes de cualquier código del MCP. Todas las claves de preguntas.jsonl se verificaron contra este commit (node eval/verificar-claves.mjs).",
+  "pesos_costo": "2026-09-24",
+  "modelo_principal": "claude-haiku-4-5-20251001",
+  "modelo_grande": "claude-sonnet-5",
+  "modelo_juez": "claude-opus-5-5",
+  "modelo_juez_motivo": "El juez (§ 7, nivel 2) tiene que ser más fuerte que todo modelo que evalúa: Haiku 4.5 en la tanda principal y Sonnet 5 en la réplica de reserva y el brazo del corpus entero. Con Sonnet como juez, en esa réplica se juzgaría a sí mismo. Opus cuesta ~US$ 0,02 por veredicto contra ~0,01 de Sonnet (medido el 2026-09-24): la diferencia es chica al lado de ese riesgo.",
+  "repeticiones": 5,
+  "herramientas_base": ["Bash", "Glob", "Grep", "Read", "Skill"],
+  "setting_sources": "project,local",
+  "timeout_ms": 900000
+}

@@ -83,13 +83,26 @@ function skillMd(nombre) {
 }
 
 /** Contenido de un script que viaja: la marca reemplaza al shebang. */
-function scriptMjs(nombre, rel) {
+function scriptMjs(nombre, rel, de = `skill ${nombre}`) {
   const texto = leer(rel);
   comprobarSinDependencias(rel, texto);
   const cabecera =
-    `// <!-- mycelium-ia v${MARCADOR_VERSION} --> generado por Mycelium (skill ${nombre}); ` +
+    `// <!-- mycelium-ia v${MARCADOR_VERSION} --> generado por Mycelium (${de}); ` +
     "no editar: se regenera desde Configuración → Vault.";
   return `${cabecera}\n${texto.replace(/^#![^\n]*\n/, "")}`;
+}
+
+/**
+ * El hook `PreToolUse` que frena `mv`/`rm` sobre notas (`FUN-L-09`, Parte 3).
+ * No es parte de una skill ni del framework que se genera siempre: lo instala
+ * `lib/mcpControl.ts` solo con el control encendido. Viaja por acá por lo
+ * mismo que los validadores: escrito a mano dentro de un template literal
+ * habría que escapar cada barra de sus expresiones regulares.
+ */
+export const HOOK_MV_RM = "scripts/hook-mv-rm.mjs";
+
+export function hookMvRm() {
+  return scriptMjs("hook", HOOK_MV_RM, "hook del control de la IA");
 }
 
 /** Los archivos que viajan al vault (ruta relativa → contenido con marcador). */
@@ -130,7 +143,8 @@ export function generarModulo() {
   return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
 // Fuente: lib/ia/borradores/*.md y los scripts que viajan con su skill
 // (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs,
-// scripts/consultar-recordatorios-vault.mjs).
+// scripts/consultar-recordatorios-vault.mjs) y el hook del control de la IA
+// (scripts/hook-mv-rm.mjs).
 // Para regenerar:
 //
 //   node scripts/generar-skills-ia.mjs
@@ -144,6 +158,9 @@ export const MARCADOR_VERSION_IA = ${JSON.stringify(MARCADOR_VERSION)};
 export const SKILLS_GENERADAS: readonly { ruta: string; contenido: string }[] = [
 ${entradas}
 ];
+
+/** El hook \`PreToolUse\` que frena \`mv\`/\`rm\` sobre notas (lo instala \`lib/mcpControl.ts\`). */
+export const HOOK_MV_RM: string = ${JSON.stringify(hookMvRm())};
 `;
 }
 

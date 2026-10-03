@@ -22,7 +22,7 @@ import { wrapSelection } from "@/lib/editor/commands";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
-import { takePendingMatch } from "@/lib/editor/pendingMatch";
+import { takePendingMatch, type Salto } from "@/lib/editor/pendingMatch";
 import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import { docTitleField, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
@@ -222,8 +222,23 @@ function toggleTaskInDoc(view: EditorView | null, index: number) {
   }
 }
 
-/** Selecciona y centra la primera coincidencia de `term` en la vista (HU-21 CA8). */
-function gotoMatch(view: EditorView, term: string) {
+/**
+ * Selecciona y centra la primera coincidencia de `term` en la vista (HU-21 CA8),
+ * o pone el cursor al principio de una línea (`{ linea }`, desde 1: el MCP de
+ * control, `FUN-L-09`, que ya resolvió el encabezado o el texto a su línea).
+ */
+function gotoMatch(view: EditorView, salto: Salto) {
+  if (typeof salto !== "string") {
+    const doc = view.state.doc;
+    const linea = doc.line(Math.min(Math.max(1, Math.trunc(salto.linea)), doc.lines));
+    view.dispatch({
+      selection: { anchor: linea.from },
+      effects: EditorView.scrollIntoView(linea.from, { y: "center" }),
+    });
+    view.focus();
+    return;
+  }
+  const term = salto;
   if (!term) return;
   const idx = view.state.doc.toString().toLowerCase().indexOf(term.toLowerCase());
   if (idx < 0) return;
@@ -544,7 +559,7 @@ export function NoteEditor({
             // vez y el facet no se reconfigura, así que no puede capturar el
             // `notaId` de este render — al renombrar, el id cambia.
             renombrarPorTitulo.of((titulo) =>
-              useVaultStore.getState().renameNota(notaIdRef.current, titulo),
+              useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
             ),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
@@ -647,8 +662,8 @@ export function NoteEditor({
       setPreviewHtml(renderNota(content, true));
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
-      const pendingTerm = takePendingMatch(notaId);
-      if (pendingTerm) gotoMatch(viewRef.current, pendingTerm);
+      const pendiente = takePendingMatch(notaId);
+      if (pendiente) gotoMatch(viewRef.current, pendiente);
     },
     [onDocChanged, openByTitle, noteExists, notaId, instanceId, paneId],
   );
@@ -823,12 +838,13 @@ export function NoteEditor({
   // Salto a coincidencia cuando la nota ya estaba abierta (HU-21 CA8)
   useEffect(() => {
     function onGoto(event: Event) {
-      const detail = (event as CustomEvent<{ notaId: string; term: string }>).detail;
+      const detail = (event as CustomEvent<{ notaId: string; term?: string; linea?: number }>)
+        .detail;
       if (detail?.notaId !== notaId) return;
       const view = viewRef.current;
       if (!view) return;
       takePendingMatch(notaId);
-      gotoMatch(view, detail.term);
+      gotoMatch(view, typeof detail.linea === "number" ? { linea: detail.linea } : (detail.term ?? ""));
     }
     window.addEventListener("micelio:goto-match", onGoto);
     return () => window.removeEventListener("micelio:goto-match", onGoto);

@@ -18,7 +18,18 @@
   box-shadow: 0 16px 40px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
 }
 
+/* Quién pide: solo en las preguntas de la IA (`FUN-L-09`). */
+.origen {
+  margin: 0 0 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mic-accent);
+}
+
 .mensaje {
+  white-space: pre-line;
   margin: 0 0 1rem;
   font-size: 0.875rem;
   line-height: 1.5;

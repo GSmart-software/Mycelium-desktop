@@ -1,8 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
-import { reescribirEnlaces } from "@/lib/enlaces";
 import { EVENTO_RECARGA } from "@/lib/eventos";
+import {
+  SIN_REPARACION,
+  carpetaDeRuta,
+  cambioRenombrar,
+  entrantesDe,
+  extensionDeRuta,
+  movidosPorCarpeta,
+  repararEntrantes,
+  tituloDeRuta,
+  type Movido,
+  type Reparacion,
+} from "@/lib/repararEnlaces";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -54,6 +65,15 @@ type LastMove =
   | { type: "nota"; id: string; prevParentId: string | null }
   | { type: "carpeta"; id: string; prevParentId: string | null };
 
+/** Lo que devuelve renombrar: el id (ruta) nuevo y qué pasó con los enlaces entrantes. */
+export type ResultadoRenombrar = Reparacion & { id: string };
+
+/**
+ * Lo que devuelve mover. No lanza —el explorador lo llama sin esperar, al
+ * soltar— pero dice si falló y por qué, para quien sí espera (el MCP).
+ */
+export type ResultadoMover = (Reparacion & { ok: true; id: string }) | { ok: false; error: string };
+
 type VaultState = {
   vaultId: string | null;
   carpetas: TreeCarpeta[];
@@ -77,16 +97,16 @@ type VaultState = {
   loadTree: (vaultId: string) => Promise<void>;
   loadPapelera: () => Promise<void>;
   createCarpeta: (nombre: string, padreId: string | null) => Promise<void>;
-  renameCarpeta: (id: string, nombre: string) => Promise<void>;
+  renameCarpeta: (id: string, nombre: string) => Promise<ResultadoRenombrar>;
   deleteCarpeta: (id: string) => Promise<void>;
-  moveCarpeta: (id: string, destinoId: string | null) => Promise<void>;
+  moveCarpeta: (id: string, destinoId: string | null) => Promise<ResultadoMover>;
   /** `titulo` solo lo usan las Esporas (`FUN-M-03`): la nota nueva se llama como
    *  la plantilla. Sin él, el nombre por defecto de siempre. */
   createNota: (carpetaId: string | null, tipo?: NotaTipo, titulo?: string) => Promise<string>;
-  renameNota: (id: string, titulo: string) => Promise<void>;
+  renameNota: (id: string, titulo: string) => Promise<ResultadoRenombrar & { titulo: string }>;
   deleteNota: (id: string) => Promise<void>;
   duplicateNota: (id: string) => Promise<void>;
-  moveNota: (id: string, destinoId: string | null) => Promise<void>;
+  moveNota: (id: string, destinoId: string | null) => Promise<ResultadoMover>;
   restoreNota: (id: string) => Promise<void>;
   deleteNotaForever: (id: string) => Promise<void>;
   /**
@@ -120,45 +140,55 @@ let treeSeq = 0;
 
 
 /**
- * Reescribe los `[[enlaces]]` de las notas que apuntaban a `viejo` (`FUN-M-08`).
- *
- * Va por `api()`, así que sirve igual en las dos versiones: en desktop es el
- * dispatcher local y en web el backend .NET.
- *
- * **Solo toca las notas que ya enlazaban** —las que devolvió `conexiones`—, no
- * el vault entero: renombrar tiene que costar lo que cuesta el renombrado, no
- * una pasada por todos los archivos.
- *
- * Si una nota falla se sigue con las demás: es preferible reparar nueve de diez
- * enlaces que abortar y dejar los diez rotos.
+ * Una nota reescrita puede estar abierta en un editor, que tiene que recargarla
+ * o la pisaría con los enlaces viejos en su próximo guardado. Hasta `FUN-M-38`
+ * lo avisaba el watcher; ahora ignora lo que escribe la propia app, así que
+ * avisa quien escribe —ya con las pestañas remapeadas, para que nadie pida el
+ * contenido por el id viejo—.
  */
-async function reescribirEnlacesEntrantes(
-  entrantes: { id: string }[],
-  viejo: string,
-  nuevo: string,
-  token: string | null | undefined,
-): Promise<number> {
-  let reescritas = 0;
-  for (const { id } of entrantes) {
-    try {
-      const actual = await api<{ contenido: string | null }>(
-        `/notas/${encodeURIComponent(id)}/contenido`,
-        { token },
-      );
-      const texto = actual.contenido ?? "";
-      const { texto: nuevoTexto, cambios } = reescribirEnlaces(texto, viejo, nuevo);
-      if (cambios === 0) continue;
-      await api(`/notas/${encodeURIComponent(id)}/contenido`, {
-        method: "PUT",
-        token,
-        body: { contenido: nuevoTexto },
-      });
-      reescritas++;
-    } catch {
-      // Una nota ilegible o un fallo de red no debe frenar al resto.
-    }
-  }
-  return reescritas;
+function avisarReescritas(r: Reparacion): void {
+  if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+}
+
+/**
+ * Mueve una nota o una carpeta y repara los enlaces entrantes que el
+ * movimiento rompe: los que llevan pista de carpeta (`[[Carpeta/Nota]]`); los
+ * de título siguen resolviendo (`FUN-L-09`, Parte 3). Los retroenlaces se leen
+ * ANTES: después ya no resuelven. Lo comparten mover y deshacer el último
+ * movimiento (Ctrl+Z). Lanza si el repo rechaza el movimiento.
+ */
+async function moverConReparacion(
+  tipo: "nota" | "carpeta",
+  id: string,
+  destinoId: string | null,
+  notas: readonly TreeNota[],
+  vaultId: string,
+): Promise<Reparacion & { id: string }> {
+  const afectadas = tipo === "nota" ? [id] : notas.filter((n) => n.id.startsWith(`${id}/`)).map((n) => n.id);
+  const entrantes = await entrantesDe(afectadas, vaultId, token());
+  const ruta = tipo === "nota" ? `/notas/${encodeURIComponent(id)}/mover` : `/carpetas/${encodeURIComponent(id)}/mover`;
+  const res = await api<{ id: string }>(ruta, { method: "POST", token: token(), body: { destinoId } });
+  if (res.id === id) return { id, ...SIN_REPARACION };
+  if (tipo === "nota") useTabsStore.getState().remapNota(id, res.id);
+  else useTabsStore.getState().remapCarpeta(id, res.id);
+  const movidos: Movido[] =
+    tipo === "nota"
+      ? [
+          {
+            id,
+            idNuevo: res.id,
+            cambio: {
+              tituloViejo: tituloDeRuta(id),
+              tituloNuevo: tituloDeRuta(id),
+              carpetaVieja: carpetaDeRuta(id),
+              carpetaNueva: carpetaDeRuta(res.id),
+              extension: extensionDeRuta(id),
+            },
+          },
+        ]
+      : movidosPorCarpeta(notas, id, res.id);
+  const reparacion = await repararEntrantes(entrantes, movidos, token());
+  return { id: res.id, ...reparacion };
 }
 
 export const useVaultStore = create<VaultState>()(
@@ -242,15 +272,31 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameCarpeta(id, nombre) {
+        // Las notas de la carpeta cambian de ruta: los enlaces con pista de
+        // carpeta (`[[Vieja/Nota]]`) dejan de resolver. Se leen sus
+        // retroenlaces ANTES (`FUN-L-09`, Parte 3).
+        const notas = get().notas;
+        const entrantes = await entrantesDe(
+          notas.filter((n) => n.id.startsWith(`${id}/`)).map((n) => n.id),
+          get().vaultId!,
+          token(),
+        );
         const res = await api<{ id: string }>(`/carpetas/${encodeURIComponent(id)}`, {
           method: "PATCH",
           token: token(),
           body: { nombre },
         });
+        let reparacion: Reparacion = SIN_REPARACION;
         // Modo carpeta: renombrar la carpeta cambia su ruta y la de todo su
         // subárbol; reapuntar las pestañas de las notas que colgaban de ella.
-        if (res.id !== id) useTabsStore.getState().remapCarpeta(id, res.id);
+        if (res.id !== id) {
+          useTabsStore.getState().remapCarpeta(id, res.id);
+          reparacion = await repararEntrantes(entrantes, movidosPorCarpeta(notas, id, res.id), token());
+        }
         await get().loadTree(get().vaultId!);
+        refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
+        avisarReescritas(reparacion);
+        return { id: res.id, ...reparacion };
       },
 
       async deleteCarpeta(id) {
@@ -260,30 +306,27 @@ export const useVaultStore = create<VaultState>()(
 
       async moveCarpeta(id, destinoId) {
         const prev = get().carpetas.find((c) => c.id === id)?.padreId ?? null;
+        const notas = get().notas;
         // Optimista: mover la carpeta en el árbol al instante (no esperar la red).
         set((s) => ({
           carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: destinoId } : c)),
           lastMove: { type: "carpeta", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
-        let res: { id: string };
+        let res: Reparacion & { id: string };
         try {
-          res = await api<{ id: string }>(`/carpetas/${encodeURIComponent(id)}/mover`, {
-            method: "POST",
-            token: token(),
-            body: { destinoId },
-          });
+          res = await moverConReparacion("carpeta", id, destinoId, notas, get().vaultId!);
         } catch (err) {
           // Revertir si el backend rechazó el movimiento.
           console.error("[vault] fallo al mover carpeta:", err);
           set((s) => ({
             carpetas: s.carpetas.map((c) => (c.id === id ? { ...c, padreId: prev } : c)),
           }));
-          return;
+          return { ok: false, error: err instanceof Error ? err.message : String(err) };
         }
-        // Modo carpeta: mover la carpeta cambia su ruta (id) y la de su subárbol.
+        // Modo carpeta: mover la carpeta cambia su ruta (id) y la de su subárbol
+        // (las pestañas ya las siguió `moverConReparacion`).
         if (res.id !== id) {
-          useTabsStore.getState().remapCarpeta(id, res.id);
           set((s) => ({
             lastMove:
               s.lastMove && s.lastMove.type === "carpeta" && s.lastMove.id === id
@@ -293,6 +336,8 @@ export const useVaultStore = create<VaultState>()(
         }
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
+        avisarReescritas(res);
+        return { ok: true, ...res };
       },
 
       async createNota(carpetaId, tipo = "markdown", titulo) {
@@ -319,19 +364,9 @@ export const useVaultStore = create<VaultState>()(
         // ya no apuntan a nada y el indice no los encuentra— y se reescriben
         // despues, cuando el titulo nuevo ya es el bueno.
         const anterior = get().notas.find((n) => n.id === id)?.titulo ?? null;
-        let entrantes: { id: string }[] = [];
+        let entrantes = new Map<string, Set<string>>();
         if (anterior !== null && anterior !== titulo) {
-          try {
-            const con = await api<{ retro: { id: string }[] }>(
-              `/notas/${encodeURIComponent(id)}/conexiones`,
-              { token: token() },
-            );
-            entrantes = con.retro;
-          } catch {
-            // Sin retroenlaces no se puede reescribir, pero el renombrado en si
-            // no depende de esto: se sigue y se avisa abajo.
-            entrantes = [];
-          }
+          entrantes = await entrantesDe([id], get().vaultId!, token());
         }
 
         const res = await api<{ id: string; titulo?: string }>(
@@ -349,21 +384,20 @@ export const useVaultStore = create<VaultState>()(
         // devuelve el nombre que ya tenia, no hubo renombrado y no hay nada que
         // reescribir. El `?? titulo` es para un backend que todavia no lo mande.
         const efectivo = res.titulo ?? titulo;
-        let reescritas = 0;
+        let reparacion: Reparacion = SIN_REPARACION;
         if (anterior !== null && anterior !== efectivo) {
-          reescritas = await reescribirEnlacesEntrantes(entrantes, anterior, efectivo, token());
+          // Por título y, desde `FUN-L-09`, también con pista de carpeta
+          // (`[[Carpeta/Vieja]]`), que antes quedaba rota.
+          const cambio = { ...cambioRenombrar(id, efectivo), tituloViejo: anterior };
+          reparacion = await repararEntrantes(entrantes, [{ id, idNuevo: res.id, cambio }], token());
         }
         // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
         // seguir a la nota con su id nuevo antes de reconciliar el árbol.
         if (res.id !== id) useTabsStore.getState().remapNota(id, res.id);
         await get().loadTree(get().vaultId!);
         markGraphStale();
-        // Una nota reescrita puede estar abierta en un editor, que tiene que
-        // recargarla o la pisaría con los enlaces viejos en su próximo guardado.
-        // Hasta `FUN-M-38` lo avisaba el watcher; ahora ignora lo que escribe la
-        // propia app, así que avisa quien escribe —ya con las pestañas
-        // remapeadas, para que nadie pida el contenido por el id viejo—.
-        if (reescritas > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+        avisarReescritas(reparacion);
+        return { id: res.id, titulo: efectivo, ...reparacion };
       },
 
       async deleteNota(id) {
@@ -380,31 +414,27 @@ export const useVaultStore = create<VaultState>()(
 
       async moveNota(id, destinoId) {
         const prev = get().notas.find((n) => n.id === id)?.carpetaId ?? null;
+        const notas = get().notas;
         // Optimista: mover la nota en el árbol al instante (no esperar la red).
         set((s) => ({
           notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: destinoId } : n)),
           lastMove: { type: "nota", id, prevParentId: prev },
           expanded: destinoId ? { ...s.expanded, [destinoId]: true } : s.expanded,
         }));
-        let res: { id: string };
+        let res: Reparacion & { id: string };
         try {
-          res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}/mover`, {
-            method: "POST",
-            token: token(),
-            body: { destinoId },
-          });
+          res = await moverConReparacion("nota", id, destinoId, notas, get().vaultId!);
         } catch (err) {
           // Revertir si el backend rechazó el movimiento.
           console.error("[vault] fallo al mover nota:", err);
           set((s) => ({
             notas: s.notas.map((n) => (n.id === id ? { ...n, carpetaId: prev } : n)),
           }));
-          return;
+          return { ok: false, error: err instanceof Error ? err.message : String(err) };
         }
-        // Modo carpeta: mover cambia el id (=ruta). Seguir la pestaña abierta y
-        // apuntar deshacer/pendientes al id nuevo.
+        // Modo carpeta: mover cambia el id (=ruta). Apuntar deshacer al id nuevo
+        // (las pestañas ya las siguió `moverConReparacion`).
         if (res.id !== id) {
-          useTabsStore.getState().remapNota(id, res.id);
           set((s) => ({
             lastMove:
               s.lastMove && s.lastMove.type === "nota" && s.lastMove.id === id
@@ -414,6 +444,8 @@ export const useVaultStore = create<VaultState>()(
         }
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
+        avisarReescritas(res);
+        return { ok: true, ...res };
       },
 
       async restoreNota(id) {
@@ -460,20 +492,12 @@ export const useVaultStore = create<VaultState>()(
         const move = get().lastMove;
         if (!move) return;
         set({ lastMove: null });
-        if (move.type === "nota") {
-          await api(`/notas/${encodeURIComponent(move.id)}/mover`, {
-            method: "POST",
-            token: token(),
-            body: { destinoId: move.prevParentId },
-          });
-        } else {
-          await api(`/carpetas/${encodeURIComponent(move.id)}/mover`, {
-            method: "POST",
-            token: token(),
-            body: { destinoId: move.prevParentId },
-          });
-        }
+        // Con la misma reparación que el movimiento: si no, los enlaces que se
+        // pasaron a la ruta nueva quedarían apuntando a donde ya no está.
+        const r = await moverConReparacion(move.type, move.id, move.prevParentId, get().notas, get().vaultId!);
         await get().loadTree(get().vaultId!);
+        refreshAllLiveViews();
+        avisarReescritas(r);
       },
 
       toggleExpanded(id) {

@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeDevCommand": "npm run preparar-mcp -- --dev && npm run dev",
+    "beforeBuildCommand": "npm run preparar-mcp && npm run build"
   },
   "app": {
     "windows": [
@@ -45,6 +45,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "externalBin": ["binaries/mycelium-mcp"],
     "fileAssociations": [
       {
         "ext": ["md"],

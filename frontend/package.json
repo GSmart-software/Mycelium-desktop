@@ -12,6 +12,7 @@
     "versionar": "node scripts/versionar.mjs",
     "publicar": "node scripts/publicar.mjs",
     "preparar-drawio": "node scripts/preparar-drawio.mjs",
+    "preparar-mcp": "node scripts/preparar-mcp.mjs",
     "wasm:ortografia": "node scripts/wasm-ortografia.mjs",
     "publicar-diccionarios": "node scripts/publicar-diccionarios.mjs"
   },

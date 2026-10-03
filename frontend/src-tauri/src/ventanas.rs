@@ -81,10 +81,17 @@ pub fn registrar_vault(
     Ok(())
 }
 
-/// Suelta el vault de esta ventana (al salir del vault).
+/// Suelta el vault de esta ventana (al salir del vault). Apaga también su
+/// escucha del MCP de control (`FUN-L-09`): sin vault no hay nada que operar,
+/// y el canal lleva el nombre del vault que se deja.
 #[tauri::command]
-pub fn soltar_vault(ventana: tauri::Window, state: tauri::State<VentanasState>) {
+pub fn soltar_vault(
+    ventana: tauri::Window,
+    state: tauri::State<VentanasState>,
+    control: tauri::State<crate::control::ControlState>,
+) {
     soltar_de(&state, ventana.label());
+    crate::control::detener_de(&control, ventana.label());
 }
 
 /// Suelta el vault de una ventana por su etiqueta. Lo usa además el cierre de
@@ -179,7 +186,8 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-/// Limpieza al cerrarse una ventana: su watcher, sus terminales y su vault.
+/// Limpieza al cerrarse una ventana: su watcher, sus terminales, su canal de
+/// control (`FUN-L-09`) y su vault.
 ///
 /// Sin esto, cerrar una ventana dejaría el vault marcado como abierto para
 /// siempre —no se podría volver a abrir en ninguna— y sus shells corriendo sin
@@ -187,6 +195,7 @@ fn urlencode(s: &str) -> String {
 pub fn al_cerrar(app: &AppHandle, label: &str) {
     crate::vault_watch::detener_de(&app.state::<crate::vault_watch::WatcherState>(), label);
     crate::terminal::cerrar_de_ventana(&app.state::<crate::terminal::TerminalesState>(), label);
+    crate::control::detener_de(&app.state::<crate::control::ControlState>(), label);
     soltar_de(&app.state::<VentanasState>(), label);
 }
 

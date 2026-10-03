@@ -152,6 +152,10 @@ const CATEGORIAS: Categoria[] = [
       { rotulo: "Importar vault de Obsidian", alias: ["traer notas", "migrar", "obsidian"] },
       { rotulo: "Asistente IA (Claude Code)", alias: ["ia", "claude", "agente", "memoria", "instrucciones"] },
       {
+        rotulo: "Dejar que la IA controle Mycelium",
+        alias: ["mcp", "control", "servidor", "abrir notas", "claude code"],
+      },
+      {
         rotulo: "Archivos ignorados (.mycignore)",
         alias: ["ignorar", "excluir", "indexar", "no indexar", "ocultar carpeta", "mycignore"],
       },

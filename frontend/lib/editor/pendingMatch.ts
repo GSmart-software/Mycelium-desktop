@@ -1,17 +1,21 @@
 /**
- * Coincidencia pendiente para posicionar el cursor al abrir una nota desde la
- * búsqueda global (HU-21 CA8). El panel de búsqueda registra el término antes
- * de navegar; el editor lo consume cuando la vista está lista (o al vuelo si la
- * nota ya estaba abierta en un pane).
+ * Salto pendiente para posicionar el cursor al abrir una nota: a la primera
+ * coincidencia de un término —desde la búsqueda global (HU-21 CA8)— o a una
+ * línea —desde el MCP de control (`FUN-L-09`), que resuelve encabezados y
+ * textos a su línea antes de pedir el salto—. Quien navega registra el salto
+ * antes de abrir; el editor lo consume cuando la vista está lista (o al vuelo,
+ * con el evento `micelio:goto-match`, si la nota ya estaba abierta en un pane).
  */
-const pending = new Map<string, string>();
+export type Salto = string | { linea: number };
 
-export function setPendingMatch(notaId: string, term: string): void {
-  if (term.trim().length > 0) pending.set(notaId, term);
+const pending = new Map<string, Salto>();
+
+export function setPendingMatch(notaId: string, salto: Salto): void {
+  if (typeof salto !== "string" || salto.trim().length > 0) pending.set(notaId, salto);
 }
 
-export function takePendingMatch(notaId: string): string | undefined {
-  const term = pending.get(notaId);
+export function takePendingMatch(notaId: string): Salto | undefined {
+  const salto = pending.get(notaId);
   pending.delete(notaId);
-  return term;
+  return salto;
 }

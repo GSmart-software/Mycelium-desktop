@@ -16,7 +16,7 @@ import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, putContenido } from "@/lib/db/contenido";
 import { DbError } from "@/lib/db/errors";
-import { conexiones, grafo } from "@/lib/db/grafo";
+import { conexiones, grafo, retroenlaces } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
@@ -67,6 +67,9 @@ async function dispatch(
     if (c === "tree" && method === "GET") return tree(b);
     if (c === "papelera" && method === "GET") return listarPapelera(b);
     if (c === "grafo" && method === "GET") return grafo(b);
+    if (c === "retroenlaces" && method === "POST") {
+      return retroenlaces(Array.isArray(body.ids) ? body.ids.map(String) : []);
+    }
     if (c === "buscar" && method === "GET") {
       // `campo` (`FUN-M-20`) es opcional: una petición vieja o sin él busca en
       // los dos, que es lo que hacía antes de existir.

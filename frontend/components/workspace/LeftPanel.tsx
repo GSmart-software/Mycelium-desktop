@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import {
+  Bot,
   CalendarDays,
   CircleDot,
   Files,
@@ -16,6 +17,7 @@ import { ExplorerPanel } from "@/components/explorer/ExplorerPanel";
 import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
+import { ActividadPanel } from "@/components/actividad/ActividadPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { SidebarDock } from "./SidebarDock";
@@ -34,6 +36,7 @@ const SECTION_TITLES: Record<RailSection, string> = {
   tags: "Tags",
   esporas: "Esporas",
   calendario: "Calendario",
+  actividad: "Actividad de la IA",
   trash: "Papelera",
   terminal: "Consolas",
 };
@@ -44,6 +47,7 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
   tags: Tag,
   esporas: CircleDot,
   calendario: CalendarDays,
+  actividad: Bot,
   trash: Trash2,
   terminal: Terminal,
 };
@@ -102,6 +106,8 @@ function SectionContent({ section }: { section: RailSection }) {
       return <EsporasPanel />;
     case "calendario":
       return <CalendarioPanel />;
+    case "actividad":
+      return <ActividadPanel />;
     case "trash":
       return <TrashPanel />;
     case "terminal":

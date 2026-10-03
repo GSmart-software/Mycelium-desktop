@@ -1,0 +1,189 @@
+/* Registro de actividad de la IA (FUN-L-09). Sigue los paneles del rail
+   (Papelera, Esporas): tarjetas con fondo apenas teñido, metadatos en
+   --mic-text-muted y botones chicos con el acento. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── El canal ─────────────────────────────────────────────────────────── */
+
+.canal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  --punto: var(--mic-text-muted);
+}
+
+.canal[data-estado="encendido"] {
+  --punto: var(--mic-accent);
+}
+
+.canal[data-estado="conectado"] {
+  --punto: var(--mic-callout-success-border);
+  border-color: color-mix(in srgb, var(--mic-callout-success-border) 35%, transparent);
+}
+
+.canal[data-estado="error"] {
+  --punto: var(--mic-callout-error-border);
+  border-color: color-mix(in srgb, var(--mic-callout-error-border) 40%, transparent);
+}
+
+.canalTitulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.punto {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--punto);
+}
+
+/* Conectado: un halo, no un parpadeo. */
+.canal[data-estado="conectado"] .punto {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--punto) 25%, transparent);
+}
+
+.canalDetalle {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+/* ── La lista ─────────────────────────────────────────────────────────── */
+
+.vacio {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+.lista {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fila {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  border-left: 2px solid transparent;
+}
+
+.fila[data-resultado="fallo"],
+.fila[data-resultado="rechazado"] {
+  border-left-color: var(--mic-callout-error-border);
+}
+
+/* Deshecha: se marca con el borde y el color del texto, nunca con opacity
+   sobre la fila (DESIGN_SYSTEM § Atenuado). */
+.fila[data-deshecha] {
+  border-left: 2px dashed var(--mic-text-muted);
+}
+
+.fila[data-deshecha] .efecto {
+  color: var(--mic-text-muted);
+  text-decoration: line-through;
+}
+
+.cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.op {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.marca {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--mic-callout-error-border);
+}
+
+.momento {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.efecto {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--mic-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.deshecho,
+.sinDeshacer {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────── */
+
+.acciones {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.boton,
+.botonSecundario {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+}
+
+.boton {
+  color: var(--mic-accent);
+  border: 1px solid color-mix(in srgb, var(--mic-accent) 50%, transparent);
+}
+
+.botonSecundario {
+  color: var(--mic-text-muted);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+}
+
+.boton:hover:not(:disabled),
+.botonSecundario:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.boton:disabled {
+  cursor: default;
+  color: var(--mic-text-muted);
+}
+
+.boton:focus-visible,
+.botonSecundario:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
