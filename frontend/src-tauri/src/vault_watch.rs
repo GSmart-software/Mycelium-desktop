@@ -32,6 +32,7 @@ use std::time::Duration;
 // `notify` no es dependencia directa: se usa el re-export de `notify-debouncer-full`
 // para garantizar que los tipos coinciden con los del debouncer. `Watcher` (trait)
 // hace falta en scope para el método `.watch()`.
+use notify_debouncer_full::notify::event::ModifyKind;
 use notify_debouncer_full::notify::{EventKind, RecursiveMode, Watcher};
 use notify_debouncer_full::{
     new_debouncer, DebounceEventResult, Debouncer, FileIdCache, FileIdMap,
@@ -54,11 +55,54 @@ type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatche
 #[derive(Default)]
 pub struct WatcherState(pub Mutex<HashMap<String, VaultDebouncer>>);
 
-// Qué cuenta como nota del vault lo decide `archivos::es_importable`, la MISMA
-// lista que usa el indexador. Antes había acá una copia con `.md` y `.excalidraw`
-// que se quedó atrás al aparecer las bases (`FUN-L-03`) y los canvas
-// (`FUN-L-18`): editarlos desde fuera no disparaba reindexado. Dos listas de
-// extensiones separadas por medio archivo se desincronizan siempre.
+// Qué pasa el filtro lo decide `es_relevante` (`DEF-127`). Antes se dejaban
+// pasar solo las notas (`archivos::es_importable`) y los borrados: una imagen,
+// un PDF o una carpeta agregados desde fuera nunca llegaban al frontend y no
+// aparecían en el explorador hasta que otra cosa disparara un reindexado. Ahora
+// pasa toda ruta que el vault mira de verdad —la que no ignora el `.mycignore`,
+// el MISMO criterio de `archivos::recorrer_vault`—, menos el ruido conocido.
+
+/// ¿Este cambio del watcher le importa al vault? Función pura (`DEF-127`).
+///
+/// - La raíz misma (`rel` vacía) no: su `Modify` acompaña a cualquier cambio de
+///   primer nivel, que ya llega por su propia ruta.
+/// - El `.mycignore` sí, siempre: cambia qué se ignora y obliga a reindexar.
+/// - Los accesos (`Access`) no: no cambian nada en disco.
+/// - Los temporales conocidos (`archivos::es_temporal`: `~$*`, `*.tmp`,
+///   `*.crdownload`, `*.part`, `.~lock.*#`) no, ni al crearse ni al borrarse:
+///   el recorrido tampoco los lista, así que no hay nada que refrescar.
+/// - El `Modify` de contenido de una CARPETA no. Windows lo emite sobre la
+///   carpeta cada vez que cambia algo dentro, y ese cambio ya llega por la ruta
+///   del archivo. Si pasara, cada guardado de la propia app traería en la ráfaga
+///   una ruta ajena (la carpeta) y el frontend ya no podría descartarla como
+///   escritura propia (`FUN-M-38`). Crear, borrar y renombrar una carpeta sí
+///   pasan.
+/// - Lo ignorado por el `.mycignore` no (y `.mycelium/` lo está siempre: ahí
+///   escribe la app su estado, y dejarlo pasar abriría un bucle).
+fn es_relevante(
+    kind: &EventKind,
+    rel: &str,
+    es_dir: bool,
+    patrones: &[crate::mycignore::Patron],
+) -> bool {
+    if rel.is_empty() {
+        return false;
+    }
+    if rel == crate::mycignore::ARCHIVO {
+        return true;
+    }
+    if matches!(kind, EventKind::Access(_)) {
+        return false;
+    }
+    let nombre = rel.rsplit('/').next().unwrap_or(rel);
+    if !es_dir && crate::archivos::es_temporal(nombre) {
+        return false;
+    }
+    if es_dir && matches!(kind, EventKind::Modify(m) if !matches!(m, ModifyKind::Name(_))) {
+        return false;
+    }
+    !crate::mycignore::ignorada(rel, es_dir, patrones)
+}
 
 /// Ruta relativa POSIX de `path` respecto a `base`, o `None` si no cuelga de la
 /// base. El filtrado de ignorados lo hace el llamador con el `.mycignore`.
@@ -113,28 +157,22 @@ pub fn iniciar_watcher(
                 Err(_errores) => return,
             };
 
-            // Rutas relativas afectadas que son notas del vault. Los borrados se
-            // dejan pasar aunque no tengan extensión de nota (pueden ser de una
-            // carpeta entera, cuya desaparición también hay que reflejar). Qué se
-            // ignora lo decide el `.mycignore` del vault (recargado por ráfaga:
-            // el usuario puede editarlo en cualquier momento); un cambio del
-            // PROPIO `.mycignore` también dispara reindex.
+            // Rutas relativas afectadas que le importan al vault: toda la que no
+            // ignora el `.mycignore`, de cualquier tipo, carpetas incluidas
+            // (`DEF-127`; ver `es_relevante`). El `.mycignore` se recarga por
+            // ráfaga: el usuario puede editarlo en cualquier momento.
             let patrones = crate::mycignore::cargar(&base_evt);
             let mut cambios: Vec<CambioVault> = Vec::new();
             for evento in &eventos {
-                let es_borrado = matches!(evento.kind, EventKind::Remove(_));
                 for path in &evento.paths {
                     let Some(rel) = relativa_posix(&base_evt, path) else {
                         continue;
                     };
-                    let es_mycignore = rel == crate::mycignore::ARCHIVO;
-                    if !es_mycignore {
-                        if !es_borrado && !crate::archivos::es_importable(path) {
-                            continue;
-                        }
-                        if crate::mycignore::ignorada(&rel, path.is_dir(), &patrones) {
-                            continue;
-                        }
+                    // Lo borrado ya no existe y `is_dir()` da `false`: una carpeta
+                    // borrada se evalúa como archivo, lo que solo afecta a los
+                    // patrones `nombre/` (que la ignorarían) y a los temporales.
+                    if !es_relevante(&evento.kind, &rel, path.is_dir(), &patrones) {
+                        continue;
                     }
                     if cambios.iter().any(|c| c.ruta == rel) {
                         continue;
@@ -208,5 +246,92 @@ pub fn detener_watcher(
 pub fn detener_de(state: &WatcherState, label: &str) {
     if let Ok(mut mapa) = state.0.lock() {
         mapa.remove(label);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify_debouncer_full::notify::event::{
+        AccessKind, CreateKind, DataChange, RemoveKind, RenameMode,
+    };
+
+    fn crear() -> EventKind {
+        EventKind::Create(CreateKind::Any)
+    }
+    fn modificar() -> EventKind {
+        EventKind::Modify(ModifyKind::Data(DataChange::Any))
+    }
+    fn renombrar() -> EventKind {
+        EventKind::Modify(ModifyKind::Name(RenameMode::Any))
+    }
+    fn borrar() -> EventKind {
+        EventKind::Remove(RemoveKind::Any)
+    }
+    /// El default de `mycignore` (sin archivo en el vault).
+    fn por_defecto() -> Vec<crate::mycignore::Patron> {
+        crate::mycignore::parsear(".*/\nnode_modules/\ntarget/\ndist/\nout/")
+    }
+
+    /// `DEF-127`: lo que no es nota también llega al frontend.
+    #[test]
+    fn deja_pasar_archivos_de_cualquier_tipo_y_carpetas() {
+        let p = por_defecto();
+        assert!(es_relevante(&crear(), "imagenes/foto.png", false, &p));
+        assert!(es_relevante(&crear(), "doc.pdf", false, &p));
+        assert!(es_relevante(&modificar(), "datos.csv", false, &p));
+        assert!(es_relevante(&crear(), "sin-extension", false, &p));
+        assert!(es_relevante(&crear(), "Carpeta nueva", true, &p));
+        assert!(es_relevante(&renombrar(), "Otra carpeta", true, &p));
+        assert!(es_relevante(&borrar(), "vieja", false, &p));
+        // Las notas, como siempre.
+        assert!(es_relevante(&modificar(), "notas/a.md", false, &p));
+    }
+
+    #[test]
+    fn descarta_lo_ignorado_por_el_mycignore_y_mycelium_siempre() {
+        let p = por_defecto();
+        assert!(!es_relevante(&crear(), ".git/objects/ab", false, &p));
+        assert!(!es_relevante(&crear(), "node_modules/x/y.js", false, &p));
+        assert!(!es_relevante(&crear(), ".obsidian", true, &p));
+        // `.mycelium/` aunque el `.mycignore` no lo nombre: ahí escribe la app.
+        let vacio = crate::mycignore::parsear("");
+        assert!(!es_relevante(&modificar(), ".mycelium/papelera.json", false, &vacio));
+        // Un patrón del usuario vale para cualquier tipo de archivo.
+        let propio = crate::mycignore::parsear("*.log");
+        assert!(!es_relevante(&crear(), "salida.log", false, &propio));
+        // El `.mycignore` mismo siempre pasa.
+        assert!(es_relevante(&modificar(), ".mycignore", false, &p));
+    }
+
+    #[test]
+    fn descarta_los_temporales_conocidos() {
+        let p = por_defecto();
+        for rel in [
+            "docs/~$informe.docx",
+            "x.tmp",
+            "BAJADA.TMP",
+            "video.mp4.crdownload",
+            "pelicula.mkv.part",
+            "carpeta/.~lock.planilla.ods#",
+        ] {
+            assert!(!es_relevante(&crear(), rel, false, &p), "{rel} es temporal");
+            assert!(!es_relevante(&borrar(), rel, false, &p), "{rel} es temporal");
+        }
+        // Parecidos que NO son temporales.
+        assert!(es_relevante(&crear(), "tmp/foto.png", false, &p));
+        assert!(es_relevante(&crear(), "partes.md", false, &p));
+        assert!(es_relevante(&crear(), "plantilla.tmpl", false, &p));
+    }
+
+    /// El `Modify` de una carpeta (Windows lo emite al cambiar su contenido) no
+    /// debe colarse en la ráfaga de un guardado propio (`FUN-M-38`).
+    #[test]
+    fn descarta_el_modify_de_contenido_de_una_carpeta_y_la_raiz() {
+        let p = por_defecto();
+        assert!(!es_relevante(&modificar(), "notas", true, &p));
+        assert!(!es_relevante(&EventKind::Modify(ModifyKind::Any), "notas/sub", true, &p));
+        assert!(!es_relevante(&crear(), "", true, &p));
+        assert!(!es_relevante(&EventKind::Access(AccessKind::Any), "a.md", false, &p));
     }
 }

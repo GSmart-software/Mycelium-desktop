@@ -91,6 +91,24 @@ pub(crate) fn es_importable(path: &Path) -> bool {
     }
 }
 
+/// ¿El nombre de archivo es un temporal conocido que nadie quiere ver en el
+/// explorador (`DEF-127`)? Bloqueos de Office (`~$informe.docx`) y de
+/// LibreOffice (`.~lock.planilla.ods#`), `*.tmp`, y las descargas a medias de
+/// los navegadores y clientes de sincronización (`*.crdownload`, `*.part`).
+///
+/// Lo usan el watcher —para que su ida y vuelta no dispare reindexados— y el
+/// recorrido del vault, para no listarlos: si el recorrido los mostrara y el
+/// watcher no avisara al borrarse, quedarían en el explorador hasta el
+/// siguiente reindexado.
+pub(crate) fn es_temporal(nombre: &str) -> bool {
+    let minus = nombre.to_ascii_lowercase();
+    nombre.starts_with("~$")
+        || (nombre.starts_with(".~lock.") && nombre.ends_with('#'))
+        || minus.ends_with(".tmp")
+        || minus.ends_with(".crdownload")
+        || minus.ends_with(".part")
+}
+
 /// Resuelve `relativa` dentro de `base` rechazando cualquier intento de salirse
 /// (`..`, rutas absolutas, prefijos de unidad en Windows). Es la defensa contra
 /// path traversal: el frontend arma las rutas a partir de títulos del usuario.
@@ -205,6 +223,10 @@ fn recorrer_todo(
         if es_dir {
             out.directorios.push(relativa);
             recorrer_todo(&ruta, base, patrones, out)?;
+            continue;
+        }
+        // Los temporales conocidos no se listan (`DEF-127`, ver `es_temporal`).
+        if es_temporal(&entrada.file_name().to_string_lossy()) {
             continue;
         }
         let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
