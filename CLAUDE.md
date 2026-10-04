@@ -43,11 +43,16 @@ cada cosa:
 | Archivo | Qué es | Podés |
 |---|---|---|
 | `.md` | **Nota**. La unidad de la memoria | Crear y editar libremente |
-| `.base` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar. Sintaxis en la skill `mycelium-vault` |
-| `.canvas` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con cuidado (es JSON) |
-| `.excalidraw` | **Dibujo** (JSON) | Leer; **no editar a mano** salvo pedido explícito |
-| `.drawio` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Leer; **no editar a mano** salvo pedido explícito |
+| `.base` | **Tabla consultable**: un YAML que agrega notas por sus propiedades y las muestra en una tabla, con filtros. Formato de Obsidian | Crear y editar con la skill `mycelium-base` (Mycelium entiende un subconjunto cerrado) |
+| `.canvas` | **Lienzo**: notas y textos en el espacio, unidos por flechas. JSON Canvas, formato de Obsidian | Crear y editar con la skill `mycelium-canvas` |
+| `.excalidraw` | **Dibujo** a mano alzada (JSON de Excalidraw) | Crear y editar con la skill `mycelium-excalidraw` |
+| `.drawio` | **Diagrama formal**: figuras y conectores que se enganchan (UML, ER, red, BPMN). XML de mxGraph, formato nativo de draw.io | Crear y editar con la skill `mycelium-drawio` |
 | Cualquier otro | PDF, imágenes, código, texto | Leerlos y editarlos como archivos normales |
+
+Los lienzos, diagramas y dibujos **se rompen fácil** escritos a ojo: cada skill
+explica la geometría y trae un validador (`node .claude/skills/<skill>/validar-<formato>.mjs`)
+que se corre antes de dar el trabajo por hecho. La de Excalidraw trae además un generador
+(`dibujo.mjs`) que calcula los extremos de las flechas y los enlaces por vos.
 
 > [!warning] Solo las notas están en la memoria
 > Mycelium **indexa `.md`, y nada más**. Los demás archivos existen, se listan y
@@ -59,9 +64,11 @@ cada cosa:
 > tiene. Si una respuesta se apoya en un `.py` o en un `.csv`, decilo así —
 > «según el archivo `x.py`»— y no con un `[[enlace]]`, que no va a resolver.
 
-Un `.base` **sí** es un destino válido de `[[enlace]]` y aparece en el grafo,
-pero su contenido no se escanea: un `[[…]]` dentro de su YAML no crea una
-asociación.
+Dos excepciones: un `.base` y un `.canvas` **sí** son destinos válidos de
+`[[enlace]]` y nodos del grafo. El `.canvas` además **aporta aristas**: hacia
+cada `[[enlace]]` de sus tarjetas de texto y hacia cada nota de una tarjeta de
+nota (las flechas del lienzo, no). El contenido de un `.base` no se escanea: un
+`[[…]]` dentro de su YAML no crea una asociación.
 
 ## Protocolo de RECUPERACIÓN (buscar en la memoria)
 
@@ -101,29 +108,41 @@ Al escribir:
 
 ## Tus herramientas aquí
 
-Tenés una **skill de referencia**, una **skill de memoria** y **comandos**. Cuándo
-usar cada uno:
+Tenés una **skill de referencia**, una **skill de memoria**, **una skill por
+herramienta** del vault y **comandos**. Cuándo usar cada uno:
 
 | Herramienta | Cuándo |
 |---|---|
-| skill `mycelium-vault` | Referencia de **sintaxis** y de cómo explorar el vault: enlaces, alias, embeds, tags, callouts, Mermaid, KaTeX, `.mycignore`, y el formato de los `.base` y los `.canvas`. Consultala antes de escribir en este vault. |
+| skill `mycelium-vault` | Referencia de **sintaxis** de las notas y de cómo explorar el vault: enlaces, alias, embeds, tags, propiedades, callouts, Mermaid, KaTeX, `.mycignore`. Consultala antes de escribir en este vault. |
 | skill `mycelium-memoria` | **Técnicas** de recuperación y consolidación: estrategias de búsqueda, expansión por backlinks, cuándo crear vs ampliar, cómo redactar para recuperación futura. Consultala en tareas de buscar/registrar conocimiento. |
+| skill `mycelium-drawio` | Crear o modificar un **diagrama formal** `.drawio` (flujo, organigrama, ER, arquitectura, red, UML): XML, coordenadas, flechas enganchadas. Trae validador. |
+| skill `mycelium-canvas` | Crear o modificar un **lienzo** `.canvas` (mapa de ideas, tablero, línea de tiempo, mapa de notas): tarjetas, grupos, lados de las flechas. Trae validador. |
+| skill `mycelium-excalidraw` | Crear o modificar un **dibujo** `.excalidraw` (boceto, pizarra, flujo informal): flechas enlazadas, texto en su caja. Trae validador. |
+| skill `mycelium-base` | Crear, corregir o leer una **tabla** `.base` («una lista de las notas que…»): el subconjunto exacto de filtros, columnas y orden que Mycelium entiende. |
+| skill `mycelium-esporas` | Crear una nota **a partir de una Espora** (plantilla) expandiendo vos sus variables, o crear/corregir una Espora. |
+| skill `mycelium-calendario` | Responder «¿qué tengo hoy / esta semana…?» con los **recordatorios** del calendario, con las repeticiones bien expandidas, y agendar, cambiar, completar o borrar recordatorios **por las herramientas `mycelium_recordatorio_*`** (sin ellas, el calendario no se modifica). |
 | `/vault-buscar <pregunta>` | Responder una pregunta **con evidencia del vault** (recuperación completa + citas). Preferilo a buscar a mano. |
 | `/vault-recordar <qué recordar>` | Consolidar un hecho/decisión/aprendizaje en la memoria (crea o amplía la nota y la enlaza). |
 | `/vault-nota <título>` | Crear una nota nueva respetando las convenciones (ubicación, enlaces, no dejarla huérfana). |
 | `/vault-vincular <nota>` | Reforzar las asociaciones de una nota existente (agrega `[[enlaces]]` a lo relacionado). |
 | `/vault-mapa` | Generar/actualizar el índice general (MOC) del vault. Útil tras incorporar mucho material. |
 | `/vault-huerfanas` | Auditar la salud de la memoria: notas desconectadas y enlaces rotos. |
+| herramientas `mycelium_*` | **Operar la app** (si el control está encendido): mostrarle algo al usuario, saber qué tiene abierto, **leer y modificar el calendario**, **renombrar, mover o mandar a la papelera** notas y carpetas sin romper enlaces, y **agregar o quitar palabras del diccionario del vault** del corrector. Ver «Operar Mycelium». |
 
 ## Reglas duras
 
 1. **Títulos únicos**: los `[[enlaces]]` resuelven por título, no por ruta.
-2. **Si renombrás VOS, los enlaces los arreglás vos.** Mycelium repara los
-   `[[enlaces]]` entrantes al renombrar, pero solo cuando el renombrado pasa por
-   la app (explorador o el título de la nota). Un `mv` desde la terminal —que es
-   como renombrás— **no dispara nada**: buscá `[[nombre viejo` (incluidos alias
-   `[[viejo|…]]` y embeds `![[viejo]]`) y actualizá cada referencia. Y ojo con
-   el nombre: si lleva `? : * | " < >  /` el archivo no puede llamarse así.
+2. **Para renombrar o mover, usá la herramienta**: `mycelium_renombrar` y
+   `mycelium_mover` reparan los `[[enlaces]]` entrantes con el mismo código que
+   usa la app cuando el usuario renombra desde el explorador o el título. Para
+   borrar, `mycelium_borrar`: va a la **papelera de Mycelium**, de donde se
+   restaura. `mv` y `rm` solo si el MCP no está (no tenés las herramientas, o
+   contestan `APP_CERRADA` o `MCP_DESACTIVADO`), y entonces **los enlaces los
+   arreglás vos**: un `mv` no dispara nada, así que buscá `[[nombre viejo`
+   (incluidos alias `[[viejo|…]]`, embeds `![[viejo]]` y los que llevan carpeta
+   `[[Carpeta/viejo]]`) y actualizá cada referencia; un `rm` no pasa por la
+   papelera. Y ojo con el nombre: si lleva `? : * | " < >  /` el archivo no
+   puede llamarse así.
 3. **Nada huérfano**: toda nota nueva entra a la red con al menos un enlace en cada
    dirección.
 4. **No dupliques**: buscá antes de crear; ampliá antes de fragmentar.
@@ -140,10 +159,17 @@ usar cada uno:
    propiedades: evitalo. Usá propiedades con moderación y con claves consistentes
    (reusá las que ya existen en el vault en vez de inventar sinónimos).
 7. **Idioma**: el dominante del vault.
-8. **No toques** `.mycelium/` (índice interno + papelera). No edites `.claude/`:
-   lo regenera Mycelium. Si el usuario regenera y ya hay un archivo suyo, Mycelium
-   **no lo pisa**: crea `nombre (mycelium-ia vX).md` al lado y un reporte
-   `Conflictos instrucciones IA.md` en la raíz.
+8. **No toques** `.mycelium/` (índice interno, papelera, calendario, preferencias):
+   **escribir** ahí, nunca. La única excepción es de **lectura**: podés leer
+   `.mycelium/recordatorios.json` (el calendario, skill `mycelium-calendario`) y
+   `.mycelium/preferencias.json` (p. ej. cuál es la carpeta de Esporas). El
+   calendario se **modifica solo** con las herramientas `mycelium_recordatorio_*`:
+   si no las tenés, decíselo al usuario y no toques el archivo. Lo mismo el
+   **diccionario del vault** del corrector (`.mycelium/diccionario.txt`): solo con
+   `mycelium_diccionario`, nunca a mano. No edites
+   `.claude/`: lo regenera Mycelium. Si el usuario regenera y ya hay un archivo
+   suyo, Mycelium **no lo pisa**: crea `nombre (mycelium-ia vX).md` al lado y un
+   reporte `Conflictos instrucciones IA.md` en la raíz.
 9. **Visibilidad**: lo ignorado por `.mycignore` existe en disco pero **no aparece
    en la app ni en el grafo**. Por defecto se ignoran los directorios que empiezan
    con `.` y las carpetas de dependencias/build (`node_modules/`, `target/`,
@@ -152,19 +178,92 @@ usar cada uno:
     configurado): sus notas **no son conocimiento, son moldes** para crear otras
     notas. Trátalas aparte: no consolides recuerdos ahí, no las cites como fuente,
     y no las reportes como huérfanas (una plantilla sin enlaces es normal). Si vas
-    a crear una nota de un tipo que ya tiene Espora, **partí de ella**. Detalle y
-    variables en la skill `mycelium-vault`.
+    a crear una nota de un tipo que ya tiene Espora, **partí de ella** —y expandí
+    vos sus variables: copiarla deja `{{fecha}}` escrito—. Cómo, en la skill
+    `mycelium-esporas`.
+
+## Operar Mycelium (herramientas `mycelium_*`)
+
+Si tenés las herramientas `mycelium_*` (el servidor MCP «mycelium», registrado en
+`.mcp.json` cuando el usuario enciende «Dejar que la IA controle Mycelium» en
+Configuración → Vault), podés **operar la app**, no solo sus archivos. La línea
+divisoria es una sola:
+
+> [!important] El contenido va por los archivos; operar la app va por Mycelium
+> **Leer y escribir** notas, lienzos, tablas o dibujos se hace como siempre, en los
+> archivos. **Mostrarle algo al usuario, saber qué tiene abierto, el calendario,
+> el diccionario del vault, y renombrar, mover o borrar** pasan por las
+> herramientas: no adivines qué está mirando, no le pidas que abra algo a mano,
+> **no escribas `.mycelium/recordatorios.json` ni `.mycelium/diccionario.txt`** y
+> **no uses `mv` ni `rm`** con notas o carpetas.
+
+| Querés… | Herramienta |
+|---|---|
+| Saber qué tiene abierto el usuario: pestañas por panel, la visible, las que tienen **cambios sin guardar** | `mycelium_estado` |
+| Mostrarle una nota o archivo, el grafo o el calendario —y llevarlo a un encabezado, una línea o un texto— | `mycelium_abrir` |
+| Leer el calendario entre dos fechas (las repeticiones ya expandidas, con id y si está completada) | `mycelium_recordatorios` |
+| Agendar un recordatorio (título, fecha, hora, repetición, color por nombre, detalle) | `mycelium_recordatorio_crear` |
+| Cambiar uno existente | `mycelium_recordatorio_editar` |
+| Marcar o desmarcar como hecha una ocurrencia | `mycelium_recordatorio_completar` |
+| Borrar uno (la serie entera, si se repite) | `mycelium_recordatorio_borrar` |
+| Renombrar una nota o carpeta **reparando los enlaces** que llegaban a ella | `mycelium_renombrar` |
+| Moverla a otra carpeta (que exista), con la misma reparación | `mycelium_mover` |
+| Mandarla a la **papelera de Mycelium** (nunca se borra para siempre) | `mycelium_borrar` |
+| Ver la papelera, o **restaurar** algo en su lugar | `mycelium_papelera` |
+| Ver, agregar o quitar palabras del **diccionario del vault** del corrector ortográfico | `mycelium_diccionario` |
+
+- **Antes de escribir un archivo que el usuario podría estar editando**, mirá
+  `mycelium_estado`: si su pestaña figura **sin guardar**, avisale antes, porque lo
+  que guarde después pisa lo tuyo.
+- `mycelium_abrir` **no le roba el foco** salvo que pidas `foco: true`: pedilo solo
+  cuando tengas algo que mostrarle ahora («mirá esta nota»), no cada vez que abrís algo.
+- Los errores dicen qué hacer: `NO_ENCONTRADO` trae las notas más parecidas,
+  `AMBIGUO` las rutas para repetir la llamada, `APP_CERRADA` que Mycelium no está
+  abierto con este vault y `MCP_DESACTIVADO` dónde se enciende. Contáselo al usuario
+  en vez de reintentar a ciegas.
+- **Lo reversible no pregunta**: lo que hacés en el calendario, renombrar o mover
+  algo con pocos enlaces y mandar una nota a la papelera quedan en el **registro de
+  actividad** de Mycelium (su ícono en el rail), con **Deshacer**. Decile al usuario
+  qué hiciste con el texto que te devuelve la herramienta —dice el efecto: qué notas
+  se reescribieron, con qué id se restaura— y no repitas la llamada para «confirmar».
+- **Lo de alcance grande le pregunta al usuario**: renombrar o mover reescribiendo
+  enlaces en **más de 5 notas**, y borrar una **carpeta**. La llamada espera su
+  respuesta (hasta 2 minutos). Si contesta que no —o no contesta—, recibís
+  `RECHAZADO`: **es una respuesta, no un error**. No lo pidas de nuevo con otras
+  palabras ni en partes más chicas para que no pregunte, y no lo hagas por otro
+  camino (`mv`, `rm`): contáselo y seguí.
+- **El diccionario del vault** es para los **términos propios de este vault** que
+  el corrector subraya: nombres de proyectos y personas, siglas, jerga del área. Si
+  el usuario te pide «agregá al diccionario los términos de esta nota», elegí esos,
+  no cualquier palabra marcada: una errata no se agrega, se corrige. Cada entrada es
+  **una palabra** como la ve el corrector (sin espacios ni guiones ni dígitos); la
+  respuesta dice cuáles se rechazaron y por qué. En minúscula vale también
+  Capitalizada y EN MAYÚSCULAS; con mayúscula («Mycelium»), solo así. Se deshace
+  desde el registro de actividad. El diccionario **de Mycelium** (el de todos los
+  vaults) no es tuyo: ese lo maneja el usuario.
+- `CAMBIOS_SIN_GUARDAR`: la nota (o una de las que habría que reescribir) tiene un
+  borrador en su pestaña. Mycelium guarda solo en unos segundos: esperá y repetí.
+- **Si no tenés las herramientas**, nada de esto cambia tu trabajo con los archivos:
+  solo no podés mostrar, saber qué está abierto ni modificar el calendario (leerlo
+  sí, con la skill `mycelium-calendario`) ni el diccionario del vault (el usuario
+  agrega la palabra con el clic derecho), y si renombrás o movés con `mv`, los
+  enlaces los arreglás vos (regla dura 2). Un hook te recuerda las herramientas
+  cuando corrés `mv` o `rm` sobre notas con el control encendido: si el MCP no
+  responde, repetí el comando con `MYCELIUM_SIN_MCP=1` delante y él te deja pasar.
 
 ## Qué es Mycelium por fuera (conocer, no controlar)
 
-No controlás la aplicación: trabajás sobre sus archivos. Pero es útil saber qué ve
-el usuario, porque es el efecto de lo que escribís: editor Markdown con vista en
-vivo y de lectura; callouts (`note`, `tip`, `important`, `warning`, `caution`,
+Fuera de las herramientas `mycelium_*` no controlás la aplicación: trabajás sobre
+sus archivos. Pero es útil saber qué ve el usuario, porque es el efecto de lo que
+escribís: editor Markdown con vista en vivo y de lectura; callouts (`note`, `tip`, `important`, `warning`, `caution`,
 `info`, `success`, `error`, `danger`, `question`; plegables con `[!tipo]-`),
 incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
 como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
 panel del rail, en la barra del editor y en el clic derecho de una carpeta;
 **tablas** `.base` con sus filtros, orden y buscador; **lienzos** `.canvas`;
+**diagramas** `.drawio` con el editor de draw.io y **dibujos** `.excalidraw`, en
+su pestaña o embebidos en una nota; un **calendario** con recordatorios (fecha,
+hora, repetición y avisos) en su panel del rail;
 **grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
 búsqueda global —por nombre, por contenido o los dos, con `clave:valor` y
 `tag:x`, y con los resultados agrupables por carpeta—; un **visor** para los
@@ -175,7 +274,13 @@ exportación a Markdown/PDF/carpeta; papelera propia; Mermaid (```mermaid) y KaT
 (`$…$`).
 
 El usuario puede además **renombrar una nota escribiendo en su título**, arriba
-del documento. Mycelium detecta tus cambios en disco y refresca la UI solo.
+del documento. Mycelium detecta tus cambios en disco y refresca la UI solo:
+notas, tablas, lienzos, diagramas y dibujos abiertos se recargan con lo que
+escribiste. **Salvo** que el usuario tenga ahí cambios sin guardar (o una tarjeta
+de lienzo en edición): entonces no recarga, y lo que guarde después pisa lo tuyo.
+Y el **editor modal** de un dibujo embebido en una nota no recarga nunca: si está
+abierto, al cerrarlo pisa lo que escribiste. Si sabés que el usuario está
+editando ese archivo, avisale antes de escribir.
 
 
 # Mycelium — guía del proyecto y flujo de trabajo (orquestador + subagentes)
@@ -446,12 +551,14 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > default de `.mycignore` corregido en los templates · `1.3.0` propiedades del frontmatter
 > (`FUN-M-04`) · `1.4.0` Esporas (`FUN-M-03`) · `1.5.0` los tipos de archivo del vault
 > —`.base`, `.canvas`, y los que se guardan pero NO se indexan— más la corrección de que
-> renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv`.
+> renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv` · `1.6.0` `.drawio`
+> (`FUN-L-20`) · `1.7.0` una skill por herramienta y el MCP de control (`FUN-L-26`,
+> `FUN-L-09`).
 >
-> **Este vault tiene la `1.6.0`** desde el 2026-09-30. Al regenerarla, Mycelium pisó este
-> `CLAUDE.md` entero porque conservaba la marca `<!-- mycelium-ia` (`DEF-118`): la sección
-> del proyecto se recuperó de git y la marca se quitó a propósito, para que una próxima
-> regeneración lo trate como archivo del usuario y escriba la versión nueva al lado.
+> **Este vault tiene la `1.7.0`** desde el 2026-10-03. Como este `CLAUDE.md` no lleva la marca
+> `<!-- mycelium-ia` (se quitó a propósito tras `DEF-118`), Mycelium no lo pisa: escribe la
+> versión nueva al lado como `CLAUDE (mycelium-ia vX).md`, y la sección de memoria se trae
+> de ahí a mano, sin tocar la sección del proyecto.
 
 Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
 rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
