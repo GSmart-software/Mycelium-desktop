@@ -1948,6 +1948,19 @@
   color: var(--mic-text-primary);
 }
 
+/* Lo mismo dentro de las tablas renderizadas de la vista en vivo (DEF-125): el
+   widget reemplaza el texto que CodeMirror marca con .cm-searchMatch, así que
+   ahí también se pinta con la Highlight API (lib/editor/buscarEnTablas.ts).
+   Nombres propios porque la lectura borra los suyos al cerrar o cambiar de modo. */
+::highlight(mic-buscar-celda) {
+  background-color: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+::highlight(mic-buscar-celda-actual) {
+  background-color: color-mix(in srgb, var(--mic-glow) 65%, transparent);
+  color: var(--mic-text-primary);
+}
+
 /* ── Corrector ortográfico (FUN-L-12) ──────────────────────────────────────
    La marca la pone `lib/editor/ortografia.ts` sobre cada palabra mal escrita,
    en el editor de notas y en el de los recordatorios (por eso no va bajo

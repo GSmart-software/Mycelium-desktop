@@ -60,6 +60,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
+import { buscarEnTablas } from "@/lib/editor/buscarEnTablas";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -629,6 +630,12 @@ export function liveExtensions(
     // arriba: acá el cursor que toca el bloque lo abre en crudo, así que nunca
     // queda escribiendo a ciegas dentro de una fórmula dibujada.
     formulasField,
+    // El buscador de la nota dentro de las tablas renderizadas (`DEF-125`): el
+    // widget reemplaza el texto que CodeMirror sabe resaltar.
+    buscarEnTablas({
+      rangos: (state) => state.field(tableField, false)?.ranges ?? [],
+      rangoDe: rangoDeTabla,
+    }),
     navegarPorTitulo.of(onWikilinkClick),
     livePreview(onWikilinkClick, noteExists),
   ];
