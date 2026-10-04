@@ -49,7 +49,7 @@ pub struct ArchivoMeta {
 }
 
 /// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
-fn tipo_de(path: &Path) -> String {
+pub(crate) fn tipo_de(path: &Path) -> String {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
         // Bases (`FUN-L-03`) y canvas (`FUN-L-18`): las extensiones son las de
@@ -100,6 +100,13 @@ pub(crate) fn es_importable(path: &Path) -> bool {
 /// recorrido del vault, para no listarlos: si el recorrido los mostrara y el
 /// watcher no avisara al borrarse, quedarían en el explorador hasta el
 /// siguiente reindexado.
+///
+/// También el temporal de la escritura atómica de la PROPIA app
+/// (`vault_fs::escribir_atomico`: `nota.md.tmp-<pid>`, `FUN-M-42`). No termina
+/// en `.tmp`, así que pasaba el filtro: cada guardado traía en su ráfaga una
+/// ruta ajena —el temporal, ya renombrado, con `mtime` 0— y el frontend no
+/// podía descartarla como escritura propia (`FUN-M-38`). Y con el debounce
+/// corto del árbol en vivo, el temporal llegaba a asomar en el explorador.
 pub(crate) fn es_temporal(nombre: &str) -> bool {
     let minus = nombre.to_ascii_lowercase();
     nombre.starts_with("~$")
@@ -107,6 +114,18 @@ pub(crate) fn es_temporal(nombre: &str) -> bool {
         || minus.ends_with(".tmp")
         || minus.ends_with(".crdownload")
         || minus.ends_with(".part")
+        || es_temporal_propio(&minus)
+}
+
+/// `*.tmp-<dígitos>`: el temporal de `vault_fs::escribir_atomico`.
+fn es_temporal_propio(minus: &str) -> bool {
+    match minus.rfind(".tmp-") {
+        Some(i) => {
+            let pid = &minus[i + 5..];
+            !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit())
+        }
+        None => false,
+    }
 }
 
 /// Resuelve `relativa` dentro de `base` rechazando cualquier intento de salirse
@@ -203,7 +222,7 @@ pub struct RecorridoVault {
 /// UNA vez por entrada. Contrapartida asumida: `file_type()` no sigue enlaces
 /// simbólicos, así que un symlink a una carpeta no se recorre. Es lo deseable:
 /// evita ciclos y duplicados en el índice.
-fn recorrer_todo(
+pub(crate) fn recorrer_todo(
     dir: &Path,
     base: &Path,
     patrones: &[crate::mycignore::Patron],
@@ -315,7 +334,7 @@ pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> 
 }
 
 /// Extensión en minúsculas, sin el punto. Cadena vacía si no tiene.
-fn extension_de(path: &Path) -> String {
+pub(crate) fn extension_de(path: &Path) -> String {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())

@@ -19,12 +19,19 @@
 //! que él mismo escribió (`escribir_nota` devuelve ese `mtime`) y, si la ráfaga
 //! solo trae escrituras propias con el `mtime` que esperaba, no hace nada.
 //!
+//! Primero el árbol, después el índice (`FUN-M-42`): el evento dice además QUÉ
+//! hay en cada ruta ahora —nota, otro archivo, carpeta o nada—, y de una carpeta
+//! que aparece manda también su contenido. Con eso el frontend actualiza el
+//! explorador apenas llega el evento, sin esperar al indexado, que va después y
+//! solo sobre esas rutas. Por eso el debounce de acá es corto (`DEBOUNCE_MS`):
+//! el largo, el que agrupa ráfagas para el índice, lo pone el frontend.
+//!
 //! Carpetas en la nube (Dropbox/OneDrive/Drive): pueden generar ráfagas de
-//! eventos y reindexados espurios. El debounce (~400 ms aquí, más ~300 ms en el
-//! frontend) lo mitiga. No se ofrece todavía un interruptor para desactivar el
+//! eventos y reindexados espurios. El debounce del indexado (~300 ms en el
+//! frontend, con tope de 1 s) lo mitiga. No se ofrece todavía un interruptor para desactivar el
 //! watcher (queda para fase 6/7); ver `docs/features/vault-en-carpeta.md`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -38,6 +45,15 @@ use notify_debouncer_full::{
     new_debouncer, DebounceEventResult, Debouncer, FileIdCache, FileIdMap,
 };
 use tauri::Emitter;
+
+/// Debounce del watcher nativo (`FUN-M-42`). Era de 400 ms y lo pagaba el
+/// explorador entero: a eso se sumaban los 300 ms del frontend y el indexado
+/// completo antes de que un archivo nuevo apareciera. Ahora el árbol se
+/// actualiza con el evento mismo, así que acá solo hace falta juntar lo que el
+/// SO entrega de a pedazos (el par de un renombrado, la creación y la primera
+/// escritura de un archivo). El que agrupa ráfagas para el índice es el del
+/// frontend (`lib/vaultWatch.ts`).
+const DEBOUNCE_MS: u64 = 60;
 
 /// Debouncer activo (uno por vault). El tipo concreto que devuelve
 /// `new_debouncer`: watcher recomendado del SO + caché de ids de archivo.
@@ -119,10 +135,84 @@ fn relativa_posix(base: &Path, path: &Path) -> Option<String> {
 /// Una ruta afectada por una ráfaga del watcher, con el `mtime` que tiene en
 /// disco al emitir el evento (0 si ya no existe o el SO no lo expone). Con él
 /// el frontend distingue un guardado propio de un cambio externo (`FUN-M-38`).
-#[derive(serde::Serialize, Clone)]
+///
+/// `estado` y `tipo` (`FUN-M-42`) dicen qué hay AHORA en la ruta, que es todo lo
+/// que el explorador necesita para actualizarse sin esperar al índice:
+///
+/// - `"nota"`: un archivo que se indexa; `tipo` es el de la nota (`markdown`,
+///   `excalidraw`, `base`, `canvas`, `drawio`), el mismo de `recorrer_vault`.
+/// - `"otro"`: cualquier otro archivo; `tipo` es su extensión en minúsculas.
+/// - `"carpeta"`: un directorio; `tipo` vacío.
+/// - `"ausente"`: ya no hay nada (borrado, o el origen de un renombrado). No se
+///   sabe si era carpeta: el frontend quita la ruta y todo lo que cuelgue de ella.
+///
+/// No hay un «renombrado»: el origen llega `ausente` y el destino con lo que es.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
 pub struct CambioVault {
     pub ruta: String,
     pub mtime: i64,
+    pub estado: &'static str,
+    pub tipo: String,
+}
+
+/// Agrega a `out` lo que hay en `path` (ruta relativa `rel`) y, si es una
+/// carpeta, todo lo que contiene y el vault no ignora (`FUN-M-42`).
+///
+/// La expansión hace falta porque el SO no avisa del contenido de una carpeta
+/// que entra **renombrada o movida** —desde otra carpeta del vault, o desde
+/// fuera—: solo emite el evento de la carpeta. Sin ella, el explorador mostraría
+/// la carpeta vacía hasta el próximo recorrido. Usa el MISMO recorrido que el
+/// índice (`archivos::recorrer_todo`), así que el `.mycignore` y los temporales
+/// se aplican igual. Best-effort: lo que no se pueda leer se omite.
+///
+/// `vistos` evita repetir rutas: una carpeta copiada trae además un evento por
+/// cada archivo.
+fn describir(
+    base: &Path,
+    path: &Path,
+    rel: String,
+    patrones: &[crate::mycignore::Patron],
+    vistos: &mut HashSet<String>,
+    out: &mut Vec<CambioVault>,
+) {
+    if !vistos.insert(rel.clone()) {
+        return;
+    }
+    // El `mtime` de AHORA, no el del evento: es lo que hay en disco cuando el
+    // frontend va a decidir, y lo que `escribir_nota` le devolvió si fue la app
+    // quien escribió.
+    let Ok(meta) = std::fs::metadata(path) else {
+        out.push(CambioVault { ruta: rel, mtime: 0, estado: "ausente", tipo: String::new() });
+        return;
+    };
+    let mtime = crate::archivos::mtime_ms(&meta);
+    if !meta.is_dir() {
+        let (estado, tipo) = if crate::archivos::es_importable(path) {
+            ("nota", crate::archivos::tipo_de(path))
+        } else {
+            ("otro", crate::archivos::extension_de(path))
+        };
+        out.push(CambioVault { ruta: rel, mtime, estado, tipo });
+        return;
+    }
+    out.push(CambioVault { ruta: rel, mtime, estado: "carpeta", tipo: String::new() });
+    let mut contenido = crate::archivos::RecorridoVault::default();
+    let _ = crate::archivos::recorrer_todo(path, base, patrones, &mut contenido);
+    for dir in contenido.directorios {
+        if vistos.insert(dir.clone()) {
+            out.push(CambioVault { ruta: dir, mtime: 0, estado: "carpeta", tipo: String::new() });
+        }
+    }
+    for a in contenido.archivos_meta {
+        if vistos.insert(a.ruta_relativa.clone()) {
+            out.push(CambioVault { ruta: a.ruta_relativa, mtime: a.mtime, estado: "nota", tipo: a.tipo });
+        }
+    }
+    for a in contenido.otros {
+        if vistos.insert(a.ruta_relativa.clone()) {
+            out.push(CambioVault { ruta: a.ruta_relativa, mtime: a.mtime, estado: "otro", tipo: a.tipo });
+        }
+    }
 }
 
 /// Arranca (o reemplaza) el watcher sobre `vault_ruta`. Observa recursivamente y,
@@ -147,7 +237,7 @@ pub fn iniciar_watcher(
     let destino = ventana.clone();
     let base_evt = base.clone();
     let mut debouncer = new_debouncer(
-        Duration::from_millis(400),
+        Duration::from_millis(DEBOUNCE_MS),
         None,
         move |resultado: DebounceEventResult| {
             let eventos = match resultado {
@@ -163,6 +253,7 @@ pub fn iniciar_watcher(
             // ráfaga: el usuario puede editarlo en cualquier momento.
             let patrones = crate::mycignore::cargar(&base_evt);
             let mut cambios: Vec<CambioVault> = Vec::new();
+            let mut vistos: HashSet<String> = HashSet::new();
             for evento in &eventos {
                 for path in &evento.paths {
                     let Some(rel) = relativa_posix(&base_evt, path) else {
@@ -174,16 +265,7 @@ pub fn iniciar_watcher(
                     if !es_relevante(&evento.kind, &rel, path.is_dir(), &patrones) {
                         continue;
                     }
-                    if cambios.iter().any(|c| c.ruta == rel) {
-                        continue;
-                    }
-                    // El `mtime` de AHORA, no el del evento: es lo que hay en
-                    // disco cuando el frontend va a decidir, y lo que
-                    // `escribir_nota` le devolvió si fue la app quien escribió.
-                    let mtime = std::fs::metadata(path)
-                        .map(|m| crate::archivos::mtime_ms(&m))
-                        .unwrap_or(0);
-                    cambios.push(CambioVault { ruta: rel, mtime });
+                    describir(&base_evt, path, rel, &patrones, &mut vistos, &mut cambios);
                 }
             }
 
@@ -333,5 +415,112 @@ mod tests {
         assert!(!es_relevante(&EventKind::Modify(ModifyKind::Any), "notas/sub", true, &p));
         assert!(!es_relevante(&crear(), "", true, &p));
         assert!(!es_relevante(&EventKind::Access(AccessKind::Any), "a.md", false, &p));
+    }
+
+    /// El temporal de la escritura atómica de la propia app (`nota.md.tmp-<pid>`)
+    /// no debe llegar: arruinaba el descarte de los guardados propios (`FUN-M-42`).
+    #[test]
+    fn descarta_el_temporal_de_la_escritura_atomica_propia() {
+        let p = por_defecto();
+        assert!(!es_relevante(&crear(), "notas/plan.md.tmp-12345", false, &p));
+        assert!(!es_relevante(&borrar(), "dibujo.excalidraw.tmp-9", false, &p));
+        // Parecidos que NO lo son.
+        assert!(es_relevante(&crear(), "informe.tmp-final.md", false, &p));
+        assert!(es_relevante(&crear(), "x.tmp-", false, &p));
+    }
+
+    fn vault_temporal(nombre: &str) -> PathBuf {
+        let base = std::env::temp_dir().join(format!("mycelium-watch-{nombre}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        base
+    }
+
+    fn describir_rutas(base: &Path, rels: &[&str]) -> Vec<CambioVault> {
+        let p = por_defecto();
+        let mut vistos = HashSet::new();
+        let mut out = Vec::new();
+        for rel in rels {
+            describir(base, &base.join(rel), rel.to_string(), &p, &mut vistos, &mut out);
+        }
+        out
+    }
+
+    /// `FUN-M-42`: el evento dice qué hay en cada ruta, y una carpeta que aparece
+    /// trae su contenido (el SO no avisa del contenido de una carpeta movida).
+    #[test]
+    fn describe_cada_ruta_y_expande_las_carpetas_que_aparecen() {
+        let base = vault_temporal("describir");
+        std::fs::create_dir_all(base.join("Movida/sub")).unwrap();
+        std::fs::create_dir_all(base.join("Movida/.git")).unwrap();
+        std::fs::write(base.join("Movida/uno.md"), "#").unwrap();
+        std::fs::write(base.join("Movida/sub/foto.PNG"), [0u8]).unwrap();
+        std::fs::write(base.join("Movida/sub/red.drawio"), "<mxfile/>").unwrap();
+        std::fs::write(base.join("Movida/.git/HEAD"), "x").unwrap();
+        std::fs::write(base.join("Movida/~$abierto.docx"), "x").unwrap();
+        std::fs::write(base.join("suelta.pdf"), "x").unwrap();
+
+        // La carpeta llega una vez aunque el SO también avise de un hijo.
+        let cambios = describir_rutas(&base, &["Movida", "Movida/uno.md", "suelta.pdf", "Borrada"]);
+        let resumen: Vec<(String, &str, String)> = cambios
+            .iter()
+            .map(|c| (c.ruta.clone(), c.estado, c.tipo.clone()))
+            .collect();
+        let tiene = |ruta: &str, estado: &str, tipo: &str| {
+            resumen.iter().any(|(r, e, t)| r == ruta && *e == estado && t == tipo)
+        };
+        assert!(tiene("Movida", "carpeta", ""), "{resumen:?}");
+        assert!(tiene("Movida/sub", "carpeta", ""), "{resumen:?}");
+        assert!(tiene("Movida/uno.md", "nota", "markdown"), "{resumen:?}");
+        assert!(tiene("Movida/sub/red.drawio", "nota", "drawio"), "{resumen:?}");
+        assert!(tiene("Movida/sub/foto.PNG", "otro", "png"), "{resumen:?}");
+        assert!(tiene("suelta.pdf", "otro", "pdf"), "{resumen:?}");
+        assert!(tiene("Borrada", "ausente", ""), "{resumen:?}");
+        // Ni lo ignorado por el `.mycignore` ni los temporales, ni repetidos.
+        assert!(!resumen.iter().any(|(r, _, _)| r.contains(".git") || r.contains("~$")), "{resumen:?}");
+        assert_eq!(resumen.iter().filter(|(r, _, _)| r == "Movida/uno.md").count(), 1);
+        assert_eq!(cambios.len(), 7, "{resumen:?}");
+        // Los archivos llevan su `mtime` real (para `esEscrituraPropia`).
+        assert!(cambios.iter().find(|c| c.ruta == "Movida/uno.md").unwrap().mtime > 0);
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// Medición, no prueba: cuánto tarda el watcher, con el debounce de acá, en
+    /// avisar de un archivo creado (`FUN-M-42`). Se corre a mano:
+    ///
+    /// `cargo test --lib vault_watch::tests::medir_latencia -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn medir_latencia() {
+        use std::sync::mpsc;
+        use std::time::Instant;
+        let base = vault_temporal("latencia");
+        for debounce in [400u64, DEBOUNCE_MS] {
+            let (tx, rx) = mpsc::channel::<Instant>();
+            let mut debouncer = new_debouncer(
+                Duration::from_millis(debounce),
+                None,
+                move |r: DebounceEventResult| {
+                    if r.map(|e| !e.is_empty()).unwrap_or(false) {
+                        let _ = tx.send(Instant::now());
+                    }
+                },
+            )
+            .unwrap();
+            debouncer.watcher().watch(&base, RecursiveMode::Recursive).unwrap();
+            std::thread::sleep(Duration::from_millis(200));
+            let mut muestras = Vec::new();
+            for i in 0..10 {
+                while rx.try_recv().is_ok() {}
+                let inicio = Instant::now();
+                std::fs::write(base.join(format!("n-{debounce}-{i}.png")), [0u8]).unwrap();
+                let llegada = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+                muestras.push(llegada.duration_since(inicio).as_millis());
+                std::thread::sleep(Duration::from_millis(debounce + 100));
+            }
+            muestras.sort();
+            println!("debounce {debounce} ms → latencia mediana {} ms, máx {} ms", muestras[5], muestras[9]);
+        }
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
