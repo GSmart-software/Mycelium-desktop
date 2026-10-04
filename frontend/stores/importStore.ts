@@ -7,6 +7,9 @@ import {
   type ImportSummary,
 } from "@/lib/import";
 
+/** Desde cuántos bytes se muestra la barra aunque sean pocos archivos. */
+const BYTES_CON_PROGRESO = 8 * 1024 * 1024;
+
 type ConflictPrompt = { nombre: string; resolve: (choice: ConflictChoice) => void };
 
 /**
@@ -17,8 +20,15 @@ type ConflictPrompt = { nombre: string; resolve: (choice: ConflictChoice) => voi
 export type FuenteImportacion = { carpeta: string } | { archivos: CollectedFile[] };
 
 type ImportState = {
-  /** Progreso visible solo con más de 3 archivos (HU-07 CA7). */
-  progress: { done: number; total: number } | null;
+  /**
+   * Progreso visible solo con más de 3 archivos (HU-07 CA7) o con muchos bytes
+   * que pasar (`FUN-S-26`: un solo archivo grande también tarda).
+   */
+  progress: {
+    done: number;
+    total: number;
+    bytes?: { hechos: number; total: number };
+  } | null;
   conflict: ConflictPrompt | null;
   summary: ImportSummary | null;
   /** Etiqueta de la fuente para el resumen ("Importación", "Vault de Obsidian"). */
@@ -38,9 +48,12 @@ export const useImportStore = create<ImportState>((set, get) => ({
   async run(fuente, destFolderId, titulo = "Importación") {
     set({ summary: null, titulo, progress: null });
     const opts = {
-      onProgress: (done: number, total: number) => {
-        // Solo mostramos barra para lotes grandes (CA7)
-        set({ progress: total > 3 && done < total ? { done, total } : null });
+      onProgress: (done: number, total: number, bytes?: { hechos: number; total: number }) => {
+        // Solo mostramos barra para lotes grandes (CA7) o archivos pesados.
+        const grande = total > 3 || (bytes?.total ?? 0) >= BYTES_CON_PROGRESO;
+        set({
+          progress: grande && done < total ? { done, total, bytes: bytes && { ...bytes } } : null,
+        });
       },
       resolveConflict: (nombre: string) =>
         new Promise<ConflictChoice>((resolve) => {
