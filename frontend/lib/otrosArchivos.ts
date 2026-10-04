@@ -9,6 +9,8 @@
  * ítem (`FUN-L-11`): hace falta un visor por tipo.
  */
 
+import { EXTENSIONES_IMAGEN } from "@/lib/imagenes";
+
 /** Un archivo que se lista pero no se indexa. */
 export type OtroArchivo = {
   /** Ruta relativa POSIX dentro del vault; identifica la entrada. */
@@ -107,9 +109,11 @@ export type VisorTipo = "texto" | "imagen" | "pdf" | "desconocido";
 /**
  * Extensiones que se muestran como imagen. `svg` **no** está: es XML y el
  * webview lo trataría como documento (scripts incluidos). Se lee como texto,
- * que además es lo útil para un `.svg` guardado en un vault.
+ * que además es lo útil para un `.svg` guardado en un vault. La lista vive en
+ * `lib/imagenes.ts` porque es la misma que usan las imágenes embebidas en una
+ * nota (`DEF-126`).
  */
-const IMAGENES = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "avif"]);
+const IMAGENES = EXTENSIONES_IMAGEN;
 
 /**
  * Extensiones binarias frecuentes en un vault. No se intentan leer como texto:

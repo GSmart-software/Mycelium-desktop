@@ -4,6 +4,7 @@ import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { armarDocumentoImpresion, type PdfPrintOpts } from "@/lib/printStyles";
 import { useAuthStore } from "@/stores/authStore";
@@ -152,6 +153,9 @@ async function renderNoteHtml(notaId: string): Promise<string> {
     // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
     // saldrian como un hueco en el PDF.
     await renderDrawioIn(container);
+    // Y las imágenes (`DEF-126`), con la URL `asset:` que el iframe de
+    // impresión —mismo webview, mismo origen— puede pedir.
+    rellenarImagenesEn(container, carpetaDeNota(notaId));
     return container.innerHTML;
   } finally {
     container.remove();
@@ -236,7 +240,10 @@ export async function exportNotePdf(
   );
   doc.close();
 
-  // Dar tiempo a que rendericen SVG/imágenes antes de abrir el diálogo.
+  // Dar tiempo a que rendericen SVG/imágenes antes de abrir el diálogo. Las
+  // imágenes del vault se esperan de verdad (con tope): una foto grande tarda
+  // más de 300 ms y saldría en blanco en el PDF.
+  await esperarImagenes(doc);
   await new Promise((resolve) => setTimeout(resolve, 300));
   iframe.contentWindow?.focus();
   iframe.contentWindow?.print();

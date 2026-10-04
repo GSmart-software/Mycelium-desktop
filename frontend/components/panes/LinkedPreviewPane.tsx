@@ -6,9 +6,11 @@ import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
+import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./panes.module.css";
 
 /**
@@ -23,6 +25,12 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     return source.tabs.find((t) => t.id === source.activeTabId)?.notaId ?? null;
   });
   const [html, setHtml] = useState("");
+  // Imágenes del vault (`DEF-126`): se vuelven a resolver si cambia la lista
+  // de archivos o la carpeta de la nota.
+  const otros = useVaultStore((s) => s.otros);
+  const carpeta = useVaultStore((s) =>
+    sourceNotaId ? (s.notas.find((n) => n.id === sourceNotaId)?.carpetaId ?? null) : null,
+  );
 
   useEffect(() => {
     if (!sourceNotaId) {
@@ -63,8 +71,9 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
       void renderMermaidIn(containerRef.current);
       void renderExcalidrawIn(containerRef.current);
       void renderDrawioIn(containerRef.current);
+      rellenarImagenesEn(containerRef.current, carpeta);
     }
-  }, [html, sourceNotaId]);
+  }, [html, sourceNotaId, otros, carpeta]);
 
   // Scroll sincronizado opcional con el editor de origen (HU-27 CA4)
   useEffect(() => {

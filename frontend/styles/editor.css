@@ -959,6 +959,39 @@
   max-width: 100%;
 }
 
+/* Imágenes del vault embebidas en una nota (`DEF-126`), en lectura y en vivo.
+   El `span.mic-img` es el hueco que rellena `lib/imagenesRender.ts`: con la
+   imagen, o con el aviso discreto de que no está (nunca el ícono roto). Un
+   tamaño pedido (`|300`) llega como estilo en línea del `<img>`; sin él, la
+   imagen va a su tamaño natural, nunca más ancha que la nota. */
+.mic-img {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.mic-img img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--mic-radius-sm);
+}
+
+.mic-img.mic-img-pendiente,
+.mic-img.mic-img-falta {
+  color: var(--mic-text-muted);
+  font-size: 0.8125rem;
+  font-style: italic;
+  padding: 0.15rem 0.5rem;
+  border: 1px dashed color-mix(in srgb, var(--mic-text-muted) 40%, transparent);
+  border-radius: var(--mic-radius-sm);
+}
+
+/* En vivo, el clic sobre la imagen muestra la fuente: que se note que se puede. */
+.cm-content .mic-img {
+  cursor: pointer;
+}
+
 /* Resaltado de la vista de lectura (`DEF-091`). highlight.js solo pone clases;
    los colores salen de `--mic-syntax-*`, igual que en el modo vivo y en el
    visor de archivos (`lib/editor/paletaSintaxis.ts`), con el mismo reparto:

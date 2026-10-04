@@ -19,6 +19,7 @@ import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -182,6 +183,10 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
 function ReadOnlyNote({ notaId }: { notaId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState("");
+  // Las imágenes se resuelven contra la lista de archivos del vault y la
+  // carpeta de la nota (`DEF-126`): si cambian, hay que volver a resolverlas.
+  const otros = useVaultStore((s) => s.otros);
+  const carpeta = useVaultStore((s) => s.notas.find((n) => n.id === notaId)?.carpetaId ?? null);
 
   useEffect(() => {
     let vigente = true;
@@ -212,8 +217,9 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
       void renderMermaidIn(containerRef.current);
       void renderExcalidrawIn(containerRef.current);
       void renderDrawioIn(containerRef.current);
+      rellenarImagenesEn(containerRef.current, carpeta);
     }
-  }, [html, notaId]);
+  }, [html, notaId, otros, carpeta]);
 
   return (
     <div ref={containerRef} className="mic-preview mic-layout-read">
