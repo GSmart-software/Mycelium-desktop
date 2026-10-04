@@ -10,6 +10,14 @@ import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
 import { embedDrawioRe } from "@/lib/drawio";
 import {
+  embedWikiRe,
+  esRefDeImagen,
+  esUrlExterna,
+  partirAltMarkdown,
+  partirEmbedImagen,
+  type Tamano,
+} from "@/lib/imagenes";
+import {
   ALLOW_VIDEO,
   leerVideo,
   SANDBOX_VIDEO,
@@ -23,6 +31,7 @@ type MdNode = {
   type: string;
   value?: string;
   url?: string;
+  alt?: string;
   children?: MdNode[];
   data?: {
     hName?: string;
@@ -49,6 +58,19 @@ function remarkMicelio() {
       let cursor = 0;
 
       const matches: { start: number; end: number; node: MdNode }[] = [];
+
+      // Imágenes del vault (`DEF-126`): `![[foto.png]]`, `![[foto.png|300]]`.
+      // Van antes que los wikilinks: el `[[foto.png]]` de adentro empieza un
+      // carácter después, así que el solapado lo descarta.
+      for (const match of value.matchAll(embedWikiRe())) {
+        const { destino, alt, tamano } = partirEmbedImagen(match[1]);
+        if (!esRefDeImagen(destino)) continue;
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          node: nodoDeImagen("wiki", destino, alt, tamano),
+        });
+      }
 
       // Diagramas Excalidraw embebidos (HU-16 CA2): placeholder que el
       // cliente reemplaza por el SVG renderizado.
@@ -333,6 +355,68 @@ function remarkVideo() {
 }
 
 /**
+ * Plugin remark: las imágenes de `![alt](ruta)` (`DEF-126`).
+ *
+ * Una ruta del vault **no** se deja como `<img src="foto.png">`: el webview la
+ * pediría relativa a la página de la app —no a la nota— y mostraría el ícono
+ * roto, que era el defecto. Se emite un hueco que quien muestra la nota
+ * rellena con la URL `asset:` (`rellenarImagenesEn`, `lib/imagenesRender.ts`),
+ * porque solo él sabe de qué carpeta es la nota. Las `http(s)://` y `data:`
+ * quedan como `<img>` normal; los vídeos ya los tomó `remarkVideo`.
+ */
+function remarkImagenes() {
+  return (tree: Parent) => {
+    visit(tree, "image", (node: MdNode, index, parent: Parent | undefined) => {
+      if (!parent || index === undefined || !node.url) return;
+      const { alt, tamano } = partirAltMarkdown(node.alt ?? "");
+      if (esUrlExterna(node.url)) {
+        node.alt = alt;
+        if (tamano) {
+          node.data ??= {};
+          node.data.hProperties = {
+            ...node.data.hProperties,
+            width: String(tamano.ancho),
+            ...(tamano.alto ? { height: String(tamano.alto) } : {}),
+          };
+        }
+        return;
+      }
+      parent.children[index] = nodoDeImagen("md", node.url, alt, tamano) as never;
+    });
+  };
+}
+
+/**
+ * El hueco de una imagen del vault: un `span` con lo escrito en sus `data-*`.
+ * Mientras nadie lo rellena —una tarjeta de lienzo, por ejemplo— muestra la
+ * referencia, que dice más que un recuadro vacío.
+ */
+function nodoDeImagen(
+  forma: "wiki" | "md",
+  ref: string,
+  alt: string,
+  tamano: Tamano | null,
+): MdNode {
+  const props: Record<string, string> = {
+    className: "mic-img mic-img-pendiente",
+    dataMicImg: ref,
+    dataForma: forma,
+  };
+  if (alt) props.dataAlt = alt;
+  if (tamano) {
+    props.dataAncho = String(tamano.ancho);
+    if (tamano.alto) props.dataAlto = String(tamano.alto);
+  }
+  return {
+    type: "paragraph",
+    // En `hChildren` (hast) y no en `children`: así `remarkMicelio` no pasa
+    // por este texto y no convierte en etiqueta un `#` del nombre del archivo.
+    data: { hName: "span", hProperties: props, hChildren: [{ type: "text", value: ref }] },
+    children: [],
+  };
+}
+
+/**
  * El nodo hast del reproductor, o el recuadro de reserva si no hay conexión.
  *
  * Se usa `span` y no `div` a propósito: `![](…)` vive dentro de un párrafo, y
@@ -407,6 +491,7 @@ function crearProcesador(conLineas: boolean) {
     .use(remarkGfm)
     .use(remarkMath)
     .use(remarkVideo)
+    .use(remarkImagenes)
     .use(remarkMicelio)
     .use(remarkCallouts)
     .use(remarkEmphasisStyle)

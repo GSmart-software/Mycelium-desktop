@@ -23,7 +23,12 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch, type Salto } from "@/lib/editor/pendingMatch";
-import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
+import {
+  carpetaDeLaNota,
+  liveExtensions,
+  refreshAllLiveViews,
+} from "@/lib/editor/livePreview";
+import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import { docTitleField, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
@@ -561,6 +566,9 @@ export function NoteEditor({
             renombrarPorTitulo.of((titulo) =>
               useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
             ),
+            // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
+            // (`DEF-126`). Por referencia, como el de arriba.
+            carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -970,6 +978,8 @@ export function NoteEditor({
   // cambios del vault (crear/renombrar/borrar/mover) via suscripción.
   const vaultNotas = useVaultStore((s) => s.notas);
   const vaultCarpetas = useVaultStore((s) => s.carpetas);
+  // Las imágenes no son notas: se resuelven contra los otros archivos (`DEF-126`).
+  const vaultOtros = useVaultStore((s) => s.otros);
 
   // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) en el preview
   useEffect(() => {
@@ -977,9 +987,10 @@ export function NoteEditor({
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current);
       void renderDrawioIn(previewRef.current);
+      rellenarImagenesEn(previewRef.current, carpetaDeNota(notaId)); // `DEF-126`
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
-  }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas]);
+  }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas, vaultOtros]);
 
   // Las flechas de plegado se inyectan en el DOM DESPUÉS de que React pinte, así
   // que cualquier re-render que reescriba el HTML del preview se las lleva —

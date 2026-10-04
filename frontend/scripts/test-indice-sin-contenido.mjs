@@ -80,7 +80,10 @@ const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
 });
 const INDEXER = await fuente("../lib/db/indexer.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
-  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", { "@tauri-apps/api/core": TAURI }),
+  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
+    "@tauri-apps/api/core": TAURI,
+    "@/lib/imagenes": await fuente("../lib/imagenes.ts"),
+  }),
   "@tauri-apps/api/core": TAURI,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,
