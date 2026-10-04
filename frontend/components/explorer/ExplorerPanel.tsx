@@ -181,7 +181,7 @@ export function ExplorerPanel() {
     });
     return () => cancelAnimationFrame(cuadro);
   }, [renaming]);
-  const mdInputRef = useRef<HTMLInputElement>(null);
+  const archivosInputRef = useRef<HTMLInputElement>(null);
   const importTargetRef = useRef<string | null>(null);
 
   const vaultId = vaults[0]?.id;
@@ -520,10 +520,10 @@ export function ExplorerPanel() {
         },
       },
       {
-        label: "Importar archivos .md",
+        label: "Importar archivos…",
         onClick: () => {
           importTargetRef.current = carpeta.id;
-          mdInputRef.current?.click();
+          archivosInputRef.current?.click();
         },
       },
       // Terminal integrada (FUN-L-07 CA4): solo en vault de carpeta, donde la
@@ -729,16 +729,19 @@ export function ExplorerPanel() {
     return <p className={styles.empty}>Sin vault activo.</p>;
   }
 
-  // DEF-036: importa los archivos soltados desde el SO en la carpeta DESTINO (la
-  // que estaba bajo el cursor; `null` = raíz). Antes iba siempre a la carpeta
-  // activa, ignorando dónde se soltó.
+  // DEF-036: copia lo soltado desde el SO en la carpeta DESTINO (la que estaba
+  // bajo el cursor; `null` = raíz). Antes iba siempre a la carpeta activa,
+  // ignorando dónde se soltó. Entra **cualquier** archivo y carpeta, como en
+  // Obsidian (`FUN-S-26`): antes solo pasaban los `.md` y el resto se descartaba
+  // sin aviso. El original queda donde estaba.
   const importarSoltados = (dataTransfer: DataTransfer, targetId: string | null) => {
-    void collectFromDataTransfer(dataTransfer).then((files) => {
-      const onlyMd = files.filter((f) => /\.md$/i.test(f.path) || !/\.[^/]+$/.test(f.path));
-      if (onlyMd.length > 0) {
-        void useImportStore.getState().run({ archivos: onlyMd }, targetId, "Importación");
-      }
-    });
+    void collectFromDataTransfer(dataTransfer)
+      .then((files) => {
+        if (files.length > 0) {
+          void useImportStore.getState().run({ archivos: files }, targetId, "Importación");
+        }
+      })
+      .catch((e) => avisar(`No se pudo leer lo que se soltó: ${(e as Error)?.message ?? e}`));
   };
 
   // Lo que se crea desde el explorador, además de «Nueva nota».
@@ -772,11 +775,11 @@ export function ExplorerPanel() {
       },
     },
     {
-      label: "Importar archivos .md",
+      label: "Importar archivos…",
       icono: Upload,
       onClick: () => {
         importTargetRef.current = store.activeFolderId;
-        mdInputRef.current?.click();
+        archivosInputRef.current?.click();
       },
     },
   ];
@@ -804,9 +807,8 @@ export function ExplorerPanel() {
       }}
     >
       <input
-        ref={mdInputRef}
+        ref={archivosInputRef}
         type="file"
-        accept=".md,text/markdown"
         multiple
         hidden
         onChange={(e) => {
