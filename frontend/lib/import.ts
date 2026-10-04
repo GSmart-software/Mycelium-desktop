@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { EXTENSIONES_DE_NOTA } from "@/lib/extensionesDeTipo";
+import { recorrerEntradas, type EntradaSoltada } from "@/lib/recorrerSoltados";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /**
@@ -50,7 +51,11 @@ export function collectFromFileList(files: FileList): CollectedFile[] {
   }));
 }
 
-/** Recorre un DataTransfer (drag & drop), recursando directorios (HU-07 CA3). */
+/**
+ * Recorre un DataTransfer (drag & drop), recursando directorios (HU-07 CA3).
+ * Las entradas se toman de forma **sincrónica**, antes del primer `await`: el
+ * `DataTransfer` de un drop deja de servir apenas vuelve el manejador.
+ */
 export async function collectFromDataTransfer(dt: DataTransfer): Promise<CollectedFile[]> {
   const entries = Array.from(dt.items)
     .map((item) => (item.kind === "file" ? item.webkitGetAsEntry?.() : null))
@@ -59,24 +64,8 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<Collect
   if (entries.length === 0) {
     return Array.from(dt.files).map((file) => ({ path: file.name, file }));
   }
-
-  const out: CollectedFile[] = [];
-  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
-    if (entry.isFile) {
-      const file = await new Promise<File>((res, rej) =>
-        (entry as FileSystemFileEntry).file(res, rej),
-      );
-      out.push({ path: `${prefix}${entry.name}`, file });
-    } else if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      const children = await new Promise<FileSystemEntry[]>((res, rej) =>
-        reader.readEntries(res, rej),
-      );
-      for (const child of children) await walk(child, `${prefix}${entry.name}/`);
-    }
-  };
-  for (const entry of entries) await walk(entry, "");
-  return out;
+  // La API del navegador cumple la forma mínima que usa el recorrido.
+  return recorrerEntradas(entries as unknown as EntradaSoltada[]);
 }
 
 /** Extrae los archivos de un .zip (p. ej. un vault de Obsidian, HU-11 CA1). */
