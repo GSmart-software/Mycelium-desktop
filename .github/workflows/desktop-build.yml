@@ -1,21 +1,27 @@
-name: Desktop (Tauri) — instaladores de macOS y Linux
+name: Desktop (Tauri) — instaladores de Windows, macOS y Linux
 
-# Instaladores de macOS (Apple Silicon) y Linux (x64) para `FUN-L-28`
-# (docs/features/instaladores-mac-linux.md). Windows NO está acá: se sigue
-# compilando y publicando en local con `npm run publicar`.
+# Instaladores de las tres plataformas para `FUN-L-28`
+# (docs/features/instaladores-mac-linux.md): Windows (x64), macOS (Apple
+# Silicon) y Linux (x64). Desde el 2026-10-05 («opción 2») Windows también se
+# compila acá; el build local de Windows (`npm run publicar` sin `--ci`) queda
+# solo como respaldo para cuando CI no esté disponible.
 #
 # Este workflow solo COMPILA: no firma, no publica, no crea Releases. La clave
 # privada del updater no sale de la PC del usuario; el script local
-# (`npm run publicar -- --ci <carpeta>`, Parte B) descarga estos artefactos,
-# los firma con `tauri signer sign` y los sube a R2.
+# (`npm run publicar -- --ci <carpeta>`) descarga estos tres artefactos, los
+# firma con `tauri signer sign` y los sube a R2.
 #
 # Disparadores:
 # - push a `despliegues`: es lo que deja un PR fusionado hacia esa rama. Un
 #   build por versión. Un push a `desktop-tauri` NO dispara nada.
 # - ejecución manual (`workflow_dispatch`).
 #
-# Artefactos del run (nombres EXACTOS: la Parte B depende de ellos), con los
-# archivos planos, sin subcarpetas:
+# Artefactos del run (nombres EXACTOS: `publicar.mjs` depende de ellos), con
+# los archivos planos, sin subcarpetas:
+#
+#   mycelium-<version>-windows-x86_64
+#     Mycelium_<version>_x64-setup.exe    instalador NSIS Y artefacto del updater (windows-x86_64)
+#     Mycelium_<version>_x64_en-US.msi    instalador MSI Y artefacto del updater (windows-x86_64-msi)
 #
 #   mycelium-<version>-macos-aarch64
 #     Mycelium_<version>_aarch64.dmg      instalador (primera instalación)
@@ -48,6 +54,12 @@ jobs:
           - os: ubuntu-22.04
             nombre: linux-x86_64
             triple: x86_64-unknown-linux-gnu
+          # El rustc de `dtolnay/rust-toolchain` en Windows tiene host msvc
+          # (no gnu): es el triple con que se compila el build local y el que
+          # espera el sidecar. WiX (MSI) y NSIS los baja el bundler de Tauri.
+          - os: windows-latest
+            nombre: windows-x86_64
+            triple: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -125,10 +137,15 @@ jobs:
       # (que antes baja draw.io con `preparar-drawio`).
       #
       # SIN clave de firma: `bundle.createUpdaterArtifacts` está en `true` en el
-      # `tauri.conf.json` porque el build local de Windows lo necesita para el
-      # `.sig` del NSIS, y sin `TAURI_SIGNING_PRIVATE_KEY` Tauri corta al final.
-      # Acá se apaga SOLO para este build con `--config`, que se fusiona encima
-      # del archivo sin tocarlo. Las firmas las pone la Parte B en local.
+      # `tauri.conf.json` porque el build local de Windows (el respaldo) lo
+      # necesita para el `.sig` del NSIS, y sin `TAURI_SIGNING_PRIVATE_KEY` Tauri
+      # corta al final. Acá se apaga SOLO para este build con `--config`, que se
+      # fusiona encima del archivo sin tocarlo. Las firmas las pone
+      # `publicar.mjs` en local. En Windows el mismo build produce MSI y NSIS.
+      #
+      # Sin `CARGO_BUILD_JOBS`: el límite de 2 del build local es por la memoria
+      # de la PC del usuario (rustc se quedaba sin memoria). Los runners
+      # estándar (4 vCPU, 16 GB) compilan con los jobs por defecto.
       - name: Compilar y empaquetar
         working-directory: frontend
         shell: bash
@@ -160,9 +177,31 @@ jobs:
             *) echo "::error::La raíz del tar no es Mycelium.app ($primera)"; exit 1 ;;
           esac
 
+      # El sidecar en Windows. `target/release/mycelium-mcp.exe` existe SIEMPRE
+      # (es donde `preparar-mcp` lo compila), así que su existencia no prueba
+      # nada. Lo que sí lo prueba sin instalar es que el bundler lo haya
+      # declarado en los scripts que generó para empaquetar: el `.nsi` del NSIS
+      # y el `.wxs` del MSI. Si no figura en uno, ese instalador sale sin MCP.
+      - name: Sidecar en los instaladores (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: frontend/src-tauri/target/release
+        run: |
+          # `grep -l` sin tubería hacia `head`: con el `bash -eo pipefail` de
+          # Actions, cortar una tubería hace fallar el paso (ver el chequeo del .deb).
+          for tipo in nsis:nsi wix:wxs; do
+            carpeta="${tipo%%:*}"; ext="${tipo##*:}"
+            if ! con_mcp="$(grep -rls --include="*.$ext" 'mycelium-mcp' "$carpeta")"; then
+              echo "::error::El sidecar mycelium-mcp no figura en el .$ext que generó el bundler ($carpeta/)."
+              find . -maxdepth 3 \( -name '*.nsi' -o -name '*.wxs' \) | sort
+              exit 1
+            fi
+            echo "ok: mycelium-mcp declarado en: $con_mcp"
+          done
+
       # Solo los distribuibles, planos, en una carpeta aparte (no todo
-      # `target/`). Si falta alguno de los nombres esperados, el job falla: la
-      # Parte B los busca por nombre.
+      # `target/`). Si falta alguno de los nombres esperados, el job falla:
+      # `publicar.mjs` los busca por nombre.
       - name: Reunir los distribuibles
         shell: bash
         env:
@@ -170,7 +209,12 @@ jobs:
         run: |
           B=frontend/src-tauri/target/release/bundle
           mkdir -p distribuibles
-          if [ "${{ runner.os }}" = "macOS" ]; then
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            archivos=(
+              "$B/nsis/Mycelium_${V}_x64-setup.exe"
+              "$B/msi/Mycelium_${V}_x64_en-US.msi"
+            )
+          elif [ "${{ runner.os }}" = "macOS" ]; then
             archivos=(
               "$B/dmg/Mycelium_${V}_aarch64.dmg"
               "$B/macos/Mycelium.app.tar.gz"
