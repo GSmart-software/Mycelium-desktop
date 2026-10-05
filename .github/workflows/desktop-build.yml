@@ -1,74 +1,199 @@
-name: Desktop (Tauri) build
+name: Desktop (Tauri) — instaladores de macOS y Linux
 
-# Empaqueta la app de escritorio para Windows, Linux y macOS SIN firmar.
-# - push de un tag `v*`  → crea un Release (borrador) con los instaladores.
-# - ejecución manual     → solo compila y sube los artefactos del run.
+# Instaladores de macOS (Apple Silicon) y Linux (x64) para `FUN-L-28`
+# (docs/features/instaladores-mac-linux.md). Windows NO está acá: se sigue
+# compilando y publicando en local con `npm run publicar`.
+#
+# Este workflow solo COMPILA: no firma, no publica, no crea Releases. La clave
+# privada del updater no sale de la PC del usuario; el script local
+# (`npm run publicar -- --ci <carpeta>`, Parte B) descarga estos artefactos,
+# los firma con `tauri signer sign` y los sube a R2.
+#
+# Disparadores:
+# - push a `despliegues`: es lo que deja un PR fusionado hacia esa rama. Un
+#   build por versión. Un push a `desktop-tauri` NO dispara nada.
+# - ejecución manual (`workflow_dispatch`).
+#
+# Artefactos del run (nombres EXACTOS: la Parte B depende de ellos), con los
+# archivos planos, sin subcarpetas:
+#
+#   mycelium-<version>-macos-aarch64
+#     Mycelium_<version>_aarch64.dmg      instalador (primera instalación)
+#     Mycelium.app.tar.gz                 artefacto del updater (darwin-aarch64)
+#
+#   mycelium-<version>-linux-x86_64
+#     Mycelium_<version>_amd64.deb        instalador (Debian/Ubuntu)
+#     Mycelium-<version>-1.x86_64.rpm     instalador (Fedora/openSUSE)
+#     Mycelium_<version>_amd64.AppImage   instalador Y artefacto del updater (linux-x86_64)
 on:
   push:
-    tags: ["v*"]
+    branches: [despliegues]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: ${{ matrix.nombre }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            target: ""
+          # `macos-latest` es Apple Silicon: el host ya es el target, así que no
+          # se pasa `--target` (ver el paso «Host = target»).
           - os: macos-latest
-            target: "aarch64-apple-darwin"
+            nombre: macos-aarch64
+            triple: aarch64-apple-darwin
           - os: ubuntu-22.04
-            target: ""
+            nombre: linux-x86_64
+            triple: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dependencias de sistema (Linux/WebKitGTK)
-        if: matrix.os == 'ubuntu-22.04'
+      # Las tres fuentes de la versión tienen que decir lo mismo: si no, el
+      # instalador se llamaría de una forma y la app diría otra cosa (y el
+      # `latest.json` de la Parte B mentiría). `npm run versionar` las sube
+      # juntas; esto es la red por si alguien tocó una a mano.
+      - name: Control de versión
+        id: version
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, appendFileSync } from "node:fs";
+            const ts = readFileSync("frontend/lib/version.ts", "utf8");
+            const m = ts.match(/export const APP_VERSION = "([^"]+)"/);
+            const app = m ? m[1] : null;
+            const pkg = JSON.parse(readFileSync("frontend/package.json", "utf8")).version;
+            const tauri = JSON.parse(readFileSync("frontend/src-tauri/tauri.conf.json", "utf8")).version;
+            console.log(`lib/version.ts      APP_VERSION = ${app}`);
+            console.log(`package.json        version     = ${pkg}`);
+            console.log(`tauri.conf.json     version     = ${tauri}`);
+            if (!app || app !== pkg || app !== tauri) {
+              console.error("::error::Las versiones no coinciden. Subirlas juntas con `npm run versionar -- X.Y.Z`.");
+              process.exit(1);
+            }
+            appendFileSync(process.env.GITHUB_OUTPUT, `version=${app}\n`);
+          '
+
+      # WebKitGTK 4.1 y lo que piden los tres formatos de Linux: el `.deb` y el
+      # `.rpm` los arma Tauri en Rust; el AppImage usa linuxdeploy, que necesita
+      # `file` y `patchelf` y empaqueta `xdg-open` (`xdg-utils`).
+      - name: Dependencias de sistema (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
-            patchelf build-essential libssl-dev libgtk-3-dev
+            build-essential curl wget file patchelf xdg-utils \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libssl-dev libxdo-dev \
+            libayatana-appindicator3-dev librsvg2-dev
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+
+      # El sidecar `mycelium-mcp` lo compila `scripts/preparar-mcp.mjs` para el
+      # triple del HOST y lo deja como `binaries/mycelium-mcp-<host>`; Tauri lo
+      # busca con el triple del TARGET. Sin `--target` los dos son el host, pero
+      # si GitHub cambiara la arquitectura de `macos-latest` el build saldría
+      # para otra máquina sin que nadie lo note: mejor cortar acá.
+      - name: Host = target
+        shell: bash
+        run: |
+          host="$(rustc -vV | sed -n 's/^host: //p')"
+          echo "host de rustc: $host  · esperado: ${{ matrix.triple }}"
+          if [ "$host" != "${{ matrix.triple }}" ]; then
+            echo "::error::El runner compila para $host, no para ${{ matrix.triple }}."
+            exit 1
+          fi
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: frontend/src-tauri
+          workspaces: frontend/src-tauri -> target
+          key: ${{ matrix.triple }}
 
       - name: Instalar dependencias del frontend
         working-directory: frontend
         run: npm ci
 
-      - name: Compilar y empaquetar (tauri-action)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: frontend
-          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
-          # Solo crea Release cuando el disparador es un tag.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('Mycelium {0}', github.ref_name) || '' }}
-          releaseDraft: true
-          prerelease: false
+      # `beforeBuildCommand` corre `preparar-mcp` (sidecar) y `next build`
+      # (que antes baja draw.io con `preparar-drawio`).
+      #
+      # SIN clave de firma: `bundle.createUpdaterArtifacts` está en `true` en el
+      # `tauri.conf.json` porque el build local de Windows lo necesita para el
+      # `.sig` del NSIS, y sin `TAURI_SIGNING_PRIVATE_KEY` Tauri corta al final.
+      # Acá se apaga SOLO para este build con `--config`, que se fusiona encima
+      # del archivo sin tocarlo. Las firmas las pone la Parte B en local.
+      - name: Compilar y empaquetar
+        working-directory: frontend
+        shell: bash
+        run: npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
-      # En ejecución manual (sin tag) subimos los instaladores como artefacto del run.
-      - name: Subir artefactos (ejecución manual)
-        if: github.ref_type != 'tag'
+      # El artefacto de actualización de macOS es el `.app` en un tar.gz, armado
+      # como lo hace el bundler de Tauri v2 cuando `createUpdaterArtifacts` está
+      # encendido (`updater_bundle.rs`: `tar::Builder::append_dir_all` con el
+      # nombre del `.app` como raíz, comprimido con gzip): la raíz del tar es
+      # `Mycelium.app/`. `COPYFILE_DISABLE=1` evita que el tar de macOS meta
+      # archivos `._*` de metadatos extendidos dentro del paquete.
+      - name: Artefacto de actualización (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: frontend/src-tauri/target/release/bundle/macos
+        run: |
+          test -x Mycelium.app/Contents/MacOS/mycelium-mcp || {
+            echo "::error::El sidecar mycelium-mcp no quedó dentro de Mycelium.app."; exit 1; }
+          COPYFILE_DISABLE=1 tar -czf Mycelium.app.tar.gz Mycelium.app
+          echo "Contenido (primeras entradas):"
+          tar -tzf Mycelium.app.tar.gz | head -n 8
+          primera="$(tar -tzf Mycelium.app.tar.gz | head -n 1)"
+          case "$primera" in
+            Mycelium.app|Mycelium.app/*) ;;
+            *) echo "::error::La raíz del tar no es Mycelium.app ($primera)"; exit 1 ;;
+          esac
+
+      # Solo los distribuibles, planos, en una carpeta aparte (no todo
+      # `target/`). Si falta alguno de los nombres esperados, el job falla: la
+      # Parte B los busca por nombre.
+      - name: Reunir los distribuibles
+        shell: bash
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          B=frontend/src-tauri/target/release/bundle
+          mkdir -p distribuibles
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            archivos=(
+              "$B/dmg/Mycelium_${V}_aarch64.dmg"
+              "$B/macos/Mycelium.app.tar.gz"
+            )
+          else
+            archivos=(
+              "$B/deb/Mycelium_${V}_amd64.deb"
+              "$B/rpm/Mycelium-${V}-1.x86_64.rpm"
+              "$B/appimage/Mycelium_${V}_amd64.AppImage"
+            )
+            # El sidecar tiene que viajar en el paquete (en el .deb va a /usr/bin).
+            dpkg-deb -c "$B/deb/Mycelium_${V}_amd64.deb" | grep -q 'usr/bin/mycelium-mcp$' || {
+              echo "::error::El sidecar mycelium-mcp no quedó dentro del .deb."; exit 1; }
+          fi
+          for a in "${archivos[@]}"; do
+            if [ ! -f "$a" ]; then
+              echo "::error::Falta $a. Lo que generó el bundler:"
+              find "$B" -maxdepth 2 -type f | sort
+              exit 1
+            fi
+            cp "$a" distribuibles/
+          done
+          ls -la distribuibles
+
+      - name: Subir artefactos
         uses: actions/upload-artifact@v4
         with:
-          name: mycelium-${{ matrix.os }}
-          path: |
-            frontend/src-tauri/target/**/release/bundle/**/*
-          if-no-files-found: ignore
+          name: mycelium-${{ steps.version.outputs.version }}-${{ matrix.nombre }}
+          path: distribuibles/
+          if-no-files-found: error
