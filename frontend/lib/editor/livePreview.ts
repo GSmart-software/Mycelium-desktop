@@ -74,6 +74,8 @@ import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
 import { buscarEnTablas } from "@/lib/editor/buscarEnTablas";
+import { estaMarcada, estadoDeSimbolo, estiloDeTexto, simboloAlClic } from "@/lib/estadosTarea";
+import { cambiarSimboloTarea } from "@/lib/editor/tareas";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -93,7 +95,11 @@ const micelioHighlight = HighlightStyle.define([
     padding: "0.05em 0.2em",
   },
   { tag: tags.heading, fontWeight: "700" },
-  { tag: tags.quote, color: "var(--mic-text-muted)", fontStyle: "italic" },
+  // El color de la cita sale de una variable para que el título de un callout
+  // lo cambie sin pisar el de lo que lleva adentro (`FUN-S-06`, ver
+  // `.mic-live-callout-head` en `editor.css`). Fuera de un callout no hay
+  // variable y queda el gris de siempre.
+  { tag: tags.quote, color: "var(--mic-cita-color, var(--mic-text-muted))", fontStyle: "italic" },
   { tag: tags.link, color: "var(--mic-accent)" },
   // Tokens de código embebido en bloques cercados (HU-03). La lista vive en
   // `paletaSintaxis` porque el visor de archivos (`FUN-S-09`) y el editor de CSS
@@ -704,18 +710,59 @@ class HrWidget extends WidgetType {
   }
 }
 
-/** Checkbox visual (no interactivo) de lista de tareas en la edición en vivo. */
+/**
+ * Casilla de una tarea en la edición en vivo, con su estado (`FUN-S-01`): el
+ * símbolo dentro de `[ ]` decide el ícono (`data-estado`, dibujado por
+ * `editor.css`). Clic: alterna como en Obsidian (`simboloAlClic`). Clic
+ * derecho: el menú con todos los estados.
+ *
+ * La posición del marcador se pide al DOM en el momento del clic
+ * (`posAtDOM`), no se guarda: entre el dibujo y el clic el documento pudo
+ * cambiar, y `cambiarSimboloTarea` además comprueba que siga habiendo un
+ * marcador ahí antes de escribir.
+ */
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean) {
+  constructor(readonly simbolo: string) {
     super();
   }
   eq(other: CheckboxWidget) {
-    return other.checked === this.checked;
+    return other.simbolo === this.simbolo;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
+    const estado = estadoDeSimbolo(this.simbolo);
     const span = document.createElement("span");
-    span.className = "mic-live-check" + (this.checked ? " mic-live-check-on" : "");
+    span.className = "mic-live-check";
+    span.dataset.estado = estado.id;
+    // El símbolo tal cual, como en Obsidian: un snippet escrito para sus temas
+    // (`[data-task="-"]`) también vale acá.
+    span.dataset.task = this.simbolo;
+    span.title = `${estado.nombre} — clic derecho para cambiar el estado`;
+    span.setAttribute("role", "checkbox");
+    span.setAttribute("aria-checked", String(estaMarcada(this.simbolo)));
+    span.setAttribute("aria-label", estado.nombre);
+    // El clic no tiene que llevar el cursor a la línea: abriría el marcador en
+    // crudo y la casilla desaparecería debajo del puntero.
+    span.addEventListener("mousedown", (e) => e.preventDefault());
+    span.addEventListener("click", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      cambiarSimboloTarea(view, view.posAtDOM(span), simboloAlClic(this.simbolo));
+    });
+    span.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtDOM(span);
+      void import("@/components/editor/MenuEstadosTarea").then(({ abrirMenuEstadosTarea }) =>
+        abrirMenuEstadosTarea(e.clientX, e.clientY, this.simbolo, (nuevo) => {
+          if (cambiarSimboloTarea(view, pos, nuevo)) view.focus();
+        }),
+      );
+    });
     return span;
+  }
+  /** Los eventos de la casilla son suyos: CodeMirror no los procesa. */
+  ignoreEvent() {
+    return true;
   }
 }
 
@@ -1280,15 +1327,28 @@ function buildDecorations(
             break;
           }
           case "TaskMarker": {
-            // `[ ]`/`[x]` → checkbox visual fuera de la línea activa; al entrar
-            // el cursor se ve el texto crudo para editarlo.
+            // `[c]` → casilla con su estado fuera de la línea activa; al entrar
+            // el cursor se ve el texto crudo para editarlo (`FUN-S-01`).
             const line = doc.lineAt(node.from);
+            const simbolo = doc.sliceString(node.from + 1, node.from + 2);
             if (!activeLines.has(line.number)) {
-              const checked = /\[[xX]\]/.test(doc.sliceString(node.from, node.to));
               decos.push({
                 from: node.from,
                 to: node.to,
-                deco: Decoration.replace({ widget: new CheckboxWidget(checked) }),
+                deco: Decoration.replace({ widget: new CheckboxWidget(simbolo) }),
+              });
+            }
+            // El texto del ítem, tachado si está hecha o cancelada. También en
+            // la línea activa: el estado no cambia porque se lo esté editando.
+            // Solo el del propio ítem (el nodo `Task`): las subtareas son otros
+            // nodos y llevan su propio estado.
+            const estilo = estiloDeTexto(simbolo);
+            const tarea = node.node.parent;
+            if (estilo && tarea && tarea.name === "Task" && node.to < tarea.to) {
+              decos.push({
+                from: node.to,
+                to: tarea.to,
+                deco: Decoration.mark({ class: `mic-live-tarea-texto mic-live-tarea-${estilo}` }),
               });
             }
             break;

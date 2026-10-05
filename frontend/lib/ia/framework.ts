@@ -107,8 +107,15 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   (`mycelium_diccionario`) en «Operar Mycelium» —cuándo usarlo: los términos
  *   propios del vault— y en la regla 8: `.mycelium/diccionario.txt` no se
  *   escribe a mano.
+ * - 1.8.0 — **estados de tarea** (`FUN-S-01`): el símbolo dentro de `[ ]`
+ *   (`-`, `/`, `>`, `*`, `!`, `?`, `+`, además de espacio y `x`) es el estado
+ *   de la tarea, con los símbolos de Obsidian, y Mycelium lo dibuja. La IA
+ *   tiene que saberlo para escribir —y leer— una tarea cancelada o en curso
+ *   con el símbolo, en vez de inventar otra marca. Va en la tabla de sintaxis
+ *   de `mycelium-vault`.
+ *   **Minor**: conocimiento nuevo sobre la sintaxis del vault.
  */
-export const FRAMEWORK_IA_VERSION = "1.7.0";
+export const FRAMEWORK_IA_VERSION = "1.8.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -368,7 +375,9 @@ Fuera de las herramientas \`mycelium_*\` no controlás la aplicación: trabajás
 sus archivos. Pero es útil saber qué ve el usuario, porque es el efecto de lo que
 escribís: editor Markdown con vista en vivo y de lectura; callouts (\`note\`, \`tip\`, \`important\`, \`warning\`, \`caution\`,
 \`info\`, \`success\`, \`error\`, \`danger\`, \`question\`; plegables con \`[!tipo]-\`),
-incluso anidados; **propiedades** del frontmatter como tarjeta arriba de la nota y
+incluso anidados; **listas de tareas con estados** según el símbolo de la casilla
+(\`[x]\` hecha, \`[-]\` cancelada, \`[/]\` en curso…, ver la skill \`mycelium-vault\`);
+**propiedades** del frontmatter como tarjeta arriba de la nota y
 como pestaña editable en el panel; **Esporas** (plantillas de notas) en su propio
 panel del rail, en la barra del editor y en el clic derecho de una carpeta;
 **tablas** \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`;
@@ -418,8 +427,31 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 | Callout | \`> [!note] Título\` | Tipos: note, tip, important, warning, caution, info, success, error, danger, question |
 | Callout plegable | \`> [!tip]- Título\` | \`-\` plegado, \`+\` desplegado |
 | Callout anidado | \`> > [!info]\` | Un nivel de \`>\` por profundidad |
+| Tarea | \`- [ ] algo\` / \`- [x] algo\` | El símbolo entre corchetes es el **estado** (abajo) |
 | Mermaid | bloque \`\`\`mermaid | Diagramas de texto |
 | Matemáticas | \`$inline$\` / \`$$bloque$$\` | KaTeX |
+
+### Estados de tarea
+
+El carácter dentro de \`[ ]\` dice el estado de la tarea; son los mismos símbolos
+que usan los temas de Obsidian, así que el vault sigue siendo intercambiable.
+
+| Símbolo | Estado | Cómo se ve |
+|---|---|---|
+| \`[ ]\` | Pendiente | Casilla vacía |
+| \`[x]\` (o \`[X]\`) | Hecha | Casilla marcada; texto tachado y atenuado |
+| \`[-]\` | Cancelada | Cruz; texto tachado y más atenuado |
+| \`[/]\` | En curso | Casilla medio llena |
+| \`[>]\` | Pospuesta | Flecha |
+| \`[*]\` | Destacada | Estrella |
+| \`[!]\` | Importante | Signo de exclamación |
+| \`[?]\` | Pregunta | Signo de pregunta |
+| \`[+]\` | Agregada | Casilla marcada, otro color |
+
+Cualquier otro símbolo se ve como hecha. Para cambiar un estado, **editá ese
+carácter** en el archivo; no hay otra marca. Un clic del usuario en la casilla
+alterna pendiente ↔ hecha (un estado especial vuelve a pendiente), y con clic
+derecho elige cualquiera.
 
 ## Estructura del vault
 

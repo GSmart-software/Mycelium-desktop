@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import styles from "./ContextMenu.module.css";
 
@@ -16,6 +16,14 @@ export type MenuItem = {
   separadorAntes?: boolean;
   /** Entradas anidadas: la fila abre un submenú en vez de ejecutar una acción. */
   submenu?: MenuItem[];
+  /** Ícono a la izquierda del texto (los estados de una tarea, `FUN-S-01`). */
+  icono?: ReactNode;
+  /**
+   * La opción vigente de un grupo excluyente (el estado actual de la tarea): se
+   * anuncia como `menuitemradio` marcado y se resalta. Sin el campo, la entrada
+   * es un `menuitem` común.
+   */
+  marcado?: boolean;
   onClick?: () => void;
 };
 
@@ -95,6 +103,8 @@ export function ContextMenu({
       item.danger ? styles.danger : "",
       item.disabled ? styles.disabled : "",
       item.separadorAntes ? styles.conSeparador : "",
+      item.icono ? styles.conIcono : "",
+      item.marcado ? styles.marcado : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -149,7 +159,8 @@ export function ContextMenu({
           <button
             key={item.label}
             type="button"
-            role="menuitem"
+            role={item.marcado === undefined ? "menuitem" : "menuitemradio"}
+            aria-checked={item.marcado}
             disabled={item.disabled}
             title={item.title}
             className={clase(item)}
@@ -158,6 +169,7 @@ export function ContextMenu({
               item.onClick?.();
             }}
           >
+            {item.icono}
             {item.label}
           </button>
         ),
