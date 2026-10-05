@@ -95,7 +95,11 @@ const micelioHighlight = HighlightStyle.define([
     padding: "0.05em 0.2em",
   },
   { tag: tags.heading, fontWeight: "700" },
-  { tag: tags.quote, color: "var(--mic-text-muted)", fontStyle: "italic" },
+  // El color de la cita sale de una variable para que el título de un callout
+  // lo cambie sin pisar el de lo que lleva adentro (`FUN-S-06`, ver
+  // `.mic-live-callout-head` en `editor.css`). Fuera de un callout no hay
+  // variable y queda el gris de siempre.
+  { tag: tags.quote, color: "var(--mic-cita-color, var(--mic-text-muted))", fontStyle: "italic" },
   { tag: tags.link, color: "var(--mic-accent)" },
   // Tokens de código embebido en bloques cercados (HU-03). La lista vive en
   // `paletaSintaxis` porque el visor de archivos (`FUN-S-09`) y el editor de CSS

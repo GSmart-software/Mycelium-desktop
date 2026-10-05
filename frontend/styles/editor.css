@@ -497,13 +497,28 @@
   font-weight: 600;
   color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
-/* El título escrito del callout es texto de cita (tags.quote), que el resaltado
-   de sintaxis pinta de gris en un <span> anidado y gana por herencia. Este span
-   HEREDA el color de la cabecera (mantiene su especificidad para ganarle al
-   resaltado): así, si un snippet cambia el color de la cabecera, el texto lo
-   sigue. */
-.cm-editor .mic-live-callout-head span {
-  color: inherit;
+/* El título escrito del callout es texto de cita (tags.quote), y el resaltado
+   de sintaxis lo pinta de gris en el <span> más interno —los del resaltado van
+   siempre DENTRO de nuestras marcas: tienen más precedencia—. Ese gris tiene que
+   ceder al color de la cabecera, pero SOLO ese (`FUN-S-06`).
+
+   Antes se forzaba `color: inherit` a todo `span` de la cabecera, y eso alcanzaba
+   también a lo que trae color propio: un `[enlace](url)` (su span lleva a la vez
+   la clase de cita y la de enlace), un `_énfasis_` o `__fuerte__`
+   (.mic-em-cm-us / .mic-strong-cm-us), un `[[wikilink]]` (.mic-wikilink-cm), una
+   #etiqueta (.mic-tag-cm) o el color de un snippet: todo salía del color del
+   callout.
+
+   Ahora la regla de cita del resaltado (`micelioHighlight`, en livePreview) usa
+   `var(--mic-cita-color, gris)`, y la cabecera define esa variable como
+   `currentColor`, que en `color` equivale a heredar. Resultado, sin pelear
+   especificidad: el texto de cita sin más hereda el color de la cabecera (y si
+   un snippet cambia ese color, lo sigue); un span que además es enlace se queda
+   con el color del enlace, que va después en el mismo resaltado; y dentro de una
+   marca con color propio, la cita hereda el de la marca. Lectura no cambia: ahí
+   el título no es un span de cita y las reglas de cada elemento ya ganaban. */
+:where(.mic-live-callout-head) {
+  --mic-cita-color: currentColor;
 }
 
 /* Cuerpo plegado de un callout (símbolo -) */
