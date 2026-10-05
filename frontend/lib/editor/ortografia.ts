@@ -247,8 +247,8 @@ async function abrirMenu(view: EditorView, desde: number, hasta: number, x: numb
       onClick: () => corrector.ignorar(palabra),
     },
   ];
-  const { abrirMenuOrtografia } = await import("@/components/editor/MenuOrtografia");
-  abrirMenuOrtografia(x, y, items);
+  const { abrirMenuFlotante } = await import("@/components/editor/MenuFlotante");
+  abrirMenuFlotante(x, y, items);
 }
 
 function crearPlugin(activo: () => boolean) {

@@ -6,7 +6,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
-import { GFM } from "@lezer/markdown";
+import { GFM_MYCELIUM } from "@/lib/editor/tareas";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { liveExtensions } from "@/lib/editor/livePreview";
 import { correctorOrtografico } from "@/lib/editor/ortografia";
@@ -61,7 +61,7 @@ export function EditorDetalle({
         extensions: [
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
-          markdown({ extensions: GFM, codeLanguages: languages }),
+          markdown({ extensions: GFM_MYCELIUM, codeLanguages: languages }),
           autocompletion({ override: [wikilinkCompletions] }),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ "aria-label": etiqueta }),

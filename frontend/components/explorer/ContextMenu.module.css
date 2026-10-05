@@ -104,3 +104,18 @@
   height: 1px;
   background: color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
 }
+
+/* Entrada con ícono (`icono`): el ícono a la izquierda, alineado al texto. */
+.conIcono {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+/* La opción vigente de un grupo excluyente (`marcado`): el estado actual de una
+   tarea. Se resalta con el mismo tinte del hover, más tenue, y en negrita para
+   que no dependa solo del color. */
+.marcado {
+  font-weight: 600;
+  background-color: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
