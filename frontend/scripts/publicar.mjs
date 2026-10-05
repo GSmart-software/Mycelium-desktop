@@ -1,19 +1,21 @@
 // Publicación de una versión de Mycelium (`FUN-L-15` · `RELEASE-SCRIPT-PUBLICACION`).
 //
-// Automatiza los pasos 2 a 5 de `docs/procesos/Publicar una version.md`: compilar
-// firmando, subir los instaladores a Cloudflare R2, escribir los tres manifiestos
-// y **comprobar que lo publicado sirve**. El proceso manual sigue documentado y
+// Automatiza los pasos 2 a 5 de `docs/procesos/Publicar una version.md`: firmar,
+// subir los instaladores a Cloudflare R2, escribir los tres manifiestos y
+// **comprobar que lo publicado sirve**. El proceso manual sigue documentado y
 // sigue siendo el respaldo cuando esto falla.
 //
-//   npm run publicar -- --simulacro     ensayo: hace todo menos subir
-//   npm run publicar                    publicación real
-//   npm run publicar -- --ci <carpeta>  además macOS y Linux, compilados en CI
-//   npm run publicar -- --ayuda         todas las opciones
+//   npm run publicar -- --ci <carpeta> --simulacro   ensayo: hace todo menos subir
+//   npm run publicar -- --ci <carpeta>               publicación real (el circuito normal)
+//   npm run publicar                                 respaldo: compila Windows acá, solo Windows
+//   npm run publicar -- --ayuda                      todas las opciones
 //
-// Por qué la firma es local y no de CI: la clave privada de firma no sale de esta
-// máquina. GitHub Actions compila macOS y Linux SIN firmar (`FUN-L-28`, ver
-// [[instaladores-mac-linux]]); este script firma esos artefactos acá, con la misma
-// clave que firma el instalador de Windows, y los publica junto a él.
+// El circuito normal (`FUN-L-28`, «opción 2», 2026-10-05): GitHub Actions compila
+// los TRES sistemas —Windows, macOS y Linux— SIN firmar, y este script firma esos
+// artefactos acá y los publica. Por qué la firma es local y no de CI: la clave
+// privada no sale de esta máquina (ver [[instaladores-mac-linux]]). Sin `--ci`,
+// el script compila Windows en esta PC como antes de CI: es el respaldo para
+// cuando Actions no esté disponible.
 //
 // Node >= 18 (usa `fetch` global). No necesita dependencias.
 import { spawnSync } from "node:child_process";
@@ -68,8 +70,15 @@ const JOBS_CARGO = "2";
 const hechos = [];
 
 let pasoActual = 0;
-/** Con `--ci` se agrega el paso de preparar y firmar macOS y Linux. */
+/**
+ * Sin `--ci`: comprobar, compilar, preservar y firmar, manifiestos, subir y
+ * verificar. Con `--ci` no hay compilación: compilar y preservar se reemplazan
+ * por un único paso de preparar y firmar lo de CI.
+ */
 let TOTAL_PASOS = 6;
+
+/** La versión que se está publicando, para los mensajes de recuperación. */
+let versionEnCurso = null;
 
 function paso(titulo) {
   pasoActual += 1;
@@ -138,30 +147,34 @@ function leerArgumentos(argv) {
 const AYUDA = `
 Publicar una versión de Mycelium (FUN-L-15).
 
-  npm run publicar -- [opciones]
+  npm run publicar -- --ci <carpeta> [opciones]   circuito normal (los tres sistemas)
+  npm run publicar -- [opciones]                  respaldo: compila Windows acá
 
 Opciones:
-  --simulacro, -s   Hace todo menos subir al bucket: comprueba, compila, escribe
-                    los manifiestos y los deja en installers/v<version>/. Imprime
-                    los comandos de subida que se habrían ejecutado.
-  --sin-compilar    Reutiliza los instaladores ya compilados (bundle/ o, si no
-                    están, installers/v<version>/) en vez de recompilar. Es lo que
-                    hace falta para rehacer un manifiesto mal escrito sin esperar
-                    diez minutos, y para ensayar rápido.
+  --ci <carpeta>    EL CIRCUITO NORMAL (FUN-L-28). Publica Windows (x64), macOS
+                    (Apple Silicon) y Linux (x64), compilados en GitHub Actions.
+                    <carpeta> es donde descargaste los TRES artefactos del run
+                    (mycelium-<version>-windows-x86_64, -macos-aarch64 y
+                    -linux-x86_64): descomprimidos —en subcarpetas o todo junto—
+                    o los .zip tal cual. Son obligatorios los tres. No se compila
+                    nada en esta PC: CI no firma, así que el script firma acá el
+                    -setup.exe, el .msi, el .app.tar.gz, el .AppImage, el .deb y el
+                    .rpm, y verifica cada firma contra la pubkey de la app.
+                    Sin --ci, el respaldo: compila Windows acá y publica solo
+                    Windows.
+  --simulacro, -s   Hace todo menos subir al bucket: comprueba, firma (y sin --ci
+                    compila), escribe los manifiestos y los deja en
+                    installers/v<version>/. Imprime los comandos de subida que se
+                    habrían ejecutado.
+  --sin-compilar    Solo sin --ci: reutiliza los instaladores de Windows ya
+                    compilados (bundle/ o, si no están, installers/v<version>/)
+                    en vez de recompilar. Con --ci se ignora (con aviso): no hay
+                    nada que compilar.
   --forzar          Permite republicar una versión que YA está en el bucket.
                     Sin esto se aborta: reescribir los archivos de una versión que
                     la gente ya tiene puede romper instalaciones ajenas.
   --notas <archivo> Toma el changelog de ese archivo entero, en vez de la sección
                     delimitada de la nota de release.
-  --ci <carpeta>    Publica también macOS (Apple Silicon) y Linux (x64), compilados
-                    en GitHub Actions (FUN-L-28). <carpeta> es donde descargaste los
-                    dos artefactos del run (mycelium-<version>-macos-aarch64 y
-                    mycelium-<version>-linux-x86_64): descomprimidos —en
-                    subcarpetas o todo junto— o los .zip tal cual. CI no firma:
-                    el script firma acá el .app.tar.gz, el .AppImage, el .deb y el
-                    .rpm con la misma clave que el .exe. Sin --ci, solo Windows.
-                    --sin-compilar afecta solo a Windows: lo de --ci ya viene
-                    compilado.
   --ayuda, -h       Esto.
 
 El changelog sale de docs/estado/Version <version>.md, de lo que haya entre
@@ -338,8 +351,8 @@ function comprobarClavesDeFirma() {
   if (!clave || !password) {
     const cual = !clave ? "TAURI_SIGNING_PRIVATE_KEY" : "TAURI_SIGNING_PRIVATE_KEY_PASSWORD";
     fallar(
-      `Falta ${cual}. Sin las dos, \`tauri build\` no genera el .sig y la versión no ` +
-        "puede instalarse como actualización.\n\n" +
+      `Falta ${cual}. Sin las dos no se puede firmar nada (ni lo de CI con \`tauri signer ` +
+        "sign\`, ni el .exe de `tauri build`) y la versión no podría instalarse como actualización.\n\n" +
         "           La causa MÁS habitual no es que no existan, sino que esta terminal se\n" +
         "           abrió ANTES de definirlas: se guardaron a nivel de usuario y eso solo\n" +
         "           alcanza a los procesos que arranquen después. Cargalas en esta sesión:\n\n" +
@@ -434,7 +447,9 @@ async function comprobarQueNoEstaPublicada(base, version, forzar) {
  */
 function comprobarQueNoSePierdenPlataformas(publicado, opciones) {
   if (!publicado || opciones.ci) return;
-  const otras = Object.keys(publicado.platforms ?? {}).filter((p) => p !== "windows-x86_64");
+  // Las claves de Windows (`windows-x86_64` y `windows-x86_64-msi`) las rehace
+  // también el respaldo local; las demás solo salen de --ci.
+  const otras = Object.keys(publicado.platforms ?? {}).filter((p) => !p.startsWith("windows-"));
   if (otras.length) {
     fallar(
       `La ${publicado.version} publicada incluye también ${otras.join(", ")}. Republicarla sin ` +
@@ -552,10 +567,10 @@ function localizarArtefactos(version, { sinCompilar }) {
   );
 }
 
-// ── Artefactos de CI: macOS y Linux (`FUN-L-28`, opción --ci) ─────────────────
+// ── Artefactos de CI: Windows, macOS y Linux (`FUN-L-28`, opción --ci) ────────
 
 /**
- * Lo que sube GitHub Actions (Parte A de [[instaladores-mac-linux]]). Cada patrón
+ * Lo que sube GitHub Actions (§ 3 de [[instaladores-mac-linux]]). Cada patrón
  * captura la versión del nombre para poder rechazar los artefactos de otro run.
  * `Mycelium.app.tar.gz` es la excepción: el bundler de Tauri no le pone versión,
  * así que se acepta sin ella —y se comprueba de otra forma, ver
@@ -563,9 +578,13 @@ function localizarArtefactos(version, { sinCompilar }) {
  * script, que es lo que permite `--ci installers/v<version>`.
  *
  * `firmar`: lo que el updater puede instalar y por lo tanto necesita `.sig`. El
- * `.dmg` es solo para la primera instalación.
+ * `.dmg` es solo para la primera instalación. Windows va primero: el orden es el
+ * de la subida, y el `.exe` es el canal de la mayoría de las instalaciones.
+ * `contentType` de Windows queda sin definir, como siempre se subió el `.exe`.
  */
 const ARTEFACTOS_CI = [
+  { id: "exe", plataforma: "Windows", patron: /^Mycelium_(\d+\.\d+\.\d+)_x64-setup\.exe$/, firmar: true },
+  { id: "msi", plataforma: "Windows", patron: /^Mycelium_(\d+\.\d+\.\d+)_x64_en-US\.msi$/, firmar: true },
   { id: "dmg", plataforma: "macOS", patron: /^Mycelium_(\d+\.\d+\.\d+)_aarch64\.dmg$/, firmar: false, contentType: "application/x-apple-diskimage" },
   { id: "app", plataforma: "macOS", patron: /^Mycelium(?:_(\d+\.\d+\.\d+)_aarch64)?\.app\.tar\.gz$/, firmar: true, contentType: "application/gzip" },
   { id: "appimage", plataforma: "Linux", patron: /^Mycelium_(\d+\.\d+\.\d+)_amd64\.AppImage$/, firmar: true, contentType: "application/octet-stream" },
@@ -574,11 +593,23 @@ const ARTEFACTOS_CI = [
 ];
 
 /**
- * Las entradas de `platforms` que llevan los artefactos de CI. `tauri-plugin-updater`
- * (2.10, `Updater::get_urls`) busca primero `{os}-{arch}-{instalador}` y después
+ * Las entradas de `platforms` del manifiesto. `tauri-plugin-updater` (2.10,
+ * `Updater::get_urls`) busca primero `{os}-{arch}-{instalador}` y después
  * `{os}-{arch}`, donde el instalador es el tipo de paquete con el que se instaló
- * esa copia (el bundler lo deja grabado en el binario):
+ * esa copia (el bundler lo deja grabado en el binario; `installer_for_bundle_type`
+ * lo traduce a `nsis`, `msi`, `app`, `deb`, `rpm` o `appimage`):
  *
+ * - Windows: `windows-x86_64` es el NSIS (`-setup.exe`), el canal de siempre:
+ *   instala por usuario y no pide UAC. Una copia instalada con el **MSI** busca
+ *   antes `windows-x86_64-msi`; sin esa entrada caía en `windows-x86_64`, bajaba
+ *   el NSIS y lo ejecutaba (`WindowsUpdaterType` decide por los bytes, no por cómo
+ *   se instaló): el NSIS instala por usuario en `%LOCALAPPDATA%` y el MSI había
+ *   instalado por máquina en `Program Files`, así que quedaban **dos Mycelium**
+ *   (el aviso de [[Generar instaladores desktop]]). Con `windows-x86_64-msi` → el
+ *   `.msi` firmado, esa copia se actualiza con `msiexec /i` sobre sí misma (el
+ *   `upgradeCode` fijo hace la *major upgrade*), a costa de un UAC por
+ *   actualización, que es lo que implica haber elegido el MSI. `windows-x86_64-nsis`
+ *   no hace falta: sería un duplicado de `windows-x86_64`.
  * - macOS: el `.dmg` y el `.app` cuentan las dos como `app`, así que basta
  *   `darwin-aarch64`; `darwin-aarch64-app` sería un duplicado.
  * - Linux: **no basta** `linux-x86_64`. Una copia instalada con el `.deb` busca
@@ -587,7 +618,9 @@ const ARTEFACTOS_CI = [
  *   actualización. Por eso el `.deb` y el `.rpm` también se firman y llevan su
  *   entrada; `linux-x86_64` queda para el AppImage, que no tiene que nombrarse.
  */
-const PLATAFORMAS_CI = [
+const PLATAFORMAS = [
+  { clave: "windows-x86_64", artefacto: "exe" },
+  { clave: "windows-x86_64-msi", artefacto: "msi" },
   { clave: "darwin-aarch64", artefacto: "app" },
   { clave: "linux-x86_64", artefacto: "appimage" },
   { clave: "linux-x86_64-deb", artefacto: "deb" },
@@ -672,12 +705,11 @@ function leerVersionDelApp(ruta) {
 }
 
 /**
- * Busca en `<carpeta>` (recursivo, y dentro de los .zip que haya) los cinco
- * artefactos de la versión que se publica. Tolerante con la forma —subcarpetas con
- * el nombre del artefacto, todo plano, zips— y estricto con el contenido: si falta
- * uno o es de otra versión, no se sigue. Se llama **antes de compilar**: enterarse
- * de que falta el .deb después de diez minutos de `tauri build` es lo que este
- * script existe para evitar.
+ * Busca en `<carpeta>` (recursivo, y dentro de los .zip que haya) los siete
+ * archivos de la versión que se publica —los de los tres artefactos del run—.
+ * Tolerante con la forma —subcarpetas con el nombre del artefacto, todo plano,
+ * zips— y estricto con el contenido: si falta uno o es de otra versión, no se
+ * sigue. Se llama en las comprobaciones previas, antes de firmar o subir nada.
  */
 function localizarArtefactosCi(carpeta, version) {
   const raiz = resolve(process.cwd(), carpeta);
@@ -741,8 +773,9 @@ function localizarArtefactosCi(carpeta, version) {
     fallar(
       `Faltan artefactos de CI de la ${version} en ${raiz}:\n` +
         faltan.map((f) => `             - ${f}`).join("\n") +
-        "\n           Descargá los dos artefactos del run de Actions de ESTA versión " +
-        `(mycelium-${version}-macos-aarch64 y mycelium-${version}-linux-x86_64). ` +
+        "\n           Descargá los TRES artefactos del run de Actions de ESTA versión " +
+        `(mycelium-${version}-windows-x86_64, mycelium-${version}-macos-aarch64 y ` +
+        `mycelium-${version}-linux-x86_64). Son obligatorios: con --ci no se compila nada acá. ` +
         "Ver [[Publicar una version]] § 2.",
     );
   }
@@ -752,8 +785,8 @@ function localizarArtefactosCi(carpeta, version) {
     carpetaTemporalCi && ruta.startsWith(carpetaTemporalCi)
       ? `${relative(carpetaTemporalCi, ruta)}  (del .zip)`
       : relative(raiz, ruta) || ruta;
-  for (const a of Object.values(encontrados)) detalle(`${a.plataforma.padEnd(5)} ${mostrar(a.ruta)}`);
-  ok(`artefactos de macOS y Linux de la ${version} encontrados en ${raiz}`);
+  for (const a of Object.values(encontrados)) detalle(`${a.plataforma.padEnd(7)} ${mostrar(a.ruta)}`);
+  ok(`artefactos de Windows, macOS y Linux de la ${version} encontrados en ${raiz}`);
   return encontrados;
 }
 
@@ -873,32 +906,34 @@ function leerFirma(rutaSig) {
   return firma;
 }
 
-function construirManifiesto({ version, notas, base, rutaSig, ci }) {
-  const firma = leerFirma(rutaSig);
-  const { exe } = nombresDeArtefactos(version);
-  const platforms = {
-    // El canal de actualización es el NSIS: instala en modo currentUser, así que
-    // actualizar no dispara UAC. El MSI se publica solo para la instalación inicial.
-    "windows-x86_64": { signature: firma, url: `${base}/${version}/${exe}` },
-  };
-  // Con --ci, las mismas reglas para macOS y Linux (qué clave lleva qué archivo, en
-  // `PLATAFORMAS_CI`). Los dos `latest.json` —raíz y `<version>/`— son el mismo
-  // archivo, así que el modo avanzado (`FUN-M-16`) también las ve; `versions.json`
-  // no lleva `platforms`.
-  if (ci) {
-    for (const { clave, artefacto } of PLATAFORMAS_CI) {
-      const a = ci[artefacto];
-      platforms[clave] = { signature: leerFirma(a.rutaSig), url: `${base}/${version}/${a.nombre}` };
-    }
+/**
+ * Arma `platforms` con cada clave de `PLATAFORMAS` cuyo artefacto se esté
+ * publicando: con --ci, las seis; en el respaldo local, las dos de Windows.
+ * `signature` es el **contenido entero** del `.sig`, no una ruta ni un hash. Los
+ * dos `latest.json` —raíz y `<version>/`— son el mismo archivo, así que el modo
+ * avanzado (`FUN-M-16`) ve las mismas plataformas; `versions.json` no lleva
+ * `platforms`.
+ */
+function construirManifiesto({ version, notas, base, artefactos }) {
+  const platforms = {};
+  for (const { clave, artefacto } of plataformasPublicadas(artefactos)) {
+    const a = artefactos[artefacto];
+    platforms[clave] = { signature: leerFirma(a.rutaSig), url: `${base}/${version}/${a.nombre}` };
   }
+  if (!platforms["windows-x86_64"]) fallar("El manifiesto quedó sin windows-x86_64: falta el .exe firmado.");
   return { version, notes: notas, pub_date: fechaUtc(), platforms };
+}
+
+/** Las entradas de `PLATAFORMAS` cuyo artefacto está entre los que se publican. */
+function plataformasPublicadas(artefactos) {
+  return PLATAFORMAS.filter((p) => artefactos[p.artefacto]);
 }
 
 /**
  * Copia los artefactos de CI a `installers/v<version>/` con su nombre final y firma
  * **las copias**: la carpeta del usuario no se toca, y lo firmado queda preservado
- * junto al `.exe` igual que él. Cada firma se verifica en el acto contra la pubkey
- * de la app (ver `verificarFirmaUpdater`).
+ * ahí. Cada firma se verifica en el acto contra la pubkey de la app (ver
+ * `verificarFirmaUpdater`).
  */
 function prepararArtefactosCi(encontrados, destino, pubkey) {
   const preparados = {};
@@ -916,6 +951,37 @@ function prepararArtefactosCi(encontrados, destino, pubkey) {
     preparados[a.id] = { ...a, ruta: copia, rutaSig, sha: sha256(copia) };
   }
   return preparados;
+}
+
+/**
+ * Respaldo sin --ci: preserva en `installers/v<version>/` lo que dejó `tauri build`
+ * (o lo que ya estaba ahí con --sin-compilar) y devuelve la misma forma que
+ * `prepararArtefactosCi`. El `.exe` ya viene firmado por `tauri build`; acá se
+ * verifica su firma. El `.msi` se firma acá (con la misma clave) para la entrada
+ * `windows-x86_64-msi`: así el respaldo publica las mismas claves de Windows que CI.
+ */
+function prepararArtefactosLocales(locales, destino, pubkey, version) {
+  const { exe, sig, msi } = nombresDeArtefactos(version);
+  const copia = (origen, nombre) => {
+    const ruta = join(destino, nombre);
+    if (resolve(ruta) !== resolve(origen)) copyFileSync(origen, ruta); // ya venían de acá (--sin-compilar)
+    return ruta;
+  };
+  const rutaExe = copia(locales.exe, exe);
+  const rutaSigExe = copia(locales.sig, sig);
+  const rutaMsi = copia(locales.msi, msi);
+  ok(`instaladores en installers/v${version}/ (fuera de git)`);
+
+  verificarFirmaUpdater(rutaExe, readFileSync(rutaSigExe, "utf8"), pubkey);
+  ok(`${exe}: la firma de tauri build verifica con la pubkey de la app`);
+  const rutaSigMsi = firmarConTauri(rutaMsi);
+  verificarFirmaUpdater(rutaMsi, readFileSync(rutaSigMsi, "utf8"), pubkey);
+  ok(`${msi} firmado; la firma verifica con la pubkey de la app`);
+
+  return {
+    exe: { id: "exe", plataforma: "Windows", nombre: exe, ruta: rutaExe, rutaSig: rutaSigExe, sha: sha256(rutaExe) },
+    msi: { id: "msi", plataforma: "Windows", nombre: msi, ruta: rutaMsi, rutaSig: rutaSigMsi, sha: sha256(rutaMsi) },
+  };
 }
 
 /**
@@ -1026,15 +1092,21 @@ async function principal() {
     return;
   }
 
-  if (opciones.ci) TOTAL_PASOS = 7;
-  const plataformas = opciones.ci ? "Windows, macOS y Linux" : null;
-  console.log(
-    `\n=== Publicar Mycelium ${plataformas ? `(${plataformas}) ` : ""}${opciones.simulacro ? "(SIMULACRO: no se sube nada)" : ""} ===`,
-  );
+  // Con --ci no hay compilación: compilar + preservar se vuelven un solo paso.
+  if (opciones.ci) TOTAL_PASOS = 5;
+  const modo = opciones.ci ? "Windows, macOS y Linux, compilados en CI" : "solo Windows, compilado en esta PC: respaldo";
+  console.log(`\n=== Publicar Mycelium (${modo}) ${opciones.simulacro ? "(SIMULACRO: no se sube nada) " : ""}===`);
 
-  // ── 1. Comprobaciones previas, antes de compilar nada ──
+  // ── 1. Comprobaciones previas, antes de compilar o firmar nada ──
   paso("Comprobaciones previas");
+  if (opciones.ci && opciones.sinCompilar) {
+    aviso("--sin-compilar se ignora con --ci: no se compila nada en esta PC, todo viene de CI");
+  }
+  if (!opciones.ci) {
+    aviso("sin --ci: se compila Windows acá y se publica SOLO Windows (el respaldo para cuando CI no está)");
+  }
   const version = comprobarVersion();
+  versionEnCurso = version;
   ok(`versión ${version}, coherente en los cinco archivos`);
   comprobarClavesDeFirma();
   const { base, pubkey } = comprobarConfiguracionDelUpdater();
@@ -1048,50 +1120,45 @@ async function principal() {
   const encontradosCi = opciones.ci ? localizarArtefactosCi(opciones.ci, version) : null;
   hechos.push("comprobaciones previas");
 
-  // ── 2. Compilar ──
-  paso(opciones.sinCompilar ? "Compilar (omitido por --sin-compilar)" : "Compilar");
-  if (opciones.sinCompilar) aviso("se reutilizan instaladores ya existentes");
-  else {
-    compilar();
-    hechos.push("compilación");
-  }
-  const artefactos = localizarArtefactos(version, opciones);
-  const shaExe = sha256(artefactos.exe);
-  detalle(`sha256 del .exe firmado: ${shaExe}`);
-
-  // ── 6 (adelantado). Preservar ──
-  // Se hace antes de subir para tener los artefactos y los manifiestos a salvo aunque
-  // la subida falle: `target/` se borra con cualquier `cargo clean`.
-  paso("Preservar los instaladores en installers/");
+  // Se preserva antes de subir para tener los artefactos y los manifiestos a salvo
+  // aunque la subida falle: `target/` se borra con cualquier `cargo clean`, y la
+  // carpeta de descargas de CI es del usuario.
   const destino = join(RAIZ_REPO, "installers", `v${version}`);
-  mkdirSync(destino, { recursive: true });
-  for (const ruta of [artefactos.exe, artefactos.sig, artefactos.msi]) {
-    const copia = join(destino, basename(ruta));
-    if (resolve(copia) === resolve(ruta)) continue; // ya venían de acá (--sin-compilar)
-    copyFileSync(ruta, copia);
-  }
-  ok(`instaladores en installers/v${version}/ (fuera de git)`);
-  hechos.push(`instaladores preservados en installers/v${version}/`);
-
-  // ── macOS y Linux (--ci): copiar, firmar y verificar la firma ──
-  let ci = null;
+  let artefactos;
   if (encontradosCi) {
-    paso("Preparar y firmar macOS y Linux (--ci)");
-    ci = prepararArtefactosCi(encontradosCi, destino, pubkey);
-    hechos.push(`macOS y Linux firmados en installers/v${version}/`);
-  }
+    // ── 2. Copiar a installers/, firmar y verificar las firmas de los tres sistemas ──
+    paso("Preparar y firmar Windows, macOS y Linux (--ci)");
+    mkdirSync(destino, { recursive: true });
+    artefactos = prepararArtefactosCi(encontradosCi, destino, pubkey);
+    hechos.push(`Windows, macOS y Linux copiados y firmados en installers/v${version}/`);
+  } else {
+    // ── 2. Compilar (respaldo) ──
+    paso(opciones.sinCompilar ? "Compilar (omitido por --sin-compilar)" : "Compilar");
+    if (opciones.sinCompilar) aviso("se reutilizan instaladores ya existentes");
+    else {
+      compilar();
+      hechos.push("compilación");
+    }
+    const locales = localizarArtefactos(version, opciones);
 
-  // ── 3-4. Manifiestos ──
+    // ── 3. Preservar y firmar el MSI ──
+    paso("Preservar los instaladores en installers/ y firmar el MSI");
+    mkdirSync(destino, { recursive: true });
+    artefactos = prepararArtefactosLocales(locales, destino, pubkey, version);
+    hechos.push(`instaladores preservados (y el MSI firmado) en installers/v${version}/`);
+  }
+  detalle(`sha256 del .exe firmado: ${artefactos.exe.sha}`);
+  const publicadas = plataformasPublicadas(artefactos);
+
+  // ── Manifiestos ──
   paso("Escribir los manifiestos");
-  const manifiesto = construirManifiesto({ version, notas: notas.texto, base, rutaSig: artefactos.sig, ci });
+  const manifiesto = construirManifiesto({ version, notas: notas.texto, base, artefactos });
   const rutaLatest = join(destino, "latest.json");
   escribirJsonSinBom(rutaLatest, manifiesto);
   ok(`latest.json escrito (UTF-8 sin BOM, primer byte 0x7B) en installers/v${version}/`);
-  if (ci) {
-    for (const [clave, entrada] of Object.entries(manifiesto.platforms)) {
-      detalle(`${clave.padEnd(17)} ${entrada.url}`);
-    }
-  } else detalle(`url del instalador: ${manifiesto.platforms["windows-x86_64"].url}`);
+  for (const [clave, entrada] of Object.entries(manifiesto.platforms)) {
+    detalle(`${clave.padEnd(18)} ${entrada.url}`);
+  }
 
   const indice = await construirIndiceDeVersiones({ base, manifiesto });
   const rutaVersiones = join(destino, "versions.json");
@@ -1099,23 +1166,18 @@ async function principal() {
   ok(`versions.json escrito con ${indice.versions.length} versión/es (la nueva arriba)`);
   hechos.push(`manifiestos escritos en installers/v${version}/`);
 
-  // ── 3-4. Subir ──
+  // ── Subir ──
   paso(opciones.simulacro ? "Subir al bucket (SIMULACRO: solo se imprimen los comandos)" : "Subir al bucket");
-  const { exe, sig, msi } = nombresDeArtefactos(version);
-  // Orden deliberado: primero los archivos, después el manifiesto de la versión, el
-  // índice, y el latest.json de la raíz AL FINAL. Es el que dispara la actualización
-  // de todo el mundo: no debe anunciar nada que todavía no esté completo en el bucket.
+  // Orden deliberado: primero los archivos (Windows primero), después el manifiesto
+  // de la versión, el índice, y el latest.json de la raíz AL FINAL. Es el que dispara
+  // la actualización de todo el mundo: no debe anunciar nada que todavía no esté
+  // completo en el bucket.
   const subidas = [
-    { clave: `${version}/${exe}`, archivo: artefactos.exe },
-    { clave: `${version}/${sig}`, archivo: artefactos.sig },
-    { clave: `${version}/${msi}`, archivo: artefactos.msi },
-    // macOS y Linux: cada archivo y, si lo instala el updater, su .sig.
-    ...(ci
-      ? Object.values(ci).flatMap((a) => [
-          { clave: `${version}/${a.nombre}`, archivo: a.ruta, contentType: a.contentType },
-          ...(a.rutaSig ? [{ clave: `${version}/${a.nombre}.sig`, archivo: a.rutaSig, contentType: "text/plain" }] : []),
-        ])
-      : []),
+    // Cada archivo y, si lo instala el updater, su .sig.
+    ...Object.values(artefactos).flatMap((a) => [
+      { clave: `${version}/${a.nombre}`, archivo: a.ruta, contentType: a.contentType },
+      ...(a.rutaSig ? [{ clave: `${version}/${a.nombre}.sig`, archivo: a.rutaSig, contentType: "text/plain" }] : []),
+    ]),
     { clave: `${version}/latest.json`, archivo: rutaLatest, contentType: "application/json" },
     { clave: "versions.json", archivo: rutaVersiones, contentType: "application/json" },
     { clave: "latest.json", archivo: rutaLatest, contentType: "application/json" },
@@ -1125,34 +1187,25 @@ async function principal() {
     if (!opciones.simulacro) hechos.push(`subido ${s.clave}`);
   }
 
-  // ── 5. Verificar lo publicado ──
+  // ── Verificar lo publicado ──
   paso("Verificar lo publicado");
+  const firmaDe = (artefacto) => readFileSync(artefactos[artefacto].rutaSig, "utf8").trim();
   if (opciones.simulacro) {
     aviso("no se subió nada, así que se verifica lo local en vez de lo remoto");
     const local = leerJson(rutaLatest);
-    if (local.platforms["windows-x86_64"].signature !== readFileSync(artefactos.sig, "utf8").trim()) {
-      fallar("La firma del manifiesto no coincide con el .sig. Es el fallo más común del proceso manual.");
-    }
-    ok("la firma del manifiesto es idéntica al .sig generado");
-    if (ci) {
-      for (const { clave, artefacto } of PLATAFORMAS_CI) {
-        if (local.platforms[clave]?.signature !== readFileSync(ci[artefacto].rutaSig, "utf8").trim()) {
-          fallar(`La firma de ${clave} en el manifiesto no coincide con ${basename(ci[artefacto].rutaSig)}.`);
-        }
+    for (const { clave, artefacto } of publicadas) {
+      if (local.platforms[clave]?.signature !== firmaDe(artefacto)) {
+        fallar(`La firma de ${clave} en el manifiesto no coincide con ${basename(artefactos[artefacto].rutaSig)}.`);
       }
-      ok(`las firmas de ${PLATAFORMAS_CI.map((p) => p.clave).join(", ")} son idénticas a sus .sig`);
     }
+    ok(`las firmas de ${publicadas.map((p) => p.clave).join(", ")} son idénticas a sus .sig`);
     ok(`versions.json local contiene ${leerJson(rutaVersiones).versions.map((v) => v.version).join(", ")}`);
     detalle("para verificar de verdad hace falta publicar: repetí sin --simulacro");
   } else {
-    const firmaLocal = readFileSync(artefactos.sig, "utf8").trim();
     const comprobarManifiesto = (json) => {
       if (json.version !== version) fallar(`el manifiesto publicado anuncia la ${json.version}, no la ${version}`);
-      if (json.platforms?.["windows-x86_64"]?.signature !== firmaLocal) {
-        fallar("la firma del manifiesto publicado NO es la del .sig generado: nadie podría actualizar");
-      }
-      for (const { clave, artefacto } of ci ? PLATAFORMAS_CI : []) {
-        if (json.platforms?.[clave]?.signature !== readFileSync(ci[artefacto].rutaSig, "utf8").trim()) {
+      for (const { clave, artefacto } of publicadas) {
+        if (json.platforms?.[clave]?.signature !== firmaDe(artefacto)) {
           fallar(`la firma de ${clave} en el manifiesto publicado NO es la de su .sig: esa plataforma no podría actualizar`);
         }
       }
@@ -1164,11 +1217,10 @@ async function principal() {
         fallar(`versions.json publicado no incluye la ${version}`);
       }
     });
-    ok(`la firma de los dos manifiestos es idéntica al .sig generado${ci ? " (en las cinco plataformas)" : ""}`);
-    await verificarInstalador(`${base}/${version}/${exe}`, shaExe);
-    // De macOS y Linux se descargan los que instala el updater (los firmados): son
-    // los que fallarían en silencio. El .dmg es solo de primera instalación, como el .msi.
-    for (const a of ci ? Object.values(ci).filter((x) => x.rutaSig) : []) {
+    ok(`la firma de los dos manifiestos es idéntica a su .sig en las ${publicadas.length} plataformas`);
+    // Se descargan los que instala el updater (los firmados): son los que fallarían
+    // en silencio. El .dmg es solo de primera instalación.
+    for (const a of Object.values(artefactos).filter((x) => x.rutaSig)) {
       await verificarInstalador(`${base}/${version}/${a.nombre}`, a.sha, a.nombre);
     }
   }
@@ -1177,7 +1229,7 @@ async function principal() {
     opciones.simulacro
       ? `\nSimulacro completo. No se subió nada. Lo que se habría publicado quedó en installers/v${version}/.`
       : `\nPublicada la ${version}. Los usuarios con 1.4.0 o posterior la verán en su próxima comprobación diaria.` +
-          (ci ? "\nEn macOS y Linux la verán las copias instaladas desde una versión publicada con --ci." : ""),
+          (encontradosCi ? "\nEn macOS y Linux la verán las copias instaladas desde una versión publicada con --ci." : ""),
   );
 }
 
@@ -1186,14 +1238,18 @@ principal().catch((e) => {
   // todo, la versión ESTÁ publicada y lo que faltó fue comprobarla. Se dice así
   // de claro, con la forma de comprobarla a mano.
   if (e instanceof ErrorDeRed && hechos.some((h) => h.startsWith("subido latest.json"))) {
+    const v = versionEnCurso ?? "<version>";
     console.error(`\nLA VERSIÓN SE PUBLICÓ, pero NO se pudo verificar: ${e.message}`);
     console.error(
       "\nTodo se subió, incluido el latest.json de la raíz, así que la actualización ya está\n" +
         "anunciada. Lo que no se pudo hacer es la comprobación posterior — casi seguro es un\n" +
         "corte de red pasajero y no un problema de lo publicado.\n\n" +
-        "Comprobalo cuando vuelva la red, sin volver a compilar ni subir:\n\n" +
-        // Con --ci hay que repetirlo: sin él, el manifiesto se reescribiría solo con Windows.
-        `  npm run publicar -- --sin-compilar --forzar${process.argv.includes("--ci") ? " --ci <la misma carpeta>" : ""}\n\n` +
+        "Comprobalo cuando vuelva la red, sin volver a compilar:\n\n" +
+        // Con --ci hay que repetirlo: sin él, el manifiesto se reescribiría solo con
+        // Windows (y el script se niega). Las copias firmadas de installers/ sirven de carpeta.
+        (process.argv.includes("--ci")
+          ? `  npm run publicar -- --forzar --ci installers/v${v}\n\n`
+          : "  npm run publicar -- --sin-compilar --forzar\n\n") +
         "Si prefieres mirarlo a mano, la § 5 de docs/procesos/Publicar una version.md dice qué\n" +
         "tiene que dar cada comprobación.",
     );
