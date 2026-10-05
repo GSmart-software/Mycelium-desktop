@@ -19,6 +19,7 @@
  */
 import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
+import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
 import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
@@ -307,6 +308,10 @@ export function tituloDeRuta(ruta: string): string {
  * `mtime`: solo se reindexa lo nuevo o cambiado; lo que ya no existe en disco se
  * borra del índice. Debe llamarse con el índice del vault ya abierto.
  *
+ * Es el indexado COMPLETO: recorre el vault entero. Lo usan la apertura, la
+ * importación, «Reindexar» de los ajustes y la reconciliación (`FUN-M-42`). Un
+ * cambio que avisa el watcher va por `indexarRutas`, que mira solo esas rutas.
+ *
  * Va en DOS FASES (FUN-M-12), porque antes se traía por IPC el contenido de todo
  * el vault en cada apertura para descartar casi todo comparando `mtime`:
  *   (a) `recorrer_vault` → solo `(ruta, mtime, tipo)` de cada nota (más los
@@ -317,27 +322,24 @@ export function tituloDeRuta(ruta: string): string {
  * Reabrir un vault sin cambios transfiere 0 bytes de contenido.
  *
  * Y cada tanda se escribe con **una sentencia por tabla** (`FUN-M-38`, hallazgo
- * H1 de la auditoría): la tanda entera viaja como un parámetro JSON que SQLite
- * despliega con `json_each`. Antes eran 5 sentencias por nota más una por
- * propiedad —13.496 viajes por el puente IPC en un vault de 1.300 notas, a
- * 4–5 ms cada uno—; ahora son unas pocas por tanda de 250. No se usa
- * `BEGIN`/`COMMIT`: el pool de conexiones de `tauri-plugin-sql` no garantiza que
- * caigan en la misma conexión, así que cada sentencia tiene que ser correcta por
- * sí sola. Y por lo mismo la tanda puede cortarse a la mitad: el `mtime` de cada
- * nota se escribe en la ÚLTIMA sentencia, para que una tanda cortada se relea
- * entera en el próximo indexado (`DEF-121`).
+ * H1 de la auditoría): ver `escribirNotas`.
  *
  * Un `.excalidraw` se indexa como cualquier nota: su escena va a `contenidos`.
  *
+ * @param recorrido el de `recorrer_vault`, si quien llama ya lo tiene (la
+ *        reconciliación lo pidió para comparar el árbol): así el disco se
+ *        recorre una sola vez.
  * @returns totales: `notas` en disco, `carpetas` derivadas, `reindexadas`
- *          (notas nuevas o modificadas que se reescribieron en el índice) y
+ *          (notas nuevas o modificadas que se reescribieron en el índice),
  *          `otros`, los archivos no indexados que vio el recorrido (para el
- *          explorador: `vaultStore.otros`).
+ *          explorador: `vaultStore.otros`), y `rutas`, las notas que cambiaron
+ *          en el índice —reescritas o borradas—, para avisar a las pestañas.
  */
 export async function indexarVault(
   vaultRuta: string,
   onProgress?: (hechas: number, total: number) => void,
-): Promise<{ notas: number; carpetas: number; reindexadas: number; otros: OtroArchivo[] }> {
+  recorrido?: RecorridoVault,
+): Promise<{ notas: number; carpetas: number; reindexadas: number; otros: OtroArchivo[]; rutas: string[] }> {
   // ¿El índice es anterior a las propiedades (FUN-M-04)? Se pregunta ANTES de
   // crear el esquema: si la tabla todavía no existe, ninguna nota tiene sus
   // propiedades indexadas y el `mtime` no cambió, así que el reindexado
@@ -356,12 +358,14 @@ export async function indexarVault(
   // ya lo creó, y el watcher indexa cada pocos segundos mientras algo escribe.
   await asegurarEsquema();
 
-  const { invoke } = await import("@tauri-apps/api/core");
   // Un solo recorrido del disco (`FUN-M-13`): las notas con sus metadatos, los
   // directorios reales —incluidos los vacíos: sin ellos, una carpeta sin notas
   // desaparecería al reindexar, porque solo se derivarían carpetas de las rutas
   // de archivos— y los archivos que no se indexan, que van al explorador.
-  const recorrido = await invoke<RecorridoVault>("recorrer_vault", { origen: vaultRuta });
+  if (!recorrido) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    recorrido = await invoke<RecorridoVault>("recorrer_vault", { origen: vaultRuta });
+  }
   const archivos = recorrido.archivosMeta;
   const directorios = recorrido.directorios;
   const otros = otrosDesdeMeta(recorrido.otros);
@@ -378,25 +382,8 @@ export async function indexarVault(
 
   // Estado actual del índice: mtime por nota y carpetas existentes (para limpieza).
   //
-  // Y qué notas están INCOMPLETAS (`DEF-121`): sin su fila de `contenidos` o sin
-  // la de búsqueda. Un índice dañado por una tanda que se cortó antes del
-  // arreglo tiene la nota con el `mtime` al día, así que comparar `mtime`s la
-  // salteaba para siempre —y la app la abría vacía—. Se releen aunque el `mtime`
-  // coincida: es la reparación de esos índices.
-  //
-  // La fila de búsqueda se mira en `notas_fts_docsize`, la tabla sombra en la
-  // que FTS5 anota una fila por documento con su mismo `id`, y no en `notas_fts`:
-  // unir contra la tabla virtual hace que FTS5 lea cada documento, y en un índice
-  // de 1.366 notas eran 1,9 s en CADA indexado; contra la sombra, 13 ms. Existe
-  // siempre: `notas_fts` se crea sin `columnsize=0` (ver `ESQUEMA_INDICE`).
-  const notasExistentes = await select<{ id: string; mtime: number; incompleta: number }>(
-    `SELECT n.id, n.mtime,
-            (c.nota_id IS NULL OR d.id IS NULL) AS incompleta
-     FROM notas n
-     LEFT JOIN contenidos c ON c.nota_id = n.id
-     LEFT JOIN fts_filas f ON f.nota_id = n.id
-     LEFT JOIN notas_fts_docsize d ON d.id = f.fila`,
-  );
+  // Y qué notas están INCOMPLETAS (`DEF-121`): ver `estadoDeNotas`.
+  const notasExistentes = await estadoDeNotas(null);
   const mtimePorId = new Map(notasExistentes.map((r) => [r.id, r.mtime]));
   // Solo cuentan las que siguen en disco: las demás no se releen (se van en la
   // limpieza, o están en la papelera), y contarlas repetiría la limpieza de
@@ -414,28 +401,10 @@ export async function indexarVault(
   const now = ahoraIso();
 
   // 1) Upsert de carpetas NUEVAS, ordenadas por profundidad (padre→hijo).
-  // Las que ya están en el índice se saltan (FUN-M-12): el `id` de una carpeta ES
-  // su ruta POSIX, y `nombre`/`padre_id` se derivan de esa ruta, así que si el id
-  // ya existe sus otras columnas no pueden haber cambiado. Reescribirlas costaba
-  // un statement por carpeta en TODA apertura (4020 en un vault sobre este repo).
-  // Y en tandas de una sentencia (`FUN-M-38`): en frío, un vault con 445 carpetas
-  // eran 445 viajes por el puente IPC antes de leer la primera nota.
-  const carpetasOrdenadas = [...carpetas.values()]
-    .filter((c) => !idsCarpetasExistentes.has(c.id))
-    .sort((a, b) => a.id.split("/").length - b.id.split("/").length);
-  for (const tanda of enTandas(carpetasOrdenadas)) {
-    await execute(
-      `INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en)
-       SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.padre_id'),
-              json_extract(value, '$.nombre'), ?, ?
-       FROM json_each(?) WHERE true
-       ON CONFLICT(id) DO UPDATE SET
-         padre_id = excluded.padre_id,
-         nombre = excluded.nombre,
-         actualizado_en = excluded.actualizado_en`,
-      [VAULT_ID, now, now, JSON.stringify(tanda)],
-    );
-  }
+  await insertarCarpetas(
+    [...carpetas.values()].filter((c) => !idsCarpetasExistentes.has(c.id)),
+    now,
+  );
 
   // 2) Fase (a): qué hay que reindexar. Solo se comparan `mtime`s: el contenido
   // todavía no cruzó el puente IPC.
@@ -444,7 +413,6 @@ export async function indexarVault(
     const previo = mtimePorId.get(a.rutaRelativa);
     return previo === undefined || previo !== a.mtime;
   });
-  const metaPorRuta = new Map(archivos.map((a) => [a.rutaRelativa, a]));
 
   // El progreso se mide sobre el total de archivos del vault: lo no cambiado ya
   // está "hecho" antes de empezar, para que la barra refleje trabajo real.
@@ -459,7 +427,296 @@ export async function indexarVault(
   const clavesPorResolver = new Set<string>();
 
   // 3) Fase (b): pedir el contenido en tandas y escribir el índice tanda a tanda.
-  let reindexadas = 0;
+  const reescritas = await escribirNotas(
+    vaultRuta,
+    porReindexar,
+    (id) => !mtimePorId.has(id),
+    clavesPorResolver,
+    now,
+    (pedidas) => {
+      // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
+      // las devueltas, para que el progreso llegue al total aunque alguna se omita.
+      hechas += pedidas;
+      onProgress?.(hechas, archivos.length);
+    },
+  );
+
+  // 4) Limpieza: borrar del índice lo que ya no existe en disco.
+  //
+  // OJO con la papelera (DEF-046): una nota enviada a la papelera TAMPOCO está en su
+  // ruta —se movió a `.mycelium/.trash`, que `.mycignore` ignora siempre—, así que
+  // caía en esta limpieza y se borraba su fila de `papelera` a los segundos. Como
+  // mover el archivo dispara el watcher, el ciclo era: borrar → reindexar → la
+  // entrada desaparece de la papelera. El archivo seguía en disco pero Mycelium ya no
+  // sabía que existía, así que no había forma de recuperarlo desde la app.
+  //
+  // Su ausencia de la ruta original es INTENCIONAL: no es un archivo desaparecido.
+  const enPapelera = new Set(
+    (await select<{ nota_id: string }>("SELECT nota_id FROM papelera")).map((r) => r.nota_id),
+  );
+  const desaparecidas = notasExistentes
+    .map((n) => n.id)
+    .filter((id) => !enDisco.has(id) && !enPapelera.has(id));
+  await borrarNotas(desaparecidas, clavesPorResolver);
+  const carpetasIdas = carpetasExistentes.map((c) => c.id).filter((id) => !carpetas.has(id));
+  await borrarCarpetas(carpetasIdas);
+
+  // 5) Resolver los enlaces (`FUN-L-25`): con todas las notas ya en el índice.
+  // En una pasada completa se resuelve todo; si no, solo lo que pudo cambiar.
+  await reResolverClaves(forzarTodo ? null : clavesPorResolver);
+  // La pasada terminó entera: lo derivado ya está al día con esta versión.
+  if (forzarTodo) await execute(`PRAGMA user_version = ${VERSION_DERIVADO}`);
+
+  if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
+
+  return {
+    notas: archivos.length,
+    carpetas: carpetas.size,
+    reindexadas: reescritas.length,
+    otros,
+    rutas: [...reescritas, ...desaparecidas],
+  };
+}
+
+/**
+ * Indexado **dirigido** (`FUN-M-14`, `FUN-M-42`): pone el índice al día solo con
+ * las rutas que avisó el watcher, en vez de recorrer el vault entero.
+ *
+ * Antes, cada cambio externo —una nota guardada por otro editor, una imagen
+ * agregada— pagaba un `recorrer_vault` completo (170 KB de JSON en un vault de
+ * 2.000 notas), la lectura del estado de TODAS las notas del índice, la de
+ * todas las carpetas y la de la papelera. Ahora cuesta lo que cambió.
+ *
+ * Lo que hace con cada ruta según lo que hay en ella AHORA (`CambioVault`):
+ *   - `nota`: se relee si es nueva, si su `mtime` no coincide o si está
+ *     incompleta (`DEF-121`), igual que el completo; y se aseguran sus carpetas.
+ *   - `otro` / `carpeta`: no se indexan, pero se aseguran sus carpetas; y si el
+ *     índice tenía una nota en esa ruta exacta, se va.
+ *   - `ausente`: se borra la nota de esa ruta y todo lo que cuelgue de ella
+ *     —el watcher no dice si lo que se fue era una carpeta— salvo lo que está en
+ *     la papelera (`DEF-046`: su archivo se movió a `.mycelium/.trash`).
+ *
+ * La misma escritura por tandas (`escribirNotas`) que el completo, con el
+ * `mtime` al final (`DEF-121`), y la misma resolución de enlaces por claves.
+ *
+ * @returns `reindexadas` y `rutas`: las notas que cambiaron en el índice
+ *          (reescritas o borradas), para avisar a las pestañas abiertas.
+ */
+export async function indexarRutas(
+  vaultRuta: string,
+  cambios: readonly CambioVault[],
+): Promise<{ reindexadas: number; rutas: string[] }> {
+  await asegurarEsquema();
+  // Una ruta, un estado: el último que llegó.
+  const porRuta = new Map<string, CambioVault>();
+  for (const c of cambios) if (c.ruta !== "") porRuta.set(c.ruta, c);
+  const ultimos = [...porRuta.values()];
+
+  const notas: ArchivoMeta[] = ultimos
+    .filter((c) => c.estado === "nota")
+    .map((c) => ({ rutaRelativa: c.ruta, mtime: c.mtime, tipo: c.tipo }));
+  const noNotas = ultimos.filter((c) => c.estado !== "nota").map((c) => c.ruta);
+  const ausentes = ultimos.filter((c) => c.estado === "ausente").map((c) => c.ruta);
+
+  const now = ahoraIso();
+  const clavesPorResolver = new Set<string>();
+
+  // 1) Carpetas: las de lo que existe (y sus ancestros), solo las que faltan.
+  const carpetas = new Map<string, CarpetaDerivada>();
+  for (const c of ultimos) {
+    if (c.estado === "carpeta") for (const d of carpetasDeDir(c.ruta)) carpetas.set(d.id, d);
+    else if (c.estado !== "ausente") for (const d of carpetasDeRuta(c.ruta)) carpetas.set(d.id, d);
+  }
+  if (carpetas.size > 0) {
+    const ya = new Set<string>();
+    for (const tanda of enTandas([...carpetas.keys()])) {
+      const filas = await select<{ id: string }>(
+        `SELECT id FROM carpetas WHERE id IN (${marcadores(tanda.length)})`,
+        tanda,
+      );
+      for (const f of filas) ya.add(f.id);
+    }
+    await insertarCarpetas(
+      [...carpetas.values()].filter((c) => !ya.has(c.id)),
+      now,
+    );
+  }
+
+  // 2) Notas: qué hay que releer, mirando solo estas en el índice.
+  let reescritas: string[] = [];
+  if (notas.length > 0) {
+    const estado = await estadoDeNotas(notas.map((n) => n.rutaRelativa));
+    const porId = new Map(estado.map((r) => [r.id, r]));
+    const incompletas = estado.filter((r) => Number(r.incompleta) === 1);
+    if (incompletas.length > 0) await ftsBorrarHuerfanas();
+    const porReindexar = notas.filter((a) => {
+      const previo = porId.get(a.rutaRelativa);
+      return previo === undefined || Number(previo.incompleta) === 1 || previo.mtime !== a.mtime;
+    });
+    reescritas = await escribirNotas(vaultRuta, porReindexar, (id) => !porId.has(id), clavesPorResolver, now);
+  }
+
+  // 3) Lo que ya no es una nota: la de esa ruta exacta y, si se fue, todo lo
+  // que colgaba de ella. Sin lo que está en la papelera.
+  let borradas: string[] = [];
+  if (noNotas.length > 0) {
+    const ids = new Set<string>();
+    for (const tanda of enTandas(noNotas)) {
+      const filas = await select<{ id: string }>(
+        `SELECT id FROM notas WHERE id IN (${marcadores(tanda.length)})
+           AND id NOT IN (SELECT nota_id FROM papelera)`,
+        tanda,
+      );
+      for (const f of filas) ids.add(f.id);
+    }
+    for (const tanda of enTandas(ausentes)) {
+      // `substr` y no `LIKE`: una ruta puede tener `%` o `_`.
+      const filas = await select<{ id: string }>(
+        `SELECT n.id FROM notas n, json_each(?) j
+         WHERE substr(n.id, 1, length(j.value) + 1) = j.value || '/'
+           AND n.id NOT IN (SELECT nota_id FROM papelera)`,
+        [JSON.stringify(tanda)],
+      );
+      for (const f of filas) ids.add(f.id);
+    }
+    borradas = [...ids];
+    await borrarNotas(borradas, clavesPorResolver);
+  }
+
+  // 4) Carpetas que se fueron, con todo su subárbol.
+  let carpetasIdas: string[] = [];
+  if (ausentes.length > 0) {
+    const ids = new Set<string>();
+    for (const tanda of enTandas(ausentes)) {
+      const filas = await select<{ id: string }>(
+        `SELECT c.id FROM carpetas c, json_each(?) j
+         WHERE c.id = j.value OR substr(c.id, 1, length(j.value) + 1) = j.value || '/'`,
+        [JSON.stringify(tanda)],
+      );
+      for (const f of filas) ids.add(f.id);
+    }
+    carpetasIdas = [...ids];
+    await borrarCarpetas(carpetasIdas);
+  }
+
+  // 5) Los enlaces que pudieron arreglarse o romperse.
+  if (clavesPorResolver.size > 0) await reResolverClaves(clavesPorResolver);
+  if (borradas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
+
+  return { reindexadas: reescritas.length, rutas: [...reescritas, ...borradas] };
+}
+
+/**
+ * Indexa una nota que el explorador ya muestra pero el índice todavía no tiene
+ * (`FUN-M-42`): el árbol se actualiza con el evento del watcher, y el indexado
+ * va unos cientos de milisegundos detrás. Si el usuario la abre en ese hueco, el
+ * contenido se pediría a un índice que no la conoce. Devuelve si quedó indexada.
+ *
+ * Sin el `mtime` real (no hace falta otro viaje para pedirlo): entra con 0, y el
+ * indexado del watcher, que sí lo trae, la relee una vez más.
+ */
+export async function indexarNotaADemanda(vaultRuta: string, id: string, tipo: string): Promise<boolean> {
+  const r = await indexarRutas(vaultRuta, [{ ruta: id, mtime: 0, estado: "nota", tipo }]);
+  return r.reindexadas > 0;
+}
+
+/**
+ * Estado de las notas en el índice: su `mtime` y si están INCOMPLETAS
+ * (`DEF-121`), sin su fila de `contenidos` o sin la de búsqueda. Un índice
+ * dañado por una tanda que se cortó antes del arreglo tiene la nota con el
+ * `mtime` al día, así que comparar `mtime`s la salteaba para siempre —y la app
+ * la abría vacía—. Se releen aunque el `mtime` coincida: es la reparación de
+ * esos índices.
+ *
+ * La fila de búsqueda se mira en `notas_fts_docsize`, la tabla sombra en la
+ * que FTS5 anota una fila por documento con su mismo `id`, y no en `notas_fts`:
+ * unir contra la tabla virtual hace que FTS5 lea cada documento, y en un índice
+ * de 1.366 notas eran 1,9 s en CADA indexado; contra la sombra, 13 ms. Existe
+ * siempre: `notas_fts` se crea sin `columnsize=0` (ver `ESQUEMA_INDICE`).
+ *
+ * @param ids las notas a mirar, o `null` para todas (el indexado completo).
+ */
+async function estadoDeNotas(
+  ids: string[] | null,
+): Promise<{ id: string; mtime: number; incompleta: number }[]> {
+  const sql = `SELECT n.id, n.mtime,
+            (c.nota_id IS NULL OR d.id IS NULL) AS incompleta
+     FROM notas n
+     LEFT JOIN contenidos c ON c.nota_id = n.id
+     LEFT JOIN fts_filas f ON f.nota_id = n.id
+     LEFT JOIN notas_fts_docsize d ON d.id = f.fila`;
+  if (ids === null) return select(sql);
+  const out: { id: string; mtime: number; incompleta: number }[] = [];
+  for (const tanda of enTandas(ids)) {
+    out.push(...(await select<{ id: string; mtime: number; incompleta: number }>(
+      `${sql} WHERE n.id IN (${marcadores(tanda.length)})`,
+      tanda,
+    )));
+  }
+  return out;
+}
+
+/**
+ * Inserta carpetas nuevas, ordenadas por profundidad (padre→hijo).
+ *
+ * Las que ya están en el índice las filtra quien llama (FUN-M-12): el `id` de
+ * una carpeta ES su ruta POSIX, y `nombre`/`padre_id` se derivan de esa ruta,
+ * así que si el id ya existe sus otras columnas no pueden haber cambiado.
+ * Reescribirlas costaba un statement por carpeta en TODA apertura (4020 en un
+ * vault sobre este repo). Y en tandas de una sentencia (`FUN-M-38`): en frío, un
+ * vault con 445 carpetas eran 445 viajes por el puente IPC antes de leer la
+ * primera nota.
+ */
+async function insertarCarpetas(nuevas: CarpetaDerivada[], now: string): Promise<void> {
+  const ordenadas = [...nuevas].sort((a, b) => a.id.split("/").length - b.id.split("/").length);
+  for (const tanda of enTandas(ordenadas)) {
+    await execute(
+      `INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en)
+       SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.padre_id'),
+              json_extract(value, '$.nombre'), ?, ?
+       FROM json_each(?) WHERE true
+       ON CONFLICT(id) DO UPDATE SET
+         padre_id = excluded.padre_id,
+         nombre = excluded.nombre,
+         actualizado_en = excluded.actualizado_en`,
+      [VAULT_ID, now, now, JSON.stringify(tanda)],
+    );
+  }
+}
+
+/**
+ * Lee del disco y escribe en el índice las notas `porReindexar`, en tandas de
+ * `TANDA`. Devuelve las que se escribieron (`leer_archivos` puede devolver menos
+ * de las pedidas: un archivo borrado entre medio, o que no es UTF-8).
+ *
+ * Cada tanda se escribe con **una sentencia por tabla** (`FUN-M-38`, hallazgo
+ * H1 de la auditoría): la tanda entera viaja como un parámetro JSON que SQLite
+ * despliega con `json_each`. Antes eran 5 sentencias por nota más una por
+ * propiedad —13.496 viajes por el puente IPC en un vault de 1.300 notas, a
+ * 4–5 ms cada uno—; ahora son unas pocas por tanda de 250. No se usa
+ * `BEGIN`/`COMMIT`: el pool de conexiones de `tauri-plugin-sql` no garantiza que
+ * caigan en la misma conexión, así que cada sentencia tiene que ser correcta por
+ * sí sola. Y por lo mismo la tanda puede cortarse a la mitad: el `mtime` de cada
+ * nota se escribe en la ÚLTIMA sentencia, para que una tanda cortada se relea
+ * entera en el próximo indexado (`DEF-121`).
+ *
+ * @param esNueva si la nota no estaba en el índice: su título puede arreglar
+ *        enlaces rotos de otras, así que sus claves se re-resuelven.
+ * @param claves donde se acumulan las claves de enlace a re-resolver.
+ * @param onTanda avance: cuántas rutas se pidieron en la tanda que terminó.
+ */
+async function escribirNotas(
+  vaultRuta: string,
+  porReindexar: ArchivoMeta[],
+  esNueva: (id: string) => boolean,
+  claves: Set<string>,
+  now: string,
+  onTanda?: (pedidas: number) => void,
+): Promise<string[]> {
+  if (porReindexar.length === 0) return [];
+  const { invoke } = await import("@tauri-apps/api/core");
+  const metaPorRuta = new Map(porReindexar.map((a) => [a.rutaRelativa, a]));
+  const reescritas: string[] = [];
   for (let i = 0; i < porReindexar.length; i += TANDA) {
     const rutas = porReindexar.slice(i, i + TANDA).map((a) => a.rutaRelativa);
     const leidos = await invoke<ArchivoLeido[]>("leer_archivos", {
@@ -499,8 +756,8 @@ export async function indexarVault(
       // del texto en cada consulta. Entran sin resolver: ver abajo.
       const enlaces = derivarEnlaces(leido.contenido, meta.tipo);
       const etiquetas = derivarEtiquetas(leido.contenido, meta.tipo);
-      for (const e of enlaces) clavesPorResolver.add(claveDeEnlace(e.texto));
-      if (!mtimePorId.has(id)) for (const c of clavesDeTitulo(titulo)) clavesPorResolver.add(c);
+      for (const e of enlaces) claves.add(claveDeEnlace(e.texto));
+      if (esNueva(id)) for (const c of clavesDeTitulo(titulo)) claves.add(c);
       filasNotas.push({
         id,
         carpetaId: carpetaDeArchivo(id),
@@ -517,7 +774,7 @@ export async function indexarVault(
       filasFts.push({ id, titulo, contenido: indexable });
       entradasPropiedades.push({ id, propiedades });
       entradasEnlaces.push({ id, enlaces, etiquetas });
-      reindexadas++;
+      reescritas.push(id);
     }
 
     if (filasNotas.length > 0) {
@@ -526,15 +783,14 @@ export async function indexarVault(
       // > próximo indexado solo relee las que no coinciden. Antes iba en esta
       // > primera sentencia, junto con las huellas, y las demás —`contenidos`,
       // > búsqueda, propiedades, enlaces— después, sueltas y sin transacción
-      // > (ver la cabecera de `indexarVault`). Si algo cortaba la tanda en el
-      // > medio —una sentencia que falla con el índice ocupado, la ventana que
-      // > se recarga—, la nota quedaba con el `mtime` al día y SIN contenido, y
-      // > nadie la volvía a leer: la app la abría vacía, y guardar pisaba el
-      // > disco. Ahora la fila de `notas` entra primero —las demás tablas la
-      // > referencian— con `mtime` 0 si es nueva, o con el que tenía si ya
-      // > estaba, y el `mtime` real y las huellas se escriben en la ÚLTIMA
-      // > sentencia: un corte en cualquier punto deja el `mtime` desfasado, y el
-      // > próximo indexado la relee entera.
+      // > (ver arriba). Si algo cortaba la tanda en el medio —una sentencia que
+      // > falla con el índice ocupado, la ventana que se recarga—, la nota
+      // > quedaba con el `mtime` al día y SIN contenido, y nadie la volvía a
+      // > leer: la app la abría vacía, y guardar pisaba el disco. Ahora la fila
+      // > de `notas` entra primero —las demás tablas la referencian— con `mtime`
+      // > 0 si es nueva, o con el que tenía si ya estaba, y el `mtime` real y las
+      // > huellas se escriben en la ÚLTIMA sentencia: un corte en cualquier
+      // > punto deja el `mtime` desfasado, y el próximo indexado la relee entera.
       await execute(
         `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en)
          SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.carpetaId'),
@@ -573,39 +829,25 @@ export async function indexarVault(
         [JSON.stringify(filasNotas.map(({ id, mtime, huella, huellaEnlaces }) => ({ id, mtime, huella, huellaEnlaces })))],
       );
     }
-
-    // El avance es POR TANDA (no por archivo): se cuentan las rutas pedidas, no
-    // las devueltas, para que el progreso llegue al total aunque alguna se omita.
-    hechas += rutas.length;
-    onProgress?.(hechas, archivos.length);
+    onTanda?.(rutas.length);
   }
+  return reescritas;
+}
 
-  // 3) Limpieza: borrar del índice lo que ya no existe en disco.
-  //
-  // OJO con la papelera (DEF-046): una nota enviada a la papelera TAMPOCO está en su
-  // ruta —se movió a `.mycelium/.trash`, que `.mycignore` ignora siempre—, así que
-  // caía en esta limpieza y se borraba su fila de `papelera` a los segundos. Como
-  // mover el archivo dispara el watcher, el ciclo era: borrar → reindexar → la
-  // entrada desaparece de la papelera. El archivo seguía en disco pero Mycelium ya no
-  // sabía que existía, así que no había forma de recuperarlo desde la app.
-  //
-  // Su ausencia de la ruta original es INTENCIONAL: no es un archivo desaparecido.
-  const enPapelera = new Set(
-    (await select<{ nota_id: string }>("SELECT nota_id FROM papelera")).map((r) => r.nota_id),
-  );
-  //
-  // Y va POR CONJUNTOS (`DEF-105`): se calcula la diferencia entre el índice y el
-  // disco, y se borra por tandas de ids. Antes eran seis sentencias por nota,
-  // cada una un viaje por el puente IPC, y la de `notas_fts` recorría la tabla
-  // entera: tras un `git worktree remove` de 5.000 notas con la app cerrada, la
-  // apertura se quedaba horas en «Leyendo los archivos… N de N».
-  const rutasActuales = enDisco;
-  const desaparecidas = notasExistentes
-    .map((n) => n.id)
-    .filter((id) => !rutasActuales.has(id) && !enPapelera.has(id));
-  await ftsBorrar(desaparecidas);
-  for (const id of desaparecidas) for (const c of clavesDeTitulo(tituloDeRuta(id))) clavesPorResolver.add(c);
-  for (const tanda of enTandas(desaparecidas)) {
+/**
+ * Borra del índice estas notas y todo lo derivado de ellas, y anota sus títulos
+ * para re-resolver los enlaces que apuntaban a ellas.
+ *
+ * Va POR CONJUNTOS (`DEF-105`): se borra por tandas de ids. Antes eran seis
+ * sentencias por nota, cada una un viaje por el puente IPC, y la de `notas_fts`
+ * recorría la tabla entera: tras un `git worktree remove` de 5.000 notas con la
+ * app cerrada, la apertura se quedaba horas en «Leyendo los archivos… N de N».
+ */
+async function borrarNotas(ids: string[], claves: Set<string>): Promise<void> {
+  if (ids.length === 0) return;
+  await ftsBorrar(ids);
+  for (const id of ids) for (const c of clavesDeTitulo(tituloDeRuta(id))) claves.add(c);
+  for (const tanda of enTandas(ids)) {
     const q = marcadores(tanda.length);
     await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM enlaces WHERE desde_id IN (${q})`, tanda);
@@ -614,20 +856,13 @@ export async function indexarVault(
     await execute(`DELETE FROM papelera WHERE nota_id IN (${q})`, tanda);
     await execute(`DELETE FROM notas WHERE id IN (${q})`, tanda);
   }
-  const carpetasIdas = carpetasExistentes.map((c) => c.id).filter((id) => !carpetas.has(id));
-  for (const tanda of enTandas(carpetasIdas)) {
+}
+
+/** Borra del índice estas carpetas. */
+async function borrarCarpetas(ids: string[]): Promise<void> {
+  for (const tanda of enTandas(ids)) {
     await execute(`DELETE FROM carpetas WHERE id IN (${marcadores(tanda.length)})`, tanda);
   }
-
-  // 4) Resolver los enlaces (`FUN-L-25`): con todas las notas ya en el índice.
-  // En una pasada completa se resuelve todo; si no, solo lo que pudo cambiar.
-  await reResolverClaves(forzarTodo ? null : clavesPorResolver);
-  // La pasada terminó entera: lo derivado ya está al día con esta versión.
-  if (forzarTodo) await execute(`PRAGMA user_version = ${VERSION_DERIVADO}`);
-
-  if (desaparecidas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
-
-  return { notas: archivos.length, carpetas: carpetas.size, reindexadas, otros };
 }
 
 /**
