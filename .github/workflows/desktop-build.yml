@@ -148,9 +148,13 @@ jobs:
           test -x Mycelium.app/Contents/MacOS/mycelium-mcp || {
             echo "::error::El sidecar mycelium-mcp no quedó dentro de Mycelium.app."; exit 1; }
           COPYFILE_DISABLE=1 tar -czf Mycelium.app.tar.gz Mycelium.app
+          # El listado se guarda ENTERO y recién después se recorta: canalizar
+          # `tar -tzf … | head` corta la tubería, `tar` recibe SIGPIPE y con el
+          # `bash -eo pipefail` de Actions el paso falla aunque el tar esté bien.
+          listado="$(tar -tzf Mycelium.app.tar.gz)"
           echo "Contenido (primeras entradas):"
-          tar -tzf Mycelium.app.tar.gz | head -n 8
-          primera="$(tar -tzf Mycelium.app.tar.gz | head -n 1)"
+          sed -n '1,8p' <<<"$listado"
+          primera="$(sed -n '1p' <<<"$listado")"
           case "$primera" in
             Mycelium.app|Mycelium.app/*) ;;
             *) echo "::error::La raíz del tar no es Mycelium.app ($primera)"; exit 1 ;;
@@ -178,7 +182,12 @@ jobs:
               "$B/appimage/Mycelium_${V}_amd64.AppImage"
             )
             # El sidecar tiene que viajar en el paquete (en el .deb va a /usr/bin).
-            dpkg-deb -c "$B/deb/Mycelium_${V}_amd64.deb" | grep -q 'usr/bin/mycelium-mcp$' || {
+            # Sin tubería hacia `grep -q`: grep sale en la primera coincidencia, el
+            # `tar` de dpkg-deb recibe SIGPIPE, dpkg-deb devuelve 2 y con el
+            # `bash -eo pipefail` de Actions el chequeo falla justo cuando el
+            # sidecar SÍ está. Se lista entero primero y se busca después.
+            listado="$(dpkg-deb -c "$B/deb/Mycelium_${V}_amd64.deb")"
+            grep -q 'usr/bin/mycelium-mcp$' <<<"$listado" || {
               echo "::error::El sidecar mycelium-mcp no quedó dentro del .deb."; exit 1; }
           fi
           for a in "${archivos[@]}"; do
