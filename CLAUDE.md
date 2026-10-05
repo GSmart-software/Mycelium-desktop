@@ -560,8 +560,14 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > versión nueva al lado como `CLAUDE (mycelium-ia vX).md`, y la sección de memoria se trae
 > de ahí a mano, sin tocar la sección del proyecto.
 
-Empaquetado: `cd frontend && CARGO_BUILD_JOBS=2 npx tauri build` (sin el límite de jobs,
-rustc se queda sin memoria). Genera MSI y NSIS en `src-tauri/target/release/bundle/`; se
+Empaquetado (desde 2026-10-05, `FUN-L-28`): los instaladores de **Windows, macOS (Apple
+Silicon) y Linux** los compila **GitHub Actions** (`.github/workflows/desktop-build.yml`)
+**al fusionar un PR de `desktop-tauri` hacia `despliegues`**, sin la clave del updater. Un
+push a `desktop-tauri` no compila nada. Se bajan los tres artefactos del run y se firma y
+publica en local con `npm run publicar -- --ci <carpeta>`: **la clave privada no sale de
+la PC del usuario**. Ver [[instaladores-mac-linux]] y [[Publicar una version]].
+Respaldo si CI no está disponible (solo Windows): `cd frontend && CARGO_BUILD_JOBS=2 npx
+tauri build` (sin el límite de jobs, rustc se queda sin memoria). Los instaladores se
 preservan en `installers/v<version>/` (fuera de git). **Nunca cambiar el
 `bundle.windows.wix.upgradeCode`** de `tauri.conf.json`: es la identidad de la app para
 Windows. Ver [[Generar instaladores desktop]].
