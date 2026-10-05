@@ -19,7 +19,7 @@
  */
 import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
-import { execute, select } from "./client";
+import { execute, getExecutor, select, type SqlExecutor } from "./client";
 import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
@@ -167,8 +167,24 @@ const ESQUEMA_INDICE: string[] = [
  */
 const VERSION_DERIVADO = 1;
 
+/**
+ * El executor (el índice abierto) sobre el que ya se creó el esquema en esta
+ * sesión (`FUN-M-14`). El indexado lo creaba en CADA pasada —unas 25 sentencias
+ * `CREATE … IF NOT EXISTS` y `ALTER` que no hacían nada, cada una un viaje por
+ * el puente IPC— aunque la apertura del vault ya lo había creado. Se compara la
+ * identidad del executor y no la ruta del vault: abrir otro vault (o el mismo
+ * otra vez) crea uno nuevo, y con él el esquema se vuelve a asegurar.
+ */
+let esquemaCreadoEn: SqlExecutor | null = null;
+
+/** Crea el esquema si en este índice todavía no se creó en esta sesión. */
+async function asegurarEsquema(): Promise<void> {
+  if (esquemaCreadoEn !== (await getExecutor())) await crearEsquemaIndice();
+}
+
 /** Crea el esquema del índice (idempotente) contra el executor activo. */
 export async function crearEsquemaIndice(): Promise<void> {
+  const executor = await getExecutor();
   for (const sql of ESQUEMA_INDICE) {
     await execute(sql);
   }
@@ -198,6 +214,7 @@ export async function crearEsquemaIndice(): Promise<void> {
   // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
   // anterior la llena a partir de lo que ya hay, una sola vez.
   await crearFtsFilas();
+  esquemaCreadoEn = executor;
 }
 
 /**
@@ -335,7 +352,9 @@ export async function indexarVault(
   const forzarTodo =
     (tablaPropiedades[0]?.n ?? 0) === 0 || Number(version?.user_version ?? 0) < VERSION_DERIVADO;
 
-  await crearEsquemaIndice();
+  // Una vez por sesión, no en cada pasada (`FUN-M-14`): la apertura del vault
+  // ya lo creó, y el watcher indexa cada pocos segundos mientras algo escribe.
+  await asegurarEsquema();
 
   const { invoke } = await import("@tauri-apps/api/core");
   // Un solo recorrido del disco (`FUN-M-13`): las notas con sus metadatos, los
