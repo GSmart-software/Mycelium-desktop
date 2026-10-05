@@ -187,7 +187,7 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   // procesaba la anterior): ruta → último cambio visto.
   const rafaga = new Map<string, CambioVault>();
   // Reconciliación pedida y quiénes esperan a que termine (el botón).
-  let reconciliacion: (() => void)[] | null = null;
+  let reconciliacion: ((error?: unknown) => void)[] | null = null;
   let ultimaReconciliacion = Date.now();
 
   /** Indexa lo acumulado en la ráfaga (o reconcilia, si se pidió). */
@@ -210,6 +210,7 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     rafaga.clear();
     const esperan = reconciliacion;
     reconciliacion = null;
+    let fallo: unknown = undefined;
     try {
       // Una reconciliación ve todo lo del disco: también lo de la ráfaga. Igual
       // si cambió el `.mycignore`: cambia qué se ve, y eso solo lo sabe un
@@ -238,16 +239,18 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
       // pendientes quedan: lo que muestran es lo que hay en disco, y la
       // próxima pasada (o la reconciliación) los indexa.
       console.error("[Mycelium] watcher · falló el reindexado tras un cambio externo", e);
+      fallo = e ?? new Error("falló el reindexado");
     } finally {
       procesando = false;
-      for (const listo of esperan ?? []) listo();
+      // Quien pidió la reconciliación (el botón) se entera si falló.
+      for (const listo of esperan ?? []) listo(fallo);
       if (pendiente || reconciliacion) void procesar();
     }
   };
 
   const reconciliarEnCola = () =>
-    new Promise<void>((listo) => {
-      (reconciliacion ??= []).push(listo);
+    new Promise<void>((listo, falla) => {
+      (reconciliacion ??= []).push((error) => (error === undefined ? listo() : falla(error)));
       ultimaReconciliacion = Date.now();
       void procesar();
     });
