@@ -160,15 +160,24 @@ export function aplicarCambios(arbol: Arbol, cambios: readonly CambioVault[]): A
   const rutasOtros = new Set(otros.map((o) => o.ruta));
 
   const editarCarpetas = () => {
-    if (!carpetasPropias) (carpetas = [...carpetas]), (carpetasPropias = true);
+    if (!carpetasPropias) {
+      carpetas = [...carpetas];
+      carpetasPropias = true;
+    }
     return carpetas;
   };
   const editarNotas = () => {
-    if (!notasPropias) (notas = [...notas]), (notasPropias = true);
+    if (!notasPropias) {
+      notas = [...notas];
+      notasPropias = true;
+    }
     return notas;
   };
   const editarOtros = () => {
-    if (!otrosPropios) (otros = [...otros]), (otrosPropios = true);
+    if (!otrosPropios) {
+      otros = [...otros];
+      otrosPropios = true;
+    }
     return otros;
   };
 

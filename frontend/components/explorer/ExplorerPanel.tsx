@@ -21,6 +21,7 @@ import {
   FilePlus,
   Folder,
   FolderPlus,
+  RefreshCw,
   Upload,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +46,7 @@ import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { avisar } from "@/stores/avisosStore";
+import { refrescarVault } from "@/lib/vaultWatch";
 import {
   useVaultStore,
   type NotaTipo,
@@ -146,6 +148,8 @@ export function ExplorerPanel() {
   const otros = useVaultStore((s) => s.otros);
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
+  // «Refrescar» en curso (`FUN-M-42`): el ícono gira y otro clic no encola otra.
+  const [refrescando, setRefrescando] = useState(false);
   // Destino de un arrastre de archivos DESDE el SO (DEF-036/036b): id de la
   // carpeta bajo el cursor, `null` = raíz, `undefined` = no hay arrastre.
   const [osDropTarget, setOsDropTarget] = useState<string | null | undefined>(undefined);
@@ -850,6 +854,28 @@ export function ExplorerPanel() {
         <div className={styles.soloAngosto}>
           <MenuNuevo items={accionesNuevo} />
         </div>
+        {/* Releer la carpeta (`FUN-M-42`): lo que el watcher no avisó —Windows
+            pierde eventos en ráfagas grandes—. `aria-disabled` y no `disabled`
+            mientras corre, para que el foco del teclado no se pierda. */}
+        {rutaVault && (
+          <button
+            type="button"
+            className={`${styles.actionButton} ${styles.refrescar}`}
+            title="Refrescar: volver a leer la carpeta del vault"
+            aria-label="Refrescar el explorador"
+            aria-disabled={refrescando}
+            aria-busy={refrescando}
+            onClick={() => {
+              if (refrescando) return;
+              setRefrescando(true);
+              refrescarVault()
+                .catch((e) => avisar(`No se pudo refrescar el explorador: ${(e as Error)?.message ?? e}`))
+                .finally(() => setRefrescando(false));
+            }}
+          >
+            <RefreshCw size={16} aria-hidden className={refrescando ? styles.girando : undefined} />
+          </button>
+        )}
       </div>
 
       <DndContext

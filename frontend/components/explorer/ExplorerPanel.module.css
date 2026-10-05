@@ -20,14 +20,14 @@
   container-type: inline-size;
 }
 
-/* Las acciones de creación a la vista mientras entren (seis íconos de 28px);
-   con el panel angosto se agrupan en «Nuevo ▾». Lo decide el ancho del panel,
-   no el de la ventana. */
+/* Las acciones de creación a la vista mientras entren (íconos de 28px, más
+   «Refrescar» a la derecha); con el panel angosto se agrupan en «Nuevo ▾». Lo
+   decide el ancho del panel, no el de la ventana. */
 .soloAngosto {
   display: none;
 }
 
-@container (max-width: 205px) {
+@container (max-width: 237px) {
   /* Con el contenedor delante: .actionButton (display: grid) viene después y,
      con la misma especificidad, ganaba. */
   .actions .soloAncho {
@@ -51,6 +51,32 @@
 .actionButton:hover {
   background-color: color-mix(in srgb, var(--mic-glow) 15%, transparent);
   color: var(--mic-text-primary);
+}
+
+/* «Refrescar» (FUN-M-42): no crea nada, así que va aparte, al final de la fila. */
+.refrescar {
+  margin-left: auto;
+}
+
+.refrescar[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.girando {
+  animation: girar 0.9s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Quien prefiere no ver animaciones tampoco debería ver esto girar. */
+@media (prefers-reduced-motion: reduce) {
+  .girando {
+    animation: none;
+  }
 }
 
 /* «Nuevo ▾»: el resto de lo que se puede crear, con rótulo (MenuNuevo.tsx). */
