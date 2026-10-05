@@ -393,16 +393,17 @@
   mask: var(--mic-tarea-icono) center / contain no-repeat;
 }
 
-/* El texto del ítem: solo hecha y cancelada lo cambian (tachado y atenuado;
-   cancelada, más). Se tacha el texto PROPIO del ítem —span.mic-tarea-texto en
-   lectura, la marca .mic-live-tarea-* en vivo—, nunca el <li>: un
-   text-decoration se propaga sin remedio y tacharía las subtareas. Lo que trae
-   color propio (un enlace, un `_énfasis_`) lo conserva y queda tachado igual. */
+/* El texto del ítem: solo hecha y cancelada lo cambian. Hecha se APAGA sin
+   tacharse (decisión del usuario, 2026-10-04: el tachado queda para cancelada);
+   la opacidad apaga también lo que trae color propio (un enlace, un `_énfasis_`).
+   Cancelada se tacha y se atenúa más. Se toca el texto PROPIO del ítem
+   —span.mic-tarea-texto en lectura, la marca .mic-live-tarea-* en vivo—, nunca
+   el <li>: un text-decoration se propaga sin remedio y alcanzaría las subtareas. */
 .mic-preview li[data-estado="hecha"] > .mic-tarea-texto,
 .mic-preview li[data-estado="hecha"] > p > .mic-tarea-texto,
 .cm-editor .mic-live-tarea-hecha {
   color: var(--mic-text-muted);
-  text-decoration: line-through;
+  opacity: 0.8;
 }
 .mic-preview li[data-estado="cancelada"] > .mic-tarea-texto,
 .mic-preview li[data-estado="cancelada"] > p > .mic-tarea-texto,

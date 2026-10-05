@@ -59,8 +59,9 @@ export async function recorrerEntradas(entradas: EntradaSoltada[]): Promise<Arch
   const out: ArchivoSoltado[] = [];
   const recorrer = async (entrada: EntradaSoltada, prefijo: string): Promise<void> => {
     if (entrada.isFile && entrada.file) {
-      const leer = entrada.file;
-      const file = await new Promise<File>((ok, error) => leer(ok, error));
+      // Llamado como método: `file` es nativo y, separado de su entrada
+      // (`const leer = entrada.file`), WebView2 lo rechaza con «Illegal invocation».
+      const file = await new Promise<File>((ok, error) => entrada.file!(ok, error));
       out.push({ path: `${prefijo}${entrada.name}`, file });
     } else if (entrada.isDirectory && entrada.createReader) {
       if (carpetaOmitida(entrada.name)) return;

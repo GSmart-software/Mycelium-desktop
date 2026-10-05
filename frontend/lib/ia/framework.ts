@@ -439,7 +439,7 @@ que usan los temas de Obsidian, así que el vault sigue siendo intercambiable.
 | Símbolo | Estado | Cómo se ve |
 |---|---|---|
 | \`[ ]\` | Pendiente | Casilla vacía |
-| \`[x]\` (o \`[X]\`) | Hecha | Casilla marcada; texto tachado y atenuado |
+| \`[x]\` (o \`[X]\`) | Hecha | Casilla marcada; texto apagado (gris), sin tachar |
 | \`[-]\` | Cancelada | Cruz; texto tachado y más atenuado |
 | \`[/]\` | En curso | Casilla medio llena |
 | \`[>]\` | Pospuesta | Flecha |
