@@ -556,8 +556,21 @@ export async function indexarRutas(
     reescritas = await escribirNotas(vaultRuta, porReindexar, (id) => !porId.has(id), clavesPorResolver, now);
   }
 
-  // 3) Lo que ya no es una nota: la de esa ruta exacta y, si se fue, todo lo
-  // que colgaba de ella. Sin lo que está en la papelera.
+  // De lo que se fue, qué era una carpeta: solo bajo esas hay que buscar
+  // contenido. Toda nota tiene sus carpetas en el índice (se derivan de su
+  // ruta), así que bajo una ruta que no es carpeta no cuelga nada; y borrar mil
+  // archivos sueltos no hace mil búsquedas por prefijo.
+  const carpetasAusentes: string[] = [];
+  for (const tanda of enTandas(ausentes)) {
+    const filas = await select<{ id: string }>(
+      `SELECT id FROM carpetas WHERE id IN (${marcadores(tanda.length)})`,
+      tanda,
+    );
+    for (const f of filas) carpetasAusentes.push(f.id);
+  }
+
+  // 3) Lo que ya no es una nota: la de esa ruta exacta y, si se fue una
+  // carpeta, todo lo que colgaba de ella. Sin lo que está en la papelera.
   let borradas: string[] = [];
   if (noNotas.length > 0) {
     const ids = new Set<string>();
@@ -569,7 +582,7 @@ export async function indexarRutas(
       );
       for (const f of filas) ids.add(f.id);
     }
-    for (const tanda of enTandas(ausentes)) {
+    for (const tanda of enTandas(carpetasAusentes)) {
       // `substr` y no `LIKE`: una ruta puede tener `%` o `_`.
       const filas = await select<{ id: string }>(
         `SELECT n.id FROM notas n, json_each(?) j
@@ -585,9 +598,9 @@ export async function indexarRutas(
 
   // 4) Carpetas que se fueron, con todo su subárbol.
   let carpetasIdas: string[] = [];
-  if (ausentes.length > 0) {
+  if (carpetasAusentes.length > 0) {
     const ids = new Set<string>();
-    for (const tanda of enTandas(ausentes)) {
+    for (const tanda of enTandas(carpetasAusentes)) {
       const filas = await select<{ id: string }>(
         `SELECT c.id FROM carpetas c, json_each(?) j
          WHERE c.id = j.value OR substr(c.id, 1, length(j.value) + 1) = j.value || '/'`,

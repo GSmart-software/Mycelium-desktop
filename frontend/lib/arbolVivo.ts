@@ -226,8 +226,12 @@ export function aplicarCambios(arbol: Arbol, cambios: readonly CambioVault[]): A
     if (c.ruta === "") continue;
     switch (c.estado) {
       case "ausente":
+        // Si era una carpeta, `quitarExacto` se lleva también su contenido. No
+        // hace falta buscar contenido bajo una ruta que no era carpeta: todo lo
+        // que hay en el árbol tiene su carpeta en él (`asegurarCarpeta`, y el
+        // índice deriva las carpetas de las rutas). Así borrar mil archivos
+        // sueltos no recorre las listas mil veces.
         quitarExacto(c.ruta, null);
-        quitarDebajo(c.ruta);
         break;
       case "carpeta":
         asegurarCarpeta(c.ruta);

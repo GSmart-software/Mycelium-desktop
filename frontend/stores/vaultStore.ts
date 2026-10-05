@@ -15,6 +15,12 @@ import {
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
+import {
+  aplicarCambios as aplicarAlArbol,
+  pendientesActuales,
+  vaciarPendientes,
+  type CambioVault,
+} from "@/lib/arbolVivo";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -81,13 +87,19 @@ type VaultState = {
   papelera: PapeleraItem[];
   /**
    * Los archivos del vault que no se indexan (`FUN-S-03`), para el explorador.
-   * Los deja el indexador (`FUN-M-38`): salen del mismo recorrido del disco que
-   * las notas, así que se refrescan con cada indexado —apertura y watcher— y
-   * no con cada recarga del árbol, que antes volvía a recorrer el vault.
+   * Los deja el indexado completo (`FUN-M-38`): salen del mismo recorrido del
+   * disco que las notas —apertura, importación, reconciliación— y no de cada
+   * recarga del árbol, que antes volvía a recorrer el vault. Entre medio, los
+   * actualizan los cambios del watcher (`aplicarCambios`, `FUN-M-42`).
    * Solo-desktop: en web queda vacío.
    */
   otros: OtroArchivo[];
   setOtros: (otros: OtroArchivo[]) => void;
+  /**
+   * Aplica al árbol lo que avisó el watcher (`FUN-M-42`), sin esperar al índice.
+   * No toca el estado si no cambia nada (el caso de cada guardado propio).
+   */
+  aplicarCambios: (cambios: readonly CambioVault[]) => void;
   /** Estado expandido/colapsado por carpeta — persiste en localStorage (HU-22 CA5). */
   expanded: Record<string, boolean>;
   /** Carpeta activa: destino de "Nueva nota"/importaciones (HU-23 CA1). */
@@ -235,11 +247,30 @@ export const useVaultStore = create<VaultState>()(
           actualizadoEn: n.actualizado_en,
         }));
 
-        set({ vaultId, carpetas, notas });
+        // Lo que el watcher ya puso en el árbol y el índice todavía no tiene
+        // (`FUN-M-42`): se vuelve a aplicar encima de lo que se leyó, o esta
+        // recarga —la de cualquier operación de la app— lo haría desaparecer
+        // hasta que terminara el indexado.
+        const vivo = aplicarAlArbol({ carpetas, notas, otros: get().otros }, pendientesActuales());
+        if (vivo) {
+          set({ vaultId, carpetas: [...vivo.carpetas], notas: [...vivo.notas], otros: [...vivo.otros] });
+        } else {
+          set({ vaultId, carpetas, notas });
+        }
         // Un editor montado antes de que llegara el árbol —las pestañas que se
         // restauran al abrir la app— decoró sus [[enlaces]] contra una lista vacía
         // y los marcó todos como inexistentes; nada lo volvía a evaluar (`DEF-122`).
         refreshAllLiveViews();
+      },
+
+      aplicarCambios(cambios) {
+        const { carpetas, notas, otros } = get();
+        const vivo = aplicarAlArbol({ carpetas, notas, otros }, cambios);
+        if (!vivo) return;
+        set({ carpetas: [...vivo.carpetas], notas: [...vivo.notas], otros: [...vivo.otros] });
+        // Una nota que aparece o se va cambia qué `[[enlaces]]` resuelven: las
+        // vistas en vivo los vuelven a evaluar contra la lista nueva.
+        if (vivo.notas !== notas) refreshAllLiveViews();
       },
 
       async loadPapelera() {
@@ -506,7 +537,9 @@ export const useVaultStore = create<VaultState>()(
 
       reset() {
         // `expanded` NO se toca: está persistido y es una preferencia de
-        // visualización, no datos del vault.
+        // visualización, no datos del vault. Los pendientes del árbol en vivo
+        // (`FUN-M-42`) eran del vault anterior.
+        vaciarPendientes();
         set({
           vaultId: null,
           carpetas: [],

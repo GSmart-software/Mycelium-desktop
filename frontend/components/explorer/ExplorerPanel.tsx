@@ -230,11 +230,14 @@ export function ExplorerPanel() {
   // también en el autocompletado de `[[`, en la búsqueda y en el grafo, que es
   // justo lo que no son. Antes se pedían acá con un recorrido del disco tras
   // cada cambio del árbol (`FUN-M-38`, H4: 100 ms y 700 KB por recarga en un
-  // vault de 1.300 notas); ahora llegan con el indexado.
+  // vault de 1.300 notas); ahora llegan con el indexado y, desde `FUN-M-42`,
+  // con cada cambio del watcher (`vaultStore.aplicarCambios`).
   //
-  // Salvo cuando cambian las CARPETAS desde la app (renombrar, mover o borrar
-  // una): sus archivos cambian de ruta, y el watcher no avisa —solo mira notas—.
-  // Se detecta por la lista de ids, no por el array (que es nuevo en cada
+  // Y cuando cambian las CARPETAS (renombrar, mover o borrar una), se vuelven a
+  // listar del disco. Desde `DEF-127` y `FUN-M-42` el watcher ya avisa de los
+  // archivos de una carpeta movida, así que esto es la red de seguridad para
+  // cuando el watcher no corre (no arrancó, o el SO perdió el evento). Se
+  // detecta por la lista de ids, no por el array (que es nuevo en cada
   // recarga), y no en la carga inicial (de vacío a lleno): esa ya la trajo el
   // indexador.
   const firmaCarpetas = useMemo(

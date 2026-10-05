@@ -98,6 +98,8 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
+  "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
+  "./indexer": INDEXER,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,

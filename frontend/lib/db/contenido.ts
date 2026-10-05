@@ -7,6 +7,7 @@
  * `actualizadoEn` que ve el cliente es SIEMPRE `notas.actualizado_en` (no el de la
  * tabla de contenido), igual que en el backend.
  */
+import { tipoDeNotaPorRuta } from "@/lib/arbolVivo";
 import { derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { execute, select } from "./client";
 import { crearResolutor, escribirEnlacesTanda, huellaEnlaces } from "./enlacesIndice";
@@ -26,7 +27,19 @@ export async function getContenido(id: string): Promise<ContenidoResponse> {
      WHERE n.id = ?`,
     [id],
   );
-  if (rows.length === 0) throw new DbError(404, "La nota no existe.");
+  if (rows.length === 0) {
+    // El explorador muestra lo que hay en disco ANTES de que el índice lo tenga
+    // (`FUN-M-42`): una nota recién llegada puede abrirse en los cientos de
+    // milisegundos que el indexado va detrás. Si el archivo está, se indexa
+    // ahora y se responde; si no, es que de verdad no existe. Por `import()`:
+    // es un camino raro y el indexador no hace falta para leer una nota.
+    const tipo = tipoDeNotaPorRuta(id);
+    if (tipo !== null) {
+      const { indexarNotaADemanda } = await import("./indexer");
+      if (await indexarNotaADemanda(getVaultActual(), id, tipo)) return getContenido(id);
+    }
+    throw new DbError(404, "La nota no existe.");
+  }
   if (rows[0].contenido === null) {
     return { contenido: await reponerDesdeDisco(id), actualizadoEn: rows[0].actualizado_en };
   }
