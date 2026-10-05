@@ -21,6 +21,7 @@ import {
   FilePlus,
   Folder,
   FolderPlus,
+  RefreshCw,
   Upload,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -45,6 +46,7 @@ import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { avisar } from "@/stores/avisosStore";
+import { refrescarVault } from "@/lib/vaultWatch";
 import {
   useVaultStore,
   type NotaTipo,
@@ -146,6 +148,8 @@ export function ExplorerPanel() {
   const otros = useVaultStore((s) => s.otros);
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
+  // «Refrescar» en curso (`FUN-M-42`): el ícono gira y otro clic no encola otra.
+  const [refrescando, setRefrescando] = useState(false);
   // Destino de un arrastre de archivos DESDE el SO (DEF-036/036b): id de la
   // carpeta bajo el cursor, `null` = raíz, `undefined` = no hay arrastre.
   const [osDropTarget, setOsDropTarget] = useState<string | null | undefined>(undefined);
@@ -230,11 +234,14 @@ export function ExplorerPanel() {
   // también en el autocompletado de `[[`, en la búsqueda y en el grafo, que es
   // justo lo que no son. Antes se pedían acá con un recorrido del disco tras
   // cada cambio del árbol (`FUN-M-38`, H4: 100 ms y 700 KB por recarga en un
-  // vault de 1.300 notas); ahora llegan con el indexado.
+  // vault de 1.300 notas); ahora llegan con el indexado y, desde `FUN-M-42`,
+  // con cada cambio del watcher (`vaultStore.aplicarCambios`).
   //
-  // Salvo cuando cambian las CARPETAS desde la app (renombrar, mover o borrar
-  // una): sus archivos cambian de ruta, y el watcher no avisa —solo mira notas—.
-  // Se detecta por la lista de ids, no por el array (que es nuevo en cada
+  // Y cuando cambian las CARPETAS (renombrar, mover o borrar una), se vuelven a
+  // listar del disco. Desde `DEF-127` y `FUN-M-42` el watcher ya avisa de los
+  // archivos de una carpeta movida, así que esto es la red de seguridad para
+  // cuando el watcher no corre (no arrancó, o el SO perdió el evento). Se
+  // detecta por la lista de ids, no por el array (que es nuevo en cada
   // recarga), y no en la carga inicial (de vacío a lleno): esa ya la trajo el
   // indexador.
   const firmaCarpetas = useMemo(
@@ -847,6 +854,28 @@ export function ExplorerPanel() {
         <div className={styles.soloAngosto}>
           <MenuNuevo items={accionesNuevo} />
         </div>
+        {/* Releer la carpeta (`FUN-M-42`): lo que el watcher no avisó —Windows
+            pierde eventos en ráfagas grandes—. `aria-disabled` y no `disabled`
+            mientras corre, para que el foco del teclado no se pierda. */}
+        {rutaVault && (
+          <button
+            type="button"
+            className={`${styles.actionButton} ${styles.refrescar}`}
+            title="Refrescar: volver a leer la carpeta del vault"
+            aria-label="Refrescar el explorador"
+            aria-disabled={refrescando}
+            aria-busy={refrescando}
+            onClick={() => {
+              if (refrescando) return;
+              setRefrescando(true);
+              refrescarVault()
+                .catch((e) => avisar(`No se pudo refrescar el explorador: ${(e as Error)?.message ?? e}`))
+                .finally(() => setRefrescando(false));
+            }}
+          >
+            <RefreshCw size={16} aria-hidden className={refrescando ? styles.girando : undefined} />
+          </button>
+        )}
       </div>
 
       <DndContext
