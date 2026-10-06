@@ -93,6 +93,13 @@ export const tabIdDeArchivo = (ruta: string) => `${ARCHIVO_TAB_PREFIX}${ruta}`;
 export const rutaDeTabArchivo = (tabId: string) => tabId.slice(ARCHIVO_TAB_PREFIX.length);
 export const esTabArchivo = (tabId: string) => tabId.startsWith(ARCHIVO_TAB_PREFIX);
 
+/**
+ * El `.mycignore` del vault. Se edita en una pestaña del visor (`FUN-S-25`)
+ * aunque el propio default lo oculte del explorador —empieza con punto—, así
+ * que no figura en la lista de archivos y hay que tratarlo como válido aparte.
+ */
+export const RUTA_MYCIGNORE = ".mycignore";
+
 /** Nombre del archivo (sin carpetas) a partir de su ruta relativa. */
 export const nombreDeRuta = (ruta: string) => ruta.slice(ruta.lastIndexOf("/") + 1);
 
