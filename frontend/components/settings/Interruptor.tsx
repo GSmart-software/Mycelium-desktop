@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 
 interface Props {
@@ -9,8 +10,10 @@ interface Props {
   valor: boolean;
   onChange: (valor: boolean) => void;
   disabled?: boolean;
-  /** Explicación bajo la fila. Va siempre en medida de lectura. */
+  /** Explicación bajo la fila: UNA línea, siempre visible (`FUN-M-41`). */
   ayuda?: ReactNode;
+  /** El resto de la explicación, plegado detrás de «Más». */
+  detalle?: ReactNode;
   /** Clase extra para la fila (espaciados propios de una sección). */
   className?: string;
 }
@@ -26,7 +29,7 @@ interface Props {
  * El rótulo no es un `<label>` envolvente: la píldora ya es el control y el
  * texto queda a la izquierda, así que se atan con `aria-labelledby`.
  */
-export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, className }: Props) {
+export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detalle, className }: Props) {
   const id = useId();
   return (
     <>
@@ -45,7 +48,7 @@ export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, classN
           <span className={styles.switchTrack} aria-hidden />
         </label>
       </div>
-      {ayuda && <p className={styles.hint}>{ayuda}</p>}
+      {ayuda && <Explicacion detalle={detalle}>{ayuda}</Explicacion>}
     </>
   );
 }

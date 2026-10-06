@@ -32,6 +32,7 @@ import {
 } from "@/lib/ortografia/manifiesto";
 import { filtrarPalabras } from "@/lib/ortografia/palabras";
 import styles from "./DiccionariosCorrector.module.css";
+import { Explicacion } from "./Explicacion";
 import ajustes from "./Settings.module.css";
 
 /** Nombres para mostrar lo descargado cuando no se pudo leer el manifiesto. */
@@ -261,12 +262,17 @@ export function DiccionariosCorrector() {
         </p>
       )}
 
-      <p className={ajustes.hint}>
-        Una palabra está bien si lo está en alguno de los diccionarios activos. El español es
-        el de la región de tu sistema{region ? ` (${region})` : ""}: con el de Argentina o
-        Uruguay, el voseo no se marca. Los diccionarios se guardan en esta computadora, no en
-        el vault.
-      </p>
+      <Explicacion
+        detalle={
+          <>
+            El español es el de la región de tu sistema{region ? ` (${region})` : ""}: con el de
+            Argentina o Uruguay, el voseo no se marca. Los diccionarios se guardan en esta
+            computadora, no en el vault.
+          </>
+        }
+      >
+        Una palabra está bien si lo está en alguno de los diccionarios activos.
+      </Explicacion>
 
       <button type="button" className={styles.enlace} onClick={() => setVerLicencias((v) => !v)} aria-expanded={verLicencias}>
         Licencias de los diccionarios
@@ -360,10 +366,9 @@ function DiccionariosPersonales() {
   return (
     <div className={styles.personales}>
       <span className={ajustes.label}>Diccionarios personales</span>
-      <p className={ajustes.hint}>
-        Las palabras que agregás con el clic derecho sobre una palabra marcada. Quitar una hace que se vuelva
-        a marcar.
-      </p>
+      <Explicacion detalle="Quitar una hace que se vuelva a marcar.">
+        Las que agregás con el clic derecho sobre una palabra marcada.
+      </Explicacion>
       {hayVault && <DiccionarioPersonal dic="vault" />}
       <DiccionarioPersonal dic="mycelium" />
     </div>

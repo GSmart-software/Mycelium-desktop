@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { listarShells, type ShellInfo } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { Interruptor } from "./Interruptor";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 
 /** Sección Terminal (FUN-L-07 CA5/CA6): shell por defecto y restauración. */
@@ -32,17 +33,16 @@ export function TerminalSection() {
           ))}
         </select>
       </div>
-      <p className={styles.hint}>
-        La shell que se inicia al crear una consola nueva. En el panel de Consolas
-        (botón de terminal del rail), con clic derecho en &quot;Nueva terminal&quot;
-        podés elegir otra shell para una consola puntual.
-      </p>
+      <Explicacion detalle="Para una consola puntual, en el panel de Consolas hacé clic derecho en «Nueva terminal» y elegí otra shell.">
+        La shell que se inicia al crear una consola nueva.
+      </Explicacion>
 
       <Interruptor
         etiqueta="Restaurar terminales al abrir"
         valor={prefs.restaurarSesiones}
         onChange={(v) => setPref("restaurarSesiones", v)}
-        ayuda="Al reabrir Mycelium se recrean las terminales que estaban abiertas (misma shell y carpeta inicial). El proceso anterior no sobrevive: se inicia una shell nueva."
+        ayuda="Al reabrir Mycelium, vuelven las terminales que estaban abiertas."
+        detalle="Con la misma shell y la misma carpeta inicial. El proceso anterior no sobrevive: se inicia una shell nueva."
       />
 
       <Interruptor
@@ -50,7 +50,8 @@ export function TerminalSection() {
         valor={prefs.restaurarScrollback}
         disabled={!prefs.restaurarSesiones}
         onChange={(v) => setPref("restaurarScrollback", v)}
-        ayuda="Muestra el texto de la sesión anterior al restaurar una terminal (solo lectura, como historial), antes del prompt nuevo."
+        ayuda="Al restaurar una terminal, muestra lo que tenía antes."
+        detalle="El texto de la sesión anterior aparece como historial de solo lectura, antes del prompt nuevo."
       />
     </div>
   );

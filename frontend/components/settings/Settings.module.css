@@ -250,6 +250,57 @@
   color: var(--mic-text-muted);
 }
 
+/* «Más» de una explicación (`FUN-M-41`): texto, no botón con caja, para que la
+   línea visible siga leyéndose como una frase. Subrayado punteado para que se
+   note que se puede tocar sin competir con el contenido. */
+.mas {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.15rem;
+  border-radius: var(--mic-radius-sm);
+  font: inherit;
+  color: color-mix(in srgb, var(--mic-text-primary) 70%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mas:hover {
+  color: var(--mic-text-primary);
+}
+
+.mas svg {
+  transition: transform 120ms ease;
+}
+
+.masAbierto {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mas svg {
+    transition: none;
+  }
+}
+
+/* Lo plegado: el mismo tono que la línea visible, con un filete a la izquierda
+   para que se lea como continuación de ESE ajuste y no como uno nuevo. */
+.hintDetalle {
+  max-width: 62ch;
+  margin-top: 0.35rem;
+  padding-left: 0.65rem;
+  border-left: 2px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+.hintDetalle > p + p {
+  margin-top: 0.4rem;
+}
+
 .warn {
   max-width: 62ch;
   margin-top: 0.5rem;

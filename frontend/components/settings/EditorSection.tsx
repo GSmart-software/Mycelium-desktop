@@ -10,6 +10,7 @@ import {
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { refrescarCorrector } from "@/lib/editor/ortografia";
 import { DiccionariosCorrector } from "./DiccionariosCorrector";
+import { Explicacion } from "./Explicacion";
 import { Interruptor } from "./Interruptor";
 import styles from "./Settings.module.css";
 
@@ -55,51 +56,56 @@ export function EditorSection() {
           <span className={styles.rangeValue}>espacios</span>
         </div>
       </div>
-      <p className={styles.hint}>
-        Cuánto sangra un nivel de indentación. <strong>Al leer</strong> cambia la
-        sangría de las listas y los tabuladores de todos tus documentos al instante,
-        sin editarlos. <strong>Al escribir</strong> es lo que inserta la tecla{" "}
-        <kbd>Tab</kbd>. Entre {TAB_MIN} y {TAB_MAX}; por defecto {TAB_DEFECTO}.
-      </p>
-      <p className={styles.hint}>
-        En la vista en vivo, la sangría <em>ya escrita</em> con espacios no se
-        reescala: dos espacios ocupan dos espacios. Para cambiarla de verdad hay que
-        reindentar el documento.
-      </p>
+      <Explicacion
+        detalle={
+          <>
+            <p>
+              <strong>Al leer</strong> cambia la sangría de las listas y los tabuladores de
+              todos tus documentos al instante, sin editarlos. <strong>Al escribir</strong> es
+              lo que inserta la tecla <kbd>Tab</kbd>. Entre {TAB_MIN} y {TAB_MAX}; por defecto{" "}
+              {TAB_DEFECTO}.
+            </p>
+            <p>
+              En la vista en vivo, la sangría <em>ya escrita</em> con espacios no se reescala:
+              dos espacios ocupan dos espacios. Para cambiarla de verdad hay que reindentar el
+              documento.
+            </p>
+          </>
+        }
+      >
+        Cuánto sangra un nivel de indentación, al leer y al escribir.
+      </Explicacion>
 
       <Interruptor
         etiqueta="Pestañas de previsualización"
         valor={previewTabs}
         onChange={(v) => setPref("previewTabs", v)}
+        ayuda="Abrir un archivo sin editarlo reemplaza esa pestaña en vez de abrir otra."
+        detalle="La pestaña se fija al editarla o con doble clic. Desactivá esta opción para abrir siempre una pestaña nueva."
       />
-      <p className={styles.hint}>
-        Al abrir un archivo que solo estás viendo (sin editarlo), reemplaza esa
-        pestaña en vez de abrir una nueva. La pestaña se fija al editarla o con
-        doble clic. Desactivá esta opción para abrir siempre una pestaña nueva.
-      </p>
 
       <Interruptor
         etiqueta="Ícono del tipo en las pestañas"
         valor={iconosEnPestanas}
         onChange={(v) => setPref("iconosEnPestanas", v)}
+        ayuda="Nota, dibujo, lienzo, tabla o consola, junto al nombre."
+        detalle="También marca los archivos que Mycelium no indexa. Apagalo si preferís que el título ocupe todo el ancho de la pestaña."
       />
-      <p className={styles.hint}>
-        Junto al nombre, el ícono del tipo de documento: nota, dibujo, lienzo,
-        tabla, consola o un archivo que Mycelium no indexa. Apagalo si preferís
-        que el título ocupe todo el ancho de la pestaña.
-      </p>
 
       <Interruptor
         etiqueta="Autocerrar pares"
         valor={autoCloseBrackets}
         onChange={(v) => setPref("autoCloseBrackets", v)}
+        ayuda="Al abrir un paréntesis, corchete o comilla se escribe también el de cierre."
+        detalle={
+          <>
+            Vale para <code>(</code>, <code>[</code>, <code>{"{"}</code>, <code>&quot;</code>,{" "}
+            <code>&apos;</code>, <code>`</code>, <code>*</code> y <code>_</code>. Con texto
+            seleccionado, lo envuelve en vez de reemplazarlo. Desactivá esta opción para
+            escribir los símbolos tal cual.
+          </>
+        }
       />
-      <p className={styles.hint}>
-        Al escribir <code>(</code>, <code>[</code>, <code>{"{"}</code>, <code>&quot;</code>,{" "}
-        <code>&apos;</code>, <code>`</code>, <code>*</code> o <code>_</code> se inserta también
-        el símbolo de cierre. Con texto seleccionado, lo envuelve en vez de
-        reemplazarlo. Desactivá esta opción para escribir los símbolos tal cual.
-      </p>
 
       <Interruptor
         etiqueta="Corrector ortográfico"
@@ -111,13 +117,9 @@ export function EditorSection() {
           // apagarlo, además, se termina el worker del corrector.
           refrescarCorrector(v);
         }}
+        ayuda="Subraya las palabras mal escritas; clic derecho para ver sugerencias."
+        detalle="También revisa lo que ya estaba escrito al abrir la nota. Desde el clic derecho podés agregar la palabra al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las fórmulas y el frontmatter no se corrigen."
       />
-      <p className={styles.hint}>
-        Subraya las palabras mal escritas, también las que ya estaban escritas al abrir
-        la nota. Hacé clic derecho sobre una marcada para ver las sugerencias, agregarla
-        al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las
-        fórmulas y el frontmatter no se corrigen.
-      </p>
       <DiccionariosCorrector />
 
       <Interruptor
@@ -125,32 +127,39 @@ export function EditorSection() {
         valor={numerosDeLinea}
         disabled={!hayVault}
         onChange={(v) => setPrefVault("numerosDeLinea", v)}
+        ayuda={
+          <>
+            Al costado del texto, en las vistas de edición. Es un ajuste{" "}
+            <strong>de este vault</strong>.{!hayVault && " Abrí un vault para poder cambiarlo."}
+          </>
+        }
+        detalle={
+          <>
+            <p>
+              Se guarda dentro de la carpeta del vault, no en tu usuario: viaja con él y cada
+              vault puede tener el suyo. Desactivado por defecto.
+            </p>
+            <p>
+              En la vista de <strong>lectura</strong> no aparecen: ahí un párrafo de varias
+              líneas se reajusta al ancho y se convierte en un solo bloque, así que no hay
+              dónde poner el número de cada una sin inventarlo.
+            </p>
+          </>
+        }
       />
-      <p className={styles.hint}>
-        Muestra el número de cada línea al costado del texto, como en el visor de
-        archivos de código. Desactivado por defecto.{" "}
-        <strong>Este ajuste es de este vault</strong>, no tuyo: se guarda dentro
-        de su carpeta, así que viaja con él y cada vault puede tener el suyo.
-        {!hayVault && " Abrí un vault para poder cambiarlo."}
-      </p>
-      <p className={styles.hint}>
-        Solo en las vistas de <strong>edición</strong>, donde cada línea del
-        archivo es una línea en pantalla. En la de <strong>lectura</strong> no
-        aparecen: ahí un párrafo de varias líneas se reajusta al ancho y se
-        convierte en un solo bloque, así que no hay dónde poner el número de
-        cada una sin inventarlo.
-      </p>
 
       <Interruptor
         etiqueta="Mostrar título del archivo"
         valor={showFileTitle}
         onChange={(v) => setPref("showFileTitle", v)}
+        ayuda="El nombre del archivo como título, arriba de todas las vistas."
+        detalle={
+          <>
+            No es un encabezado <code>#</code> del documento: es el nombre del archivo, y
+            escribir en él lo renombra. Desactivá esta opción para ocultarlo.
+          </>
+        }
       />
-      <p className={styles.hint}>
-        Muestra el nombre del archivo como título en la parte superior de todas
-        las vistas. No es un encabezado <code>#</code> del documento.
-        Desactivá esta opción para ocultarlo.
-      </p>
     </div>
   );
 }

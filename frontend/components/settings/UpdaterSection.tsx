@@ -8,6 +8,7 @@ import {
   type VersionPublicada,
 } from "@/lib/updater";
 import { useUpdaterStore } from "@/stores/updaterStore";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -145,11 +146,16 @@ export function UpdaterSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.hint}>
-          Una vez al día, en el primer arranque de la jornada, y en segundo plano: la app
-          abre igual aunque no haya conexión y nunca se actualiza sola. Desactivalo y
-          Mycelium no hará <strong>ninguna</strong> petición de red al arrancar; el botón de
-          acá abajo sigue funcionando.
+        <Explicacion
+          detalle={
+            <>
+              En el primer arranque de la jornada y en segundo plano: la app abre igual aunque
+              no haya conexión. Desactivado, Mycelium no hace <strong>ninguna</strong> petición
+              de red al arrancar; el botón de acá abajo sigue funcionando.
+            </>
+          }
+        >
+          Una vez al día; nunca se actualiza sola, te pregunta.
           {estado.ultimaComprobacion && (
             <> Última comprobación: <strong>{estado.ultimaComprobacion}</strong>.</>
           )}
@@ -157,7 +163,7 @@ export function UpdaterSection() {
             <> Versión omitida: <strong>{estado.versionOmitida}</strong> (se volverá a
             avisar cuando salga otra).</>
           )}
-        </p>
+        </Explicacion>
         <div className={styles.btnRow}>
           <button
             type="button"
@@ -198,12 +204,17 @@ export function UpdaterSection() {
                 }
               }}
             />
-            <p className={styles.hint}>
-              URL del <code>latest.json</code>. Vacío = el compilado en esta versión
-              (<code>{estado.endpointDefecto}</code>). Sirve para probar contra un bucket de
-              pruebas sin tocar el de producción, y para el día que haya que cambiar la URL
-              sin reinstalar nada.
-            </p>
+            <Explicacion
+              detalle={
+                <>
+                  Vacío = el compilado en esta versión (<code>{estado.endpointDefecto}</code>).
+                  Sirve para probar contra un bucket de pruebas sin tocar el de producción, y
+                  para el día que haya que cambiar la URL sin reinstalar nada.
+                </>
+              }
+            >
+              URL del <code>latest.json</code> de donde se leen las versiones.
+            </Explicacion>
             {errorEndpoint && (
               <p className={styles.warn} role="alert">
                 {errorEndpoint}
@@ -213,12 +224,17 @@ export function UpdaterSection() {
 
           <div className={styles.field}>
             <span className={styles.label}>Versiones publicadas</span>
-            <p className={styles.hint}>
-              Herramienta de desarrollo: instalar cualquier versión publicada, incluida una
-              anterior a la actual —para revisar cómo se comportaba algo, o para volver
-              atrás si una versión sale mal—. Elegir una <strong>fija</strong> la app en
-              ella y apaga el aviso diario hasta que lo deshagas.
-            </p>
+            <Explicacion
+              detalle={
+                <>
+                  Para revisar cómo se comportaba algo, o para volver atrás si una versión sale
+                  mal. Elegir una <strong>fija</strong> la app en ella y apaga el aviso diario
+                  hasta que lo deshagas.
+                </>
+              }
+            >
+              Instalar cualquier versión publicada, incluida una anterior.
+            </Explicacion>
             <div className={styles.btnRow}>
               <button
                 type="button"
