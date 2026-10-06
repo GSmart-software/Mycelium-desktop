@@ -32,7 +32,7 @@ interface Props {
 export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detalle, className }: Props) {
   const id = useId();
   return (
-    <>
+    <div className={styles.ajuste}>
       <div className={className ? `${styles.toggleRow} ${className}` : styles.toggleRow}>
         <span className={styles.label} id={id}>
           {etiqueta}
@@ -49,6 +49,6 @@ export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detall
         </label>
       </div>
       {ayuda && <Explicacion detalle={detalle}>{ayuda}</Explicacion>}
-    </>
+    </div>
   );
 }

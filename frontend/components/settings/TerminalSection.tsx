@@ -32,10 +32,10 @@ export function TerminalSection() {
             <option key={s.id} value={s.id}>{s.nombre}</option>
           ))}
         </select>
+        <Explicacion detalle="Para una consola puntual, en el panel de Consolas hacé clic derecho en «Nueva terminal» y elegí otra shell.">
+          La shell que se inicia al crear una consola nueva.
+        </Explicacion>
       </div>
-      <Explicacion detalle="Para una consola puntual, en el panel de Consolas hacé clic derecho en «Nueva terminal» y elegí otra shell.">
-        La shell que se inicia al crear una consola nueva.
-      </Explicacion>
 
       <Interruptor
         etiqueta="Restaurar terminales al abrir"

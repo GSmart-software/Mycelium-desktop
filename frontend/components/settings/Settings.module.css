@@ -5,14 +5,46 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-bottom: 0.9rem;
+}
+
+/* Cada ajuste es un bloque (`FUN-M-41`): el de campo (`.field`) y el de sí o no
+   (`.ajuste`, que arma `Interruptor`). Un filete fino los separa, así cada
+   ajuste —nombre, control y explicación— se lee como una unidad y no como un
+   párrafo más. Mismo ancho para los dos, para que los filetes no queden de
+   largos distintos. El primero de la sección no lleva filete. */
+.field,
+.ajuste {
+  max-width: 560px;
+  padding-block: 0.95rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+}
+
+.field:first-child,
+.ajuste:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Dentro del bloque más ancho, los controles conservan su medida de antes. */
+.field > .input,
+.field > .select,
+.field > .rangeRow {
   max-width: 420px;
 }
 
+/* En un campo el aire lo pone el `gap`: la explicación no suma margen propio. */
+.field > .hint,
+.field > .hintDetalle {
+  margin-top: 0;
+}
+
+/* El nombre del ajuste manda: en el color del texto, un punto más grande que su
+   explicación (que va en gris). Antes los dos iban en el mismo gris y tamaño, y
+   la vista no tenía de dónde agarrarse. */
 .label {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--mic-text-muted);
+  color: var(--mic-text-primary);
 }
 
 .input,
@@ -219,16 +251,38 @@
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
 /* Interruptor: el rótulo a la izquierda y el control a la derecha, a la misma
    distancia siempre, para que la columna de controles se lea de un vistazo. */
+/* Interruptor A LA IZQUIERDA de su nombre (`FUN-M-41`, pedido del usuario): a
+   la derecha de un bloque de 560px quedaba lejos del rótulo y la vista tenía
+   que cruzar el hueco para unirlos. Así los interruptores forman una columna y
+   cada uno queda pegado a lo que activa. El DOM no cambia (rótulo y después
+   control): lo invierte `order`, y la explicación se alinea bajo el nombre. */
 .toggleRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 0.65rem;
   max-width: 560px;
   min-height: 34px;
   /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
      uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
   margin-top: 1.2rem;
+}
+
+/* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */
+.ajuste > .toggleRow {
+  margin-top: 0;
+}
+
+.toggleRow > .switch {
+  order: -1;
+}
+
+/* La explicación arranca donde arranca el nombre, no bajo el interruptor. */
+.ajuste > .hint,
+.ajuste > .hintDetalle,
+.field:has(> .toggleRow) > .hint,
+.field:has(> .toggleRow) > .hintDetalle {
+  margin-left: calc(34px + 0.65rem);
 }
 
 /* El primero de la sección no necesita ese aire. */
