@@ -18,15 +18,32 @@ import {
 import {
   ChevronDown,
   ChevronRight,
+  CircleDot,
+  Copy,
+  Eye,
+  ExternalLink,
+  FileDown,
+  FileOutput,
   FilePlus,
   Folder,
+  FolderOpen,
   FolderPlus,
+  Pencil,
   RefreshCw,
+  Trash2,
   Upload,
+  type LucideIcon,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ICONO_OTRO_ARCHIVO, ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
+import { ICONO_CONSOLA, ICONO_OTRO_ARCHIVO, ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
+import {
+  duplicarOtro,
+  eliminarOtro,
+  guardarCopiaOtro,
+  nombreSinExtension,
+  renombrarOtro,
+} from "@/lib/accionesOtroArchivo";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
 import { api } from "@/lib/api";
 import { baseInicial } from "@/lib/bases";
@@ -38,7 +55,7 @@ import { diagramaInicial } from "@/lib/drawio";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
-import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
+import { abrirConSistema, listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
 import { useShallow } from "zustand/react/shallow";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
@@ -113,7 +130,7 @@ const dropMasProfundo: CollisionDetection = (args) => {
 };
 
 type MenuState = { x: number; y: number; items: MenuItem[] } | null;
-type RenameState = { type: "carpeta" | "nota"; id: string; valor: string } | null;
+type RenameState = { type: "carpeta" | "nota" | "otro"; id: string; valor: string } | null;
 
 /**
  * Explorer del vault (HU-22/23/24): árbol de carpetas anidadas y notas,
@@ -127,6 +144,13 @@ const IconoDibujo = ICONO_POR_TIPO.excalidraw;
 const IconoBase = ICONO_POR_TIPO.base;
 const IconoCanvas = ICONO_POR_TIPO.canvas;
 const IconoDiagrama = ICONO_POR_TIPO.drawio;
+const IconoNota = ICONO_POR_TIPO.markdown;
+
+/**
+ * El ícono de una entrada de menú (`FUN-S-28`). Un solo tamaño para todos los
+ * menús del explorador, el mismo de los íconos de las filas del árbol.
+ */
+const ico = (Icono: LucideIcon) => <Icono size={15} aria-hidden />;
 
 export function ExplorerPanel() {
   const router = useRouter();
@@ -434,6 +458,8 @@ export function ExplorerPanel() {
     const esporas = listarEsporas(store.notas);
     return {
       label: "Nueva desde Espora",
+      // El mismo ícono que la sección de Esporas del rail.
+      icono: ico(CircleDot),
       disabled: esporas.length === 0,
       title:
         esporas.length === 0
@@ -441,6 +467,7 @@ export function ExplorerPanel() {
           : "Crear una nota a partir de una plantilla",
       submenu: esporas.map((espora) => ({
         label: espora.titulo,
+        icono: ico(IconoNota),
         onClick: () =>
           void crearNotaDesdeEspora(espora, carpetaId)
             .then(openNota)
@@ -493,26 +520,31 @@ export function ExplorerPanel() {
     return [
       {
         label: "Nueva nota",
+        icono: ico(IconoNota),
         onClick: () => void store.createNota(carpeta.id).then(openNota),
       },
       {
         label: "Nuevo dibujo Excalidraw",
+        icono: ico(IconoDibujo),
         onClick: () => void store.createNota(carpeta.id, "excalidraw").then(openNota),
       },
       // Base (FUN-L-03): una tabla que agrega notas por sus propiedades. Se crea
       // con una vista mínima ya escrita, para que muestre algo desde el principio.
       {
         label: "Nueva base",
+        icono: ico(IconoBase),
         onClick: () => void crearBase(carpeta.id),
       },
       {
         label: "Nuevo canvas",
+        icono: ico(IconoCanvas),
         onClick: () => void crearCanvas(carpeta.id),
       },
       // draw.io (`FUN-L-20`): el diagrama formal, el que se retoca dentro de seis
       // meses moviendo una caja y que las flechas la sigan.
       {
         label: "Nuevo diagrama draw.io",
+        icono: ico(IconoDiagrama),
         onClick: () => void crearDiagrama(carpeta.id),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
@@ -521,13 +553,17 @@ export function ExplorerPanel() {
       esporasMenu(carpeta.id),
       {
         label: "Nueva carpeta",
+        icono: ico(FolderPlus),
         onClick: () => {
           const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
           if (nombre) void store.createCarpeta(nombre, carpeta.id);
         },
       },
+      // Grupos (`FUN-S-28`): crear · traer al vault · organizar · eliminar.
       {
         label: "Importar archivos…",
+        icono: ico(Upload),
+        separadorAntes: true,
         onClick: () => {
           importTargetRef.current = carpeta.id;
           archivosInputRef.current?.click();
@@ -539,6 +575,7 @@ export function ExplorerPanel() {
         ? [
             {
               label: "Abrir terminal aquí",
+              icono: ico(ICONO_CONSOLA),
               // La consola (xterm) se carga recién acá: el explorador está
               // siempre montado y no tiene por qué traerla al arrancar.
               onClick: async () => {
@@ -551,6 +588,8 @@ export function ExplorerPanel() {
         : []),
       {
         label: "Renombrar",
+        icono: ico(Pencil),
+        separadorAntes: true,
         onClick: () =>
           setRenaming({ type: "carpeta", id: carpeta.id, valor: carpeta.nombre }),
       },
@@ -558,12 +597,15 @@ export function ExplorerPanel() {
         ? [
             {
               label: "Mostrar en el explorador",
+              icono: ico(FolderOpen),
               onClick: () => void revelarEnSistema(rutaVault, carpeta.id),
             },
           ]
         : []),
       {
         label: "Eliminar",
+        icono: ico(Trash2),
+        separadorAntes: true,
         danger: true,
         onClick: () => {
           const subtree = store.subtreeIds(carpeta.id);
@@ -586,27 +628,35 @@ export function ExplorerPanel() {
     return [
       {
         label: "Renombrar",
+        icono: ico(Pencil),
         onClick: () => setRenaming({ type: "nota", id: nota.id, valor: nota.titulo }),
       },
-      { label: "Duplicar", onClick: () => void store.duplicateNota(nota.id) },
+      { label: "Duplicar", icono: ico(Copy), onClick: () => void store.duplicateNota(nota.id) },
       {
         label: "Exportar como .md",
+        icono: ico(FileDown),
+        separadorAntes: true,
         onClick: () => void exportNoteMd(nota.id, nota.titulo),
       },
       {
         label: "Exportar como PDF…",
+        icono: ico(FileOutput),
         onClick: () => exportNotePdfActive(nota.id, nota.titulo),
       },
       ...(rutaVault
         ? [
             {
               label: "Mostrar en el explorador",
+              icono: ico(FolderOpen),
+              separadorAntes: true,
               onClick: () => void revelarEnSistema(rutaVault, nota.id),
             },
           ]
         : []),
       {
         label: "Eliminar",
+        icono: ico(Trash2),
+        separadorAntes: true,
         danger: true,
         // Sin preguntar, pero con vuelta atrás: la nota va a la papelera y el
         // aviso ofrece traerla de nuevo (crítica del cascarón, 2026-09-20).
@@ -626,14 +676,114 @@ export function ExplorerPanel() {
     ];
   }
 
+  /**
+   * Menú de un archivo que no es nota (`FUN-S-27`): antes no tenía ninguno, y
+   * una imagen o un PDF no se podían renombrar ni borrar sin salir de la app.
+   * Solo existe con vault de carpeta (`rutaVault`), que es donde hay archivos
+   * así; en web no se listan.
+   */
+  function otroMenu(otro: OtroArchivo): MenuItem[] {
+    if (!rutaVault) return [];
+    const vault = rutaVault;
+    const fallo = (que: string) => (e: unknown) =>
+      avisar(`No se pudo ${que} «${otro.nombre}»: ${(e as Error)?.message ?? e}`);
+    return [
+      {
+        label: "Abrir",
+        icono: ico(Eye),
+        onClick: () => abrirOtro(otro),
+      },
+      {
+        label: "Abrir con la aplicación predeterminada",
+        icono: ico(ExternalLink),
+        onClick: () => void abrirConSistema(vault, otro.ruta).catch(fallo("abrir")),
+      },
+      {
+        label: "Renombrar",
+        icono: ico(Pencil),
+        separadorAntes: true,
+        onClick: () => setRenaming({ type: "otro", id: otro.ruta, valor: nombreSinExtension(otro) }),
+      },
+      {
+        label: "Duplicar",
+        icono: ico(Copy),
+        onClick: () => void duplicarOtro(vault, otro).catch(fallo("duplicar")),
+      },
+      {
+        label: "Guardar una copia…",
+        icono: ico(FileDown),
+        title: "Descargar el archivo tal cual, fuera del vault",
+        onClick: () => void guardarCopiaOtro(vault, otro).catch(fallo("guardar una copia de")),
+      },
+      {
+        label: "Mostrar en el explorador",
+        icono: ico(FolderOpen),
+        separadorAntes: true,
+        onClick: () => void revelarEnSistema(vault, otro.ruta),
+      },
+      {
+        label: "Eliminar",
+        icono: ico(Trash2),
+        separadorAntes: true,
+        danger: true,
+        // A la papelera del sistema, no a la de Mycelium (ver `eliminarOtro`):
+        // como desde la app no se puede deshacer, se pregunta antes.
+        onClick: () =>
+          void confirmar(
+            `¿Mandar «${otro.nombre}» a la papelera de reciclaje del sistema? Se recupera desde ahí.`,
+            "Eliminar",
+          ).then((ok) => {
+            if (ok) void eliminarOtro(vault, otro).catch(fallo("eliminar"));
+          }),
+      },
+    ];
+  }
+
+  function abrirOtro(otro: OtroArchivo) {
+    const tabId = tabIdDeArchivo(otro.ruta);
+    useTabsStore.getState().openNote(tabId);
+    router.replace(`/workspace?note=${tabId}`);
+  }
+
   function commitRename() {
     if (!renaming) return;
     const valor = renaming.valor.trim();
     if (valor) {
       if (renaming.type === "carpeta") void store.renameCarpeta(renaming.id, valor);
-      else void store.renameNota(renaming.id, valor);
+      else if (renaming.type === "otro") {
+        const otro = otros.find((o) => o.ruta === renaming.id);
+        if (otro && rutaVault) {
+          void renombrarOtro(rutaVault, otro, valor).catch((e) =>
+            avisar(`No se pudo renombrar «${otro.nombre}»: ${(e as Error)?.message ?? e}`),
+          );
+        }
+      } else void store.renameNota(renaming.id, valor);
     }
     setRenaming(null);
+  }
+
+  function renderOtro(otro: OtroArchivo, nivel: number) {
+    return (
+      <OtroRow
+        key={otro.ruta}
+        otro={otro}
+        nivel={nivel}
+        renaming={renaming?.type === "otro" && renaming.id === otro.ruta}
+        renameValue={renaming?.valor ?? ""}
+        onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
+        onRenameCommit={commitRename}
+        onRenameCancel={() => setRenaming(null)}
+        onOpen={() => abrirOtro(otro)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const items = otroMenu(otro);
+          if (items.length > 0) setMenu({ x: e.clientX, y: e.clientY, items });
+        }}
+        onDoubleClick={() =>
+          setRenaming({ type: "otro", id: otro.ruta, valor: nombreSinExtension(otro) })
+        }
+      />
+    );
   }
 
   function renderCarpeta(carpeta: TreeCarpeta, nivel: number) {
@@ -697,7 +847,7 @@ export function ExplorerPanel() {
             {(carpetasPorPadre.get(carpeta.id) ?? []).map((sub) => renderCarpeta(sub, nivel + 1))}
             {(notasPorCarpeta.get(carpeta.id) ?? []).map((nota) => renderNota(nota, nivel + 1))}
             {(otrosPorCarpeta.get(carpeta.id) ?? []).map((otro) => (
-              <OtroRow key={otro.ruta} otro={otro} nivel={nivel + 1} />
+              renderOtro(otro, nivel + 1)
             ))}
           </div>
         )}
@@ -901,7 +1051,7 @@ export function ExplorerPanel() {
               {(carpetasPorPadre.get(null) ?? []).map((carpeta) => renderCarpeta(carpeta, 1))}
               {(notasPorCarpeta.get(null) ?? []).map((nota) => renderNota(nota, 1))}
               {(otrosPorCarpeta.get(null) ?? []).map((otro) => (
-                <OtroRow key={otro.ruta} otro={otro} nivel={1} />
+                renderOtro(otro, 1)
               ))}
               {store.carpetas.length === 0 && store.notas.length === 0 && (
                 <p className={styles.empty}>
@@ -1220,20 +1370,29 @@ function NoteRow({
  * no aparece en la búsqueda del vault, ni en el autocompletado de `[[`, ni en
  * el grafo.
  */
-function OtroRow({ otro, nivel }: { otro: OtroArchivo; nivel: number }) {
-  const router = useRouter();
-  const abrir = () => {
-    const tabId = tabIdDeArchivo(otro.ruta);
-    useTabsStore.getState().openNote(tabId);
-    router.replace(`/workspace?note=${tabId}`);
-  };
+function OtroRow({
+  otro,
+  nivel,
+  onOpen,
+  onContextMenu,
+  onDoubleClick,
+  ...rename
+}: {
+  otro: OtroArchivo;
+  nivel: number;
+  onOpen: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onDoubleClick: () => void;
+} & RowRenameProps) {
   return (
     <div
       className={`${styles.row} ${styles.rowHoja} ${styles.rowOtro}`}
       title={otro.ruta}
       {...atributosDeFila(nivel)}
       data-arbol-id={`otro:${otro.ruta}`}
-      onClick={abrir}
+      onClick={() => !rename.renaming && onOpen()}
+      onContextMenu={onContextMenu}
+      onDoubleClick={onDoubleClick}
       // Evita el auto-scroll del navegador al pulsar la rueda sobre la fila.
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onAuxClick={(e) => {
@@ -1244,11 +1403,17 @@ function OtroRow({ otro, nivel }: { otro: OtroArchivo; nivel: number }) {
       }}
     >
       <ICONO_OTRO_ARCHIVO size={15} className={styles.noteIcon} aria-hidden />
-      {/* `otro.nombre` ya viene con la extensión: se lee `captura.png` de una
-          pieza, igual que las notas. El `title` deja leerlo entero (`DEF-081`). */}
-      <span className={styles.name} title={otro.nombre}>
-        {otro.nombre}
-      </span>
+      {rename.renaming ? (
+        // Se edita el nombre SIN la extensión (`FUN-S-27`), como en Obsidian: la
+        // extensión se conserva al confirmar (`renombrarOtro`).
+        <RenameInput {...rename} />
+      ) : (
+        // `otro.nombre` ya viene con la extensión: se lee `captura.png` de una
+        // pieza, igual que las notas. El `title` deja leerlo entero (`DEF-081`).
+        <span className={styles.name} title={otro.nombre}>
+          {otro.nombre}
+        </span>
+      )}
     </div>
   );
 }

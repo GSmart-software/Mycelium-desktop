@@ -16,7 +16,11 @@ export type MenuItem = {
   separadorAntes?: boolean;
   /** Entradas anidadas: la fila abre un submenú en vez de ejecutar una acción. */
   submenu?: MenuItem[];
-  /** Ícono a la izquierda del texto (los estados de una tarea, `FUN-S-01`). */
+  /**
+   * Ícono a la izquierda del texto: los estados de una tarea (`FUN-S-01`) y las
+   * acciones del explorador (`FUN-S-28`). También en las filas con submenú y
+   * dentro del submenú.
+   */
   icono?: ReactNode;
   /**
    * La opción vigente de un grupo excluyente (el estado actual de la tarea): se
@@ -129,7 +133,10 @@ export function ContextMenu({
               className={clase(item)}
               onClick={() => !item.disabled && setAbierto(item.label)}
             >
-              <span>{item.label}</span>
+              <span className={styles.conIcono}>
+                {item.icono}
+                {item.label}
+              </span>
               <ChevronRight size={13} aria-hidden />
             </button>
             {abierto === item.label && item.submenu.length > 0 && (
@@ -149,6 +156,7 @@ export function ContextMenu({
                       sub.onClick?.();
                     }}
                   >
+                    {sub.icono}
                     <span className={styles.subLabel}>{sub.label}</span>
                   </button>
                 ))}
