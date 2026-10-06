@@ -16,7 +16,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -34,7 +34,9 @@ pub enum Fallo {
 }
 
 /// Cuánto se reintenta abrir un pipe que existe pero tiene todas sus
-/// instancias ocupadas (otro pedido en curso).
+/// instancias ocupadas (otro pedido en curso). Solo existe en Windows: un
+/// socket unix no tiene «instancias ocupadas» (ver el `abrir` de unix).
+#[cfg(windows)]
 const ESPERA_CONEXION: Duration = Duration::from_secs(2);
 
 trait Flujo: Read + Write + Send {}
@@ -42,6 +44,7 @@ impl<T: Read + Write + Send> Flujo for T {}
 
 #[cfg(windows)]
 fn abrir(canal: &Path) -> Result<Box<dyn Flujo>, Fallo> {
+    use std::time::Instant;
     // ERROR_FILE_NOT_FOUND: no existe el pipe. ERROR_PIPE_BUSY: existe, pero
     // todas sus instancias están conectadas; la app crea la siguiente al
     // aceptar, así que vale la pena reintentar un momento.
@@ -113,6 +116,7 @@ mod tests {
     use super::falso::{canal_de_prueba, levantar};
     use super::*;
     use serde_json::json;
+    use std::time::Instant;
 
     #[test]
     fn sin_nadie_escuchando_es_nadie_escucha() {
