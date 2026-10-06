@@ -251,11 +251,16 @@
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
 /* Interruptor: el rótulo a la izquierda y el control a la derecha, a la misma
    distancia siempre, para que la columna de controles se lea de un vistazo. */
+/* Interruptor A LA IZQUIERDA de su nombre (`FUN-M-41`, pedido del usuario): a
+   la derecha de un bloque de 560px quedaba lejos del rótulo y la vista tenía
+   que cruzar el hueco para unirlos. Así los interruptores forman una columna y
+   cada uno queda pegado a lo que activa. El DOM no cambia (rótulo y después
+   control): lo invierte `order`, y la explicación se alinea bajo el nombre. */
 .toggleRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 0.65rem;
   max-width: 560px;
   min-height: 34px;
   /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
@@ -266,6 +271,18 @@
 /* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */
 .ajuste > .toggleRow {
   margin-top: 0;
+}
+
+.toggleRow > .switch {
+  order: -1;
+}
+
+/* La explicación arranca donde arranca el nombre, no bajo el interruptor. */
+.ajuste > .hint,
+.ajuste > .hintDetalle,
+.field:has(> .toggleRow) > .hint,
+.field:has(> .toggleRow) > .hintDetalle {
+  margin-left: calc(34px + 0.65rem);
 }
 
 /* El primero de la sección no necesita ese aire. */
