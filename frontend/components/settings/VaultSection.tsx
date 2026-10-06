@@ -23,6 +23,7 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { Interruptor } from "./Interruptor";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -290,10 +291,9 @@ export function VaultSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.hint}>
-          Al abrir Mycelium se reabre automáticamente el último vault que usaste. Si
-          está desactivado, se muestra el selector de vaults para elegir.
-        </p>
+        <Explicacion detalle="Si está desactivado, al abrir se muestra el selector de vaults para elegir.">
+          Al abrir Mycelium, vuelve al último vault que usaste.
+        </Explicacion>
       </div>
 
       {/* Esporas (FUN-M-03): dónde viven las plantillas de notas. */}
@@ -320,13 +320,18 @@ export function VaultSection() {
             }
           }}
         />
-        <p className={styles.hint}>
-          Las notas de esta carpeta son <strong>Esporas</strong>: plantillas para crear notas
-          ya con su estructura, o para insertar una estructura en una nota que ya existe.
-          Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
-          <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
-          carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
-        </p>
+        <Explicacion
+          detalle={
+            <>
+              Sirven para crear notas ya con su estructura o para insertarla en una que ya
+              existe. Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
+              <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
+              carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
+            </>
+          }
+        >
+          Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
+        </Explicacion>
         {esporasError && (
           <p
             className={styles.cssPreviewNote}
@@ -342,14 +347,19 @@ export function VaultSection() {
           sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
       <div className={styles.field}>
         <span className={styles.label}>Referencias del vault</span>
-        <p className={styles.hint}>
-          Si adoptaste Mycelium sobre un proyecto que ya tenías, es probable que tus
-          documentos se referencien entre sí desde siempre —con <code>`HU-009`</code> o
-          con el nombre suelto— pero con una notación que Mycelium no reconoce, así que el
-          grafo se ve vacío. Esta pantalla los <strong>audita</strong> sin tocar nada, y
-          después convierte esas referencias en <code>[[enlaces]]</code>, con respaldo y
-          deshacer.
-        </p>
+        <Explicacion
+          detalle={
+            <>
+              Si adoptaste Mycelium sobre un proyecto que ya tenías, es probable que tus
+              documentos se referencien entre sí desde siempre —con <code>`HU-009`</code> o con
+              el nombre suelto— con una notación que Mycelium no reconoce, y el grafo se ve
+              vacío. Primero se <strong>auditan</strong> sin tocar nada; la conversión lleva
+              respaldo y deshacer.
+            </>
+          }
+        >
+          Encuentra las referencias sin enlazar y las convierte en <code>[[enlaces]]</code>.
+        </Explicacion>
         <div className={styles.btnRow}>
           <button
             type="button"
@@ -366,10 +376,9 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Exportar</span>
-        <p className={styles.hint}>
-          Exportá todas las notas preservando la estructura de carpetas: a una carpeta
-          real del equipo (útil para git o Dropbox) o a un ZIP para compartir.
-        </p>
+        <Explicacion detalle="A una carpeta del equipo (útil para git o Dropbox) o a un ZIP para compartir.">
+          Todas las notas, con su estructura de carpetas.
+        </Explicacion>
         <div className={styles.btnRow}>
           <button
             type="button"
@@ -396,10 +405,16 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Importar vault de Obsidian</span>
-        <p className={styles.hint}>
-          Importá una carpeta del equipo o un .zip. Se preserva la estructura, se ignora
-          <code> .obsidian/</code> y los conflictos se resuelven uno a uno.
-        </p>
+        <Explicacion
+          detalle={
+            <>
+              Se preserva la estructura, se ignora <code>.obsidian/</code> y los conflictos de
+              nombre se resuelven uno a uno.
+            </>
+          }
+        >
+          Una carpeta del equipo o un .zip, por ejemplo un vault de Obsidian.
+        </Explicacion>
         <div className={styles.btnRow}>
           <button
             type="button"
@@ -437,11 +452,16 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Asistente IA (Claude Code)</span>
-        <p className={styles.hint}>
-          Genera en el vault las instrucciones para asistentes de IA por terminal
-          (<code>CLAUDE.md</code> + skill + comandos en <code>.claude/</code>): le
-          enseñan a navegar tus notas con los vínculos <code>[[...]]</code>, la
-          estructura y las funciones de Mycelium. Solo se crean si lo pedís acá.
+        <Explicacion
+          detalle={
+            <>
+              Escribe <code>CLAUDE.md</code>, skills y comandos en <code>.claude/</code>: le
+              enseñan a la IA a navegar tus notas por sus <code>[[enlaces]]</code>, la
+              estructura del vault y las funciones de Mycelium. Solo se crean si lo pedís acá.
+            </>
+          }
+        >
+          Instrucciones para que un asistente de IA por terminal entienda tu vault.
           {versionIa && (
             <>
               {" "}Instalado: <strong>v{versionIa}</strong>
@@ -450,7 +470,7 @@ export function VaultSection() {
               )}
             </>
           )}
-        </p>
+        </Explicacion>
         {rutaVault ? (
           <div className={styles.btnRow}>
             <button
@@ -481,12 +501,17 @@ export function VaultSection() {
             onChange={(v) => void onToggleControl(v)}
             ayuda={
               <>
-                Le deja a Claude Code, por el servidor MCP de Mycelium, <strong>operar la
-                app</strong>: mostrarte una nota, el grafo o el calendario, y saber qué tenés
-                abierto. Lo registra en <code>.mcp.json</code>, en la raíz del vault. Apagado,
+                Claude Code puede <strong>operar la app</strong>: mostrarte notas, usar el
+                calendario, renombrar y mover.
+              </>
+            }
+            detalle={
+              <>
+                Lo hace por el servidor MCP de Mycelium, registrado en <code>.mcp.json</code> en
+                la raíz del vault, y todo queda en «Actividad de la IA» con Deshacer. Apagado,
                 ningún programa puede pedirle nada a Mycelium — pero{" "}
-                <strong>no impide que la IA lea o escriba los archivos del vault</strong>: eso
-                lo hace con sus propias herramientas, como siempre.
+                <strong>no impide que la IA lea o escriba los archivos del vault</strong>: eso lo
+                hace con sus propias herramientas, como siempre.
               </>
             }
           />
@@ -495,16 +520,24 @@ export function VaultSection() {
 
       <div className={styles.field}>
         <span className={styles.label}>Archivos ignorados (.mycignore)</span>
-        <p className={styles.hint}>
-          Como un <code>.gitignore</code>, propio de cada vault: decide qué carpetas y
-          archivos NO se indexan ni aparecen. Por defecto se ignoran los directorios
-          ocultos (<code>.*/</code>) y las carpetas de dependencias y compilación
-          (<code>node_modules/</code>, <code>target/</code>, <code>dist/</code>,
-          <code> out/</code>). Editalo para, p. ej., dejar de ignorar
-          <code> .claude/</code> y ver esa documentación en Mycelium. Se abre en una
-          pestaña; al guardarlo, el vault se vuelve a filtrar solo. Ojo: el archivo
-          <strong> reemplaza al default por completo</strong>.
-        </p>
+        <Explicacion
+          detalle={
+            <>
+              <p>
+                Por defecto se ignoran los directorios ocultos (<code>.*/</code>) y las carpetas
+                de dependencias y compilación (<code>node_modules/</code>, <code>target/</code>,{" "}
+                <code>dist/</code>, <code>out/</code>). Editalo para, por ejemplo, dejar de
+                ignorar <code>.claude/</code> y ver esa documentación en Mycelium.
+              </p>
+              <p>
+                Se abre en una pestaña; al guardarlo, el vault se vuelve a filtrar solo. El
+                archivo <strong>reemplaza al default por completo</strong>.
+              </p>
+            </>
+          }
+        >
+          Como un <code>.gitignore</code>: qué carpetas y archivos no se indexan ni aparecen.
+        </Explicacion>
         {rutaVault ? (
           <div className={styles.btnRow}>
             <button
