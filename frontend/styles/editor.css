@@ -290,24 +290,55 @@
   border-bottom: 2px solid var(--mic-border);
 }
 
-/* Checkbox de tarea en la edición en vivo (visual, no interactivo) */
-.mic-live-check {
+/* ── Estados de tarea (FUN-S-01) ───────────────────────────────────────────
+   La casilla de una tarea es la MISMA en tres sitios: el widget de la vista en
+   vivo (span.mic-live-check), el <input> de la de lectura —y del PDF, que
+   imprime ese mismo HTML— (input.mic-task-check) y el ícono de cada entrada del
+   menú de estados (span.mic-tarea-icono). El estado llega en `data-estado`
+   (lib/estadosTarea.ts); `data-task` lleva el símbolo crudo, como en Obsidian,
+   para los snippets escritos para sus temas.
+   Las reglas de estado van con :is(...) para sumar la especificidad de la más
+   fuerte de las tres (`.mic-preview input.mic-task-check`) y ganarle a la base
+   sin pelear caso por caso. */
+.mic-live-check,
+.mic-preview input.mic-task-check,
+.mic-tarea-icono {
+  appearance: none;
+  -webkit-appearance: none;
   display: inline-block;
+  flex: none;
+  position: relative;
   width: 1.05em;
   height: 1.05em;
+  margin: 0;
   vertical-align: -0.18em;
-  margin-right: 0.15em;
   border: 1.5px solid var(--mic-text-muted);
   border-radius: 4px;
   box-sizing: border-box;
-  pointer-events: none;
+  background: transparent;
 }
-.mic-live-check-on {
-  position: relative;
-  background: var(--mic-accent);
-  border-color: var(--mic-accent);
+.mic-live-check {
+  margin-right: 0.15em;
+  cursor: pointer;
 }
-.mic-live-check-on::after {
+.mic-preview input.mic-task-check {
+  margin-right: 0.35rem;
+  cursor: pointer;
+}
+
+/* Hecha (y cualquier símbolo desconocido) y agregada: casilla llena con el
+   check. Cambia solo el color de fondo. */
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="hecha"] {
+  --mic-tarea-color: var(--mic-tarea-hecha);
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="agregada"] {
+  --mic-tarea-color: var(--mic-tarea-agregada);
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono):is([data-estado="hecha"], [data-estado="agregada"]) {
+  background: var(--mic-tarea-color);
+  border-color: var(--mic-tarea-color);
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono):is([data-estado="hecha"], [data-estado="agregada"])::after {
   content: "";
   position: absolute;
   left: 0.33em;
@@ -319,36 +350,68 @@
   transform: rotate(45deg);
 }
 
-/* Checkbox de tarea togglable en lectura/dividido: mismo estilo que en la
-   edición en vivo (.mic-live-check), dibujado con appearance:none. */
-.mic-preview input.mic-task-check {
-  appearance: none;
-  -webkit-appearance: none;
-  display: inline-block;
-  width: 1.05em;
-  height: 1.05em;
-  vertical-align: -0.18em;
-  margin-right: 0.35rem;
-  border: 1.5px solid var(--mic-text-muted);
-  border-radius: 4px;
-  box-sizing: border-box;
-  position: relative;
-  cursor: pointer;
+/* En curso: la casilla medio llena. */
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="en-curso"] {
+  border-color: var(--mic-tarea-en-curso);
+  background: linear-gradient(90deg, var(--mic-tarea-en-curso) 50%, transparent 50%);
 }
-.mic-preview input.mic-task-check:checked {
-  background: var(--mic-accent);
-  border-color: var(--mic-accent);
+
+/* Los estados con ícono propio: el ícono se pinta con una máscara (como el de
+   los callouts), del color de su token. Cancelada conserva el borde de la
+   casilla, con una cruz adentro; las demás son solo el ícono. */
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="cancelada"] {
+  --mic-tarea-color: var(--mic-tarea-cancelada);
+  --mic-tarea-icono: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round'><path d='M17 7 7 17'/><path d='m7 7 10 10'/></svg>");
+  border-color: var(--mic-tarea-cancelada);
 }
-.mic-preview input.mic-task-check:checked::after {
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="destacada"] {
+  --mic-tarea-color: var(--mic-tarea-destacada);
+  --mic-tarea-icono: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='1.5' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="pospuesta"] {
+  --mic-tarea-color: var(--mic-tarea-pospuesta);
+  --mic-tarea-icono: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M8 12h8'/><path d='m12 16 4-4-4-4'/></svg>");
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="pregunta"] {
+  --mic-tarea-color: var(--mic-tarea-pregunta);
+  --mic-tarea-icono: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><path d='M12 17h.01'/></svg>");
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono)[data-estado="importante"] {
+  --mic-tarea-color: var(--mic-tarea-importante);
+  --mic-tarea-icono: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 7v6'/><path d='M12 17h.01'/></svg>");
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono):is([data-estado="destacada"], [data-estado="pospuesta"], [data-estado="pregunta"], [data-estado="importante"]) {
+  border: none;
+  border-radius: 0;
+}
+:is(.mic-live-check, .mic-preview input.mic-task-check, .mic-tarea-icono):is([data-estado="cancelada"], [data-estado="destacada"], [data-estado="pospuesta"], [data-estado="pregunta"], [data-estado="importante"])::after {
   content: "";
   position: absolute;
-  left: 0.33em;
-  top: 0.1em;
-  width: 0.28em;
-  height: 0.55em;
-  border: solid var(--mic-raw-canvas);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  inset: 0;
+  background-color: var(--mic-tarea-color);
+  -webkit-mask: var(--mic-tarea-icono) center / contain no-repeat;
+  mask: var(--mic-tarea-icono) center / contain no-repeat;
+}
+
+/* El texto del ítem: solo hecha y cancelada lo cambian. Hecha se APAGA sin
+   tacharse (decisión del usuario, 2026-10-04: el tachado queda para cancelada);
+   la opacidad apaga también lo que trae color propio (un enlace, un `_énfasis_`).
+   Cancelada se tacha y se atenúa más. Se toca el texto PROPIO del ítem
+   —span.mic-tarea-texto en lectura, la marca .mic-live-tarea-* en vivo—, nunca
+   el <li>: un text-decoration se propaga sin remedio y alcanzaría las subtareas. */
+.mic-preview li[data-estado="hecha"] > .mic-tarea-texto,
+.mic-preview li[data-estado="hecha"] > p > .mic-tarea-texto,
+.cm-editor .mic-live-tarea-hecha {
+  color: var(--mic-text-muted);
+  opacity: 0.8;
+}
+.mic-preview li[data-estado="cancelada"] > .mic-tarea-texto,
+.mic-preview li[data-estado="cancelada"] > p > .mic-tarea-texto,
+.cm-editor .mic-live-tarea-cancelada {
+  color: var(--mic-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.65;
 }
 
 /* ── Callouts: estilo por tipo dirigido por atributo (HU-03) ──────────────
@@ -435,13 +498,28 @@
   font-weight: 600;
   color: color-mix(in srgb, var(--mic-callout-color, var(--mic-callout-note-border)) var(--mic-callout-tinta), var(--mic-text-primary));
 }
-/* El título escrito del callout es texto de cita (tags.quote), que el resaltado
-   de sintaxis pinta de gris en un <span> anidado y gana por herencia. Este span
-   HEREDA el color de la cabecera (mantiene su especificidad para ganarle al
-   resaltado): así, si un snippet cambia el color de la cabecera, el texto lo
-   sigue. */
-.cm-editor .mic-live-callout-head span {
-  color: inherit;
+/* El título escrito del callout es texto de cita (tags.quote), y el resaltado
+   de sintaxis lo pinta de gris en el <span> más interno —los del resaltado van
+   siempre DENTRO de nuestras marcas: tienen más precedencia—. Ese gris tiene que
+   ceder al color de la cabecera, pero SOLO ese (`FUN-S-06`).
+
+   Antes se forzaba `color: inherit` a todo `span` de la cabecera, y eso alcanzaba
+   también a lo que trae color propio: un `[enlace](url)` (su span lleva a la vez
+   la clase de cita y la de enlace), un `_énfasis_` o `__fuerte__`
+   (.mic-em-cm-us / .mic-strong-cm-us), un `[[wikilink]]` (.mic-wikilink-cm), una
+   #etiqueta (.mic-tag-cm) o el color de un snippet: todo salía del color del
+   callout.
+
+   Ahora la regla de cita del resaltado (`micelioHighlight`, en livePreview) usa
+   `var(--mic-cita-color, gris)`, y la cabecera define esa variable como
+   `currentColor`, que en `color` equivale a heredar. Resultado, sin pelear
+   especificidad: el texto de cita sin más hereda el color de la cabecera (y si
+   un snippet cambia ese color, lo sigue); un span que además es enlace se queda
+   con el color del enlace, que va después en el mismo resaltado; y dentro de una
+   marca con color propio, la cita hereda el de la marca. Lectura no cambia: ahí
+   el título no es un span de cita y las reglas de cada elemento ya ganaban. */
+:where(.mic-live-callout-head) {
+  --mic-cita-color: currentColor;
 }
 
 /* Cuerpo plegado de un callout (símbolo -) */
@@ -957,6 +1035,39 @@
 
 .mic-preview img {
   max-width: 100%;
+}
+
+/* Imágenes del vault embebidas en una nota (`DEF-126`), en lectura y en vivo.
+   El `span.mic-img` es el hueco que rellena `lib/imagenesRender.ts`: con la
+   imagen, o con el aviso discreto de que no está (nunca el ícono roto). Un
+   tamaño pedido (`|300`) llega como estilo en línea del `<img>`; sin él, la
+   imagen va a su tamaño natural, nunca más ancha que la nota. */
+.mic-img {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.mic-img img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--mic-radius-sm);
+}
+
+.mic-img.mic-img-pendiente,
+.mic-img.mic-img-falta {
+  color: var(--mic-text-muted);
+  font-size: 0.8125rem;
+  font-style: italic;
+  padding: 0.15rem 0.5rem;
+  border: 1px dashed color-mix(in srgb, var(--mic-text-muted) 40%, transparent);
+  border-radius: var(--mic-radius-sm);
+}
+
+/* En vivo, el clic sobre la imagen muestra la fuente: que se note que se puede. */
+.cm-content .mic-img {
+  cursor: pointer;
 }
 
 /* Resaltado de la vista de lectura (`DEF-091`). highlight.js solo pone clases;
@@ -1944,6 +2055,19 @@
 }
 
 ::highlight(mic-buscar-actual) {
+  background-color: color-mix(in srgb, var(--mic-glow) 65%, transparent);
+  color: var(--mic-text-primary);
+}
+
+/* Lo mismo dentro de las tablas renderizadas de la vista en vivo (DEF-125): el
+   widget reemplaza el texto que CodeMirror marca con .cm-searchMatch, así que
+   ahí también se pinta con la Highlight API (lib/editor/buscarEnTablas.ts).
+   Nombres propios porque la lectura borra los suyos al cerrar o cambiar de modo. */
+::highlight(mic-buscar-celda) {
+  background-color: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+::highlight(mic-buscar-celda-actual) {
   background-color: color-mix(in srgb, var(--mic-glow) 65%, transparent);
   color: var(--mic-text-primary);
 }

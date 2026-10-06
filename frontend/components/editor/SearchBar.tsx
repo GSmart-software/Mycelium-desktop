@@ -2,8 +2,6 @@
 
 import {
   closeSearchPanel,
-  findNext,
-  findPrevious,
   openSearchPanel,
   replaceAll,
   replaceNext,
@@ -19,6 +17,18 @@ import {
   limpiarResaltados,
   pintarResaltados,
 } from "@/lib/buscarEnDom";
+import {
+  indiceActual,
+  indiceSiguiente,
+  posicionEnContador,
+} from "@/lib/buscarCoincidencias";
+import {
+  celdaActualEffect,
+  celdaActualField,
+  coincidenciasEnVivo,
+  fuenteDeTablas,
+  irACoincidencia,
+} from "@/lib/editor/buscarEnTablas";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./SearchBar.module.css";
 
@@ -86,28 +96,31 @@ export function SearchBar({
         replace,
         literal: true,
       });
-      view.dispatch({ effects: setSearchQuery.of(sq) });
+      // Una búsqueda nueva suelta la celda actual (`DEF-125`): la lista cambió.
+      view.dispatch({ effects: [setSearchQuery.of(sq), celdaActualEffect.of(null)] });
       updateCounts(view, sq);
     },
     [getView, getPreview, modoLectura],
   );
+
+  /**
+   * Las coincidencias de la vista en vivo, en orden. No son solo las de
+   * CodeMirror: dentro de una tabla renderizada valen las que la tabla MUESTRA
+   * en sus celdas (`DEF-125`; ver `lib/editor/buscarEnTablas.ts`).
+   */
+  function coincidencias(view: EditorView, sq: SearchQuery) {
+    return coincidenciasEnVivo(view.state, sq, view.state.facet(fuenteDeTablas));
+  }
 
   function updateCounts(view: EditorView, sq: SearchQuery) {
     if (!sq.search) {
       setCounts({ current: 0, total: 0 });
       return;
     }
-    const cursor = sq.getCursor(view.state);
-    let total = 0;
-    let current = 0;
-    const selFrom = view.state.selection.main.from;
-    let item = cursor.next();
-    while (!item.done) {
-      total++;
-      if (item.value.from <= selFrom) current = total;
-      item = cursor.next();
-    }
-    setCounts({ current: Math.max(current, total > 0 ? 1 : 0), total });
+    const lista = coincidencias(view, sq);
+    const sel = view.state.selection.main;
+    const actual = indiceActual(lista, view.state.field(celdaActualField, false) ?? null, sel);
+    setCounts({ current: posicionEnContador(lista, actual, sel), total: lista.length });
   }
 
   // Abrir/cerrar el panel (oculto) que habilita el resaltado de matches
@@ -150,24 +163,22 @@ export function SearchBar({
       }
       const view = getView();
       if (!view) return;
-      if (forward) findNext(view);
-      else findPrevious(view);
-      // DEF-056: la coincidencia se centra, que es lo que se pidio — con la
-      // estrategia por defecto de `findNext` queda pegada al borde superior.
-      //
-      // Esto se calculaba a mano porque pedirselo a CodeMirror no surtia efecto.
-      // La causa era el DEF-059 —el panel oculto envenenaba el margen de scroll—
-      // y esta corregida, asi que vuelve a bastar su propia API.
-      view.dispatch({
-        effects: EditorView.scrollIntoView(view.state.selection.main, { y: "center" }),
-      });
+      // La navegación ya no es `findNext`/`findPrevious` de CodeMirror: esos
+      // solo conocen el texto del editor, y una coincidencia dentro de una tabla
+      // renderizada caía en un rango que el widget oculta (`DEF-125`).
       const sq = new SearchQuery({
         search: query,
         caseSensitive,
         replace: replaceWith,
         literal: true,
       });
-      updateCounts(view, sq);
+      const lista = coincidencias(view, sq);
+      const sel = view.state.selection.main;
+      const actual = indiceActual(lista, view.state.field(celdaActualField, false) ?? null, sel);
+      const destino = indiceSiguiente(lista, actual, sel, forward);
+      if (destino < 0) return;
+      irACoincidencia(view, lista[destino]);
+      setCounts({ current: destino + 1, total: lista.length });
     },
     [getView, getPreview, modoLectura, query, caseSensitive, replaceWith],
   );

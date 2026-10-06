@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { EXTENSIONES_DE_NOTA } from "@/lib/extensionesDeTipo";
+import { recorrerEntradas, type EntradaSoltada } from "@/lib/recorrerSoltados";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /**
@@ -33,7 +34,11 @@ export type ImportSummary = {
 type Opciones = {
   /** Se llama una vez por archivo en conflicto (su nombre) y espera la decisión. */
   resolveConflict?: (nombre: string) => Promise<ConflictChoice>;
-  onProgress?: (done: number, total: number) => void;
+  /**
+   * Avance de la importación: archivos hechos sobre el total y, cuando hay que
+   * pasar bytes al lado nativo (archivos soltados o elegidos), también los bytes.
+   */
+  onProgress?: (done: number, total: number, bytes?: { hechos: number; total: number }) => void;
 };
 
 async function invocar<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
@@ -50,7 +55,11 @@ export function collectFromFileList(files: FileList): CollectedFile[] {
   }));
 }
 
-/** Recorre un DataTransfer (drag & drop), recursando directorios (HU-07 CA3). */
+/**
+ * Recorre un DataTransfer (drag & drop), recursando directorios (HU-07 CA3).
+ * Las entradas se toman de forma **sincrónica**, antes del primer `await`: el
+ * `DataTransfer` de un drop deja de servir apenas vuelve el manejador.
+ */
 export async function collectFromDataTransfer(dt: DataTransfer): Promise<CollectedFile[]> {
   const entries = Array.from(dt.items)
     .map((item) => (item.kind === "file" ? item.webkitGetAsEntry?.() : null))
@@ -59,24 +68,8 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<Collect
   if (entries.length === 0) {
     return Array.from(dt.files).map((file) => ({ path: file.name, file }));
   }
-
-  const out: CollectedFile[] = [];
-  const walk = async (entry: FileSystemEntry, prefix: string): Promise<void> => {
-    if (entry.isFile) {
-      const file = await new Promise<File>((res, rej) =>
-        (entry as FileSystemFileEntry).file(res, rej),
-      );
-      out.push({ path: `${prefix}${entry.name}`, file });
-    } else if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      const children = await new Promise<FileSystemEntry[]>((res, rej) =>
-        reader.readEntries(res, rej),
-      );
-      for (const child of children) await walk(child, `${prefix}${entry.name}/`);
-    }
-  };
-  for (const entry of entries) await walk(entry, "");
-  return out;
+  // La API del navegador cumple la forma mínima que usa el recorrido.
+  return recorrerEntradas(entries as unknown as EntradaSoltada[]);
 }
 
 /** Extrae los archivos de un .zip (p. ej. un vault de Obsidian, HU-11 CA1). */
@@ -146,16 +139,34 @@ export async function importarCarpeta(
 }
 
 /**
- * Cuántos bytes se mandan por llamada al bajar archivos a la carpeta temporal.
- * Van como un arreglo de números en el JSON del IPC (unas cuatro veces su
- * tamaño): con tandas chicas ningún mensaje se vuelve enorme.
+ * Cuántos bytes viajan por llamada al bajar un archivo a la carpeta temporal.
+ * Van crudos (IPC binario, `FUN-S-26`), así que el límite no es el JSON sino la
+ * memoria: se lee del `File` solo el trozo que se manda (`slice`), y un archivo
+ * de cientos de MB nunca está entero en el webview.
  */
-const TANDA_BYTES = 4 * 1024 * 1024;
+const TROZO_BYTES = 8 * 1024 * 1024;
+
+/** Manda un trozo de `ruta` (relativa a la carpeta temporal `dir`) por IPC binario. */
+async function escribirTrozo(dir: string, ruta: string, desde: number, bytes: Uint8Array) {
+  const { invoke } = await import("@tauri-apps/api/core");
+  await invoke<void>("escribir_trozo_importacion", bytes, {
+    // Los encabezados solo llevan ASCII: las rutas, con tildes y eñes, van codificadas.
+    headers: {
+      "x-dir": encodeURIComponent(dir),
+      "x-ruta": encodeURIComponent(ruta),
+      "x-desde": String(desde),
+    },
+  });
+}
 
 /**
  * Importa archivos que no llegan como carpeta (un .zip, archivos soltados o
- * elegidos): se bajan a una carpeta temporal, por tandas, y de ahí sigue
- * `importarCarpeta`. La carpeta temporal se borra al terminar.
+ * elegidos): se bajan a una carpeta temporal, uno por uno y en trozos por IPC
+ * binario, y de ahí sigue `importarCarpeta`. La carpeta temporal se borra al
+ * terminar.
+ *
+ * Antes los bytes iban en el JSON como `number[]` (20 MB eran 71 MB de JSON y
+ * ~2,3 s): un archivo grande era inviable.
  */
 export async function importarArchivos(
   files: CollectedFile[],
@@ -164,23 +175,24 @@ export async function importarArchivos(
 ): Promise<ImportSummary> {
   let dir: string | null = null;
   try {
-    let tanda: { ruta_relativa: string; bytes: number[] }[] = [];
-    let bytesTanda = 0;
-    const volcar = async () => {
-      dir = await invocar<string>("escribir_temporal_importacion", { dir, archivos: tanda });
-      tanda = [];
-      bytesTanda = 0;
-    };
+    dir = await invocar<string>("crear_temporal_importacion", {});
+    const bytes = { hechos: 0, total: files.reduce((n, f) => n + f.file.size, 0) };
+    opts.onProgress?.(0, files.length, bytes);
     let hechos = 0;
     for (const f of files) {
-      const bytes = new Uint8Array(await f.file.arrayBuffer());
-      tanda.push({ ruta_relativa: f.path, bytes: Array.from(bytes) });
-      bytesTanda += bytes.length;
-      if (bytesTanda >= TANDA_BYTES) await volcar();
-      opts.onProgress?.(++hechos, files.length);
+      // Un archivo vacío también se escribe: una llamada con cero bytes.
+      let desde = 0;
+      do {
+        const trozo = new Uint8Array(await f.file.slice(desde, desde + TROZO_BYTES).arrayBuffer());
+        await escribirTrozo(dir, f.path, desde, trozo);
+        desde += trozo.length;
+        bytes.hechos += trozo.length;
+        opts.onProgress?.(hechos, files.length, bytes);
+        if (trozo.length === 0) break;
+      } while (desde < f.file.size);
+      opts.onProgress?.(++hechos, files.length, bytes);
     }
-    if (tanda.length > 0 || dir === null) await volcar();
-    return await importarCarpeta(dir!, destFolderId, opts);
+    return await importarCarpeta(dir, destFolderId, opts);
   } finally {
     if (dir !== null) {
       await invocar<void>("borrar_temporal_importacion", { dir }).catch(() => {

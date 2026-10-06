@@ -76,7 +76,10 @@ const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
 });
 const INDEXER = await fuente("../lib/db/indexer.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
-  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", { "@tauri-apps/api/core": TAURI }),
+  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
+    "@tauri-apps/api/core": TAURI,
+    "@/lib/imagenes": await fuente("../lib/imagenes.ts"),
+  }),
   "@tauri-apps/api/core": TAURI,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,
@@ -95,6 +98,8 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
+  "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
+  "./indexer": INDEXER,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,

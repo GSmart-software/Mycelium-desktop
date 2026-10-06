@@ -12,6 +12,8 @@
  * desaparecería en el siguiente render, o peor, se quedaría pegado al contenido.
  */
 
+import { posicionesDe } from "@/lib/buscarCoincidencias";
+
 /** Un texto y dónde empieza dentro de la concatenación de todos. */
 type Tramo = { nodo: Text; desde: number };
 
@@ -54,22 +56,18 @@ function ubicar(tramos: Tramo[], indice: number): { nodo: Text; desp: number } |
 export function buscarEnDom(raiz: HTMLElement, termino: string, sensible: boolean): Range[] {
   if (termino === "") return [];
   const { tramos, texto } = tramosDe(raiz);
-  const heno = sensible ? texto : texto.toLowerCase();
-  const aguja = sensible ? termino : termino.toLowerCase();
   const rangos: Range[] = [];
-
-  let i = heno.indexOf(aguja);
-  while (i >= 0) {
+  // Mismo recorrido que el del buscador en vivo para las celdas de una tabla
+  // (`DEF-125`): la n-ésima posición de allá es el n-ésimo rango de acá.
+  for (const i of posicionesDe(texto, termino, sensible)) {
     const a = ubicar(tramos, i);
-    const b = ubicar(tramos, i + aguja.length);
+    const b = ubicar(tramos, i + termino.length);
     if (a && b) {
       const r = document.createRange();
       r.setStart(a.nodo, a.desp);
       r.setEnd(b.nodo, b.desp);
       rangos.push(r);
     }
-    // El avance nunca es 0: un término vacío ya se descartó arriba.
-    i = heno.indexOf(aguja, i + aguja.length);
   }
   return rangos;
 }

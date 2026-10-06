@@ -10,6 +10,14 @@ import { visit } from "unist-util-visit";
 import type { Parent } from "unist";
 import { embedDrawioRe } from "@/lib/drawio";
 import {
+  embedWikiRe,
+  esRefDeImagen,
+  esUrlExterna,
+  partirAltMarkdown,
+  partirEmbedImagen,
+  type Tamano,
+} from "@/lib/imagenes";
+import {
   ALLOW_VIDEO,
   leerVideo,
   SANDBOX_VIDEO,
@@ -18,11 +26,13 @@ import {
 } from "@/lib/video";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
 import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
+import { MARCADOR_TAREA_RE, estaMarcada, estadoDeSimbolo } from "@/lib/estadosTarea";
 
 type MdNode = {
   type: string;
   value?: string;
   url?: string;
+  alt?: string;
   children?: MdNode[];
   data?: {
     hName?: string;
@@ -49,6 +59,19 @@ function remarkMicelio() {
       let cursor = 0;
 
       const matches: { start: number; end: number; node: MdNode }[] = [];
+
+      // Imágenes del vault (`DEF-126`): `![[foto.png]]`, `![[foto.png|300]]`.
+      // Van antes que los wikilinks: el `[[foto.png]]` de adentro empieza un
+      // carácter después, así que el solapado lo descarta.
+      for (const match of value.matchAll(embedWikiRe())) {
+        const { destino, alt, tamano } = partirEmbedImagen(match[1]);
+        if (!esRefDeImagen(destino)) continue;
+        matches.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          node: nodoDeImagen("wiki", destino, alt, tamano),
+        });
+      }
 
       // Diagramas Excalidraw embebidos (HU-16 CA2): placeholder que el
       // cliente reemplaza por el SVG renderizado.
@@ -258,22 +281,153 @@ function addClass(node: MdNode, cls: string) {
 }
 
 /**
- * Hace togglables los checkboxes de listas de tareas en lectura/dividido: quita
- * el `disabled` que pone remark-gfm y numera cada uno en orden de documento
- * (data-task) para que el editor sepa qué marcador `[ ]`/`[x]` alternar.
+ * Desplazamiento en caracteres del cuerpo dentro del documento: el cuerpo se
+ * renderiza SIN el frontmatter, y la posición de una casilla de tarea
+ * (`data-task-pos`) tiene que ser la del DOCUMENTO para que el editor escriba
+ * en el lugar correcto. Mismo motivo y mismo mecanismo que `offsetDeLineas`.
  */
-function rehypeTaskCheckbox() {
-  return (tree: Parent) => {
-    let i = 0;
-    visit(tree, "element", (node: MdNode & { tagName?: string; properties?: Record<string, unknown> }) => {
-      if (node.tagName !== "input" || node.properties?.type !== "checkbox") return;
-      const props = node.properties;
-      delete props.disabled;
-      props.className = ["mic-task-check"];
-      props.dataTask = String(i++);
+let offsetDeCaracteres = 0;
+
+type ItemDeLista = MdNode & {
+  checked?: boolean | null;
+  position?: { start: { offset?: number }; end: { offset?: number } };
+};
+
+/** Viñeta de un ítem (`-`, `*`, `+`, `1.`, `1)`) y el espacio que la sigue. */
+const VINETA_RE = /(?:[-*+]|\d{1,9}[.)])[ \t]+/y;
+
+/** Dónde empieza (el `[`) el marcador de tarea del ítem, o `null` si no tiene. */
+function posDelMarcador(item: ItemDeLista, fuente: string): number | null {
+  const inicio = item.position?.start.offset;
+  if (inicio === undefined) return null;
+  VINETA_RE.lastIndex = inicio;
+  if (!VINETA_RE.test(fuente)) return null;
+  const pos = VINETA_RE.lastIndex;
+  return MARCADOR_TAREA_RE.test(fuente.slice(pos, pos + 4)) ? pos : null;
+}
+
+/**
+ * Estados de tarea en la vista de lectura (`FUN-S-01`).
+ *
+ * remark-gfm solo reconoce `[ ]`, `[x]` y `[X]`: un `- [-] algo` le llega como
+ * un ítem común cuyo texto empieza con `[-] `. Este plugin lo convierte en
+ * tarea —quita el marcador del texto y le pone `checked`, que es lo que hace
+ * que remark-rehype dibuje la casilla— y deja en TODOS los ítems de tarea su
+ * símbolo, su estado y la posición del marcador en el documento, que
+ * `rehypeTaskCheckbox` pasa a la casilla.
+ *
+ * Quitar el marcador: lo normal es que el primer texto del párrafo empiece con
+ * él, y basta con recortarlo. Si no —un símbolo que el parser leyó como sintaxis,
+ * como el `*` de `[*] algo*`—, se vuelve a parsear el párrafo sin el marcador.
+ */
+function remarkEstadosTarea(this: { parse: (texto: string) => unknown }) {
+  // Función flecha: `this` sigue siendo el procesador dentro del transformador.
+  return (tree: Parent, file: { value?: unknown }) => {
+    const fuente = String(file.value ?? "");
+    visit(tree, "listItem", (item: ItemDeLista) => {
+      const pos = posDelMarcador(item, fuente);
+      if (typeof item.checked === "boolean") {
+        marcarTarea(item, pos === null ? (item.checked ? "x" : " ") : fuente[pos + 1], pos);
+        return;
+      }
+      if (pos === null) return;
+      const parrafo = item.children?.[0] as ItemDeLista | undefined;
+      if (!parrafo || parrafo.type !== "paragraph" || parrafo.position?.start.offset !== pos) return;
+      const marcador = fuente.slice(pos, pos + 4);
+      const primero = parrafo.children?.[0];
+      if (primero?.type === "text" && primero.value?.startsWith(marcador)) {
+        primero.value = primero.value.slice(marcador.length);
+        if (primero.value === "") parrafo.children!.shift();
+      } else {
+        const fin = parrafo.position?.end.offset ?? pos + 4;
+        const nuevo = (this.parse(fuente.slice(pos + 4, fin)) as MdNode).children?.[0];
+        parrafo.children = nuevo?.type === "paragraph" ? (nuevo.children ?? []) : [];
+      }
+      item.checked = estaMarcada(fuente[pos + 1]);
+      marcarTarea(item, fuente[pos + 1], pos);
     });
   };
 }
+
+function marcarTarea(item: ItemDeLista, simbolo: string, pos: number | null) {
+  item.data ??= {};
+  const props = (item.data.hProperties ??= {});
+  props.dataTask = simbolo;
+  props.dataEstado = estadoDeSimbolo(simbolo).id;
+  if (pos !== null) props.dataTaskPos = String(pos + offsetDeCaracteres);
+}
+
+type ElementoHast = MdNode & {
+  tagName?: string;
+  properties?: Record<string, unknown>;
+  children?: ElementoHast[];
+};
+
+/**
+ * La casilla de cada tarea en lectura/dividido (`FUN-S-01`): quita el
+ * `disabled` que pone remark-gfm —se puede hacer clic— y le pasa del `<li>` el
+ * símbolo (`data-task`, como Obsidian: un snippet escrito para sus temas vale
+ * acá), el estado (`data-estado`, que es lo que dibuja `editor.css`) y la
+ * posición del marcador (`data-task-pos`, que usa el editor para escribir).
+ *
+ * Además envuelve el texto PROPIO del ítem en `span.mic-tarea-texto`: el
+ * tachado de una tarea hecha o cancelada va ahí y no en el `<li>`, porque un
+ * `text-decoration` se propaga a los descendientes sin que estos lo puedan
+ * anular, y tacharía también las subtareas pendientes.
+ */
+function rehypeTaskCheckbox() {
+  return (tree: Parent) => {
+    visit(tree, "element", (li: ElementoHast) => {
+      if (li.tagName !== "li" || li.properties?.dataTask === undefined) return;
+      const props = li.properties;
+      const simbolo = String(props.dataTask);
+      const pos = props.dataTaskPos;
+      delete props.dataTaskPos;
+      if (estaMarcada(simbolo)) {
+        const clases = Array.isArray(props.className) ? props.className : [];
+        props.className = [...clases, "is-checked"];
+      }
+
+      // La casilla es el primer hijo del `<li>` (lista compacta) o de su primer
+      // `<p>` (lista espaciada).
+      let contenedor: ElementoHast | undefined = li;
+      if (li.children?.[0]?.tagName !== "input") {
+        contenedor = li.children?.find((c) => c.type === "element");
+        if (contenedor?.tagName !== "p" || contenedor.children?.[0]?.tagName !== "input") return;
+      }
+      const hijos = contenedor.children!;
+      const estado = estadoDeSimbolo(simbolo);
+      hijos[0].properties = {
+        type: "checkbox",
+        checked: estaMarcada(simbolo),
+        className: ["mic-task-check"],
+        dataTask: simbolo,
+        dataEstado: estado.id,
+        ...(pos !== undefined ? { dataTaskPos: pos } : {}),
+        title: estado.nombre,
+      };
+
+      // El texto propio: desde la casilla hasta la primera sublista, sin el
+      // espacio que remark-rehype pone después de la casilla.
+      let desde = 1;
+      while (desde < hijos.length && esBlanco(hijos[desde])) desde++;
+      let hasta = desde;
+      while (hasta < hijos.length && hijos[hasta].tagName !== "ul" && hijos[hasta].tagName !== "ol") hasta++;
+      while (hasta > desde && esBlanco(hijos[hasta - 1])) hasta--;
+      if (hasta > desde) {
+        const texto: ElementoHast = {
+          type: "element",
+          tagName: "span",
+          properties: { className: ["mic-tarea-texto"] },
+          children: hijos.slice(desde, hasta),
+        };
+        hijos.splice(desde, hasta - desde, texto);
+      }
+    });
+  };
+}
+
+const esBlanco = (n: ElementoHast): boolean => n.type === "text" && !n.value?.trim();
 
 /**
  * Línea del documento a la que corresponde el HTML que se está generando
@@ -329,6 +483,68 @@ function remarkVideo() {
       if (video === null) return;
       parent.children[index] = nodoDeVideo(video) as never;
     });
+  };
+}
+
+/**
+ * Plugin remark: las imágenes de `![alt](ruta)` (`DEF-126`).
+ *
+ * Una ruta del vault **no** se deja como `<img src="foto.png">`: el webview la
+ * pediría relativa a la página de la app —no a la nota— y mostraría el ícono
+ * roto, que era el defecto. Se emite un hueco que quien muestra la nota
+ * rellena con la URL `asset:` (`rellenarImagenesEn`, `lib/imagenesRender.ts`),
+ * porque solo él sabe de qué carpeta es la nota. Las `http(s)://` y `data:`
+ * quedan como `<img>` normal; los vídeos ya los tomó `remarkVideo`.
+ */
+function remarkImagenes() {
+  return (tree: Parent) => {
+    visit(tree, "image", (node: MdNode, index, parent: Parent | undefined) => {
+      if (!parent || index === undefined || !node.url) return;
+      const { alt, tamano } = partirAltMarkdown(node.alt ?? "");
+      if (esUrlExterna(node.url)) {
+        node.alt = alt;
+        if (tamano) {
+          node.data ??= {};
+          node.data.hProperties = {
+            ...node.data.hProperties,
+            width: String(tamano.ancho),
+            ...(tamano.alto ? { height: String(tamano.alto) } : {}),
+          };
+        }
+        return;
+      }
+      parent.children[index] = nodoDeImagen("md", node.url, alt, tamano) as never;
+    });
+  };
+}
+
+/**
+ * El hueco de una imagen del vault: un `span` con lo escrito en sus `data-*`.
+ * Mientras nadie lo rellena —una tarjeta de lienzo, por ejemplo— muestra la
+ * referencia, que dice más que un recuadro vacío.
+ */
+function nodoDeImagen(
+  forma: "wiki" | "md",
+  ref: string,
+  alt: string,
+  tamano: Tamano | null,
+): MdNode {
+  const props: Record<string, string> = {
+    className: "mic-img mic-img-pendiente",
+    dataMicImg: ref,
+    dataForma: forma,
+  };
+  if (alt) props.dataAlt = alt;
+  if (tamano) {
+    props.dataAncho = String(tamano.ancho);
+    if (tamano.alto) props.dataAlto = String(tamano.alto);
+  }
+  return {
+    type: "paragraph",
+    // En `hChildren` (hast) y no en `children`: así `remarkMicelio` no pasa
+    // por este texto y no convierte en etiqueta un `#` del nombre del archivo.
+    data: { hName: "span", hProperties: props, hChildren: [{ type: "text", value: ref }] },
+    children: [],
   };
 }
 
@@ -406,7 +622,9 @@ function crearProcesador(conLineas: boolean) {
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkEstadosTarea)
     .use(remarkVideo)
+    .use(remarkImagenes)
     .use(remarkMicelio)
     .use(remarkCallouts)
     .use(remarkEmphasisStyle)
@@ -569,16 +787,22 @@ export function tarjetaPropiedadesHtml(texto: string): string {
  * horizontal del primer `---` y el `<h2>` fantasma que generaba el segundo.
  */
 export function renderNota(texto: string, conLineas = false): string {
+  // Los saltos, como los cuenta el editor (CodeMirror los normaliza a `\n`):
+  // si no, en un archivo CRLF la posición de una casilla de tarea
+  // (`data-task-pos`) se correría un carácter por línea.
+  if (texto.includes("\r")) texto = texto.replace(/\r\n?/g, "\n");
   const fm = separarFrontmatter(texto);
   const cuerpo = cuerpoDe(texto, fm);
-  if (!conLineas) return tarjetaPropiedadesHtml(texto) + renderMarkdown(cuerpo);
-
-  // `DEF-055`: los bloques salen marcados con su línea del DOCUMENTO, no del
-  // cuerpo, para que el editor pueda buscarlas tal como las numera él.
-  offsetDeLineas = fm.cuerpoDesde;
+  offsetDeCaracteres = texto.length - cuerpo.length;
   try {
+    if (!conLineas) return tarjetaPropiedadesHtml(texto) + renderMarkdown(cuerpo);
+
+    // `DEF-055`: los bloques salen marcados con su línea del DOCUMENTO, no del
+    // cuerpo, para que el editor pueda buscarlas tal como las numera él.
+    offsetDeLineas = fm.cuerpoDesde;
     return tarjetaPropiedadesHtml(texto) + String(processorConLineas.processSync(cuerpo));
   } finally {
     offsetDeLineas = 0;
+    offsetDeCaracteres = 0;
   }
 }

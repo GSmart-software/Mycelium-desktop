@@ -307,6 +307,23 @@
   --mic-callout-bg:               var(--mic-raw-mist);
 }
 
+/* ── Estados de tarea (FUN-S-01) ──────────────────────────────── */
+/* El color del ícono de cada estado de una tarea (`- [?] …`). Salen de los
+   colores de callout, mezclados con la tinta según --mic-callout-tinta —el mismo
+   criterio que el título de un callout—: en oscuro va casi el color puro y en
+   claro se oscurece, porque un violeta o un ámbar crudos no llegan a 3:1 sobre
+   el lienzo claro. Hecha y en curso usan el acento, como la casilla de siempre. */
+:root {
+  --mic-tarea-hecha:      var(--mic-accent);
+  --mic-tarea-en-curso:   var(--mic-accent);
+  --mic-tarea-agregada:   color-mix(in srgb, var(--mic-callout-success-border) var(--mic-callout-tinta), var(--mic-text-primary));
+  --mic-tarea-cancelada:  var(--mic-text-muted);
+  --mic-tarea-pospuesta:  color-mix(in srgb, var(--mic-callout-info-border) var(--mic-callout-tinta), var(--mic-text-primary));
+  --mic-tarea-destacada:  color-mix(in srgb, var(--mic-callout-warning-border) var(--mic-callout-tinta), var(--mic-text-primary));
+  --mic-tarea-importante: color-mix(in srgb, var(--mic-callout-caution-border) var(--mic-callout-tinta), var(--mic-text-primary));
+  --mic-tarea-pregunta:   color-mix(in srgb, var(--mic-callout-question-border) var(--mic-callout-tinta), var(--mic-text-primary));
+}
+
 /* ── Corrector ortográfico (FUN-L-12) ─────────────────────────── */
 /* El subrayado ondulado de una palabra mal escrita. Es propio —el del sistema
    está apagado—, así que el color lo pone el tema: el rojo de los callouts de

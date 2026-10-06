@@ -32,6 +32,8 @@ const MODULOS = [
   "lib/extensionesDeTipo.ts",
   "lib/editor/wikilink.ts",
   "lib/video.ts",
+  "lib/imagenes.ts",
+  "lib/estadosTarea.ts",
 ];
 
 await rm(TMP, { recursive: true, force: true });
@@ -221,4 +223,59 @@ test("la carpeta sigue desambiguando con extensión de por medio", () => {
 test("un destino que no existe sigue sin resolver", () => {
   assert.equal(resolveWikilink("No existe.drawio", NOTAS, CARPETAS), undefined);
   assert.equal(resolveWikilink("", NOTAS, CARPETAS), undefined);
+});
+
+// ── Imágenes del vault (`DEF-126`) ───────────────────────────────────────────
+//
+// La vista de lectura NO escribe la ruta en un `<img src>`: el webview la
+// pediría relativa a la página de la app y daría el ícono roto (el defecto).
+// Deja un hueco `span[data-mic-img]` que `rellenarImagenesEn` completa con la
+// URL `asset:`. Si la clase o los `data-*` cambian sin que cambie
+// `lib/imagenesRender.ts`, la imagen deja de verse en silencio.
+
+test("![[foto.png]] deja el hueco de imagen, no un wikilink", () => {
+  const html = renderNota("![[foto.png]]");
+  assert.match(html, /<span class="mic-img mic-img-pendiente" data-mic-img="foto\.png" data-forma="wiki">/);
+  assert.doesNotMatch(html, /mic-wikilink/);
+  assert.doesNotMatch(html, /!<a/);
+});
+
+test("![[foto.png|300x200]] lleva el tamaño; con carpeta, la ruta entera", () => {
+  const html = renderNota("![[Adjuntos/foto.png|300x200]]");
+  assert.match(html, /data-mic-img="Adjuntos\/foto\.png"/);
+  assert.match(html, /data-ancho="300"/);
+  assert.match(html, /data-alto="200"/);
+});
+
+test("![](rel) deja el hueco con la ruta tal cual y SIN src", () => {
+  const html = renderNota("![Una foto](img/mapa%20con%20espacios.png)");
+  assert.match(html, /data-forma="md"/);
+  assert.match(html, /data-alt="Una foto"/);
+  assert.doesNotMatch(html, /<img/);
+});
+
+test("![](<ruta con espacios>) también", () => {
+  const html = renderNota("![](<mapa con espacios.png>)");
+  assert.match(html, /data-mic-img="mapa con espacios\.png"/);
+});
+
+test("una imagen de la web queda como <img> normal, con su tamaño", () => {
+  const html = renderNota("![Logo|120](https://ejemplo.com/logo.png)");
+  assert.match(html, /<img src="https:\/\/ejemplo\.com\/logo\.png" alt="Logo" width="120">/);
+  assert.doesNotMatch(html, /data-mic-img/);
+});
+
+test("un vídeo sigue yendo al reproductor, no al hueco de imagen", () => {
+  const html = renderNota("![](https://youtu.be/dQw4w9WgXcQ)");
+  assert.match(html, /<iframe/);
+  assert.doesNotMatch(html, /data-mic-img/);
+});
+
+test("![[Nota]] y ![[x.excalidraw]] no se toman por imágenes", () => {
+  assert.doesNotMatch(renderNota("![[Nota]]"), /data-mic-img/);
+  assert.doesNotMatch(renderNota("![[Boceto.excalidraw]]"), /data-mic-img/);
+});
+
+test("dentro de código, ![[foto.png]] es solo texto", () => {
+  assert.doesNotMatch(renderNota("`![[foto.png]]`"), /data-mic-img/);
 });

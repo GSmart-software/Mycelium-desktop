@@ -12,13 +12,13 @@ import { collectFromZip } from "@/lib/import";
 import { asegurarIntegracion, cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
-import { useBorradoresStore } from "@/stores/borradoresStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ENLACES_TAB_ID } from "@/lib/pestanas";
+import { RUTA_MYCIGNORE, tabIdDeArchivo } from "@/lib/otrosArchivos";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -72,12 +72,6 @@ export function VaultSection() {
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
   const controlIa = usePrefVault("controlIa");
   const [cambiandoControl, setCambiandoControl] = useState(false);
-  // .mycignore por vault (FUN-M-11): null = editor cerrado. El texto vive en un
-  // store y no en estado local (`FUN-M-34`): el panel se remonta al cambiar de
-  // categoría, y con estado local el borrador moría por ir a mirar otra cosa.
-  const ignoreTexto = useBorradoresStore((s) => s.mycignore);
-  const setMycignore = useBorradoresStore((s) => s.setMycignore);
-  const [guardandoIgnore, setGuardandoIgnore] = useState(false);
   // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
   // de validación, que se confirma al salir del campo.
   const carpetaEsporasPref = usePreferencesStore((s) => s.prefs.carpetaEsporas);
@@ -231,42 +225,36 @@ export function VaultSection() {
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
 
+  /**
+   * Abre el `.mycignore` en una **pestaña** del visor de archivos (`FUN-S-25`),
+   * con su editor y su guardado explícito, en vez del cuadro de texto de esta
+   * ventana: el archivo puede crecer y conviene verlo al lado de lo que filtra.
+   * Al guardarlo, el watcher lo ve y el vault se vuelve a filtrar solo
+   * (`lib/vaultWatch.ts` reconcilia ante un cambio del `.mycignore`).
+   *
+   * El visor edita archivos que existen: si el vault no tiene uno, se crea con
+   * la plantilla de Rust (`mycignore::DEFAULT`), que es exactamente la lista que
+   * ya se aplica sin archivo. Crearlo así no cambia qué se ve.
+   */
   const abrirIgnore = async () => {
     if (!rutaVault) return;
-    const { invoke } = await import("@tauri-apps/api/core");
-    const actual = await invoke<string | null>("leer_archivo_texto", {
-      vaultRuta: rutaVault,
-      rutaRel: ".mycignore",
-    });
-    // Sin archivo, la plantilla sale de Rust (`mycignore::DEFAULT`): es la misma
-    // lista que se aplica sin `.mycignore`, sin una copia acá que mantener a mano.
-    setMycignore(actual ?? (await invoke<string>("mycignore_default")), false);
-  };
-
-  const guardarIgnore = async () => {
-    if (!rutaVault || ignoreTexto === null) return;
-    setGuardandoIgnore(true);
-    setMensaje(null);
-    setError(null);
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("escribir_nota", {
+      const actual = await invoke<string | null>("leer_archivo_texto", {
         vaultRuta: rutaVault,
-        rutaRel: ".mycignore",
-        contenido: ignoreTexto.endsWith("\n") ? ignoreTexto : `${ignoreTexto}\n`,
+        rutaRel: RUTA_MYCIGNORE,
       });
-      // Reindexar con las reglas nuevas y refrescar el árbol.
-      const { indexarVault } = await import("@/lib/db/indexer");
-      const indexado = await indexarVault(rutaVault);
-      useVaultStore.getState().setOtros(indexado.otros);
-      const vaultId = useVaultStore.getState().vaultId;
-      if (vaultId) await useVaultStore.getState().loadTree(vaultId);
-      setMycignore(null);
-      informar(".mycignore guardado; el vault se reindexó con las reglas nuevas.");
+      if (actual === null) {
+        await invoke("escribir_nota", {
+          vaultRuta: rutaVault,
+          rutaRel: RUTA_MYCIGNORE,
+          contenido: await invoke<string>("mycignore_default"),
+        });
+      }
+      useTabsStore.getState().openNote(tabIdDeArchivo(RUTA_MYCIGNORE));
+      setSettingsOpen(false);
     } catch (e) {
       fallar((e as Error).message ?? String(e));
-    } finally {
-      setGuardandoIgnore(false);
     }
   };
 
@@ -513,59 +501,20 @@ export function VaultSection() {
           ocultos (<code>.*/</code>) y las carpetas de dependencias y compilación
           (<code>node_modules/</code>, <code>target/</code>, <code>dist/</code>,
           <code> out/</code>). Editalo para, p. ej., dejar de ignorar
-          <code> .claude/</code> y ver esa documentación en Mycelium. Ojo: si creás el
-          archivo, <strong>reemplaza al default por completo</strong>.
+          <code> .claude/</code> y ver esa documentación en Mycelium. Se abre en una
+          pestaña; al guardarlo, el vault se vuelve a filtrar solo. Ojo: el archivo
+          <strong> reemplaza al default por completo</strong>.
         </p>
         {rutaVault ? (
-          ignoreTexto === null ? (
-            <div className={styles.btnRow}>
-              <button
-                type="button"
-                className={styles.secondaryBtn}
-                onClick={() => void abrirIgnore()}
-              >
-                Editar .mycignore
-              </button>
-            </div>
-          ) : (
-            <>
-              <textarea
-                value={ignoreTexto}
-                onChange={(e) => setMycignore(e.target.value, true)}
-                rows={8}
-                spellCheck={false}
-                style={{
-                  width: "100%",
-                  resize: "vertical",
-                  padding: "0.5rem",
-                  borderRadius: 6,
-                  border: "1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent)",
-                  background: "var(--mic-bg-canvas)",
-                  color: "var(--mic-text-primary)",
-                  fontFamily: "'JetBrains Mono', Consolas, monospace",
-                  fontSize: "0.8125rem",
-                }}
-              />
-              <div className={styles.btnRow}>
-                <button
-                  type="button"
-                  className={styles.primaryBtn}
-                  disabled={guardandoIgnore}
-                  onClick={() => void guardarIgnore()}
-                >
-                  {guardandoIgnore ? "Guardando…" : "Guardar y reindexar"}
-                </button>
-                <button
-                  type="button"
-                  className={styles.secondaryBtn}
-                  disabled={guardandoIgnore}
-                  onClick={() => setMycignore(null)}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </>
-          )
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={() => void abrirIgnore()}
+            >
+              Editar .mycignore
+            </button>
+          </div>
         ) : (
           <p className={styles.hint}>
             Disponible solo con un vault en carpeta.

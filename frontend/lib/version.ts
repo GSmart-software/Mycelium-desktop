@@ -135,6 +135,19 @@
  *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
  *   `docs/estado/Version 2.3.0.md`.
  *
+ * - `2.4.0` — **los archivos del vault**: el explorador sigue al disco al
+ *   instante y el índice se actualiza solo en lo tocado (`FUN-M-42`, que
+ *   completa `FUN-M-14`), soltar cualquier archivo o carpeta desde el SO
+ *   (`FUN-S-26`), un menú para los archivos que no son notas (`FUN-S-27`) e
+ *   íconos en los menús (`FUN-S-28`). Además, los estados de tarea
+ *   (`FUN-S-01`, framework de IA `1.8.0`), el `.mycignore` en una pestaña
+ *   (`FUN-S-25`) y el color propio en el título del callout (`FUN-S-06`).
+ *   Absorbe `DEF-125` a `DEF-129`. Primera versión con instaladores de
+ *   Windows, macOS y Linux compilados en CI (`FUN-L-28`).
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
+ *   `docs/estado/Version 2.4.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
@@ -143,4 +156,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.3.0";
+export const APP_VERSION = "2.4.0";

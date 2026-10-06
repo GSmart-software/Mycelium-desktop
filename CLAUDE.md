@@ -290,7 +290,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **2.3.0** (publicada el 2026-10-03; la próxima es `2.4.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **2.4.0** (preparada el 2026-10-06, a publicar por CI; la publicada es `2.3.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 > [!warning] La versión vigente se lee del disco, no de esta tabla
@@ -553,7 +553,7 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > —`.base`, `.canvas`, y los que se guardan pero NO se indexan— más la corrección de que
 > renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv` · `1.6.0` `.drawio`
 > (`FUN-L-20`) · `1.7.0` una skill por herramienta y el MCP de control (`FUN-L-26`,
-> `FUN-L-09`).
+> `FUN-L-09`) · `1.8.0` estados de tarea (`FUN-S-01`).
 >
 > **Este vault tiene la `1.7.0`** desde el 2026-10-03. Como este `CLAUDE.md` no lleva la marca
 > `<!-- mycelium-ia` (se quitó a propósito tras `DEF-118`), Mycelium no lo pisa: escribe la

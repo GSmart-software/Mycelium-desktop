@@ -4,12 +4,14 @@ import { createRoot, type Root } from "react-dom/client";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 
 /**
- * El menú del corrector ortográfico (`FUN-L-12`): sugerencias, «Agregar al
- * diccionario del vault» e «Ignorar», con el mismo `ContextMenu` del explorador.
+ * Un `ContextMenu` abierto desde fuera de React: el del corrector ortográfico
+ * (`FUN-L-12`: sugerencias, «Agregar al diccionario del vault», «Ignorar») y el
+ * de los estados de una tarea en la vista en vivo (`FUN-S-01`).
  *
- * Lo abre una extensión de CodeMirror (`lib/editor/ortografia.ts`), que no vive
- * dentro de ningún componente de React: por eso se monta en una raíz propia,
- * colgada del `body`, y se desmonta al cerrarse. Uno solo a la vez.
+ * Los abre una extensión de CodeMirror, que no vive dentro de ningún componente:
+ * por eso se monta en una raíz propia, colgada del `body`, y se desmonta al
+ * cerrarse. Uno solo a la vez. Se llamaba `abrirMenuOrtografia` hasta que tuvo
+ * un segundo uso.
  */
 let actual: { raiz: Root; nodo: HTMLDivElement } | null = null;
 
@@ -25,7 +27,7 @@ function cerrar() {
   });
 }
 
-export function abrirMenuOrtografia(x: number, y: number, items: MenuItem[]): void {
+export function abrirMenuFlotante(x: number, y: number, items: MenuItem[]): void {
   cerrar();
   const nodo = document.createElement("div");
   document.body.appendChild(nodo);

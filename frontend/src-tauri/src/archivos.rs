@@ -49,7 +49,7 @@ pub struct ArchivoMeta {
 }
 
 /// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
-fn tipo_de(path: &Path) -> String {
+pub(crate) fn tipo_de(path: &Path) -> String {
     match path.extension().and_then(|e| e.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("excalidraw") => "excalidraw".to_string(),
         // Bases (`FUN-L-03`) y canvas (`FUN-L-18`): las extensiones son las de
@@ -86,6 +86,43 @@ pub(crate) fn es_importable(path: &Path) -> bool {
                 || ext == "base"
                 || ext == "canvas"
                 || ext == "drawio"
+        }
+        None => false,
+    }
+}
+
+/// ¿El nombre de archivo es un temporal conocido que nadie quiere ver en el
+/// explorador (`DEF-127`)? Bloqueos de Office (`~$informe.docx`) y de
+/// LibreOffice (`.~lock.planilla.ods#`), `*.tmp`, y las descargas a medias de
+/// los navegadores y clientes de sincronización (`*.crdownload`, `*.part`).
+///
+/// Lo usan el watcher —para que su ida y vuelta no dispare reindexados— y el
+/// recorrido del vault, para no listarlos: si el recorrido los mostrara y el
+/// watcher no avisara al borrarse, quedarían en el explorador hasta el
+/// siguiente reindexado.
+///
+/// También el temporal de la escritura atómica de la PROPIA app
+/// (`vault_fs::escribir_atomico`: `nota.md.tmp-<pid>`, `FUN-M-42`). No termina
+/// en `.tmp`, así que pasaba el filtro: cada guardado traía en su ráfaga una
+/// ruta ajena —el temporal, ya renombrado, con `mtime` 0— y el frontend no
+/// podía descartarla como escritura propia (`FUN-M-38`). Y con el debounce
+/// corto del árbol en vivo, el temporal llegaba a asomar en el explorador.
+pub(crate) fn es_temporal(nombre: &str) -> bool {
+    let minus = nombre.to_ascii_lowercase();
+    nombre.starts_with("~$")
+        || (nombre.starts_with(".~lock.") && nombre.ends_with('#'))
+        || minus.ends_with(".tmp")
+        || minus.ends_with(".crdownload")
+        || minus.ends_with(".part")
+        || es_temporal_propio(&minus)
+}
+
+/// `*.tmp-<dígitos>`: el temporal de `vault_fs::escribir_atomico`.
+fn es_temporal_propio(minus: &str) -> bool {
+    match minus.rfind(".tmp-") {
+        Some(i) => {
+            let pid = &minus[i + 5..];
+            !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit())
         }
         None => false,
     }
@@ -185,7 +222,7 @@ pub struct RecorridoVault {
 /// UNA vez por entrada. Contrapartida asumida: `file_type()` no sigue enlaces
 /// simbólicos, así que un symlink a una carpeta no se recorre. Es lo deseable:
 /// evita ciclos y duplicados en el índice.
-fn recorrer_todo(
+pub(crate) fn recorrer_todo(
     dir: &Path,
     base: &Path,
     patrones: &[crate::mycignore::Patron],
@@ -205,6 +242,10 @@ fn recorrer_todo(
         if es_dir {
             out.directorios.push(relativa);
             recorrer_todo(&ruta, base, patrones, out)?;
+            continue;
+        }
+        // Los temporales conocidos no se listan (`DEF-127`, ver `es_temporal`).
+        if es_temporal(&entrada.file_name().to_string_lossy()) {
             continue;
         }
         let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
@@ -293,7 +334,7 @@ pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> 
 }
 
 /// Extensión en minúsculas, sin el punto. Cadena vacía si no tiene.
-fn extension_de(path: &Path) -> String {
+pub(crate) fn extension_de(path: &Path) -> String {
     path.extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
@@ -657,7 +698,7 @@ fn preparar_copia(
 /// relativa **al origen**. Es la primera mitad de la importación —la UI pregunta
 /// qué hacer con cada uno— y comparte el recorrido con `copiar_arbol` para que
 /// las dos vean exactamente los mismos archivos.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn conflictos_de_copia(
     vault_ruta: String,
     origen: String,
@@ -700,7 +741,10 @@ fn nombre_libre(ruta: &Path) -> PathBuf {
 /// decisión —apareció entre las dos llamadas— se conservan los dos. **Reemplazar
 /// reemplaza**: el archivo que estaba se pisa, no se duplica. Un error en un
 /// archivo no aborta la copia: queda en `omitidos` y se sigue.
-#[tauri::command]
+///
+/// `async` (fuera del hilo principal) desde `FUN-S-26`: soltar un archivo de
+/// cientos de MB lo copia acá, y en el hilo principal congelaba la ventana.
+#[tauri::command(async)]
 pub fn copiar_arbol(
     vault_ruta: String,
     origen: String,
@@ -744,22 +788,20 @@ pub fn copiar_arbol(
     Ok(out)
 }
 
-// ── Carpeta temporal de la importación ────────────────────────────────────────
+/// ── Carpeta temporal de la importación ────────────────────────────────────────
 //
 // Lo que no llega como carpeta —un `.zip`, archivos soltados o elegidos con el
 // selector— se baja primero a una carpeta temporal y sigue el MISMO camino que
 // una carpeta: `conflictos_de_copia` + `copiar_arbol`. Así el `.mycignore`, los
 // conflictos y los adjuntos se resuelven en un solo lugar.
+//
+// Los bytes viajan por **IPC binario** (`FUN-S-26`): el cuerpo crudo de la
+// llamada (`InvokeBody::Raw`) y los datos en encabezados, un trozo por llamada.
+// Antes iban en el JSON como un arreglo de números —cuatro veces su tamaño, 20 MB
+// eran 71 MB de JSON y ~2,3 s— y un archivo de cientos de MB no entraba.
 
 /// Prefijo de las carpetas temporales de importación dentro de `temp_dir()`.
 const PREFIJO_TEMPORAL: &str = "mycelium-import-";
-
-/// Un archivo que el frontend baja a la carpeta temporal, con sus bytes.
-#[derive(serde::Deserialize)]
-pub struct ArchivoBinario {
-    pub ruta_relativa: String,
-    pub bytes: Vec<u8>,
-}
 
 /// Comprueba que `dir` sea una carpeta temporal de importación: hija directa de
 /// `temp_dir()` y con el prefijo. Es lo único que estos comandos escriben o
@@ -775,38 +817,100 @@ fn temporal_valida(dir: &str) -> Result<PathBuf, String> {
     Ok(ruta)
 }
 
-/// Escribe `archivos` en una carpeta temporal de importación y devuelve su ruta.
-/// Con `dir = None` crea una nueva; con `Some`, agrega a esa (se llama por
-/// tandas, para no mandar un `.zip` entero en un solo mensaje).
+/// Crea una carpeta temporal de importación vacía y devuelve su ruta.
 #[tauri::command]
-pub fn escribir_temporal_importacion(
-    dir: Option<String>,
-    archivos: Vec<ArchivoBinario>,
-) -> Result<String, String> {
-    let base = match dir {
-        Some(d) => temporal_valida(&d)?,
-        None => {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0);
-            let ruta = std::env::temp_dir()
-                .join(format!("{PREFIJO_TEMPORAL}{}-{nanos}", std::process::id()));
-            std::fs::create_dir_all(&ruta)
-                .map_err(|e| format!("No se pudo crear {}: {e}", ruta.display()))?;
-            ruta
-        }
-    };
-    for a in archivos {
-        let ruta = ruta_segura(&base, &a.ruta_relativa)?;
-        if let Some(padre) = ruta.parent() {
-            std::fs::create_dir_all(padre)
-                .map_err(|e| format!("No se pudo crear {}: {e}", padre.display()))?;
-        }
-        std::fs::write(&ruta, &a.bytes)
-            .map_err(|e| format!("No se pudo escribir {}: {e}", ruta.display()))?;
+pub fn crear_temporal_importacion() -> Result<String, String> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let ruta =
+        std::env::temp_dir().join(format!("{PREFIJO_TEMPORAL}{}-{nanos}", std::process::id()));
+    std::fs::create_dir_all(&ruta)
+        .map_err(|e| format!("No se pudo crear {}: {e}", ruta.display()))?;
+    Ok(ruta.to_string_lossy().to_string())
+}
+
+/// Escribe un trozo de un archivo en la carpeta temporal `dir`, en `ruta`
+/// (relativa a ella, sin salirse: `ruta_segura`). `desde = 0` crea el archivo
+/// —o lo vacía—; cualquier otro valor agrega al final y exige que el archivo
+/// mida exactamente eso, para que un trozo perdido o repetido no deje un
+/// archivo corrupto sin aviso.
+fn escribir_trozo(dir: &str, ruta: &str, desde: u64, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let base = temporal_valida(dir)?;
+    let destino = ruta_segura(&base, ruta)?;
+    if destino == base {
+        return Err(format!("Ruta no permitida: {ruta}"));
     }
-    Ok(base.to_string_lossy().to_string())
+    if let Some(padre) = destino.parent() {
+        std::fs::create_dir_all(padre)
+            .map_err(|e| format!("No se pudo crear {}: {e}", padre.display()))?;
+    }
+    let mut archivo = if desde == 0 {
+        std::fs::File::create(&destino)
+    } else {
+        let actual = std::fs::metadata(&destino).map(|m| m.len()).unwrap_or(0);
+        if actual != desde {
+            return Err(format!("{ruta}: se esperaba el byte {actual} y llegó el {desde}"));
+        }
+        std::fs::OpenOptions::new().append(true).open(&destino)
+    }
+    .map_err(|e| format!("No se pudo escribir {}: {e}", destino.display()))?;
+    archivo
+        .write_all(bytes)
+        .map_err(|e| format!("No se pudo escribir {}: {e}", destino.display()))
+}
+
+/// Decodifica un valor `encodeURIComponent`: los encabezados HTTP solo llevan
+/// ASCII, y las rutas tienen tildes y eñes. Un `%` mal formado es error.
+fn decodificar_uri(valor: &str) -> Result<String, String> {
+    let entrada = valor.as_bytes();
+    let mut out = Vec::with_capacity(entrada.len());
+    let mut i = 0;
+    while i < entrada.len() {
+        if entrada[i] == b'%' {
+            let byte = entrada
+                .get(i + 1..i + 3)
+                .and_then(|h| std::str::from_utf8(h).ok())
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+                .ok_or_else(|| format!("Encabezado mal codificado: {valor}"))?;
+            out.push(byte);
+            i += 3;
+        } else {
+            out.push(entrada[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| format!("Encabezado mal codificado: {valor}"))
+}
+
+/// Recibe por IPC binario un trozo de un archivo que se importa: el cuerpo de
+/// la llamada son los bytes, y los encabezados dicen dónde van —`x-dir`, la
+/// carpeta temporal (de `crear_temporal_importacion`); `x-ruta`, la ruta
+/// relativa a ella; `x-desde`, la posición del trozo en el archivo—. Las dos
+/// rutas van con `encodeURIComponent`.
+///
+/// `async` para no correr en el hilo principal: un archivo grande son muchas
+/// llamadas seguidas y la ventana no debe congelarse mientras se escriben.
+#[tauri::command(async)]
+pub fn escribir_trozo_importacion(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Se esperaban los bytes del archivo en el cuerpo de la llamada.".into());
+    };
+    let encabezado = |nombre: &str| -> Result<String, String> {
+        let valor = request
+            .headers()
+            .get(nombre)
+            .ok_or_else(|| format!("Falta el encabezado {nombre}"))?
+            .to_str()
+            .map_err(|_| format!("El encabezado {nombre} no es ASCII"))?;
+        decodificar_uri(valor)
+    };
+    let desde = encabezado("x-desde")?
+        .parse::<u64>()
+        .map_err(|_| "Encabezado x-desde inválido".to_string())?;
+    escribir_trozo(&encabezado("x-dir")?, &encabezado("x-ruta")?, desde, bytes)
 }
 
 /// Borra una carpeta temporal de importación (y solo eso: ver `temporal_valida`).
@@ -963,36 +1067,62 @@ mod tests {
     /// del temporal del sistema; nada de lo que mande el webview fuera de eso.
     #[test]
     fn la_carpeta_temporal_de_importacion_es_la_unica_que_se_toca() {
-        let dir = escribir_temporal_importacion(
-            None,
-            vec![ArchivoBinario { ruta_relativa: "Vault/nota.md".into(), bytes: b"# hola".to_vec() }],
-        )
-        .unwrap();
-        let dir = escribir_temporal_importacion(
-            Some(dir),
-            vec![ArchivoBinario { ruta_relativa: "Vault/img.png".into(), bytes: vec![0, 1, 2] }],
-        )
-        .unwrap();
+        let dir = crear_temporal_importacion().unwrap();
+        escribir_trozo(&dir, "Vault/nota.md", 0, b"# hola").unwrap();
+        escribir_trozo(&dir, "Vault/img.png", 0, &[0, 1, 2]).unwrap();
         assert_eq!(std::fs::read(Path::new(&dir).join("Vault/nota.md")).unwrap(), b"# hola");
         assert_eq!(std::fs::read(Path::new(&dir).join("Vault/img.png")).unwrap(), vec![0, 1, 2]);
 
         // Una entrada del zip que intenta salirse: error.
-        assert!(escribir_temporal_importacion(
-            Some(dir.clone()),
-            vec![ArchivoBinario { ruta_relativa: "../fuera.md".into(), bytes: vec![] }],
-        )
-        .is_err());
+        for ruta in ["../fuera.md", "/fuera.md", "C:/fuera.md", "", "."] {
+            assert!(escribir_trozo(&dir, ruta, 0, b"x").is_err(), "{ruta:?} debía rechazarse");
+        }
 
         // Otra carpeta, aunque esté en el temporal: no se escribe ni se borra.
         let ajena = arbol("no-es-importacion");
         let a = ajena.to_string_lossy().to_string();
         assert!(borrar_temporal_importacion(a.clone()).is_err());
-        assert!(escribir_temporal_importacion(Some(a), vec![]).is_err());
+        assert!(escribir_trozo(&a, "nota.md", 0, b"x").is_err());
+        assert!(!ajena.join("nota.md").exists());
         assert!(ajena.exists());
         std::fs::remove_dir_all(&ajena).unwrap();
 
         borrar_temporal_importacion(dir.clone()).unwrap();
         assert!(!Path::new(&dir).exists());
+    }
+
+    /// Un archivo grande llega en trozos (`FUN-S-26`): se agregan en orden, y un
+    /// trozo fuera de lugar —perdido o repetido— es error, no un archivo roto.
+    #[test]
+    fn los_trozos_arman_el_archivo_y_rechazan_los_desordenados() {
+        let dir = crear_temporal_importacion().unwrap();
+        escribir_trozo(&dir, "Carpeta ñ/video.mp4", 0, &[1, 2, 3]).unwrap();
+        escribir_trozo(&dir, "Carpeta ñ/video.mp4", 3, &[4, 5]).unwrap();
+        assert!(escribir_trozo(&dir, "Carpeta ñ/video.mp4", 3, &[9]).is_err(), "repetido");
+        assert!(escribir_trozo(&dir, "Carpeta ñ/video.mp4", 9, &[9]).is_err(), "salteado");
+        escribir_trozo(&dir, "Carpeta ñ/video.mp4", 5, &[6]).unwrap();
+        let ruta = Path::new(&dir).join("Carpeta ñ/video.mp4");
+        assert_eq!(std::fs::read(&ruta).unwrap(), vec![1, 2, 3, 4, 5, 6]);
+
+        // Volver a empezar (`desde = 0`) lo reescribe desde cero.
+        escribir_trozo(&dir, "Carpeta ñ/video.mp4", 0, &[7]).unwrap();
+        assert_eq!(std::fs::read(&ruta).unwrap(), vec![7]);
+
+        // Un archivo vacío también existe (un trozo de cero bytes).
+        escribir_trozo(&dir, "vacío.txt", 0, &[]).unwrap();
+        assert_eq!(std::fs::read(Path::new(&dir).join("vacío.txt")).unwrap(), Vec::<u8>::new());
+
+        borrar_temporal_importacion(dir).unwrap();
+    }
+
+    /// Las rutas llegan en encabezados con `encodeURIComponent`.
+    #[test]
+    fn decodifica_los_encabezados_de_encodeuricomponent() {
+        assert_eq!(decodificar_uri("Notas%2Ffoto%20%C3%B1.png").unwrap(), "Notas/foto ñ.png");
+        assert_eq!(decodificar_uri("simple.md").unwrap(), "simple.md");
+        assert!(decodificar_uri("roto%2").is_err());
+        assert!(decodificar_uri("roto%zz").is_err());
+        assert!(decodificar_uri("%FF").is_err(), "no es UTF-8");
     }
 
     /// Un tipo de archivo nuevo entra por dos puertas —el tipo y el filtro de

@@ -54,12 +54,28 @@ import {
   tituloDeVideo,
 } from "@/lib/video";
 import { dibujarDrawioEn } from "@/lib/drawioRender";
+import {
+  embedMarkdownRe,
+  embedWikiRe,
+  esRefDeImagen,
+  partirAltMarkdown,
+  partirEmbedImagen,
+} from "@/lib/imagenes";
+import {
+  dibujarImagenEn,
+  resolverImagen,
+  type EmbedImagen,
+  type ImagenResuelta,
+} from "@/lib/imagenesRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
+import { buscarEnTablas } from "@/lib/editor/buscarEnTablas";
+import { estaMarcada, estadoDeSimbolo, estiloDeTexto, simboloAlClic } from "@/lib/estadosTarea";
+import { cambiarSimboloTarea } from "@/lib/editor/tareas";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -79,7 +95,11 @@ const micelioHighlight = HighlightStyle.define([
     padding: "0.05em 0.2em",
   },
   { tag: tags.heading, fontWeight: "700" },
-  { tag: tags.quote, color: "var(--mic-text-muted)", fontStyle: "italic" },
+  // El color de la cita sale de una variable para que el título de un callout
+  // lo cambie sin pisar el de lo que lleva adentro (`FUN-S-06`, ver
+  // `.mic-live-callout-head` en `editor.css`). Fuera de un callout no hay
+  // variable y queda el gris de siempre.
+  { tag: tags.quote, color: "var(--mic-cita-color, var(--mic-text-muted))", fontStyle: "italic" },
   { tag: tags.link, color: "var(--mic-accent)" },
   // Tokens de código embebido en bloques cercados (HU-03). La lista vive en
   // `paletaSintaxis` porque el visor de archivos (`FUN-S-09`) y el editor de CSS
@@ -143,6 +163,17 @@ const arbolCambio = (tr: Transaction): boolean =>
  */
 const navegarPorTitulo = Facet.define<(titulo: string) => void, ((titulo: string) => void) | null>({
   combine: (valores) => valores[0] ?? null,
+});
+
+/**
+ * Carpeta de la nota que se está editando (ruta relativa, `null` = raíz), para
+ * resolver `![](foto.png)` desde ahí (`DEF-126`). Es una función y no un valor
+ * por la misma razón que `renombrarPorTitulo`: la vista se crea una vez y la
+ * nota puede moverse o renombrarse sin que el facet se reconfigure. Sin ella
+ * (el detalle de un recordatorio), las rutas se resuelven desde la raíz.
+ */
+export const carpetaDeLaNota = Facet.define<() => string | null, () => string | null>({
+  combine: (valores) => valores[0] ?? (() => null),
 });
 
 const crudoTablaEffect = StateEffect.define<number | null>();
@@ -629,17 +660,18 @@ export function liveExtensions(
     // arriba: acá el cursor que toca el bloque lo abre en crudo, así que nunca
     // queda escribiendo a ciegas dentro de una fórmula dibujada.
     formulasField,
+    // El buscador de la nota dentro de las tablas renderizadas (`DEF-125`): el
+    // widget reemplaza el texto que CodeMirror sabe resaltar.
+    buscarEnTablas({
+      rangos: (state) => state.field(tableField, false)?.ranges ?? [],
+      rangoDe: rangoDeTabla,
+    }),
     navegarPorTitulo.of(onWikilinkClick),
     livePreview(onWikilinkClick, noteExists),
   ];
 }
 
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
-/**
- * Embed de imagen de markdown: `![alt](url)`. Lo usa el reproductor de vídeo
- * (`FUN-S-21`), que mira si la `url` es de YouTube o Vimeo.
- */
-const EMBED_IMAGEN_RE = /!\[[^\]]*\]\(([^)\s]+)\)/g;
 
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 /** Cabecera de callout: `> [!tipo]` (con `>` anidados para callouts dentro de
@@ -678,18 +710,59 @@ class HrWidget extends WidgetType {
   }
 }
 
-/** Checkbox visual (no interactivo) de lista de tareas en la edición en vivo. */
+/**
+ * Casilla de una tarea en la edición en vivo, con su estado (`FUN-S-01`): el
+ * símbolo dentro de `[ ]` decide el ícono (`data-estado`, dibujado por
+ * `editor.css`). Clic: alterna como en Obsidian (`simboloAlClic`). Clic
+ * derecho: el menú con todos los estados.
+ *
+ * La posición del marcador se pide al DOM en el momento del clic
+ * (`posAtDOM`), no se guarda: entre el dibujo y el clic el documento pudo
+ * cambiar, y `cambiarSimboloTarea` además comprueba que siga habiendo un
+ * marcador ahí antes de escribir.
+ */
 class CheckboxWidget extends WidgetType {
-  constructor(readonly checked: boolean) {
+  constructor(readonly simbolo: string) {
     super();
   }
   eq(other: CheckboxWidget) {
-    return other.checked === this.checked;
+    return other.simbolo === this.simbolo;
   }
-  toDOM() {
+  toDOM(view: EditorView) {
+    const estado = estadoDeSimbolo(this.simbolo);
     const span = document.createElement("span");
-    span.className = "mic-live-check" + (this.checked ? " mic-live-check-on" : "");
+    span.className = "mic-live-check";
+    span.dataset.estado = estado.id;
+    // El símbolo tal cual, como en Obsidian: un snippet escrito para sus temas
+    // (`[data-task="-"]`) también vale acá.
+    span.dataset.task = this.simbolo;
+    span.title = `${estado.nombre} — clic derecho para cambiar el estado`;
+    span.setAttribute("role", "checkbox");
+    span.setAttribute("aria-checked", String(estaMarcada(this.simbolo)));
+    span.setAttribute("aria-label", estado.nombre);
+    // El clic no tiene que llevar el cursor a la línea: abriría el marcador en
+    // crudo y la casilla desaparecería debajo del puntero.
+    span.addEventListener("mousedown", (e) => e.preventDefault());
+    span.addEventListener("click", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      cambiarSimboloTarea(view, view.posAtDOM(span), simboloAlClic(this.simbolo));
+    });
+    span.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = view.posAtDOM(span);
+      void import("@/components/editor/MenuEstadosTarea").then(({ abrirMenuEstadosTarea }) =>
+        abrirMenuEstadosTarea(e.clientX, e.clientY, this.simbolo, (nuevo) => {
+          if (cambiarSimboloTarea(view, pos, nuevo)) view.focus();
+        }),
+      );
+    });
     return span;
+  }
+  /** Los eventos de la casilla son suyos: CodeMirror no los procesa. */
+  ignoreEvent() {
+    return true;
   }
 }
 
@@ -969,6 +1042,60 @@ class VideoWidget extends WidgetType {
   }
 }
 
+/**
+ * Widget en línea que dibuja una imagen del vault o de la web (`DEF-126`) en la
+ * vista en vivo: `![[foto.png]]` y `![alt](ruta)`.
+ *
+ * La resolución viene hecha desde `buildDecorations` —la misma de la vista de
+ * lectura, `lib/imagenesRender.ts`— y `eq` compara su resultado: así un
+ * refresco del vault que no cambia a qué archivo apunta no vuelve a pedir la
+ * imagen ni la hace parpadear, y uno que sí (la imagen apareció, se movió)
+ * la redibuja.
+ */
+class ImagenWidget extends WidgetType {
+  constructor(
+    readonly embed: EmbedImagen,
+    readonly resuelta: ImagenResuelta,
+    readonly pos: number,
+  ) {
+    super();
+  }
+
+  eq(other: ImagenWidget) {
+    const a = this.resuelta;
+    const b = other.resuelta;
+    const mismoDestino =
+      "src" in a ? "src" in b && a.src === b.src : "falta" in b && a.falta === b.falta;
+    return (
+      mismoDestino &&
+      other.embed.alt === this.embed.alt &&
+      other.embed.tamano?.ancho === this.embed.tamano?.ancho &&
+      other.embed.tamano?.alto === this.embed.tamano?.alto
+    );
+  }
+
+  toDOM(view: EditorView) {
+    const caja = document.createElement("span");
+    // Clic → revelar la fuente, como el resto del live preview.
+    caja.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    dibujarImagenEn(caja, this.embed, this.resuelta);
+    // La imagen llega después del primer dibujado y cambia el alto de la
+    // línea: sin volver a medir, CodeMirror ubicaría mal el cursor y el scroll.
+    caja.querySelector("img")?.addEventListener("load", () => view.requestMeasure(), {
+      once: true,
+    });
+    return caja;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
 type PendingDeco = { from: number; to: number; deco: Decoration };
 
 function buildDecorations(
@@ -1021,6 +1148,10 @@ function buildDecorations(
   // —un `_` que el parser tomó por énfasis, un `#` que parece etiqueta— se
   // descarta al final, o se pisaría con el dibujo.
   const formulas: [number, number][] = [];
+  // Imágenes dibujadas (`DEF-126`): lo que el árbol decoró dentro —las marcas
+  // `![`, `](` y la URL ocultas— se descarta al final, como con las fórmulas.
+  const imagenes: [number, number][] = [];
+  const carpetaNota = view.state.facet(carpetaDeLaNota)();
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -1196,15 +1327,28 @@ function buildDecorations(
             break;
           }
           case "TaskMarker": {
-            // `[ ]`/`[x]` → checkbox visual fuera de la línea activa; al entrar
-            // el cursor se ve el texto crudo para editarlo.
+            // `[c]` → casilla con su estado fuera de la línea activa; al entrar
+            // el cursor se ve el texto crudo para editarlo (`FUN-S-01`).
             const line = doc.lineAt(node.from);
+            const simbolo = doc.sliceString(node.from + 1, node.from + 2);
             if (!activeLines.has(line.number)) {
-              const checked = /\[[xX]\]/.test(doc.sliceString(node.from, node.to));
               decos.push({
                 from: node.from,
                 to: node.to,
-                deco: Decoration.replace({ widget: new CheckboxWidget(checked) }),
+                deco: Decoration.replace({ widget: new CheckboxWidget(simbolo) }),
+              });
+            }
+            // El texto del ítem, tachado si está hecha o cancelada. También en
+            // la línea activa: el estado no cambia porque se lo esté editando.
+            // Solo el del propio ítem (el nodo `Task`): las subtareas son otros
+            // nodos y llevan su propio estado.
+            const estilo = estiloDeTexto(simbolo);
+            const tarea = node.node.parent;
+            if (estilo && tarea && tarea.name === "Task" && node.to < tarea.to) {
+              decos.push({
+                from: node.to,
+                to: tarea.to,
+                deco: Decoration.mark({ class: `mic-live-tarea-texto mic-live-tarea-${estilo}` }),
               });
             }
             break;
@@ -1365,14 +1509,54 @@ function buildDecorations(
       // Vimeo se reemplaza por el reproductor cuando ocupa la línea entera y el
       // cursor no está en ella. La detección la hace `lib/video.ts`, la misma
       // que usa la vista de lectura.
-      for (const match of line.text.matchAll(EMBED_IMAGEN_RE)) {
-        if (isActive || text.trim() !== match[0]) continue;
-        if (enCodigoAbs(line.from + match.index)) continue;
-        if (!esVideo(match[1])) continue;
+      //
+      // Lo demás es una imagen (`DEF-126`): se dibuja en su lugar —también en
+      // medio de un renglón, como en Obsidian— cuando el cursor no está en la
+      // línea. Antes este bucle solo miraba vídeos y la imagen quedaba en texto.
+      for (const match of line.text.matchAll(embedMarkdownRe())) {
+        if (isActive) continue;
+        const mFrom = line.from + match.index;
+        if (enCodigoAbs(mFrom)) continue;
+        const url = match[2];
+        if (esVideo(url)) {
+          if (text.trim() !== match[0]) continue;
+          decos.push({
+            from: line.from,
+            to: line.to,
+            deco: Decoration.replace({ widget: new VideoWidget(url, line.from) }),
+          });
+          continue;
+        }
+        const { alt, tamano } = partirAltMarkdown(match[1]);
+        const embed: EmbedImagen = { forma: "md", ref: url, alt, tamano };
+        const mTo = mFrom + match[0].length;
+        imagenes.push([mFrom, mTo]);
         decos.push({
-          from: line.from,
-          to: line.to,
-          deco: Decoration.replace({ widget: new VideoWidget(match[1], line.from) }),
+          from: mFrom,
+          to: mTo,
+          deco: Decoration.replace({
+            widget: new ImagenWidget(embed, resolverImagen(embed, carpetaNota), mFrom),
+          }),
+        });
+      }
+
+      // `![[foto.png]]` (`DEF-126`): mismo trato, y su rango fuera del paso de
+      // wikilinks para que el `[[…]]` de adentro no se estilice como enlace.
+      for (const match of line.text.matchAll(embedWikiRe())) {
+        const { destino, alt, tamano } = partirEmbedImagen(match[1]);
+        if (!esRefDeImagen(destino)) continue;
+        const mFrom = line.from + match.index;
+        const mTo = mFrom + match[0].length;
+        exRanges.push([mFrom, mTo]);
+        if (isActive || enCodigoAbs(mFrom)) continue;
+        const embed: EmbedImagen = { forma: "wiki", ref: destino, alt, tamano };
+        imagenes.push([mFrom, mTo]);
+        decos.push({
+          from: mFrom,
+          to: mTo,
+          deco: Decoration.replace({
+            widget: new ImagenWidget(embed, resolverImagen(embed, carpetaNota), mFrom),
+          }),
         });
       }
 
@@ -1461,9 +1645,21 @@ function buildDecorations(
     for (let i = decos.length - 1; i >= 0; i--) {
       const d = decos[i];
       if (d.deco.spec.widget instanceof FormulaWidget) continue;
+      if (d.deco.spec.widget instanceof ImagenWidget) continue;
       // Una decoración de línea (vacía, al inicio del renglón) no solapa: la
       // fórmula nunca empieza antes del renglón.
       if (formulas.some(([f, t]) => d.from < t && d.to > f)) decos.splice(i, 1);
+    }
+  }
+
+  if (imagenes.length > 0) {
+    for (let i = decos.length - 1; i >= 0; i--) {
+      const d = decos[i];
+      if (d.deco.spec.widget instanceof ImagenWidget) continue;
+      // Solo lo que cae DENTRO de la imagen: una decoración de línea (vacía,
+      // al inicio del renglón) o un reemplazo de la línea entera la contienen
+      // y se quedan.
+      if (imagenes.some(([f, t]) => d.from >= f && d.to <= t && d.to > d.from)) decos.splice(i, 1);
     }
   }
 

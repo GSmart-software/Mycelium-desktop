@@ -80,7 +80,10 @@ const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
 });
 const INDEXER = await fuente("../lib/db/indexer.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
-  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", { "@tauri-apps/api/core": TAURI }),
+  "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
+    "@tauri-apps/api/core": TAURI,
+    "@/lib/imagenes": await fuente("../lib/imagenes.ts"),
+  }),
   "@tauri-apps/api/core": TAURI,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,
@@ -99,6 +102,8 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
+  "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
+  "./indexer": INDEXER,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "./client": CLIENT,
   "./enlacesIndice": ENLACES_INDICE,
@@ -340,5 +345,19 @@ test("una fila de búsqueda que nadie anotó en `fts_filas` no queda duplicada a
   assert.equal(filaDeBusqueda(db, "Idea.md"), "Una idea suelta.");
   // Y sano, el siguiente indexado no relee nada.
   assert.equal((await indexer.indexarVault("C:/vault")).reindexadas, 0);
+  client.setExecutor(null);
+});
+
+test("abrir una nota que el explorador ya muestra y el índice todavía no la indexa a demanda (FUN-M-42)", { skip: sinSqlite }, async () => {
+  const { db, disco } = await abrir();
+  // Llegó desde fuera: el árbol la muestra con el evento del watcher, y el
+  // indexado va unos cientos de milisegundos detrás.
+  disco.tocar("Recien/llegada.md", "Recién [[Plan]]");
+  assert.equal((await contenidoDb.getContenido("Recien/llegada.md")).contenido, "Recién [[Plan]]");
+  assert.equal(contenidoEnIndice(db, "Recien/llegada.md"), "Recién [[Plan]]");
+  assert.ok(filaDeBusqueda(db, "Recien/llegada.md"));
+  // Lo que no está en disco sigue siendo «no existe».
+  await assert.rejects(contenidoDb.getContenido("No/existe.md"), /no existe/);
+  await assert.rejects(contenidoDb.getContenido("foto.png"), /no existe/);
   client.setExecutor(null);
 });

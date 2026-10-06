@@ -11,7 +11,6 @@ import {
 } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { GFM } from "@lezer/markdown";
 import { search } from "@codemirror/search";
 import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
@@ -23,7 +22,12 @@ import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { publishDoc, subscribeDoc } from "@/lib/editor/docBroker";
 import { takePendingMatch, type Salto } from "@/lib/editor/pendingMatch";
-import { liveExtensions, refreshAllLiveViews } from "@/lib/editor/livePreview";
+import {
+  carpetaDeLaNota,
+  liveExtensions,
+  refreshAllLiveViews,
+} from "@/lib/editor/livePreview";
+import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import { docTitleField, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
@@ -48,6 +52,9 @@ import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
+import { itemsEstadosTarea } from "@/components/editor/MenuEstadosTarea";
+import { simboloAlClic } from "@/lib/estadosTarea";
+import { GFM_MYCELIUM, cambiarSimboloTarea } from "@/lib/editor/tareas";
 import { ExcalidrawModal } from "./ExcalidrawModal";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -196,30 +203,23 @@ function llevarPreviewALinea(panel: HTMLElement, linea: number): void {
   panel.scrollTop = Math.max(0, Math.min(y, panel.scrollHeight - panel.clientHeight));
 }
 
-/** Marcador de tarea por línea: indentación + viñeta + `[ ]`/`[x]`. */
-const TASK_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/gm;
-
 /**
- * Alterna el N-ésimo checkbox de tarea del documento (orden de aparición, que
- * coincide con el orden renderizado). Despacha el cambio al editor, lo que
- * re-renderiza el preview y dispara el autoguardado.
+ * La casilla de tarea de la vista de lectura que recibió el evento, con la
+ * posición de su marcador en el documento (`data-task-pos`, que pone
+ * `lib/markdown.ts`) y su símbolo. Antes se contaban las tareas por orden con
+ * una expresión regular sobre el texto, que no veía las de dentro de una cita o
+ * un callout (`> - [ ]`) y desfasaba todas las siguientes; con la posición, el
+ * marcador es el que el parser encontró, y `cambiarSimboloTarea` comprueba que
+ * siga ahí antes de escribir (`FUN-S-01`).
  */
-function toggleTaskInDoc(view: EditorView | null, index: number) {
-  if (!view) return;
-  const text = view.state.doc.toString();
-  TASK_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let i = 0;
-  while ((match = TASK_RE.exec(text)) !== null) {
-    if (i === index) {
-      const pos = match.index + match[1].length + 1; // char dentro de los corchetes
-      view.dispatch({
-        changes: { from: pos, to: pos + 1, insert: match[2] === " " ? "x" : " " },
-      });
-      return;
-    }
-    i++;
-  }
+function casillaDeTarea(objetivo: EventTarget): { pos: number; simbolo: string } | null {
+  const check = (objetivo as HTMLElement).closest?.<HTMLInputElement>(
+    'input[type="checkbox"][data-task-pos]',
+  );
+  if (!check) return null;
+  const pos = Number(check.getAttribute("data-task-pos"));
+  if (!Number.isInteger(pos)) return null;
+  return { pos, simbolo: check.getAttribute("data-task") ?? " " };
 }
 
 /**
@@ -522,7 +522,7 @@ export function NoteEditor({
             // La rama superior si tolera el rect en ceros: termina en un
             // Math.max(0, ...) sobre un negativo.
             search({ createPanel: () => ({ dom: document.createElement("div"), top: true }) }),
-            markdown({ extensions: GFM, codeLanguages: languages }),
+            markdown({ extensions: GFM_MYCELIUM, codeLanguages: languages }),
             // Autocompletado de wikilinks al escribir dentro de `[[` (estilo
             // Obsidian); inserta la ruta de carpeta si el nombre es ambiguo.
             autocompletion({ override: [wikilinkCompletions] }),
@@ -561,6 +561,9 @@ export function NoteEditor({
             renombrarPorTitulo.of((titulo) =>
               useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
             ),
+            // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
+            // (`DEF-126`). Por referencia, como el de arriba.
+            carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -970,6 +973,8 @@ export function NoteEditor({
   // cambios del vault (crear/renombrar/borrar/mover) via suscripción.
   const vaultNotas = useVaultStore((s) => s.notas);
   const vaultCarpetas = useVaultStore((s) => s.carpetas);
+  // Las imágenes no son notas: se resuelven contra los otros archivos (`DEF-126`).
+  const vaultOtros = useVaultStore((s) => s.otros);
 
   // Diagramas Mermaid (HU-18) y Excalidraw (HU-16) en el preview
   useEffect(() => {
@@ -977,9 +982,10 @@ export function NoteEditor({
       void renderMermaidIn(previewRef.current);
       void renderExcalidrawIn(previewRef.current);
       void renderDrawioIn(previewRef.current);
+      rellenarImagenesEn(previewRef.current, carpetaDeNota(notaId)); // `DEF-126`
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
-  }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas]);
+  }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas, vaultOtros]);
 
   // Las flechas de plegado se inyectan en el DOM DESPUÉS de que React pinte, así
   // que cualquier re-render que reescriba el HTML del preview se las lleva —
@@ -1202,14 +1208,13 @@ export function NoteEditor({
   // Navegación de wikilinks/tags y apertura de diagramas desde el preview
   const onPreviewClick = useCallback(
     (event: React.MouseEvent) => {
-      // Toggle de checkbox de lista de tareas (lectura/dividido): alterna el
-      // marcador [ ]/[x] en el doc; el preview se re-renderiza y se autoguarda.
-      const check = (event.target as HTMLElement).closest<HTMLInputElement>(
-        'input[type="checkbox"][data-task]',
-      );
-      if (check) {
+      // Casilla de una tarea (lectura/dividido): alterna su marcador en el doc
+      // como en Obsidian —pendiente ↔ hecha; un estado especial vuelve a
+      // pendiente—; el preview se re-renderiza y se autoguarda (`FUN-S-01`).
+      const tarea = casillaDeTarea(event.target);
+      if (tarea) {
         event.preventDefault();
-        toggleTaskInDoc(viewRef.current, Number(check.getAttribute("data-task")));
+        if (viewRef.current) cambiarSimboloTarea(viewRef.current, tarea.pos, simboloAlClic(tarea.simbolo));
         return;
       }
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
@@ -1252,6 +1257,27 @@ export function NoteEditor({
   // Menú contextual del diagrama: exportar PNG/SVG (HU-17 CA1)
   const onPreviewContextMenu = useCallback(
     (event: React.MouseEvent) => {
+      // Clic derecho (o la tecla de menú, con la casilla enfocada) sobre una
+      // tarea: el menú con todos sus estados (`FUN-S-01`).
+      const tarea = casillaDeTarea(event.target);
+      if (tarea) {
+        event.preventDefault();
+        let { clientX: x, clientY: y } = event;
+        if (x === 0 && y === 0) {
+          // Desde el teclado el evento no trae coordenadas: se abre junto a la casilla.
+          const r = (event.target as HTMLElement).getBoundingClientRect();
+          x = r.left;
+          y = r.bottom;
+        }
+        setDiagMenu({
+          x,
+          y,
+          items: itemsEstadosTarea(tarea.simbolo, (nuevo) => {
+            if (viewRef.current) cambiarSimboloTarea(viewRef.current, tarea.pos, nuevo);
+          }),
+        });
+        return;
+      }
       const diagram = (event.target as HTMLElement).closest(".mic-excalidraw-block");
       if (!diagram) return;
       event.preventDefault();
