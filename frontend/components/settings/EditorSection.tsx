@@ -55,26 +55,26 @@ export function EditorSection() {
           />
           <span className={styles.rangeValue}>espacios</span>
         </div>
+        <Explicacion
+          detalle={
+            <>
+              <p>
+                <strong>Al leer</strong> cambia la sangría de las listas y los tabuladores de
+                todos tus documentos al instante, sin editarlos. <strong>Al escribir</strong> es
+                lo que inserta la tecla <kbd>Tab</kbd>. Entre {TAB_MIN} y {TAB_MAX}; por defecto{" "}
+                {TAB_DEFECTO}.
+              </p>
+              <p>
+                En la vista en vivo, la sangría <em>ya escrita</em> con espacios no se reescala:
+                dos espacios ocupan dos espacios. Para cambiarla de verdad hay que reindentar el
+                documento.
+              </p>
+            </>
+          }
+        >
+          Cuánto sangra un nivel de indentación, al leer y al escribir.
+        </Explicacion>
       </div>
-      <Explicacion
-        detalle={
-          <>
-            <p>
-              <strong>Al leer</strong> cambia la sangría de las listas y los tabuladores de
-              todos tus documentos al instante, sin editarlos. <strong>Al escribir</strong> es
-              lo que inserta la tecla <kbd>Tab</kbd>. Entre {TAB_MIN} y {TAB_MAX}; por defecto{" "}
-              {TAB_DEFECTO}.
-            </p>
-            <p>
-              En la vista en vivo, la sangría <em>ya escrita</em> con espacios no se reescala:
-              dos espacios ocupan dos espacios. Para cambiarla de verdad hay que reindentar el
-              documento.
-            </p>
-          </>
-        }
-      >
-        Cuánto sangra un nivel de indentación, al leer y al escribir.
-      </Explicacion>
 
       <Interruptor
         etiqueta="Pestañas de previsualización"

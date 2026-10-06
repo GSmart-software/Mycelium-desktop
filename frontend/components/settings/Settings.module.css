@@ -5,14 +5,46 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-bottom: 0.9rem;
+}
+
+/* Cada ajuste es un bloque (`FUN-M-41`): el de campo (`.field`) y el de sí o no
+   (`.ajuste`, que arma `Interruptor`). Un filete fino los separa, así cada
+   ajuste —nombre, control y explicación— se lee como una unidad y no como un
+   párrafo más. Mismo ancho para los dos, para que los filetes no queden de
+   largos distintos. El primero de la sección no lleva filete. */
+.field,
+.ajuste {
+  max-width: 560px;
+  padding-block: 0.95rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+}
+
+.field:first-child,
+.ajuste:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Dentro del bloque más ancho, los controles conservan su medida de antes. */
+.field > .input,
+.field > .select,
+.field > .rangeRow {
   max-width: 420px;
 }
 
+/* En un campo el aire lo pone el `gap`: la explicación no suma margen propio. */
+.field > .hint,
+.field > .hintDetalle {
+  margin-top: 0;
+}
+
+/* El nombre del ajuste manda: en el color del texto, un punto más grande que su
+   explicación (que va en gris). Antes los dos iban en el mismo gris y tamaño, y
+   la vista no tenía de dónde agarrarse. */
 .label {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--mic-text-muted);
+  color: var(--mic-text-primary);
 }
 
 .input,
@@ -229,6 +261,11 @@
   /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
      uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
   margin-top: 1.2rem;
+}
+
+/* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */
+.ajuste > .toggleRow {
+  margin-top: 0;
 }
 
 /* El primero de la sección no necesita ese aire. */
