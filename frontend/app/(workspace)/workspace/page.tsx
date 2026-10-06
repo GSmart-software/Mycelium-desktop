@@ -26,7 +26,7 @@ import { AperturaVault } from "@/components/vault/AperturaVault";
 import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 import { rutaVaultPersistida, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { registrarNavegadorMcp } from "@/lib/mcpControl";
-import { listarOtrosArchivos } from "@/lib/otrosArchivos";
+import { listarOtrosArchivos, RUTA_MYCIGNORE } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
 
@@ -183,7 +183,10 @@ function WorkspaceShell() {
     if (archivosReconciliadosRef.current || !rutaVault) return;
     archivosReconciliadosRef.current = true;
     void listarOtrosArchivos(rutaVault).then((lista) => {
-      useTabsStore.getState().reconcileArchivos(new Set(lista.map((a) => a.ruta)));
+      // El `.mycignore` no está en la lista (empieza con punto) pero su pestaña
+      // es legítima (`FUN-S-25`): sin esto se cerraría en cada arranque.
+      const validas = new Set(lista.map((a) => a.ruta)).add(RUTA_MYCIGNORE);
+      useTabsStore.getState().reconcileArchivos(validas);
     });
   }, [rutaVault]);
 
