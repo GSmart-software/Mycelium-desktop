@@ -35,8 +35,8 @@ instrucciones, la IA ve una carpeta de archivos sueltos; con ellas, ve una red.
 | `.claude/skills/` | Guías por tema: la sintaxis de las notas, buscar y anotar, y una por herramienta (lienzos, draw.io, Excalidraw, bases, Esporas, calendario), algunas con un validador. |
 | `.claude/commands/` | Comandos que le podés pedir: `/vault-buscar`, `/vault-recordar`, `/vault-nota`, `/vault-vincular`, `/vault-mapa` y `/vault-huerfanas`. |
 
-`.claude/` empieza con punto, así que no lo ves en el explorador. Si querés verlo, sacalo de
-los [archivos ignorados](ayuda:configuracion/mycignore).
+`.claude/` empieza con punto, así que no lo ves en el explorador. Si querés verlo, agregá
+`!.claude/` al final de los [archivos ignorados](ayuda:configuracion/mycignore).
 
 ## Si ya tenías un CLAUDE.md
 
