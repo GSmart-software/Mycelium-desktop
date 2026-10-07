@@ -692,6 +692,19 @@
   cursor: pointer;
 }
 
+/* Una dirección escrita suelta (`https://…`, `www.…`, un correo, o entre
+   `<…>`), en vivo (`DEF-132`). El resaltado de sintaxis la pinta como `url`, no
+   como `link`, así que sin esto quedaba en el color del texto y no se leía como
+   enlace. Mismo color que el texto de un `[enlace](…)`; el subrayado fino la
+   distingue de una palabra cualquiera, porque acá no hay texto que la nombre. */
+.cm-editor .mic-url-suelta,
+.cm-editor .mic-url-suelta * {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 /* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
    punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
    oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de

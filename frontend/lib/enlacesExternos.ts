@@ -65,6 +65,20 @@ export function destinoExterno(href: string | null | undefined): string | null {
 }
 
 /**
+ * El destino de una dirección escrita **suelta** en el texto (`DEF-132`): lo que
+ * el parser de GFM reconoce como enlace sin corchetes —`https://…`, `www.…`, un
+ * correo— o entre `<…>`. Le falta el esquema en dos casos, y se lo pone igual
+ * que GitHub: `www.` va a `https://` y un correo a `mailto:`. Lo demás pasa tal
+ * cual; quien lo use igual lo filtra con `destinoExterno`.
+ */
+export function destinoDeUrlSuelta(texto: string): string {
+  const limpio = texto.trim();
+  if (/^www\./i.test(limpio)) return `https://${limpio}`;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(limpio) && limpio.includes("@")) return `mailto:${limpio}`;
+  return limpio;
+}
+
+/**
  * Abre `href` en el navegador predeterminado del sistema.
  *
  * No lanza: si el esquema no está permitido o el plugin falla, lo deja anotado

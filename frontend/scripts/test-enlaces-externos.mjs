@@ -16,7 +16,7 @@ const rutaTs = fileURLToPath(new URL("../lib/enlacesExternos.ts", import.meta.ur
 const { outputText } = ts.transpileModule(await readFile(rutaTs, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
-const { ESQUEMAS_PERMITIDOS, destinoExterno, esEnlaceExterno, manejarClicDeEnlace } =
+const { ESQUEMAS_PERMITIDOS, destinoDeUrlSuelta, destinoExterno, esEnlaceExterno, manejarClicDeEnlace } =
   await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
 test("una página web es un enlace externo", () => {
@@ -134,4 +134,17 @@ test("sin `<a>` y sin href explícito no pasa nada", () => {
   };
   assert.equal(manejarClicDeEnlace(ev), false);
   assert.equal(ev.cortado, false);
+});
+
+// DEF-132: una dirección suelta en el texto (la que GFM reconoce sin corchetes)
+// queda visible en vivo y se abre con un clic. A `www.` y a un correo les falta
+// el esquema: se lo pone igual que GitHub.
+test("una URL suelta se completa con su esquema", () => {
+  assert.equal(destinoDeUrlSuelta("https://ejemplo.com/x"), "https://ejemplo.com/x");
+  assert.equal(destinoDeUrlSuelta("www.ejemplo.com"), "https://www.ejemplo.com");
+  assert.equal(destinoDeUrlSuelta("WWW.Ejemplo.com"), "https://WWW.Ejemplo.com");
+  assert.equal(destinoDeUrlSuelta("alguien@ejemplo.com"), "mailto:alguien@ejemplo.com");
+  assert.equal(destinoDeUrlSuelta("mailto:alguien@ejemplo.com"), "mailto:alguien@ejemplo.com");
+  assert.equal(esEnlaceExterno(destinoDeUrlSuelta("www.ejemplo.com")), true);
+  assert.equal(esEnlaceExterno(destinoDeUrlSuelta("alguien@ejemplo.com")), true);
 });
