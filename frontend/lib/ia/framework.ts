@@ -114,8 +114,14 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   con el símbolo, en vez de inventar otra marca. Va en la tabla de sintaxis
  *   de `mycelium-vault`.
  *   **Minor**: conocimiento nuevo sobre la sintaxis del vault.
+ * - 1.8.1 — **la tabla de sintaxis decía dos cosas que Mycelium no hace**
+ *   (`DEF-131`): que \`![[Título]]\` de una nota muestra su contenido (el embed
+ *   de notas nunca se implementó, `FUN-M-37`) y que una \`#etiqueta\` es una
+ *   píldora clicable (el clic no hace nada; la vista de etiquetas quedó
+ *   semidescartada). La IA podía prometerle al usuario algo que no iba a ver.
+ *   **Patch**: corrige texto, no suma conocimiento.
  */
-export const FRAMEWORK_IA_VERSION = "1.8.0";
+export const FRAMEWORK_IA_VERSION = "1.8.1";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -420,9 +426,9 @@ técnicas de búsqueda/registro, ver la skill \`mycelium-memoria\`.
 |---|---|---|
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
-| Embed de nota | \`![[Título]]\` | Muestra el contenido inline |
+| Embed de nota | \`![[Título]]\` | **No se dibuja**: se ve como \`!\` y un enlace común. Para relacionar notas, enlazá con \`[[Título]]\` |
 | Embed de diagrama | \`![[Título.excalidraw]]\` / \`![[Título.drawio]]\` | Renderiza el dibujo o el diagrama |
-| Etiqueta | \`#tag\` | Píldora clicable |
+| Etiqueta | \`#tag\` | Faceta de la nota; se busca con \`tag:x\`. Hacer clic en ella no hace nada |
 | Propiedades | bloque \`---\` al inicio | Mapa plano \`clave: valor\` (ver abajo) |
 | Callout | \`> [!note] Título\` | Tipos: note, tip, important, warning, caution, info, success, error, danger, question |
 | Callout plegable | \`> [!tip]- Título\` | \`-\` plegado, \`+\` desplegado |
