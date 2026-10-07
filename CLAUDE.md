@@ -415,6 +415,25 @@ orquestador** hace el merge de cada rama de feature a su principal:
 Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 `desktop-tauri` directamente.
 
+> [!important] La ayuda y la plantilla de snippets se evalúan en cada cambio (regla del usuario, 2026-10-06)
+> Toda funcionalidad nueva y todo defecto corregido —por subagente **o hecho directo por el
+> orquestador**— pasa por una pregunta antes de integrarse: **¿cambia lo que dice la ayuda
+> o lo que se puede estilar?**
+> - **Ayuda integrada** (`frontend/ayuda/**`, [[ayuda-integrada]]): si el cambio agrega,
+>   quita o cambia algo que el usuario ve o hace —un botón, un atajo, una sintaxis, un
+>   comportamiento que una página describe—, se escribe o corrige la página, se regenera
+>   (`npm run generar-ayuda`) y se corre `scripts/test-ayuda.mjs`. Una funcionalidad nueva
+>   **no está terminada sin su página**; un defecto corregido revisa si alguna página
+>   describía el comportamiento roto (como pasó con `DEF-130`).
+> - **Plantilla de snippets** (`frontend/public/plantilla-estilos.css`, `DEF-123`): si el
+>   cambio agrega, renombra o quita una variable `--mic-*` pública o una clase global
+>   `mic-*` que alguien querría estilar, se actualiza la plantilla y se corre su test.
+>
+> La respuesta va **siempre** en el informe y en el resumen al usuario: «ayuda: actualizada
+> (qué página)» o «ayuda: no aplica (por qué)», y lo mismo para la plantilla. Un «no aplica»
+> sin motivo no vale. El orquestador no integra un cambio que no la traiga. Detalle en
+> [[Verificar antes de integrar]].
+
 > [!important] Una parte, una rama, un merge (regla del usuario, 2026-09-27)
 > Cuando un trabajo se hace por partes que el usuario va a **evaluar por separado en la
 > app** (como las siete partes del grafo en `FUN-L-25`), cada parte va en su propia rama y
@@ -467,7 +486,14 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 - **Cerrá todo proceso que hayas abierto** (navegadores headless, servidores, `dotnet`,
   `next dev`) antes de terminar: un proceso vivo bloquea el worktree y te deja «esperando
   sin finalizar».
-- Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, dudas.
+- **Ayuda y plantilla de snippets**: antes de terminar, evaluá si tu cambio toca lo que
+  describe alguna página de `frontend/ayuda/**` o lo que se puede estilar desde
+  `frontend/public/plantilla-estilos.css`. Si sí, actualizalo (regenerá con `npm run
+  generar-ayuda` y corré `scripts/test-ayuda.mjs` y el test de la plantilla). Si no, decí
+  por qué. Ver la regla en «5. Integrar».
+- Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, **ayuda:
+  actualizada / no aplica (por qué)**, **plantilla: actualizada / no aplica (por qué)**,
+  dudas.
 
 ---
 
