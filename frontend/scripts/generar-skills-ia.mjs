@@ -51,6 +51,10 @@ export const SKILLS = [
     nombre: "mycelium-calendario",
     adjuntos: { "scripts/consultar-recordatorios-vault.mjs": "consultar.mjs" },
   },
+  // El MCP de control (`FUN-L-09`): lo que era «Operar Mycelium» del `CLAUDE.md`
+  // hasta el framework 2.0.0 (`FUN-L-29`), sin la tabla de herramientas (la
+  // dice la `description` de cada una).
+  { nombre: "mycelium-operar" },
 ];
 
 const leer = (rel) => readFileSync(resolve(RAIZ, rel), "utf8").replace(/\r\n/g, "\n");
