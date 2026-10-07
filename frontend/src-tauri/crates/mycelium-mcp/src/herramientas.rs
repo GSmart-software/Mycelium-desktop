@@ -65,7 +65,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Si Mycelium está abierto con este vault, si el control está encendido y qué está \
                 mirando el usuario: las pestañas de cada panel, cuál está activa y cuáles tienen cambios sin \
                 guardar. Funciona también con la app cerrada (lo dice). No devuelve el contenido de las notas: \
-                para eso leé los archivos.",
+                para eso leé los archivos. Miralo antes de escribir un archivo que el usuario podría estar \
+                editando: si su pestaña tiene cambios sin guardar, avisale, porque lo que guarde después pisa lo tuyo.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
         }),
@@ -203,7 +204,7 @@ pub fn definiciones() -> Vec<Value> {
         json!({
             "name": "mycelium_renombrar",
             "title": "Renombrar una nota o carpeta",
-            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Usala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
+            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Usala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -275,7 +276,8 @@ pub fn definiciones() -> Vec<Value> {
             "title": "El diccionario del vault",
             "description": "Lista, agrega o quita palabras del DICCIONARIO DEL VAULT del corrector ortográfico de Mycelium \
                 (el que viaja con el vault: .mycelium/diccionario.txt, que NO se escribe a mano). Para los términos propios \
-                del vault que el corrector subraya: nombres de proyectos y personas, siglas, jerga. El corrector abierto se \
+                del vault que el corrector subraya: nombres de proyectos y personas, siglas, jerga; una errata no se agrega, \
+                se corrige. El diccionario de Mycelium (el de todos los vaults) no se toca: es del usuario. El corrector abierto se \
                 entera al instante: lo agregado deja de subrayarse sin recargar. Agregar y quitar aceptan una lista (tope 200 \
                 por llamada) y devuelven el efecto: cuáles se agregaron o quitaron, cuáles ya estaban o no estaban, y las \
                 rechazadas con el motivo (una entrada es UNA palabra, como la ve el corrector: sin espacios ni guiones, sin \
