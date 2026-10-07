@@ -30,20 +30,31 @@ otro vault ves los de ese.
 
 ## La plantilla
 
-«Descargar plantilla» baja un `.css` comentado con todo lo que se puede tocar. Viene entero
-desactivado: descomentás las reglas que quieras usar. Lo más simple es cambiar las
-**variables** del tema, que recolorean toda la app de una vez:
+«Descargar plantilla» baja un `.css` comentado con todo lo que se puede tocar, por secciones:
+la paleta del tema, los colores de la interfaz, la tipografía, los títulos, el énfasis propio
+de Mycelium, los callouts, las tareas y sus estados, las tablas, la tarjeta de propiedades,
+los diagramas dentro de una nota, el calendario y las consolas. Viene entero desactivado:
+descomentás los ejemplos que quieras usar. Lo más simple es cambiar las **variables** del
+tema, que recolorean toda la app de una vez:
 
 ```text
-:root {
+:root[data-theme] {
   --mic-accent: #e0a040;
   --mic-glow:   #ffd27a;
 }
 ```
 
 `--mic-accent` es el color de botones, enlaces y acentos; `--mic-glow`, el del cursor, las
-etiquetas y los resaltados. La plantilla lista el resto. Para el texto de las notas, los
-selectores empiezan con `.mic-preview` (vista de lectura) o `.mic-editor-host` (el editor).
+etiquetas y los resaltados. Va `:root[data-theme]` y no `:root` a secas porque los temas y
+las atmósferas definen sus colores con un selector más fuerte, que le ganaría. Para un solo
+modo, `:root[data-theme][data-dark='true']` (oscuro) o
+`:root[data-theme]:not([data-dark='true'])` (claro); la plantilla trae el resto de los
+selectores. Para el texto de las notas, las reglas empiezan con `.mic-preview` (vista de
+lectura) o `.mic-editor-host` (el editor).
+
+> [!tip] La letra de la nota
+> La fuente y el tamaño de la nota se eligen en **Configuración → Tipografía**, y ese ajuste
+> le gana a un snippet. Si igual querés fijarlos desde CSS, la plantilla muestra cómo.
 
 > [!info] Cerrar el editor
 > Escape no cierra el editor, para no perder lo que escribiste. La X sí: si hay cambios sin
