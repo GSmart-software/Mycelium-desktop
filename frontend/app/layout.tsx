@@ -8,6 +8,7 @@ import {
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
+import { AyudaGlobal } from "@/components/ayuda/AyudaGlobal";
 import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
@@ -75,6 +76,8 @@ export default function RootLayout({
         {/* Sin barra del sistema, los bordes de la ventana los repone la app. */}
         <BordesRedimensionado />
         {children}
+        {/* La ayuda (F1), en toda la app: también en el selector de vaults. */}
+        <AyudaGlobal />
       </body>
     </html>
   );
