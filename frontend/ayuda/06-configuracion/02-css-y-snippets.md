@@ -45,6 +45,6 @@ desactivado: descomentás las reglas que quieras usar. Lo más simple es cambiar
 etiquetas y los resaltados. La plantilla lista el resto. Para el texto de las notas, los
 selectores empiezan con `.mic-preview` (vista de lectura) o `.mic-editor-host` (el editor).
 
-> [!warning] Cerrar el editor con la X no guarda
-> Escape no cierra el editor, justamente para no perder lo que escribiste, pero la X sí, y
-> sin preguntar. Tocá «Guardar» antes de cerrarlo.
+> [!info] Cerrar el editor
+> Escape no cierra el editor, para no perder lo que escribiste. La X sí: si hay cambios sin
+> guardar, te pregunta antes de descartarlos.

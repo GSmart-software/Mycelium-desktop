@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { cssEditorExtensions } from "@/lib/editor/cssExtensions";
 import { renderMarkdown } from "@/lib/markdown";
 import { useCssStore, type CssSnippet } from "@/stores/cssStore";
+import { confirmar } from "@/lib/confirmar";
 import styles from "./CssEditorModal.module.css";
 
 const SAMPLE = `# Título de ejemplo
@@ -52,6 +53,8 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const cssRef = useRef(snippet.contenido);
+  /** Lo último guardado, para saber si al cerrar se perdería algo (`DEF-130`). */
+  const guardadoRef = useRef(snippet.contenido);
   const [sample, setSample] = useState(SAMPLE);
   const [saved, setSaved] = useState(false);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,7 +102,8 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
   useEffect(() => {
     // El modal se apropia del Esc mientras está abierto: si hay autocompletado
     // abierto lo cierra; si no, NO hace nada (Esc NO cierra el editor del
-    // snippet, para no perder los cambios; se cierra con la X o "Guardar").
+    // snippet, para no perder los cambios; se cierra con la X, que pregunta si
+    // hay algo sin guardar, `DEF-130`).
     // En captura + stopImmediatePropagation para que el Esc no llegue ni a
     // CodeMirror ni al SettingsDrawer (que también cierra con Esc).
     function onKey(e: KeyboardEvent) {
@@ -114,9 +118,28 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
   }, []);
 
   const handleSave = async () => {
-    await updateContent(snippet.id, cssRef.current);
+    const contenido = cssRef.current;
+    await updateContent(snippet.id, contenido);
+    guardadoRef.current = contenido;
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  };
+
+  /**
+   * La X cerraba sin más (`DEF-130`): todo lo escrito desde el último «Guardar»
+   * se perdía sin aviso, justo lo que el bloqueo de Escape quería evitar. Ahora,
+   * si hay cambios sin guardar, pregunta antes de descartarlos.
+   */
+  const cerrar = async () => {
+    if (cssRef.current === guardadoRef.current) {
+      onClose();
+      return;
+    }
+    const descartar = await confirmar(
+      `Hay cambios sin guardar en «${snippet.nombre}». Si cerrás ahora, se pierden.`,
+      "Descartar cambios",
+    );
+    if (descartar) onClose();
   };
 
   return (
@@ -128,7 +151,7 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
           <button type="button" className={styles.primaryBtn} onClick={() => void handleSave()}>
             Guardar
           </button>
-          <button type="button" className={styles.close} aria-label="Cerrar" onClick={onClose}>
+          <button type="button" className={styles.close} aria-label="Cerrar" onClick={() => void cerrar()}>
             <X size={18} aria-hidden />
           </button>
         </header>
