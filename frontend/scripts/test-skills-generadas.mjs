@@ -21,7 +21,7 @@ test("skillsGeneradas.ts está al día con los borradores y los validadores", as
 
 test("cada archivo lleva el marcador de versión y los scripts no importan nada del repo", () => {
   const archivos = archivosSkills();
-  assert.equal(archivos.filter((a) => a.ruta.endsWith("/SKILL.md")).length, 6);
+  assert.equal(archivos.filter((a) => a.ruta.endsWith("/SKILL.md")).length, 7);
   assert.equal(archivos.filter((a) => a.ruta.endsWith(".mjs")).length, 5); // tres validadores, dibujo.mjs y consultar.mjs
   for (const a of archivos) {
     assert.ok(a.contenido.includes(`<!-- mycelium-ia v${MARCADOR_VERSION} -->`), `${a.ruta} sin marca`);

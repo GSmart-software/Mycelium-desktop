@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
+  type AccionClaudeMd,
   FRAMEWORK_IA_VERSION,
   generarFramework,
   versionInstalada,
@@ -31,6 +32,22 @@ import { confirmar } from "@/lib/confirmar";
 // el botón correcto y la barra global.
 const T_ZIP = "Comprimiendo ZIP";
 const T_CARPETA = "Exportando a carpeta";
+
+/**
+ * Qué le pasó a `CLAUDE.md` al generar las instrucciones IA (`FUN-L-29`): lo
+ * de fuera del bloque de Mycelium es del usuario y nunca se toca.
+ */
+const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
+  creado: "se creó CLAUDE.md con el bloque de Mycelium.",
+  actualizado: "se actualizó el bloque de Mycelium en CLAUDE.md; lo demás del archivo no se tocó.",
+  insertado:
+    "el bloque de Mycelium quedó al principio de tu CLAUDE.md; lo tuyo sigue debajo, sin cambios.",
+  reemplazado: "el CLAUDE.md de la versión anterior se reemplazó por el bloque de Mycelium.",
+  "insertado-sobre-anterior":
+    "⚠ tu CLAUDE.md tenía las instrucciones de la versión anterior, editadas: el bloque nuevo " +
+    "quedó al principio y no se borró nada. Debajo siguen las viejas (empiezan en «# Este vault " +
+    "es tu memoria»): borralas y dejá solo lo tuyo.",
+};
 
 /** Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. */
 async function elegirCarpeta(title: string): Promise<string | null> {
@@ -136,24 +153,20 @@ export function VaultSection() {
     setError(null);
     setGenerandoIa(true);
     try {
-      const conflictos = await generarFramework(rutaVault);
+      const resultado = await generarFramework(rutaVault);
       setVersionIa(FRAMEWORK_IA_VERSION);
       // Con el control encendido, el framework también registra el servidor
       // en `.mcp.json` y el hook de mv/rm en `.claude/settings.json` (spec
       // § 4): regenerar deja todo lo de la IA al día.
       if (controlIa) await asegurarIntegracion(rutaVault);
-      if (conflictos.length === 0) {
-        informar(
-          `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas en el vault (CLAUDE.md + .claude/).`,
-        );
-      } else {
-        informar(
-          `Instrucciones IA v${FRAMEWORK_IA_VERSION} generadas. ⚠ ${conflictos.length} archivo(s) ` +
-            `ya existían y NO se tocaron — la versión nueva se creó al lado: ` +
-            conflictos.map((c) => c.generado).join(" · ") +
-            `. Detalle en "Conflictos instrucciones IA.md" (raíz del vault).`,
-        );
+      let texto = `Instrucciones IA v${FRAMEWORK_IA_VERSION}: ${QUE_PASO_CON_CLAUDE_MD[resultado.claudeMd]}`;
+      if (resultado.conservados.length > 0) {
+        texto +=
+          ` Quedaron como tuyos ${resultado.conservados.length} comando(s) de la versión anterior que ` +
+          `habías editado (${resultado.conservados.join(" · ")}); los de Mycelium están ahora en ` +
+          `.claude/commands/mycelium/.`;
       }
+      informar(texto);
     } catch (e) {
       fallar((e as Error).message ?? String(e));
     } finally {
@@ -455,13 +468,17 @@ export function VaultSection() {
         <Explicacion
           detalle={
             <>
-              Escribe <code>CLAUDE.md</code>, skills y comandos en <code>.claude/</code>: le
-              enseñan a la IA a navegar tus notas por sus <code>[[enlaces]]</code>, la
-              estructura del vault y las funciones de Mycelium. Solo se crean si lo pedís acá.
+              Escribe un bloque corto al principio de <code>CLAUDE.md</code> y skills y
+              comandos con prefijo <code>mycelium</code> en <code>.claude/</code>: le enseñan a
+              la IA a navegar tus notas por sus <code>[[enlaces]]</code>, la estructura del
+              vault y las funciones de Mycelium. Al regenerar, reescribe solo eso: lo demás de{" "}
+              <code>CLAUDE.md</code> y de <code>.claude/</code> es tuyo y no lo toca. Solo se
+              crean si lo pedís acá.
             </>
           }
         >
-          Instrucciones para que un asistente de IA por terminal entienda tu vault.
+          Instrucciones para que un asistente de IA por terminal entienda tu vault: un bloque
+          en <code>CLAUDE.md</code>, sin tocar lo demás.
           {versionIa && (
             <>
               {" "}Instalado: <strong>v{versionIa}</strong>
@@ -477,6 +494,7 @@ export function VaultSection() {
               type="button"
               className={versionIa ? styles.secondaryBtn : styles.primaryBtn}
               disabled={generandoIa}
+              title="Escribe el bloque de Mycelium en CLAUDE.md y sus archivos en .claude/; lo demás no se toca"
               onClick={() => void handleGenerarIa()}
             >
               {generandoIa
