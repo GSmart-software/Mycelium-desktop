@@ -45,7 +45,7 @@ import {
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
-import { esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { destinoDeUrlSuelta, esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import {
   ALLOW_VIDEO,
   esVideo,
@@ -1285,11 +1285,38 @@ function buildDecorations(
           }
           case "EmphasisMark":
           case "StrikethroughMark":
-          case "LinkMark":
-          case "URL": {
+          case "LinkMark": {
             const line = doc.lineAt(node.from);
             if (!activeLines.has(line.number)) {
               decos.push({ from: node.from, to: node.to, deco: hide });
+            }
+            break;
+          }
+          case "URL": {
+            // Solo se oculta el destino de un `[texto](url)` o `![alt](url)`,
+            // donde lo visible es el texto (o la imagen). El parser también
+            // llama `URL` a una dirección suelta —`https://…`, `www.…`, un
+            // correo— y a la de `<https://…>`: ahí la URL ES el texto, y
+            // ocultarla la hacía desaparecer de la línea (`DEF-132`). Esas
+            // quedan a la vista y se abren con un clic, como cualquier enlace.
+            const padre = node.node.parent?.name;
+            if (padre === "Link" || padre === "Image") {
+              const line = doc.lineAt(node.from);
+              if (!activeLines.has(line.number)) {
+                decos.push({ from: node.from, to: node.to, deco: hide });
+              }
+              break;
+            }
+            const destino = destinoDeUrlSuelta(doc.sliceString(node.from, node.to));
+            if (esEnlaceExterno(destino)) {
+              decos.push({
+                from: node.from,
+                to: node.to,
+                deco: Decoration.mark({
+                  class: "mic-enlace-externo mic-url-suelta",
+                  attributes: { "data-href": destino, title: destino },
+                }),
+              });
             }
             break;
           }
