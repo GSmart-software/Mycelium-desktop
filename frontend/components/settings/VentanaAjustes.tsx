@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { BookOpen, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
@@ -177,6 +177,12 @@ const CATEGORIAS: Categoria[] = [
 /** Los grupos, en el orden en que se muestran. */
 const GRUPOS = ["Aspecto", "Trabajo", "Vault", "Sistema"];
 
+/**
+ * Lo que, buscado acá, ofrece abrir la ayuda (`FUN-L-27`): quien busca
+ * «atajos» o «manual» en Configuración no busca un ajuste.
+ */
+const ALIAS_AYUDA = ["ayuda", "manual", "wiki", "documentacion", "como se usa", "atajos", "sintaxis", "f1"];
+
 /** Sin tildes ni mayúsculas, para que «tipografia» encuentre «Tipografía». */
 const normalizar = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -256,6 +262,15 @@ export function VentanaAjustes() {
     }
     return salida.slice(0, 12);
   }, [consulta, avanzado]);
+
+  /** ¿La búsqueda apunta a la ayuda y no a un ajuste? */
+  const buscaAyuda = useMemo(() => {
+    const q = normalizar(consulta.trim());
+    return q.length > 0 && ALIAS_AYUDA.some((a) => a.startsWith(q) || q.startsWith(a));
+  }, [consulta]);
+
+  /** Cierra Configuración y abre la ayuda: una ventana modal a la vez. */
+  const abrirAyuda = () => useUiStore.getState().abrirAyuda();
 
   /**
    * Va a un ajuste: abre su categoría y deja anotado a cuál hay que ir. El
@@ -338,6 +353,7 @@ export function VentanaAjustes() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="ajustes-titulo"
+        data-cede-a-la-ayuda
       >
         <header className={styles.cabecera}>
           <h2 id="ajustes-titulo" className={styles.titulo}>
@@ -352,6 +368,8 @@ export function VentanaAjustes() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && hallazgos.length > 0) {
                   irA(hallazgos[0].categoria, hallazgos[0].ajuste);
+                } else if (e.key === "Enter" && buscaAyuda) {
+                  abrirAyuda();
                 }
                 if (e.key === "Escape" && consulta) {
                   e.stopPropagation();
@@ -378,7 +396,13 @@ export function VentanaAjustes() {
           >
             {consulta.trim() ? (
               <div className={styles.resultados}>
-                {hallazgos.length === 0 ? (
+                {buscaAyuda && (
+                  <button type="button" className={styles.resultado} onClick={abrirAyuda}>
+                    <span className={styles.resultadoAjuste}>Abrir la ayuda</span>
+                    <span className={styles.resultadoCategoria}>Cómo se usa Mycelium · F1</span>
+                  </button>
+                )}
+                {hallazgos.length === 0 && buscaAyuda ? null : hallazgos.length === 0 ? (
                   <p className={styles.sinResultados}>Ningún ajuste se llama así.</p>
                 ) : (
                   hallazgos.map(({ categoria: c, ajuste }) => (
@@ -413,6 +437,17 @@ export function VentanaAjustes() {
                   ))}
                 </div>
               ))
+            )}
+            {/* La ayuda no es una categoría más: no tiene ajustes ni se lee en
+                este panel, sino en su propia ventana (decisión del usuario del
+                2026-10-06). Por eso es un botón al pie de la lista, que cierra
+                Configuración y la abre, y no una entrada entre las categorías. */}
+            {!consulta.trim() && (
+              <button type="button" className={styles.botonAyuda} onClick={abrirAyuda}>
+                <BookOpen size={15} aria-hidden />
+                <span className={styles.botonAyudaTexto}>Ayuda</span>
+                <kbd className={styles.botonAyudaTecla}>F1</kbd>
+              </button>
             )}
           </nav>
 
