@@ -133,9 +133,11 @@ test("cada tipo de archivo de lib/extensionesDeTipo tiene su página en el índi
   }
 });
 
+// Desde la parte B de FUN-L-27 (2026-10-06) el índice está completo: una página
+// nueva no se publica a medias. Si hace falta reservar un lugar, que sea en una
+// rama, no en desktop-tauri.
 test(
   "ninguna página del índice está pendiente",
-  { todo: "parte B de FUN-L-27: escribir las páginas marcadas «estado: pendiente» y quitar este todo" },
   () => {
     const pendientes = TODAS.filter((p) => p.pendiente).map((p) => p.id);
     assert.deepEqual(pendientes, []);
