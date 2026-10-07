@@ -40,33 +40,72 @@ function comodinARegex(patron) {
   return new RegExp(`^${cuerpo}$`);
 }
 
-/** Reglas de un `.mycignore`: sintaxis tipo `.gitignore` sin negaciones. */
+/**
+ * Reglas de un `.mycignore`: sintaxis tipo `.gitignore`, con negaciones `!`
+ * (`FUN-S-30`). Espejo de `src-tauri/src/mycignore.rs`: `**` es un segmento que
+ * vale cero o más carpetas (al final, una o más) y `null` en `segs`.
+ */
 export function reglasMycignore(texto) {
   return texto
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l !== "" && !l.startsWith("#"))
     .map((l) => {
+      const negado = l.startsWith("!");
+      if (negado) l = l.slice(1);
+      else if (l.startsWith("\\!")) l = l.slice(1);
       const soloDir = l.endsWith("/");
-      const limpio = l.replace(/\/+$/, "").replace(/^\/+/, "");
-      const anclado = limpio.includes("/");
-      return { soloDir, anclado, re: anclado ? null : comodinARegex(limpio), ruta: limpio };
-    });
+      const sinFinal = l.replace(/\/+$/, "");
+      let anclado = sinFinal.includes("/");
+      let segs = sinFinal
+        .split("/")
+        .filter((s) => s !== "")
+        .map((s) => (s === "**" ? null : comodinARegex(s)));
+      if (anclado && segs.length === 2 && segs[0] === null && segs[1] !== null) {
+        segs = [segs[1]];
+        anclado = false;
+      }
+      return { negado, soloDir, anclado, segs };
+    })
+    .filter((r) => r.segs.length > 0);
 }
 
-/** ¿Se ignora `rel` (ruta POSIX relativa al vault)? `.mycelium/` siempre. */
-export function ignorado(rel, esDir, reglas) {
-  const segs = rel.split("/");
-  if (segs[0] === ".mycelium") return true;
-  for (const r of reglas) {
-    if (r.soloDir && !esDir) continue;
-    if (r.anclado) {
-      if (rel === r.ruta || rel.startsWith(`${r.ruta}/`)) return true;
-    } else if (r.re.test(segs[segs.length - 1])) {
-      return true;
+function coincidenSegmentos(pat, segs) {
+  if (pat.length === 0) return segs.length === 0;
+  if (pat[0] === null) {
+    const resto = pat.slice(1);
+    for (let k = resto.length === 0 ? 1 : 0; k <= segs.length; k++) {
+      if (coincidenSegmentos(resto, segs.slice(k))) return true;
     }
+    return false;
+  }
+  return segs.length > 0 && pat[0].test(segs[0]) && coincidenSegmentos(pat.slice(1), segs.slice(1));
+}
+
+function excluida(segs, esDir, reglas) {
+  for (let i = reglas.length - 1; i >= 0; i--) {
+    const r = reglas[i];
+    if (r.soloDir && !esDir) continue;
+    const nombre = segs[segs.length - 1];
+    const ok = r.anclado ? coincidenSegmentos(r.segs, segs) : r.segs[0] === null || r.segs[0].test(nombre);
+    if (ok) return !r.negado;
   }
   return false;
+}
+
+/**
+ * ¿Se ignora `rel` (ruta POSIX relativa al vault)? `.mycelium/` siempre. La
+ * última regla que coincide gana, y lo que está dentro de una carpeta ignorada
+ * no se re-incluye si no se re-incluye la carpeta (como en git).
+ */
+export function ignorado(rel, esDir, reglas) {
+  const segs = rel.split("/").filter((s) => s !== "");
+  if (segs.length === 0) return false;
+  if (segs[0] === ".mycelium") return true;
+  for (let k = 1; k < segs.length; k++) {
+    if (excluida(segs.slice(0, k), true, reglas)) return true;
+  }
+  return excluida(segs, esDir, reglas);
 }
 
 async function leerMycignore(vault) {
