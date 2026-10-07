@@ -53,6 +53,7 @@ scripts/*.png
 # Carpeta temporal de scripts/test-embeds.mjs (se borra sola al terminar).
 /.tmp-test-embeds/
 /.tmp-test-estados-tarea/
+/.tmp-test-ayuda/
 
 # Compilación del motor del corrector (`FUN-L-12`). El .wasm que importa es el
 # de public/ortografia/, que sí se versiona.

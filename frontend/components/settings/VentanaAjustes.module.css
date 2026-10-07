@@ -164,6 +164,44 @@
   font-weight: 600;
 }
 
+/* La ayuda (`FUN-L-27`), al pie de la lista: abre su propia ventana. Un filete
+   la separa de las categorías, que son otra cosa. */
+.botonAyuda {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 32px;
+  margin-top: auto;
+  padding: 0 0.55rem;
+  border-top: 1px solid var(--mic-border);
+  border-radius: 0 0 var(--mic-radius-sm) var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--mic-text-muted);
+}
+
+.botonAyuda:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.botonAyuda:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: -2px;
+}
+
+.botonAyudaTexto {
+  flex: 1;
+}
+
+.botonAyudaTecla {
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
 /* ── Resultados de la búsqueda, en lugar de las categorías ─────── */
 .resultados {
   display: flex;
@@ -287,5 +325,10 @@
 
   .panel {
     padding: 1rem 1rem 1.5rem;
+  }
+
+  .botonAyuda {
+    margin-top: 0;
+    border-top: none;
   }
 }

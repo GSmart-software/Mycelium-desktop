@@ -2,6 +2,7 @@
 
 import {
   BellPlus,
+  BookOpen,
   CalendarDays,
   FilePlus,
   Palette,
@@ -204,6 +205,14 @@ export function PaletaComandos() {
         icono: Settings,
         ejecutar: () => useUiStore.getState().setSettingsOpen(true),
       },
+      // La ayuda integrada (`FUN-L-27`): el mismo destino que F1.
+      {
+        id: "cmd-ayuda",
+        titulo: "Ayuda",
+        detalle: "F1 · Cómo se usa Mycelium",
+        icono: BookOpen,
+        ejecutar: () => useUiStore.getState().abrirAyuda(),
+      },
       // Atmósfera del modo en uso (la del otro modo se cambia en Configuración).
       ...ATMOSFERAS.map((a) => {
         const { modoOscuro, prefs } = usePreferencesStore.getState();
@@ -315,6 +324,7 @@ export function PaletaComandos() {
         role="dialog"
         aria-modal="true"
         aria-labelledby={idTitulo}
+        data-cede-a-la-ayuda
       >
         <h2 id={idTitulo} className={styles.oculto}>
           {enComandos ? "Ejecutar un comando" : "Ir a una nota"}
