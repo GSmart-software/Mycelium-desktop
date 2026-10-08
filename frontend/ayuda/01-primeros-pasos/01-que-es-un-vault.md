@@ -39,5 +39,23 @@ Hoy hablé con Ana sobre el [[Proyecto Faro]]. #reunión
 > [!warning] No toques `.mycelium/`
 > Es interno. Borrarlo no pierde tus notas, pero sí la papelera y los recordatorios.
 
+## Si un archivo cambia por fuera
+
+Cuando otro programa —otro editor, la IA, una sincronización— cambia una nota que tenés
+abierta, Mycelium la recarga sola con lo nuevo.
+
+Si justo tenías **cambios sin guardar** en esa nota, no recarga ni guarda encima: aparece
+una barra arriba de la nota, «El archivo cambió fuera de Mycelium», y elegís vos:
+
+| Opción | Qué hace |
+|---|---|
+| **Ver lo de afuera** | Descarta lo tuyo y muestra lo que tiene el archivo. Te pide confirmar, y Ctrl+Z lo trae de vuelta. |
+| **Quedarme con lo mío** | Guarda lo tuyo encima de lo de afuera. |
+| **Guardar lo mío como copia** | Lo tuyo va a una nota nueva, «Título (copia local)», y en esta queda lo de afuera. |
+
+Mientras no elijas podés seguir escribiendo, pero esa nota no se guarda: la barra de estado
+dice «Sin guardar: conflicto». Si cerrás la pestaña, te ofrece guardar lo tuyo como copia
+antes de cerrarla.
+
 > [!tip] Un vault por tema de tu vida
 > Podés tener varios (trabajo, estudio, personal) y abrir cada uno en su propia ventana.

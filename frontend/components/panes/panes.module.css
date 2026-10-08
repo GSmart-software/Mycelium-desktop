@@ -235,7 +235,8 @@
 }
 
 .dot_offline,
-.dot_error {
+.dot_error,
+.dot_conflicto {
   background: var(--mic-sync-warn);
 }
 

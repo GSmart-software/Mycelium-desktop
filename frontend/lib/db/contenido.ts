@@ -8,6 +8,7 @@
  * tabla de contenido), igual que en el backend.
  */
 import { tipoDeNotaPorRuta } from "@/lib/arbolVivo";
+import { decidirAlGuardar } from "@/lib/conflictoExterno";
 import { derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { execute, select } from "./client";
 import { crearResolutor, escribirEnlacesTanda, huellaEnlaces } from "./enlacesIndice";
@@ -75,8 +76,36 @@ async function reponerDesdeDisco(id: string): Promise<string> {
   return texto;
 }
 
-/** `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS. */
-export async function putContenido(id: string, contenido: string | null): Promise<PutContenidoResponse> {
+/**
+ * `GET /notas/{id}/contenido?origen=disco` (`DEF-138`): lo que el archivo tiene
+ * AHORA, leído del disco y no del índice. `null` si ya no existe.
+ *
+ * El índice va detrás del watcher (debounce, reindexado): para decidir si lo de
+ * afuera choca con lo que el usuario escribe, la foto tiene que ser la del
+ * disco, o una carrera de milisegundos vuelve a perder lo de afuera.
+ */
+export async function leerContenidoEnDisco(id: string): Promise<{ contenido: string | null }> {
+  return { contenido: await leerArchivoTexto(getVaultActual(), id) };
+}
+
+/** Mensaje del 409 de `putContenido` cuando el archivo cambió por fuera. */
+export const MENSAJE_CAMBIO_EXTERNO = "El archivo cambió fuera de Mycelium.";
+
+/**
+ * `PUT /notas/{id}/contenido`: upsert contenido, actualiza metadatos y reindexa FTS.
+ *
+ * Con `esperado` (`DEF-138`), antes de escribir se compara el disco con esa base
+ * —lo último que el editor leyó o guardó—: si alguien cambió el archivo desde
+ * entonces, **no se escribe** y se lanza un 409. Así un guardado no pisa en
+ * silencio lo que escribió la IA u otro programa aunque el aviso del watcher
+ * todavía no haya llegado. Queda una ventana mínima entre la lectura y la
+ * escritura, que es la de cualquier editor que no bloquea el archivo.
+ */
+export async function putContenido(
+  id: string,
+  contenido: string | null,
+  esperado?: string | null,
+): Promise<PutContenidoResponse> {
   const vault = getVaultActual();
   const notas = await select<{
     titulo: string;
@@ -97,6 +126,12 @@ export async function putContenido(id: string, contenido: string | null): Promis
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
 
   const texto = contenido ?? "";
+  if (esperado !== undefined) {
+    const disco = await leerArchivoTexto(vault, id);
+    if (decidirAlGuardar({ disco, conocido: esperado, local: texto }) === "conflicto") {
+      throw new DbError(409, MENSAJE_CAMBIO_EXTERNO);
+    }
+  }
   const bytes = byteLen(texto);
   const now = ahoraIso();
 

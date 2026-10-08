@@ -444,8 +444,11 @@ KaTeX.
 El usuario puede además **renombrar una nota escribiendo en su título**, arriba del
 documento. Mycelium detecta tus cambios en disco y refresca la UI solo: notas, tablas,
 lienzos, diagramas y dibujos abiertos se recargan con lo que escribiste. **Salvo** que el
-usuario tenga ahí cambios sin guardar (o una tarjeta de lienzo en edición): entonces no
-recarga, y lo que guarde después pisa lo tuyo. Y el **editor modal** de un dibujo
+usuario tenga ahí cambios sin guardar. En una **nota**, entonces no se guarda nada: le
+aparece una barra avisando que el archivo cambió fuera de Mycelium y **él elige** —ver lo
+tuyo, quedarse con lo suyo (pisa lo tuyo) o guardar lo suyo como copia—. En una tabla,
+un lienzo (o una tarjeta en edición), un diagrama o un dibujo, no recarga y lo que guarde
+después pisa lo tuyo. Y el **editor modal** de un dibujo
 embebido en una nota no recarga nunca: si está abierto, al cerrarlo pisa lo que
 escribiste. Si sabés que el usuario está editando ese archivo, avisale antes de escribir
 (con el control encendido, \`mycelium_estado\` te dice qué pestañas tienen cambios sin

@@ -57,7 +57,12 @@ export type EditorMode = "live" | "split" | "read" | "raw";
  * Estado de guardado de una nota. En desktop no existe «offline»: el destino
  * es el disco, no un servidor (`FUN-M-40`, D7; en web sigue existiendo).
  */
-export type SyncState = "local" | "syncing" | "synced" | "error";
+/**
+ * Estado de guardado de una nota. `conflicto` (`DEF-138`): el archivo cambió
+ * fuera de Mycelium mientras la nota tenía cambios sin guardar; el guardado
+ * queda en pausa hasta que el usuario elige en la barra de la nota.
+ */
+export type SyncState = "local" | "syncing" | "synced" | "error" | "conflicto";
 
 const MODES: { mode: EditorMode; icon: LucideIcon; label: string; shortcut: string }[] = [
   { mode: "live", icon: PenLine, label: "En vivo", shortcut: "Ctrl+1" },

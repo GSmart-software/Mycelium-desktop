@@ -19,7 +19,8 @@ import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
-import { allLeaves, useTabsStore } from "@/stores/tabsStore";
+import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
+import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -262,8 +263,12 @@ function WorkspaceShell() {
       }
       if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "w") {
         event.preventDefault();
-        useTabsStore.getState().closeActiveTab();
-        syncUrlWithTabs();
+        // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
+        const { activePaneId, root } = useTabsStore.getState();
+        const activa = findLeaf(root, activePaneId)?.activeTabId;
+        if (activa) {
+          void cerrarPestanaSinPerder(activePaneId, activa).then((cerrada) => cerrada && syncUrlWithTabs());
+        }
         return;
       }
       if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
