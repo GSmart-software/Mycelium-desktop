@@ -50,6 +50,10 @@ scripts/*.png
 /public/drawio/
 /.drawio-cache/
 
+# Fuentes de Excalidraw (`DEF-153`): las copia `npm run preparar-excalidraw` desde
+# node_modules en cada dev/build. Son ~13 MB que el paquete ya trae.
+/public/excalidraw-assets/
+
 # Carpeta temporal de scripts/test-embeds.mjs (se borra sola al terminar).
 /.tmp-test-embeds/
 /.tmp-test-estados-tarea/

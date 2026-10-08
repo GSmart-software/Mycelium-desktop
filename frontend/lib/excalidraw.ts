@@ -26,6 +26,38 @@ import { diagnosticarExcalidraw, motivoDeExcepcion } from "@/lib/archivosIlegibl
  */
 export const IDIOMA_EXCALIDRAW = "es-ES";
 
+/**
+ * Carpeta, servida por la propia app, de la que Excalidraw baja las fuentes de
+ * los dibujos (`DEF-153`). La llena `scripts/preparar-excalidraw.mjs` (en cada
+ * `dev`/`build`) copiando `dist/prod/fonts/` del paquete a `public/`.
+ */
+export const RUTA_RECURSOS_EXCALIDRAW = "/excalidraw-assets/";
+
+declare global {
+  interface Window {
+    EXCALIDRAW_ASSET_PATH?: string | string[];
+  }
+}
+
+/**
+ * Importa `@excalidraw/excalidraw` con la ruta de sus fuentes ya apuntada a la
+ * app (`DEF-153`). **Todo** import del paquete pasa por acá.
+ *
+ * Excalidraw arma las URLs de cada fuente con `window.EXCALIDRAW_ASSET_PATH`
+ * primero y `https://esm.sh/@excalidraw/excalidraw@<versión>/dist/prod/` como
+ * respaldo; las prueba en orden y se queda con la primera que responde. Sin la
+ * variable, la única era esm.sh: sin red el texto de los dibujos salía con la
+ * fuente del sistema, y abrir un dibujo —o mostrar un embed, o exportarlo, que
+ * incrusta las fuentes en el SVG— hacía una petición a un tercero. Con ella,
+ * esm.sh queda solo como respaldo si faltara la carpeta local.
+ */
+export async function cargarExcalidraw(): Promise<typeof import("@excalidraw/excalidraw")> {
+  if (typeof window !== "undefined" && window.EXCALIDRAW_ASSET_PATH === undefined) {
+    window.EXCALIDRAW_ASSET_PATH = RUTA_RECURSOS_EXCALIDRAW;
+  }
+  return import("@excalidraw/excalidraw");
+}
+
 /** Escena .excalidraw mínima que persistimos (HU-16 CA4/CA5). */
 export type ExcalidrawScene = {
   type?: string;
@@ -70,7 +102,7 @@ export async function leerEscena(contenido: string): Promise<LecturaEscena> {
     appState?: unknown;
     files?: unknown;
   };
-  const { restoreElements } = await import("@excalidraw/excalidraw");
+  const { restoreElements } = await cargarExcalidraw();
   let elementos: readonly unknown[];
   try {
     elementos = restoreElements(crudo.elements as never, null);
@@ -189,7 +221,7 @@ function exportDarkMode(): boolean {
 }
 
 async function sceneToSvg(scene: ExcalidrawScene): Promise<SVGSVGElement> {
-  const { exportToSvg } = await import("@excalidraw/excalidraw");
+  const { exportToSvg } = await cargarExcalidraw();
   return exportToSvg({
     elements: scene.elements as never,
     appState: {
@@ -274,7 +306,7 @@ export async function exportDiagram(ref: string, format: "png" | "svg"): Promise
 
   let blob: Blob;
   if (format === "png") {
-    const { exportToBlob } = await import("@excalidraw/excalidraw");
+    const { exportToBlob } = await cargarExcalidraw();
     blob = await exportToBlob({
       elements: scene.elements as never,
       appState: {
