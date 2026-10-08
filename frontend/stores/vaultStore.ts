@@ -6,14 +6,18 @@ import {
   SIN_REPARACION,
   carpetaDeRuta,
   cambioRenombrar,
-  entrantesDe,
   extensionDeRuta,
+  leerPrevia,
   movidosPorCarpeta,
-  repararEntrantes,
+  repararTrasOperacion,
   tituloDeRuta,
   type Movido,
+  type Previa,
   type Reparacion,
 } from "@/lib/repararEnlaces";
+import { coincidencias, textoAviso, trasTraslados, type NotaRuta } from "@/lib/homonimos";
+import { sanearNombre } from "@/lib/db/nombres";
+import { avisar } from "@/stores/avisosStore";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import {
   aplicarCambios as aplicarAlArbol,
@@ -162,12 +166,63 @@ function avisarReescritas(r: Reparacion): void {
   if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
 }
 
+/** El vault después de que `movidos` cambien de ruta. */
+function despuesDe(antes: readonly NotaRuta[], movidos: readonly Movido[]): NotaRuta[] {
+  return trasTraslados(
+    antes,
+    movidos.map((m) => ({ id: m.id, idNuevo: m.idNuevo, titulo: m.cambio.tituloNuevo })),
+  );
+}
+
+/** Las notas del árbol como las ve la reparación de homónimos (`DEF-134`). */
+function comoRutas(notas: readonly TreeNota[]): NotaRuta[] {
+  return notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo }));
+}
+
+/**
+ * Avisa que una operación dejó notas con el mismo título que otras (`DEF-134`)
+ * y cuántas notas se reescribieron con la ruta para que sus enlaces siguieran
+ * llevando a la misma nota. `siempre`: la operación **creó** la coincidencia
+ * (renombrar, crear, duplicar) y se avisa aunque no se haya reescrito nada; si
+ * solo la cambió de lugar (mover), se avisa solo si hubo que reescribir.
+ */
+function avisarCoincidencias(
+  despues: readonly NotaRuta[],
+  tocadas: readonly string[],
+  r: Reparacion,
+  siempre: boolean,
+): void {
+  if (!siempre && r.conRuta.length === 0) return;
+  const texto = textoAviso(coincidencias(despues, tocadas), r.conRuta.length);
+  if (texto !== null) avisar(texto);
+}
+
+/**
+ * Después de crear o duplicar: los enlaces que iban a una homónima y ahora
+ * resolverían a la nota nueva se escriben con la ruta de la de antes, y se avisa
+ * la coincidencia (`DEF-134`).
+ */
+async function repararNueva(previa: Previa, nueva: NotaRuta & { tipo: NotaTipo }): Promise<void> {
+  const r = await repararTrasOperacion(previa, [], [nueva], token());
+  // «Sin título» en otra carpeta no es una coincidencia que valga la pena
+  // anunciar cada vez que se crea una nota: solo si hubo que reescribir algo.
+  const porDefecto = TITULO_POR_DEFECTO[nueva.tipo];
+  const sufijo = nueva.titulo.startsWith(`${porDefecto} `) ? nueva.titulo.slice(porDefecto.length + 1) : null;
+  const esPorDefecto = nueva.titulo === porDefecto || (sufijo !== null && /^\d+$/.test(sufijo));
+  avisarCoincidencias([...previa.antes, nueva], [nueva.id], r, !esPorDefecto);
+  avisarReescritas(r);
+}
+
 /**
  * Mueve una nota o una carpeta y repara los enlaces entrantes que el
  * movimiento rompe: los que llevan pista de carpeta (`[[Carpeta/Nota]]`); los
  * de título siguen resolviendo (`FUN-L-09`, Parte 3). Los retroenlaces se leen
  * ANTES: después ya no resuelven. Lo comparten mover y deshacer el último
  * movimiento (Ctrl+Z). Lanza si el repo rechaza el movimiento.
+ *
+ * Mover cambia la profundidad, y con ella cuál de dos homónimas gana un
+ * `[[Título]]` sin ruta: también se miran los enlaces a las homónimas de lo que
+ * se mueve, y el que cambiaría de destino pasa a llevar la ruta (`DEF-134`).
  */
 async function moverConReparacion(
   tipo: "nota" | "carpeta",
@@ -177,7 +232,9 @@ async function moverConReparacion(
   vaultId: string,
 ): Promise<Reparacion & { id: string }> {
   const afectadas = tipo === "nota" ? [id] : notas.filter((n) => n.id.startsWith(`${id}/`)).map((n) => n.id);
-  const entrantes = await entrantesDe(afectadas, vaultId, token());
+  const antes = comoRutas(notas);
+  const titulos = antes.filter((n) => afectadas.includes(n.id)).map((n) => n.titulo);
+  const previa = await leerPrevia(antes, afectadas, titulos, vaultId, token());
   const ruta = tipo === "nota" ? `/notas/${encodeURIComponent(id)}/mover` : `/carpetas/${encodeURIComponent(id)}/mover`;
   const res = await api<{ id: string }>(ruta, { method: "POST", token: token(), body: { destinoId } });
   if (res.id === id) return { id, ...SIN_REPARACION };
@@ -199,7 +256,8 @@ async function moverConReparacion(
           },
         ]
       : movidosPorCarpeta(notas, id, res.id);
-  const reparacion = await repararEntrantes(entrantes, movidos, token());
+  const reparacion = await repararTrasOperacion(previa, movidos, [], token());
+  avisarCoincidencias(despuesDe(previa.antes, movidos), movidos.map((m) => m.idNuevo), reparacion, false);
   return { id: res.id, ...reparacion };
 }
 
@@ -307,8 +365,11 @@ export const useVaultStore = create<VaultState>()(
         // carpeta (`[[Vieja/Nota]]`) dejan de resolver. Se leen sus
         // retroenlaces ANTES (`FUN-L-09`, Parte 3).
         const notas = get().notas;
-        const entrantes = await entrantesDe(
-          notas.filter((n) => n.id.startsWith(`${id}/`)).map((n) => n.id),
+        const afectadas = notas.filter((n) => n.id.startsWith(`${id}/`));
+        const previa = await leerPrevia(
+          comoRutas(notas),
+          afectadas.map((n) => n.id),
+          afectadas.map((n) => n.titulo),
           get().vaultId!,
           token(),
         );
@@ -322,7 +383,9 @@ export const useVaultStore = create<VaultState>()(
         // subárbol; reapuntar las pestañas de las notas que colgaban de ella.
         if (res.id !== id) {
           useTabsStore.getState().remapCarpeta(id, res.id);
-          reparacion = await repararEntrantes(entrantes, movidosPorCarpeta(notas, id, res.id), token());
+          const movidos = movidosPorCarpeta(notas, id, res.id);
+          reparacion = await repararTrasOperacion(previa, movidos, [], token());
+          avisarCoincidencias(despuesDe(previa.antes, movidos), movidos.map((m) => m.idNuevo), reparacion, false);
         }
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
@@ -374,15 +437,17 @@ export const useVaultStore = create<VaultState>()(
       async createNota(carpetaId, tipo = "markdown", titulo) {
         const { vaultId } = get();
         if (!vaultId) throw new Error("Sin vault activo");
+        const base = titulo && titulo.trim() !== "" ? titulo.trim() : TITULO_POR_DEFECTO[tipo];
+        // Una nota nueva con el título de otra se queda con sus `[[Título]]` sin
+        // ruta si queda más cerca de la raíz (`DEF-134`): se lee ANTES quién
+        // enlaza a las homónimas.
+        const previa = await leerPrevia(comoRutas(get().notas), [], [base, sanearNombre(base)], vaultId, token());
         const result = await api<{ id: string }>(`/vaults/${vaultId}/notas`, {
           method: "POST",
           token: token(),
-          body: {
-            titulo: titulo && titulo.trim() !== "" ? titulo.trim() : TITULO_POR_DEFECTO[tipo],
-            carpetaId,
-            tipo,
-          },
+          body: { titulo: base, carpetaId, tipo },
         });
+        await repararNueva(previa, { id: result.id, titulo: tituloDeRuta(result.id), tipo });
         if (carpetaId) set((s) => ({ expanded: { ...s.expanded, [carpetaId]: true } }));
         await get().loadTree(vaultId);
         markGraphStale();
@@ -394,11 +459,17 @@ export const useVaultStore = create<VaultState>()(
         // los rompe todos. Se leen los retroenlaces ANTES de renombrar —despues
         // ya no apuntan a nada y el indice no los encuentra— y se reescriben
         // despues, cuando el titulo nuevo ya es el bueno.
+        //
+        // DEF-134: también se leen los de las notas que ya se llaman como el
+        // título nuevo. Si la renombrada queda más cerca de la raíz que ellas,
+        // sus `[[Título]]` sin ruta pasarían a llevar a la renombrada: después
+        // del renombrado se escriben con la ruta de la nota a la que iban.
         const anterior = get().notas.find((n) => n.id === id)?.titulo ?? null;
-        let entrantes = new Map<string, Set<string>>();
-        if (anterior !== null && anterior !== titulo) {
-          entrantes = await entrantesDe([id], get().vaultId!, token());
-        }
+        const antes = comoRutas(get().notas);
+        const previa =
+          anterior !== null && anterior !== titulo
+            ? await leerPrevia(antes, [id], [titulo.trim(), sanearNombre(titulo.trim())], get().vaultId!, token())
+            : null;
 
         const res = await api<{ id: string; titulo?: string }>(
           `/notas/${encodeURIComponent(id)}`,
@@ -416,11 +487,18 @@ export const useVaultStore = create<VaultState>()(
         // reescribir. El `?? titulo` es para un backend que todavia no lo mande.
         const efectivo = res.titulo ?? titulo;
         let reparacion: Reparacion = SIN_REPARACION;
-        if (anterior !== null && anterior !== efectivo) {
+        if (previa !== null && anterior !== null && anterior !== efectivo) {
           // Por título y, desde `FUN-L-09`, también con pista de carpeta
           // (`[[Carpeta/Vieja]]`), que antes quedaba rota.
           const cambio = { ...cambioRenombrar(id, efectivo), tituloViejo: anterior };
-          reparacion = await repararEntrantes(entrantes, [{ id, idNuevo: res.id, cambio }], token());
+          const movidos: Movido[] = [{ id, idNuevo: res.id, cambio }];
+          reparacion = await repararTrasOperacion(previa, movidos, [], token());
+          avisarCoincidencias(
+            despuesDe(previa.antes, movidos),
+            [res.id],
+            reparacion,
+            anterior.trim().toLowerCase() !== efectivo.trim().toLowerCase(),
+          );
         }
         // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
         // seguir a la nota con su id nuevo antes de reconciliar el árbol.
@@ -438,7 +516,21 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async duplicateNota(id) {
-        await api(`/notas/${encodeURIComponent(id)}/duplicar`, { method: "POST", token: token() });
+        // La copia se llama «X (copia)»: si ya hay una así en otra carpeta, es
+        // una homónima nueva (`DEF-134`).
+        const original = get().notas.find((n) => n.id === id);
+        const pedido = original ? `${original.titulo} (copia)` : null;
+        const previa =
+          pedido !== null
+            ? await leerPrevia(comoRutas(get().notas), [], [pedido, sanearNombre(pedido)], get().vaultId!, token())
+            : null;
+        const res = await api<{ id: string }>(`/notas/${encodeURIComponent(id)}/duplicar`, {
+          method: "POST",
+          token: token(),
+        });
+        if (previa !== null && original) {
+          await repararNueva(previa, { id: res.id, titulo: tituloDeRuta(res.id), tipo: original.tipo });
+        }
         await get().loadTree(get().vaultId!);
         markGraphStale();
       },

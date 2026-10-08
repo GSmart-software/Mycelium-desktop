@@ -665,7 +665,7 @@ export function reescribirEnlaces(
  * alias): `null` lo deja como está; un texto lo reemplaza. Conserva el `!` de un
  * embed, el ancla (`#`, `^`), el alias y el espaciado del destino.
  */
-function cambiarDestinos(
+export function cambiarDestinos(
   texto: string,
   nuevoDestino: (destino: string) => string | null,
 ): { texto: string; cambios: number } {
@@ -741,41 +741,59 @@ export function reescribirEnlacesMovidos(
   texto: string,
   cambios: readonly CambioDeRuta[],
 ): { texto: string; cambios: number } {
-  const utiles = cambios.filter(
-    (c) => c.tituloViejo.trim() !== c.tituloNuevo.trim() || c.carpetaVieja !== c.carpetaNueva,
-  );
+  const utiles = cambios.filter(esCambioUtil);
   if (utiles.length === 0) return { texto, cambios: 0 };
+  return cambiarDestinos(texto, (destino) => {
+    for (const c of utiles) {
+      const r = destinoTrasCambio(destino, c);
+      if (r !== undefined) return r;
+    }
+    return null;
+  });
+}
+
+/** Si el cambio altera algo que un enlace pueda escribir: el título o la carpeta. */
+function esCambioUtil(c: CambioDeRuta): boolean {
+  return c.tituloViejo.trim() !== c.tituloNuevo.trim() || c.carpetaVieja !== c.carpetaNueva;
+}
+
+/**
+ * Lo que `reescribirEnlacesMovidos` hace con UN destino frente a UN cambio:
+ * `undefined` si el destino no es una forma de escribir el archivo de antes
+ * (otro título, o una pista que no calza con su carpeta); `null` si lo es pero
+ * sigue sirviendo tal cual; un texto si hay que reemplazarlo por ese.
+ *
+ * Exportado para la reparación de homónimos (`DEF-134`, `lib/homonimos.ts`),
+ * que ya sabe a qué archivo apuntaba cada enlace y solo necesita la forma
+ * «natural» del destino nuevo para comprobar si sigue resolviendo bien.
+ */
+export function destinoTrasCambio(destino: string, c: CambioDeRuta): string | null | undefined {
+  if (!esCambioUtil(c)) return null;
   const segmentos = (ruta: string) =>
     ruta
       .split("/")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
-
-  return cambiarDestinos(texto, (destino) => {
-    const partes = destino.split("/").map((s) => s.trim());
-    const ultimo = partes[partes.length - 1] ?? "";
-    const pista = partes.slice(0, -1).filter(Boolean).map((s) => s.toLowerCase());
-    for (const c of utiles) {
-      const ext = c.extension.toLowerCase();
-      const conExtension = ext !== "" && ultimo.toLowerCase().endsWith(ext);
-      const titulo = conExtension ? ultimo.slice(0, ultimo.length - ext.length) : ultimo;
-      if (titulo.toLowerCase() !== c.tituloViejo.trim().toLowerCase()) continue;
-      const nombre = c.tituloNuevo.trim() + (conExtension ? ultimo.slice(ultimo.length - ext.length) : "");
-      if (pista.length === 0) {
-        // Por título: solo lo rompe un cambio de nombre.
-        if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
-        return nombre;
-      }
-      // Con pista: tiene que calzar con el final de la carpeta de antes.
-      const vieja = segmentos(c.carpetaVieja);
-      if (pista.length > vieja.length) continue;
-      if (!pista.every((p, i) => vieja[vieja.length - pista.length + i] === p)) continue;
-      if (c.carpetaVieja === c.carpetaNueva) {
-        if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
-        return [...partes.slice(0, -1), nombre].join("/");
-      }
-      return c.carpetaNueva === "" ? nombre : `${c.carpetaNueva}/${nombre}`;
-    }
-    return null;
-  });
+  const partes = destino.split("/").map((s) => s.trim());
+  const ultimo = partes[partes.length - 1] ?? "";
+  const pista = partes.slice(0, -1).filter(Boolean).map((s) => s.toLowerCase());
+  const ext = c.extension.toLowerCase();
+  const conExtension = ext !== "" && ultimo.toLowerCase().endsWith(ext);
+  const titulo = conExtension ? ultimo.slice(0, ultimo.length - ext.length) : ultimo;
+  if (titulo.toLowerCase() !== c.tituloViejo.trim().toLowerCase()) return undefined;
+  const nombre = c.tituloNuevo.trim() + (conExtension ? ultimo.slice(ultimo.length - ext.length) : "");
+  if (pista.length === 0) {
+    // Por título: solo lo rompe un cambio de nombre.
+    if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
+    return nombre;
+  }
+  // Con pista: tiene que calzar con el final de la carpeta de antes.
+  const vieja = segmentos(c.carpetaVieja);
+  if (pista.length > vieja.length) return undefined;
+  if (!pista.every((p, i) => vieja[vieja.length - pista.length + i] === p)) return undefined;
+  if (c.carpetaVieja === c.carpetaNueva) {
+    if (c.tituloViejo.trim() === c.tituloNuevo.trim()) return null;
+    return [...partes.slice(0, -1), nombre].join("/");
+  }
+  return c.carpetaNueva === "" ? nombre : `${c.carpetaNueva}/${nombre}`;
 }

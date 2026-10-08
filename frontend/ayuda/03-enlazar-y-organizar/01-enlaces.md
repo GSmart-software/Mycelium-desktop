@@ -37,9 +37,24 @@ El plan está en [[Plan 2026|el plan del año]].
 
 ## Notas con el mismo nombre
 
-Si dos notas se llaman igual, `[[Nota]]` lleva a la más cercana a la raíz del vault. Para
-apuntar a la otra, anteponé su carpeta: `[[Proyectos/Nota]]`. El autocompletado ya lo
-hace solo cuando el título está repetido.
+Dos notas de carpetas distintas pueden llamarse igual. Entonces `[[Nota]]` lleva a la más
+cercana a la raíz del vault; para apuntar a la otra, anteponé su carpeta:
+`[[Proyectos/Nota]]`. El autocompletado ya lo hace solo cuando el título está repetido.
+
+Cuando **renombrás, creás, duplicás o movés** una nota (o una carpeta) desde Mycelium y eso
+deja dos notas con el mismo nombre —o cambia cuál de las dos queda más cerca de la raíz—,
+ningún enlace que ya existía cambia de destino: Mycelium escribe con su ruta los que, si
+no, pasarían a llevar a la otra. Por ejemplo, si ya existe `Cultivos/Tomate` y renombrás
+a «Tomate» una nota de la raíz, los `[[Tomate]]` que iban al cultivo pasan a ser
+`[[Cultivos/Tomate]]`, con su alias, su `!` de embebido y su `#sección` intactos. Un aviso
+te cuenta la coincidencia y en cuántas notas se escribió la ruta.
+
+> [!tip] La nota de la raíz no necesita carpeta
+> Para una nota que está en la raíz, `[[Tomate]]` ya es su ruta completa: le gana a
+> cualquier homónima que esté en una carpeta.
+
+Lo que escribas **después** decide a cuál apunta: un `[[Tomate]]` nuevo lleva a la de la
+raíz.
 
 ## Enlaces rotos
 
