@@ -24,6 +24,7 @@ import {
   type Nodo,
 } from "@/lib/canvas";
 import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
+import { soltarFoco } from "@/lib/editor/tituloPendiente";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
@@ -362,26 +363,36 @@ export function CanvasView({ notaId }: { notaId: string }) {
     };
   };
 
+  /**
+   * Id para una tarjeta nueva, elegido FUERA del actualizador de `cambiar`
+   * (`DEF-135`). Antes se sorteaba adentro y desde ahí se marcaba la tarjeta en
+   * edición: un actualizador de estado tiene que ser puro —React lo vuelve a
+   * correr en desarrollo y se queda con una sola de las pasadas—, y con un id al
+   * azar la tarjeta podía quedar con un id distinto del que se marcó «en
+   * edición». La tarjeta nueva no abría su texto, el foco se quedaba en el botón
+   * y el espacio tecleado para ella creaba otra.
+   */
+  const idNuevo = () => nuevoId((canvasRef.current?.nodos ?? []).map((n) => n.id));
+
   const agregarTexto = () => {
     const p = centro();
-    cambiar((c) => {
-      const id = nuevoId(c.nodos.map((n) => n.id));
-      setEditando(id);
-      setSeleccion(id);
-      return { ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] };
-    });
+    const id = idNuevo();
+    cambiar((c) => ({ ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] }));
+    setEditando(id);
+    setSeleccion(id);
   };
 
   const agregarNota = (notaDestino: string) => {
     const p = centro();
+    const id = idNuevo();
     setEligiendoNota(false);
-    cambiar((c) => {
-      const id = nuevoId(c.nodos.map((n) => n.id));
-      setSeleccion(id);
-      // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
-      // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
-      return { ...c, nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))] };
-    });
+    // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
+    // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
+    cambiar((c) => ({
+      ...c,
+      nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))],
+    }));
+    setSeleccion(id);
   };
 
   /** Pinta la tarjeta seleccionada. `undefined` la devuelve al color de Mycelium. */
@@ -441,7 +452,16 @@ export function CanvasView({ notaId }: { notaId: string }) {
   return (
     <div className={styles.wrap}>
       <header className={styles.barra}>
-        <button type="button" className={styles.boton} onClick={agregarTexto}>
+        <button
+          type="button"
+          className={styles.boton}
+          onClick={(e) => {
+            // El foco pasa al texto de la tarjeta nueva; el botón no se lo queda,
+            // o un espacio tecleado para ella crearía otra (`DEF-135`).
+            soltarFoco(e.currentTarget);
+            agregarTexto();
+          }}
+        >
           <Type size={14} aria-hidden /> Tarjeta de texto
         </button>
         <button

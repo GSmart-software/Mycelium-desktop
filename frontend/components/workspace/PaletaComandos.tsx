@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
+import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 import { ATMOSFERAS } from "@/lib/atmosferas";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useRecientesStore } from "@/stores/recientesStore";
@@ -132,10 +133,13 @@ export function PaletaComandos() {
   }, [abierto, modo]);
 
   const abrirNota = useCallback(
-    (id: string) => {
+    (id: string, { editarTitulo = false }: { editarTitulo?: boolean } = {}) => {
+      // Nota recién creada «Sin título» (`DEF-135`): el foco lo pone el editor
+      // en el título, y `enfocarNota` no debe llevárselo al cuerpo después.
+      if (editarTitulo) pedirEdicionDeTitulo(id);
       useTabsStore.getState().openNote(id);
       router.replace(`/workspace?note=${encodeURIComponent(id)}`);
-      enfocarNota(id);
+      if (!editarTitulo) enfocarNota(id);
     },
     [router],
   );
@@ -149,7 +153,7 @@ export function PaletaComandos() {
         icono: FilePlus,
         ejecutar: async () => {
           const v = useVaultStore.getState();
-          abrirNota(await v.createNota(v.activeFolderId));
+          abrirNota(await v.createNota(v.activeFolderId), { editarTitulo: true });
         },
       },
       {

@@ -29,7 +29,8 @@ import {
 } from "@/lib/editor/livePreview";
 import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { autoPairs } from "@/lib/editor/autoPairs";
-import { docTitleField, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
+import { docTitleField, editarTitulo, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
+import { tomarEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
   markMissingWikilinks,
@@ -667,6 +668,14 @@ export function NoteEditor({
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendiente = takePendingMatch(notaId);
       if (pendiente) gotoMatch(viewRef.current, pendiente);
+
+      // Nota recién creada (`DEF-135`): el foco va al título, seleccionado, para
+      // que lo primero que se escriba la nombre. Si el título no se muestra, al
+      // cuerpo; en modo lectura no hay dónde escribir y no se toca nada.
+      if (tomarEdicionDeTitulo(notaId) && modeRef.current !== "read") {
+        const view = viewRef.current;
+        if (!editarTitulo(view)) view.focus();
+      }
     },
     [onDocChanged, openByTitle, noteExists, notaId, instanceId, paneId],
   );

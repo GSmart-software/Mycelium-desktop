@@ -162,3 +162,31 @@ test("LA GUARDA: rechazar y sanear miran los MISMOS caracteres", soloDesktop, ()
     );
   }
 });
+
+// ── Título en edición al crear una nota (`DEF-135`) ──────────────────────────
+//
+// Crear una nota «Sin título» dejaba el foco en el botón: lo tecleado se perdía
+// y cada espacio o Enter creaba otra. Ahora quien crea pide la edición del
+// título y el editor la consume al montar la nota.
+const pendiente = await cargar("../lib/editor/tituloPendiente.ts");
+
+test("el pedido de editar el título se consume una sola vez", () => {
+  pendiente.pedirEdicionDeTitulo("Riego.md");
+  assert.equal(pendiente.tomarEdicionDeTitulo("Riego.md"), true);
+  // Volver a la pestaña más tarde no reabre la edición.
+  assert.equal(pendiente.tomarEdicionDeTitulo("Riego.md"), false);
+});
+
+test("una nota que no se creó recién no abre su título", () => {
+  pendiente.pedirEdicionDeTitulo("Nueva.md");
+  assert.equal(pendiente.tomarEdicionDeTitulo("Vieja.md"), false);
+  assert.equal(pendiente.tomarEdicionDeTitulo("Nueva.md"), true);
+});
+
+test("soltarFoco quita el foco del control y tolera lo que no es un elemento", () => {
+  let soltado = 0;
+  pendiente.soltarFoco({ blur: () => soltado++ });
+  assert.equal(soltado, 1);
+  pendiente.soltarFoco(null);
+  pendiente.soltarFoco({});
+});

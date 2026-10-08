@@ -16,6 +16,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./EsporasPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
+import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 
 /**
  * Panel de Esporas (`FUN-M-03`): las plantillas de la carpeta configurada.
@@ -42,6 +43,16 @@ export function EsporasPanel() {
   const existe = useMemo(() => carpetas.some((c) => c.id === carpeta), [carpetas, carpeta]);
   const esporas = useMemo(() => listarEsporas(notas), [notas, rutaConfigurada]);
 
+  /**
+   * Abre lo recién creado con el título en edición (`DEF-135`): la nota sale con
+   * el nombre de la plantilla (o «Nueva Espora») y lo primero que se escribe la
+   * renombra, en vez de quedarse en el botón que la creó.
+   */
+  const abrirNueva = (id: string) => {
+    pedirEdicionDeTitulo(id);
+    abrir(id);
+  };
+
   const abrir = (id: string) => {
     useTabsStore.getState().openNote(id);
     router.replace(`/workspace?note=${encodeURIComponent(id)}`);
@@ -63,12 +74,12 @@ export function EsporasPanel() {
   const usar = (espora: Espora) =>
     void correr(async () => {
       const destino = useVaultStore.getState().activeFolderId;
-      abrir(await crearNotaDesdeEspora(espora, destino));
+      abrirNueva(await crearNotaDesdeEspora(espora, destino));
     });
 
   const nuevaEspora = () =>
     void correr(async () => {
-      abrir(await crearEsporaVacia());
+      abrirNueva(await crearEsporaVacia());
     });
 
   const crearCarpeta = () => void correr(async () => void (await asegurarCarpetaEsporas()));

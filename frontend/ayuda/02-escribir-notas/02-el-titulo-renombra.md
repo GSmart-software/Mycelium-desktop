@@ -28,6 +28,12 @@ la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de not
 3. **Enter** confirma. **Esc** descarta, y salir del campo con un clic en otro lado
    también descarta: renombrar es siempre un acto deliberado.
 
+> [!tip] Una nota nueva ya abre con el título listo para escribir
+> Al crear una nota con **Nueva nota** (el botón del explorador, el clic derecho en una
+> carpeta o **Ctrl+P** → «Nueva nota») o desde una Espora, la nota se abre con el título
+> en edición y el nombre seleccionado: lo primero que escribas lo reemplaza. **Enter** la
+> nombra; **Esc** le deja el nombre con el que se creó («Sin título», o el de la Espora).
+
 ## Nombres que no se aceptan
 
 Si el nombre no sirve, Mycelium no lo corrige por su cuenta: te dice el motivo y la nota

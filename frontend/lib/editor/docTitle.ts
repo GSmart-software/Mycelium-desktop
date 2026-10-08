@@ -146,6 +146,23 @@ function pintarEdicion(cont: HTMLElement, titulo: string, view: EditorView) {
   campo.addEventListener("blur", () => void terminar(null));
 }
 
+/**
+ * Abre el título de `view` para editar, con el nombre seleccionado (`DEF-135`):
+ * es lo que pasa al crear una nota nueva, para que escribir la nombre.
+ *
+ * Pasa por el mismo clic que usa el usuario —no por `pintarEdicion` directo—
+ * para que confirmar, descartar y el error de un nombre inválido sean
+ * exactamente los del renombrado de siempre. Devuelve `false` si el título no
+ * está a la vista (la opción «mostrar el título» apagada, o la vista sin
+ * pintar), y entonces quien llama decide adónde va el foco.
+ */
+export function editarTitulo(view: EditorView): boolean {
+  const texto = view.dom.querySelector<HTMLElement>(".mic-doc-title-editor .mic-doc-title-editable");
+  if (!texto) return false;
+  texto.click();
+  return view.dom.querySelector("input.mic-doc-title-campo") !== null;
+}
+
 class TitleWidget extends WidgetType {
   constructor(readonly title: string) {
     super();
