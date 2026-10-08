@@ -1,5 +1,6 @@
 import { Facet, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { inicioDelCuerpo } from "@/lib/frontmatter";
 import { aplicarTitulo } from "@/lib/tituloEditable";
 
 /**
@@ -9,7 +10,8 @@ import { aplicarTitulo } from "@/lib/tituloEditable";
  * tipografía es la del editor (la vista de lectura usa la suya propia).
  *
  * Desde `FUN-M-24` **también renombra el archivo**: un clic lo abre para editar,
- * <kbd>Enter</kbd> confirma, y <kbd>Esc</kbd> o salir del campo descartan. Solo acá — el título de la
+ * <kbd>Enter</kbd> (o <kbd>Tab</kbd>) confirma y pasa al cuerpo, y <kbd>Esc</kbd> o salir
+ * del campo descartan (`DEF-139`). Solo acá — el título de la
  * vista de lectura sigue siendo texto, porque esa vista es de solo lectura de
  * punta a punta y un único elemento que sí se pueda tocar la vuelve mentira.
  *
@@ -48,18 +50,53 @@ export const renombrarPorTitulo = Facet.define<
   combine: (valores) => valores[0] ?? null,
 });
 
+/** Adónde va el foco al salir del título (`DEF-139`). */
+export type DestinoTrasTitulo =
+  /** Al principio del cuerpo: se confirmó el nombre y lo que sigue es escribir. */
+  | "cuerpo"
+  /** Adonde estaba el cursor: se descartó con Esc. */
+  | "cursor";
+
 /**
- * Dibuja el título en modo lectura: el nombre, y debajo el error si lo hubo.
+ * Quién devuelve el foco al editor al salir del título (`DEF-139`).
  *
- * El error sobrevive a salir de edición a propósito: es la respuesta a algo que
- * el usuario acaba de intentar, y se va cuando vuelve a intentarlo.
+ * No alcanza con `view.focus()` sobre la vista del widget: renombrar cambia el
+ * id de la nota (es su ruta), y el editor **destruye esa vista y crea otra**
+ * con el id nuevo. Para cuando el renombrado termina, `view` es una vista
+ * desmontada y el foco se iría a `<body>` —lo que se escribía después se
+ * perdía—. Quien monta el editor sabe cuál es la vista viva; sin él, se usa la
+ * del widget, que es lo correcto donde la vista no se recrea.
  */
-function pintarLectura(
-  cont: HTMLElement,
-  titulo: string,
-  error: string | null,
-  view: EditorView,
-) {
+export const salirDelTitulo = Facet.define<
+  (destino: DestinoTrasTitulo) => void,
+  ((destino: DestinoTrasTitulo) => void) | null
+>({
+  combine: (valores) => valores[0] ?? null,
+});
+
+/**
+ * Pone el foco en `view` según `destino`: al principio del cuerpo (después del
+ * frontmatter) o donde ya estaba el cursor.
+ */
+export function enfocarTrasTitulo(view: EditorView, destino: DestinoTrasTitulo) {
+  if (destino === "cuerpo") {
+    const pos = inicioDelCuerpo(view.state.doc.toString());
+    view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+  }
+  view.focus();
+}
+
+function devolverFoco(view: EditorView, destino: DestinoTrasTitulo) {
+  const salir = view.state.facet(salirDelTitulo);
+  if (salir !== null) salir(destino);
+  else enfocarTrasTitulo(view, destino);
+}
+
+/**
+ * Dibuja el título en modo lectura. El error de un nombre inválido ya no se
+ * muestra acá sino con el campo abierto (`DEF-139`, ver `pintarEdicion`).
+ */
+function pintarLectura(cont: HTMLElement, titulo: string, view: EditorView) {
   cont.textContent = "";
 
   const texto = document.createElement("div");
@@ -69,7 +106,6 @@ function pintarLectura(
   texto.addEventListener("click", () => pintarEdicion(cont, titulo, view));
   cont.appendChild(texto);
 
-  if (error !== null) cont.appendChild(cartelError(error));
   view.requestMeasure();
 }
 
@@ -82,8 +118,20 @@ function cartelError(motivo: string): HTMLElement {
   return el;
 }
 
-/** Abre el campo para escribir el nombre nuevo. */
-function pintarEdicion(cont: HTMLElement, titulo: string, view: EditorView) {
+/**
+ * Abre el campo para escribir el nombre nuevo.
+ *
+ * Con `rechazo` se reabre tras un nombre que no sirvió (`DEF-139`): el campo
+ * conserva lo que se escribió, el motivo va debajo y el foco sigue en el campo
+ * para corregirlo. Antes se volvía a lectura y el foco caía en `<body>`.
+ */
+function pintarEdicion(
+  cont: HTMLElement,
+  titulo: string,
+  view: EditorView,
+  rechazo: { propuesto: string; motivo: string } | null = null,
+  enfocar = true,
+) {
   cont.textContent = "";
 
   // La caja va FUERA del campo, no en él: el degradado del título se pinta con
@@ -96,46 +144,72 @@ function pintarEdicion(cont: HTMLElement, titulo: string, view: EditorView) {
 
   const campo = document.createElement("input");
   campo.className = "mic-doc-title-campo";
-  campo.value = titulo;
+  campo.value = rechazo?.propuesto ?? titulo;
   campo.spellcheck = false;
   campo.setAttribute("aria-label", "Nombre del archivo");
   caja.appendChild(campo);
-  campo.focus();
-  campo.select();
+  if (rechazo !== null) cont.appendChild(cartelError(rechazo.motivo));
+  if (enfocar) {
+    campo.focus();
+    campo.select();
+  }
   view.requestMeasure();
 
   // Salir del campo DESCARTA: renombrar mueve el archivo en disco y reescribe
   // los enlaces que le apuntan, así que no puede pasar por un clic distraído en
-  // cualquier otro sitio. Confirmar es siempre un acto: Enter.
+  // cualquier otro sitio. Confirmar es siempre un acto: Enter (o Tab).
   //
   // `cerrado` evita que confirmar con Enter dispare además el `blur` que viene
   // detrás, que descartaría lo que se acaba de renombrar.
   let cerrado = false;
 
-  const terminar = async (propuesto: string | null) => {
+  // ¿El foco sigue siendo nuestro? Renombrar es asíncrono: si mientras tanto el
+  // usuario hizo clic en otro control, no se lo saca de ahí. `<body>` cuenta
+  // como nuestro: es adonde cae el foco cuando la vista se desmonta al
+  // renombrar (`DEF-139`).
+  const focoNuestro = () => {
+    const activo = document.activeElement;
+    return activo === null || activo === campo || activo === document.body;
+  };
+
+  // Descartar con Esc devuelve el foco al editor, donde estaba el cursor; con un
+  // clic en otro lado no se toca: el foco ya se fue adonde el usuario hizo clic.
+  const terminar = async (propuesto: string | null, enfocar = true) => {
     if (cerrado) return;
     cerrado = true;
     if (propuesto === null) {
-      pintarLectura(cont, titulo, null, view);
+      pintarLectura(cont, titulo, view);
+      if (enfocar) devolverFoco(view, "cursor");
       return;
     }
     const renombrar = view.state.facet(renombrarPorTitulo);
     if (renombrar === null) {
-      pintarLectura(cont, titulo, null, view);
+      pintarLectura(cont, titulo, view);
+      devolverFoco(view, "cuerpo");
       return;
     }
     const r = await aplicarTitulo(titulo, propuesto, renombrar);
+    if (r.estado === "error") {
+      pintarEdicion(cont, titulo, view, { propuesto, motivo: r.motivo }, focoNuestro());
+      return;
+    }
     // En el caso bueno el título nuevo llega solo, por `setDocTitle`, cuando el
     // árbol del vault se recarga. Se vuelve a lectura con el viejo igual: es lo
     // que hay hasta que llegue, y el parpadeo dura menos que la recarga.
-    pintarLectura(cont, titulo, r.estado === "error" ? r.motivo : null, view);
+    const seguir = focoNuestro();
+    pintarLectura(cont, titulo, view);
+    // Con el nombre puesto, lo que sigue es escribir la nota (`DEF-139`). Vale
+    // también sin cambios: Enter sobre el nombre de una nota nueva la deja así.
+    if (seguir) devolverFoco(view, "cuerpo");
   };
 
   campo.addEventListener("keydown", (e) => {
     // El editor no debería verlas —`ignoreEvent` lo impide— pero un `Escape` con
     // oyentes globales por encima sí, y cerraría otra cosa de paso.
     e.stopPropagation();
-    if (e.key === "Enter") {
+    // Tab confirma igual que Enter: es la tecla de «siguiente campo», y el
+    // siguiente es el cuerpo (como en Obsidian). Shift+Tab no se toca.
+    if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
       e.preventDefault();
       void terminar(campo.value);
     } else if (e.key === "Escape") {
@@ -143,7 +217,7 @@ function pintarEdicion(cont: HTMLElement, titulo: string, view: EditorView) {
       void terminar(null);
     }
   });
-  campo.addEventListener("blur", () => void terminar(null));
+  campo.addEventListener("blur", () => void terminar(null, false));
 }
 
 /**
@@ -173,7 +247,7 @@ class TitleWidget extends WidgetType {
   toDOM(view: EditorView) {
     const el = document.createElement("div");
     el.className = "mic-doc-title mic-doc-title-editor";
-    pintarLectura(el, this.title, null, view);
+    pintarLectura(el, this.title, view);
     return el;
   }
   updateDOM(dom: HTMLElement, view: EditorView) {
@@ -181,7 +255,7 @@ class TitleWidget extends WidgetType {
     // Pasa de verdad: guardar la nota dispara transacciones mientras se teclea
     // el nombre.
     if (dom.querySelector("input") !== null) return true;
-    pintarLectura(dom, this.title, null, view);
+    pintarLectura(dom, this.title, view);
     return true;
   }
   ignoreEvent() {
