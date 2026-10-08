@@ -9,7 +9,9 @@
 //   - el filtro se resuelve por el índice `idx_propiedades_plegado`, no
 //     recorriendo las propiedades de cada nota;
 //   - `clave:"valor con espacios"` pide el valor entero, y sin comillas alcanza
-//     con una palabra del valor que empiece así (`DEF-145`).
+//     con una palabra del valor que empiece así (`DEF-145`);
+//   - el título que coincide con la consulta sale primero, antes que las notas
+//     que solo la mencionan (`DEF-146`).
 //
 // Necesita `better-sqlite3`, como `test-indexado-dirigido.mjs`: se busca en
 // `node_modules` y, si no, en la carpeta que diga `MYCELIUM_BETTER_SQLITE3`;
@@ -282,4 +284,74 @@ test("el filtro usa el índice de las columnas plegadas", { skip: sinSqlite }, a
     // del valor se evalúa solo sobre las filas de esa clave).
     assert.match(plan, /idx_propiedades_plegado \(clave_plegada=/, plan);
   }
+});
+
+// --- Orden de los resultados (`DEF-146`) -----------------------------------
+// Buscar el título de una nota la pone primera: antes, el orden era solo bm25
+// sobre el documento entero, y la nota «Tomate» salía detrás de todas las que
+// mencionaban el tomate varias veces.
+
+/** Los títulos en el orden en que vuelven (sin ordenar). */
+const enOrden = async (q, exacto = false, campo = "ambos") =>
+  (await buscar(LOCAL_VAULT_ID, q, exacto, campo)).resultados.map((r) => r.titulo);
+
+/** Un vault con la nota «Tomate» y muchas que hablan del tomate en el cuerpo. */
+function huertaConTomates(cuantas = 17) {
+  const archivos = {
+    // Cuerpo largo y sin repetir la palabra: lo peor para bm25.
+    "Tomate.md": "---\nfamilia: solanáceas\n---\n" + "Planta de verano que pide sol y riego. ".repeat(40),
+    "Tomates cherry.md": "Variedad chica.\n",
+    "Riego del tomate.md": "Cada dos días.\n",
+    "Tómate un respiro.md": "Una pausa.\n",
+  };
+  for (let i = 0; i < cuantas; i++) {
+    archivos[`Nota ${i}.md`] = `---\nfamilia: solanáceas\n---\nEl tomate, tomate y más tomate ${i}.\n`;
+  }
+  return archivos;
+}
+
+test("el título idéntico a la consulta sale primero, sin tildes ni mayúsculas", { skip: sinSqlite }, async () => {
+  await abrir(huertaConTomates());
+  for (const q of ["Tomate", "tomate", "TOMATE", "tomaté"]) {
+    assert.equal((await enOrden(q))[0], "Tomate", q);
+  }
+  assert.equal((await enOrden("tomate", true))[0], "Tomate", "con Búsqueda exacta");
+  assert.equal((await enOrden("tomate", false, "nombre"))[0], "Tomate", "solo por nombre");
+});
+
+test("después, los títulos que empiezan con la consulta y los que la contienen; al final, el contenido", { skip: sinSqlite }, async () => {
+  await abrir(huertaConTomates());
+  const r = await enOrden("tomate");
+  // Empiezan con «tomate», del más corto al más largo (prefijo: también «Tomates»).
+  assert.deepEqual(r.slice(0, 4), ["Tomate", "Tomates cherry", "Tómate un respiro", "Riego del tomate"]);
+  assert.ok(r.slice(4).every((t) => t.startsWith("Nota ")), r.join(", "));
+  // Con «Búsqueda exacta», «Tomates» ya no coincide.
+  assert.deepEqual((await enOrden("tomate", true)).slice(0, 3), ["Tomate", "Tómate un respiro", "Riego del tomate"]);
+});
+
+test("una consulta de varias palabras: primero el título que empieza con la frase", { skip: sinSqlite }, async () => {
+  await abrir({
+    ...huertaConTomates(3),
+    "Plan de riego.md": "Riego del tomate y del ají.\n",
+  });
+  assert.equal((await enOrden("riego del tomate"))[0], "Riego del tomate");
+  assert.equal((await enOrden('"riego del"'))[0], "Riego del tomate");
+});
+
+test("con más de 50 coincidencias, la nota del título no se queda afuera del límite", { skip: sinSqlite }, async () => {
+  await abrir(huertaConTomates(80));
+  const r = await enOrden("tomate");
+  assert.equal(r.length, 50);
+  assert.equal(r[0], "Tomate");
+});
+
+test("con filtros, el texto libre ordena igual", { skip: sinSqlite }, async () => {
+  await abrir(huertaConTomates());
+  const r = await enOrden("familia:solanaceas tomate");
+  assert.equal(r[0], "Tomate");
+  assert.ok(!r.includes("Tomates cherry"), "el filtro sigue filtrando");
+  // `tag:` no es texto libre: no ordena por título (ni rompe la consulta).
+  assert.ok(Array.isArray(await enOrden("tag:tomate")));
+  // Puntuación suelta junto al texto tampoco rompe el orden.
+  assert.equal((await enOrden("tomate -"))[0], "Tomate");
 });

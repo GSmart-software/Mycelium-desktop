@@ -47,6 +47,12 @@ notas activas.
 No importan las mayúsculas ni las tildes, tampoco en los filtros: «pulgon» encuentra
 «Pulgón», y `familia:solanaceas` encuentra las notas con `familia: Solanáceas`.
 
+Primero aparece la nota cuyo **nombre es lo que escribiste** —buscar «tomate» pone primera
+la nota «Tomate», aunque otras lo mencionen más veces—, después las notas cuyo nombre
+empieza con eso o lo contiene, y al final las que lo tienen solo en el contenido,
+ordenadas por relevancia. Con filtros, el orden es el mismo entre las notas que los
+cumplen.
+
 - El botón dentro del campo cambia **dónde** se busca: **nombre y contenido**, **solo el
   nombre** o **solo el contenido**.
 - El botón de al lado **agrupa los resultados por carpeta** o los vuelve a mostrar como

@@ -168,3 +168,41 @@ export function buildFtsQuery(
 
   return parts.join(" ");
 }
+
+/**
+ * Las dos consultas FTS sobre el TÍTULO con las que se ordenan los resultados
+ * (`DEF-146`): el texto libre de la consulta —sin filtros `clave:valor` (ya
+ * separados en `raw`) ni `tag:x`, que buscan otra cosa— como
+ *
+ * - `empieza`: el título EMPIEZA con ese texto, como frase (`^` de FTS5: desde
+ *   la primera palabra del título). El título idéntico a la consulta es el más
+ *   corto de este grupo, y por eso la consulta ordena el grupo por largo.
+ * - `contiene`: el título tiene todas las palabras, en cualquier lugar.
+ *
+ * Usan el mismo tokenizador que la búsqueda, así que «tomate» empieza
+ * «Tómate un respiro» igual que encuentra «Tomate» en el cuerpo: sin tildes ni
+ * mayúsculas. `prefix` (búsqueda NO exacta) le pone `*` a la última palabra,
+ * como en `buildFtsQuery`.
+ *
+ * `null` si no hay texto libre con alguna letra o número: solo filtros, solo
+ * etiquetas o pura puntuación no tienen título con el que compararse (y una
+ * frase vacía en FTS5 es un error).
+ */
+export function consultasDeTitulo(
+  raw: string,
+  prefix = false,
+): { empieza: string; contiene: string } | null {
+  const libres = tokensDeConsulta(raw)
+    .filter((t) => !t.toLowerCase().startsWith("tag:"))
+    .map((t) => (t.length > 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t))
+    // Una comilla suelta o un guion no son palabras para el tokenizador: como
+    // frase quedarían vacíos.
+    .filter((t) => /[\p{L}\p{N}]/u.test(t));
+  if (libres.length === 0) return null;
+  const texto = libres.join(" ");
+  const star = prefix ? "*" : "";
+  return {
+    empieza: `titulo : ^"${texto.replaceAll('"', '""')}"${star}`,
+    contiene: libres.map((t) => `titulo : "${t.replaceAll('"', '""')}"${star}`).join(" "),
+  };
+}
