@@ -36,6 +36,7 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 /** Clave de `sessionStorage` con la ruta del vault abierto (sobrevive recargas). */
 const CLAVE_VAULT_ABIERTO = "mycelium:vault-abierto";
@@ -240,12 +241,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // `invoke` de Tauri rechaza con un STRING, no con un `Error`: sin esta
       // rama, el motivo real —«Ese vault ya está abierto en otra ventana»— se
       // perdía y el usuario veía «Error desconocido».
-      const message =
-        typeof error === "string"
-          ? error
-          : error instanceof Error
-            ? error.message
-            : "Error desconocido";
+      const message = mensajeDeError(error);
       set({
         abriendo: false,
         rutaAbriendo: null,

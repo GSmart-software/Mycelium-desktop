@@ -26,6 +26,7 @@ import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
+import { avisarFallo } from "@/stores/avisosStore";
 import { useVaultStore, type TreeCarpeta } from "@/stores/vaultStore";
 import { IconoGrafo } from "./IconoGrafo";
 import styles from "./PaletaComandos.module.css";
@@ -303,7 +304,12 @@ export function PaletaComandos() {
   const ejecutar = (o: Opcion | undefined) => {
     if (!o) return;
     cerrar();
-    void o.ejecutar();
+    // `DEF-136`: un comando que falla —crear una nota, sobre todo— se avisa en
+    // vez de quedar como promesa rechazada sin capturar. `Promise.resolve`
+    // cubre también los comandos síncronos que lanzan.
+    void Promise.resolve()
+      .then(() => o.ejecutar())
+      .catch(avisarFallo(`ejecutar «${o.titulo}»`));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

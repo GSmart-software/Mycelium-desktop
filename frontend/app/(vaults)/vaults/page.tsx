@@ -13,6 +13,7 @@ import {
 import { AperturaVault } from "@/components/vault/AperturaVault";
 import { FranjaVentana } from "@/components/ventana/FranjaVentana";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
+import { mensajeDeError } from "@/lib/mensajeError";
 import styles from "./page.module.css";
 
 /**
@@ -47,7 +48,7 @@ export default function VaultsPage() {
       setVaults(lista);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo leer el registro de vaults.");
+      setError(mensajeDeError(e, "No se pudo leer el registro de vaults."));
     } finally {
       setCargando(false);
     }
@@ -65,7 +66,7 @@ export default function VaultsPage() {
       await vincularVault(elegido);
       await refrescar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo vincular la carpeta.");
+      setError(mensajeDeError(e, "No se pudo vincular la carpeta."));
     }
   }
 
@@ -101,7 +102,7 @@ export default function VaultsPage() {
       await desvincularVault(ruta);
       await refrescar();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo quitar el vault.");
+      setError(mensajeDeError(e, "No se pudo quitar el vault."));
     }
   }
 

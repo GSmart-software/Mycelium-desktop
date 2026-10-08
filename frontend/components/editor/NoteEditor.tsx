@@ -48,7 +48,7 @@ import {
 } from "@/lib/guardadoPendiente";
 import { EVENTO_RECARGA } from "@/lib/vaultWatch";
 import { refUnivoca } from "@/lib/wikilinks";
-import { avisar } from "@/stores/avisosStore";
+import { avisar, avisarFallo } from "@/stores/avisosStore";
 import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -1044,10 +1044,13 @@ export function NoteEditor({
     if (!viewRef.current) return;
     const vault = useVaultStore.getState();
     const carpetaId = vault.notas.find((n) => n.id === notaId)?.carpetaId ?? null;
-    void vault.createNota(carpetaId, "excalidraw").then((newId) => {
-      insertarEmbedDeDibujo(newId);
-      setEditingFile(newId); // abrir el editor embebido del nuevo dibujo
-    });
+    void vault
+      .createNota(carpetaId, "excalidraw")
+      .then((newId) => {
+        insertarEmbedDeDibujo(newId);
+        setEditingFile(newId); // abrir el editor embebido del nuevo dibujo
+      })
+      .catch(avisarFallo("crear el dibujo")); // `DEF-136`
   }, [notaId, insertarEmbedDeDibujo]);
 
   /**
