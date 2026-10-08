@@ -16,7 +16,7 @@ import styles from "./GraphOptionsMenu.module.css";
  * nombres a la vez tapan las conexiones, que es lo que el grafo viene a mostrar.
  */
 const NOMBRES: { value: ModoNombresGrafo; label: string; ayuda: string }[] = [
-  { value: "todos", label: "Todos", ayuda: "El nombre de cada nodo visible" },
+  { value: "todos", label: "Todos", ayuda: "El nombre de cada nodo visible; al alejar mucho, se desvanecen" },
   {
     value: "vecinos",
     label: "Vecinos",
