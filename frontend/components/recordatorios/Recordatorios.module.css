@@ -530,11 +530,19 @@
 /* El detalle renderizado usa `.mic-preview` para heredar el estilo de lectura
    (enlaces, callouts, listas), pero no su papel de PANEL: ni alto completo ni
    scroll propio ni el fondo del lienzo. */
+/* `DEF-150 f`: el detalle se renderiza con `.mic-preview` (enlaces, listas,
+   código), pero en la letra de la INTERFAZ, no en la del modo lectura. El
+   popup es una pieza de interfaz —título, fecha, repetición y botones van en
+   la sans— y el detalle es una anotación de dos o tres líneas, no un
+   documento: con la serif del preview, el popup mezclaba dos letras (tres,
+   con la del editor detrás). Igual que la descripción de un evento en
+   cualquier calendario. El código adentro sigue en monoespaciada. */
 .detalle:global(.mic-preview) {
   height: auto;
   overflow: visible;
   padding: 0;
   background: transparent;
+  font-family: var(--mic-font-sans);
   font-size: 0.9rem;
   line-height: 1.6;
 }
@@ -758,10 +766,12 @@
   mask-image: none;
 }
 
+/* La misma letra de interfaz que el detalle del popup (`DEF-150 f`). */
 .tarjetaDetalle:global(.mic-preview) {
   height: auto;
   padding: 0;
   background: transparent;
+  font-family: var(--mic-font-sans);
   font-size: 0.8125rem;
   line-height: 1.5;
 }
