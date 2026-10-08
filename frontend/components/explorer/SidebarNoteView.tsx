@@ -23,6 +23,7 @@ import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "../workspace/SidebarDock.module.css";
@@ -220,10 +221,12 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
       rellenarImagenesEn(containerRef.current, carpeta);
     }
   }, [html, notaId, otros, carpeta]);
+  // Mismo objeto mientras el efecto de arriba no vuelva a correr (`DEF-133`).
+  const inner = useHtmlDecorable(html, [notaId, otros, carpeta]);
 
   return (
     <div ref={containerRef} className="mic-preview mic-layout-read">
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div dangerouslySetInnerHTML={inner} />
     </div>
   );
 }

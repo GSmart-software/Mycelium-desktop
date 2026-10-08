@@ -9,6 +9,7 @@ import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./panes.module.css";
@@ -74,6 +75,8 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
       rellenarImagenesEn(containerRef.current, carpeta);
     }
   }, [html, sourceNotaId, otros, carpeta]);
+  // Mismo objeto mientras el efecto de arriba no vuelva a correr (`DEF-133`).
+  const inner = useHtmlDecorable(html, [sourceNotaId, otros, carpeta]);
 
   // Scroll sincronizado opcional con el editor de origen (HU-27 CA4)
   useEffect(() => {
@@ -103,7 +106,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
 
   return (
     <div ref={containerRef} className="mic-preview mic-layout-read">
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div dangerouslySetInnerHTML={inner} />
     </div>
   );
 }
