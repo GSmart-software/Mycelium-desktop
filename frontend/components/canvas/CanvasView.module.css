@@ -181,6 +181,14 @@
   user-select: none;
 }
 
+/* Sin rótulo (`DEF-150 i`, tarjetas de texto y de enlace): una franja fina,
+   pero con alto suficiente para agarrarla con el mouse. */
+.asaSinTitulo {
+  min-height: 12px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .asaTitulo {
   overflow: hidden;
   white-space: nowrap;
@@ -228,7 +236,10 @@
   border: none;
   background: transparent;
   color: var(--mic-text-primary);
-  font-family: var(--mic-font-mono);
+  /* La fuente del editor que eligió el usuario (Configuración → Tipografía),
+     como al escribir una nota; al salir, la tarjeta se lee con la del preview
+     (`.mic-preview`), como una nota en lectura (`DEF-150 i`). */
+  font-family: var(--mic-editor-font-family);
   font-size: 0.8rem;
   line-height: 1.5;
   resize: none;

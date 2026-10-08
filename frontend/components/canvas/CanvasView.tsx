@@ -995,6 +995,9 @@ function NodoVista({
     if (cuerpoRef.current) markMissingWikilinks(cuerpoRef.current, notas, carpetas);
   }, [html, notas, carpetas]);
 
+  /** Tarjetas cuya asa no lleva rótulo: su contenido ya dice lo que son. */
+  const sinRotulo = nodo.tipo === "text" || nodo.tipo === "link";
+
   const clases = [
     styles.nodo,
     seleccionado ? styles.nodoSel : "",
@@ -1034,7 +1037,12 @@ function NodoVista({
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
           seleccionar texto ni pulsar un enlace dentro de ella. */}
       <div
-        className={css ? `${styles.asa} ${styles.asaColor}` : styles.asa}
+        className={[styles.asa, css ? styles.asaColor : "", sinRotulo ? styles.asaSinTitulo : ""]
+          .filter(Boolean)
+          .join(" ")}
+        // Una tarjeta de texto o de enlace no lleva rótulo (`DEF-150 i`): el asa
+        // queda como una franja fina, y el tooltip dice para qué está.
+        title={sinRotulo ? "Arrastrar para mover" : undefined}
         onPointerDown={(e) => {
           e.stopPropagation();
           onSeleccionar();
@@ -1042,13 +1050,15 @@ function NodoVista({
         }}
         onDoubleClick={() => nodo.tipo === "text" && onEditar()}
       >
-        <span className={styles.asaTitulo}>
-          {nodo.tipo === "file"
-            ? (nota?.titulo ?? nodo.archivo ?? "")
-            : nodo.tipo === "group"
-              ? (nodo.etiqueta ?? "Grupo")
-              : "Texto"}
-        </span>
+        {/* El rótulo dice algo en una tarjeta de nota (su título) o en un grupo
+            (su etiqueta); en una de texto, «Texto» era ruido: lo que es ya se
+            ve en su contenido (`DEF-150 i`). Lo mismo una de enlace, que ya
+            muestra su URL. */}
+        {!sinRotulo && (
+          <span className={styles.asaTitulo}>
+            {nodo.tipo === "file" ? (nota?.titulo ?? nodo.archivo ?? "") : (nodo.etiqueta ?? "Grupo")}
+          </span>
+        )}
         {nodo.tipo === "file" && nota !== undefined && (
           <button
             type="button"

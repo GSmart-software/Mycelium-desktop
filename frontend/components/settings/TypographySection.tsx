@@ -81,8 +81,9 @@ export function TypographySection() {
         <Explicacion
           detalle={
             <p>
-              Se usa en el modo lectura y en la mitad renderizada del modo dividido. El código
-              sigue en monoespaciada.
+              Se usa en el modo lectura, en la mitad renderizada del modo dividido y en el texto
+              de las tarjetas de un lienzo (mientras escribís en una, va la del editor). El
+              código sigue en monoespaciada.
             </p>
           }
         >
