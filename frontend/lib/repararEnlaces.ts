@@ -13,6 +13,14 @@
  */
 import { api } from "@/lib/api";
 import { reescribirEnlacesMovidos, type CambioDeRuta } from "@/lib/enlaces";
+import {
+  involucradas,
+  planHomonimos,
+  repararTexto,
+  trasTraslados,
+  type NotaRuta,
+  type PlanHomonimos,
+} from "@/lib/homonimos";
 
 /** Qué pasó con los enlaces entrantes. Ids (rutas) después del cambio. */
 export type Reparacion = {
@@ -20,9 +28,14 @@ export type Reparacion = {
   reescritas: string[];
   /** Las que enlazaban pero no se pudieron leer o escribir: quedan con el enlace viejo. */
   fallidas: string[];
+  /**
+   * De `reescritas`, las que recibieron al menos un enlace **con ruta** para que
+   * siguiera llevando a la misma nota entre homónimas (`DEF-134`).
+   */
+  conRuta: string[];
 };
 
-export const SIN_REPARACION: Reparacion = { reescritas: [], fallidas: [] };
+export const SIN_REPARACION: Reparacion = { reescritas: [], fallidas: [], conRuta: [] };
 
 /** Un archivo que se renombra o se mueve: su id antes y después, y el cambio. */
 export type Movido = { id: string; idNuevo: string; cambio: CambioDeRuta };
@@ -85,33 +98,43 @@ export async function entrantesDe(
  *
  * Si una nota falla se sigue con las demás —es preferible reparar nueve de
  * diez enlaces que abortar y dejar los diez rotos— y queda en `fallidas`.
+ *
+ * Con `homonimos` (`DEF-134`), cada enlace se decide por **a qué archivo
+ * resolvía antes y a cuál resuelve después** (`lib/homonimos.ts`), y el que
+ * cambiaría de destino se escribe con su ruta. Sin él, la reparación de siempre
+ * por título y pista (`reescribirEnlacesMovidos`).
  */
 export async function repararEntrantes(
   entrantes: Map<string, Set<string>>,
   movidos: readonly Movido[],
   token: string | null | undefined,
   simular = false,
+  homonimos?: PlanHomonimos,
 ): Promise<Reparacion> {
   const porId = new Map(movidos.map((m) => [m.id, m]));
   const reescritas: string[] = [];
   const fallidas: string[] = [];
+  const conRuta: string[] = [];
   for (const [desde, destinos] of entrantes) {
     const cambios = [...destinos].map((d) => porId.get(d)?.cambio).filter((c): c is CambioDeRuta => !!c);
-    if (cambios.length === 0) continue;
+    if (!homonimos && cambios.length === 0) continue;
     const id = simular ? desde : (porId.get(desde)?.idNuevo ?? desde);
     try {
       const actual = await api<{ contenido: string | null }>(`/notas/${encodeURIComponent(id)}/contenido`, { token });
-      const { texto, cambios: n } = reescribirEnlacesMovidos(actual.contenido ?? "", cambios);
-      if (n === 0) continue;
+      const r = homonimos
+        ? repararTexto(actual.contenido ?? "", homonimos)
+        : { ...reescribirEnlacesMovidos(actual.contenido ?? "", cambios), conRuta: 0 };
+      if (r.cambios === 0) continue;
       if (!simular) {
-        await api(`/notas/${encodeURIComponent(id)}/contenido`, { method: "PUT", token, body: { contenido: texto } });
+        await api(`/notas/${encodeURIComponent(id)}/contenido`, { method: "PUT", token, body: { contenido: r.texto } });
       }
       reescritas.push(id);
+      if (r.conRuta > 0) conRuta.push(id);
     } catch {
       fallidas.push(id);
     }
   }
-  return { reescritas, fallidas };
+  return { reescritas, fallidas, conRuta };
 }
 
 /** El cambio de un archivo que se renombra (misma carpeta). */
@@ -152,4 +175,55 @@ export function movidosPorCarpeta(
     });
   }
   return salida;
+}
+
+// ── Homónimos (`DEF-134`) ───────────────────────────────────────────────────
+
+/**
+ * Lo que hay que leer **antes** de una operación para que después ningún enlace
+ * cambie de destino: el vault de antes, las notas involucradas
+ * (`lib/homonimos.ts`, `involucradas`) y quién las enlaza. Después de la
+ * operación el índice ya re-resolvió los títulos y no sabría decir a dónde iba
+ * cada enlace.
+ */
+export type Previa = {
+  antes: NotaRuta[];
+  involucradas: string[];
+  entrantes: Map<string, Set<string>>;
+};
+
+/**
+ * `trasladadas`: los ids que cambian de ruta (vacío al crear). `titulos`: los
+ * títulos con que quedan las notas tocadas —el nuevo al renombrar, el de la
+ * nota que se crea—, para sumar a sus homónimas. Puede llevar más de una
+ * versión del mismo título (el pedido y el saneado): sobra, no falta.
+ */
+export async function leerPrevia(
+  antes: readonly NotaRuta[],
+  trasladadas: readonly string[],
+  titulos: readonly string[],
+  vaultId: string,
+  token: string | null | undefined,
+): Promise<Previa> {
+  const inv = involucradas(antes, trasladadas, titulos);
+  return { antes: [...antes], involucradas: inv, entrantes: await entrantesDe(inv, vaultId, token) };
+}
+
+/**
+ * Repara los enlaces después de la operación: `movidos` son los archivos que
+ * cambiaron de ruta (con sus ids reales, o los previstos si `simular`) y
+ * `nuevas` las notas que aparecieron (crear, duplicar).
+ */
+export async function repararTrasOperacion(
+  previa: Previa,
+  movidos: readonly Movido[],
+  nuevas: readonly NotaRuta[],
+  token: string | null | undefined,
+  simular = false,
+): Promise<Reparacion> {
+  if (previa.entrantes.size === 0) return SIN_REPARACION;
+  const traslados = movidos.map((m) => ({ id: m.id, idNuevo: m.idNuevo, titulo: m.cambio.tituloNuevo, cambio: m.cambio }));
+  const despues = [...trasTraslados(previa.antes, traslados), ...nuevas];
+  const plan = planHomonimos(previa.antes, despues, previa.involucradas, traslados);
+  return repararEntrantes(previa.entrantes, movidos, token, simular, plan);
 }

@@ -44,10 +44,10 @@ import {
 import {
   cambioRenombrar,
   carpetaDeRuta,
-  entrantesDe,
   extensionDeRuta,
+  leerPrevia,
   movidosPorCarpeta,
-  repararEntrantes,
+  repararTrasOperacion,
   tituloDeRuta,
   type Movido,
   type Reparacion,
@@ -160,13 +160,17 @@ type Plan = {
 
 /**
  * El alcance: qué notas habría que reescribir para reparar los enlaces. Se
- * simula (se lee, no se escribe) con el mismo código que después repara.
+ * simula (se lee, no se escribe) con el mismo código que después repara,
+ * homónimos incluidos (`DEF-134`): los enlaces a otra nota que se llama como la
+ * renombrada o la movida, y que pasarían a llevar la ruta, también cuentan.
  */
 async function alcance(plan: Plan): Promise<string[]> {
-  const vaultId = useVaultStore.getState().vaultId;
+  const { vaultId, notas } = useVaultStore.getState();
   if (vaultId === null) return [];
-  const entrantes = await entrantesDe(plan.afectadas, vaultId, token());
-  return (await repararEntrantes(entrantes, plan.movidos, token(), true)).reescritas;
+  const antes = notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo }));
+  const titulos = plan.movidos.map((m) => m.cambio.tituloNuevo);
+  const previa = await leerPrevia(antes, plan.afectadas, titulos, vaultId, token());
+  return (await repararTrasOperacion(previa, plan.movidos, [], token(), true)).reescritas;
 }
 
 /**
