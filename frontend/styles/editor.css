@@ -280,6 +280,21 @@
   border-bottom-right-radius: var(--mic-radius-md);
   padding-bottom: 0.2em;
 }
+/* La cerca ``` con el cursor fuera del bloque (DEF-150 k): la de apertura
+   muestra solo el lenguaje, chico y a la derecha; la de cierre queda vacía.
+   Ocupa la línea entera para que no colapse su alto. */
+.mic-live-code-lang {
+  display: inline-block;
+  width: 100%;
+  min-height: 1em;
+  text-align: right;
+  font-family: var(--mic-font-sans);
+  font-size: 0.72em;
+  letter-spacing: 0.03em;
+  color: var(--mic-text-muted);
+  user-select: none;
+  cursor: text;
+}
 
 /* Regla horizontal (--- *** ___) en la edición en vivo: separador de página */
 .mic-live-hr {

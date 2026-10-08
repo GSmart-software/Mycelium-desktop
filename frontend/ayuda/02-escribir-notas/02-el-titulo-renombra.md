@@ -53,6 +53,11 @@ campo, que sigue abierto con lo que escribiste para que lo corrijas. Si lo desca
 Los espacios de más al final se recortan solos. Las reglas son las de Windows aunque uses
 otro sistema, para que el vault se pueda copiar a cualquier computadora.
 
+Desde el **explorador** (clic derecho → **Renombrar**, o **F2**) el campo se abre con el
+nombre seleccionado, sin la extensión: lo que escribas lo reemplaza. Ahí, si el nombre
+lleva alguno de esos caracteres, Mycelium no lo rechaza: lo cambia por `-` y te avisa
+cuáles reemplazó y cómo quedó el nombre.
+
 > [!warning] Fuera de Mycelium, los enlaces no se reparan
 > Si renombrás o movés el archivo desde el explorador del sistema o con la terminal,
 > Mycelium ve el cambio pero no reescribe los enlaces de las otras notas: quedan

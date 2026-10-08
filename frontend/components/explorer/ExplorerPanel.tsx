@@ -61,7 +61,7 @@ import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
-import { useTabsStore } from "@/stores/tabsStore";
+import { allLeaves, useTabsStore } from "@/stores/tabsStore";
 import { avisar, avisarFallo, avisarSiFallo } from "@/stores/avisosStore";
 import { refrescarVault } from "@/lib/vaultWatch";
 import {
@@ -336,6 +336,56 @@ export function ExplorerPanel() {
     }
     return cadena;
   }, [carpetaDelActivo, carpetasById]);
+
+  /**
+   * Revelar el archivo al ABRIRLO (`DEF-150 a`): desplegar las carpetas que
+   * llevan a él y desplazar el árbol hasta su fila. Antes solo se resaltaba la
+   * carpeta (el rastro de `DEF-069`), plegada, y había que ir a buscarlo.
+   *
+   * Solo cuando la pestaña activa pasa a ser una nota que NO estaba abierta en
+   * ninguna pestaña —abrirla por enlace, búsqueda, paleta o explorador—, y no al
+   * volver a una pestaña que ya estaba: si el usuario plegó una carpeta a
+   * propósito, cambiar de pestaña no se la vuelve a abrir. Es el término medio
+   * entre las dos opciones de Obsidian («Revelar el archivo activo» prendido:
+   * revela siempre; apagado: nunca) sin agregar un ajuste más. Se escucha el
+   * store de pestañas y no la URL porque hace falta el estado de ANTES del
+   * cambio: cuando la URL cambia, la pestaña nueva ya está abierta.
+   */
+  useEffect(() => {
+    const activaDe = (s: ReturnType<typeof useTabsStore.getState>) => {
+      const hoja = allLeaves(s.root).find((l) => l.id === s.activePaneId);
+      return hoja?.tabs.find((t) => t.id === hoja.activeTabId)?.notaId ?? null;
+    };
+    let pendiente = 0;
+    const desuscribir = useTabsStore.subscribe((s, previo) => {
+      const activa = activaDe(s);
+      if (activa === null || activa === activaDe(previo)) return;
+      const yaAbierta = allLeaves(previo.root).some((l) => l.tabs.some((t) => t.notaId === activa));
+      if (yaAbierta) return;
+      const vs = useVaultStore.getState();
+      const nota = vs.notas.find((n) => n.id === activa);
+      if (!nota) return; // una consola, el grafo, un archivo no indexado…
+      const porId = new Map(vs.carpetas.map((c) => [c.id, c]));
+      const cadena: string[] = [];
+      for (let c = nota.carpetaId; c !== null && !cadena.includes(c); c = porId.get(c)?.padreId ?? null) {
+        cadena.push(c);
+      }
+      vs.expandirCarpetas(cadena);
+      // La fila existe recién después de que el árbol se dibuje desplegado.
+      cancelAnimationFrame(pendiente);
+      pendiente = requestAnimationFrame(() => {
+        pendiente = requestAnimationFrame(() => {
+          arbolRef.current
+            ?.querySelector<HTMLElement>(`[data-arbol-id="${CSS.escape(`nota:${activa}`)}"]`)
+            ?.scrollIntoView({ block: "nearest" });
+        });
+      });
+    });
+    return () => {
+      desuscribir();
+      cancelAnimationFrame(pendiente);
+    };
+  }, []);
 
 
   const sensors = useSensors(
@@ -1171,8 +1221,22 @@ function RenameInput({
   onRenameCommit,
   onRenameCancel,
 }: Omit<RowRenameProps, "renaming">) {
+  // Al entrar en renombrado, el nombre queda seleccionado entero, como en
+  // Obsidian o en el explorador del sistema: escribir lo reemplaza y una flecha
+  // lleva al principio o al final (`DEF-150 e`). El valor que llega ya es el
+  // nombre SIN extensión (título de la nota, `nombreSinExtension` de un archivo
+  // o el nombre de la carpeta), así que seleccionar todo es seleccionar el
+  // nombre. Solo al montar: después, la selección es del usuario.
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
   return (
     <input
+      ref={ref}
       className={styles.renameInput}
       value={renameValue}
       autoFocus

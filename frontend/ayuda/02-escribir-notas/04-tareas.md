@@ -45,7 +45,8 @@ subtareas conservan el suyo:
 > [!tip] Con el teclado
 > En la vista de lectura, Tab llega a la casilla, Espacio la alterna y la tecla de menú
 > (o Shift+F10) abre el menú de estados. En la vista en vivo, con el cursor en la línea
-> se ve el marcador en crudo y el símbolo se cambia a mano.
+> se ve el marcador en crudo (`- [ ]`) y el símbolo se cambia a mano; fuera de ella, el
+> `- ` se esconde y queda solo la casilla.
 
 Cualquier otro símbolo entre los corchetes se ve como hecha. `- []` (sin espacio) o
 `- [xx]` no son tareas.

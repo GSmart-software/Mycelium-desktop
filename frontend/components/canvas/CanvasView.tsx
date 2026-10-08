@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
+  ALTO_TARJETA,
+  ANCHO_TARJETA,
   anclaDe,
   buscarPorPrefijo,
   cajaDeNodos,
@@ -12,6 +14,7 @@ import {
   COLORES,
   encuadrar,
   ladosAutomaticos,
+  lugarLibre,
   nodoArchivo,
   nodoTexto,
   nuevaArista,
@@ -538,7 +541,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
     // Crear la tarjeta y escribir su texto es UN paso: el gesto se abre antes
     // de crearla, así que deshacer se lleva la tarjeta con lo escrito.
     abrirGesto(`texto:${id}`);
-    cambiar((c) => ({ ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] }), true);
+    // En el lugar libre más cercano al centro, no encima de otra tarjeta
+    // (`DEF-150 h`). `lugarLibre` es pura: puede ir dentro del actualizador.
+    cambiar((c) => {
+      const q = lugarLibre(c.nodos, p, ANCHO_TARJETA, ALTO_TARJETA);
+      return { ...c, nodos: [...c.nodos, nodoTexto(id, q.x, q.y)] };
+    }, true);
     setEditando(id);
     setSeleccion(id);
   };
@@ -549,10 +557,11 @@ export function CanvasView({ notaId }: { notaId: string }) {
     setEligiendoNota(false);
     // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
     // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
-    cambiar((c) => ({
-      ...c,
-      nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))],
-    }));
+    cambiar((c) => {
+      const nueva = nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino));
+      const q = lugarLibre(c.nodos, p, nueva.ancho, nueva.alto); // `DEF-150 h`
+      return { ...c, nodos: [...c.nodos, { ...nueva, x: q.x, y: q.y }] };
+    });
     setSeleccion(id);
   };
 
@@ -986,6 +995,9 @@ function NodoVista({
     if (cuerpoRef.current) markMissingWikilinks(cuerpoRef.current, notas, carpetas);
   }, [html, notas, carpetas]);
 
+  /** Tarjetas cuya asa no lleva rótulo: su contenido ya dice lo que son. */
+  const sinRotulo = nodo.tipo === "text" || nodo.tipo === "link";
+
   const clases = [
     styles.nodo,
     seleccionado ? styles.nodoSel : "",
@@ -1025,7 +1037,12 @@ function NodoVista({
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
           seleccionar texto ni pulsar un enlace dentro de ella. */}
       <div
-        className={css ? `${styles.asa} ${styles.asaColor}` : styles.asa}
+        className={[styles.asa, css ? styles.asaColor : "", sinRotulo ? styles.asaSinTitulo : ""]
+          .filter(Boolean)
+          .join(" ")}
+        // Una tarjeta de texto o de enlace no lleva rótulo (`DEF-150 i`): el asa
+        // queda como una franja fina, y el tooltip dice para qué está.
+        title={sinRotulo ? "Arrastrar para mover" : undefined}
         onPointerDown={(e) => {
           e.stopPropagation();
           onSeleccionar();
@@ -1033,13 +1050,15 @@ function NodoVista({
         }}
         onDoubleClick={() => nodo.tipo === "text" && onEditar()}
       >
-        <span className={styles.asaTitulo}>
-          {nodo.tipo === "file"
-            ? (nota?.titulo ?? nodo.archivo ?? "")
-            : nodo.tipo === "group"
-              ? (nodo.etiqueta ?? "Grupo")
-              : "Texto"}
-        </span>
+        {/* El rótulo dice algo en una tarjeta de nota (su título) o en un grupo
+            (su etiqueta); en una de texto, «Texto» era ruido: lo que es ya se
+            ve en su contenido (`DEF-150 i`). Lo mismo una de enlace, que ya
+            muestra su URL. */}
+        {!sinRotulo && (
+          <span className={styles.asaTitulo}>
+            {nodo.tipo === "file" ? (nota?.titulo ?? nodo.archivo ?? "") : (nodo.etiqueta ?? "Grupo")}
+          </span>
+        )}
         {nodo.tipo === "file" && nota !== undefined && (
           <button
             type="button"

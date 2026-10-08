@@ -22,11 +22,14 @@ el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
    carpeta.
 2. **Tarjeta de texto** agrega una tarjeta y la deja lista para escribir; **doble clic**
    en una tarjeta de texto la vuelve a editar. **Tarjeta de nota** busca una nota por el
-   principio de su nombre y la pone en el lienzo.
+   principio de su nombre y la pone en el lienzo. La tarjeta nueva aparece en el centro de
+   lo que estás viendo o, si ahí ya hay otra, en el lugar libre más cercano.
 3. Para conectar dos tarjetas, arrastrá desde el punto de uno de sus lados hasta la otra.
 
-Las tarjetas se mueven arrastrando su barra de arriba y cambian de tamaño desde la esquina
-de abajo a la derecha. Arrastrando el fondo te movés por el lienzo, y la rueda del mouse
+Las tarjetas se mueven arrastrando su barra de arriba (en una de nota lleva su título; en
+una de texto es una franja fina, sin rótulo) y cambian de tamaño desde la esquina de abajo
+a la derecha. El texto de una tarjeta se lee con la fuente del preview y se escribe con la
+del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te movés por el lienzo, y la rueda del mouse
 acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 

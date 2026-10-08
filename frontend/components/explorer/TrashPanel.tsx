@@ -1,11 +1,22 @@
 "use client";
 
+import { Trash2, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./TrashPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
 
 const RETENTION_DAYS = 30;
+
+/**
+ * La carpeta de origen como la lee una persona (`DEF-150 c`). El índice guarda la
+ * raíz como «/» (`rutaDe`), que en pantalla no dice nada: se muestra «Raíz del
+ * vault». Una carpeta se muestra con su ruta tal cual («Proyectos/Ideas»).
+ */
+function origenLegible(ruta: string): string {
+  const limpia = ruta.replace(/^\/+|\/+$/g, "");
+  return limpia === "" ? "Raíz del vault" : limpia;
+}
 
 /**
  * Vista de papelera (HU-23 CA9/CA10): recuperar o eliminar definitivamente.
@@ -175,6 +186,7 @@ export function TrashPanel() {
           );
           const diasRestantes = Math.max(0, RETENTION_DAYS - diasPasados);
           const marcado = seleccion.has(item.notaId);
+          const origen = origenLegible(item.rutaOriginal);
 
           return (
             <li
@@ -185,6 +197,11 @@ export function TrashPanel() {
               // filas: la selección de texto arranca en el mousedown.
               onMouseDown={(e) => e.shiftKey && e.preventDefault()}
             >
+              {/* `DEF-150 c`: casilla, título y acciones en UNA línea, y el
+                  origen y las fechas en otra. Antes eran cuatro (título, meta en
+                  dos renglones, botones de texto) y entraban seis por pantalla.
+                  Los botones siguen visibles siempre —no solo al pasar el
+                  mouse— y llevan nombre accesible y tooltip. */}
               <div className={styles.cabecera}>
                 <input
                   type="checkbox"
@@ -198,37 +215,44 @@ export function TrashPanel() {
                     else alternar(item.notaId);
                   }}
                 />
-                <p className={styles.titulo}>{item.titulo}</p>
+                <p className={styles.titulo} title={item.titulo}>
+                  {item.titulo}
+                </p>
+                <div className={styles.itemActions}>
+                  <button
+                    type="button"
+                    className={`${styles.icono} ${styles.restore}`}
+                    disabled={ocupado}
+                    title="Recuperar"
+                    aria-label={`Recuperar «${item.titulo}»`}
+                    onClick={() => void restoreNota(item.notaId)}
+                  >
+                    <Undo2 size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.icono} ${styles.deleteForever}`}
+                    disabled={ocupado}
+                    title="Eliminar ahora"
+                    aria-label={`Eliminar ahora «${item.titulo}»`}
+                    onClick={() => {
+                      void confirmar(
+                        `"${item.titulo}" se eliminará permanentemente. ¿Continuar?`,
+                        "Eliminar definitivamente",
+                      ).then((ok) => {
+                        if (ok) void deleteNotaForever(item.notaId);
+                      });
+                    }}
+                  >
+                    <Trash2 size={14} aria-hidden />
+                  </button>
+                </div>
               </div>
-              <p className={styles.meta}>
-                {item.rutaOriginal} · eliminada el {eliminado.toLocaleDateString()} ·{" "}
-                {diasRestantes} día{diasRestantes === 1 ? "" : "s"} restantes
+              <p className={styles.meta} title={`Eliminada de ${origen} el ${eliminado.toLocaleDateString()}`}>
+                {`${origen} · ${eliminado.toLocaleDateString()} · ${
+                  diasRestantes === 1 ? "queda 1 día" : `quedan ${diasRestantes} días`
+                }`}
               </p>
-              <div className={styles.itemActions}>
-                <button
-                  type="button"
-                  className={styles.restore}
-                  disabled={ocupado}
-                  onClick={() => void restoreNota(item.notaId)}
-                >
-                  Recuperar
-                </button>
-                <button
-                  type="button"
-                  className={styles.deleteForever}
-                  disabled={ocupado}
-                  onClick={() => {
-                    void confirmar(
-                      `"${item.titulo}" se eliminará permanentemente. ¿Continuar?`,
-                      "Eliminar definitivamente",
-                    ).then((ok) => {
-                      if (ok) void deleteNotaForever(item.notaId);
-                    });
-                  }}
-                >
-                  Eliminar ahora
-                </button>
-              </div>
             </li>
           );
         })}

@@ -257,6 +257,66 @@ export function nodoArchivo(id: string, x: number, y: number, archivo: string): 
   };
 }
 
+/** Separación mínima entre una tarjeta nueva y las que ya están. */
+export const MARGEN_LIBRE = 20;
+/** Paso de la búsqueda de lugar libre, en unidades del lienzo. */
+const PASO_LIBRE = 20;
+/** Hasta dónde se busca lugar libre alrededor del punto pedido. */
+const RADIO_LIBRE = 1600;
+
+/**
+ * Dónde poner una tarjeta nueva de `ancho × alto` para que no caiga encima de
+ * otra (`DEF-150 h`): el punto (esquina superior izquierda) más cercano a
+ * `deseado` cuya caja, con `MARGEN_LIBRE` alrededor, no se superpone con
+ * ninguna tarjeta. Los grupos no cuentan: una tarjeta encima de un grupo queda
+ * dentro de él, que es lo normal.
+ *
+ * Antes la tarjeta caía siempre en el centro de la vista, y en un lienzo con
+ * algo en el medio quedaba apilada sobre lo que había. Se recorre una grilla de
+ * `PASO_LIBRE` en anillos cada vez más lejanos, y dentro de cada anillo del más
+ * cercano al más lejano; si no hay lugar en `RADIO_LIBRE`, se devuelve
+ * `deseado` (mejor encima que lejos de la vista). Pura y determinista.
+ */
+export function lugarLibre(nodos: readonly Nodo[], deseado: Punto, ancho: number, alto: number): Punto {
+  const tarjetas = nodos.filter((n) => n.tipo !== "group");
+  const libre = (x: number, y: number) =>
+    tarjetas.every(
+      (n) =>
+        x + ancho + MARGEN_LIBRE <= n.x ||
+        n.x + n.ancho + MARGEN_LIBRE <= x ||
+        y + alto + MARGEN_LIBRE <= n.y ||
+        n.y + n.alto + MARGEN_LIBRE <= y,
+    );
+  if (libre(deseado.x, deseado.y)) return deseado;
+  const anillos = Math.ceil(RADIO_LIBRE / PASO_LIBRE);
+  // El más cercano de verdad (distancia euclídea), no el primero del anillo: la
+  // esquina del anillo `r` está más lejos que el medio del lado del `r + 1`.
+  let mejor: { d: Punto; dist2: number } | null = null;
+  for (let r = 1; r <= anillos; r++) {
+    // Nada del anillo `r` está a menos de `r` pasos: si ya hay uno a esa
+    // distancia o menos, no se puede mejorar.
+    if (mejor && mejor.dist2 <= r * r) break;
+    // El anillo de Chebyshev `r`: los puntos de la grilla a `r` pasos en x o en y.
+    const anillo: Punto[] = [];
+    for (let i = -r; i <= r; i++) {
+      anillo.push({ x: i, y: -r }, { x: i, y: r });
+      if (i !== -r && i !== r) anillo.push({ x: -r, y: i }, { x: r, y: i });
+    }
+    // Del más cercano al más lejano; a igual distancia, primero arriba y a la
+    // izquierda, para que el resultado no dependa del orden de armado.
+    anillo.sort((a, b) => a.x * a.x + a.y * a.y - (b.x * b.x + b.y * b.y) || a.y - b.y || a.x - b.x);
+    for (const d of anillo) {
+      const dist2 = d.x * d.x + d.y * d.y;
+      if (mejor && dist2 >= mejor.dist2) break;
+      if (libre(deseado.x + d.x * PASO_LIBRE, deseado.y + d.y * PASO_LIBRE)) {
+        mejor = { d, dist2 };
+        break;
+      }
+    }
+  }
+  return mejor ? { x: deseado.x + mejor.d.x * PASO_LIBRE, y: deseado.y + mejor.d.y * PASO_LIBRE } : deseado;
+}
+
 export function nuevaArista(id: string, desdeNodo: string, hastaNodo: string): Arista {
   // `toEnd` se deja implícito: el formato ya define `arrow` por defecto, y
   // escribirlo sería ruido.

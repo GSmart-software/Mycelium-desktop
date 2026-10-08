@@ -143,7 +143,9 @@ export function ListaRecordatorios({
                       >
                         <span className={styles.punto} aria-hidden />
                         <span className={styles.itemHora}>{horaDe(o)}</span>
-                        <span className={styles.itemTitulo}>{o.recordatorio.titulo}</span>
+                        <span className={styles.itemTitulo} title={o.recordatorio.titulo}>
+                          {o.recordatorio.titulo}
+                        </span>
                       </button>
                     </li>
                   );

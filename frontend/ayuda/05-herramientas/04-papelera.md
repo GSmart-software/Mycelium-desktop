@@ -18,9 +18,10 @@ un clic, en la misma carpeta donde estaban.
    que aparece ofrece **Deshacer**. Eliminar una carpeta pregunta antes, diciendo cuántas
    notas manda a la papelera.
 2. Abrí el panel **Papelera** desde su botón en el rail. Cada elemento muestra de dónde
-   vino, cuándo se eliminó y cuántos días le quedan.
-3. **Recuperar** lo devuelve a su carpeta (o a la raíz del vault, si la carpeta ya no
-   existe). **Eliminar ahora** lo borra para siempre, después de confirmar.
+   vino (su carpeta, o **Raíz del vault**), cuándo se eliminó y cuántos días le quedan.
+3. Los dos botones a la derecha del nombre: **Recuperar** (la flecha que vuelve) lo
+   devuelve a su carpeta (o a la raíz del vault, si la carpeta ya no existe); **Eliminar
+   ahora** (el tacho) lo borra para siempre, después de confirmar.
 
 Para actuar sobre varios a la vez, marcá sus casillas (o **Seleccionar todo**) y usá
 **Recuperar** o **Eliminar** de arriba. **Ctrl+clic** suma uno a la selección y

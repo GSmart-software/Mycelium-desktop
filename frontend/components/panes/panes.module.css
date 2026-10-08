@@ -133,7 +133,11 @@
   /* Con espacio libre el título se lee entero (antes se cortaba a 120px aunque
      sobrara barra); con muchas pestañas ceden todas por igual. */
   flex: 0 1 auto;
-  min-width: 72px;
+  /* `DEF-150 l`: con 72px, en un pane dividido el título se reducía a «T…»
+     (ícono, cruz y relleno se comían casi todo). Con 116px se leen unas ocho
+     letras; si no entran todas, la barra se desplaza en horizontal (rueda,
+     y la pestaña activa siempre a la vista: ver `TabBar`). */
+  min-width: 116px;
   max-width: 260px;
   /* Píldoras separadas (formas del cascarón, 2026-09-19): 26px de alto dentro
      de la barra de 34. Con margen y no con `align-items` en la barra, que
@@ -270,11 +274,17 @@
   white-space: nowrap;
 }
 
+/* Anclado a la derecha cuando la barra se desplaza (`DEF-150 l`), como los
+   botones de navegación a la izquierda: si no, el «…» del pane se iba con el
+   scroll de las pestañas. */
 .tabMenuWrap {
-  position: relative;
+  position: sticky;
+  right: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
-  padding-right: 0.25rem;
+  padding: 0 0.25rem 0 0.15rem;
+  background: var(--mic-bg-surface);
 }
 
 .tabMenuButton {

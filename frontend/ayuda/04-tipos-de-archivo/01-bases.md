@@ -27,7 +27,9 @@ nota, y el valor se cambia ahí.
    propiedad, operador y valor, en grupos que se cumplen todas o alguna, y que se pueden
    negar. **Columnas** elige qué se muestra.
 3. Clic en el encabezado de una columna para ordenar: ascendente, descendente y sin orden.
-   Con **Shift+clic** suma esa columna al orden que ya había.
+   Con **Shift+clic** suma esa columna al orden que ya había. El orden se guarda en el
+   archivo (en el `sort:` de la vista, como en Obsidian) para que la tabla se abra igual la
+   próxima vez; el resto del archivo no se toca.
 
 También podés buscar dentro de la tabla con el buscador de la cabecera (solo mira lo que se
 ve, y no se guarda) y arrastrar el borde de una columna para cambiar su ancho; doble clic en

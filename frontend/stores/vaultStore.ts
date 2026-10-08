@@ -16,7 +16,7 @@ import {
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import { coincidencias, textoAviso, trasTraslados, type NotaRuta } from "@/lib/homonimos";
-import { sanearNombre } from "@/lib/db/nombres";
+import { avisoCaracteresReemplazados, sanearNombre } from "@/lib/db/nombres";
 import { avisar } from "@/stores/avisosStore";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import {
@@ -135,6 +135,8 @@ type VaultState = {
   deleteNotasForever: (ids: readonly string[]) => Promise<string[]>;
   undoLastMove: () => Promise<void>;
   toggleExpanded: (id: string) => void;
+  /** Despliega estas carpetas (sin plegar ninguna): «revelar» un archivo (`DEF-150 a`). */
+  expandirCarpetas: (ids: Iterable<string>) => void;
   setActiveFolder: (id: string | null) => void;
   /** Carpetas descendientes de una carpeta (incluida ella) — para validar D&D. */
   subtreeIds: (id: string) => Set<string>;
@@ -390,6 +392,9 @@ export const useVaultStore = create<VaultState>()(
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
         avisarReescritas(reparacion);
+        // `DEF-150 m`: el saneo cambia `: ? * …` por `-`; decirlo.
+        const reemplazo = avisoCaracteresReemplazados(nombre, res.id.split("/").pop());
+        if (reemplazo) avisar(reemplazo);
         return { id: res.id, ...reparacion };
       },
 
@@ -506,6 +511,10 @@ export const useVaultStore = create<VaultState>()(
         await get().loadTree(get().vaultId!);
         markGraphStale();
         avisarReescritas(reparacion);
+        // `DEF-150 m`: el saneo cambia `: ? * …` por `-` (ver `DEF-084` arriba);
+        // antes en silencio, ahora se le dice al usuario cómo quedó el nombre.
+        const reemplazo = avisoCaracteresReemplazados(titulo, efectivo);
+        if (reemplazo) avisar(reemplazo);
         return { id: res.id, titulo: efectivo, ...reparacion };
       },
 
@@ -625,6 +634,13 @@ export const useVaultStore = create<VaultState>()(
 
       toggleExpanded(id) {
         set((s) => ({ expanded: { ...s.expanded, [id]: !s.expanded[id] } }));
+      },
+
+      expandirCarpetas(ids) {
+        const faltan = [...ids].filter((id) => !get().expanded[id]);
+        // Sin cambios no hay `set`: no se re-dibuja el árbol ni se persiste nada.
+        if (faltan.length === 0) return;
+        set((s) => ({ expanded: { ...s.expanded, ...Object.fromEntries(faltan.map((id) => [id, true])) } }));
       },
 
       reset() {
