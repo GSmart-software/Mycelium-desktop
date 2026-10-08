@@ -23,6 +23,8 @@ const {
   colorCss,
   ErrorCanvas,
   ladosAutomaticos,
+  lugarLibre,
+  MARGEN_LIBRE,
   nodoArchivo,
   nodoTexto,
   nuevaArista,
@@ -454,4 +456,49 @@ test("no toca el arreglo de entrada (es el estado del lienzo)", () => {
   const nodos = [nodoDe("g1", "group", 10, 10), nodoDe("g2", "group", 20, 20)];
   ordenDePintado(nodos);
   assert.deepEqual(nodos.map((n) => n.id), ["g1", "g2"]);
+});
+
+// ── Lugar libre para una tarjeta nueva (`DEF-150 h`) ──────────────────────────
+
+const en = (id, tipo, x, y, ancho, alto) => ({ id, tipo, x, y, ancho, alto, crudo: {} });
+const seSuperponen = (p, ancho, alto, n) =>
+  !(
+    p.x + ancho + MARGEN_LIBRE <= n.x ||
+    n.x + n.ancho + MARGEN_LIBRE <= p.x ||
+    p.y + alto + MARGEN_LIBRE <= n.y ||
+    n.y + n.alto + MARGEN_LIBRE <= p.y
+  );
+
+test("lugarLibre: con el centro libre, la tarjeta va al centro", () => {
+  assert.deepEqual(lugarLibre([], { x: 100, y: 50 }, 260, 140), { x: 100, y: 50 });
+  const lejos = [en("a", "text", 2000, 2000, 260, 140)];
+  assert.deepEqual(lugarLibre(lejos, { x: 100, y: 50 }, 260, 140), { x: 100, y: 50 });
+});
+
+test("lugarLibre: con una tarjeta en el centro, va al lado y sin tocarla", () => {
+  const nodos = [en("a", "text", 0, 0, 260, 140)];
+  const p = lugarLibre(nodos, { x: 0, y: 0 }, 260, 140);
+  assert.ok(!seSuperponen(p, 260, 140, nodos[0]), JSON.stringify(p));
+  // La más cercana: corrida en vertical (140 + margen), no en horizontal (260 + margen).
+  assert.equal(p.x, 0);
+  assert.equal(Math.abs(p.y), 140 + MARGEN_LIBRE);
+});
+
+test("lugarLibre: los grupos no cuentan como ocupado", () => {
+  const nodos = [en("g", "group", -500, -500, 2000, 2000)];
+  assert.deepEqual(lugarLibre(nodos, { x: 0, y: 0 }, 260, 140), { x: 0, y: 0 });
+});
+
+test("lugarLibre: rodeada de tarjetas, encuentra un hueco que no pisa ninguna", () => {
+  const nodos = [];
+  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) nodos.push(en(`${i},${j}`, "text", i * 300, j * 180, 260, 140));
+  const p = lugarLibre(nodos, { x: 0, y: 0 }, 260, 140);
+  for (const n of nodos) assert.ok(!seSuperponen(p, 260, 140, n), `pisa ${n.id}: ${JSON.stringify(p)}`);
+  // Y es determinista.
+  assert.deepEqual(lugarLibre(nodos, { x: 0, y: 0 }, 260, 140), p);
+});
+
+test("lugarLibre: sin lugar en el radio de búsqueda, devuelve el punto pedido", () => {
+  const nodos = [en("enorme", "text", -5000, -5000, 10000, 10000)];
+  assert.deepEqual(lugarLibre(nodos, { x: 0, y: 0 }, 260, 140), { x: 0, y: 0 });
 });

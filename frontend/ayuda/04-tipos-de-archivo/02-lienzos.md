@@ -22,7 +22,8 @@ el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
    carpeta.
 2. **Tarjeta de texto** agrega una tarjeta y la deja lista para escribir; **doble clic**
    en una tarjeta de texto la vuelve a editar. **Tarjeta de nota** busca una nota por el
-   principio de su nombre y la pone en el lienzo.
+   principio de su nombre y la pone en el lienzo. La tarjeta nueva aparece en el centro de
+   lo que estás viendo o, si ahí ya hay otra, en el lugar libre más cercano.
 3. Para conectar dos tarjetas, arrastrá desde el punto de uno de sus lados hasta la otra.
 
 Las tarjetas se mueven arrastrando su barra de arriba y cambian de tamaño desde la esquina

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
+  ALTO_TARJETA,
+  ANCHO_TARJETA,
   anclaDe,
   buscarPorPrefijo,
   cajaDeNodos,
@@ -12,6 +14,7 @@ import {
   COLORES,
   encuadrar,
   ladosAutomaticos,
+  lugarLibre,
   nodoArchivo,
   nodoTexto,
   nuevaArista,
@@ -538,7 +541,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
     // Crear la tarjeta y escribir su texto es UN paso: el gesto se abre antes
     // de crearla, así que deshacer se lleva la tarjeta con lo escrito.
     abrirGesto(`texto:${id}`);
-    cambiar((c) => ({ ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] }), true);
+    // En el lugar libre más cercano al centro, no encima de otra tarjeta
+    // (`DEF-150 h`). `lugarLibre` es pura: puede ir dentro del actualizador.
+    cambiar((c) => {
+      const q = lugarLibre(c.nodos, p, ANCHO_TARJETA, ALTO_TARJETA);
+      return { ...c, nodos: [...c.nodos, nodoTexto(id, q.x, q.y)] };
+    }, true);
     setEditando(id);
     setSeleccion(id);
   };
@@ -549,10 +557,11 @@ export function CanvasView({ notaId }: { notaId: string }) {
     setEligiendoNota(false);
     // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
     // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
-    cambiar((c) => ({
-      ...c,
-      nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))],
-    }));
+    cambiar((c) => {
+      const nueva = nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino));
+      const q = lugarLibre(c.nodos, p, nueva.ancho, nueva.alto); // `DEF-150 h`
+      return { ...c, nodos: [...c.nodos, { ...nueva, x: q.x, y: q.y }] };
+    });
     setSeleccion(id);
   };
 
