@@ -16,7 +16,7 @@ import {
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import { coincidencias, textoAviso, trasTraslados, type NotaRuta } from "@/lib/homonimos";
-import { sanearNombre } from "@/lib/db/nombres";
+import { avisoCaracteresReemplazados, sanearNombre } from "@/lib/db/nombres";
 import { avisar } from "@/stores/avisosStore";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import {
@@ -390,6 +390,9 @@ export const useVaultStore = create<VaultState>()(
         await get().loadTree(get().vaultId!);
         refreshAllLiveViews(); // la ruta cambió: refrescar wikilinks por ruta
         avisarReescritas(reparacion);
+        // `DEF-150 m`: el saneo cambia `: ? * …` por `-`; decirlo.
+        const reemplazo = avisoCaracteresReemplazados(nombre, res.id.split("/").pop());
+        if (reemplazo) avisar(reemplazo);
         return { id: res.id, ...reparacion };
       },
 
@@ -506,6 +509,10 @@ export const useVaultStore = create<VaultState>()(
         await get().loadTree(get().vaultId!);
         markGraphStale();
         avisarReescritas(reparacion);
+        // `DEF-150 m`: el saneo cambia `: ? * …` por `-` (ver `DEF-084` arriba);
+        // antes en silencio, ahora se le dice al usuario cómo quedó el nombre.
+        const reemplazo = avisoCaracteresReemplazados(titulo, efectivo);
+        if (reemplazo) avisar(reemplazo);
         return { id: res.id, titulo: efectivo, ...reparacion };
       },
 

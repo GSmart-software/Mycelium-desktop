@@ -17,7 +17,8 @@ const { outputText } = ts.transpileModule(fuente, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
 });
 const mod = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
-const { sanearNombre, esReservadoWindows, desambiguar, crearCola } = mod;
+const { sanearNombre, esReservadoWindows, desambiguar, crearCola, caracteresProhibidosEn, avisoCaracteresReemplazados } =
+  mod;
 
 test("reemplaza los caracteres prohibidos por guion", () => {
   assert.equal(sanearNombre('a/b\\c:d*e?f"g<h>i|j'), "a-b-c-d-e-f-g-h-i-j");
@@ -118,4 +119,21 @@ test("la cola respeta el orden y sigue después de una tarea que falla", async (
   await assert.rejects(b, /falla b/);
   assert.equal(await c, "c");
   assert.deepEqual(orden, ["a", "b", "c"]);
+});
+
+// DEF-150 m: el saneo ya no es silencioso; estas dos funciones arman el aviso.
+test("caracteresProhibidosEn lista los prohibidos sin repetir y en orden", () => {
+  assert.deepEqual(caracteresProhibidosEn("¿Qué es? Nota: a/b: c?"), ["?", ":", "/"]);
+  assert.deepEqual(caracteresProhibidosEn("Nota normal"), []);
+  assert.deepEqual(caracteresProhibidosEn('a\\b*c"d<e>f|g'), ["\\", "*", '"', "<", ">", "|"]);
+});
+
+test("avisoCaracteresReemplazados: null sin prohibidos, texto con ellos", () => {
+  assert.equal(avisoCaracteresReemplazados("Nota normal", "Nota normal"), null);
+  const aviso = avisoCaracteresReemplazados("Hora: 10?", sanearNombre("Hora: 10?"));
+  assert.equal(
+    aviso,
+    "Se reemplazaron caracteres no permitidos en un nombre de archivo («:» «?») por «-»: quedó «Hora- 10-».",
+  );
+  assert.match(avisoCaracteresReemplazados("a:b"), /\(«:»\) por «-»\.$/);
 });
