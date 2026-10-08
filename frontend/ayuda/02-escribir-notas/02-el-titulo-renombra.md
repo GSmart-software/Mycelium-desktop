@@ -16,6 +16,10 @@ Mycelium **repara los enlaces** que llegaban a esa nota desde otras: los
 (`![[Nota]]`), los que llevan la carpeta adelante (`[[Proyectos/Nota]]`) y los que están
 en las propiedades. Nada queda apuntando al nombre viejo.
 
+Si el nombre nuevo es el de otra nota de **otra carpeta**, se acepta: Mycelium te avisa
+la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de nota. Ver
+[Notas con el mismo nombre](ayuda:enlazar-y-organizar/enlaces).
+
 ## Cómo se usa
 
 1. Hacé **clic** en el título, en la vista en vivo, en la mitad izquierda del modo
