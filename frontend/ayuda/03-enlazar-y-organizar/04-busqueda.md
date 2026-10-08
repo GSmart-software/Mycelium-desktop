@@ -31,7 +31,7 @@ Escribí al menos dos caracteres. Con varias palabras, aparecen las notas que ti
 |---|---|
 | `reunión cliente` | Las notas que tienen las dos palabras. |
 | `"plan de lanzamiento"` | La frase exacta, entre comillas. |
-| `tag:proyecto` | Las notas con la etiqueta `#proyecto`. |
+| `tag:proyecto` | Las notas con la etiqueta `#proyecto`, en el texto o en la propiedad `tags`. |
 | `estado:activo` | Las notas cuya propiedad `estado` tiene la palabra «activo». |
 | `bancal:"Bancal 1"` | Las notas cuya propiedad `bancal` vale exactamente «Bancal 1». |
 
@@ -43,6 +43,12 @@ valor con espacios.
 
 Los filtros se combinan con texto: `estado:activo informe` busca «informe» solo entre las
 notas activas.
+
+`tag:` busca la **etiqueta**, no la palabra: `tag:riego` no trae una nota que solo dice
+«riego» en el texto. Trae también las etiquetas anidadas debajo —`tag:proyecto` encuentra
+`#proyecto/faro`, y `tag:proyecto/faro` solo esa—, pero no las que solo empiezan igual
+(`tag:proy` no encuentra `#proyecto`). El `#` delante es opcional: `tag:#proyecto` es lo
+mismo.
 
 No importan las mayúsculas ni las tildes, tampoco en los filtros: «pulgon» encuentra
 «Pulgón», y `familia:solanaceas` encuentra las notas con `familia: Solanáceas`.

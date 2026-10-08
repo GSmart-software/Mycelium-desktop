@@ -1,8 +1,9 @@
 /**
  * Construcción de la query FTS5 a partir del texto del usuario (HU-21 CA5/6/7).
- * Portado 1:1 de `SearchEndpoints.BuildFtsQuery`: AND implícito, frases entre
- * comillas, `tag:x`/`#x` buscan el tag; cada término se entrecomilla para
- * neutralizar operadores FTS y (en modo coincidencia) se le añade `*` de prefijo.
+ * Portado de `SearchEndpoints.BuildFtsQuery`: AND implícito, frases entre
+ * comillas; cada término se entrecomilla para neutralizar operadores FTS y (en
+ * modo coincidencia) se le añade `*` de prefijo. `tag:x` ya no llega al FTS: es
+ * un filtro sobre la tabla `etiquetas` (`DEF-152`, ver `separarFiltrosPropiedad`).
  */
 /**
  * Un filtro `clave:valor` sobre la tabla `propiedades` (FUN-M-04).
@@ -33,6 +34,17 @@ export function plegar(texto: string): string {
 }
 
 /**
+ * Una etiqueta como se compara (`DEF-152`): plegada como el texto, sin el `#`
+ * del principio (`tag:#x` y `tags: ["#x"]` son la etiqueta `x`) ni la barra
+ * del final (`tag:huerta/` es `huerta`). Es la misma función para la columna
+ * `etiquetas.tag_plegado` y para el valor de un `tag:x` de la búsqueda: si
+ * plegaran distinto, una etiqueta con tilde no se encontraría.
+ */
+export function plegarEtiqueta(tag: string): string {
+  return plegar(tag).replace(/^#+/, "").replace(/\/+$/, "");
+}
+
+/**
  * Los tokens de la consulta: un filtro con el valor entre comillas
  * (`bancal:"Bancal 1"`, `DEF-145`), frases entre comillas o tiras sin espacios.
  * Es el ÚNICO lugar donde se corta la consulta, para que separar los filtros y
@@ -41,7 +53,7 @@ export function plegar(texto: string): string {
  * La primera alternativa exige que lo de antes de `:` sea una clave (como
  * `FILTRO_RE`), así que solo puede empezar al principio de un token: una URL o
  * `a/b:"x y"` siguen cortándose por los espacios. `tag:"…"` queda afuera a
- * propósito: una etiqueta no lleva espacios y `tag:` lo resuelve el FTS.
+ * propósito: una etiqueta no lleva espacios.
  */
 function tokensDeConsulta(raw: string): string[] {
   return raw.match(/(?![Tt][Aa][Gg]:)[\p{L}_][\p{L}\p{N}_-]*:"[^"]*"|"[^"]+"|\S+/gu) ?? [];
@@ -79,19 +91,34 @@ export function separadoresSql(columna: string): string {
 const FILTRO_RE = /^([\p{L}_][\p{L}\p{N}_-]*):([^/].*)$/u;
 
 /**
- * Separa los filtros `clave:valor` del resto de la consulta. `tag:` NO es un
- * filtro de propiedad: lo resuelve el propio FTS (ver abajo) y así sigue
- * encontrando tanto los `#tag` del cuerpo como los valores de `tags:`.
+ * Separa los filtros de la consulta: los `clave:valor` sobre las propiedades y
+ * los `tag:x` sobre las etiquetas; lo que queda es el texto libre.
+ *
+ * `tag:x` NO es un filtro de propiedad ni un término de texto (`DEF-152`): hasta
+ * entonces se buscaba en el FTS como «#x», el tokenizador descartaba el `#` y
+ * terminaba siendo la palabra `x` en cualquier lado —`tag:solanaceas` traía la
+ * nota con `familia: solanáceas`, que no tiene esa etiqueta—. Ahora va a
+ * `etiquetas`, ya plegado (`plegarEtiqueta`). Un `tag:` vacío (`tag:`, `tag:#`,
+ * lo que se está escribiendo todavía) no filtra nada y se descarta.
  */
 export function separarFiltrosPropiedad(raw: string): {
   filtros: FiltroPropiedad[];
+  etiquetas: string[];
   resto: string;
 } {
   const filtros: FiltroPropiedad[] = [];
+  const etiquetas: string[] = [];
   const resto: string[] = [];
 
   for (const texto of tokensDeConsulta(raw)) {
-    if (texto.startsWith('"') || texto.toLowerCase().startsWith("tag:")) {
+    if (texto.toLowerCase().startsWith("tag:")) {
+      // Las comillas no hacen falta (una etiqueta no lleva espacios), pero
+      // tampoco estorban: `tag:"x"` es `tag:x`.
+      const tag = plegarEtiqueta(texto.slice(4).replace(/^"|"$/g, ""));
+      if (tag !== "" && !etiquetas.includes(tag)) etiquetas.push(tag);
+      continue;
+    }
+    if (texto.startsWith('"')) {
       resto.push(texto);
       continue;
     }
@@ -113,7 +140,7 @@ export function separarFiltrosPropiedad(raw: string): {
     });
   }
 
-  return { filtros, resto: resto.join(" ") };
+  return { filtros, etiquetas, resto: resto.join(" ") };
 }
 
 /**
@@ -156,15 +183,10 @@ export function buildFtsQuery(
   const col = COLUMNA[campo];
   const en = col === null ? "" : `${col} : `;
 
-  for (let text of tokensDeConsulta(raw)) {
-
+  for (const text of tokensDeConsulta(raw)) {
     if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
       parts.push(`${en}"${text.slice(1, -1).replaceAll('"', '""')}"${star}`);
       continue;
-    }
-
-    if (text.toLowerCase().startsWith("tag:") && text.length > 4) {
-      text = "#" + text.slice(4);
     }
 
     const sanitized = text.replaceAll('"', '""');
@@ -176,8 +198,8 @@ export function buildFtsQuery(
 
 /**
  * Las dos consultas FTS sobre el TÍTULO con las que se ordenan los resultados
- * (`DEF-146`): el texto libre de la consulta —sin filtros `clave:valor` (ya
- * separados en `raw`) ni `tag:x`, que buscan otra cosa— como
+ * (`DEF-146`): el texto libre de la consulta —sin filtros `clave:valor` ni
+ * `tag:x`, que buscan otra cosa y ya vienen separados— como
  *
  * - `empieza`: el título EMPIEZA con ese texto, como frase (`^` de FTS5: desde
  *   la primera palabra del título). El título idéntico a la consulta es el más
@@ -198,7 +220,6 @@ export function consultasDeTitulo(
   prefix = false,
 ): { empieza: string; contiene: string } | null {
   const libres = tokensDeConsulta(raw)
-    .filter((t) => !t.toLowerCase().startsWith("tag:"))
     .map((t) => (t.length > 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t))
     // Una comilla suelta o un guion no son palabras para el tokenizador: como
     // frase quedarían vacíos.
@@ -215,14 +236,13 @@ export function consultasDeTitulo(
 /**
  * Las palabras del texto libre de la consulta, plegadas (`DEF-148`): para
  * saber en qué propiedad cayó una coincidencia y armar su fragmento
- * «clave: valor». Sin comillas, sin el `tag:`/`#` de una etiqueta (la etiqueta
- * se busca como palabra) y cortadas como corta el tokenizador: en todo lo que
- * no sea letra o número. Los filtros `clave:valor` ya vienen separados.
+ * «clave: valor». Sin comillas y cortadas como corta el tokenizador: en todo
+ * lo que no sea letra o número. Los filtros `clave:valor` y `tag:x` ya vienen
+ * separados.
  */
 export function palabrasDeConsulta(raw: string): string[] {
   const palabras: string[] = [];
-  for (let t of tokensDeConsulta(raw)) {
-    if (t.toLowerCase().startsWith("tag:")) t = t.slice(4);
+  for (const t of tokensDeConsulta(raw)) {
     for (const p of plegar(t).split(/[^\p{L}\p{N}]+/u)) if (p !== "") palabras.push(p);
   }
   return palabras;

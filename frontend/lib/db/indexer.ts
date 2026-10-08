@@ -21,7 +21,13 @@ import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from 
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
-import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
+import {
+  escribirEnlacesTanda,
+  huellaEnlaces,
+  plegarEtiquetasPendientes,
+  reResolverClaves,
+  type EntradaEnlaces,
+} from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import {
   derivarIndice,
@@ -162,9 +168,14 @@ const ESQUEMA_INDICE: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_enlaces_destino ON enlaces(destino_id)`,
   `CREATE INDEX IF NOT EXISTS idx_enlaces_clave   ON enlaces(clave)`,
   `CREATE INDEX IF NOT EXISTS idx_enlaces_ancla   ON enlaces(clave_ancla)`,
+  // `tag` es la etiqueta como se escribió (sin `#`), que es lo que muestran el
+  // grafo y la tabla; `tag_plegado` (`DEF-152`), lo mismo plegado
+  // (`plegarEtiqueta`), por donde filtra `tag:x` en la búsqueda. Un índice
+  // anterior la recibe por `ALTER TABLE` en `crearEsquemaIndice`.
   `CREATE TABLE IF NOT EXISTS etiquetas (
-     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
-     tag     TEXT NOT NULL
+     nota_id     TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     tag         TEXT NOT NULL,
+     tag_plegado TEXT
    )`,
   `CREATE INDEX IF NOT EXISTS idx_etiquetas_nota ON etiquetas(nota_id)`,
 ];
@@ -249,6 +260,15 @@ export async function crearEsquemaIndice(): Promise<void> {
     "CREATE INDEX IF NOT EXISTS idx_propiedades_plegado ON propiedades(clave_plegada, valor_plegado)",
   );
   await plegarPropiedadesPendientes();
+  // Ídem `etiquetas.tag_plegado` (`DEF-152`). El índice cubre la subconsulta
+  // de `tag:x` entera (`tag_plegado`, `nota_id`) sin tocar la tabla.
+  try {
+    await execute("ALTER TABLE etiquetas ADD COLUMN tag_plegado TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  await execute("CREATE INDEX IF NOT EXISTS idx_etiquetas_plegado ON etiquetas(tag_plegado, nota_id)");
+  await plegarEtiquetasPendientes();
   // Qué `rowid` de `notas_fts` le toca a cada nota (`DEF-105`): sin esto, borrar
   // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
   // anterior la llena a partir de lo que ya hay, una sola vez.
