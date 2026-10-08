@@ -16,6 +16,7 @@ import {
   nodoTexto,
   nuevaArista,
   nuevoId,
+  ordenDePintado,
   parsearCanvas,
   serializarCanvas,
   trazoArista,
@@ -613,6 +614,57 @@ export function CanvasView({ notaId }: { notaId: string }) {
     ? canvas.nodos.find((n) => n.id === provisional.desde)
     : undefined;
 
+  // Grupos y tarjetas se pintan en capas separadas (`DEF-151`).
+  const pintado = ordenDePintado(canvas.nodos);
+  const vistaDe = (n: Nodo) => (
+  <NodoVista
+    key={n.id}
+    nodo={n}
+    seleccionado={seleccion === n.id}
+    editando={editando === n.id}
+    notas={notas}
+    carpetas={carpetas}
+    onSeleccionar={() => setSeleccion(n.id)}
+    onEditar={() => {
+      abrirGesto(`texto:${n.id}`);
+      setEditando(n.id);
+    }}
+    onTerminarEdicion={terminarEdicion}
+    onTexto={(texto) =>
+      cambiar(
+        (c) => ({
+          ...c,
+          nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
+        }),
+        true,
+      )
+    }
+    onArrastrar={(e) => {
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
+    }}
+    onRedimensionar={(e) => {
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = {
+        tipo: "tamano",
+        id: n.id,
+        x0: p.x,
+        y0: p.y,
+        w0: n.ancho,
+        h0: n.alto,
+      };
+    }}
+    onConectar={(lado, e) => {
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "arista", desde: n.id, lado, x: p.x, y: p.y };
+    }}
+    onAbrirTitulo={abrirPorTitulo}
+    onAbrirNota={abrirNota}
+  />
+  );
+
   return (
     <div
       className={styles.wrap}
@@ -792,7 +844,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
             transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.escala})`,
           }}
         >
-          {/* Las flechas van debajo de las tarjetas, y no reciben el puntero. */}
+          {/* Orden de pintado (`DEF-151`): grupos al fondo, encima las flechas y
+              arriba las tarjetas. Si un grupo quedaba sobre el SVG, tapaba las
+              flechas entre las tarjetas que contiene. */}
+          {pintado.grupos.map(vistaDe)}
+
+          {/* Las flechas no reciben el puntero: un clic las atraviesa. */}
           <svg className={styles.aristas} aria-hidden>
             <defs>
               <marker
@@ -825,54 +882,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
             )}
           </svg>
 
-          {canvas.nodos.map((n) => (
-            <NodoVista
-              key={n.id}
-              nodo={n}
-              seleccionado={seleccion === n.id}
-              editando={editando === n.id}
-              notas={notas}
-              carpetas={carpetas}
-              onSeleccionar={() => setSeleccion(n.id)}
-              onEditar={() => {
-                abrirGesto(`texto:${n.id}`);
-                setEditando(n.id);
-              }}
-              onTerminarEdicion={terminarEdicion}
-              onTexto={(texto) =>
-                cambiar(
-                  (c) => ({
-                    ...c,
-                    nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
-                  }),
-                  true,
-                )
-              }
-              onArrastrar={(e) => {
-                abrirGesto("arrastre");
-                const p = enLienzo(e);
-                arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
-              }}
-              onRedimensionar={(e) => {
-                abrirGesto("arrastre");
-                const p = enLienzo(e);
-                arrastre.current = {
-                  tipo: "tamano",
-                  id: n.id,
-                  x0: p.x,
-                  y0: p.y,
-                  w0: n.ancho,
-                  h0: n.alto,
-                };
-              }}
-              onConectar={(lado, e) => {
-                const p = enLienzo(e);
-                arrastre.current = { tipo: "arista", desde: n.id, lado, x: p.x, y: p.y };
-              }}
-              onAbrirTitulo={abrirPorTitulo}
-              onAbrirNota={abrirNota}
-            />
-          ))}
+          {pintado.tarjetas.map(vistaDe)}
         </div>
 
         {canvas.nodos.length === 0 && (

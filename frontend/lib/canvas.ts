@@ -444,6 +444,29 @@ export function encuadrar(
   };
 }
 
+// ── Orden de pintado (`DEF-151`) ─────────────────────────────────────────────
+
+/**
+ * En qué orden se pintan los nodos: **grupos al fondo → flechas → tarjetas**,
+ * como en Obsidian.
+ *
+ * El formato dice que el orden del arreglo es el eje z, pero un grupo es un
+ * marco: si se pintara en su lugar del arreglo (o encima de las flechas) tapa
+ * lo que contiene. Por eso se separa en dos capas y las flechas van entre ellas.
+ *
+ * - `grupos`: de mayor a menor área, para que un grupo anidado quede encima del
+ *   que lo contiene y se pueda seguir tocando; a igual área, el orden del archivo.
+ * - `tarjetas`: todo lo que no es grupo, en el orden del archivo.
+ */
+export function ordenDePintado(nodos: readonly Nodo[]): { grupos: Nodo[]; tarjetas: Nodo[] } {
+  const grupos: Nodo[] = [];
+  const tarjetas: Nodo[] = [];
+  for (const n of nodos) (n.tipo === "group" ? grupos : tarjetas).push(n);
+  // `sort` es estable: a igual área se respeta el orden del archivo.
+  grupos.sort((a, b) => b.ancho * b.alto - a.ancho * a.alto);
+  return { grupos, tarjetas };
+}
+
 /**
  * Referencias que un canvas hace a otras notas, para el grafo del vault.
  *
