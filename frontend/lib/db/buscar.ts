@@ -18,6 +18,7 @@ import { select } from "./client";
 import {
   aPalabras,
   buildFtsQuery,
+  consultasDeTitulo,
   plegar,
   separadoresSql,
   separarFiltrosPropiedad,
@@ -138,6 +139,8 @@ export async function buscar(
   const fragmento =
     campo === "nombre" ? "'' AS fragmento" : "snippet(notas_fts, 2, '«', '»', '…', 10) AS fragmento";
 
+  const { sql: ordenSql, params: ordenParams } = ordenPorTitulo(resto, !exacto);
+
   const resultados = await select<{
     nota_id: string;
     titulo: string;
@@ -151,9 +154,43 @@ export async function buscar(
      WHERE notas_fts MATCH ?
        AND n.vault_id = ?
        AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
-     ORDER BY rank
+     ORDER BY ${ordenSql}
      LIMIT 50`,
-    [match, vaultId, ...filtroParams],
+    [match, vaultId, ...filtroParams, ...ordenParams],
   );
   return { resultados };
+}
+
+/**
+ * El `ORDER BY` de la búsqueda con texto (`DEF-146`): primero el título, después
+ * la relevancia.
+ *
+ * 1. Títulos que EMPIEZAN con el texto buscado, del más corto al más largo: el
+ *    título idéntico a la consulta («Tomate» buscando «tomate») es el más corto
+ *    posible, así que sale primero.
+ * 2. Títulos que contienen todas las palabras.
+ * 3. El resto, por `rank` (bm25 del FTS), como antes.
+ *
+ * Solo `rank` no alcanzaba: bm25 mide el documento entero (título y cuerpo como
+ * una sola bolsa de palabras), así que la nota «Tomate» con un cuerpo largo que
+ * no repite la palabra perdía contra cualquiera que la nombrara varias veces, y
+ * con más de 50 coincidencias podía quedar afuera del `LIMIT`. Por eso el orden
+ * se resuelve en la consulta y no reordenando en el cliente.
+ *
+ * Los grupos se calculan con dos subconsultas FTS restringidas al título (ver
+ * `consultasDeTitulo`); no son correlacionadas, así que SQLite las resuelve una
+ * vez cada una y después solo comprueba pertenencia por `rowid`.
+ */
+function ordenPorTitulo(resto: string, prefix: boolean): { sql: string; params: string[] } {
+  const titulo = consultasDeTitulo(resto, prefix);
+  if (!titulo) return { sql: "rank", params: [] };
+  return {
+    // Una sola clave de orden: el largo del título en el grupo 1, y en los
+    // otros dos un número mayor que cualquier título.
+    sql: `CASE WHEN f.rowid IN (SELECT rowid FROM notas_fts WHERE notas_fts MATCH ?) THEN length(n.titulo)
+               WHEN f.rowid IN (SELECT rowid FROM notas_fts WHERE notas_fts MATCH ?) THEN 100000
+               ELSE 200000 END,
+          rank`,
+    params: [titulo.empieza, titulo.contiene],
+  };
 }
