@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
@@ -197,12 +198,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   ?.focus();
               } else if (e.key === "Delete") {
                 e.preventDefault();
-                store.closeTab(pane.id, tab.id);
-                pushUrl();
-                // El foco sigue en la barra, en la pestaña que quedó activa.
-                requestAnimationFrame(() =>
-                  tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
-                );
+                // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
+                void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => {
+                  if (!cerrada) return;
+                  pushUrl();
+                  // El foco sigue en la barra, en la pestaña que quedó activa.
+                  requestAnimationFrame(() =>
+                    tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
+                  );
+                });
               }
             }}
             draggable
@@ -267,8 +271,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               aria-label={`Cerrar ${titleOf(tab)}`}
               onClick={(e) => {
                 e.stopPropagation();
-                store.closeTab(pane.id, tab.id);
-                pushUrl();
+                void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => cerrada && pushUrl());
               }}
             >
               <X size={12} aria-hidden />

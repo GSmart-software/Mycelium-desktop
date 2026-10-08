@@ -16,7 +16,17 @@ import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { confirmar } from "@/lib/confirmar";
+import {
+  decidirAnteCambioExterno,
+  rutaDeCopiaDeEmergencia,
+  tituloDeCopiaLocal,
+} from "@/lib/conflictoExterno";
+import { olvidarConflicto, registrarConflicto } from "@/lib/conflictosAbiertos";
+import { escribirNota } from "@/lib/db/vaultFs";
+import { getVaultActual } from "@/lib/db/vaultContext";
+import { avisoTocaA } from "@/lib/recargaExterna";
 import { wrapSelection } from "@/lib/editor/commands";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
@@ -138,6 +148,21 @@ const instanceCache = new Map<
      * disco es lo último —incluido un cambio hecho desde fuera mientras tanto—.
      */
     sucio: boolean;
+    /**
+     * Lo último que la pestaña sabía que estaba en disco (`ultimoGuardadoRef`):
+     * la base contra la que se decide si lo de afuera choca con lo de adentro
+     * al volver (`DEF-138`). Si el guardado de al salir termina bien, pasa a ser
+     * lo que se guardó.
+     */
+    conocido: string | null;
+    /** La pestaña quedó con un conflicto con el disco sin resolver (`DEF-138`). */
+    conflicto: boolean;
+    /**
+     * El guardado de al salir, mientras viaja. Volver a la pestaña lo espera
+     * antes de comparar con el disco: si no, lo que ese guardado escribe se
+     * vería como un cambio de afuera.
+     */
+    guardando: Promise<void> | null;
   }
 >();
 
@@ -335,6 +360,23 @@ export function NoteEditor({
    * el watcher dispara la recarga.
    */
   const ultimoGuardadoRef = useRef<string | null>(null);
+  /**
+   * Conflicto con el disco (`DEF-138`): el archivo cambió fuera de Mycelium y
+   * la nota tiene cambios propios. Mientras dure, el guardado automático está
+   * en pausa y la nota muestra la barra para elegir. El ref es para los
+   * callbacks; el estado, para pintar la barra.
+   */
+  const conflictoRef = useRef(false);
+  const [conflicto, setConflicto] = useState(false);
+  const [resolviendo, setResolviendo] = useState(false);
+  /** «Guardar lo mío como copia», por referencia: lo usa también el cierre. */
+  const guardarCopiaRef = useRef<() => Promise<boolean>>(async () => false);
+  /**
+   * Guardados que terminaron. Una revisión del disco que se cruzó con un
+   * guardado lee una foto que ya no vale —ni la de antes ni la de después—, y
+   * compararla daría un conflicto que no existe: se descarta.
+   */
+  const guardadosRef = useRef(0);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cuánto tardó el último render del preview, para el debounce adaptativo.
   const ultimoRenderMs = useRef(0);
@@ -368,9 +410,35 @@ export function NoteEditor({
   // relativa se mostraran el contenido el uno del otro al abrir, y un aviso de
   // conflicto que no correspondía.
 
-  /** Escribe lo pendiente. `true` si quedó guardado. */
-  const syncNow = useCallback(async (): Promise<boolean> => {
+  /** El archivo cambió por fuera y hay cambios propios: pausa y barra (`DEF-138`). */
+  const entrarEnConflicto = useCallback(() => {
+    conflictoRef.current = true;
+    setConflicto(true);
+    setSyncState("conflicto");
+    // Para que cerrar la pestaña pregunte en vez de tirar lo del usuario.
+    registrarConflicto(instanceId, notaIdRef.current, () => guardarCopiaRef.current());
+  }, [setSyncState, instanceId]);
+
+  const salirDeConflicto = useCallback(() => {
+    if (!conflictoRef.current) return;
+    conflictoRef.current = false;
+    setConflicto(false);
+    olvidarConflicto(instanceId);
+  }, [instanceId]);
+
+  /**
+   * Escribe lo pendiente. `true` si quedó guardado.
+   *
+   * Antes de escribir, la capa de datos compara el disco con lo último que
+   * este editor leyó o guardó (`esperado`, `DEF-138`): si el archivo cambió
+   * por fuera, no escribe y la nota entra en conflicto. Con `forzar` —el
+   * usuario eligió «Quedarme con lo mío»— se escribe igual.
+   */
+  const syncNow = useCallback(async (opciones?: { forzar?: boolean }): Promise<boolean> => {
+    const forzar = opciones?.forzar === true;
     if (!dirtyRef.current || syncingRef.current) return false;
+    // En conflicto el guardado está en pausa: solo escribe una decisión explícita.
+    if (conflictoRef.current && !forzar) return false;
     syncingRef.current = true;
     setSyncState("syncing");
     // Lo que se manda, fijado ANTES del await (`DEF-117`): mientras el guardado
@@ -380,9 +448,11 @@ export function NoteEditor({
       await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
         method: "PUT",
         token: useAuthStore.getState().accessToken,
-        body: { contenido: enviado },
+        body: forzar ? { contenido: enviado } : { contenido: enviado, esperado: ultimoGuardadoRef.current },
       });
       ultimoGuardadoRef.current = enviado;
+      guardadosRef.current++;
+      if (forzar) salirDeConflicto();
       // Solo queda «guardado» si no se escribió nada durante el guardado. Antes
       // se marcaba siempre, y lo tipeado en ese intervalo quedaba como si
       // estuviera en disco: la recarga que dispara el propio guardado (el
@@ -404,19 +474,25 @@ export function NoteEditor({
       // reindexó las propiedades, así que lo que se lea ahora es lo nuevo.
       window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: { notaId } }));
       return true;
-    } catch {
-      setSyncState("error");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // Cambió por fuera desde la última lectura: no se escribió nada.
+        entrarEnConflicto();
+        return false;
+      }
+      setSyncState(conflictoRef.current ? "conflicto" : "error");
       return false;
     } finally {
       syncingRef.current = false;
     }
-  }, [notaId, setSyncState]);
+  }, [notaId, setSyncState, entrarEnConflicto, salirDeConflicto]);
 
   const onDocChanged = useCallback(
     (doc: string) => {
       contentRef.current = doc;
       dirtyRef.current = true;
-      setSyncState("local");
+      // En conflicto se puede seguir escribiendo, pero no se guarda (`DEF-138`).
+      setSyncState(conflictoRef.current ? "conflicto" : "local");
 
       if (previewTimer.current) clearTimeout(previewTimer.current);
       // Debounce adaptativo (`FUN-M-38`, H5): `renderNota` corre entero y en el
@@ -710,45 +786,175 @@ export function NoteEditor({
     });
   }, []);
 
-  // ── Recarga por cambio EXTERNO del archivo (modo carpeta, fase 5) ──
-  //
-  // El watcher del vault detectó que algo cambió en disco y `vaultWatch` ya
-  // reindexó; aquí releemos el contenido de ESTA nota desde el índice (que
-  // refleja el disco) y lo aplicamos, pero SOLO si el editor no tiene cambios
-  // locales sin guardar: no se pisan ediciones en curso. Si los hay, se deja la
-  // versión local intacta (un aviso de conflicto explícito queda para más
-  // adelante). Cada instancia abierta de la nota se recarga sola.
-  const reloadFromDisk = useCallback(async () => {
-    if (dirtyRef.current || !viewRef.current) return;
-    try {
-      const remote = await api<{ contenido: string }>(
-        `/notas/${encodeURIComponent(notaId)}/contenido`,
-        { token: useAuthStore.getState().accessToken },
-      );
-      // Re-chequear tras el await: el usuario pudo empezar a editar mientras tanto.
-      if (dirtyRef.current || !viewRef.current) return;
-      if (remote.contenido === contentRef.current) return; // sin cambios
-      // El eco de nuestro propio guardado (`DEF-117`): el watcher ve la escritura
-      // del editor como un cambio en disco y dispara esta recarga. Si el disco
-      // tiene exactamente lo último que guardamos, no vino nada de afuera: lo que
-      // difiere es lo que se siguió escribiendo, y no se toca.
-      if (remote.contenido === ultimoGuardadoRef.current) return;
-      // Aplicar como cambio "remoto" (brokerApplyRef evita marcar la nota sucia).
+  /** Lo que tiene el archivo AHORA, sin pasar por el índice (`DEF-138`). */
+  const leerDisco = useCallback(async (): Promise<string | null> => {
+    const r = await api<{ contenido: string | null }>(
+      `/notas/${encodeURIComponent(notaIdRef.current)}/contenido?origen=disco`,
+      { token: useAuthStore.getState().accessToken },
+    );
+    return r.contenido;
+  }, []);
+
+  /**
+   * Pone en el editor lo que hay en disco y deja la nota limpia. Va por
+   * `applyContent`, así que entra al historial: Ctrl+Z vuelve a lo que había.
+   */
+  const aplicarDelDisco = useCallback(
+    (disco: string) => {
       brokerApplyRef.current = true;
-      applyContent(remote.contenido);
+      applyContent(disco);
       brokerApplyRef.current = false;
-      contentRef.current = remote.contenido;
-      ultimoGuardadoRef.current = remote.contenido;
+      contentRef.current = disco;
+      ultimoGuardadoRef.current = disco;
       dirtyRef.current = false;
+      salirDeConflicto();
       setSyncState("synced");
       // El cambio vino de disco, así que el updateListener no publicó nada: se
       // avisa a mano para que los suscriptores (el panel de propiedades, otras
       // instancias de la nota) no se queden con el texto viejo.
-      publishDoc(notaId, instanceId, remote.contenido);
+      publishDoc(notaIdRef.current, instanceId, disco);
+    },
+    [applyContent, instanceId, salirDeConflicto, setSyncState],
+  );
+
+  // ── Cambio EXTERNO del archivo (modo carpeta, fase 5 · `DEF-138`) ──
+  //
+  // El watcher del vault detectó que algo cambió en disco (o se vuelve a la
+  // pestaña). Se lee el archivo tal como está y se decide con
+  // `decidirAnteCambioExterno`: sin cambios propios, se trae lo de afuera; con
+  // cambios propios, la nota entra en conflicto —no se recarga NI se guarda— y
+  // el usuario elige en la barra. Antes, con cambios propios se ignoraba el
+  // aviso y el próximo guardado pisaba lo de afuera en silencio (`DEF-138`).
+  const revisarDisco = useCallback(async () => {
+    // Con un guardado en vuelo, la foto del disco no sirve: el propio guardado
+    // compara contra la base antes de escribir.
+    if (!viewRef.current || syncingRef.current) return;
+    const guardados = guardadosRef.current;
+    try {
+      const disco = await leerDisco();
+      if (!viewRef.current || syncingRef.current || guardados !== guardadosRef.current) return;
+      const decision = decidirAnteCambioExterno({
+        disco,
+        conocido: ultimoGuardadoRef.current,
+        local: contentRef.current,
+        sucio: dirtyRef.current,
+      });
+      if (decision === "recargar" && disco !== null) {
+        aplicarDelDisco(disco);
+      } else if (decision === "alcanzado" && disco !== null) {
+        // Afuera quedó exactamente lo que se ve: no hay nada que guardar.
+        ultimoGuardadoRef.current = disco;
+        dirtyRef.current = false;
+        salirDeConflicto();
+        setSyncState("synced");
+      } else if (decision === "conflicto") {
+        entrarEnConflicto();
+      } else if (conflictoRef.current && disco !== null && disco === ultimoGuardadoRef.current) {
+        // Lo de afuera se deshizo (el disco volvió a la base): ya no hay
+        // conflicto, y lo propio vuelve a guardarse solo.
+        salirDeConflicto();
+        setSyncState(dirtyRef.current ? "local" : "synced");
+      }
     } catch {
       // Best-effort: si falla la relectura, no se toca lo que hay en pantalla.
     }
-  }, [notaId, instanceId, applyContent, setSyncState]);
+  }, [leerDisco, aplicarDelDisco, salirDeConflicto, entrarEnConflicto, setSyncState]);
+
+  // ── Resolver el conflicto: las tres salidas de la barra (`DEF-138`) ──
+
+  /** «Ver lo de afuera»: descarta lo propio (con confirmación; Ctrl+Z lo trae). */
+  const verLoDeAfuera = useCallback(async () => {
+    const titulo =
+      useVaultStore.getState().notas.find((n) => n.id === notaIdRef.current)?.titulo ?? "la nota";
+    const acepta = await confirmar(
+      `Se descartan tus cambios sin guardar en «${titulo}» y se muestra lo que tiene el archivo ahora. ` +
+        "Si te arrepentís, Ctrl+Z en la nota los trae de vuelta.",
+      "Ver lo de afuera",
+    );
+    if (!acepta) return;
+    setResolviendo(true);
+    try {
+      const disco = await leerDisco();
+      if (disco === null) {
+        avisar("El archivo ya no está en disco: se conserva lo tuyo.");
+        return;
+      }
+      aplicarDelDisco(disco);
+    } catch (e) {
+      avisarFallo("leer el archivo")(e);
+    } finally {
+      setResolviendo(false);
+    }
+  }, [leerDisco, aplicarDelDisco]);
+
+  /** «Quedarme con lo mío»: escribe lo propio encima, por decisión explícita. */
+  const quedarmeConLoMio = useCallback(async () => {
+    setResolviendo(true);
+    try {
+      // Con la misma nota en dos paneles, el espejo puede no estar marcado
+      // sucio aunque tenga lo escrito en el otro: se escribe igual.
+      dirtyRef.current = true;
+      await syncNow({ forzar: true });
+    } finally {
+      setResolviendo(false);
+    }
+  }, [syncNow]);
+
+  /**
+   * «Guardar lo mío como copia»: lo propio va a una nota nueva al lado
+   * —«Título (copia local)»— y en esta se carga lo de afuera. Nada se pierde.
+   * `true` si lo propio quedó a salvo. Sirve también al cerrar la pestaña.
+   */
+  const guardarCopia = useCallback(async (): Promise<boolean> => {
+    const vault = useVaultStore.getState();
+    const nota = vault.notas.find((n) => n.id === notaIdRef.current);
+    const local = contentRef.current;
+    setResolviendo(true);
+    try {
+      const nuevoId = await vault.createNota(
+        nota?.carpetaId ?? null,
+        "markdown",
+        tituloDeCopiaLocal(nota?.titulo ?? "Sin título"),
+      );
+      await api(`/notas/${encodeURIComponent(nuevoId)}/contenido`, {
+        method: "PUT",
+        token: useAuthStore.getState().accessToken,
+        body: { contenido: local },
+      });
+      const disco = await leerDisco();
+      if (disco !== null) {
+        if (viewRef.current) aplicarDelDisco(disco);
+        else {
+          // Pestaña que no se ve: su texto vive en la caché de la pestaña.
+          const entrada = instanceCache.get(instanceId);
+          if (entrada) Object.assign(entrada, { doc: disco, conocido: disco, sucio: false, conflicto: false });
+          conflictoRef.current = false;
+          olvidarConflicto(instanceId);
+          setSyncState("synced");
+        }
+      } else {
+        // El archivo ya no está: lo propio quedó en la copia y acá se conserva.
+        salirDeConflicto();
+      }
+      const tituloCopia = useVaultStore.getState().notas.find((n) => n.id === nuevoId)?.titulo;
+      avisar(`Lo tuyo quedó en «${tituloCopia ?? tituloDeCopiaLocal(nota?.titulo ?? "")}».`, {
+        etiqueta: "Abrir",
+        hacer: () => {
+          useTabsStore.getState().openNote(nuevoId);
+          router.replace(`/workspace?note=${nuevoId}`);
+        },
+      });
+      return true;
+    } catch (e) {
+      avisarFallo("guardar tu versión como copia")(e);
+      return false;
+    } finally {
+      setResolviendo(false);
+    }
+  }, [leerDisco, aplicarDelDisco, salirDeConflicto, setSyncState, instanceId, router]);
+  useEffect(() => {
+    guardarCopiaRef.current = guardarCopia;
+  }, [guardarCopia]);
 
   // ── Carga inicial: del disco, y listo (`FUN-M-40`, D7) ─────────
   //
@@ -763,7 +969,24 @@ export function NoteEditor({
     async function load() {
       // Volver a una pestaña: se pinta su texto enseguida, sin esperar al disco.
       const instance = instanceCache.get(instanceId);
-      if (instance) createView(instance.doc);
+      if (instance) {
+        createView(instance.doc);
+        // El guardado de al salir puede estar viajando: se espera, o lo que
+        // escribe se confundiría con un cambio de afuera.
+        if (instance.guardando) await instance.guardando;
+        if (cancelled) return;
+        // La base es la de la pestaña, no lo que hay ahora en disco: si se
+        // tomara el disco, un cambio de afuera hecho mientras tanto quedaría
+        // absorbido y el próximo guardado lo pisaría (`DEF-138`).
+        ultimoGuardadoRef.current = instance.conocido;
+        if (instance.sucio) dirtyRef.current = true;
+        if (instance.conflicto) entrarEnConflicto();
+        else setSyncState(dirtyRef.current ? "local" : "synced");
+        // Lo que haya pasado en disco mientras tanto: recargar si la pestaña
+        // estaba limpia, conflicto si tenía cambios propios.
+        await revisarDisco();
+        return;
+      }
 
       try {
         const remote = await api<{ contenido: string }>(
@@ -773,30 +996,8 @@ export function NoteEditor({
         if (cancelled) return;
 
         ultimoGuardadoRef.current = remote.contenido;
-        if (!instance) {
-          createView(remote.contenido);
-          setSyncState("synced");
-        } else if (instance.sucio) {
-          // El guardado de al salir todavía no terminó o falló: lo de la
-          // pestaña manda y queda pendiente (el próximo guardado lo escribe;
-          // si el de salir sí llegó, escribe lo mismo otra vez).
-          dirtyRef.current = true;
-          setSyncState("local");
-        } else {
-          // La pestaña estaba guardada: si el disco cambió mientras tanto (un
-          // editor externo, la IA), lo del disco es lo último — salvo que se
-          // haya empezado a escribir antes de que llegara.
-          if (dirtyRef.current) return;
-          if (remote.contenido !== contentRef.current) {
-            brokerApplyRef.current = true;
-            applyContent(remote.contenido);
-            brokerApplyRef.current = false;
-            contentRef.current = remote.contenido;
-            publishDoc(notaId, instanceId, remote.contenido);
-          }
-          dirtyRef.current = false;
-          setSyncState("synced");
-        }
+        createView(remote.contenido);
+        setSyncState("synced");
       } catch {
         if (!cancelled) {
           if (!viewRef.current) createView("");
@@ -830,6 +1031,9 @@ export function NoteEditor({
           plegadosEdicion,
           plegadosLectura: plegadosLecturaRef.current,
           sucio: dirtyRef.current,
+          conocido: ultimoGuardadoRef.current,
+          conflicto: conflictoRef.current,
+          guardando: null,
         });
         unregisterView(paneId, view);
         view.destroy();
@@ -837,10 +1041,18 @@ export function NoteEditor({
       viewRef.current = null;
       // Al abandonar la nota: guardado inmediato si hay cambios (HU-04 CA2).
       // Cuando termina bien, la pestaña deja de estar sucia (ver `sucio`).
-      if (dirtyRef.current) {
-        void syncNow().then((ok) => {
-          const entrada = instanceCache.get(instanceId);
-          if (ok && entrada) entrada.sucio = false;
+      // En conflicto no se guarda (`DEF-138`): lo propio queda en la caché de
+      // la pestaña y el conflicto sigue registrado para cuando vuelva o cierre.
+      const entrada = instanceCache.get(instanceId);
+      if (dirtyRef.current && !conflictoRef.current && entrada) {
+        entrada.guardando = syncNow().then((ok) => {
+          if (ok) {
+            entrada.sucio = false;
+            entrada.conocido = ultimoGuardadoRef.current;
+          }
+          // El guardado pudo toparse con un cambio de afuera (409).
+          entrada.conflicto = conflictoRef.current;
+          entrada.guardando = null;
         });
       }
     };
@@ -862,16 +1074,30 @@ export function NoteEditor({
     return () => window.removeEventListener("micelio:goto-match", onGoto);
   }, [notaId]);
 
-  // Recarga ante cambios externos del vault (modo carpeta, fase 5). El evento lo
-  // dispara `vaultWatch` tras reindexar; `reloadFromDisk` respeta los cambios
-  // locales sin guardar.
+  // Cambios externos del vault (modo carpeta, fase 5). El evento lo dispara
+  // `vaultWatch` tras reindexar, con las rutas de la ráfaga: solo se mira el
+  // disco si tocó a esta nota. `revisarDisco` decide entre recargar y entrar en
+  // conflicto (`DEF-138`).
+  //
+  // También al guardarse esta nota desde OTRA instancia (la misma nota en otro
+  // panel): si lo escrito coincide con lo que se ve acá, un conflicto de este
+  // lado se resolvió allá.
   useEffect(() => {
-    function onRecarga() {
-      void reloadFromDisk();
+    function onRecarga(e: Event) {
+      if (avisoTocaA(e, notaIdRef.current)) void revisarDisco();
+    }
+    function onGuardada(e: Event) {
+      if ((e as CustomEvent<{ notaId?: string }>).detail?.notaId === notaIdRef.current) {
+        void revisarDisco();
+      }
     }
     window.addEventListener(EVENTO_RECARGA, onRecarga);
-    return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
-  }, [reloadFromDisk]);
+    window.addEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    return () => {
+      window.removeEventListener(EVENTO_RECARGA, onRecarga);
+      window.removeEventListener(EVENTO_NOTA_GUARDADA, onGuardada);
+    };
+  }, [revisarDisco]);
 
   // Espejo en tiempo real con otras instancias de la misma nota
   useEffect(() => {
@@ -900,10 +1126,20 @@ export function NoteEditor({
     const onBeforeUnload = () => {
       // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
       // dispatcher local (antes era un fetch al backend .NET).
-      if (dirtyRef.current) {
+      if (conflictoRef.current) {
+        // En conflicto no se puede preguntar ni esperar: lo propio se escribe
+        // en un archivo aparte, con fecha y hora, y el de la nota queda como lo
+        // dejaron afuera (`DEF-138`). Una sola escritura, sin pasar por el índice
+        // —el próximo indexado lo encuentra—.
+        void escribirNota(
+          getVaultActual(),
+          rutaDeCopiaDeEmergencia(notaId, new Date()),
+          contentRef.current,
+        ).catch(() => {});
+      } else if (dirtyRef.current) {
         void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
           method: "PUT",
-          body: { contenido: contentRef.current },
+          body: { contenido: contentRef.current, esperado: ultimoGuardadoRef.current },
         });
       }
     };
@@ -1364,6 +1600,25 @@ export function NoteEditor({
         titulo={notaTitulo}
         paneId={paneId}
       />
+
+      {conflicto && (
+        // `DEF-138`: el archivo cambió fuera de Mycelium y la nota tiene cambios
+        // propios. El guardado está en pausa; nada se pierde sin que se elija.
+        <div className={styles.conflictBar} role="alert">
+          <span className={styles.conflictTexto}>
+            El archivo cambió fuera de Mycelium y tenés cambios sin guardar.
+          </span>
+          <button type="button" disabled={resolviendo} onClick={() => void verLoDeAfuera()}>
+            Ver lo de afuera
+          </button>
+          <button type="button" disabled={resolviendo} onClick={() => void quedarmeConLoMio()}>
+            Quedarme con lo mío
+          </button>
+          <button type="button" disabled={resolviendo} onClick={() => void guardarCopia()}>
+            Guardar lo mío como copia
+          </button>
+        </div>
+      )}
 
       {isActivePane && (
         <SearchBar

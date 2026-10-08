@@ -99,6 +99,10 @@ export function BarraEstado() {
       ? "Guardando…"
       : estado === "error"
         ? "Sin guardar"
+        : estado === "conflicto"
+          ? // `DEF-138`: el guardado está en pausa hasta que se elija en la barra
+            // de la nota; decir «Guardando…» sería mentir.
+            "Sin guardar: conflicto"
         : ultimo
           ? `Guardado ${hora(ultimo)}`
           : "Guardado";
@@ -129,7 +133,9 @@ export function BarraEstado() {
           {/* Sin role="status": cada tecla pasa por «Guardando…» y un lector de
               pantalla lo anunciaría todo el tiempo. */}
           <span
-            className={estado === "error" ? `${styles.item} ${styles.alerta}` : styles.item}
+            className={
+              estado === "error" || estado === "conflicto" ? `${styles.item} ${styles.alerta}` : styles.item
+            }
           >
             {guardado}
           </span>
