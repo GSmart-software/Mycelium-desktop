@@ -9,6 +9,7 @@ import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { crearResolutor, escribirEnlacesTanda, huellaEnlaces, reResolverTitulos } from "./enlacesIndice";
 import { ftsPoner } from "./ftsIndice";
+import { derivarIndice } from "./propiedades";
 import { DbError } from "./errors";
 import { carpetaDeArchivo, tituloDeRuta } from "./indexer";
 import type { CreatedResponse, NotaTipo } from "./types";
@@ -203,7 +204,9 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
       cont[0].contenido,
       now,
     ]);
-    await ftsPoner(nuevo, titulo, cont[0].contenido);
+    // Lo mismo que indexa el guardado (`DEF-148`), no el texto crudo.
+    const buscable = derivarIndice(cont[0].contenido, nota.tipo);
+    await ftsPoner(nuevo, titulo, buscable.contenido, buscable.extra);
     // La copia enlaza a lo mismo que el original (`FUN-L-25`).
     const enlaces = derivarEnlaces(cont[0].contenido, nota.tipo);
     const etiquetas = derivarEtiquetas(cont[0].contenido, nota.tipo);

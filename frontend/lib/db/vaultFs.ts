@@ -17,6 +17,7 @@ import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { reResolverTitulos } from "./enlacesIndice";
 import { enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
+import { derivarIndice } from "./propiedades";
 import { crearCola, desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
 
@@ -326,8 +327,8 @@ export async function rekeyIndice(
 
   // 2) Notas nuevas (copiando tipo/tamaño/mtime/creado_en de la vieja). La
   // huella de los enlaces también: sus filas se repuntan tal cual (paso 3). La
-  // de lo indexable NO: `ftsPoner` de abajo indexa el texto crudo, y con la
-  // huella en NULL el próximo guardado la vuelve a indexar bien.
+  // de lo indexable NO: con la huella en NULL el próximo guardado vuelve a
+  // escribir la fila de búsqueda, que es lo seguro.
   for (const n of notas) {
     await execute(
       `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_enlaces, creado_en, actualizado_en)
@@ -338,9 +339,9 @@ export async function rekeyIndice(
 
   // 3) Repunte de hijos + reindex FTS (delete viejo + insert nuevo con el título).
   for (const n of notas) {
-    const cont = await select<{ contenido: string }>(
-      "SELECT contenido FROM contenidos WHERE nota_id = ?",
-      [n.oldId],
+    const cont = await select<{ contenido: string; tipo: string }>(
+      "SELECT contenido, (SELECT tipo FROM notas WHERE id = ?) AS tipo FROM contenidos WHERE nota_id = ?",
+      [n.oldId, n.oldId],
     );
     await execute("UPDATE contenidos SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE papelera SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
@@ -353,7 +354,9 @@ export async function rekeyIndice(
     await execute("UPDATE enlaces SET destino_id = ? WHERE destino_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE etiquetas SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await ftsBorrar([n.oldId]);
-    await ftsPoner(n.newId, n.newTitulo, cont[0]?.contenido ?? "");
+    // El texto legible, como al guardar (`DEF-148`), no el crudo.
+    const buscable = derivarIndice(cont[0]?.contenido ?? "", cont[0]?.tipo);
+    await ftsPoner(n.newId, n.newTitulo, buscable.contenido, buscable.extra);
   }
 
   // 4) Borrado de notas viejas (ya sin hijos que las referencien).

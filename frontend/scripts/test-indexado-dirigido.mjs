@@ -60,6 +60,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./util": UTIL,
 });
 const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
   "@/lib/frontmatter": FRONTMATTER,
   "./client": CLIENT,
   "./fts": await fuente("../lib/db/fts.ts"),

@@ -74,6 +74,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./util": UTIL,
 });
 const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
   "@/lib/frontmatter": FRONTMATTER,
   "./client": CLIENT,
   "./fts": await fuente("../lib/db/fts.ts"),
@@ -100,6 +101,7 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./enlacesIndice": ENLACES_INDICE,
   "./ftsIndice": FTS,
   "./nombres": NOMBRES,
+  "./propiedades": PROPIEDADES,
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
@@ -222,10 +224,14 @@ async function abrir(vault = VAULT) {
 
 const contenidoEnIndice = (db, id) =>
   db.prepare("SELECT contenido FROM contenidos WHERE nota_id = ?").get(id)?.contenido;
-const filaDeBusqueda = (db, id) =>
-  db
-    .prepare("SELECT t.contenido FROM fts_filas f JOIN notas_fts t ON t.rowid = f.fila WHERE f.nota_id = ?")
-    .get(id)?.contenido;
+// El contenido legible y lo que se busca sin mostrarse (los valores de las
+// propiedades van a `extra`, `DEF-148`).
+const filaDeBusqueda = (db, id) => {
+  const fila = db
+    .prepare("SELECT t.contenido, t.extra FROM fts_filas f JOIN notas_fts t ON t.rowid = f.fila WHERE f.nota_id = ?")
+    .get(id);
+  return fila && [fila.contenido, fila.extra].filter((t) => t).join("\n");
+};
 const sinContenido = (db) =>
   db
     .prepare("SELECT id FROM notas WHERE id NOT IN (SELECT nota_id FROM contenidos) ORDER BY id")

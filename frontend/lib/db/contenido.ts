@@ -147,15 +147,16 @@ export async function putContenido(
      ON CONFLICT(nota_id) DO UPDATE SET contenido = excluded.contenido, actualizado_en = excluded.actualizado_en`,
     [id, texto, now],
   );
-  // Lo que se indexa es el CUERPO + los VALORES de las propiedades: el YAML crudo
-  // (las claves, los guiones) ensuciaba la búsqueda y los fragmentos de
-  // resultado (FUN-M-04). Y solo si cambió (`FUN-M-38`, H10): la huella de lo
+  // Lo que se indexa es el CUERPO legible + los VALORES de las propiedades: el
+  // YAML crudo (las claves, los guiones) ensuciaba la búsqueda y los fragmentos
+  // de resultado (FUN-M-04), y la sintaxis del cuerpo también (`DEF-148`, ver
+  // `derivarIndice`). Y solo si cambió (`FUN-M-38`, H10): la huella de lo
   // indexable se compara con la guardada, y si es la misma, ni `notas_fts` ni
   // `propiedades` se reescriben —en una nota de 500 KB, cientos de ms de FTS5
   // por cada guardado que no las tocaba—.
-  const { indexable, propiedades, huella } = derivarIndice(texto);
+  const { contenido: buscable, extra, propiedades, huella } = derivarIndice(texto, notas[0].tipo);
   if (huella !== notas[0].hash_indexable || Number(notas[0].con_busqueda) !== 1) {
-    await ftsPoner(id, notas[0].titulo, indexable);
+    await ftsPoner(id, notas[0].titulo, buscable, extra);
     await reindexarPropiedadesTanda([{ id, propiedades }]);
   }
   // Los enlaces y las etiquetas (`FUN-L-25`), con su propia huella: casi todo

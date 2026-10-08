@@ -11,7 +11,10 @@
 //   - `clave:"valor con espacios"` pide el valor entero, y sin comillas alcanza
 //     con una palabra del valor que empiece así (`DEF-145`);
 //   - el título que coincide con la consulta sale primero, antes que las notas
-//     que solo la mencionan (`DEF-146`).
+//     que solo la mencionan (`DEF-146`);
+//   - los fragmentos se leen como texto: la propiedad que coincidió como
+//     «clave: valor», los enlaces por su texto visible y un canvas por sus
+//     tarjetas; y un índice anterior se rehace solo al abrirlo (`DEF-148`).
 //
 // Necesita `better-sqlite3`, como `test-indexado-dirigido.mjs`: se busca en
 // `node_modules` y, si no, en la carpeta que diga `MYCELIUM_BETTER_SQLITE3`;
@@ -64,6 +67,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./util": UTIL,
 });
 const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
   "@/lib/frontmatter": FRONTMATTER,
   "./client": CLIENT,
   "./fts": FTS,
@@ -114,13 +118,16 @@ function executorDe(db) {
   };
 }
 
+/** El tipo de un archivo por su extensión, como lo reporta `recorrer_vault`. */
+const tipoDe = (ruta) => /\.(canvas|excalidraw|drawio|base)$/.exec(ruta)?.[1] ?? "markdown";
+
 /** Los comandos Rust del indexado, sobre un vault en memoria. */
 function vaultEnMemoria(archivos) {
   globalThis.__invoke = async (cmd, a) => {
     switch (cmd) {
       case "recorrer_vault":
         return {
-          archivosMeta: Object.keys(archivos).map((r, i) => ({ rutaRelativa: r, mtime: 1000 + i, tipo: "markdown" })),
+          archivosMeta: Object.keys(archivos).map((r, i) => ({ rutaRelativa: r, mtime: 1000 + i, tipo: tipoDe(r) })),
           otros: [],
           directorios: [],
         };
@@ -354,4 +361,118 @@ test("con filtros, el texto libre ordena igual", { skip: sinSqlite }, async () =
   assert.ok(Array.isArray(await enOrden("tag:tomate")));
   // Puntuación suelta junto al texto tampoco rompe el orden.
   assert.equal((await enOrden("tomate -"))[0], "Tomate");
+});
+
+// --- Fragmentos legibles (`DEF-148`) ----------------------------------------
+// Antes el fragmento era el texto crudo: el frontmatter aplastado en una línea
+// cuando la coincidencia era una propiedad, los `[[enlaces]]` tal cual y, en un
+// canvas, su JSON con `\n` literales.
+
+const HUERTO = {
+  "Zapallo.md":
+    "---\nfamilia: cucurbitáceas\nbancal: Bancal 3\nestado: planificado\ntags: [cultivo, verano]\n---\n" +
+    "Rastrero. Se siembra en primavera.\n",
+  "Caléndula.md": "## Usos\n\nRepele a los [[Pulgón|pulgones]] de las **plantas vecinas**. #cultivo\n",
+  "Asociaciones.md":
+    "| Cultivo | Compañera |\n|---|---|\n| [[Tomate]] | [[Albahaca]] |\n\n- [ ] Probar [[Ají]] con ==cebolla==\n",
+  "Pulgón.md": "Plaga.\n",
+  "Tablero.canvas": JSON.stringify({
+    nodes: [
+      {
+        id: "a",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 200,
+        height: 100,
+        text: "**Bancal 1 — Solanáceas**\n\n- [[Tomate]] y [[Ají]]\n- [[Albahaca]] intercalada",
+      },
+      { id: "b", type: "file", x: 300, y: 0, width: 200, height: 100, file: "Cultivos/Zanahoria.md" },
+    ],
+    edges: [],
+  }),
+};
+
+/** El fragmento de un resultado, por título. */
+const fragmentoDe = async (q, titulo, campo = "ambos") =>
+  (await buscar(LOCAL_VAULT_ID, q, false, campo)).resultados.find((r) => r.titulo === titulo)?.fragmento;
+
+test("una coincidencia en una propiedad muestra «clave: valor», no el frontmatter aplastado", { skip: sinSqlite }, async () => {
+  await abrir(HUERTO);
+  assert.equal(await fragmentoDe("cucurbitaceas", "Zapallo"), "familia: «cucurbitáceas»");
+  assert.equal(await fragmentoDe("planif", "Zapallo"), "estado: «planificado»");
+  assert.equal(await fragmentoDe("bancal", "Zapallo"), "bancal: «Bancal» 3");
+  // Un elemento de lista es su propia fila: se muestra el que coincidió.
+  assert.equal(await fragmentoDe("verano", "Zapallo"), "tags: «verano»");
+  // `tag:` encuentra la etiqueta del frontmatter y la muestra igual.
+  assert.equal(await fragmentoDe("tag:cultivo", "Zapallo"), "tags: «cultivo»");
+  // Buscando solo en el contenido, también.
+  assert.equal(await fragmentoDe("cucurbitaceas", "Zapallo", "contenido"), "familia: «cucurbitáceas»");
+  // Si la palabra está en el cuerpo, el fragmento es el cuerpo.
+  assert.match(await fragmentoDe("rastrero", "Zapallo"), /^«Rastrero»\. Se siembra/);
+});
+
+test("los enlaces se leen por su texto visible y sin marcas de markdown", { skip: sinSqlite }, async () => {
+  await abrir(HUERTO);
+  const f = await fragmentoDe("repele", "Caléndula");
+  assert.ok(!/\[\[|\]\]|\*\*|##/.test(f), f);
+  assert.match(f, /«Repele» a los pulgones de las plantas vecinas\. #cultivo/);
+  const t = await fragmentoDe("albahaca", "Asociaciones");
+  assert.ok(!/\[\[|\]\]|---|==|\[ \]/.test(t), t);
+  assert.match(t, /Tomate · «Albahaca»/);
+  assert.match(t, /Probar Ají con cebolla/);
+});
+
+test("el destino de un enlace con alias se sigue encontrando", { skip: sinSqlite }, async () => {
+  await abrir(HUERTO);
+  assert.ok((await titulos("pulgon")).includes("Caléndula"));
+  assert.ok((await titulos("pulgon")).includes("Pulgón"));
+  // Por prefijo, «pulgon» ya coincide con «pulgones», que sí se ve.
+  assert.match(await fragmentoDe("pulgon", "Caléndula"), /«pulgones»/);
+  // Con «Búsqueda exacta» solo coincide el destino: el fragmento lo marca
+  // aunque no esté en el texto visible.
+  const exacta = (await buscar(LOCAL_VAULT_ID, "pulgon", true)).resultados.find((r) => r.titulo === "Caléndula");
+  assert.match(exacta?.fragmento ?? "", /«Pulgón»/);
+  // También buscando solo en el contenido.
+  const soloContenido = (await buscar(LOCAL_VAULT_ID, "pulgon", false, "contenido")).resultados.map((r) => r.titulo);
+  assert.ok(soloContenido.includes("Caléndula"), soloContenido.join(", "));
+});
+
+test("un canvas se lee por el texto de sus tarjetas, no por su JSON", { skip: sinSqlite }, async () => {
+  await abrir(HUERTO);
+  const f = await fragmentoDe("intercalada", "Tablero");
+  assert.ok(!/\\n|\[\[|"text"|\*\*/.test(f), f);
+  assert.match(f, /Albahaca «intercalada»/);
+  // La tarjeta de nota aporta su título; la ruta se sigue encontrando.
+  assert.ok((await titulos("zanahoria")).includes("Tablero"));
+  assert.ok((await titulos("cultivos")).includes("Tablero"));
+  // Las claves del JSON ya no son texto buscable.
+  assert.ok(!(await titulos("width")).includes("Tablero"));
+});
+
+test("un índice anterior a DEF-148 se rehace solo al abrirlo", { skip: sinSqlite }, async () => {
+  // El índice como lo dejaba la versión anterior: `notas_fts` sin `extra` y
+  // con el texto crudo (los valores de las propiedades pegados delante).
+  const db = await abrir(HUERTO);
+  db.exec("DROP TABLE notas_fts");
+  db.exec("CREATE VIRTUAL TABLE notas_fts USING fts5(nota_id UNINDEXED, titulo, contenido)");
+  db.exec("DELETE FROM fts_filas");
+  db.prepare("INSERT INTO notas_fts (nota_id, titulo, contenido) VALUES (?, ?, ?)").run(
+    "Zapallo.md",
+    "Zapallo",
+    "cucurbitáceas Bancal 3 planificado cultivo verano\nRastrero.",
+  );
+  db.exec("INSERT INTO fts_filas (nota_id, fila) SELECT nota_id, rowid FROM notas_fts");
+
+  // Abrir otra vez: el esquema se migra y el indexado rehace la búsqueda.
+  await indexer.crearEsquemaIndice();
+  const columnas = db.prepare("SELECT name FROM pragma_table_info('notas_fts')").all().map((c) => c.name);
+  assert.ok(columnas.includes("extra"), columnas.join(", "));
+  const r = await indexer.indexarVault("C:/vault");
+  assert.equal(r.reindexadas, Object.keys(HUERTO).length, "relee todas las notas una vez");
+  assert.equal(await fragmentoDe("cucurbitaceas", "Zapallo"), "familia: «cucurbitáceas»");
+  assert.match(await fragmentoDe("intercalada", "Tablero"), /Albahaca «intercalada»/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM notas_fts").get().n, Object.keys(HUERTO).length);
+  // Y de ahí en más no hay nada que releer.
+  assert.equal((await indexer.indexarVault("C:/vault")).reindexadas, 0);
 });
