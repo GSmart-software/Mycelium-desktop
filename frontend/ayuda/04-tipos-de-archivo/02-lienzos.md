@@ -30,6 +30,17 @@ de abajo a la derecha. Arrastrando el fondo te movés por el lienzo, y la rueda 
 acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 
+**Ctrl+Z** deshace el último cambio del lienzo y **Ctrl+Y** (o **Ctrl+Shift+Z**) lo rehace;
+también están los botones de flecha de la barra. Se deshace todo lo que cambia el archivo:
+crear o borrar una tarjeta, moverla, cambiarle el tamaño o el color, crear una flecha y
+editar el texto. Un arrastre entero es un solo paso, y lo que escribiste en una tarjeta
+también, al salir de ella. Mientras escribís en una tarjeta, Ctrl+Z deshace el texto, como
+en cualquier campo. Se recuerdan los últimos 100 pasos.
+
+> [!warning] Si el lienzo cambia desde afuera, el historial empieza de nuevo
+> Cuando otro programa —o la IA— modifica el archivo y el lienzo se recarga, lo que había
+> para deshacer se descarta: volver a un estado anterior mezclaría tu versión con la nueva.
+
 > [!info] La tarjeta de nota es la nota
 > No es una copia: muestra el contenido real del archivo, y su botón **Abrir** la abre en
 > una pestaña. Si la nota se borra, la tarjeta lo dice en vez de romper el lienzo.
