@@ -696,6 +696,31 @@ const CALLOUT_LABELS: Record<string, string> = {
 
 const hide = Decoration.replace({});
 
+/**
+ * Viñeta de una lista sin numerar fuera de la línea activa (`DEF-150 b`): el
+ * `-` `*` o `+` escrito se ve como «•», como en la vista de lectura y en
+ * Obsidian. Ocupa un carácter, igual que el marcador, así que la sangría no se
+ * mueve al entrar y salir de la línea. Lleva `mic-list-mark` (el color de
+ * siempre) y `mic-vineta`, que un snippet puede estilar (otro carácter con
+ * `content`, otro color).
+ */
+class VinetaWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-list-mark mic-vineta";
+    span.textContent = "•";
+    span.setAttribute("aria-hidden", "true");
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+const vinetaWidget = new VinetaWidget();
+
 /** Regla horizontal (--- *** ___): se dibuja como separador fuera de la línea activa. */
 class HrWidget extends WidgetType {
   eq() {
@@ -1377,7 +1402,29 @@ function buildDecorations(
             break;
           }
           case "ListMark": {
-            // Marcador de lista (- * + o 1.) coloreado, no se oculta (HU-01)
+            // Marcador de lista (HU-01). En la línea activa, y siempre en una
+            // lista numerada, se ve tal cual (`1.`), coloreado. Fuera de la
+            // línea activa, en una lista con viñetas (`DEF-150 b`, como en
+            // Obsidian):
+            // - en una tarea, `- ` se oculta y queda solo la casilla (el
+            //   `TaskMarker`, que se dibuja aparte);
+            // - en un ítem común, `-` `*` o `+` se dibuja como viñeta «•».
+            const item = node.node.parent;
+            const conVinetas = item?.parent?.name === "BulletList";
+            const line = doc.lineAt(node.from);
+            if (conVinetas && !activeLines.has(line.number)) {
+              const marcador = item?.getChild("Task")?.getChild("TaskMarker");
+              if (marcador) {
+                decos.push({ from: node.from, to: marcador.from, deco: hide });
+              } else {
+                decos.push({
+                  from: node.from,
+                  to: node.to,
+                  deco: Decoration.replace({ widget: vinetaWidget }),
+                });
+              }
+              break;
+            }
             decos.push({
               from: node.from,
               to: node.to,

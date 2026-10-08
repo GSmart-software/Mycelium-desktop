@@ -362,6 +362,19 @@
 }
 */
 
+/* Viñetas: fuera de la línea activa, el - * + de una lista sin numerar se ve
+   como .mic-vineta (con el carácter •). Para otro carácter, cambiá el texto con
+   font-size: 0 y un ::before. */
+/*
+.mic-vineta {
+  font-size: 0;
+}
+.mic-vineta::before {
+  content: "–";
+  font-size: var(--mic-editor-font-size);
+}
+*/
+
 /* Citas: blockquote en lectura, .mic-live-quote en vivo. */
 /*
 .mic-preview blockquote,

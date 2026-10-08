@@ -26,7 +26,9 @@ el texto tal cual está en el archivo.
 
 1. Elegí el modo con los botones de la derecha de la barra del editor, o con su atajo.
 2. Escribí en vivo: al salir de una línea, sus `**`, `#` o `[[ ]]` se esconden y queda el
-   formato. Volvé a la línea con el cursor y reaparecen para que los edites.
+   formato. Volvé a la línea con el cursor y reaparecen para que los edites. Lo mismo el
+   `-` de una lista, que fuera de la línea se ve como viñeta (•); en una tarea queda solo
+   la casilla.
 3. Pasá a lectura para revisar. Mycelium recuerda el modo de cada nota y, al cambiar de
    modo, te deja en la misma parte del texto que estabas mirando.
 
