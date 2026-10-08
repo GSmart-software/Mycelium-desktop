@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, FileText, Maximize2, Save, Trash2, Type } from "lucide-react";
+import { Ban, FileText, Maximize2, Redo2, Save, Trash2, Type, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -23,6 +23,18 @@ import {
   type Lado,
   type Nodo,
 } from "@/lib/canvas";
+import {
+  abrir as abrirEnHistorial,
+  accionDeTecla,
+  cerrar as cerrarEnHistorial,
+  deshacer,
+  historialVacio,
+  puedeDeshacer,
+  puedeRehacer,
+  registrar,
+  rehacer,
+  type Historial,
+} from "@/lib/historialCanvas";
 import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
 import { soltarFoco } from "@/lib/editor/tituloPendiente";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
@@ -48,6 +60,14 @@ type Arrastre =
   | { tipo: "nodo"; id: string; dx: number; dy: number }
   | { tipo: "tamano"; id: string; x0: number; y0: number; w0: number; h0: number }
   | { tipo: "arista"; desde: string; lado: Lado; x: number; y: number };
+
+/**
+ * El último lienzo que el usuario tocó (`DEF-137`). Con dos lienzos abiertos en
+ * paneles distintos, Ctrl+Z tiene que deshacer en el que se estaba usando, no
+ * en los dos: los atajos escuchan en la ventana y solo el que figura acá
+ * responde.
+ */
+let lienzoActivo: symbol | null = null;
 
 /**
  * Editor de canvas (`FUN-L-18`): lienzo infinito con tarjetas de markdown y de
@@ -90,6 +110,27 @@ export function CanvasView({ notaId }: { notaId: string }) {
    * `ultimoGuardadoRef` en `NoteEditor`, `DEF-117`).
    */
   const conocidoRef = useRef<string | null>(null);
+  /**
+   * Deshacer/rehacer (`DEF-137`): snapshots del documento, ver
+   * `lib/historialCanvas.ts`. Vive en una ref porque lo tocan los manejadores
+   * del puntero y del teclado, fuera del render; `puede` es lo que necesitan
+   * los botones de la barra, y `tocarHistorial` lo recalcula después de cada
+   * cambio del historial o del documento.
+   */
+  const historialRef = useRef<Historial<Canvas>>(historialVacio());
+  const [puede, setPuede] = useState({ deshacer: false, rehacer: false });
+  const tocarHistorial = useCallback(() => {
+    const h = historialRef.current;
+    const c = canvasRef.current;
+    const deshacerOk = c !== null && puedeDeshacer(h, c);
+    const rehacerOk = c !== null && puedeRehacer(h, c);
+    setPuede((p) =>
+      p.deshacer === deshacerOk && p.rehacer === rehacerOk
+        ? p
+        : { deshacer: deshacerOk, rehacer: rehacerOk },
+    );
+  }, []);
+  const yoRef = useRef<symbol>(Symbol("lienzo"));
 
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
@@ -163,20 +204,90 @@ export function CanvasView({ notaId }: { notaId: string }) {
     [notaId],
   );
 
-  /** Aplica un cambio al canvas y programa el guardado. */
-  const cambiar = useCallback(
-    (fn: (c: Canvas) => Canvas) => {
-      setCanvas((prev) => {
-        if (prev === null) return prev;
-        const siguiente = fn(prev);
-        sucioRef.current = true;
-        setSucio(true);
-        if (guardadoRef.current) clearTimeout(guardadoRef.current);
-        guardadoRef.current = setTimeout(() => void guardar(siguiente), GUARDADO_MS);
-        return siguiente;
-      });
+  /**
+   * Pone `siguiente` en pantalla y programa el guardado. Es el único camino al
+   * disco: un cambio, un deshacer y un rehacer se guardan igual.
+   *
+   * La ref se actualiza en el acto, sin esperar al render: un arrastre manda
+   * varios cambios entre dos renders y cada uno parte del anterior. Antes esto
+   * iba dentro del actualizador de `setCanvas`, con el temporizador como efecto
+   * secundario adentro (lo que `DEF-135` enseñó a no hacer).
+   */
+  const aplicar = useCallback(
+    (siguiente: Canvas) => {
+      canvasRef.current = siguiente;
+      setCanvas(siguiente);
+      sucioRef.current = true;
+      setSucio(true);
+      if (guardadoRef.current) clearTimeout(guardadoRef.current);
+      guardadoRef.current = setTimeout(() => void guardar(siguiente), GUARDADO_MS);
     },
     [guardar],
+  );
+
+  /**
+   * Aplica un cambio al canvas y programa el guardado. Por defecto es un paso
+   * del historial; con `enGesto` es parte del gesto abierto (un arrastre, la
+   * edición de un texto), que entra como UN paso al cerrarse.
+   */
+  const cambiar = useCallback(
+    (fn: (c: Canvas) => Canvas, enGesto = false) => {
+      const prev = canvasRef.current;
+      if (prev === null) return;
+      const siguiente = fn(prev);
+      if (siguiente === prev) return;
+      if (!enGesto) historialRef.current = registrar(historialRef.current, prev, siguiente);
+      aplicar(siguiente);
+      if (!enGesto) tocarHistorial();
+    },
+    [aplicar, tocarHistorial],
+  );
+
+  /** Empieza un gesto que va a ser un solo paso del historial. */
+  const abrirGesto = useCallback(
+    (clave: string) => {
+      const actual = canvasRef.current;
+      if (actual === null) return;
+      historialRef.current = abrirEnHistorial(historialRef.current, clave, actual);
+      tocarHistorial();
+    },
+    [tocarHistorial],
+  );
+
+  /** Termina el gesto `clave`: si cambió algo, entra como un paso. */
+  const cerrarGesto = useCallback(
+    (clave: string) => {
+      const actual = canvasRef.current;
+      if (actual === null) return;
+      historialRef.current = cerrarEnHistorial(historialRef.current, clave, actual);
+      tocarHistorial();
+    },
+    [tocarHistorial],
+  );
+
+  /** Sale de la edición del texto de una tarjeta: su escritura es un paso. */
+  const terminarEdicion = useCallback(() => {
+    const id = editandoRef.current;
+    if (id !== null) cerrarGesto(`texto:${id}`);
+    setEditando(null);
+  }, [cerrarGesto]);
+
+  /** Deshace o rehace un paso. La selección se suelta si su tarjeta ya no está. */
+  const moverEnHistorial = useCallback(
+    (accion: "deshacer" | "rehacer") => {
+      const actual = canvasRef.current;
+      // Mientras se escribe en una tarjeta, Ctrl+Z es el del texto.
+      if (actual === null || editandoRef.current !== null) return;
+      // A mitad de un arrastre no: el gesto seguiría moviendo sobre lo deshecho.
+      if (arrastre.current !== null) return;
+      const r = (accion === "deshacer" ? deshacer : rehacer)(historialRef.current, actual);
+      if (r === null) return;
+      historialRef.current = r.historial;
+      aplicar(r.documento);
+      tocarHistorial();
+      setSeleccion((s) => (s !== null && r.documento.nodos.some((n) => n.id === s) ? s : null));
+    },
+    [aplicar, tocarHistorial],
   );
 
   // ── Cambios de afuera (`FUN-L-26`) ─────────────────────────────────────────
@@ -212,7 +323,14 @@ export function CanvasView({ notaId }: { notaId: string }) {
         return;
       conocidoRef.current = disco;
       const nuevo = parsearCanvas(disco);
+      // El historial se descarta (`DEF-137`): sus snapshots son de la versión
+      // anterior del archivo, y deshacer hacia uno de ellos pisaría lo que llegó
+      // de afuera mezclando las dos. Recargar es, para el historial, abrir de
+      // nuevo el lienzo.
+      historialRef.current = historialVacio();
+      canvasRef.current = nuevo;
       setCanvas(nuevo);
+      tocarHistorial();
       setSeleccion((s) => (s !== null && nuevo.nodos.some((n) => n.id === s) ? s : null));
     }
     function onRecarga(ev: Event) {
@@ -220,7 +338,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     }
     window.addEventListener(EVENTO_RECARGA, onRecarga);
     return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
-  }, [notaId]);
+  }, [notaId, tocarHistorial]);
 
   // Al cerrar la pestaña puede quedar un guardado en vuelo: se fuerza.
   useEffect(
@@ -258,7 +376,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
         cambiar((c) => ({
           ...c,
           nodos: c.nodos.map((n) => (n.id === a.id ? { ...n, x: p.x - a.dx, y: p.y - a.dy } : n)),
-        }));
+        }), true);
       } else if (a.tipo === "tamano") {
         cambiar((c) => ({
           ...c,
@@ -271,7 +389,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
                 }
               : n,
           ),
-        }));
+        }), true);
       } else {
         arrastre.current = { ...a, x: p.x, y: p.y };
         // Redibuja la línea provisional sin tocar el documento.
@@ -283,6 +401,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
       const a = arrastre.current;
       arrastre.current = null;
       setDesplazando(false);
+      // Un arrastre entero —mover o redimensionar— es un solo paso.
+      if (a?.tipo === "nodo" || a?.tipo === "tamano") cerrarGesto("arrastre");
       if (a?.tipo !== "arista") return;
       const destino = (e.target as HTMLElement | null)?.closest("[data-nodo]");
       const id = destino?.getAttribute("data-nodo");
@@ -306,7 +426,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [cambiar, enLienzo]);
+  }, [cambiar, cerrarGesto, enLienzo]);
 
   /**
    * Zoom hacia el cursor: lo que está bajo el puntero no se mueve.
@@ -352,6 +472,39 @@ export function CanvasView({ notaId }: { notaId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [seleccion, editando, cambiar]);
 
+  // Deshacer y rehacer (`DEF-137`). Se escucha en la fase de captura para
+  // adelantarse al Ctrl+Z del explorador (deshacer el último movimiento de un
+  // archivo), que se aparta si la tecla ya fue atendida. Solo responde el
+  // lienzo que se usó por última vez, si se ve, y nunca con el foco en un campo
+  // de texto: ahí Ctrl+Z es el del campo.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const accion = accionDeTecla(e);
+      if (accion === null || e.defaultPrevented) return;
+      if (lienzoActivo !== yoRef.current) return;
+      const host = hostRef.current;
+      if (host === null || host.getClientRects().length === 0) return;
+      const foco = document.activeElement as HTMLElement | null;
+      if (
+        foco !== null &&
+        (foco.isContentEditable || foco.tagName === "INPUT" || foco.tagName === "TEXTAREA")
+      )
+        return;
+      if (editandoRef.current !== null) return;
+      e.preventDefault();
+      moverEnHistorial(accion);
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [moverEnHistorial]);
+
+  useEffect(() => {
+    const yo = yoRef.current;
+    return () => {
+      if (lienzoActivo === yo) lienzoActivo = null;
+    };
+  }, []);
+
   // ── Crear ──────────────────────────────────────────────────────────────────
   /** Centro visible del lienzo, para soltar ahí lo que se cree. */
   const centro = () => {
@@ -377,7 +530,10 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const agregarTexto = () => {
     const p = centro();
     const id = idNuevo();
-    cambiar((c) => ({ ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] }));
+    // Crear la tarjeta y escribir su texto es UN paso: el gesto se abre antes
+    // de crearla, así que deshacer se lleva la tarjeta con lo escrito.
+    abrirGesto(`texto:${id}`);
+    cambiar((c) => ({ ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] }), true);
     setEditando(id);
     setSeleccion(id);
   };
@@ -398,6 +554,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
   /** Pinta la tarjeta seleccionada. `undefined` la devuelve al color de Mycelium. */
   const pintar = (color: string | undefined) => {
     if (seleccion === null) return;
+    // El mismo color no es un cambio: no debe dejar un paso que no hace nada.
+    if (canvasRef.current?.nodos.find((n) => n.id === seleccion)?.color === color) return;
     cambiar((c) => ({
       ...c,
       nodos: c.nodos.map((n) => (n.id === seleccion ? { ...n, color } : n)),
@@ -450,7 +608,13 @@ export function CanvasView({ notaId }: { notaId: string }) {
     : undefined;
 
   return (
-    <div className={styles.wrap}>
+    <div
+      className={styles.wrap}
+      // Tocar el lienzo o su barra lo vuelve el destino de Ctrl+Z (`DEF-137`).
+      onPointerDownCapture={() => {
+        lienzoActivo = yoRef.current;
+      }}
+    >
       <header className={styles.barra}>
         <button
           type="button"
@@ -482,6 +646,26 @@ export function CanvasView({ notaId }: { notaId: string }) {
           onClick={() => setVista({ x: 0, y: 0, escala: 1 })}
         >
           <Maximize2 size={14} aria-hidden /> {Math.round(vista.escala * 100)}%
+        </button>
+        <button
+          type="button"
+          className={styles.boton}
+          title="Deshacer (Ctrl+Z)"
+          aria-label="Deshacer"
+          disabled={!puede.deshacer}
+          onClick={() => moverEnHistorial("deshacer")}
+        >
+          <Undo2 size={14} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.boton}
+          title="Rehacer (Ctrl+Y)"
+          aria-label="Rehacer"
+          disabled={!puede.rehacer}
+          onClick={() => moverEnHistorial("rehacer")}
+        >
+          <Redo2 size={14} aria-hidden />
         </button>
         {seleccion !== null && (
           <span className={styles.paleta} role="group" aria-label="Color de la tarjeta">
@@ -585,7 +769,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
           // "engancha" a mitad del gesto.
           e.preventDefault();
           setSeleccion(null);
-          setEditando(null);
+          terminarEdicion();
           setDesplazando(true);
           arrastre.current = {
             tipo: "lienzo",
@@ -644,19 +828,27 @@ export function CanvasView({ notaId }: { notaId: string }) {
               notas={notas}
               carpetas={carpetas}
               onSeleccionar={() => setSeleccion(n.id)}
-              onEditar={() => setEditando(n.id)}
-              onTerminarEdicion={() => setEditando(null)}
+              onEditar={() => {
+                abrirGesto(`texto:${n.id}`);
+                setEditando(n.id);
+              }}
+              onTerminarEdicion={terminarEdicion}
               onTexto={(texto) =>
-                cambiar((c) => ({
-                  ...c,
-                  nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
-                }))
+                cambiar(
+                  (c) => ({
+                    ...c,
+                    nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
+                  }),
+                  true,
+                )
               }
               onArrastrar={(e) => {
+                abrirGesto("arrastre");
                 const p = enLienzo(e);
                 arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
               }}
               onRedimensionar={(e) => {
+                abrirGesto("arrastre");
                 const p = enLienzo(e);
                 arrastre.current = {
                   tipo: "tamano",

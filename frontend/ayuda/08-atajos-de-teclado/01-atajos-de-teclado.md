@@ -65,6 +65,17 @@ Con el foco en el árbol de archivos:
 | **Shift+F10** o la tecla de menú | El menú del clic derecho. |
 | **Ctrl+Z** | Deshace el último movimiento de un archivo o carpeta. |
 
+## Lienzos
+
+Después de tocar el lienzo, con el foco fuera del texto de una tarjeta:
+
+| Atajo | Qué hace |
+|---|---|
+| **Ctrl+Z** | Deshace el último cambio del [lienzo](ayuda:tipos-de-archivo/lienzos). |
+| **Ctrl+Y** o **Ctrl+Shift+Z** | Rehace lo deshecho. |
+| **Supr** | Borra la tarjeta seleccionada (se recupera con Ctrl+Z). |
+| **Esc** | Termina de editar el texto de una tarjeta. |
+
 ## Consolas
 
 | Atajo | Qué hace |
