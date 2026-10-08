@@ -27,6 +27,7 @@ const {
   nodoTexto,
   nuevaArista,
   nuevoId,
+  ordenDePintado,
   parsearCanvas,
   referenciasDe,
   serializarCanvas,
@@ -419,4 +420,38 @@ test("un nodo sin tamaño, o una vista mínima, no dan NaN ni infinito", () => {
   assert.deepEqual(enPantalla(v1, 10, 10), { x: 400, y: 300 });
   const v2 = encuadrar({ x: 0, y: 0, ancho: 500, alto: 500 }, { ancho: 40, alto: 40 });
   for (const n of [v2.x, v2.y, v2.escala]) assert.ok(Number.isFinite(n));
+});
+
+// ── Orden de pintado (`DEF-151`) ─────────────────────────────────────────────
+
+const nodoDe = (id, tipo, ancho, alto) => ({ id, tipo, x: 0, y: 0, ancho, alto, crudo: {} });
+
+test("los grupos van a su capa, aunque el archivo los liste después de las tarjetas", () => {
+  const nodos = [
+    nodoDe("a", "text", 100, 50),
+    nodoDe("g", "group", 400, 300),
+    nodoDe("b", "file", 100, 50),
+    nodoDe("l", "link", 100, 50),
+  ];
+  const { grupos, tarjetas } = ordenDePintado(nodos);
+  assert.deepEqual(grupos.map((n) => n.id), ["g"]);
+  assert.deepEqual(tarjetas.map((n) => n.id), ["a", "b", "l"], "las tarjetas, en el orden del archivo");
+});
+
+test("un grupo anidado queda encima del que lo contiene; a igual área, el orden del archivo", () => {
+  const nodos = [
+    nodoDe("chico", "group", 100, 100),
+    nodoDe("grande", "group", 1000, 800),
+    nodoDe("igual1", "group", 200, 200),
+    nodoDe("igual2", "group", 400, 100),
+  ];
+  const { grupos, tarjetas } = ordenDePintado(nodos);
+  assert.deepEqual(grupos.map((n) => n.id), ["grande", "igual1", "igual2", "chico"]);
+  assert.deepEqual(tarjetas, []);
+});
+
+test("no toca el arreglo de entrada (es el estado del lienzo)", () => {
+  const nodos = [nodoDe("g1", "group", 10, 10), nodoDe("g2", "group", 20, 20)];
+  ordenDePintado(nodos);
+  assert.deepEqual(nodos.map((n) => n.id), ["g1", "g2"]);
 });
