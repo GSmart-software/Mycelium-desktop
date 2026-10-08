@@ -496,6 +496,15 @@
 }
 */
 
+/* En vivo, con el cursor fuera del bloque, las cercas ``` se esconden y la de
+   apertura muestra el lenguaje en .mic-live-code-lang (chico, a la derecha). */
+/*
+.mic-live-code-lang {
+  text-align: left;
+  text-transform: uppercase;
+}
+*/
+
 /*
 :root[data-theme][data-dark='true'] {
   --mic-syntax-comment: #6a9955;

@@ -721,6 +721,32 @@ class VinetaWidget extends WidgetType {
 }
 const vinetaWidget = new VinetaWidget();
 
+/**
+ * Lo que queda de una cerca ``` de un bloque de código con el cursor fuera
+ * del bloque (`DEF-150 k`): en la de apertura, la etiqueta del lenguaje
+ * (`.mic-live-code-lang`, estilable); en la de cierre, nada visible. Ocupa
+ * el ancho de la línea para que conserve su alto y un clic en ella lleve el
+ * cursor ahí, que muestra las cercas en crudo.
+ */
+class CercaWidget extends WidgetType {
+  constructor(readonly lenguaje: string) {
+    super();
+  }
+  eq(other: CercaWidget) {
+    return other.lenguaje === this.lenguaje;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-live-code-lang";
+    span.textContent = this.lenguaje;
+    if (!this.lenguaje) span.setAttribute("aria-hidden", "true");
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
 /** Regla horizontal (--- *** ___): se dibuja como separador fuera de la línea activa. */
 class HrWidget extends WidgetType {
   eq() {
@@ -1276,6 +1302,40 @@ function buildDecorations(
               to: ln.from,
               deco: Decoration.line({ class: `mic-live-code${edge}` }),
             });
+          }
+          // Las cercas ``` se esconden con el cursor FUERA del bloque, como en
+          // Obsidian (`DEF-150 k`): la de apertura deja en su lugar la etiqueta
+          // del lenguaje, discreta y a la derecha; la de cierre, la línea vacía
+          // con el fondo del bloque. Con el cursor en cualquier línea del bloque
+          // se ven las dos en crudo, para editarlas. El contenido no se toca
+          // (un bloque `mermaid` se sigue viendo como código).
+          //
+          // Se reemplazan por un widget y no se ocultan a secas: una línea sin
+          // nada visible adentro colapsaría su alto.
+          if (node.name === "FencedCode") {
+            let activo = false;
+            for (let n = first; n <= last && !activo; n++) activo = activeLines.has(n);
+            const marcas = node.node.getChildren("CodeMark");
+            if (!activo && marcas.length > 0) {
+              const apertura = doc.lineAt(marcas[0].from);
+              const info = node.node.getChild("CodeInfo");
+              decos.push({
+                from: marcas[0].from,
+                to: apertura.to,
+                deco: Decoration.replace({
+                  widget: new CercaWidget(info ? doc.sliceString(info.from, info.to).trim() : ""),
+                }),
+              });
+              const cierre = marcas[marcas.length - 1];
+              const lineaCierre = doc.lineAt(cierre.from);
+              if (marcas.length > 1 && lineaCierre.number !== apertura.number) {
+                decos.push({
+                  from: cierre.from,
+                  to: lineaCierre.to,
+                  deco: Decoration.replace({ widget: new CercaWidget("") }),
+                });
+              }
+            }
           }
           return;
         }

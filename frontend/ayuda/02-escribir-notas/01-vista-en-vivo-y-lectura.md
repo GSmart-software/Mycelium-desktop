@@ -28,7 +28,8 @@ el texto tal cual está en el archivo.
 2. Escribí en vivo: al salir de una línea, sus `**`, `#` o `[[ ]]` se esconden y queda el
    formato. Volvé a la línea con el cursor y reaparecen para que los edites. Lo mismo el
    `-` de una lista, que fuera de la línea se ve como viñeta (•); en una tarea queda solo
-   la casilla.
+   la casilla. En un bloque de código, las cercas ` ``` ` se esconden mientras el cursor
+   está fuera del bloque y queda el nombre del lenguaje, chico, a la derecha.
 3. Pasá a lectura para revisar. Mycelium recuerda el modo de cada nota y, al cambiar de
    modo, te deja en la misma parte del texto que estabas mirando.
 
