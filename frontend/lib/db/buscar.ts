@@ -16,22 +16,32 @@
 import { select } from "./client";
 import {
   buildFtsQuery,
+  plegar,
   separarFiltrosPropiedad,
   type CampoBusqueda,
   type FiltroPropiedad,
 } from "./fts";
 import type { SearchResponse } from "./types";
 
-/** `EXISTS (…)` por filtro, para encadenarlos con AND. */
-function condicionFiltros(filtros: FiltroPropiedad[]): { sql: string; params: string[] } {
+/**
+ * Una condición por filtro, encadenadas con AND.
+ *
+ * Compara las columnas PLEGADAS (`DEF-144`): sin tildes ni mayúsculas, en la
+ * clave y en el valor, igual que el texto —que lo pliega el tokenizador de
+ * `notas_fts`—. Antes era `= ? COLLATE NOCASE` sobre lo crudo, y `NOCASE` solo
+ * pliega ASCII: `familia:solanaceas` no encontraba `familia: solanáceas`.
+ *
+ * Va como `n.id IN (SELECT …)` y no como un `EXISTS` correlacionado: así la
+ * subconsulta se resuelve una vez por el índice `idx_propiedades_plegado`
+ * (clave y valor) en vez de recorrer las propiedades de cada nota del vault.
+ */
+export function condicionFiltros(filtros: FiltroPropiedad[]): { sql: string; params: string[] } {
   const params: string[] = [];
   const sql = filtros
     .map(({ clave, valor }) => {
-      params.push(clave, valor);
-      return ` AND EXISTS (SELECT 1 FROM propiedades p
-                 WHERE p.nota_id = n.id
-                   AND p.clave = ? COLLATE NOCASE
-                   AND p.valor = ? COLLATE NOCASE)`;
+      params.push(plegar(clave), plegar(valor));
+      return ` AND n.id IN (SELECT p.nota_id FROM propiedades p
+                 WHERE p.clave_plegada = ? AND p.valor_plegado = ?)`;
     })
     .join("");
   return { sql, params };
@@ -60,14 +70,15 @@ export async function buscar(
     }>(
       `SELECT n.id AS nota_id, n.titulo, n.carpeta_id,
               (SELECT p.clave || ': «' || p.valor || '»' FROM propiedades p
-                WHERE p.nota_id = n.id AND p.clave = ? COLLATE NOCASE
+                WHERE p.nota_id = n.id AND p.clave_plegada = ?
+                  AND p.valor_plegado = ?
                 LIMIT 1) AS fragmento
          FROM notas n
         WHERE n.vault_id = ?
           AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
         ORDER BY n.titulo
         LIMIT 50`,
-      [filtros[0].clave, vaultId, ...filtroParams],
+      [plegar(filtros[0].clave), plegar(filtros[0].valor), vaultId, ...filtroParams],
     );
     return { resultados };
   }

@@ -58,7 +58,8 @@ Un valor entre comillas es siempre texto: `version: "1.0"` no es un número.
 ## Buscar por propiedad
 
 En la [búsqueda](ayuda:enlazar-y-organizar/busqueda), `clave:valor` encuentra las notas
-cuya propiedad tiene ese valor, sin importar las mayúsculas: `estado:activo`. En una
+cuya propiedad tiene ese valor, sin importar las mayúsculas ni las tildes: `estado:activo`, y
+`familia:solanaceas` encuentra `familia: Solanáceas`. En una
 lista alcanza con que coincida un elemento. Se puede combinar con texto común:
 `estado:activo reunión`. Para las etiquetas se usa `tag:proyecto`.
 

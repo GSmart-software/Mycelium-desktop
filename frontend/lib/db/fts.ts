@@ -8,6 +8,33 @@
 export type FiltroPropiedad = { clave: string; valor: string };
 
 /**
+ * Texto plegado para comparar como compara la búsqueda de texto (`DEF-144`): sin
+ * tildes ni mayúsculas. Imita al tokenizador `unicode61` de `notas_fts` (que por
+ * defecto quita los diacríticos y pliega mayúsculas), así «pulgon» encuentra
+ * «Pulgón» tanto en el texto como en un filtro `clave:valor`. La `ñ` también se
+ * pliega a `n`, igual que en el FTS: si no, `piña` encontraría «pina» en el
+ * cuerpo y no en una propiedad.
+ *
+ * > [!warning] Se pliega en JS, no en SQL
+ * > `COLLATE NOCASE` y `lower()` de SQLite solo entienden ASCII («Á» ≠ «á»), y
+ * > `tauri-plugin-sql` no deja registrar funciones propias. Por eso la tabla
+ * > `propiedades` guarda la clave y el valor ya plegados (`clave_plegada`,
+ * > `valor_plegado`) y la consulta pliega con esta misma función.
+ */
+export function plegar(texto: string): string {
+  return texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+/**
+ * Los tokens de la consulta: frases entre comillas o tiras sin espacios. Es el
+ * ÚNICO lugar donde se corta la consulta, para que separar los filtros y armar
+ * la query FTS no puedan discrepar sobre qué es un token.
+ */
+function tokensDeConsulta(raw: string): string[] {
+  return raw.match(/"[^"]+"|\S+/g) ?? [];
+}
+
+/**
  * Token que parece un filtro de propiedad: `estado:activo`. Se exige que la
  * clave sea una palabra y que el valor NO empiece con `/`, para no confundir una
  * URL pegada (`https://…`) con un filtro.
@@ -25,10 +52,8 @@ export function separarFiltrosPropiedad(raw: string): {
 } {
   const filtros: FiltroPropiedad[] = [];
   const resto: string[] = [];
-  const re = /"[^"]+"|\S+/g;
 
-  for (let m = re.exec(raw); m !== null; m = re.exec(raw)) {
-    const texto = m[0];
+  for (const texto of tokensDeConsulta(raw)) {
     if (texto.startsWith('"') || texto.toLowerCase().startsWith("tag:")) {
       resto.push(texto);
       continue;
@@ -75,10 +100,8 @@ export function buildFtsQuery(
   const star = prefix ? "*" : "";
   const col = COLUMNA[campo];
   const en = col === null ? "" : `${col} : `;
-  const re = /"[^"]+"|\S+/g;
 
-  for (let m = re.exec(raw); m !== null; m = re.exec(raw)) {
-    let text = m[0];
+  for (let text of tokensDeConsulta(raw)) {
 
     if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
       parts.push(`${en}"${text.slice(1, -1).replaceAll('"', '""')}"${star}`);

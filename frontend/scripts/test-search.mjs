@@ -40,6 +40,7 @@ const fts = await cargar("../lib/db/fts.ts", true);
 const soloDesktop = fts === null ? { skip: "lib/db es solo-desktop; acá lo arma el backend .NET" } : {};
 const buildFtsQuery = fts?.buildFtsQuery ?? (() => "");
 const separarFiltrosPropiedad = fts?.separarFiltrosPropiedad ?? (() => ({ filtros: [], resto: "" }));
+const plegar = fts?.plegar ?? ((s) => s);
 
 // ── Carpetas de prueba ───────────────────────────────────────────────────────
 //
@@ -172,6 +173,38 @@ test("una URL pegada no es un filtro de propiedad", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad("https://ejemplo.com/x");
   assert.deepEqual(filtros, []);
   assert.equal(resto, "https://ejemplo.com/x");
+});
+
+// ── DEF-144: el filtro `clave:valor` compara como el texto ────────────────────
+
+test("plegar quita tildes y mayúsculas como el tokenizador del FTS", soloDesktop, () => {
+  assert.equal(plegar("Solanáceas"), "solanaceas");
+  assert.equal(plegar("PULGÓN"), "pulgon");
+  assert.equal(plegar("Pingüino"), "pinguino");
+  assert.equal(plegar("Piña"), "pina", "la ñ también, como en notas_fts");
+  assert.equal(plegar("Ärger Œuvre"), "arger œuvre", "solo se van las marcas, no las letras");
+  // Lo mismo escrito con la tilde ya separada (NFD), que es como llega a veces
+  // un nombre de archivo de macOS pegado en una propiedad.
+  assert.equal(plegar("solanáceas"), "solanaceas");
+  assert.equal(plegar("2026-10-07"), "2026-10-07");
+});
+
+test("un filtro con y sin tilde pliega a lo mismo, en la clave y en el valor", soloDesktop, () => {
+  const a = separarFiltrosPropiedad("familia:solanaceas").filtros[0];
+  const b = separarFiltrosPropiedad("Família:Solanáceas").filtros[0];
+  assert.deepEqual([plegar(a.clave), plegar(a.valor)], [plegar(b.clave), plegar(b.valor)]);
+});
+
+test("tag: sigue yendo al FTS (que ya ignora tildes), no a la tabla de propiedades", soloDesktop, () => {
+  const { filtros, resto } = separarFiltrosPropiedad("tag:solanáceas");
+  assert.deepEqual(filtros, []);
+  assert.equal(buildFtsQuery(resto, true), '"#solanáceas"*');
+});
+
+test("separar los filtros y armar la query FTS cortan los tokens igual", soloDesktop, () => {
+  const q = 'estado:activo "dos palabras" tag:x suelto';
+  const { resto } = separarFiltrosPropiedad(q);
+  assert.equal(buildFtsQuery(resto), '"dos palabras" "#x" "suelto"');
 });
 
 test("folderPath arma la ruta completa", () => {
