@@ -165,7 +165,7 @@ test("`tag:` se traduce a `#tag` antes de restringir", soloDesktop, () => {
 
 test("los filtros de propiedad se separan del texto", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad('estado:activo "frase exacta" api');
-  assert.deepEqual(filtros, [{ clave: "estado", valor: "activo" }]);
+  assert.deepEqual(filtros, [{ clave: "estado", valor: "activo", entero: false }]);
   assert.equal(resto, '"frase exacta" api');
 });
 
@@ -207,6 +207,37 @@ test("separar los filtros y armar la query FTS cortan los tokens igual", soloDes
   assert.equal(buildFtsQuery(resto), '"dos palabras" "#x" "suelto"');
 });
 
+// ── DEF-145: `clave:"valor con espacios"` ─────────────────────────────────────
+
+test("un filtro con el valor entre comillas es un solo token, entero", soloDesktop, () => {
+  const { filtros, resto } = separarFiltrosPropiedad('bancal:"Bancal 1" riego');
+  assert.deepEqual(filtros, [{ clave: "bancal", valor: "Bancal 1", entero: true }]);
+  assert.equal(resto, "riego");
+  // Sin espacios también: las comillas piden el valor completo.
+  assert.deepEqual(separarFiltrosPropiedad('estado:"activo"').filtros, [
+    { clave: "estado", valor: "activo", entero: true },
+  ]);
+});
+
+test("una comilla que todavía no se cerró no rompe el filtro", soloDesktop, () => {
+  const { filtros, resto } = separarFiltrosPropiedad('bancal:"Banc');
+  assert.deepEqual(filtros, [{ clave: "bancal", valor: "Banc", entero: false }]);
+  assert.equal(resto, "");
+});
+
+test("las frases y lo que no es clave se siguen cortando como antes", soloDesktop, () => {
+  const q = 'estado:"en curso" "dos palabras" a/b:"x y" tag:x';
+  const { filtros, resto } = separarFiltrosPropiedad(q);
+  assert.deepEqual(filtros, [{ clave: "estado", valor: "en curso", entero: true }]);
+  assert.equal(buildFtsQuery(resto), '"dos palabras" "a/b:""x" "y""" "#x"');
+});
+
+test("aPalabras corta en la puntuación, como el tokenizador", soloDesktop, () => {
+  assert.equal(fts.aPalabras("semi-sombra"), "semi sombra");
+  assert.equal(fts.aPalabras("2026-10-07"), "2026 10 07");
+  assert.equal(fts.aPalabras("bancal 1"), "bancal 1");
+});
+
 test("folderPath arma la ruta completa", () => {
   assert.equal(folderPath("api", CARPETAS), "Proyectos / Api");
   assert.equal(folderPath(null, CARPETAS), "");
@@ -216,6 +247,7 @@ test("firstSearchTerm desarma comillas, tags y filtros", () => {
   assert.equal(firstSearchTerm('"rediseno del api" x'), "rediseno del api");
   assert.equal(firstSearchTerm("tag:idea"), "idea");
   assert.equal(firstSearchTerm("estado:activo"), "activo");
+  assert.equal(firstSearchTerm('bancal:"Bancal 1"'), "Bancal 1");
   assert.equal(firstSearchTerm("#idea"), "idea");
 });
 

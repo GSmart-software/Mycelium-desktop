@@ -59,7 +59,9 @@ Un valor entre comillas es siempre texto: `version: "1.0"` no es un número.
 
 En la [búsqueda](ayuda:enlazar-y-organizar/busqueda), `clave:valor` encuentra las notas
 cuya propiedad tiene ese valor, sin importar las mayúsculas ni las tildes: `estado:activo`, y
-`familia:solanaceas` encuentra `familia: Solanáceas`. En una
+`familia:solanaceas` encuentra `familia: Solanáceas`. Sin comillas alcanza con una palabra
+del valor (`bancal:bancal` encuentra «Bancal 1»); entre comillas tiene que ser el valor
+entero, y es como se escribe uno con espacios: `bancal:"Bancal 1"`. En una
 lista alcanza con que coincida un elemento. Se puede combinar con texto común:
 `estado:activo reunión`. Para las etiquetas se usa `tag:proyecto`.
 
