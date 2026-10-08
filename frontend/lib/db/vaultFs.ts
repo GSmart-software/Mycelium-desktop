@@ -17,7 +17,7 @@ import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { reResolverTitulos } from "./enlacesIndice";
 import { enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
-import { desambiguar, sanearNombre } from "./nombres";
+import { crearCola, desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
 
 // Re-exporta el saneo puro (definido sin dependencias en `nombres.ts`) para que
@@ -174,6 +174,16 @@ export function unir(carpeta: string | null, nombre: string): string {
 }
 
 // ── Colisiones de nombre en la misma carpeta (fase 7) ─────────────────────────
+
+/**
+ * Elegir un nombre libre y ocuparlo es UN paso (`DEF-136`): quien crea algo
+ * nuevo en el vault (`crearNota`, `duplicarNota`, `crearCarpeta`) llama a
+ * `nombreNotaLibre`/`nombreCarpetaLibre`, escribe en disco y hace el `INSERT`
+ * dentro de `conNombreReservado`. Sin la cola, dos creaciones seguidas elegían
+ * el mismo nombre (el índice todavía no tenía la primera) y la segunda fallaba
+ * con un choque de clave, después de pisar el archivo de la primera.
+ */
+export const conNombreReservado = crearCola();
 
 /**
  * Basenames (nombre de archivo con extensión + nombres de carpeta) ya ocupados

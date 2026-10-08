@@ -4,6 +4,7 @@ import { AppWindow, ChevronDown, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { abrirVaultEnVentana, listarVaults, nombreDeVault, vincularVault, type VaultRef } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
+import { mensajeDeError } from "@/lib/mensajeError";
 import styles from "./MenuVaults.module.css";
 
 /**
@@ -102,7 +103,7 @@ export function MenuVaults({ rutaActual }: { rutaActual: string }) {
       await abrirEnVentana(vault.ruta);
     } catch (e) {
       console.error("[Mycelium] vaults · no se pudo vincular la carpeta", e);
-      avisar(e instanceof Error ? e.message : "No se pudo abrir la carpeta.");
+      avisar(mensajeDeError(e, "No se pudo abrir la carpeta."));
     }
   };
 

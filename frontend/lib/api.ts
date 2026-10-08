@@ -22,6 +22,7 @@ import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/l
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
 import { notasParaTabla } from "@/lib/db/tabla";
 import { tree } from "@/lib/db/tree";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 export class ApiError extends Error {
   status: number;
@@ -161,7 +162,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   } catch (err) {
     if (err instanceof DbError) throw new ApiError(err.status, err.message);
     if (err instanceof ApiError) throw err;
-    const message = err instanceof Error ? err.message : "Error desconocido";
+    // Los rechazos de `invoke` (comandos de Rust, plugin SQL) son TEXTO: con
+    // `instanceof Error` a secas, todo error nativo salía como «Error
+    // desconocido» y el motivo real se perdía (`DEF-136`).
+    const message = mensajeDeError(err);
     throw new ApiError(500, message);
   }
 }

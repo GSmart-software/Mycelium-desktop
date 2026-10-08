@@ -16,6 +16,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import styles from "./EsporasPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
+import { mensajeDeError } from "@/lib/mensajeError";
 import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 
 /**
@@ -65,7 +66,7 @@ export function EsporasPanel() {
     try {
       await accion();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(mensajeDeError(e));
     } finally {
       setOcupado(false);
     }

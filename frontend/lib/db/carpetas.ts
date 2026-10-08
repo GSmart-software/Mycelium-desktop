@@ -11,6 +11,7 @@ import { getVaultActual } from "./vaultContext";
 import {
   basenameDe,
   borrarAPapelera,
+  conNombreReservado,
   crearDirectorio,
   moverRuta,
   nombreCarpetaLibre,
@@ -113,13 +114,17 @@ export async function crearCarpeta(
   // La identidad es la ruta; se crea el directorio real. Se sanea y se desambigua
   // con sufijo incremental si ya existe otra carpeta/nota con ese nombre en el
   // mismo padre (estilo Obsidian: "Carpeta", "Carpeta 1"…).
-  const { id, nombre: nombreFs } = await nombreCarpetaLibre(padreId, limpio);
-  await crearDirectorio(vault, id);
-  await execute(
-    "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
-    [id, vaultId, padreId, nombreFs, now, now],
-  );
-  return { id };
+  // En la cola de nombres (`DEF-136`): sin ella, dos creaciones seguidas
+  // elegían el mismo nombre y la segunda «creaba» la carpeta de la primera.
+  return conNombreReservado(async () => {
+    const { id, nombre: nombreFs } = await nombreCarpetaLibre(padreId, limpio);
+    await crearDirectorio(vault, id);
+    await execute(
+      "INSERT INTO carpetas (id, vault_id, padre_id, nombre, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+      [id, vaultId, padreId, nombreFs, now, now],
+    );
+    return { id };
+  });
 }
 
 /**

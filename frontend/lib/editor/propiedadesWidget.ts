@@ -41,6 +41,7 @@ import {
 } from "@/lib/frontmatter";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { ICONO_TIPO, valorPropiedadHtml } from "@/lib/markdown";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 /** Lo que la tarjeta le pide al editor. Todas pueden lanzar (guarda del YAML). */
 export type AccionesPropiedades = {
@@ -228,7 +229,7 @@ class Fila {
       accion();
       this.onError(null);
     } catch (e) {
-      this.onError(e instanceof Error ? e.message : "No se pudo editar la propiedad.");
+      this.onError(mensajeDeError(e, "No se pudo editar la propiedad."));
     }
   }
 
@@ -567,7 +568,7 @@ export class TarjetaPropiedades {
       this.nuevaEl.value = "";
       this.nuevaEl.focus();
     } catch (e) {
-      this.mostrarError(e instanceof Error ? e.message : "No se pudo agregar la propiedad.");
+      this.mostrarError(mensajeDeError(e, "No se pudo agregar la propiedad."));
     }
   }
 

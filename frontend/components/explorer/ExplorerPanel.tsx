@@ -62,7 +62,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useImportStore } from "@/stores/importStore";
 import { useTabsStore } from "@/stores/tabsStore";
-import { avisar } from "@/stores/avisosStore";
+import { avisar, avisarFallo, avisarSiFallo } from "@/stores/avisosStore";
 import { refrescarVault } from "@/lib/vaultWatch";
 import {
   useVaultStore,
@@ -236,7 +236,7 @@ export function ExplorerPanel() {
       if (editable) return;
       if (event.ctrlKey && event.key === "z" && store.lastMove) {
         event.preventDefault();
-        void store.undoLastMove();
+        void store.undoLastMove().catch(avisarFallo("deshacer el movimiento"));
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -452,14 +452,20 @@ export function ExplorerPanel() {
     if (dragged.startsWith("nota:")) {
       const notaId = dragged.replace("nota:", "");
       const nota = store.notas.find((n) => n.id === notaId);
-      if (nota && nota.carpetaId !== destinoId) void store.moveNota(notaId, destinoId);
+      if (nota && nota.carpetaId !== destinoId) {
+        void store
+          .moveNota(notaId, destinoId)
+          .then(avisarSiFallo(`mover «${nota.titulo}»`), avisarFallo(`mover «${nota.titulo}»`));
+      }
     } else if (dragged.startsWith("carpeta:")) {
       const carpetaId = dragged.replace("carpeta:", "");
       const carpeta = store.carpetas.find((c) => c.id === carpetaId);
       if (!carpeta || carpeta.padreId === destinoId) return;
       // No mover dentro de sí misma ni de sus hijos (HU-24 CA6)
       if (destinoId !== null && store.subtreeIds(carpetaId).has(destinoId)) return;
-      void store.moveCarpeta(carpetaId, destinoId);
+      void store
+        .moveCarpeta(carpetaId, destinoId)
+        .then(avisarSiFallo(`mover «${carpeta.nombre}»`), avisarFallo(`mover «${carpeta.nombre}»`));
     }
   }
 
@@ -485,7 +491,7 @@ export function ExplorerPanel() {
         onClick: () =>
           void crearNotaDesdeEspora(espora, carpetaId)
             .then(abrirNueva)
-            .catch((e) => console.error("[esporas] no se pudo crear la nota:", e)),
+            .catch(avisarFallo(`crear la nota desde «${espora.titulo}»`)),
       })),
     };
   }
@@ -535,31 +541,35 @@ export function ExplorerPanel() {
       {
         label: "Nueva nota",
         icono: ico(IconoNota),
-        onClick: () => void store.createNota(carpeta.id).then(abrirNueva),
+        onClick: () => void store.createNota(carpeta.id).then(abrirNueva).catch(avisarFallo("crear la nota")),
       },
       {
         label: "Nuevo dibujo Excalidraw",
         icono: ico(IconoDibujo),
-        onClick: () => void store.createNota(carpeta.id, "excalidraw").then(openNota),
+        onClick: () =>
+          void store
+            .createNota(carpeta.id, "excalidraw")
+            .then(openNota)
+            .catch(avisarFallo("crear el dibujo")),
       },
       // Base (FUN-L-03): una tabla que agrega notas por sus propiedades. Se crea
       // con una vista mínima ya escrita, para que muestre algo desde el principio.
       {
         label: "Nueva base",
         icono: ico(IconoBase),
-        onClick: () => void crearBase(carpeta.id),
+        onClick: () => void crearBase(carpeta.id).catch(avisarFallo("crear la base")),
       },
       {
         label: "Nuevo canvas",
         icono: ico(IconoCanvas),
-        onClick: () => void crearCanvas(carpeta.id),
+        onClick: () => void crearCanvas(carpeta.id).catch(avisarFallo("crear el canvas")),
       },
       // draw.io (`FUN-L-20`): el diagrama formal, el que se retoca dentro de seis
       // meses moviendo una caja y que las flechas la sigan.
       {
         label: "Nuevo diagrama draw.io",
         icono: ico(IconoDiagrama),
-        onClick: () => void crearDiagrama(carpeta.id),
+        onClick: () => void crearDiagrama(carpeta.id).catch(avisarFallo("crear el diagrama")),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
       // Esporas la entrada queda deshabilitada con el motivo, nunca oculta: es
@@ -570,7 +580,7 @@ export function ExplorerPanel() {
         icono: ico(FolderPlus),
         onClick: () => {
           const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-          if (nombre) void store.createCarpeta(nombre, carpeta.id);
+          if (nombre) void store.createCarpeta(nombre, carpeta.id).catch(avisarFallo("crear la carpeta"));
         },
       },
       // Grupos (`FUN-S-28`): crear · traer al vault · organizar · eliminar.
@@ -612,7 +622,8 @@ export function ExplorerPanel() {
             {
               label: "Mostrar en el explorador",
               icono: ico(FolderOpen),
-              onClick: () => void revelarEnSistema(rutaVault, carpeta.id),
+              onClick: () =>
+                void revelarEnSistema(rutaVault, carpeta.id).catch(avisarFallo("mostrar la carpeta")),
             },
           ]
         : []),
@@ -631,7 +642,7 @@ export function ExplorerPanel() {
               ? `Eliminar "${carpeta.nombre}" mandará ${count} nota(s) a la papelera. ¿Continuar?`
               : `¿Eliminar la carpeta "${carpeta.nombre}"?`;
           void confirmar(message, "Eliminar").then((ok) => {
-            if (ok) void store.deleteCarpeta(carpeta.id);
+            if (ok) void store.deleteCarpeta(carpeta.id).catch(avisarFallo(`eliminar «${carpeta.nombre}»`));
           });
         },
       },
@@ -645,12 +656,16 @@ export function ExplorerPanel() {
         icono: ico(Pencil),
         onClick: () => setRenaming({ type: "nota", id: nota.id, valor: nota.titulo }),
       },
-      { label: "Duplicar", icono: ico(Copy), onClick: () => void store.duplicateNota(nota.id) },
+      {
+        label: "Duplicar",
+        icono: ico(Copy),
+        onClick: () => void store.duplicateNota(nota.id).catch(avisarFallo(`duplicar «${nota.titulo}»`)),
+      },
       {
         label: "Exportar como .md",
         icono: ico(FileDown),
         separadorAntes: true,
-        onClick: () => void exportNoteMd(nota.id, nota.titulo),
+        onClick: () => void exportNoteMd(nota.id, nota.titulo).catch(avisarFallo(`exportar «${nota.titulo}»`)),
       },
       {
         label: "Exportar como PDF…",
@@ -663,7 +678,8 @@ export function ExplorerPanel() {
               label: "Mostrar en el explorador",
               icono: ico(FolderOpen),
               separadorAntes: true,
-              onClick: () => void revelarEnSistema(rutaVault, nota.id),
+              onClick: () =>
+                void revelarEnSistema(rutaVault, nota.id).catch(avisarFallo("mostrar la nota")),
             },
           ]
         : []),
@@ -679,12 +695,16 @@ export function ExplorerPanel() {
           const titulo = nota.titulo;
           const id = nota.id;
           useTabsStore.getState().closeNotaEverywhere(id);
-          void store.deleteNota(id).then(() =>
-            avisar(`«${titulo}» fue a la papelera`, {
-              etiqueta: "Deshacer",
-              hacer: () => void useVaultStore.getState().restoreNota(id),
-            }),
-          );
+          void store
+            .deleteNota(id)
+            .then(() =>
+              avisar(`«${titulo}» fue a la papelera`, {
+                etiqueta: "Deshacer",
+                hacer: () =>
+                  void useVaultStore.getState().restoreNota(id).catch(avisarFallo(`restaurar «${titulo}»`)),
+              }),
+            )
+            .catch(avisarFallo(`mandar «${titulo}» a la papelera`));
         },
       },
     ];
@@ -733,7 +753,7 @@ export function ExplorerPanel() {
         label: "Mostrar en el explorador",
         icono: ico(FolderOpen),
         separadorAntes: true,
-        onClick: () => void revelarEnSistema(vault, otro.ruta),
+        onClick: () => void revelarEnSistema(vault, otro.ruta).catch(fallo("mostrar")),
       },
       {
         label: "Eliminar",
@@ -763,7 +783,9 @@ export function ExplorerPanel() {
     if (!renaming) return;
     const valor = renaming.valor.trim();
     if (valor) {
-      if (renaming.type === "carpeta") void store.renameCarpeta(renaming.id, valor);
+      if (renaming.type === "carpeta") {
+        void store.renameCarpeta(renaming.id, valor).catch(avisarFallo("renombrar la carpeta"));
+      }
       else if (renaming.type === "otro") {
         const otro = otros.find((o) => o.ruta === renaming.id);
         if (otro && rutaVault) {
@@ -771,7 +793,7 @@ export function ExplorerPanel() {
             avisar(`No se pudo renombrar «${otro.nombre}»: ${(e as Error)?.message ?? e}`),
           );
         }
-      } else void store.renameNota(renaming.id, valor);
+      } else void store.renameNota(renaming.id, valor).catch(avisarFallo("renombrar la nota"));
     }
     setRenaming(null);
   }
@@ -920,29 +942,33 @@ export function ExplorerPanel() {
     {
       label: "Nuevo dibujo Excalidraw",
       icono: IconoDibujo,
-      onClick: () => void store.createNota(store.activeFolderId, "excalidraw").then(openNota),
+      onClick: () =>
+        void store
+          .createNota(store.activeFolderId, "excalidraw")
+          .then(openNota)
+          .catch(avisarFallo("crear el dibujo")),
     },
     {
       label: "Nueva base (tabla de notas)",
       icono: IconoBase,
-      onClick: () => void crearBase(store.activeFolderId),
+      onClick: () => void crearBase(store.activeFolderId).catch(avisarFallo("crear la base")),
     },
     {
       label: "Nuevo canvas (notas en el espacio)",
       icono: IconoCanvas,
-      onClick: () => void crearCanvas(store.activeFolderId),
+      onClick: () => void crearCanvas(store.activeFolderId).catch(avisarFallo("crear el canvas")),
     },
     {
       label: "Nuevo diagrama draw.io (figuras y conectores)",
       icono: IconoDiagrama,
-      onClick: () => void crearDiagrama(store.activeFolderId),
+      onClick: () => void crearDiagrama(store.activeFolderId).catch(avisarFallo("crear el diagrama")),
     },
     {
       label: "Nueva carpeta",
       icono: FolderPlus,
       onClick: () => {
         const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-        if (nombre) void store.createCarpeta(nombre, store.activeFolderId);
+        if (nombre) void store.createCarpeta(nombre, store.activeFolderId).catch(avisarFallo("crear la carpeta"));
       },
     },
     {
@@ -1001,7 +1027,7 @@ export function ExplorerPanel() {
             // `DEF-135`: el botón no se queda con el foco, o el espacio y el
             // Enter que se tecleen para la nota nueva crearían otra.
             soltarFoco(e.currentTarget);
-            void store.createNota(store.activeFolderId).then(abrirNueva);
+            void store.createNota(store.activeFolderId).then(abrirNueva).catch(avisarFallo("crear la nota"));
           }}
         >
           <FilePlus size={16} aria-hidden />

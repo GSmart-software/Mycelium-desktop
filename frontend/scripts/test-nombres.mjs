@@ -17,7 +17,7 @@ const { outputText } = ts.transpileModule(fuente, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
 });
 const mod = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
-const { sanearNombre, esReservadoWindows, desambiguar } = mod;
+const { sanearNombre, esReservadoWindows, desambiguar, crearCola } = mod;
 
 test("reemplaza los caracteres prohibidos por guion", () => {
   assert.equal(sanearNombre('a/b\\c:d*e?f"g<h>i|j'), "a-b-c-d-e-f-g-h-i-j");
@@ -62,4 +62,60 @@ test("desambiguar añade sufijo incremental estilo Obsidian", () => {
   const ocupados = new Set(["Nota", "Nota 1"]);
   assert.equal(desambiguar("Nota", (c) => ocupados.has(c)), "Nota 2");
   assert.equal(desambiguar("Libre", (c) => ocupados.has(c)), "Libre");
+});
+
+// ── DEF-136: elegir el nombre libre y ocuparlo es un solo paso ────────────────
+
+/**
+ * Réplica de `crearNota`: lee los ocupados, viaja a «disco» (un `await` real,
+ * como el `invoke` de escribir el archivo) y recién después «inserta» —y la
+ * inserción falla si el id ya existe, como la clave primaria del índice—.
+ */
+function crearConIndice(indice) {
+  return async () => {
+    const ocupados = new Set(indice);
+    const nombre = desambiguar("Sin título", (c) => ocupados.has(c));
+    await new Promise((r) => setTimeout(r, 1));
+    if (indice.has(nombre)) throw "UNIQUE constraint failed: notas.id";
+    indice.add(nombre);
+    return nombre;
+  };
+}
+
+test("sin cola, dos creaciones seguidas eligen el mismo nombre y una choca (la causa)", async () => {
+  const indice = new Set(["Sin título"]);
+  const crear = crearConIndice(indice);
+  const r = await Promise.allSettled([crear(), crear()]);
+  assert.equal(r.filter((x) => x.status === "rejected").length, 1);
+});
+
+test("con la cola, diez creaciones seguidas dan diez nombres distintos", async () => {
+  const indice = new Set(["Sin título"]);
+  const crear = crearConIndice(indice);
+  const enCola = crearCola();
+  const nombres = await Promise.all(Array.from({ length: 10 }, () => enCola(crear)));
+  assert.equal(new Set(nombres).size, 10);
+  assert.deepEqual(nombres, Array.from({ length: 10 }, (_, i) => `Sin título ${i + 1}`));
+});
+
+test("la cola respeta el orden y sigue después de una tarea que falla", async () => {
+  const enCola = crearCola();
+  const orden = [];
+  const a = enCola(async () => {
+    await new Promise((r) => setTimeout(r, 5));
+    orden.push("a");
+    return "a";
+  });
+  const b = enCola(async () => {
+    orden.push("b");
+    throw new Error("falla b");
+  });
+  const c = enCola(async () => {
+    orden.push("c");
+    return "c";
+  });
+  assert.equal(await a, "a");
+  await assert.rejects(b, /falla b/);
+  assert.equal(await c, "c");
+  assert.deepEqual(orden, ["a", "b", "c"]);
 });

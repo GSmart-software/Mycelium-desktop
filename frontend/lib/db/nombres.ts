@@ -80,3 +80,26 @@ export function desambiguar(base: string, ocupado: (candidato: string) => boolea
   while (ocupado(`${base} ${n}`)) n++;
   return `${base} ${n}`;
 }
+
+/**
+ * Cola de tareas asíncronas que corren **de a una**, en el orden en que se
+ * pidieron (`DEF-136`). Una tarea que falla no traba a las siguientes.
+ *
+ * Existe por la elección de un nombre libre: `nombreNotaLibre` lee del índice qué
+ * nombres están ocupados y el `INSERT` de la nota llega varios `await` después
+ * (escribir el archivo es un viaje a Rust). Dos creaciones seguidas —clics
+ * rápidos en «Nueva nota»— leían el índice antes de que la primera insertara,
+ * elegían las dos el mismo «Sin título N», la segunda pisaba el archivo de la
+ * primera y su `INSERT` reventaba con `UNIQUE constraint failed: notas.id`.
+ * Elegir el nombre y ocuparlo tiene que ser un solo paso: se hace dentro de la
+ * cola.
+ */
+export function crearCola(): <T>(tarea: () => Promise<T>) => Promise<T> {
+  let ultima: Promise<unknown> = Promise.resolve();
+  return <T>(tarea: () => Promise<T>): Promise<T> => {
+    const esta = ultima.then(tarea);
+    // La cola sigue aunque la tarea falle; quien la pidió recibe el rechazo.
+    ultima = esta.catch(() => undefined);
+    return esta;
+  };
+}
