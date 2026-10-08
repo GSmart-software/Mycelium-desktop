@@ -171,6 +171,27 @@
   --mic-bg-code: color-mix(in srgb, var(--mic-raw-ink) 7%, var(--mic-raw-canvas));
 }
 
+/* ── Diagramas Mermaid (`DEF-142`) ─────────────────────────────────
+   Mermaid no lee CSS: pinta con los colores que recibe al dibujar. lib/mermaid.ts
+   lee ESTOS tokens ya resueltos (tema × modo × atmósfera, y lo que cambie un
+   snippet) y se los pasa como `themeVariables`; al cambiar el tema, el modo o la
+   atmósfera vuelve a dibujar. Antes Mermaid usaba su tema claro de fábrica y en
+   oscuro las cajas salían blancas y la flecha gris casi no se veía.
+
+   Son fórmulas sobre los tokens semánticos, así que sirven en las cuatro
+   atmósferas sin reglas propias. El código además garantiza el contraste
+   (texto ≥4.5:1, líneas y bordes ≥3:1): si un snippet elige un color que no
+   llega, lo acerca a la tinta hasta que llegue. */
+:root {
+  --mic-mermaid-fondo:  var(--mic-bg-canvas);  /* detrás de las etiquetas de las flechas */
+  --mic-mermaid-nodo:   color-mix(in srgb, var(--mic-accent) 12%, var(--mic-bg-canvas)); /* relleno de las cajas */
+  --mic-mermaid-nodo-2: color-mix(in srgb, var(--mic-glow) 14%, var(--mic-bg-canvas));   /* cajas secundarias (actores, otra clase) */
+  --mic-mermaid-grupo:  var(--mic-bg-surface); /* subgrafos, notas, fondos de grupo */
+  --mic-mermaid-borde:  var(--mic-accent);     /* borde de las cajas */
+  --mic-mermaid-linea:  var(--mic-text-muted); /* flechas y conectores */
+  --mic-mermaid-texto:  var(--mic-text-primary);
+}
+
 /* ── Tema por defecto: Bioluminiscencia — modo claro (verde agua + azul) ──
    Chrome oscuro teal-azul + contenido claro frío + acentos cian. */
 [data-theme='bioluminiscencia'] {

@@ -50,6 +50,10 @@ flowchart LR
 Si el diagrama tiene un error, en su lugar aparece «Diagrama Mermaid inválido» con el
 motivo, y el resto de la nota se ve igual.
 
+Los colores del diagrama son los de Mycelium: siguen al tema, al modo claro u oscuro y a la
+atmósfera, y cambian con ellos. Al exportar a PDF con «Fondo blanco», el diagrama se imprime
+en grises sobre blanco, para que se lea también en una impresora en blanco y negro.
+
 > [!warning] En la vista en vivo, Mermaid se ve como código
 > El diagrama se dibuja en lectura, en dividido y al exportar a PDF. Mientras editás en
 > vivo, el bloque queda como texto. Ver [Vista en vivo y lectura](ayuda:escribir-notas/vista-en-vivo-y-lectura).

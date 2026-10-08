@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { renderNota } from "@/lib/markdown";
-import { renderMermaidIn } from "@/lib/mermaid";
+import { renderMermaidIn, type TemaMermaid } from "@/lib/mermaid";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
@@ -136,8 +136,13 @@ export async function exportVaultACarpeta(
 /**
  * Renderiza la nota a HTML fuera de pantalla, incluyendo los SVG de Mermaid y
  * Excalidraw (HU-10 CA4), para enviarlo al backend tal cual se imprime.
+ *
+ * Mermaid (`DEF-142`): con «Fondo blanco» el documento se imprime con el tema
+ * claro aunque la ventana esté en oscuro, así que los diagramas van con el tema
+ * fijo de impresión (grises sobre blanco, legibles también en blanco y negro).
+ * Sin «Fondo blanco» el PDF conserva el tema de la ventana, y Mermaid también.
  */
-async function renderNoteHtml(notaId: string): Promise<string> {
+async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise<string> {
   const content = await fetchNoteContent(notaId);
   const container = document.createElement("div");
   container.className = "mic-preview";
@@ -148,7 +153,7 @@ async function renderNoteHtml(notaId: string): Promise<string> {
   container.innerHTML = renderNota(content);
   document.body.appendChild(container);
   try {
-    await renderMermaidIn(container);
+    await renderMermaidIn(container, temaMermaid);
     await renderExcalidrawIn(container);
     // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
     // saldrian como un hueco en el PDF.
@@ -201,7 +206,7 @@ export async function exportNotePdf(
   pageSize: "A4" | "Letter",
   opts: PdfPrintOpts,
 ): Promise<void> {
-  const html = await renderNoteHtml(notaId);
+  const html = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");

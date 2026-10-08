@@ -712,7 +712,27 @@
      Vídeo (![](youtube...))       lectura: .mic-video             vivo: .mic-live-video
    El contenido de un dibujo o un diagrama lo pinta su propio editor: desde
    acá se le cambia el marco, no los trazos.
+   Mermaid es la excepción: sus colores salen de estas variables, que siguen
+   al tema, al modo y a la atmósfera. Al cambiarlas, el diagrama se redibuja.
+   Si un color no llega al contraste mínimo (texto 4.5:1, líneas y bordes
+   3:1 sobre el fondo), Mycelium lo acerca a la tinta hasta que llegue.
+     --mic-mermaid-fondo    detrás de las etiquetas de las flechas
+     --mic-mermaid-nodo     relleno de las cajas
+     --mic-mermaid-nodo-2   cajas secundarias (actores, activaciones)
+     --mic-mermaid-grupo    subgrafos y notas
+     --mic-mermaid-borde    borde de las cajas
+     --mic-mermaid-linea    flechas y conectores
+     --mic-mermaid-texto    texto
+   El PDF con «Fondo blanco» no las usa: imprime los diagramas en grises.
    ========================================================================== */
+
+/*
+:root[data-theme] {
+  --mic-mermaid-nodo: color-mix(in srgb, var(--mic-glow) 20%, var(--mic-bg-canvas));
+  --mic-mermaid-borde: var(--mic-glow);
+  --mic-mermaid-linea: var(--mic-text-primary);
+}
+*/
 
 /*
 .mic-preview .mic-excalidraw-block,
