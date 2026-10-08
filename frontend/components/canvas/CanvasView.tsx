@@ -456,8 +456,10 @@ export function CanvasView({ notaId }: { notaId: string }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (seleccion === null || editando !== null) return;
-      const activo = document.activeElement?.tagName;
-      if (activo === "INPUT" || activo === "TEXTAREA") return;
+      const activo = document.activeElement as HTMLElement | null;
+      // El editor de notas es un `contenteditable`, no un INPUT: sin esto, borrar
+      // con Retroceso en una nota de otro panel borraba la tarjeta seleccionada.
+      if (activo?.tagName === "INPUT" || activo?.tagName === "TEXTAREA" || activo?.isContentEditable) return;
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       e.preventDefault();
       // Al borrar un nodo se van también sus flechas: una arista suelta dejaría
