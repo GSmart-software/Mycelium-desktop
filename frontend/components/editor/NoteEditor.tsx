@@ -39,7 +39,15 @@ import {
 } from "@/lib/editor/livePreview";
 import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { autoPairs } from "@/lib/editor/autoPairs";
-import { docTitleField, editarTitulo, renombrarPorTitulo, setDocTitle } from "@/lib/editor/docTitle";
+import {
+  type DestinoTrasTitulo,
+  docTitleField,
+  editarTitulo,
+  enfocarTrasTitulo,
+  renombrarPorTitulo,
+  salirDelTitulo,
+  setDocTitle,
+} from "@/lib/editor/docTitle";
 import { tomarEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import {
@@ -352,6 +360,12 @@ export function NoteEditor({
   // CodeMirror, que se crea una sola vez (`FUN-M-24`).
   const notaIdRef = useRef(notaId);
   notaIdRef.current = notaId;
+  /**
+   * Foco que quedó pendiente al salir del título (`DEF-139`): renombrar cambia
+   * el id, la vista se destruye y se recrea, y si la nueva todavía no existe
+   * cuando hay que enfocarla, se la enfoca al crearla.
+   */
+  const focoTrasTituloRef = useRef<DestinoTrasTitulo | null>(null);
   const contentRef = useRef("");
   const dirtyRef = useRef(false);
   /**
@@ -641,6 +655,17 @@ export function NoteEditor({
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
             carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
+            // Adónde va el foco al confirmar o descartar el título (`DEF-139`).
+            // A la vista VIVA (`viewRef`), no a la del widget: si se renombró, esa
+            // ya está destruida y otra ocupa su lugar. Un frame de margen para que
+            // React termine de montarla; si aún no está, la toma `createView`.
+            salirDelTitulo.of((destino) => {
+              requestAnimationFrame(() => {
+                const v = viewRef.current;
+                if (v && v.dom.isConnected) enfocarTrasTitulo(v, destino);
+                else focoTrasTituloRef.current = destino;
+              });
+            }),
             EditorView.lineWrapping,
             placeholder("Escribí tu nota…"),
             liveCompartment.current.of(
@@ -751,6 +776,14 @@ export function NoteEditor({
       if (tomarEdicionDeTitulo(notaId) && modeRef.current !== "read") {
         const view = viewRef.current;
         if (!editarTitulo(view)) view.focus();
+      }
+
+      // Se confirmó el título y la vista que había se desmontó antes de poder
+      // enfocarla (`DEF-139`): esta es la que la reemplaza.
+      const focoPendiente = focoTrasTituloRef.current;
+      if (focoPendiente !== null) {
+        focoTrasTituloRef.current = null;
+        if (modeRef.current !== "read") enfocarTrasTitulo(viewRef.current, focoPendiente);
       }
     },
     [onDocChanged, openByTitle, noteExists, notaId, instanceId, paneId],

@@ -426,6 +426,25 @@ export function cuerpoDe(texto: string, fm: Frontmatter = separarFrontmatter(tex
   return texto.split("\n").slice(fm.cuerpoDesde).join("\n");
 }
 
+/**
+ * Posición (offset en `texto`) donde empieza el cuerpo: el principio de la
+ * primera línea después del frontmatter, o `0` si no hay (`DEF-139`). Es adonde
+ * va el cursor al confirmar el título de la nota.
+ *
+ * Si el bloque cierra en la última línea y no queda cuerpo, devuelve el final
+ * del texto: no hay una línea de cuerpo a la que ir y no se inventa una.
+ */
+export function inicioDelCuerpo(texto: string, fm: Frontmatter = separarFrontmatter(texto)): number {
+  if (!fm.hay) return 0;
+  let pos = 0;
+  for (let linea = 0; linea < fm.cuerpoDesde; linea++) {
+    const salto = texto.indexOf("\n", pos);
+    if (salto === -1) return texto.length;
+    pos = salto + 1;
+  }
+  return pos;
+}
+
 /** Propiedad por clave (case-insensitive), o undefined. */
 export function propiedadDe(texto: string, clave: string): Propiedad | undefined {
   const fm = separarFrontmatter(texto);
