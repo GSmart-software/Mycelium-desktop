@@ -46,6 +46,15 @@
   outline: none;
 }
 
+/* El ✖ que WebView2/Chromium dibuja en todo `input[type=search]` duplicaba el
+   botón «Limpiar búsqueda» propio (`.clear`), que es el que respeta el tema y
+   devuelve el foco al campo (`DEF-150 d`). */
+.input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 .clear {
   display: flex;
   flex: 0 0 auto;
