@@ -35,6 +35,7 @@ const {
   expresionDe,
   serializarBase,
   columnasDisponibles,
+  reemplazarOrdenEnTexto,
 } = mod;
 
 // ── Notas de prueba ───────────────────────────────────────────────────────────
@@ -795,4 +796,76 @@ test("la busqueda mira solo las columnas MOSTRADAS", () => {
   const n = nota({ id: "a", nombre: "Alfa", props: [{ clave: "estado", valor: "activo", tipo: "texto" }] });
   const t = construirTabla(b, b.vistas[0], [n], { busqueda: { texto: "activo", exacta: false } });
   assert.equal(t.filas.length, 0, "«estado» no es una columna de esta vista");
+});
+
+// ── Ordenar toca solo el `sort` de la vista (`DEF-150 j`) ─────────────────────
+
+// Como lo escribe Obsidian: sin líneas en blanco, con un comentario y una clave
+// de vista que Mycelium no modela, y dos vistas.
+const BASE_OBSIDIAN = `filters:
+  and:
+    - file.inFolder("Cultivos")
+# comentario del usuario
+views:
+  - type: table
+    name: Todos
+    order:
+      - file.name
+      - familia
+    sort:
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Otra
+    order:
+      - file.name
+`;
+
+test("reemplazarOrdenEnTexto: cambia el sort existente y nada más", () => {
+  const nuevo = reemplazarOrdenEnTexto(BASE_OBSIDIAN, 0, [{ propiedad: "familia", descendente: true }]);
+  assert.equal(
+    nuevo,
+    BASE_OBSIDIAN.replace(
+      "      - property: file.name\n        direction: ASC",
+      "      - property: familia\n        direction: DESC",
+    ),
+  );
+  assert.deepEqual(parsearBase(nuevo).vistas[0].orden, [{ propiedad: "familia", descendente: true }]);
+});
+
+test("reemplazarOrdenEnTexto: agrega el sort al final de una vista que no lo tenía", () => {
+  const nuevo = reemplazarOrdenEnTexto(BASE_OBSIDIAN, 1, [{ propiedad: "file.name", descendente: false }]);
+  assert.equal(nuevo, `${BASE_OBSIDIAN}    sort:\n      - property: file.name\n        direction: ASC\n`);
+  // La primera vista no se tocó.
+  assert.deepEqual(parsearBase(nuevo).vistas[0].orden, [{ propiedad: "file.name", descendente: false }]);
+});
+
+test("reemplazarOrdenEnTexto: un orden vacío quita el bloque sort", () => {
+  const nuevo = reemplazarOrdenEnTexto(BASE_OBSIDIAN, 0, []);
+  assert.equal(nuevo, BASE_OBSIDIAN.replace("    sort:\n      - property: file.name\n        direction: ASC\n", ""));
+  assert.deepEqual(parsearBase(nuevo).vistas[0].orden, []);
+});
+
+test("reemplazarOrdenEnTexto: varios criterios, y respeta los finales de línea CRLF", () => {
+  const crlf = BASE_OBSIDIAN.replace(/\n/g, "\r\n");
+  const orden = [
+    { propiedad: "familia", descendente: false },
+    { propiedad: "file.name", descendente: true },
+  ];
+  const nuevo = reemplazarOrdenEnTexto(crlf, 0, orden);
+  assert.ok(nuevo !== null);
+  assert.ok(!/[^\r]\n/.test(nuevo), "no mezcla \\n sueltos en un archivo CRLF");
+  assert.deepEqual(parsearBase(nuevo).vistas[0].orden, orden);
+});
+
+test("reemplazarOrdenEnTexto: sin una lista de vistas que entienda, devuelve null", () => {
+  assert.equal(reemplazarOrdenEnTexto("filters:\n  and: []\n", 0, []), null, "sin views");
+  assert.equal(reemplazarOrdenEnTexto("views: []\n", 0, []), null, "views en línea");
+  assert.equal(reemplazarOrdenEnTexto(BASE_OBSIDIAN, 5, []), null, "vista que no existe");
+});
+
+test("reemplazarOrdenEnTexto: con lo que escribe serializarBase también es mínimo", () => {
+  const propio = serializarBase(parsearBase(BASE_OBSIDIAN));
+  const nuevo = reemplazarOrdenEnTexto(propio, 0, [{ propiedad: "familia", descendente: false }]);
+  assert.equal(nuevo, propio.replace("property: file.name\n        direction: ASC", "property: familia\n        direction: ASC"));
 });

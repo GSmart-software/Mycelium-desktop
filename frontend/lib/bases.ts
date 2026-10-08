@@ -1088,6 +1088,123 @@ export function serializarBase(base: Base): string {
   return `${lineas.join("\n")}\n`;
 }
 
+/** Línea vacía o de comentario: no abre ni cierra un bloque. */
+const enBlanco = (linea: string) => linea.trim() === "" || esComentario(linea);
+
+/**
+ * Cambia SOLO el `sort` de la vista `iVista` en el texto del `.base`, dejando
+ * todo lo demás byte a byte como estaba (`DEF-150 j`). Devuelve `null` si no
+ * puede hacerlo con seguridad, y entonces quien llama reescribe con
+ * `serializarBase`.
+ *
+ * Por qué: ordenar por una columna se guarda en el archivo (igual que en
+ * Obsidian, para que el orden se conserve), pero se guardaba reescribiendo el
+ * archivo entero con `serializarBase`, que lo reformatea —líneas en blanco
+ * entre secciones, su orden de claves, su manera de entrecomillar— y un clic en
+ * una cabecera dejaba un diff de todo el archivo. Ahora se toca solo el bloque
+ * `sort:` de esa vista: se reemplaza, se agrega al final de la vista o se quita
+ * (orden vacío).
+ *
+ * Trabaja por líneas sobre el YAML de bloque que escriben Obsidian y Mycelium:
+ * `views:` en la columna 0 y cada vista como un ítem `- …` de una lista. Como
+ * red de seguridad, el resultado se vuelve a parsear y tiene que dar
+ * exactamente la base de antes con el orden nuevo en esa vista; si no, `null`.
+ */
+export function reemplazarOrdenEnTexto(texto: string, iVista: number, orden: Orden[]): string | null {
+  const eol = texto.includes("\r\n") ? "\r\n" : "\n";
+  const lineas = texto.split(/\r?\n/);
+
+  const iViews = lineas.findIndex((l) => /^views:\s*(#.*)?$/.test(l));
+  if (iViews < 0) return null;
+
+  // Los ítems de la lista de vistas: líneas `- ` con la sangría del primero.
+  let sangriaItem = -1;
+  const inicios: number[] = [];
+  let fin = lineas.length; // primera línea después de la lista de vistas
+  for (let i = iViews + 1; i < lineas.length; i++) {
+    const l = lineas[i];
+    if (enBlanco(l)) continue;
+    const s = sangria(l);
+    const esItem = l.trimStart().startsWith("- ") || l.trim() === "-";
+    if (sangriaItem < 0) {
+      if (!esItem) return null; // `views:` sin lista de bloque (p. ej. `views: []`)
+      sangriaItem = s;
+    }
+    if (s < sangriaItem || (s === sangriaItem && !esItem)) {
+      fin = i;
+      break;
+    }
+    if (s === sangriaItem && esItem) inicios.push(i);
+  }
+  if (iVista < 0 || iVista >= inicios.length) return null;
+
+  const desde = inicios[iVista];
+  const hasta = iVista + 1 < inicios.length ? inicios[iVista + 1] : fin;
+  // Las claves de la vista van a la columna del texto que sigue al `- `.
+  const sangriaClave = sangriaItem + 2;
+  if (/^\s*-\s+sort\s*:/.test(lineas[desde])) return null; // `sort` como primera clave: raro, no se toca
+
+  // El bloque `sort:` actual, si hay: su línea y las más sangradas que la siguen.
+  let iSort = -1;
+  let finSort = -1;
+  for (let i = desde + 1; i < hasta; i++) {
+    const l = lineas[i];
+    if (enBlanco(l)) continue;
+    if (sangria(l) === sangriaClave && /^\s*sort\s*:/.test(l)) {
+      iSort = i;
+      finSort = i + 1;
+      for (let j = i + 1; j < hasta; j++) {
+        if (enBlanco(lineas[j])) continue;
+        if (sangria(lineas[j]) <= sangriaClave) break;
+        finSort = j + 1;
+      }
+      break;
+    }
+  }
+
+  // Cómo sangra el archivo los ítems del `sort` (Obsidian: dos más que la clave).
+  let sangriaGuion = sangriaClave + 2;
+  if (iSort >= 0) {
+    const primero = lineas.slice(iSort + 1, finSort).find((l) => l.trimStart().startsWith("-"));
+    if (primero !== undefined) sangriaGuion = sangria(primero);
+  }
+  const pad = (n: number) => " ".repeat(n);
+  const nuevas =
+    orden.length === 0
+      ? []
+      : [
+          `${pad(sangriaClave)}sort:`,
+          ...orden.flatMap((o) => [
+            `${pad(sangriaGuion)}- property: ${o.propiedad}`,
+            `${pad(sangriaGuion + 2)}direction: ${o.descendente ? "DESC" : "ASC"}`,
+          ]),
+        ];
+
+  let resultado: string[];
+  if (iSort >= 0) {
+    resultado = [...lineas.slice(0, iSort), ...nuevas, ...lineas.slice(finSort)];
+  } else {
+    if (nuevas.length === 0) return texto; // no había orden ni lo hay: nada que hacer
+    // Al final de la vista, después de su última línea con contenido.
+    let ultima = hasta - 1;
+    while (ultima > desde && enBlanco(lineas[ultima])) ultima--;
+    resultado = [...lineas.slice(0, ultima + 1), ...nuevas, ...lineas.slice(ultima + 1)];
+  }
+  const nuevo = resultado.join(eol);
+
+  // Red de seguridad: tiene que dar la misma base, con el orden nuevo en esa vista.
+  try {
+    const antes = parsearBase(texto);
+    const despues = parsearBase(nuevo);
+    if (antes.vistas.length !== inicios.length) return null;
+    antes.vistas[iVista] = { ...antes.vistas[iVista], orden };
+    if (JSON.stringify(antes) !== JSON.stringify(despues)) return null;
+  } catch {
+    return null;
+  }
+  return nuevo;
+}
+
 /**
  * Columnas y propiedades elegibles: los campos del archivo más todas las claves
  * que existan en el vault. Se calcula de las notas ya cargadas, así que no hace

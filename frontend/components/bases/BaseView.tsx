@@ -36,12 +36,14 @@ import {
   OPERADORES_UI,
   OPS_DE_ARCHIVO,
   parsearBase,
+  reemplazarOrdenEnTexto,
   serializarBase,
   tituloColumna,
   type Base,
   type Busqueda,
   type NodoFiltro,
   type NotaTabla,
+  type Orden,
   type Vista,
 } from "@/lib/bases";
 import { formatearFecha } from "@/lib/markdown";
@@ -384,6 +386,20 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
     void guardar(serializarBase(nueva));
   };
 
+  /**
+   * Ordenar por una columna (`DEF-150 j`). El orden se guarda en el archivo,
+   * como en Obsidian, pero tocando solo el `sort:` de esta vista: reescribirlo
+   * entero con `serializarBase` lo reformateaba (líneas en blanco, orden de las
+   * claves) por un clic en una cabecera. Si el texto no se deja editar así con
+   * seguridad, se vuelve a la reescritura completa. No se avisa: guardar el
+   * orden es lo esperable, y lo que sorprendía era el reformateo.
+   */
+  const ordenar = (orden: Orden[]) => {
+    const minimo = fuente === null ? null : reemplazarOrdenEnTexto(fuente, iVista, orden);
+    if (minimo === null) cambiarVista({ orden });
+    else if (minimo !== fuente) void guardar(minimo);
+  };
+
   // Las columnas que se están dibujando; vacío si la tabla no se pudo construir.
   const refsColumnas = tabla.ok ? tabla.columnas : [];
 
@@ -652,9 +668,7 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
                       // la misma regla que los filtros y las columnas: si el
                       // archivo no se entiende entero, no se toca.
                       motivoBloqueo={editable ? null : bloqueos[0]}
-                      onOrdenar={(acumular) =>
-                        cambiarVista({ orden: alternarOrden(vista.orden, c, acumular) })
-                      }
+                      onOrdenar={(acumular) => ordenar(alternarOrden(vista.orden, c, acumular))}
                       onRedimensionar={(e) => empezarRedimension(e, c)}
                       onRestablecer={() => guardarAnchos(null)}
                     />
