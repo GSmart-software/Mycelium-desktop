@@ -23,7 +23,12 @@ import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
 import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
-import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
+import {
+  derivarIndice,
+  plegarPropiedadesPendientes,
+  reindexarPropiedadesTanda,
+  type FilaPropiedad,
+} from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 import { LOCAL_VAULT_ID } from "./vaultContext";
 
@@ -105,12 +110,20 @@ const ESQUEMA_INDICE: string[] = [
   // Propiedades del frontmatter YAML (FUN-M-04). Una fila POR ELEMENTO de lista
   // (`orden` = posición; 0 si es escalar), para poder filtrar con `=` en vez de
   // `LIKE`. Se deriva del contenido igual que `notas_fts`.
+  //
+  // `clave_plegada` y `valor_plegado` (`DEF-144`): lo mismo sin tildes ni
+  // mayúsculas (`plegar`, en JS: el `lower()` y el `NOCASE` de SQLite solo
+  // entienden ASCII). Es por donde filtra la búsqueda `clave:valor`, para que
+  // compare como el texto. Un índice anterior las recibe por `ALTER TABLE` en
+  // `crearEsquemaIndice`, que además las llena.
   `CREATE TABLE IF NOT EXISTS propiedades (
-     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
-     clave   TEXT NOT NULL,
-     valor   TEXT NOT NULL,
-     tipo    TEXT NOT NULL,
-     orden   INTEGER NOT NULL
+     nota_id       TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     clave         TEXT NOT NULL,
+     valor         TEXT NOT NULL,
+     tipo          TEXT NOT NULL,
+     orden         INTEGER NOT NULL,
+     clave_plegada TEXT,
+     valor_plegado TEXT
    )`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_nota  ON propiedades(nota_id)`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_clave ON propiedades(clave, valor)`,
@@ -211,6 +224,24 @@ export async function crearEsquemaIndice(): Promise<void> {
   } catch {
     // La columna ya existe: nada que hacer.
   }
+  // Ídem `propiedades.clave_plegada` y `valor_plegado` (`DEF-144`). El índice
+  // por esas columnas va después del ALTER (no en `ESQUEMA_INDICE`): en un
+  // índice anterior todavía no existen cuando corre la lista. Y las filas que ya
+  // había se pliegan acá, sin releer archivos.
+  try {
+    await execute("ALTER TABLE propiedades ADD COLUMN clave_plegada TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  try {
+    await execute("ALTER TABLE propiedades ADD COLUMN valor_plegado TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  await execute(
+    "CREATE INDEX IF NOT EXISTS idx_propiedades_plegado ON propiedades(clave_plegada, valor_plegado)",
+  );
+  await plegarPropiedadesPendientes();
   // Qué `rowid` de `notas_fts` le toca a cada nota (`DEF-105`): sin esto, borrar
   // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
   // anterior la llena a partir de lo que ya hay, una sola vez.

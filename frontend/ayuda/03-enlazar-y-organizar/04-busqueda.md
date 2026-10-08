@@ -37,6 +37,9 @@ Escribí al menos dos caracteres. Con varias palabras, aparecen las notas que ti
 Los filtros se combinan con texto: `estado:activo informe` busca «informe» solo entre las
 notas activas.
 
+No importan las mayúsculas ni las tildes, tampoco en los filtros: «pulgon» encuentra
+«Pulgón», y `familia:solanaceas` encuentra las notas con `familia: Solanáceas`.
+
 - El botón dentro del campo cambia **dónde** se busca: **nombre y contenido**, **solo el
   nombre** o **solo el contenido**.
 - El botón de al lado **agrupa los resultados por carpeta** o los vuelve a mostrar como

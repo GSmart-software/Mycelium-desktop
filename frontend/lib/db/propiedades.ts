@@ -11,6 +11,7 @@
  */
 import { cuerpoDe, separarFrontmatter, type Frontmatter, type Propiedad } from "@/lib/frontmatter";
 import { execute, select } from "./client";
+import { plegar } from "./fts";
 import { huellaDe } from "./util";
 
 export type PropiedadDto = { clave: string; valor: string; tipo: string; orden: number };
@@ -92,14 +93,18 @@ export async function reindexarPropiedadesTanda(
     "DELETE FROM propiedades WHERE nota_id IN (SELECT value FROM json_each(?))",
     [JSON.stringify(entradas.map((e) => e.id))],
   );
+  // La clave y el valor van además plegados (`DEF-144`): es por donde filtra la
+  // búsqueda `clave:valor`. Se calculan acá y no en `derivarIndice` para que la
+  // huella de la nota no cambie por esto.
   const filas = entradas.flatMap(({ id, propiedades }) =>
-    propiedades.map((f) => ({ n: id, ...f })),
+    propiedades.map((f) => ({ n: id, ...f, cp: plegar(f.c), vp: plegar(f.v) })),
   );
   if (filas.length === 0) return;
   await execute(
-    `INSERT INTO propiedades (nota_id, clave, valor, tipo, orden)
+    `INSERT INTO propiedades (nota_id, clave, valor, tipo, orden, clave_plegada, valor_plegado)
      SELECT json_extract(value, '$.n'), json_extract(value, '$.c'), json_extract(value, '$.v'),
-            json_extract(value, '$.t'), json_extract(value, '$.o')
+            json_extract(value, '$.t'), json_extract(value, '$.o'),
+            json_extract(value, '$.cp'), json_extract(value, '$.vp')
      FROM json_each(?)`,
     [JSON.stringify(filas)],
   );
@@ -147,4 +152,35 @@ export async function notasConPropiedad(
     params,
   );
   return { notas };
+}
+
+/**
+ * Completa `clave_plegada` y `valor_plegado` de las filas que no las tienen
+ * (`DEF-144`): las de un índice creado antes de esas columnas, que el
+ * `ALTER TABLE` deja en NULL. Sin esto, un filtro `clave:valor` no encontraría
+ * nada en un vault ya indexado hasta que cada nota se volviera a guardar.
+ *
+ * Es una migración de los datos que YA están en el índice, no un reindexado:
+ * no relee archivos. Se pliega en JS (ver `plegar`) y se escribe con un
+ * `UPDATE … FROM json_each(?)` por tanda. Idempotente: en un índice al día, el
+ * `SELECT` no devuelve nada y no se escribe.
+ */
+export async function plegarPropiedadesPendientes(): Promise<void> {
+  const pendientes = await select<{ id: number; clave: string; valor: string }>(
+    "SELECT rowid AS id, clave, valor FROM propiedades WHERE clave_plegada IS NULL OR valor_plegado IS NULL",
+  );
+  const TANDA = 2000;
+  for (let i = 0; i < pendientes.length; i += TANDA) {
+    const tanda = pendientes
+      .slice(i, i + TANDA)
+      .map((f) => ({ r: f.id, cp: plegar(f.clave), vp: plegar(f.valor) }));
+    await execute(
+      `UPDATE propiedades
+          SET clave_plegada = json_extract(j.value, '$.cp'),
+              valor_plegado = json_extract(j.value, '$.vp')
+         FROM json_each(?) AS j
+        WHERE propiedades.rowid = json_extract(j.value, '$.r')`,
+      [JSON.stringify(tanda)],
+    );
+  }
 }
