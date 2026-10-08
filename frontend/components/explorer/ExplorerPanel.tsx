@@ -74,6 +74,7 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { MenuNuevo, type ItemNuevo } from "./MenuNuevo";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
+import { pedirEdicionDeTitulo, soltarFoco } from "@/lib/editor/tituloPendiente";
 
 /**
  * DEF-023 P2: pane y zona (borde = dividir / centro = abrir) bajo un punto de
@@ -350,6 +351,19 @@ export function ExplorerPanel() {
     [router],
   );
 
+  /**
+   * Abre una nota recién creada con el título en edición (`DEF-135`): lo que se
+   * escribe enseguida la nombra, en vez de perderse o de volver a activar el
+   * botón que la creó.
+   */
+  const abrirNueva = useCallback(
+    (id: string) => {
+      pedirEdicionDeTitulo(id);
+      openNota(id);
+    },
+    [openNota],
+  );
+
   // Clic con la rueda: abre la nota en segundo plano (sin robar el foco).
   const openNotaBackground = useCallback(
     (id: string) => {
@@ -470,7 +484,7 @@ export function ExplorerPanel() {
         icono: ico(IconoNota),
         onClick: () =>
           void crearNotaDesdeEspora(espora, carpetaId)
-            .then(openNota)
+            .then(abrirNueva)
             .catch((e) => console.error("[esporas] no se pudo crear la nota:", e)),
       })),
     };
@@ -521,7 +535,7 @@ export function ExplorerPanel() {
       {
         label: "Nueva nota",
         icono: ico(IconoNota),
-        onClick: () => void store.createNota(carpeta.id).then(openNota),
+        onClick: () => void store.createNota(carpeta.id).then(abrirNueva),
       },
       {
         label: "Nuevo dibujo Excalidraw",
@@ -983,7 +997,12 @@ export function ExplorerPanel() {
           className={styles.actionButton}
           title="Nueva nota"
           aria-label="Nueva nota"
-          onClick={() => void store.createNota(store.activeFolderId).then(openNota)}
+          onClick={(e) => {
+            // `DEF-135`: el botón no se queda con el foco, o el espacio y el
+            // Enter que se tecleen para la nota nueva crearían otra.
+            soltarFoco(e.currentTarget);
+            void store.createNota(store.activeFolderId).then(abrirNueva);
+          }}
         >
           <FilePlus size={16} aria-hidden />
         </button>
@@ -996,7 +1015,10 @@ export function ExplorerPanel() {
             className={`${styles.actionButton} ${styles.soloAncho}`}
             title={label}
             aria-label={label}
-            onClick={onClick}
+            onClick={(e) => {
+              soltarFoco(e.currentTarget); // `DEF-135`: ver «Nueva nota»
+              onClick();
+            }}
           >
             <Icono size={16} />
           </button>
