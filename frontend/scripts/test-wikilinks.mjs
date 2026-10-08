@@ -331,3 +331,115 @@ test("un embed ![[x.excalidraw]] cuenta como arista", () => {
     [{ source: "Plan.md", target: "Proyectos/Boceto.excalidraw" }],
   );
 });
+
+// ── El ancla: `[[Nota#Encabezado]]` (`DEF-141`) ────────────────────────────────
+//
+// El editor, la lectura, el lienzo y el calendario resolvían «Tomate#Cuidados»
+// como un título y pintaban el enlace roto. El ancla no participa en encontrar
+// la nota; la referencia se prueba primero entera para no romper los títulos y
+// las carpetas con `#`.
+
+const anclas = await import(WIKILINKS);
+
+const CARPETAS_A = [
+  { id: "Cultivos", nombre: "Cultivos", padreId: null },
+  { id: "C#", nombre: "C#", padreId: null },
+];
+const NOTAS_A = [
+  { id: "Cultivos/Tomate.md", titulo: "Tomate", carpetaId: "Cultivos", tipo: "markdown" },
+  { id: "Q# y Quantum.md", titulo: "Q# y Quantum", carpetaId: null, tipo: "markdown" },
+  { id: "C#/Estudio.md", titulo: "Estudio", carpetaId: "C#", tipo: "markdown" },
+];
+const refA = (ref) => anclas.resolverReferencia(ref, NOTAS_A, CARPETAS_A);
+
+test("[[Nota#Encabezado]], con alias, con carpeta y a un bloque resuelven a la nota", () => {
+  for (const ref of ["Tomate#Cuidados", "Cultivos/Tomate#Cuidados", "tomate#cuidados", "Tomate#^abc123", "Tomate#H1#H2", "Tomate #Cuidados"]) {
+    assert.equal(resolveWikilink(ref, NOTAS_A, CARPETAS_A)?.id, "Cultivos/Tomate.md", ref);
+  }
+  // El alias lo quita el partidor antes de resolver.
+  const { destino } = partirWikilink("Tomate#Cuidados|ver cuidados");
+  assert.equal(resolveWikilink(destino, NOTAS_A, CARPETAS_A)?.id, "Cultivos/Tomate.md");
+});
+
+test("el ancla que no existe en la nota no la vuelve rota: solo una nota inexistente", () => {
+  assert.equal(refA("Tomate#No existe").nota?.id, "Cultivos/Tomate.md");
+  const rota = refA("Papa#Cuidados");
+  assert.equal(rota.nota, undefined);
+  assert.equal(rota.base, "Papa");
+  assert.equal(rota.ancla, "Cuidados");
+});
+
+test("los títulos y carpetas con # resuelven entero, sin ancla", () => {
+  const entero = refA("Q# y Quantum");
+  assert.equal(entero.nota?.id, "Q# y Quantum.md");
+  assert.equal(entero.ancla, null);
+  const conAncla = refA("Q# y Quantum#Intro");
+  assert.equal(conAncla.nota?.id, "Q# y Quantum.md");
+  assert.equal(conAncla.ancla, "Intro");
+  assert.equal(refA("C#/Estudio").nota?.id, "C#/Estudio.md");
+  assert.equal(refA("C#/Estudio#Tema").nota?.id, "C#/Estudio.md");
+  assert.equal(refA("C#/Estudio#Tema").ancla, "Tema");
+});
+
+test("el ancla resuelta: lo que sigue al #, con anidados y bloques", () => {
+  assert.equal(refA("Tomate#Cuidados").ancla, "Cuidados");
+  assert.equal(refA("Tomate#Riego#Verano").ancla, "Riego#Verano");
+  assert.equal(refA("Tomate#^abc").ancla, "^abc");
+  assert.equal(refA("Tomate").ancla, null);
+  assert.equal(refA("Tomate#").ancla, null, "un # sin nada detrás no es un ancla");
+});
+
+test("[[#Encabezado]] es un salto en la misma nota: no resuelve a otra, pero se reconoce", () => {
+  assert.equal(resolveWikilink("#Cuidados", NOTAS_A, CARPETAS_A), undefined);
+  assert.equal(anclas.esAnclaPropia("#Cuidados"), true);
+  assert.equal(anclas.esAnclaPropia(" #^bloque "), true);
+  assert.equal(anclas.esAnclaPropia("#"), false);
+  assert.equal(anclas.esAnclaPropia("Tomate#Cuidados"), false);
+});
+
+test("la etiqueta sin alias: Nota › Encabezado, como Obsidian", () => {
+  const et = (ref) => {
+    const r = refA(ref);
+    return anclas.etiquetaDeReferencia(r.base, r.ancla);
+  };
+  assert.equal(et("Tomate#Cuidados"), "Tomate › Cuidados");
+  assert.equal(et("Cultivos/Tomate#Cuidados"), "Cultivos/Tomate › Cuidados");
+  assert.equal(et("Tomate#Riego#Verano"), "Tomate › Riego › Verano");
+  assert.equal(et("#Cuidados"), "Cuidados");
+  assert.equal(et("Tomate"), "Tomate");
+  assert.equal(et("Q# y Quantum"), "Q# y Quantum", "un título con # no se parte");
+  assert.equal(et("Q# y Quantum#Intro"), "Q# y Quantum › Intro");
+  // Sin vault (render de Markdown), el corte en el primer #.
+  assert.equal(anclas.etiquetaDeDestino("Tomate#Cuidados"), "Tomate › Cuidados");
+  assert.equal(anclas.etiquetaDeDestino("#Cuidados"), "Cuidados");
+  assert.equal(anclas.etiquetaDeDestino("Tomate"), "Tomate");
+});
+
+test("lineaDeAncla: encabezado sin distinguir mayúsculas y con espacios normalizados", () => {
+  const nota = [
+    "---", "tags: [a]", "---", "# Tomate", "", "## Riego", "### Verano", "texto",
+    "## Cuidados   del  suelo", "```", "## Cuidados", "```", "## Cuidados", "Una idea ^idea-1", "### Verano",
+  ].join("\n");
+  assert.equal(anclas.lineaDeAncla(nota, "cuidados del suelo"), 9);
+  assert.equal(anclas.lineaDeAncla(nota, "CUIDADOS"), 13, "el de dentro del código no cuenta");
+  assert.equal(anclas.lineaDeAncla(nota, "Riego#Verano"), 7);
+  assert.equal(anclas.lineaDeAncla(nota, "Cuidados#Verano"), 15, "anidado: debajo del anterior");
+  assert.equal(anclas.lineaDeAncla(nota, "Otro#Verano"), 7, "si la cadena no calza, el primero con el último nivel");
+  assert.equal(anclas.lineaDeAncla(nota, "^idea-1"), 14);
+  assert.equal(anclas.lineaDeAncla(nota, "^nada"), null);
+  assert.equal(anclas.lineaDeAncla(nota, "No existe"), null);
+  assert.equal(anclas.lineaDeAncla("a\r\n## Dos\r\n", "dos"), 2);
+});
+
+test("el grafo y el editor coinciden con anclas", () => {
+  const porTitulo = indexarPorTitulo(NOTAS_A);
+  const ids = new Set(NOTAS_A.map((n) => n.id));
+  for (const ref of ["Tomate#Cuidados", "Cultivos/Tomate#^abc", "Q# y Quantum", "Q# y Quantum#Intro", "C#/Estudio#Tema", "Papa#X"]) {
+    const grafo = enlacesNota.resolverEnlace({ tipo: "enlace", texto: ref }, porTitulo, CARPETAS_A, ids);
+    assert.equal(grafo, resolveWikilink(ref, NOTAS_A, CARPETAS_A)?.id ?? null, ref);
+  }
+  // `[[#Sección]]` no es una arista.
+  assert.deepEqual(enlacesNota.derivarEnlaces("[[#Cuidados]] y [[Tomate#Cuidados|ver]]", "markdown"), [
+    { texto: "Tomate#Cuidados", tipo: "enlace", n: 1 },
+  ]);
+});

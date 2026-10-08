@@ -25,7 +25,7 @@ import {
   type VideoEmbebido,
 } from "@/lib/video";
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
-import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
+import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { MARCADOR_TAREA_RE, estaMarcada, estadoDeSimbolo } from "@/lib/estadosTarea";
 
 type MdNode = {
@@ -119,14 +119,24 @@ function remarkMicelio() {
         // Acá el escape de la tabla (`\|`) ya lo resolvió el pipeline de
         // Markdown, así que llega como `|`. Se usa el mismo partidor igual, para
         // que las cuatro vistas del mismo enlace no puedan divergir (`DEF-045`).
-        const { destino: target, etiqueta: label } = partirWikilink(match[1]);
+        const { destino: target, etiqueta, desdeEtiqueta } = partirWikilink(match[1]);
+        // Sin alias, un ancla se muestra `Nota › Encabezado` (`DEF-141`). Acá
+        // no se conocen las notas, así que se corta en el primer `#`; quien las
+        // conoce (`markMissingWikilinks`) corrige la etiqueta de los que llevan
+        // `data-sin-alias` —un título con `#`, «Q# y Quantum», no tiene ancla—.
+        const sinAlias = desdeEtiqueta === 0;
+        const label = sinAlias ? etiquetaDeDestino(target) : etiqueta;
         matches.push({
           start: match.index,
           end: match.index + match[0].length,
           node: {
             type: "link",
             url: `#wikilink:${encodeURIComponent(target)}`,
-            data: { hProperties: { className: "mic-wikilink" } },
+            data: {
+              hProperties: sinAlias
+                ? { className: "mic-wikilink", dataSinAlias: "true" }
+                : { className: "mic-wikilink" },
+            },
             children: [{ type: "text", value: label }],
           },
         });

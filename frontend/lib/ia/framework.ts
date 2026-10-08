@@ -220,6 +220,7 @@ skill \`mycelium-memoria\`; para operar la app, \`mycelium-operar\`.
 |---|---|---|
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
+| Enlace a un encabezado | \`[[Título#Encabezado]]\` / \`[[#Encabezado]]\` | Cuenta como enlace a la nota (grafo, backlinks); el clic lleva al encabezado. Se ve «Título › Encabezado». \`[[Título#^bloque]]\` va a la línea que termina en \`^bloque\` |
 | Embed de nota | \`![[Título]]\` | **No se dibuja**: se ve como \`!\` y un enlace común. Para relacionar notas, enlazá con \`[[Título]]\` |
 | Embed de diagrama | \`![[Título.excalidraw]]\` / \`![[Título.drawio]]\` | Renderiza el dibujo o el diagrama |
 | Etiqueta | \`#tag\` | Faceta de la nota; se busca con \`tag:x\`. Hacer clic en ella no hace nada |

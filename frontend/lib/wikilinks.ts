@@ -188,6 +188,9 @@ export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Ma
  * 4. **Sin extensión**, entre los que quedan se prefiere la nota markdown
  *    (convención de Obsidian: `[[Pedido]]` es `Pedido.md`, no `Pedido.excalidraw`).
  * 5. Empate: la ruta más corta, y a igual profundidad el id.
+ * 6. **El ancla** (`DEF-141`): si la referencia entera no resuelve y su último
+ *    segmento lleva `#` (`Nota#Encabezado`, `Nota#^bloque`), se prueba sin el
+ *    ancla. Ver `resolverReferenciaEnIndice`.
  *
  * > [!warning] Antes el tipo no participaba (`DEF-120`)
  * > Los candidatos eran **todos** los archivos con ese título, sin importar la
@@ -200,6 +203,18 @@ export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Ma
  * > estaba más cerca de la raíz o a la misma altura con un id menor.
  */
 export function resolveWikilinkEnIndice<N extends NotaEnlazable>(
+  ref: string,
+  porTitulo: Map<string, N[]>,
+  carpetas: readonly CarpetaEnlazable[],
+): N | undefined {
+  return resolverReferenciaEnIndice(ref, porTitulo, carpetas).nota;
+}
+
+/**
+ * Las reglas 1 a 5 sobre la referencia TAL CUAL, sin probar a quitarle el
+ * ancla: lo que era `resolveWikilinkEnIndice` antes de `DEF-141`.
+ */
+function resolverExactoEnIndice<N extends NotaEnlazable>(
   ref: string,
   porTitulo: Map<string, N[]>,
   carpetas: readonly CarpetaEnlazable[],
@@ -300,4 +315,209 @@ export function resolveWikilink<N extends NotaEnlazable>(
   carpetas: readonly CarpetaEnlazable[],
 ): N | undefined {
   return resolveWikilinkEnIndice(ref, notasPorTitulo(notas), carpetas);
+}
+
+// ── El ancla: `[[Nota#Encabezado]]` y `[[Nota#^bloque]]` (`DEF-141`) ──────────
+//
+// > [!important] El ancla no participa en encontrar la nota
+// > Como en Obsidian, `[[Tomate#Cuidados]]` es un enlace a `Tomate` que además
+// > dice adónde ir dentro de ella. Hasta `DEF-141` solo el grafo lo sabía
+// > (`lib/enlacesNota.ts`, `FUN-L-25`): el editor, la lectura, el lienzo y el
+// > calendario buscaban una nota llamada «Tomate#Cuidados», no la encontraban
+// > y pintaban el enlace roto, con el texto crudo y sin navegar.
+// >
+// > Pero la referencia se prueba primero ENTERA: en los vaults reales hay
+// > títulos y carpetas con `#` («Q# y Quantum», «C#/Estudio/…») que resuelven
+// > por el texto completo, y quitarles el ancla a ciegas los rompía.
+// >
+// > Que la nota exista basta: un encabezado que no está lleva igual a la nota,
+// > al principio, y el enlace NO se marca roto (lo mismo que Obsidian). Un
+// > `[[Nota#^bloque]]` también resuelve a la nota; el salto busca la línea que
+// > termina en `^bloque`.
+
+/** Un corte posible de la referencia: lo que nombra la nota y el ancla. */
+type Corte = { base: string; ancla: string };
+
+/**
+ * Los cortes de una referencia en nota + ancla, del más largo al más corto. El
+ * ancla vive en el ÚLTIMO segmento (`C#/Nota#Sección`: la carpeta `C#` no es un
+ * ancla), y puede empezar en su primer `#` (`Nota#H1#H2`, encabezado anidado)
+ * o en el último (`Q# y Quantum#Intro`, un título con `#`): se prueban los
+ * dos, el más largo primero porque es el más específico.
+ */
+function cortes(destino: string): Corte[] {
+  const i = destino.lastIndexOf("/");
+  const dir = destino.slice(0, i + 1);
+  const seg = destino.slice(i + 1);
+  const primero = seg.indexOf("#");
+  if (primero < 0) return [];
+  const ultimo = seg.lastIndexOf("#");
+  const corto = { base: (dir + seg.slice(0, primero)).trim(), ancla: seg.slice(primero + 1).trim() };
+  if (ultimo === primero) return [corto];
+  const largo = { base: (dir + seg.slice(0, ultimo)).trim(), ancla: seg.slice(ultimo + 1).trim() };
+  return [largo, corto];
+}
+
+/**
+ * Las formas sin ancla de una referencia, de la más larga a la más corta. Sin
+ * `#` en el último segmento, ninguna. (Vivía en `lib/enlacesNota.ts`, que la
+ * reexporta.)
+ */
+export function cortesDeAncla(destino: string): string[] {
+  return cortes(destino).map((c) => c.base);
+}
+
+/** `Nota#Sección` o `Nota#^bloque` → `Nota` (el corte en el primer `#`). `[[#Sección]]` da "". */
+export function sinAncla(destino: string): string {
+  const cs = cortes(destino);
+  return cs.length === 0 ? destino.trim() : cs[cs.length - 1].base;
+}
+
+/**
+ * ¿Es un salto dentro de la misma nota (`[[#Encabezado]]`, `[[#^bloque]]`)? No
+ * resuelve a ninguna nota del vault —no hay título vacío—, pero tampoco es un
+ * enlace roto: quien lo muestra sabe en qué nota está.
+ */
+export function esAnclaPropia(destino: string): boolean {
+  const d = destino.trim();
+  return d.startsWith("#") && d.length > 1;
+}
+
+/** Una referencia resuelta: la nota (si existe), lo que la nombra y el ancla. */
+export type ReferenciaResuelta<N> = {
+  nota: N | undefined;
+  /** Lo que nombra la nota, tal como se escribió (`Carpeta/Nota`), sin el ancla. */
+  base: string;
+  /** Lo que sigue al `#` (`Cuidados`, `H1#H2`, `^bloque`), o `null` si no hay. */
+  ancla: string | null;
+};
+
+/**
+ * Resuelve una referencia separando el ancla: primero entera y, si no resuelve,
+ * cada corte (`cortes`). Si nada resuelve, el ancla es la del corte en el
+ * primer `#` —lo que leería cualquiera— y la nota, `undefined`.
+ */
+export function resolverReferenciaEnIndice<N extends NotaEnlazable>(
+  ref: string,
+  porTitulo: Map<string, N[]>,
+  carpetas: readonly CarpetaEnlazable[],
+): ReferenciaResuelta<N> {
+  const entero = resolverExactoEnIndice(ref, porTitulo, carpetas);
+  if (entero) return { nota: entero, base: ref.trim(), ancla: null };
+  const cs = cortes(ref);
+  for (const c of cs) {
+    const nota = c.base === "" ? undefined : resolverExactoEnIndice(c.base, porTitulo, carpetas);
+    if (nota) return { nota, base: c.base, ancla: c.ancla === "" ? null : c.ancla };
+  }
+  if (cs.length === 0) return { nota: undefined, base: ref.trim(), ancla: null };
+  const corto = cs[cs.length - 1];
+  return { nota: undefined, base: corto.base, ancla: corto.ancla === "" ? null : corto.ancla };
+}
+
+/** `resolverReferenciaEnIndice` sobre una lista de notas (con su índice en caché). */
+export function resolverReferencia<N extends NotaEnlazable>(
+  ref: string,
+  notas: readonly N[],
+  carpetas: readonly CarpetaEnlazable[],
+): ReferenciaResuelta<N> {
+  return resolverReferenciaEnIndice(ref, notasPorTitulo(notas), carpetas);
+}
+
+/**
+ * Lo que se muestra de un enlace SIN alias: `Tomate › Cuidados` para
+ * `[[Tomate#Cuidados]]` (Obsidian muestra «Tomate > Cuidados»), cada nivel de
+ * un ancla anidada con su `›`, y solo el encabezado para `[[#Cuidados]]`. Sin
+ * ancla, la referencia tal cual.
+ */
+export function etiquetaDeReferencia(base: string, ancla: string | null): string {
+  if (ancla === null) return base;
+  const niveles = ancla
+    .split("#")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (niveles.length === 0) return base;
+  return (base === "" ? niveles : [base, ...niveles]).join(" › ");
+}
+
+/**
+ * La etiqueta de un destino sin mirar el vault: corta en el primer `#`, que es
+ * lo que leería cualquiera. La usan quienes pintan sin conocer las notas (el
+ * render de Markdown, la exportación); quien las conoce la corrige con
+ * `resolverReferencia`, porque un título con `#` («Q# y Quantum») no tiene ancla.
+ */
+export function etiquetaDeDestino(destino: string): string {
+  const cs = cortes(destino);
+  if (cs.length === 0) return destino.trim();
+  const c = cs[cs.length - 1];
+  return etiquetaDeReferencia(c.base, c.ancla === "" ? null : c.ancla);
+}
+
+/** Normaliza el texto de un encabezado para compararlo: sin mayúsculas ni espacios de más. */
+function normalizarEncabezado(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * A qué línea (desde 1) lleva un ancla en el contenido de una nota, o `null`
+ * si no está:
+ * - `^bloque`: la línea que termina en `^bloque` (la marca de bloque de
+ *   Obsidian).
+ * - `Encabezado`: el encabezado con ese texto, sin distinguir mayúsculas y con
+ *   los espacios normalizados (fuera de los bloques de código). Anidado
+ *   (`H1#H2`), se busca cada nivel debajo del anterior; si la cadena no calza,
+ *   el primero que se llame como el último nivel.
+ */
+export function lineaDeAncla(contenido: string, ancla: string): number | null {
+  const a = ancla.trim();
+  if (a === "") return null;
+  if (a.startsWith("^")) {
+    const id = a.slice(1);
+    if (!/^[\w-]+$/.test(id)) return null;
+    const marca = new RegExp(`(^|\\s)\\^${id}\\s*$`);
+    const i = contenido.split(/\r?\n/).findIndex((l) => marca.test(l));
+    return i < 0 ? null : i + 1;
+  }
+  const niveles = a.split("#").map(normalizarEncabezado).filter(Boolean);
+  if (niveles.length === 0) return null;
+  const todos = encabezadosDe(contenido);
+  let desde = 0;
+  let hallado: Encabezado | null = null;
+  for (const nivel of niveles) {
+    const i = todos.findIndex((h, k) => k >= desde && normalizarEncabezado(h.texto) === nivel);
+    if (i < 0) {
+      hallado = null;
+      break;
+    }
+    hallado = todos[i];
+    desde = i + 1;
+  }
+  if (hallado) return hallado.linea;
+  const ultimo = niveles[niveles.length - 1];
+  return todos.find((h) => normalizarEncabezado(h.texto) === ultimo)?.linea ?? null;
+}
+
+/** Un encabezado ATX (`## Texto`) fuera de los bloques de código. */
+export type Encabezado = { linea: number; nivel: number; texto: string };
+
+/**
+ * Los encabezados de una nota, con su línea (desde 1). Lo usan el salto de un
+ * `[[Nota#Encabezado]]` y el `ir_a` del MCP de control (`lib/mcpControlLogica.ts`,
+ * que lo reexporta).
+ */
+export function encabezadosDe(contenido: string): Encabezado[] {
+  const lineas = contenido.split(/\r?\n/);
+  const salida: Encabezado[] = [];
+  let valla: string | null = null;
+  lineas.forEach((l, i) => {
+    const v = /^\s{0,3}(`{3,}|~{3,})/.exec(l);
+    if (v) {
+      if (valla === null) valla = v[1][0];
+      else if (v[1][0] === valla) valla = null;
+      return;
+    }
+    if (valla !== null) return;
+    const m = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
+    if (m) salida.push({ linea: i + 1, nivel: m[1].length, texto: m[2] });
+  });
+  return salida;
 }
