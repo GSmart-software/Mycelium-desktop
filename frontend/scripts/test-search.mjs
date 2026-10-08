@@ -145,7 +145,7 @@ test("el filtro de columna se aplica a CADA termino, no solo al primero", soloDe
   assert.equal(buildFtsQuery("api rest", true, "nombre"), 'titulo : "api"* titulo : "rest"*');
   assert.equal(
     buildFtsQuery("api rest", true, "contenido"),
-    'contenido : "api"* contenido : "rest"*',
+    '{contenido extra} : "api"* {contenido extra} : "rest"*',
   );
 });
 
@@ -158,7 +158,7 @@ test("el modo exacto sigue mandando sobre el prefijo", soloDesktop, () => {
 });
 
 test("`tag:` se traduce a `#tag` antes de restringir", soloDesktop, () => {
-  assert.equal(buildFtsQuery("tag:idea", true, "contenido"), 'contenido : "#idea"*');
+  assert.equal(buildFtsQuery("tag:idea", true, "contenido"), '{contenido extra} : "#idea"*');
 });
 
 // ── HU-21 / FUN-M-04: lo que ya habia, para no romperlo al tocar el mismo modulo

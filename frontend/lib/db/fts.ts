@@ -124,10 +124,15 @@ export function separarFiltrosPropiedad(raw: string): {
  */
 export type CampoBusqueda = "nombre" | "contenido" | "ambos";
 
-/** La columna de `notas_fts` que le toca a cada modo. */
+/**
+ * La columna de `notas_fts` que le toca a cada modo. «Contenido» son dos: el
+ * texto legible y `extra`, lo que se busca sin mostrarse (valores de
+ * propiedades, destinos de enlaces con alias: `DEF-148`). Antes los dos iban en
+ * la misma columna, así que buscar en el contenido los sigue encontrando.
+ */
 const COLUMNA: Record<CampoBusqueda, string | null> = {
   nombre: "titulo",
-  contenido: "contenido",
+  contenido: "{contenido extra}",
   ambos: null,
 };
 
@@ -205,4 +210,20 @@ export function consultasDeTitulo(
     empieza: `titulo : ^"${texto.replaceAll('"', '""')}"${star}`,
     contiene: libres.map((t) => `titulo : "${t.replaceAll('"', '""')}"${star}`).join(" "),
   };
+}
+
+/**
+ * Las palabras del texto libre de la consulta, plegadas (`DEF-148`): para
+ * saber en qué propiedad cayó una coincidencia y armar su fragmento
+ * «clave: valor». Sin comillas, sin el `tag:`/`#` de una etiqueta (la etiqueta
+ * se busca como palabra) y cortadas como corta el tokenizador: en todo lo que
+ * no sea letra o número. Los filtros `clave:valor` ya vienen separados.
+ */
+export function palabrasDeConsulta(raw: string): string[] {
+  const palabras: string[] = [];
+  for (let t of tokensDeConsulta(raw)) {
+    if (t.toLowerCase().startsWith("tag:")) t = t.slice(4);
+    for (const p of plegar(t).split(/[^\p{L}\p{N}]+/u)) if (p !== "") palabras.push(p);
+  }
+  return palabras;
 }

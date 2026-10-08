@@ -70,6 +70,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./util": UTIL,
 });
 const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
   "@/lib/frontmatter": FRONTMATTER,
   "./client": CLIENT,
   "./fts": await fuente("../lib/db/fts.ts"),
@@ -96,6 +97,7 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./enlacesIndice": ENLACES_INDICE,
   "./ftsIndice": FTS,
   "./nombres": NOMBRES,
+  "./propiedades": PROPIEDADES,
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
@@ -120,6 +122,7 @@ const NOTAS_DB = await fuente("../lib/db/notas.ts", {
   "./ftsIndice": FTS,
   "./errors": ERRORS,
   "./indexer": INDEXER,
+  "./propiedades": PROPIEDADES,
   "./util": UTIL,
   "./vaultContext": CONTEXTO,
   "./vaultFs": VAULTFS,

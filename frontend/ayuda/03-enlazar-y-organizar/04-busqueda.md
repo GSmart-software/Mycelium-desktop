@@ -53,6 +53,11 @@ empieza con eso o lo contiene, y al final las que lo tienen solo en el contenido
 ordenadas por relevancia. Con filtros, el orden es el mismo entre las notas que los
 cumplen.
 
+Debajo de cada resultado va un fragmento con la coincidencia resaltada, escrito como se lee:
+los enlaces por su texto y sin las marcas del formato. Si lo que coincidió es una propiedad,
+el fragmento es esa propiedad (`familia: solanáceas`); en un lienzo, el texto de sus
+tarjetas.
+
 - El botón dentro del campo cambia **dónde** se busca: **nombre y contenido**, **solo el
   nombre** o **solo el contenido**.
 - El botón de al lado **agrupa los resultados por carpeta** o los vuelve a mostrar como

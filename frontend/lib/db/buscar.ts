@@ -19,6 +19,7 @@ import {
   aPalabras,
   buildFtsQuery,
   consultasDeTitulo,
+  palabrasDeConsulta,
   plegar,
   separadoresSql,
   separarFiltrosPropiedad,
@@ -158,7 +159,102 @@ export async function buscar(
      LIMIT 50`,
     [match, vaultId, ...filtroParams, ...ordenParams],
   );
+  if (campo !== "nombre") await completarFragmentos(resultados, resto, match, exacto);
   return { resultados };
+}
+
+/** Lo que `completarFragmentos` necesita de cada resultado. */
+type ConFragmento = { nota_id: string; fragmento: string };
+
+/**
+ * Los resultados cuyo fragmento no marca nada (`DEF-148`): la coincidencia no
+ * está en el texto legible de la nota sino en una propiedad, en un destino de
+ * enlace con alias o solo en el título. El `snippet()` del contenido devuelve
+ * entonces el principio de la nota sin resaltar, que se lee como si el
+ * resaltado se hubiera roto. En orden:
+ *
+ * 1. Si la coincidencia es una **propiedad**, el fragmento es esa propiedad:
+ *    `clave: valor`, con la palabra resaltada —lo mismo que muestra una
+ *    búsqueda solo con filtros (`DEF-144`)—. Antes era el frontmatter entero,
+ *    aplastado en una línea.
+ * 2. Si no, lo que marca el `snippet()` de la columna `extra` (un destino de enlace, una
+ *    URL), si marca algo.
+ * 3. Si tampoco, queda el que había: la coincidencia es el título.
+ *
+ * Son a lo sumo dos consultas más, y solo sobre los resultados sin marca (como
+ * mucho los 50 de la página): no se calcula un segundo `snippet()` para cada
+ * coincidencia del vault antes de ordenar, que es lo que cuesta (`DEF-146`).
+ */
+async function completarFragmentos(
+  resultados: ConFragmento[],
+  resto: string,
+  match: string,
+  exacto: boolean,
+): Promise<void> {
+  let sinMarca = resultados.filter((r) => !r.fragmento?.includes("«"));
+  if (sinMarca.length === 0) return;
+
+  const palabras = palabrasDeConsulta(resto);
+  if (palabras.length > 0) {
+    const ids = sinMarca.map((r) => r.nota_id);
+    const props = await select<{ nota_id: string; clave: string; valor: string }>(
+      `SELECT nota_id, clave, valor FROM propiedades
+        WHERE nota_id IN (SELECT value FROM json_each(?))
+        ORDER BY rowid`,
+      [JSON.stringify(ids)],
+    );
+    const porNota = new Map<string, { clave: string; valor: string }[]>();
+    for (const p of props) {
+      const lista = porNota.get(p.nota_id) ?? [];
+      lista.push(p);
+      porNota.set(p.nota_id, lista);
+    }
+    for (const r of sinMarca) {
+      for (const p of porNota.get(r.nota_id) ?? []) {
+        const marcado = marcarPalabras(p.valor, palabras, exacto);
+        if (marcado !== null) {
+          r.fragmento = `${p.clave}: ${marcado}`;
+          break;
+        }
+      }
+    }
+    sinMarca = sinMarca.filter((r) => !r.fragmento?.includes("«"));
+    if (sinMarca.length === 0) return;
+  }
+
+  const extras = await select<{ nota_id: string; fragmento: string }>(
+    `SELECT f.nota_id, snippet(notas_fts, 3, '«', '»', '…', 10) AS fragmento
+       FROM notas_fts f
+      WHERE notas_fts MATCH ?
+        AND f.rowid IN (SELECT fila FROM fts_filas
+                         WHERE nota_id IN (SELECT value FROM json_each(?)))`,
+    [match, JSON.stringify(sinMarca.map((r) => r.nota_id))],
+  );
+  const extraPorNota = new Map(extras.map((e) => [e.nota_id, e.fragmento]));
+  // De `extra` se muestra solo lo marcado: alrededor hay valores de propiedades
+  // y otros destinos sueltos, que como contexto no dicen nada.
+  for (const r of sinMarca) {
+    const marcas = extraPorNota.get(r.nota_id)?.match(/«[^»]*»/g);
+    if (marcas) r.fragmento = [...new Set(marcas)].join(" · ");
+  }
+}
+
+/**
+ * `valor` con «» alrededor de cada palabra que coincide con alguna de las de la
+ * consulta (ya plegadas): que empiece así o, con «Búsqueda exacta», que sea esa
+ * palabra —la regla del FTS—. `null` si ninguna coincide.
+ */
+export function marcarPalabras(valor: string, palabras: string[], exacto: boolean): string | null {
+  let alguna = false;
+  const marcado = valor.replace(/[\p{L}\p{N}]+/gu, (w) => {
+    const p = plegar(w);
+    if (palabras.some((q) => (exacto ? p === q : p.startsWith(q)))) {
+      alguna = true;
+      return `«${w}»`;
+    }
+    return w;
+  });
+  return alguna ? marcado : null;
 }
 
 /**
