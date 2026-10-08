@@ -6,6 +6,7 @@ import { usePrefVault } from "@/stores/prefsVaultStore";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
+import { BASE_NOMBRE, RejillaNombres, opacidadNombres } from "./nombres";
 import {
   BANDA_NIEBLA,
   anillosNiebla,
@@ -33,7 +34,7 @@ type SimEdge = { s: SimNode; t: SimNode };
 
 /**
  * Flujo animado acotado (`FUN-L-25` · B2, `DEF-109`). Por debajo de este zoom
- * los guiones no se distinguen: es el mismo umbral que ya apaga los nombres.
+ * los guiones no se distinguen (los nombres usan los suyos: `nombres.ts`).
  *
  * `DEF-115`: con 0,5 y un techo de 1.500 aristas, en un vault de 3.275 aristas
  * el flujo no aparecía nunca (casi cualquier encuadre supera el techo). Desde la
@@ -232,6 +233,9 @@ export function MiniGraph({
     const colEdgeLit = colGlow;
     const colText = "rgba(206, 232, 224, 0.82)";
     const colText2 = "rgba(245, 255, 252, 0.96)";
+    // Halo de los nombres (`DEF-149`): el color del fondo del grafo, para que un
+    // nombre se lea aunque cruce aristas u otro nombre.
+    const colHalo = styles.getPropertyValue("--mic-raw-base-deep").trim() || "#0b1412";
     // La fuente de las etiquetas se lee COMPUTADA del canvas (hereda la de body,
     // `var(--mic-font-sans)`): `ctx.font` no resuelve variables CSS, así que
     // pasarle `var(--mic-font-sans)` hacía que cayera siempre al sans-serif del
@@ -1043,13 +1047,17 @@ export function MiniGraph({
       }
     };
 
-    // ── Nombres (`FUN-M-21`; Parte C de `FUN-L-25`). Mientras el grafo se mueve
-    //    solo se escriben los de los hubs, el apuntado y el centro (escribir los
-    //    1.300 con `fillText` en cada frame era buena parte del frame); el resto
-    //    aparece al asentarse, en la capa estática y sin pisarse: se escriben
-    //    por importancia (apuntado, centro y después por enlaces, así los hubs
-    //    ganan el sitio) y se salta el que caería encima de uno ya escrito, con
-    //    una rejilla para no comparar todos contra todos. ──
+    // ── Nombres (`FUN-M-21`; Parte C de `FUN-L-25`; `DEF-149`). Mientras el
+    //    grafo se mueve solo se escriben los de los hubs, el apuntado y el centro
+    //    (escribir los 1.300 con `fillText` en cada frame era buena parte del
+    //    frame), en su lugar de siempre, debajo del nodo. Al asentarse se
+    //    escriben TODOS los del modo, en la capa estática: por importancia
+    //    (apuntado, centro y después por enlaces, así los hubs eligen sitio
+    //    primero), cada uno en el lado de su nodo que no pisa ni otro nodo ni otro
+    //    nombre (`nombres.ts`, con rejilla espacial). Antes se SALTABA el que no
+    //    cabía y los nodos no contaban como ocupados: faltaban nombres y otros
+    //    tapaban nodos ajenos. Con «Todos», al alejar el zoom se desvanecen
+    //    (como el «text fade threshold» de Obsidian) y vuelven al acercar. ──
     const hubsCumulo = new Set(
       [...sim].sort((a, b) => b.conexiones - a.conexiones || a.i - b.i).slice(0, HUBS_CON_NOMBRE),
     );
@@ -1057,43 +1065,9 @@ export function MiniGraph({
     const porImportancia = [...sim].sort((a, b) => b.conexiones - a.conexiones || a.i - b.i);
     /** Ancho de cada nombre con la fuente a 12 px (−1 = sin medir). Se mide una vez. */
     const anchoNombre = new Float32Array(N).fill(-1);
-    /** Rejilla de ocupación en píxeles de pantalla: celda → cajas `[x, y, w, h, …]`. */
-    const CELDA_NOMBRE = 96;
-    const ocupadas = new Map<number, number[]>();
-    /** ¿La caja pisa una ya ocupada? Si no, la ocupa. */
-    const ocupar = (x: number, y: number, w: number, h: number, forzar: boolean): boolean => {
-      const c0 = Math.floor(x / CELDA_NOMBRE);
-      const c1 = Math.floor((x + w) / CELDA_NOMBRE);
-      const f0 = Math.floor(y / CELDA_NOMBRE);
-      const f1 = Math.floor((y + h) / CELDA_NOMBRE);
-      if (!forzar) {
-        for (let f = f0; f <= f1; f++) {
-          for (let k = c0; k <= c1; k++) {
-            const cajas = ocupadas.get(f * 100003 + k);
-            if (!cajas) continue;
-            for (let j = 0; j < cajas.length; j += 4) {
-              if (
-                x < cajas[j] + cajas[j + 2] &&
-                x + w > cajas[j] &&
-                y < cajas[j + 1] + cajas[j + 3] &&
-                y + h > cajas[j + 1]
-              ) {
-                return false;
-              }
-            }
-          }
-        }
-      }
-      for (let f = f0; f <= f1; f++) {
-        for (let k = c0; k <= c1; k++) {
-          const clave = f * 100003 + k;
-          const cajas = ocupadas.get(clave);
-          if (cajas) cajas.push(x, y, w, h);
-          else ocupadas.set(clave, [x, y, w, h]);
-        }
-      }
-      return true;
-    };
+    const rejillaNombres = new RejillaNombres();
+    /** Lado en que quedó cada nombre la última vez (0 = abajo): se prueba primero. */
+    const ladoNombre = new Uint8Array(N);
 
     const pintarNombres = (c: CanvasRenderingContext2D, soloDestacados: boolean) => {
       // Qué nombres se dibujan. El foco es el nodo apuntado y, si no hay
@@ -1101,45 +1075,55 @@ export function MiniGraph({
       // resaltado, para que el nombre acompañe a lo que ya está destacado.
       const modo = modoNombresRef.current;
       const foco = hover ?? centerNode;
-      // En «todos» sigue mandando el zoom: alejado, los nombres se amontonan
-      // hasta ser ilegibles y solo se deja el del apuntado. Los otros dos modos
+      // En «todos» manda el zoom: alejado, los nombres se desvanecen hasta no
+      // verse y solo queda el del apuntado y el del centro. Los otros dos modos
       // ya muestran pocos, así que no necesitan ese recorte.
-      const showAll = scale > 0.5;
+      const alfaTodos = modo === "todos" ? opacidadNombres(scale) : 1;
+      const destacado = (n: SimNode) => n === hover || n.id === centerId;
+      const toca = (n: SimNode) => {
+        if (destacado(n)) return true;
+        if (modo === "apuntado") return n === foco;
+        if (modo === "vecinos") return n === foco || vecinos.has(n.id);
+        return alfaTodos > 0;
+      };
       c.textAlign = "center";
       c.font = `${12 / scale}px ${fontFamily}`;
-      const escribir = (n: SimNode) => {
-        c.fillStyle = n === hover || n.id === centerId ? colText2 : colText;
-        c.fillText(n.titulo, n.x, n.y + n.r + 13 / scale);
+      // Halo del color del fondo: se pinta el contorno del texto y encima el
+      // relleno, así el nombre se despega de las aristas que cruza.
+      c.lineJoin = "round";
+      c.lineWidth = 3 / scale;
+      c.strokeStyle = colHalo;
+      const escribir = (n: SimNode, x: number, y: number) => {
+        c.globalAlpha = destacado(n) ? 1 : alfaTodos;
+        c.fillStyle = destacado(n) ? colText2 : colText;
+        c.strokeText(n.titulo, x, y);
+        c.fillText(n.titulo, x, y);
       };
-      if (modo !== "todos" || !showAll) {
-        for (const n of sim) {
-          if (!revealed(n)) continue;
-          if (modo === "apuntado") {
-            if (n !== foco) continue;
-          } else if (modo === "vecinos") {
-            if (n !== foco && !vecinos.has(n.id)) continue;
-          } else if (n !== hover && n.id !== centerId) {
-            continue;
-          }
-          if (!dentroVista(n.x, n.y)) continue; // culling
-          escribir(n);
-        }
-        return;
-      }
       if (soloDestacados) {
+        // En movimiento: sin colocar (cambiaría de lado en cada frame) y, con
+        // «Todos», solo los hubs.
         for (const n of sim) {
-          if (n !== hover && n.id !== centerId && !hubsCumulo.has(n)) continue;
-          if (!revealed(n) || !dentroVista(n.x, n.y)) continue;
-          escribir(n);
+          if (!revealed(n) || !toca(n)) continue;
+          if (modo === "todos" && !destacado(n) && !hubsCumulo.has(n)) continue;
+          if (!dentroVista(n.x, n.y)) continue; // culling
+          escribir(n, n.x, n.y + n.r + 13 / scale);
         }
+        c.globalAlpha = 1;
         return;
       }
-      // Todos, sin pisarse. Las cajas se comparan en píxeles de pantalla.
-      ocupadas.clear();
+      // Reposo: todos los del modo, colocados. Las cajas van en píxeles de pantalla.
       const W2 = canvas.width / dpr / 2 + ox;
       const H2 = canvas.height / dpr / 2 + oy;
-      const intentar = (n: SimNode, forzar: boolean) => {
-        if (!revealed(n) || !dentroVista(n.x, n.y)) return;
+      rejillaNombres.limpiar();
+      let alguno = false;
+      for (const n of sim) {
+        if (!revealed(n) || !dentroVista(n.x, n.y)) continue;
+        rejillaNombres.agregarDisco(n.x * scale + W2, n.y * scale + H2, n.r * scale);
+        if (!alguno && toca(n)) alguno = true;
+      }
+      if (!alguno) return;
+      const colocar = (n: SimNode) => {
+        if (!revealed(n) || !toca(n) || !dentroVista(n.x, n.y)) return;
         let w = anchoNombre[n.i];
         if (w < 0) {
           // `measureText` mide con la fuente de `c` (12/scale en unidades de
@@ -1147,16 +1131,24 @@ export function MiniGraph({
           w = c.measureText(n.titulo).width * scale;
           anchoNombre[n.i] = w;
         }
-        const sx = n.x * scale + W2;
-        const sy = (n.y + n.r) * scale + 13 + H2; // línea base del texto
-        if (ocupar(sx - w / 2 - 2, sy - 11, w + 4, 14, forzar)) escribir(n);
+        const caja = rejillaNombres.colocar(
+          n.x * scale + W2,
+          n.y * scale + H2,
+          n.r * scale,
+          w,
+          ladoNombre[n.i],
+        );
+        ladoNombre[n.i] = caja.lado;
+        // Centro de la caja y línea base del texto, de vuelta a coordenadas de mundo.
+        escribir(n, (caja.x + caja.w / 2 - W2) / scale, (caja.y + BASE_NOMBRE - H2) / scale);
       };
-      if (hover) intentar(hover, true);
-      if (centerNode && centerNode !== hover) intentar(centerNode, true);
+      if (hover) colocar(hover);
+      if (centerNode && centerNode !== hover) colocar(centerNode);
       for (const n of porImportancia) {
         if (n === hover || n === centerNode) continue;
-        intentar(n, false);
+        colocar(n);
       }
+      c.globalAlpha = 1;
     };
 
     /**

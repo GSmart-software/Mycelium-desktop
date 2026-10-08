@@ -28,7 +28,7 @@ El botón **Opciones del grafo** despliega:
 
 | Opción | Qué hace |
 |---|---|
-| **Nombres** | Qué nombres se ven: **Todos**, **Vecinos** (el punto apuntado y los que conecta) o **Apuntado** (solo el que está bajo el mouse). |
+| **Nombres** | Qué nombres se ven: **Todos**, **Vecinos** (el punto apuntado y los que conecta) o **Apuntado** (solo el que está bajo el mouse). Con **Todos**, cada nombre se acomoda al costado de su punto que no tape a otro, y al alejar mucho el zoom se desvanecen hasta que volvés a acercar. |
 | **Indicador de dirección** | Cómo se ve hacia dónde va un enlace: **Ninguno**, **Animado**, **Flecha** o **Ambos**. |
 | **Brillo de conexiones al apuntar** | Cuánto se iluminan las líneas del punto apuntado. |
 | **Colores de nodos** | Reglas que pintan puntos por **Ruta**, **Etiqueta** o **Nombre**. |
