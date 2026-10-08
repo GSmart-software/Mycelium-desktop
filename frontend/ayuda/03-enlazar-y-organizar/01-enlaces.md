@@ -33,7 +33,22 @@ El plan está en [[Plan 2026|el plan del año]].
 | `[[Nota]]` | Enlaza a la nota por su título, sin la extensión `.md`. |
 | `[[Nota\|texto]]` | Enlaza a la nota y muestra «texto». |
 | `[[Carpeta/Nota]]` | Elige entre dos notas con el mismo nombre en carpetas distintas. |
+| `[[Nota#Encabezado]]` | Abre la nota y lleva al encabezado. Se lee «Nota › Encabezado». |
+| `[[#Encabezado]]` | Lleva a un encabezado de la misma nota. |
+| `[[Nota#^bloque]]` | Abre la nota y lleva a la línea que termina en `^bloque`. |
 | `![[Dibujo.excalidraw]]` | Embebe el dibujo dentro de la nota. |
+
+## Enlazar a un encabezado
+
+Después del título, un `#` y el texto de un encabezado de esa nota: `[[Tomate#Cuidados]]`.
+Se lee «Tomate › Cuidados» (o el alias, si le pusiste uno) y el clic abre la nota con el
+encabezado arriba, en cualquier vista. No importan las mayúsculas ni los espacios de más.
+Para un encabezado dentro de otro, encadenalos: `[[Tomate#Riego#Verano]]`.
+
+Cuenta como un enlace a la nota: en el grafo, en el panel de enlaces y al renombrarla, que
+conserva el `#Cuidados`. Si la nota existe pero ya no tiene ese encabezado, el enlace no se
+marca roto: abre la nota desde el principio. El autocompletado sugiere notas, no
+encabezados: el `#Encabezado` se escribe a mano.
 
 ## Notas con el mismo nombre
 

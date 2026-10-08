@@ -34,8 +34,10 @@ import { EXTENSIONES_DE_NOTA } from "@/lib/extensionesDeTipo";
 import { etiquetasDe } from "@/lib/frontmatter";
 import { sinCodigo } from "@/lib/sinCodigo";
 import {
+  cortesDeAncla,
   partirWikilink,
   resolveWikilinkEnIndice,
+  sinAncla,
   type CarpetaEnlazable,
   type NotaEnlazable,
 } from "@/lib/wikilinks";
@@ -68,29 +70,11 @@ export type EnlaceDerivado = {
 const NO_ES_PROSA = new Set(["base", "canvas", "drawio"]);
 
 /**
- * Las formas sin ancla de una referencia, de la más larga a la más corta. El
- * ancla vive en el ÚLTIMO segmento (`C#/Nota#Sección`: la carpeta `C#` no es un
- * ancla), y puede empezar en su primer `#` (`Nota#H1#H2`, encabezado anidado)
- * o en el último (`Q# y Quantum#Intro`, un título con `#`): se prueban las
- * dos, la más larga primero porque es la más específica. Sin `#` en el último
- * segmento, ninguna.
+ * Los cortes del ancla (`cortesDeAncla`, `sinAncla`) viven en `lib/wikilinks.ts`
+ * desde `DEF-141`: el editor y la lectura resuelven `[[Nota#Sección]]` con la
+ * misma regla que el grafo. Se reexportan para los consumidores de siempre.
  */
-export function cortesDeAncla(destino: string): string[] {
-  const i = destino.lastIndexOf("/");
-  const dir = destino.slice(0, i + 1);
-  const seg = destino.slice(i + 1);
-  const primero = seg.indexOf("#");
-  if (primero < 0) return [];
-  const corto = (dir + seg.slice(0, primero)).trim();
-  const largo = (dir + seg.slice(0, seg.lastIndexOf("#"))).trim();
-  return largo === corto ? [corto] : [largo, corto];
-}
-
-/** `Nota#Sección` o `Nota#^bloque` → `Nota` (el corte en el primer `#`). `[[#Sección]]` da "". */
-export function sinAncla(destino: string): string {
-  const cortes = cortesDeAncla(destino);
-  return cortes.length === 0 ? destino.trim() : cortes[cortes.length - 1];
-}
+export { cortesDeAncla, sinAncla };
 
 /**
  * Los enlaces que salen de una nota, agrupados por `(tipo, texto)` en el orden
@@ -200,11 +184,7 @@ export function resolverEnlace<N extends NotaEnlazable>(
   ids: ReadonlySet<string>,
 ): string | null {
   if (enlace.tipo === "archivo") return ids.has(enlace.texto) ? enlace.texto : null;
-  const entero = resolveWikilinkEnIndice(enlace.texto, porTitulo, carpetas);
-  if (entero) return entero.id;
-  for (const corte of cortesDeAncla(enlace.texto)) {
-    const nota = corte === "" ? undefined : resolveWikilinkEnIndice(corte, porTitulo, carpetas);
-    if (nota) return nota.id;
-  }
-  return null;
+  // Entero y, si no, sin el ancla: desde `DEF-141` lo hace el resolutor mismo,
+  // que es el que comparten el editor, la lectura y el grafo.
+  return resolveWikilinkEnIndice(enlace.texto, porTitulo, carpetas)?.id ?? null;
 }

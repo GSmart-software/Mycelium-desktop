@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { resolveWikilink } from "@/lib/editor/wikilink";
+import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
+import { resolverReferencia } from "@/lib/wikilinks";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { aDate, type Ocurrencia, type Repeticion } from "@/lib/recordatorios";
 import { CALENDAR_TAB_ID } from "@/lib/pestanas";
@@ -25,10 +27,12 @@ export function useEnlacesDelVault(alAbrir?: () => void) {
   const abrir = useCallback(
     (titulo: string) => {
       const { notas, carpetas } = useVaultStore.getState();
-      const destino = resolveWikilink(titulo, notas, carpetas);
+      const { nota: destino, ancla } = resolverReferencia(titulo, notas, carpetas);
       if (!destino) return;
       useTabsStore.getState().openNote(destino.id);
       router.replace(`/workspace?note=${destino.id}`);
+      // `[[Nota#Encabezado]]`: además de abrirla, ir al encabezado (`DEF-141`).
+      if (ancla) pedirSaltoAAncla(destino.id, ancla);
       alAbrir?.();
     },
     [router, alAbrir],
