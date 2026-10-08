@@ -108,3 +108,31 @@ export function normalizarCarpetaEsporas(ruta: string): string | null {
   if (segmentos.some((s) => s === "." || s === "..")) return null;
   return segmentos.join("/");
 }
+
+/**
+ * Título de la nota que se crea desde una Espora (`DEF-140`): `«Espora» N`, con
+ * el primer `N ≥ 1` que no use **ninguna** nota del vault, en cualquier carpeta.
+ *
+ * Nunca devuelve el título de la plantilla tal cual: la Espora cuenta como
+ * ocupada aunque esté en otra carpeta (o aunque el árbol todavía no la traiga).
+ * Antes la nota nacía homónima de su molde («Reunión» en la raíz y
+ * `Esporas/Reunión.md`), los `[[Reunión]]` quedaban ambiguos y cada uso disparaba
+ * el aviso de homónimos de `DEF-134`.
+ *
+ * La comparación ignora mayúsculas, como el resolvedor de `[[enlaces]]`: si ya
+ * hay una «reunión 1», `[[Reunión 1]]` la alcanzaría. El título es provisional
+ * —la nota abre con él en edición (`DEF-135`)—, pero mientras no se cambie no
+ * tiene que chocar con nada.
+ */
+export function tituloNotaDesdeEspora(
+  tituloEspora: string,
+  titulosDelVault: Iterable<string>,
+): string {
+  const base = tituloEspora.trim() || "Sin título";
+  const ocupados = new Set<string>();
+  for (const t of titulosDelVault) ocupados.add(t.toLowerCase());
+  ocupados.add(base.toLowerCase());
+  let n = 1;
+  while (ocupados.has(`${base} ${n}`.toLowerCase())) n++;
+  return `${base} ${n}`;
+}

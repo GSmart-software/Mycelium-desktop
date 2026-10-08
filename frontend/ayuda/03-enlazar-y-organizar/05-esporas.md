@@ -18,7 +18,10 @@ lectura— y que no querés armar de cero cada vez.
 1. En el ícono **Esporas** del rail, **Nueva Espora** crea una plantilla y la abre:
    escribila como cualquier nota.
 2. **Clic** en una Espora del panel crea una nota nueva con su contenido, en la carpeta
-   seleccionada del explorador, y la abre. La nota se llama como la Espora.
+   seleccionada del explorador, y la abre con el **título seleccionado**, listo para que
+   escribas el nombre. Mientras tanto se llama como la Espora con un número
+   («Reunión 1», «Reunión 2»…), nunca igual que ella: así no quedan dos notas con el
+   mismo título.
 3. Para usarla en una nota que ya existe, **Insertar Espora** en la barra del editor pone
    su contenido donde está el cursor.
 
@@ -31,7 +34,7 @@ Se escriben entre llaves dobles y se completan al usar la Espora:
 
 | Variable | Se reemplaza por |
 |---|---|
-| `{{titulo}}` | El título de la nota que se crea, o de la nota donde se inserta. |
+| `{{titulo}}` | El título de la nota que se crea, o de la nota donde se inserta. Se completa una sola vez: si después renombrás la nota, el texto no cambia. |
 | `{{fecha}}` | La fecha de hoy: `2026-10-06`. |
 | `{{hora}}` | La hora, en 24 h: `15:04`. |
 | `{{fecha:DD/MM/AAAA}}` | La fecha con tu formato: `06/10/2026`. |

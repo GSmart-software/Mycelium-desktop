@@ -46,7 +46,8 @@ export function EsporasPanel() {
 
   /**
    * Abre lo recién creado con el título en edición (`DEF-135`): la nota sale con
-   * el nombre de la plantilla (o «Nueva Espora») y lo primero que se escribe la
+   * un nombre provisional («Reunión 1», nunca el de la plantilla: `DEF-140`; o
+   * «Nueva Espora») y lo primero que se escribe la
    * renombra, en vez de quedarse en el botón que la creó.
    */
   const abrirNueva = (id: string) => {

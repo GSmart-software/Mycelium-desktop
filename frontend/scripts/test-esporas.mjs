@@ -25,7 +25,33 @@ const {
   horaIso,
   normalizarCarpetaEsporas,
   sustituirVariables,
+  tituloNotaDesdeEspora,
 } = mod;
+
+// ── Título de la nota creada desde una Espora (`DEF-140`) ─────────────────────
+
+test("la nota nueva nunca se llama como la Espora", () => {
+  // Solo existe la plantilla (`Esporas/Registro de cosecha.md`).
+  assert.equal(
+    tituloNotaDesdeEspora("Registro de cosecha", ["Registro de cosecha"]),
+    "Registro de cosecha 1",
+  );
+  // Aunque el árbol todavía no la traiga, la Espora cuenta como ocupada.
+  assert.equal(tituloNotaDesdeEspora("Reunión", []), "Reunión 1");
+});
+
+test("se salta los números que ya usa cualquier nota del vault", () => {
+  const vault = ["Reunión", "Reunión 1", "Reunión 2", "Otra cosa", "Reunión 4"];
+  assert.equal(tituloNotaDesdeEspora("Reunión", vault), "Reunión 3");
+});
+
+test("la comparación ignora mayúsculas, como el resolvedor de enlaces", () => {
+  assert.equal(tituloNotaDesdeEspora("Reunión", ["reunión", "REUNIÓN 1"]), "Reunión 2");
+});
+
+test("una Espora sin nombre útil cae en «Sin título»", () => {
+  assert.equal(tituloNotaDesdeEspora("   ", []), "Sin título 1");
+});
 
 /** Momento fijo (hora LOCAL) para que los tests no dependan del reloj. */
 const AHORA = new Date(2026, 7, 2, 15, 4, 9); // 2 de agosto de 2026, 15:04:09
