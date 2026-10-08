@@ -1171,8 +1171,22 @@ function RenameInput({
   onRenameCommit,
   onRenameCancel,
 }: Omit<RowRenameProps, "renaming">) {
+  // Al entrar en renombrado, el nombre queda seleccionado entero, como en
+  // Obsidian o en el explorador del sistema: escribir lo reemplaza y una flecha
+  // lleva al principio o al final (`DEF-150 e`). El valor que llega ya es el
+  // nombre SIN extensión (título de la nota, `nombreSinExtension` de un archivo
+  // o el nombre de la carpeta), así que seleccionar todo es seleccionar el
+  // nombre. Solo al montar: después, la selección es del usuario.
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
   return (
     <input
+      ref={ref}
       className={styles.renameInput}
       value={renameValue}
       autoFocus
