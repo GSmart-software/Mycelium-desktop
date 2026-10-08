@@ -45,7 +45,7 @@ export function EditorSection() {
             min={TAB_MIN}
             max={TAB_MAX}
             step={1}
-            className={styles.select}
+            className={`${styles.select} ${styles.numero}`}
             value={tabWidth}
             // Se guarda lo que se teclea para poder borrar y reescribir; el valor
             // se acota al salir del campo, no en cada tecla (si no, escribir "12"

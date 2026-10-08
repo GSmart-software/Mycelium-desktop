@@ -69,6 +69,15 @@
   accent-color: var(--mic-glow);
 }
 
+/* Un campo para una cifra chica (`DEF-150 n`): con el `width: 100%` de
+   `.select`, «Ancho de tabulación» ocupaba 460px para escribir un 4. Ancho
+   para dos dígitos más los spinners. */
+.select.numero {
+  width: 5.5rem;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .rangeRow {
   display: flex;
   align-items: center;
