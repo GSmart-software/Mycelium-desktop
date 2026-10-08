@@ -54,6 +54,7 @@ scripts/*.png
 /.tmp-test-embeds/
 /.tmp-test-estados-tarea/
 /.tmp-test-ayuda/
+/.tmp-test-tabla-alineacion/
 
 # Compilación del motor del corrector (`FUN-L-12`). El .wasm que importa es el
 # de public/ortografia/, que sí se versiona.

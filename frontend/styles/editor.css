@@ -1035,6 +1035,21 @@
   text-align: left;
 }
 
+/* Alineación de la columna (`:---:`, `---:`) en lectura, dividido, ayuda y PDF
+   (DEF-143). remark-rehype la emite como el atributo `align` de cada celda, que
+   el navegador aplica como una sugerencia de presentación de especificidad cero:
+   la regla de arriba lo pisaba y toda columna quedaba a la izquierda. El
+   atributo en el selector le gana por especificidad. */
+.mic-preview th[align="center"],
+.mic-preview td[align="center"] {
+  text-align: center;
+}
+
+.mic-preview th[align="right"],
+.mic-preview td[align="right"] {
+  text-align: right;
+}
+
 .mic-preview th {
   background: var(--mic-bg-surface);
   font-weight: 600;
