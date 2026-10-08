@@ -6,7 +6,9 @@
  * Acepta además filtros `clave:valor` sobre las propiedades del frontmatter
  * (`FUN-M-04`): restringen por la tabla `propiedades` y se pueden combinar con
  * términos de texto o usarse solos. `exacto` rige también la palabra de un
- * filtro sin comillas (ver `condicionValor`, `DEF-145`).
+ * filtro sin comillas (ver `condicionValor`, `DEF-145`). Y filtros `tag:x`
+ * sobre las etiquetas de la nota (`DEF-152`, ver `condicionEtiqueta`), que se
+ * combinan igual.
  *
  * `campo` elige dónde mirar —nombre, contenido o los dos (`FUN-M-20`)— y se
  * resuelve en la propia consulta FTS, no filtrando después: `notas_fts` tiene el
@@ -21,6 +23,7 @@ import {
   consultasDeTitulo,
   palabrasDeConsulta,
   plegar,
+  plegarEtiqueta,
   separadoresSql,
   separarFiltrosPropiedad,
   type CampoBusqueda,
@@ -97,39 +100,82 @@ export function condicionFiltros(
   return { sql, params };
 }
 
+/**
+ * La condición sobre una fila `e` de `etiquetas` para un filtro `tag:x`
+ * (`DEF-152`), con `tag` ya plegado (`plegarEtiqueta`): la etiqueta `x` o una
+ * anidada debajo (`x/lo-que-sea`), como en Obsidian —`tag:huerta` trae
+ * `#huerta/riego`; `tag:huerta/riego`, solo esa—. No es por prefijo de palabra
+ * como el texto: `tag:huer` no trae `#huerta`.
+ *
+ * Las etiquetas son las de la tabla `etiquetas`, las mismas que ven el grafo y
+ * la tabla de una base: `tags:` del frontmatter más los `#tag` del cuerpo,
+ * fuera del código (`DEF-102`).
+ *
+ * Costo: la igualdad y el rango (`'x/' < t < 'x0'`: `0` es el carácter que
+ * sigue a `/`) van los dos por el índice `idx_etiquetas_plegado`, que además
+ * trae `nota_id`, así que la subconsulta no toca la tabla. Medido con 20.000
+ * notas en `docs/features/bugs-progreso.md` (`DEF-152`).
+ */
+export function condicionEtiqueta(tag: string): { sql: string; params: string[] } {
+  return {
+    sql: "(e.tag_plegado = ? OR (e.tag_plegado > ? AND e.tag_plegado < ?))",
+    params: [tag, `${tag}/`, `${tag}0`],
+  };
+}
+
+/** Un `n.id IN (…)` por etiqueta, encadenados con AND: como `condicionFiltros`. */
+export function condicionEtiquetas(etiquetas: string[]): { sql: string; params: string[] } {
+  const params: string[] = [];
+  const sql = etiquetas
+    .map((t) => {
+      const c = condicionEtiqueta(t);
+      params.push(...c.params);
+      return ` AND n.id IN (SELECT e.nota_id FROM etiquetas e WHERE ${c.sql})`;
+    })
+    .join("");
+  return { sql, params };
+}
+
 export async function buscar(
   vaultId: string,
   q: string,
   exacto = false,
   campo: CampoBusqueda = "ambos",
 ): Promise<SearchResponse> {
-  const { filtros, resto } = separarFiltrosPropiedad(q ?? "");
+  const { filtros, etiquetas, resto } = separarFiltrosPropiedad(q ?? "");
   const match = buildFtsQuery(resto, !exacto, campo);
-  if (match.length === 0 && filtros.length === 0) return { resultados: [] };
+  if (match.length === 0 && filtros.length === 0 && etiquetas.length === 0) return { resultados: [] };
 
-  const { sql: filtroSql, params: filtroParams } = condicionFiltros(filtros, exacto);
-  const primero = filtros.length > 0 ? condicionValor(filtros[0], exacto) : null;
+  const props = condicionFiltros(filtros, exacto);
+  const tags = condicionEtiquetas(etiquetas);
+  const filtroSql = props.sql + tags.sql;
+  const filtroParams = [...props.params, ...tags.params];
 
-  // Solo filtros (`estado:activo` a secas): no hay nada que buscar en el FTS, así
-  // que se consulta directamente por propiedad y el fragmento es la coincidencia.
+  // Solo filtros (`estado:activo` o `tag:x` a secas): no hay nada que buscar en
+  // el FTS, así que se consulta directamente por propiedad o por etiqueta, y el
+  // fragmento es la coincidencia.
   if (match.length === 0) {
+    const primero = filtros.length > 0 ? condicionValor(filtros[0], exacto) : null;
+    const fragmentoSql = primero
+      ? `(SELECT p.clave || ': «' || p.valor || '»' FROM propiedades p
+           WHERE p.nota_id = n.id AND ${primero.sql}
+           LIMIT 1)`
+      : "''";
     const resultados = await select<{
       nota_id: string;
       titulo: string;
       carpeta_id: string | null;
       fragmento: string;
     }>(
-      `SELECT n.id AS nota_id, n.titulo, n.carpeta_id,
-              (SELECT p.clave || ': «' || p.valor || '»' FROM propiedades p
-                WHERE p.nota_id = n.id AND ${primero!.sql}
-                LIMIT 1) AS fragmento
+      `SELECT n.id AS nota_id, n.titulo, n.carpeta_id, ${fragmentoSql} AS fragmento
          FROM notas n
         WHERE n.vault_id = ?
           AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
         ORDER BY n.titulo
         LIMIT 50`,
-      [...primero!.params, vaultId, ...filtroParams],
+      [...(primero?.params ?? []), vaultId, ...filtroParams],
     );
+    if (!primero) await fragmentosDeEtiqueta(resultados, etiquetas[0]);
     return { resultados };
   }
 
@@ -165,6 +211,60 @@ export async function buscar(
 
 /** Lo que `completarFragmentos` necesita de cada resultado. */
 type ConFragmento = { nota_id: string; fragmento: string };
+
+/**
+ * El fragmento de una búsqueda solo por etiquetas (`DEF-152`): dónde está la
+ * primera etiqueta de la consulta en cada nota.
+ *
+ * 1. En `tags:` del frontmatter → `tags: «x»`, como una propiedad que coincide.
+ * 2. Si no, en el cuerpo: el `snippet()` del contenido con la etiqueta marcada
+ *    (`… plantas vecinas. #«cultivo»`). Se busca como frase de sus palabras
+ *    —el tokenizador corta `huerta/riego` en `huerta riego`—, solo entre las
+ *    filas de los resultados.
+ * 3. Si tampoco, `«#x»`.
+ *
+ * Dos consultas, sobre los 50 resultados de la página como mucho.
+ */
+async function fragmentosDeEtiqueta(resultados: ConFragmento[], tag: string): Promise<void> {
+  if (resultados.length === 0) return;
+  const porId = new Map(resultados.map((r) => [r.nota_id, r]));
+
+  // El `+` saca a `clave_plegada` del índice: si no, SQLite elige
+  // `idx_propiedades_plegado` y recorre las `tags` del vault entero (40.000
+  // filas en la medición) en vez de las de estas notas.
+  const enTags = await select<{ nota_id: string; clave: string; valor: string }>(
+    `SELECT nota_id, clave, valor FROM propiedades
+      WHERE nota_id IN (SELECT value FROM json_each(?)) AND +clave_plegada = 'tags'
+      ORDER BY rowid`,
+    [JSON.stringify([...porId.keys()])],
+  );
+  for (const p of enTags) {
+    const r = porId.get(p.nota_id);
+    const t = plegarEtiqueta(p.valor);
+    if (r && !r.fragmento && (t === tag || t.startsWith(`${tag}/`))) r.fragmento = `${p.clave}: «${p.valor}»`;
+  }
+
+  const sinFragmento = resultados.filter((r) => !r.fragmento);
+  const palabras = tag.split(/[^\p{L}\p{N}]+/u).filter((p) => p !== "");
+  if (sinFragmento.length > 0 && palabras.length > 0) {
+    // La frase de la etiqueta, palabra por palabra: `tag:huerta` marca también
+    // `#huerta/riego`, que el tokenizador lee «huerta riego». Qué notas salen
+    // ya lo decidió la tabla de etiquetas; esto solo elige qué resaltar.
+    const filas = await select<{ nota_id: string; fragmento: string }>(
+      `SELECT f.nota_id, snippet(notas_fts, 2, '«', '»', '…', 10) AS fragmento
+         FROM notas_fts f
+        WHERE notas_fts MATCH ?
+          AND f.rowid IN (SELECT fila FROM fts_filas
+                           WHERE nota_id IN (SELECT value FROM json_each(?)))`,
+      [`contenido : "${palabras.join(" ")}"`, JSON.stringify(sinFragmento.map((r) => r.nota_id))],
+    );
+    for (const f of filas) {
+      const r = porId.get(f.nota_id);
+      if (r && f.fragmento?.includes("«")) r.fragmento = f.fragmento;
+    }
+  }
+  for (const r of resultados) if (!r.fragmento) r.fragmento = `«#${tag}»`;
+}
 
 /**
  * Los resultados cuyo fragmento no marca nada (`DEF-148`): la coincidencia no

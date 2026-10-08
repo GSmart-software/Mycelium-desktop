@@ -3,7 +3,9 @@
 //
 //   - el filtro ignora tildes y mayúsculas, en la clave y en el valor, igual que
 //     el texto («familia:solanaceas» encuentra `familia: solanáceas`);
-//   - `tag:` (que resuelve el FTS) también, con la etiqueta escrita con o sin tilde;
+//   - `tag:x` trae solo las notas con esa etiqueta —`#x` en el cuerpo o `x` en
+//     `tags:`—, sin tildes ni mayúsculas, con las anidadas debajo, por el índice
+//     `idx_etiquetas_plegado`; y un índice anterior se migra al abrirlo (`DEF-152`);
 //   - un índice creado antes de las columnas plegadas se migra al abrirlo, sin
 //     releer archivos;
 //   - el filtro se resuelve por el índice `idx_propiedades_plegado`, no
@@ -63,6 +65,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
+  "./fts": FTS,
   "./ftsIndice": FTS_INDICE,
   "./util": UTIL,
 });
@@ -101,7 +104,7 @@ const sinSqlite = Database === null ? "falta better-sqlite3 (ver la cabecera)" :
 const client = await import(CLIENT);
 const contexto = await import(CONTEXTO);
 const indexer = await import(INDEXER);
-const { buscar, condicionFiltros } = await import(BUSCAR);
+const { buscar, condicionEtiquetas, condicionFiltros } = await import(BUSCAR);
 const { LOCAL_VAULT_ID } = contexto;
 
 /** Executor sobre un SQLite en memoria. */
@@ -245,14 +248,122 @@ test("el fragmento de un filtro solo muestra la propiedad que coincidió", { ski
 
 test("tag: encuentra la etiqueta escrita con o sin tilde", { skip: sinSqlite }, async () => {
   await abrir();
-  // OJO: `tag:x` se resuelve como el término «#x» en el FTS, y el tokenizador
-  // descarta el `#`: hoy encuentra también la palabra suelta y los valores de
-  // las propiedades (Tomate tiene `familia: solanáceas`, sin etiqueta). Eso es
-  // otro problema; acá solo importa que la tilde no cambie el resultado.
-  const sin = await titulos("tag:solanaceas");
-  assert.ok(sin.includes("Ají"), sin.join(", "));
-  assert.deepEqual(await titulos("tag:solanáceas"), sin);
+  assert.deepEqual(await titulos("tag:solanaceas"), ["Ají"]);
+  assert.deepEqual(await titulos("tag:solanáceas"), ["Ají"]);
   assert.deepEqual(await titulos("tag:Plaga"), ["Pulgón"]);
+});
+
+// --- `tag:x` filtra por la etiqueta (`DEF-152`) ------------------------------
+// Antes `tag:x` se buscaba en el FTS como «#x», el tokenizador descartaba el `#`
+// y quedaba la palabra `x` en cualquier lado: `tag:solanaceas` traía «Tomate»,
+// que solo dice `familia: solanáceas`.
+
+const ETIQUETAS = {
+  "Tomate.md": "---\nfamilia: solanáceas\n---\nRojo. Habla de la huerta y de solanaceas.\n",
+  "Ají.md": "---\ntags: [Picante, huerta]\n---\nPicante. #Solanáceas\n",
+  "Riego.md": "Cada dos días. #huerta/riego\n",
+  "Riego goteo.md": "Por goteo. #huerta/riego/goteo\n",
+  "Huertas.md": "Otra etiqueta que empieza igual. #huertas #huerta-urbana\n",
+  "Código.md": "Un tag en código no cuenta:\n\n```\n#huerta\n```\n",
+  "Hash.md": "---\ntags: [\"#cosecha\"]\n---\nCon el numeral en la propiedad.\n",
+};
+
+test("tag:x trae solo las notas con la etiqueta, no las que tienen la palabra (DEF-152)", { skip: sinSqlite }, async () => {
+  await abrir(ETIQUETAS);
+  // Tomate tiene la palabra en una propiedad y en el cuerpo, pero no la etiqueta.
+  assert.deepEqual(await titulos("tag:solanaceas"), ["Ají"]);
+  assert.deepEqual(await titulos("tag:SOLANÁCEAS"), ["Ají"]);
+  // La del frontmatter vale igual que la del cuerpo.
+  assert.deepEqual(await titulos("tag:picante"), ["Ají"]);
+  // En un bloque de código no es etiqueta (`DEF-102`).
+  assert.ok(!(await titulos("tag:huerta")).includes("Código"));
+  // El `#` en el valor de `tags:` o delante del filtro no cambia nada.
+  assert.deepEqual(await titulos("tag:cosecha"), ["Hash"]);
+  assert.deepEqual(await titulos("tag:#cosecha"), ["Hash"]);
+  assert.deepEqual(await titulos("tag:#picante"), ["Ají"]);
+});
+
+test("tag:x trae también las anidadas debajo, y solo esas", { skip: sinSqlite }, async () => {
+  await abrir(ETIQUETAS);
+  assert.deepEqual(await titulos("tag:huerta"), ["Ají", "Riego", "Riego goteo"]);
+  assert.deepEqual(await titulos("tag:huerta/riego"), ["Riego", "Riego goteo"]);
+  assert.deepEqual(await titulos("tag:Huerta/Riego/goteo"), ["Riego goteo"]);
+  // No es por prefijo de palabra: ni «huertas» ni «huerta-urbana» son `huerta`.
+  assert.deepEqual(await titulos("tag:huert"), []);
+  assert.deepEqual(await titulos("tag:huertas"), ["Huertas"]);
+  assert.deepEqual(await titulos("tag:huerta-urbana"), ["Huertas"]);
+  // Con «Búsqueda exacta», lo mismo.
+  assert.deepEqual(await titulos("tag:huerta", true), ["Ají", "Riego", "Riego goteo"]);
+});
+
+test("tag: combinado con texto, con clave:valor y con otra etiqueta es AND", { skip: sinSqlite }, async () => {
+  await abrir(ETIQUETAS);
+  assert.deepEqual(await titulos("tag:huerta goteo"), ["Riego goteo"]);
+  assert.deepEqual(await titulos("tag:huerta picante"), ["Ají"]);
+  assert.deepEqual(await titulos("tags:picante tag:huerta"), ["Ají"]);
+  assert.deepEqual(await titulos("familia:solanaceas tag:huerta"), []);
+  assert.deepEqual(await titulos("tag:huerta tag:picante"), ["Ají"]);
+  assert.deepEqual(await titulos("tag:huerta tag:huertas"), []);
+  // Solo por nombre: la etiqueta filtra y el texto se busca en el título.
+  const porNombre = (await buscar(LOCAL_VAULT_ID, "tag:huerta riego", false, "nombre")).resultados;
+  assert.deepEqual(porNombre.map((r) => r.titulo).sort(), ["Riego", "Riego goteo"]);
+});
+
+test("una nota en la papelera no sale por su etiqueta", { skip: sinSqlite }, async () => {
+  const db = await abrir(ETIQUETAS);
+  db.prepare(
+    "INSERT INTO papelera (id, nota_id, ruta_original, eliminado_en) VALUES ('p1', 'Riego.md', 'Riego.md', 'x')",
+  ).run();
+  assert.deepEqual(await titulos("tag:huerta/riego"), ["Riego goteo"]);
+});
+
+test("el fragmento de tag: a secas muestra dónde está la etiqueta", { skip: sinSqlite }, async () => {
+  await abrir(ETIQUETAS);
+  const frag = async (q) =>
+    Object.fromEntries((await buscar(LOCAL_VAULT_ID, q)).resultados.map((r) => [r.titulo, r.fragmento]));
+  assert.deepEqual(await frag("tag:picante"), { Ají: "tags: «Picante»" });
+  assert.match((await frag("tag:solanaceas")).Ají, /#«Solanáceas»/);
+  const anidadas = await frag("tag:huerta");
+  assert.equal(anidadas["Ají"], "tags: «huerta»");
+  assert.match(anidadas["Riego"], /#«huerta»\/riego/);
+  // `normalizarTags` ya le quita el `#` al valor de la propiedad.
+  assert.equal((await frag("tag:cosecha")).Hash, "tags: «cosecha»");
+});
+
+test("tag: se resuelve por el índice idx_etiquetas_plegado", { skip: sinSqlite }, async () => {
+  const db = await abrir(ETIQUETAS);
+  const { sql, params } = condicionEtiquetas(["huerta"]);
+  const plan = db
+    .prepare(`EXPLAIN QUERY PLAN SELECT n.id FROM notas n WHERE n.vault_id = ?${sql}`)
+    .all(LOCAL_VAULT_ID, ...params)
+    .map((f) => f.detail)
+    .join("\n");
+  assert.match(plan, /idx_etiquetas_plegado \(tag_plegado=/, plan);
+  assert.match(plan, /idx_etiquetas_plegado \(tag_plegado>\? AND tag_plegado<\?\)/, plan);
+  assert.doesNotMatch(plan, /SCAN e\b/, plan);
+});
+
+test("un índice anterior a tag_plegado se migra al abrirlo, sin releer archivos", { skip: sinSqlite }, async () => {
+  const db = new Database(":memory:");
+  db.pragma("foreign_keys = ON");
+  // La tabla `etiquetas` como era antes de DEF-152, con filas ya indexadas.
+  db.exec(`
+    CREATE TABLE notas (id TEXT PRIMARY KEY, vault_id TEXT NOT NULL, carpeta_id TEXT, titulo TEXT NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'markdown', tamano_bytes INTEGER NOT NULL DEFAULT 0, mtime INTEGER NOT NULL DEFAULT 0,
+      creado_en TEXT NOT NULL, actualizado_en TEXT NOT NULL);
+    CREATE TABLE etiquetas (nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE, tag TEXT NOT NULL);
+    INSERT INTO notas VALUES ('Ají.md', '${LOCAL_VAULT_ID}', NULL, 'Ají', 'markdown', 0, 0, 'x', 'x');
+    INSERT INTO etiquetas VALUES ('Ají.md', 'Solanáceas'), ('Ají.md', 'Huerta/Riego');
+  `);
+  client.setExecutor(executorDe(db));
+  contexto.setVaultActual("C:/vault-viejo-etiquetas");
+  await indexer.crearEsquemaIndice();
+  assert.deepEqual(db.prepare("SELECT tag_plegado FROM etiquetas ORDER BY rowid").all(), [
+    { tag_plegado: "solanaceas" },
+    { tag_plegado: "huerta/riego" },
+  ]);
+  assert.deepEqual(await titulos("tag:solanaceas"), ["Ají"]);
+  assert.deepEqual(await titulos("tag:huerta"), ["Ají"]);
 });
 
 test("un índice anterior a las columnas plegadas se migra al abrirlo", { skip: sinSqlite }, async () => {

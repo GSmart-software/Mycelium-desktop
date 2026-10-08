@@ -56,6 +56,7 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
+  "./fts": await fuente("../lib/db/fts.ts"),
   "./ftsIndice": FTS,
   "./util": UTIL,
 });
