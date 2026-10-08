@@ -61,6 +61,7 @@ import { extensionesTab } from "@/lib/editor/tabWidth";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
+import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import {
   olvidarGuardadoPendiente,
   registrarGuardadoPendiente,
@@ -1328,6 +1329,18 @@ export function NoteEditor({
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
   }, [previewHtml, mode, previewTick, notaId, vaultNotas, vaultCarpetas, vaultOtros]);
+  // El HTML del preview, estable mientras el efecto de arriba no vuelva a correr
+  // (`DEF-133`): con un `{ __html }` nuevo en cada render, React reasignaba
+  // `innerHTML` en cualquier re-render y los embeds volvían a ser el marcador
+  // «Diagrama …». La lista tiene que ser la del efecto, sin `previewHtml`.
+  const previewInner = useHtmlDecorable(previewHtml, [
+    mode,
+    previewTick,
+    notaId,
+    vaultNotas,
+    vaultCarpetas,
+    vaultOtros,
+  ]);
 
   // Las flechas de plegado se inyectan en el DOM DESPUÉS de que React pinte, así
   // que cualquier re-render que reescriba el HTML del preview se las lleva —
@@ -1766,7 +1779,7 @@ export function NoteEditor({
                 <div className="mic-doc-title-texto">{notaTitulo}</div>
               </div>
             )}
-            <div className="mic-preview-body" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+            <div className="mic-preview-body" dangerouslySetInnerHTML={previewInner} />
           </div>
         )}
       </div>
