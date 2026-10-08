@@ -580,7 +580,8 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv` · `1.6.0` `.drawio`
 > (`FUN-L-20`) · `1.7.0` una skill por herramienta y el MCP de control (`FUN-L-26`,
 > `FUN-L-09`) · `1.8.0` estados de tarea (`FUN-S-01`) · `1.8.1` la tabla de sintaxis deja
-> de prometer el embed de notas y las etiquetas clicables (`DEF-131`).
+> de prometer el embed de notas y las etiquetas clicables (`DEF-131`) · `2.0.0` instrucciones por capas (`FUN-L-29`) · `2.1.0` enlaces a encabezados,
+> aviso de cambios externos y nombre de la nota de una Espora (`DEF-138`, `DEF-140`, `DEF-141`).
 >
 > **Este vault tiene la `1.7.0`** desde el 2026-10-03. Como este `CLAUDE.md` no lleva la marca
 > `<!-- mycelium-ia` (se quitó a propósito tras `DEF-118`), Mycelium no lo pisa: escribe la

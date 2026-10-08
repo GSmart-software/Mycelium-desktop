@@ -147,7 +147,7 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *   - `.mycignore` admite negaciones `!` (`FUN-S-30`).
  *   **Major**: cambia dónde se instala y qué es de quién.
  */
-export const FRAMEWORK_IA_VERSION = "2.0.0";
+export const FRAMEWORK_IA_VERSION = "2.1.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
