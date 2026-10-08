@@ -5,7 +5,8 @@
  *
  * Acepta además filtros `clave:valor` sobre las propiedades del frontmatter
  * (`FUN-M-04`): restringen por la tabla `propiedades` y se pueden combinar con
- * términos de texto o usarse solos.
+ * términos de texto o usarse solos. `exacto` rige también la palabra de un
+ * filtro sin comillas (ver `condicionValor`, `DEF-145`).
  *
  * `campo` elige dónde mirar —nombre, contenido o los dos (`FUN-M-20`)— y se
  * resuelve en la propia consulta FTS, no filtrando después: `notas_fts` tiene el
@@ -15,8 +16,10 @@
  */
 import { select } from "./client";
 import {
+  aPalabras,
   buildFtsQuery,
   plegar,
+  separadoresSql,
   separarFiltrosPropiedad,
   type CampoBusqueda,
   type FiltroPropiedad,
@@ -24,24 +27,69 @@ import {
 import type { SearchResponse } from "./types";
 
 /**
- * Una condición por filtro, encadenadas con AND.
+ * La condición sobre una fila `p` de `propiedades` para un filtro (`DEF-145`).
  *
- * Compara las columnas PLEGADAS (`DEF-144`): sin tildes ni mayúsculas, en la
- * clave y en el valor, igual que el texto —que lo pliega el tokenizador de
- * `notas_fts`—. Antes era `= ? COLLATE NOCASE` sobre lo crudo, y `NOCASE` solo
- * pliega ASCII: `familia:solanaceas` no encontraba `familia: solanáceas`.
+ * - **Entre comillas** (`bancal:"Bancal 1"`): el valor completo, plegado.
+ * - **Sin comillas** (`bancal:bancal`, `estado:crec`): una **palabra** del valor
+ *   que empiece así —o que sea esa palabra, con «Búsqueda exacta»—, la misma
+ *   regla que el texto. Las palabras se cortan en espacios y en la puntuación
+ *   de `SEPARADORES`. No es un «contiene» como en Obsidian a propósito:
+ *   `estado:activo` no debe traer «inactivo».
+ *
+ * Todo sobre las columnas PLEGADAS (`DEF-144`): sin tildes ni mayúsculas.
+ *
+ * Costo: la clave va siempre por igualdad, así que el índice
+ * `idx_propiedades_plegado` (clave, valor) acota la búsqueda a las filas de
+ * ESA clave; el `LIKE` se evalúa solo sobre ellas, leyendo el valor del propio
+ * índice. Un `LIKE` con `%` adelante no usaría el índice por sí solo, pero acá
+ * no lo necesita: es un recorrido de las notas que tienen esa propiedad, no
+ * del vault. Medido (2026-10-07) con 20.000 notas que TODAS tienen la clave
+ * (160.000 filas): igualdad 7,6 ms, palabra 20 ms con miles de coincidencias y
+ * 2,5 ms sin ninguna (sin el `instr` previo eran 38 y 31 ms).
+ */
+export function condicionValor(
+  { clave, valor, entero }: FiltroPropiedad,
+  exacto = false,
+): { sql: string; params: string[] } {
+  if (entero) {
+    return { sql: "p.clave_plegada = ? AND p.valor_plegado = ?", params: [plegar(clave), plegar(valor)] };
+  }
+  const palabra = aPalabras(plegar(valor)).trim();
+  // Un valor que es todo puntuación (`x:-`) no tiene palabras: se compara entero.
+  if (palabra.length === 0) {
+    return { sql: "p.clave_plegada = ? AND p.valor_plegado = ?", params: [plegar(clave), plegar(valor)] };
+  }
+  // `%` y `_` del usuario son literales, no comodines del `LIKE` (se escapan
+  // con `!`, que no exige pelearse con las barras de JS y de SQL).
+  const literal = palabra.replace(/[!%_]/g, (c) => `!${c}`);
+  // `instr` descarta antes, barato, las filas que ni contienen la primera
+  // palabra (que aparece tal cual en el valor: los separadores no están dentro
+  // de una palabra); solo las que quedan pagan los `replace` y el `LIKE`.
+  const primera = palabra.split(" ")[0];
+  return {
+    sql: `p.clave_plegada = ? AND instr(p.valor_plegado, ?) > 0
+          AND (' ' || ${separadoresSql("p.valor_plegado")} || ' ') LIKE ? ESCAPE '!'`,
+    params: [plegar(clave), primera, `% ${literal}${exacto ? " " : ""}%`],
+  };
+}
+
+/**
+ * Una condición por filtro, encadenadas con AND.
  *
  * Va como `n.id IN (SELECT …)` y no como un `EXISTS` correlacionado: así la
  * subconsulta se resuelve una vez por el índice `idx_propiedades_plegado`
  * (clave y valor) en vez de recorrer las propiedades de cada nota del vault.
  */
-export function condicionFiltros(filtros: FiltroPropiedad[]): { sql: string; params: string[] } {
+export function condicionFiltros(
+  filtros: FiltroPropiedad[],
+  exacto = false,
+): { sql: string; params: string[] } {
   const params: string[] = [];
   const sql = filtros
-    .map(({ clave, valor }) => {
-      params.push(plegar(clave), plegar(valor));
-      return ` AND n.id IN (SELECT p.nota_id FROM propiedades p
-                 WHERE p.clave_plegada = ? AND p.valor_plegado = ?)`;
+    .map((f) => {
+      const c = condicionValor(f, exacto);
+      params.push(...c.params);
+      return ` AND n.id IN (SELECT p.nota_id FROM propiedades p WHERE ${c.sql})`;
     })
     .join("");
   return { sql, params };
@@ -57,7 +105,8 @@ export async function buscar(
   const match = buildFtsQuery(resto, !exacto, campo);
   if (match.length === 0 && filtros.length === 0) return { resultados: [] };
 
-  const { sql: filtroSql, params: filtroParams } = condicionFiltros(filtros);
+  const { sql: filtroSql, params: filtroParams } = condicionFiltros(filtros, exacto);
+  const primero = filtros.length > 0 ? condicionValor(filtros[0], exacto) : null;
 
   // Solo filtros (`estado:activo` a secas): no hay nada que buscar en el FTS, así
   // que se consulta directamente por propiedad y el fragmento es la coincidencia.
@@ -70,15 +119,14 @@ export async function buscar(
     }>(
       `SELECT n.id AS nota_id, n.titulo, n.carpeta_id,
               (SELECT p.clave || ': «' || p.valor || '»' FROM propiedades p
-                WHERE p.nota_id = n.id AND p.clave_plegada = ?
-                  AND p.valor_plegado = ?
+                WHERE p.nota_id = n.id AND ${primero!.sql}
                 LIMIT 1) AS fragmento
          FROM notas n
         WHERE n.vault_id = ?
           AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
         ORDER BY n.titulo
         LIMIT 50`,
-      [plegar(filtros[0].clave), plegar(filtros[0].valor), vaultId, ...filtroParams],
+      [...primero!.params, vaultId, ...filtroParams],
     );
     return { resultados };
   }

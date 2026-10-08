@@ -4,8 +4,15 @@
  * comillas, `tag:x`/`#x` buscan el tag; cada término se entrecomilla para
  * neutralizar operadores FTS y (en modo coincidencia) se le añade `*` de prefijo.
  */
-/** Un filtro `clave:valor` sobre la tabla `propiedades` (FUN-M-04). */
-export type FiltroPropiedad = { clave: string; valor: string };
+/**
+ * Un filtro `clave:valor` sobre la tabla `propiedades` (FUN-M-04).
+ *
+ * `entero` dice si el valor vino **entre comillas** (`bancal:"Bancal 1"`,
+ * `DEF-145`): entonces tiene que ser el valor completo de la propiedad. Sin
+ * comillas alcanza con una palabra del valor (ver `condicionValor` en
+ * `buscar.ts`).
+ */
+export type FiltroPropiedad = { clave: string; valor: string; entero: boolean };
 
 /**
  * Texto plegado para comparar como compara la búsqueda de texto (`DEF-144`): sin
@@ -26,12 +33,42 @@ export function plegar(texto: string): string {
 }
 
 /**
- * Los tokens de la consulta: frases entre comillas o tiras sin espacios. Es el
- * ÚNICO lugar donde se corta la consulta, para que separar los filtros y armar
- * la query FTS no puedan discrepar sobre qué es un token.
+ * Los tokens de la consulta: un filtro con el valor entre comillas
+ * (`bancal:"Bancal 1"`, `DEF-145`), frases entre comillas o tiras sin espacios.
+ * Es el ÚNICO lugar donde se corta la consulta, para que separar los filtros y
+ * armar la query FTS no puedan discrepar sobre qué es un token.
+ *
+ * La primera alternativa exige que lo de antes de `:` sea una clave (como
+ * `FILTRO_RE`), así que solo puede empezar al principio de un token: una URL o
+ * `a/b:"x y"` siguen cortándose por los espacios. `tag:"…"` queda afuera a
+ * propósito: una etiqueta no lleva espacios y `tag:` lo resuelve el FTS.
  */
 function tokensDeConsulta(raw: string): string[] {
-  return raw.match(/"[^"]+"|\S+/g) ?? [];
+  return raw.match(/(?![Tt][Aa][Gg]:)[\p{L}_][\p{L}\p{N}_-]*:"[^"]*"|"[^"]+"|\S+/gu) ?? [];
+}
+
+/**
+ * Lo que separa palabras dentro del valor de una propiedad, para la
+ * coincidencia por palabra de un filtro sin comillas (`DEF-145`). Imita a grandes
+ * rasgos al tokenizador del FTS, que también corta en la puntuación: así
+ * `luz:sombra` encuentra «semi-sombra» igual que la búsqueda de texto.
+ *
+ * Es una lista cerrada y no «todo lo que no sea letra» porque SQLite no sabe
+ * de clases Unicode: la misma lista se aplica en SQL (`separadoresSql`) y en JS
+ * (`aPalabras`), y las dos tienen que dar lo mismo.
+ */
+const SEPARADORES = ["-", "_", "/", ".", ",", ";", ":", "(", ")", "[", "]"];
+
+/** El texto (ya plegado) con cada separador convertido en espacio. */
+export function aPalabras(texto: string): string {
+  let r = texto;
+  for (const s of SEPARADORES) r = r.replaceAll(s, " ");
+  return r;
+}
+
+/** Lo mismo que `aPalabras`, como expresión SQL sobre `columna`. */
+export function separadoresSql(columna: string): string {
+  return SEPARADORES.reduce((sql, s) => `replace(${sql}, '${s}', ' ')`, columna);
 }
 
 /**
@@ -59,8 +96,21 @@ export function separarFiltrosPropiedad(raw: string): {
       continue;
     }
     const filtro = FILTRO_RE.exec(texto);
-    if (filtro) filtros.push({ clave: filtro[1], valor: filtro[2].replace(/^"|"$/g, "") });
-    else resto.push(texto);
+    if (!filtro) {
+      resto.push(texto);
+      continue;
+    }
+    // Entre comillas (`bancal:"Bancal 1"`), el valor es entero. Una comilla
+    // suelta —la que se está escribiendo todavía— se descarta y el filtro
+    // sigue siendo por palabra, para que la búsqueda en vivo no quede vacía
+    // mientras se tipea.
+    const crudo = filtro[2];
+    const entero = crudo.length >= 2 && crudo.startsWith('"') && crudo.endsWith('"');
+    filtros.push({
+      clave: filtro[1],
+      valor: entero ? crudo.slice(1, -1) : crudo.replace(/^"|"$/g, ""),
+      entero,
+    });
   }
 
   return { filtros, resto: resto.join(" ") };

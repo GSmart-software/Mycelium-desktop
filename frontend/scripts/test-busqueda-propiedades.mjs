@@ -7,7 +7,9 @@
 //   - un índice creado antes de las columnas plegadas se migra al abrirlo, sin
 //     releer archivos;
 //   - el filtro se resuelve por el índice `idx_propiedades_plegado`, no
-//     recorriendo las propiedades de cada nota.
+//     recorriendo las propiedades de cada nota;
+//   - `clave:"valor con espacios"` pide el valor entero, y sin comillas alcanza
+//     con una palabra del valor que empiece así (`DEF-145`).
 //
 // Necesita `better-sqlite3`, como `test-indexado-dirigido.mjs`: se busca en
 // `node_modules` y, si no, en la carpeta que diga `MYCELIUM_BETTER_SQLITE3`;
@@ -147,8 +149,8 @@ async function abrir(archivos = HUERTA) {
   return db;
 }
 
-const titulos = async (q) =>
-  (await buscar(LOCAL_VAULT_ID, q)).resultados.map((r) => r.titulo).sort();
+const titulos = async (q, exacto = false) =>
+  (await buscar(LOCAL_VAULT_ID, q, exacto)).resultados.map((r) => r.titulo).sort();
 
 test("clave:valor sin tilde encuentra el valor con tilde (DEF-144)", { skip: sinSqlite }, async () => {
   await abrir();
@@ -164,10 +166,60 @@ test("la clave también se compara sin tildes ni mayúsculas", { skip: sinSqlite
   assert.deepEqual(await titulos("FAMÍLIA:solanaceas"), ["Papa"]);
 });
 
-test("el filtro sigue exigiendo el valor entero, no un prefijo", { skip: sinSqlite }, async () => {
+// DEF-144 exigía el valor entero; DEF-145 lo cambió por «una palabra del valor
+// que empiece así», como el texto. Con «Búsqueda exacta», la palabra completa.
+test("sin comillas, el filtro coincide con el principio de una palabra del valor", { skip: sinSqlite }, async () => {
   await abrir();
-  assert.deepEqual(await titulos("familia:solan"), []);
+  assert.deepEqual(await titulos("familia:solan"), ["Ají", "Tomate"]);
+  assert.deepEqual(await titulos("familia:solan", true), []);
+  assert.deepEqual(await titulos("familia:solanaceas", true), ["Ají", "Tomate"]);
   assert.deepEqual(await titulos("estado:plantado"), ["Tomate"]);
+  // Solo al principio de una palabra: «anaceas» está adentro, no al principio.
+  assert.deepEqual(await titulos("familia:anaceas"), []);
+});
+
+const CULTIVOS = {
+  "Tomate.md": "---\nbancal: Bancal 1\nestado: creciendo\nluz: semi-sombra\n---\nRiego diario.\n",
+  "Ají.md": "---\nbancal: Bancal 1\nestado: inactivo\n---\nPicante.\n",
+  "Caléndula.md": "---\nbancal: bancal 1\nestado: activo\n---\nFlor.\n",
+  "Lechuga.md": "---\nbancal: Bancal 10\nestado: Activo\n---\nHoja. Riego diario.\n",
+  "Porcentaje.md": "---\navance: 50%\ncodigo: a_b\n---\n",
+};
+
+test("clave:\"valor con espacios\" filtra por el valor entero (DEF-145)", { skip: sinSqlite }, async () => {
+  await abrir(CULTIVOS);
+  assert.deepEqual(await titulos('bancal:"Bancal 1"'), ["Ají", "Caléndula", "Tomate"]);
+  assert.deepEqual(await titulos('bancal:"bancal 10"'), ["Lechuga"]);
+  assert.deepEqual(await titulos('bancal:"Bancal"'), [], "entre comillas no hay coincidencia parcial");
+  assert.deepEqual(await titulos('bancal:"Bancal 1" riego'), ["Tomate"]);
+  // El fragmento de solo-filtros usa la misma condición.
+  const { resultados } = await buscar(LOCAL_VAULT_ID, 'bancal:"bancal 1"');
+  assert.ok(resultados.every((r) => /^bancal: «[Bb]ancal 1»$/.test(r.fragmento)), JSON.stringify(resultados));
+});
+
+test("sin comillas: una palabra del valor, sin falsos positivos a mitad de palabra", { skip: sinSqlite }, async () => {
+  await abrir(CULTIVOS);
+  assert.deepEqual(await titulos("bancal:Bancal"), ["Ají", "Caléndula", "Lechuga", "Tomate"]);
+  assert.deepEqual(await titulos("bancal:1"), ["Ají", "Caléndula", "Lechuga", "Tomate"]);
+  assert.deepEqual(await titulos("bancal:1", true), ["Ají", "Caléndula", "Tomate"]);
+  assert.deepEqual(await titulos("estado:crec"), ["Tomate"]);
+  assert.deepEqual(await titulos("estado:activo"), ["Caléndula", "Lechuga"], "«inactivo» no");
+  assert.deepEqual(await titulos("luz:sombra"), ["Tomate"], "la puntuación separa palabras");
+  // `%` y `_` del usuario no son comodines del LIKE.
+  assert.deepEqual(await titulos("avance:50%"), ["Porcentaje"]);
+  assert.deepEqual(await titulos("avance:5%"), []);
+  assert.deepEqual(await titulos("codigo:a_b"), ["Porcentaje"]);
+});
+
+test("las listas se siguen filtrando elemento a elemento", { skip: sinSqlite }, async () => {
+  await abrir({
+    "A.md": "---\ntags: [huerta urbana, picante]\n---\n",
+    "B.md": "---\ntags:\n  - huerta\n---\n",
+  });
+  assert.deepEqual(await titulos('tags:"huerta urbana"'), ["A"]);
+  assert.deepEqual(await titulos('tags:"huerta"'), ["B"]);
+  assert.deepEqual(await titulos("tags:huerta"), ["A", "B"]);
+  assert.deepEqual(await titulos("tags:picante"), ["A"]);
 });
 
 test("filtro + texto: el texto ignora tildes y el filtro también", { skip: sinSqlite }, async () => {
@@ -219,11 +271,15 @@ test("un índice anterior a las columnas plegadas se migra al abrirlo", { skip: 
 
 test("el filtro usa el índice de las columnas plegadas", { skip: sinSqlite }, async () => {
   const db = await abrir();
-  const { sql, params } = condicionFiltros([{ clave: "familia", valor: "solanaceas" }]);
-  const plan = db
-    .prepare(`EXPLAIN QUERY PLAN SELECT n.id FROM notas n WHERE n.vault_id = ?${sql}`)
-    .all(LOCAL_VAULT_ID, ...params)
-    .map((f) => f.detail)
-    .join("\n");
-  assert.match(plan, /idx_propiedades_plegado/, plan);
+  for (const entero of [true, false]) {
+    const { sql, params } = condicionFiltros([{ clave: "familia", valor: "solanaceas", entero }]);
+    const plan = db
+      .prepare(`EXPLAIN QUERY PLAN SELECT n.id FROM notas n WHERE n.vault_id = ?${sql}`)
+      .all(LOCAL_VAULT_ID, ...params)
+      .map((f) => f.detail)
+      .join("\n");
+    // Con o sin comillas, la clave acota por el índice (sin comillas, el LIKE
+    // del valor se evalúa solo sobre las filas de esa clave).
+    assert.match(plan, /idx_propiedades_plegado \(clave_plegada=/, plan);
+  }
 });

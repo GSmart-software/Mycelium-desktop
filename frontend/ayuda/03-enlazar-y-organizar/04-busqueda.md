@@ -32,7 +32,14 @@ Escribí al menos dos caracteres. Con varias palabras, aparecen las notas que ti
 | `reunión cliente` | Las notas que tienen las dos palabras. |
 | `"plan de lanzamiento"` | La frase exacta, entre comillas. |
 | `tag:proyecto` | Las notas con la etiqueta `#proyecto`. |
-| `estado:activo` | Las notas cuya propiedad `estado` vale «activo». |
+| `estado:activo` | Las notas cuya propiedad `estado` tiene la palabra «activo». |
+| `bancal:"Bancal 1"` | Las notas cuya propiedad `bancal` vale exactamente «Bancal 1». |
+
+Un filtro **sin comillas** busca una palabra del valor, como el texto: `bancal:bancal`
+encuentra «Bancal 1» y «Bancal 10», y `estado:crec` encuentra «creciendo» (con **Búsqueda
+exacta**, solo la palabra completa). Mira el principio de las palabras: `estado:activo` no
+trae «inactivo». **Entre comillas**, el valor tiene que ser ese entero; así se escribe un
+valor con espacios.
 
 Los filtros se combinan con texto: `estado:activo informe` busca «informe» solo entre las
 notas activas.
