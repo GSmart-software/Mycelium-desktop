@@ -38,6 +38,10 @@ queda fija. Si preferís que cada archivo abra su propia pestaña, apagá **Pest
 previsualización** en **Configuración → Editor**. Las flechas **Atrás** y **Adelante** de
 la barra de pestañas recorren lo que se abrió en esa pestaña.
 
+Al abrir una nota —desde un enlace, la búsqueda, **Ctrl+O** o el explorador—, el
+explorador despliega las carpetas que llevan a ella y la muestra. Volver a una pestaña que
+ya estaba abierta no despliega nada: si plegaste una carpeta, queda plegada.
+
 ## El panel de enlaces
 
 A la derecha de cada nota hay un panel que se abre con **Ctrl+Shift+\\**, con el botón

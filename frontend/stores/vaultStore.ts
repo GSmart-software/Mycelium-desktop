@@ -135,6 +135,8 @@ type VaultState = {
   deleteNotasForever: (ids: readonly string[]) => Promise<string[]>;
   undoLastMove: () => Promise<void>;
   toggleExpanded: (id: string) => void;
+  /** Despliega estas carpetas (sin plegar ninguna): «revelar» un archivo (`DEF-150 a`). */
+  expandirCarpetas: (ids: Iterable<string>) => void;
   setActiveFolder: (id: string | null) => void;
   /** Carpetas descendientes de una carpeta (incluida ella) — para validar D&D. */
   subtreeIds: (id: string) => Set<string>;
@@ -632,6 +634,13 @@ export const useVaultStore = create<VaultState>()(
 
       toggleExpanded(id) {
         set((s) => ({ expanded: { ...s.expanded, [id]: !s.expanded[id] } }));
+      },
+
+      expandirCarpetas(ids) {
+        const faltan = [...ids].filter((id) => !get().expanded[id]);
+        // Sin cambios no hay `set`: no se re-dibuja el árbol ni se persiste nada.
+        if (faltan.length === 0) return;
+        set((s) => ({ expanded: { ...s.expanded, ...Object.fromEntries(faltan.map((id) => [id, true])) } }));
       },
 
       reset() {
