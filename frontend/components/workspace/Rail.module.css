@@ -60,3 +60,17 @@
 :global(:root[data-theme='arrecife']) .button[aria-pressed='true']::before {
   background: var(--arrecife-gradiente);
 }
+
+/* Arrecife (`FUN-M-51`): el botón activo, con la selección suave de fondo
+   (Arrecife §6.9: ítem de navegación activo, ícono en cian). */
+:global(:root[data-theme='arrecife']) .button[aria-pressed='true'] {
+  background-image: var(--arrecife-gradiente-suave);
+  background-color: rgba(58, 184, 216, 0.08);
+  color: #3AB8D8;
+}
+
+/* Arrecife (`FUN-M-51`): el rail lleva un lavado vertical de la marca, cian
+   arriba y violeta abajo, sobre su fondo. */
+:global(:root[data-theme='arrecife']) .rail {
+  background-image: linear-gradient(180deg, rgba(58, 184, 216, 0.10), rgba(116, 68, 228, 0.12));
+}

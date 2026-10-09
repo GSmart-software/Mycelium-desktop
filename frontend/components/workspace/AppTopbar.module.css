@@ -124,3 +124,18 @@
     display: none;
   }
 }
+
+/* Arrecife (`FUN-M-51`): el nombre en el gradiente de la marca (Arrecife §1:
+   «siempre renderizado con el gradiente de marca») y un filete de 2px de la
+   marca bajo la barra, que la recorre de punta a punta. */
+:global(:root[data-theme='arrecife']) .logoFull {
+  background: var(--arrecife-gradiente);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:global(:root[data-theme='arrecife']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--arrecife-gradiente) 1;
+}

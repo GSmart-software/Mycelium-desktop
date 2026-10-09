@@ -390,3 +390,19 @@
   background-color: transparent;
   background-image: var(--arrecife-gradiente-suave);
 }
+
+/* Arrecife (`FUN-M-51`): la barra de la nota abierta, en el gradiente. */
+:global(:root[data-theme='arrecife']) .rowHoja.rowActive {
+  box-shadow: none;
+  background-image: var(--arrecife-gradiente), var(--arrecife-gradiente-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* Arrecife (`FUN-M-51`): las notas del árbol con el ícono en violeta, al lado
+   de las carpetas en cian: los dos colores de la marca en la lista que más se
+   mira. */
+:global(:root[data-theme='arrecife']) .noteIcon {
+  color: var(--mic-glow);
+}

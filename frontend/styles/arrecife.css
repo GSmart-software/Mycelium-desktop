@@ -72,3 +72,75 @@
   border-color: var(--mic-focus);
   box-shadow: var(--arrecife-halo);
 }
+
+/* ── Más marca (pedido del usuario, 2026-10-08: «que el brand destaque más») ──
+   La primera versión llevaba el gradiente solo a los controles. Esto lo pone
+   donde la vista se apoya todo el tiempo: los títulos, las etiquetas, la
+   selección de texto, las barras de desplazamiento y un brillo ambiental de
+   cian y violeta en el fondo de las notas (Arrecife §4, el fondo del desbloqueo,
+   llevado al lienzo de trabajo). */
+
+/* Los títulos de la nota: cian y violeta alternados, no mezclados con el texto. */
+:root[data-theme='arrecife'][data-dark='true'] {
+  --mic-h1: #3AB8D8;
+  --mic-h2: #9B7AEB;
+  --mic-h3: #5FC6E0;
+  --mic-h4: #B49BF0;
+  --mic-h5: color-mix(in srgb, #3AB8D8 55%, var(--mic-text-primary));
+}
+:root[data-theme='arrecife']:not([data-dark='true']) {
+  --mic-h1: #2A6D82;
+  --mic-h2: #7444E4;
+  --mic-h3: #2A6D82;
+  --mic-h4: #6A3FD0;
+  --mic-h5: color-mix(in srgb, #2A6D82 60%, var(--mic-text-primary));
+}
+
+/* El título del documento, con el gradiente de la marca a 135°. La caja se
+   ajusta al texto: si ocupa todo el ancho, el gradiente se estira y el texto
+   solo alcanza el tramo cian. */
+:root[data-theme='arrecife'] :is(.mic-doc-title-texto, .mic-doc-title-campo) {
+  background-image: var(--arrecife-gradiente);
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Los H1 de la vista de lectura, también en gradiente y ajustados al texto. En
+   vivo el H1 es una línea de CodeMirror —de todo el ancho, y no se le puede
+   achicar la caja sin tocar el cursor—: va en cian liso (`--mic-h1`). */
+:root[data-theme='arrecife'] .mic-preview h1 {
+  width: fit-content;
+  max-width: 100%;
+  background-image: var(--arrecife-gradiente);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  caret-color: #3AB8D8;
+}
+
+/* Etiquetas: la píldora de Arrecife (§6.5), con la selección suave de fondo y
+   un filete de la marca. */
+:root[data-theme='arrecife'] :is(.mic-tag-cm, .mic-tag-pill) {
+  background: linear-gradient(125deg, rgba(58, 184, 216, 0.16), rgba(116, 68, 228, 0.20));
+  border-radius: 999px;
+  padding: 0.05em 0.6em;
+}
+
+/* Selección de texto en cian. */
+:root[data-theme='arrecife'] ::selection {
+  background: rgba(58, 184, 216, 0.30);
+}
+
+/* Barras de desplazamiento con el gradiente, atenuado. */
+:root[data-theme='arrecife'] *::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(58, 184, 216, 0.45), rgba(116, 68, 228, 0.45));
+}
+:root[data-theme='arrecife'] *::-webkit-scrollbar-thumb:hover {
+  background: var(--arrecife-gradiente);
+}
+
+/* Viñetas de lista en cian. */
+:root[data-theme='arrecife'] :is(.mic-vineta, .mic-preview li)::marker,
+:root[data-theme='arrecife'] .mic-vineta {
+  color: #3AB8D8;
+}
