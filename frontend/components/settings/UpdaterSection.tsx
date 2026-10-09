@@ -24,8 +24,8 @@ const texto = (e: unknown) => (e instanceof Error ? e.message : String(e));
  *    nada nuevo) e interruptor de la comprobación automática.
  * 2. **Si el updater no está configurado**: el motivo, en vez de botones que no
  *    harían nada. Es el estado en el que está hasta que existan las claves.
- * 3. **Solo en modo avanzado** (siete clics en el número de versión del pie):
- *    el endpoint propio y la lista de versiones publicadas.
+ * 3. **Solo en modo desarrollador** (`FUN-S-36`, el comando oculto `>dev` de
+ *    la paleta): el endpoint propio y la lista de versiones publicadas.
  */
 export function UpdaterSection() {
   const estado = useUpdaterStore((s) => s.estado);
@@ -181,8 +181,8 @@ export function UpdaterSection() {
         )}
       </div>
 
-      {/* ── Modo avanzado (FUN-M-16) ──────────────────────────────────── */}
-      {estado.avanzado && (
+      {/* ── Modo desarrollador (FUN-M-16, FUN-S-36) ───────────────────── */}
+      {estado.dev && (
         <>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="mic-updater-endpoint">

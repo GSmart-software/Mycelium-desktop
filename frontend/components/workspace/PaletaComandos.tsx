@@ -11,6 +11,8 @@ import {
   Settings,
   SunMoon,
   Terminal,
+  ToggleLeft,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -26,7 +28,9 @@ import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
-import { avisarFallo } from "@/stores/avisosStore";
+import { avisar, avisarFallo } from "@/stores/avisosStore";
+import { useUpdaterStore } from "@/stores/updaterStore";
+import { avisoModoDev, comandosDisponibles, esConsultaDev } from "@/lib/modoDev";
 import { useVaultStore, type TreeCarpeta } from "@/stores/vaultStore";
 import { IconoGrafo } from "./IconoGrafo";
 import styles from "./PaletaComandos.module.css";
@@ -41,6 +45,12 @@ import styles from "./PaletaComandos.module.css";
  * empieza con «>», busca comandos (Ctrl+P). Sin coincidencia exacta ofrece crear
  * la nota con ese nombre. Patrón combobox: el foco queda en el campo y la
  * opción activa se anuncia con `aria-activedescendant`.
+ *
+ * Modo desarrollador (`FUN-S-36`): `>dev` + Enter lo enciende o lo apaga. Es un
+ * comando **oculto** —no es una opción, así que no aparece listado ni en
+ * ninguna búsqueda— y lo resuelve `esConsultaDev` antes que nada. Con el modo
+ * encendido existen además los comandos marcados `soloDev`; para agregar uno,
+ * sumarlo a `comandos` con `soloDev: true` (ver `docs/features/modo-dev.md`).
  */
 
 type Opcion = {
@@ -49,6 +59,8 @@ type Opcion = {
   detalle?: string;
   icono: LucideIcon | typeof IconoGrafo;
   ejecutar: () => unknown;
+  /** Comando de desarrollador: solo existe con el modo dev (`FUN-S-36`). */
+  soloDev?: boolean;
 };
 
 /** Sin tildes ni mayúsculas: «documentacion» encuentra «Documentación». */
@@ -86,6 +98,19 @@ function rutaDe(carpetaId: string | null, porId: Map<string, TreeCarpeta>): stri
 const MAX_RESULTADOS = 50;
 
 /**
+ * Enciende o apaga el modo desarrollador y lo confirma con un aviso. El estado
+ * se relee de Rust si todavía no se cargó (se carga unos segundos después de
+ * arrancar), para no «apagar» un modo que en realidad estaba encendido.
+ */
+async function alternarModoDev(activar?: boolean) {
+  const store = useUpdaterStore.getState();
+  const actual = (store.estado ?? (await store.cargarEstado()))?.dev ?? false;
+  const destino = activar ?? !actual;
+  await store.setDev(destino);
+  avisar(avisoModoDev(destino));
+}
+
+/**
  * Tras abrir una nota desde la paleta, el foco va a la nota y no vuelve a lo que
  * estaba enfocado antes (el diálogo lo devuelve al cerrar): si era otra
  * pestaña, quedaba un anillo sobre algo que ya no está activo. Se espera a que
@@ -115,6 +140,7 @@ export function PaletaComandos() {
   const notas = useVaultStore((s) => s.notas);
   const recientes = useRecientesStore((s) => s.recientes);
   const carpetas = useVaultStore((s) => s.carpetas);
+  const dev = useUpdaterStore((s) => s.estado?.dev ?? false);
 
   const [texto, setTexto] = useState("");
   const [activa, setActiva] = useState(0);
@@ -131,6 +157,10 @@ export function PaletaComandos() {
     if (!abierto) return;
     setTexto(modo === "comandos" ? ">" : "");
     setActiva(0);
+    // Los comandos de desarrollador dependen del estado del updater, que se lee
+    // de Rust unos segundos después de arrancar: si todavía no está, se pide.
+    const updater = useUpdaterStore.getState();
+    if (!updater.estado) void updater.cargarEstado();
   }, [abierto, modo]);
 
   const abrirNota = useCallback(
@@ -230,6 +260,26 @@ export function PaletaComandos() {
           ejecutar: () => usePreferencesStore.getState().setPref(clave, a.id),
         };
       }),
+      // ── Comandos de desarrollador (`FUN-S-36`): solo con el modo dev ──
+      {
+        id: "cmd-dev-apagar",
+        titulo: "Desactivar el modo desarrollador",
+        icono: ToggleLeft,
+        soloDev: true,
+        ejecutar: () => alternarModoDev(false),
+      },
+      {
+        id: "cmd-dev-devtools",
+        titulo: "Abrir las herramientas de desarrollador",
+        detalle: "F12",
+        icono: Wrench,
+        soloDev: true,
+        // El mismo comando que F12 y Ctrl+Shift+I (`DevToolsHotkey`).
+        ejecutar: async () => {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("alternar_devtools");
+        },
+      },
     ],
     // El título del cambio de modo se recalcula en cada apertura.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,7 +294,9 @@ export function PaletaComandos() {
 
   const opciones: Opcion[] = useMemo(() => {
     if (enComandos) {
-      return comandos
+      // El comando oculto se comporta como una consulta sin coincidencias.
+      if (esConsultaDev(texto)) return [];
+      return comandosDisponibles(comandos, dev)
         .map((c) => ({ c, p: puntaje(c.titulo, consulta) }))
         .filter((x) => x.p !== null)
         .sort((a, b) => a.p! - b.p!)
@@ -289,7 +341,7 @@ export function PaletaComandos() {
       });
     }
     return halladas;
-  }, [enComandos, consulta, comandos, notas, carpetas, recientes, abrirNota]);
+  }, [enComandos, texto, consulta, comandos, dev, notas, carpetas, recientes, abrirNota]);
 
   // La opción activa siempre existe y se ve.
   useEffect(() => setActiva(0), [texto]);
@@ -320,6 +372,11 @@ export function PaletaComandos() {
       setActiva((a) => (a + paso + opciones.length) % opciones.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (esConsultaDev(texto)) {
+        cerrar();
+        void alternarModoDev().catch(avisarFallo("cambiar el modo desarrollador"));
+        return;
+      }
       ejecutar(opciones[activa]);
     }
   };
@@ -377,6 +434,7 @@ export function PaletaComandos() {
                 onClick={() => ejecutar(o)}
               >
                 <Icono size={15} aria-hidden />
+                {o.soloDev && <span className={styles.etiquetaDev}>dev</span>}
                 <span className={styles.titulo}>{o.titulo}</span>
                 {o.detalle && <span className={styles.detalle}>{o.detalle}</span>}
               </li>

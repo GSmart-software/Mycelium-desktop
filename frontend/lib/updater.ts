@@ -24,7 +24,8 @@ export type EstadoUpdater = {
   ultimaComprobacion: string | null;
   versionOmitida: string | null;
   versionFijada: string | null;
-  avanzado: boolean;
+  /** Modo desarrollador (`FUN-S-36`, antes «modo avanzado»): global a la app. */
+  dev: boolean;
 };
 
 /** Una actualización disponible según el manifiesto. */
@@ -36,7 +37,7 @@ export type InfoActualizacion = {
   fecha: string | null;
 };
 
-/** Una versión publicada según `versions.json` (modo avanzado). */
+/** Una versión publicada según `versions.json` (modo desarrollador). */
 export type VersionPublicada = {
   version: string;
   fecha: string | null;
@@ -61,8 +62,8 @@ export const estadoUpdater = () => invoke<EstadoUpdater>("updater_estado");
 export const setComprobacionAutomatica = (valor: boolean) =>
   invoke<void>("updater_set_auto", { valor });
 
-export const setModoAvanzado = (valor: boolean) =>
-  invoke<void>("updater_set_avanzado", { valor });
+export const setModoDev = (valor: boolean) =>
+  invoke<void>("updater_set_dev", { valor });
 
 export const setEndpoint = (valor: string | null) =>
   invoke<void>("updater_set_endpoint", { valor });

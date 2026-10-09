@@ -247,7 +247,7 @@ pub fn run() {
             vault_watch::detener_watcher,
             actualizador::updater_estado,
             actualizador::updater_set_auto,
-            actualizador::updater_set_avanzado,
+            actualizador::updater_set_dev,
             actualizador::updater_set_endpoint,
             actualizador::updater_omitir_version,
             actualizador::updater_fijar_version,

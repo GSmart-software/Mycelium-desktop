@@ -122,6 +122,17 @@
   white-space: nowrap;
 }
 
+/* Comando de desarrollador (`FUN-S-36`): una marca discreta antes del título. */
+.etiquetaDev {
+  flex-shrink: 0;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
 .detalle {
   flex: 1;
   min-width: 0;
