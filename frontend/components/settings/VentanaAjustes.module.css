@@ -361,3 +361,8 @@
   font-family: var(--bioexp-letra-titulo);
   letter-spacing: var(--bioexp-espaciado-etiqueta);
 }
+
+/* Aurora (`FUN-M-54`): la categoría elegida, con la selección suave del tema. */
+:global(:root[data-atmosfera='aurora']) .categoriaActiva {
+  background: var(--aurora-degradado-suave);
+}

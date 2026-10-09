@@ -21,6 +21,7 @@ import "../styles/atmosferas.css";
 import "../styles/arrecife.css";
 import "../styles/gsmart.css";
 import "../styles/bioexp.css";
+import "../styles/aurora.css";
 import "../styles/editor.css";
 import "./globals.css";
 

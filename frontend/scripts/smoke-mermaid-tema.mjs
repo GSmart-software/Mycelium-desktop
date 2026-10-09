@@ -100,6 +100,9 @@ try {
 
   for (const tema of ["bioluminiscencia", "cantarela"]) {
     for (const oscuro of [false, true]) {
+      // Aurora (`FUN-M-54`) no está: no redefine ningún token (lo prueba
+      // test-temas.mjs), así que los diagramas salen como en Abisal, y el SVG
+      // no cambiaría al pasar de una a la otra (la espera de abajo vencería).
       for (const atmosfera of ["abisal", "niebla", "bosque", "papel"]) {
         const combo = `${tema} ${oscuro ? "oscuro" : "claro"} ${atmosfera}`;
         const antes = await pagina.evaluate(() => document.querySelector(".mic-mermaid svg")?.outerHTML);

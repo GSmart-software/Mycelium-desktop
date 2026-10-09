@@ -215,11 +215,13 @@
    tokens.css (raw del tema y del modo) y atmosferas.css (semánticos) valen en
    ella. Abisal no tiene reglas en atmosferas.css y el semántico de :root se
    hereda ya calculado con el modo de la app: por eso acá se reponen sus
-   valores desde los raw, que sí se recalculan en la muestra. */
+   valores desde los raw, que sí se recalculan en la muestra.
+   Cinco columnas desde Aurora (`FUN-M-54`): el ancho máximo sube de 620 a 700px
+   para que cada muestra siga cerca de las 130px que tenía. */
 .atmosferas {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  max-width: 620px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 700px;
   gap: 0.6rem;
 }
 
@@ -629,4 +631,54 @@
   background:
     linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
     var(--bioexp-gradiente) border-box;
+}
+
+/* Aurora (`FUN-M-54`): el botón primario con el degradado del tema (styles/aurora.css)
+   y su sombra de luz. Las otras atmósferas no cambian. */
+:global(:root[data-atmosfera='aurora']) .primaryBtn {
+  background: var(--aurora-degradado);
+  color: var(--aurora-sobre-degradado);
+  box-shadow: var(--aurora-sombra-boton);
+  transition: var(--aurora-transicion);
+}
+
+:global(:root[data-atmosfera='aurora']) .primaryBtn:hover:not(:disabled) {
+  background: var(--aurora-degradado);
+  filter: var(--aurora-hover);
+  transform: var(--aurora-elevar);
+}
+
+/* Aurora (`FUN-M-54`): el interruptor encendido lleva el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .switch input:checked + .switchTrack {
+  background: var(--aurora-degradado);
+}
+
+/* Aurora (`FUN-M-54`): la muestra elegida, con un marco en el degradado. El
+   interior repite el fondo del panel para que el degradado quede solo en el
+   borde. */
+:global(:root[data-atmosfera='aurora']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--aurora-degradado) border-box;
+}
+
+/* Aurora (`FUN-M-54`): su muestra en Apariencia adelanta la luz —el título en
+   el degradado del tema, un filete de color bajo el marco y un brillo en el
+   lienzo—, que no sale de los tokens como en las otras cuatro (Aurora no
+   redefine fondos). Va sobre el <span> de la muestra, que repite
+   `data-atmosfera`, y con los colores que `.muestra` repone desde los raw:
+   así se pinta con el tema y el modo que representa. */
+.muestra[data-atmosfera='aurora'] .muestraMarco {
+  box-shadow: inset 0 -2px 0 0 var(--mic-glow);
+  background-image: linear-gradient(90deg, transparent 70%, color-mix(in srgb, var(--mic-accent) 35%, transparent));
+}
+
+.muestra[data-atmosfera='aurora'] .muestraLienzo {
+  background-image: radial-gradient(ellipse 70% 80% at 0% 0%, color-mix(in srgb, var(--mic-glow) 18%, transparent), transparent 70%);
+}
+
+.muestra[data-atmosfera='aurora'] .muestraTitulo {
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mic-glow) 45%, transparent);
 }

@@ -277,3 +277,23 @@
 :global(:root[data-theme='bioexp']) .progressBar {
   background: var(--bioexp-gradiente);
 }
+
+/* Aurora (`FUN-M-54`): el botón primario con el degradado del tema (styles/aurora.css)
+   y su sombra de luz. Las otras atmósferas no cambian. */
+:global(:root[data-atmosfera='aurora']) .primaryBtn {
+  background: var(--aurora-degradado);
+  color: var(--aurora-sobre-degradado);
+  box-shadow: var(--aurora-sombra-boton);
+  transition: var(--aurora-transicion);
+}
+
+:global(:root[data-atmosfera='aurora']) .primaryBtn:hover:not(:disabled) {
+  background: var(--aurora-degradado);
+  filter: var(--aurora-hover);
+  transform: var(--aurora-elevar);
+}
+
+/* Aurora (`FUN-M-54`): la barra de progreso con el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .progressBar {
+  background: var(--aurora-degradado);
+}

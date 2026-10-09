@@ -462,3 +462,22 @@
   font-family: var(--bioexp-letra-titulo);
   letter-spacing: var(--bioexp-espaciado-etiqueta);
 }
+
+/* Aurora (`FUN-M-54`): la nota abierta, con la selección suave del tema, su
+   barra de 2px en el degradado (vertical, como la barra) y un borde de luz: la
+   barra no puede irradiar —es una capa del fondo—, así que el resplandor lo
+   pone el `inset` de la izquierda (`--aurora-borde-luz`, más tenue en claro). */
+:global(:root[data-atmosfera='aurora']) .rowHoja.rowActive {
+  box-shadow: var(--aurora-borde-luz);
+  background-color: transparent;
+  background-image: var(--aurora-degradado-vertical), var(--aurora-degradado-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* Aurora (`FUN-M-54`): los dos tonos del tema en el árbol: las carpetas en el
+   acento (como siempre) y las notas en el glow, en su variante legible. */
+:global(:root[data-atmosfera='aurora']) .noteIcon {
+  color: var(--mic-glow-texto);
+}
