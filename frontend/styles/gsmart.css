@@ -3,7 +3,7 @@
  * del usuario. Los colores están en tokens.css, como los de los otros temas; acá
  * va lo que Bioluminiscencia y Cantarela no tienen: el degradado de la marca,
  * sus radios, sus letras (Manrope en la interfaz, Michroma en títulos y
- * etiquetas) y el foco con halo. Fuente de los valores: la skill `gsmart-marca`.
+ * etiquetas) y el foco en el acento. Fuente de los valores: la skill `gsmart-marca`.
  * Spec: docs/features/tema-gsmart.md.
  *
  * Sigue la estructura de styles/arrecife.css, el primer tema de marca:
@@ -30,9 +30,8 @@
   /* Selección suave: ítem activo de una lista, pestaña activa. */
   --gsmart-degradado-suave: linear-gradient(90deg, rgba(43, 74, 166, 0.16), rgba(18, 168, 232, 0.10));
   --gsmart-sobre-degradado: #F2FBFF;
-  /* Sombra del botón primario (azul profundo) y halo de foco (el acento). */
+  /* Sombra del botón primario (azul profundo). */
   --gsmart-sombra-boton: 0 4px 16px rgba(43, 74, 166, 0.35);
-  --gsmart-halo: 0 0 0 3px rgba(59, 155, 232, 0.25);
   --gsmart-transicion: filter 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
   --gsmart-elevar: translateY(-1px);
   --gsmart-radio-control: 12px; /* botones e inputs */
@@ -87,10 +86,14 @@
   }
 }
 
-/* ── Inputs: borde de 1px (el de la marca), radio 12px y foco en el acento con
-   halo. Solo los de texto: casillas, radios y deslizadores tienen su propio
+/* ── Inputs: borde de 1px (el de la marca), radio 12px y foco con el borde en
+   el acento. Solo los de texto: casillas, radios y deslizadores tienen su propio
    dibujo, y los del dibujo (Excalidraw) tienen su propio tema. Los que van sin
-   marco (el título de la nota, una celda) siguen sin marco. */
+   marco (el título de la nota, una celda) siguen sin marco.
+   Sin halo (`box-shadow`, DEF-155): esta regla también alcanza al campo sin
+   borde de un buscador, cuyo marco es la caja que lo envuelve, y ahí el halo
+   dibujaba un óvalo dentro de la caja. Esa caja ya marca el foco con su propio
+   borde (`:focus-within`). */
 :root[data-theme='gsmart']
   :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not(
     .excalidraw *
@@ -103,7 +106,6 @@
     .excalidraw *
   ):focus-visible {
   border-color: var(--mic-focus);
-  box-shadow: var(--gsmart-halo);
 }
 
 /* ── Michroma en títulos y etiquetas, nunca en párrafos ──────────────────── */
