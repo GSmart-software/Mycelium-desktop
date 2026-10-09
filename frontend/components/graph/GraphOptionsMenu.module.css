@@ -258,3 +258,9 @@
 :global(:root[data-theme='gsmart']) .switch input:checked + .switchTrack {
   background: var(--gsmart-degradado);
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): el interruptor encendido lleva
+   el degradado del tema. */
+:global(:root[data-theme='bioexp']) .switch input:checked + .switchTrack {
+  background: var(--bioexp-gradiente);
+}

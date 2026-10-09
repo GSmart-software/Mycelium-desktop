@@ -176,3 +176,8 @@
 :global(:root[data-theme='gsmart']) .opcionActiva {
   background: var(--gsmart-degradado-suave);
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): la opción marcada, con la selección suave del tema. */
+:global(:root[data-theme='bioexp']) .opcionActiva {
+  background: var(--bioexp-gradiente-suave);
+}

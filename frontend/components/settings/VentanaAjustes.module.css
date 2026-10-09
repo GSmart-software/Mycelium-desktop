@@ -347,3 +347,17 @@
   font-size: 0.625rem;
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): la categoría elegida, con la
+   selección suave del tema. */
+:global(:root[data-theme='bioexp']) .categoriaActiva {
+  background: var(--bioexp-gradiente-suave);
+}
+
+/* Bioluminiscencia experimental (`FUN-M-53`): los títulos de grupo
+   («ASPECTO», «EDITOR»…) en Space Grotesk, con el espaciado amplio del tema
+   (styles/bioexp.css). Conservan tamaño y peso. */
+:global(:root[data-theme='bioexp']) .grupoTitulo {
+  font-family: var(--bioexp-letra-titulo);
+  letter-spacing: var(--bioexp-espaciado-etiqueta);
+}

@@ -32,6 +32,15 @@ export const SECRETO_DEV = [
   // con el modo. Toda mención, también «tema GSmart».
   { patron: /\bgsmart\b/i, que: "el tema GSmart" },
   { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
+  // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
+  // con la forma de los temas de marca, también solo con el modo. Se atrapa por
+  // su id, por su nombre completo y por el de su muestra —pero NO
+  // «Bioluminiscencia» a secas, que es el tema público por defecto, ni
+  // «experimental» suelto—.
+  { patron: /\bbioexp\b/i, que: "el tema Bioluminiscencia experimental (bioexp)" },
+  { patron: /bioluminiscencia\s*\(?\s*exp/i, que: "el tema Bioluminiscencia experimental" },
+  { patron: /\bbiolum\.?\s*exp/i, que: "el tema Bioluminiscencia experimental (Biolum. exp.)" },
+  { patron: /\bFUN-M-53\b/i, que: "FUN-M-53 (el tema Bioluminiscencia experimental)" },
 ];
 
 /** Devuelve la primera entrada de `SECRETO_DEV` que aparece en `texto`, o `null`. */

@@ -165,3 +165,32 @@
   border-bottom: 2px solid transparent;
   border-image: var(--gsmart-degradado) 1;
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): el nombre en Space Grotesk y en
+   el degradado del tema —en sus tintas legibles como texto,
+   `--bioexp-gradiente-texto`—, con su resplandor; y un filete de 2px del
+   degradado bajo la barra, de punta a punta. */
+:global(:root[data-theme='bioexp']) .logoFull {
+  font-family: var(--bioexp-letra-titulo);
+  letter-spacing: 0.04em;
+  background: var(--bioexp-gradiente-texto);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: var(--bioexp-resplandor);
+}
+
+:global(:root[data-theme='bioexp']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--bioexp-gradiente) 1;
+}
+
+/* Bioluminiscencia experimental (`FUN-M-53`): el isotipo brilla más que en
+   Bioluminiscencia —dos halos, el del primer color y uno más ancho del
+   segundo—. Los tres puntos ya siguen al tema (`--mic-marco-glow`,
+   `--mic-marco-acento` y su mezcla, `DEF-154`). En claro el marco es claro y
+   el halo se reduce a un contorno suave (`--bioexp-brillo-logo`, por modo en
+   styles/bioexp.css). */
+:global(:root[data-theme='bioexp']) .logoMark {
+  filter: var(--bioexp-brillo-logo);
+}

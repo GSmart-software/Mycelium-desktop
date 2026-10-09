@@ -208,6 +208,8 @@ test("normalizar conserva la apariencia válida y descarta la inválida", () => 
   assert.equal(prefsVault.normalizar({ tema: "arrecife" }).tema, "arrecife");
   // Y GSmart (`FUN-M-52`), igual.
   assert.equal(prefsVault.normalizar({ tema: "gsmart" }).tema, "gsmart");
+  // Y Bioluminiscencia experimental (`FUN-M-53`), igual.
+  assert.equal(prefsVault.normalizar({ tema: "bioexp" }).tema, "bioexp");
 
   const mal = prefsVault.normalizar({ tema: "neon", modoOscuro: "si", preferencias: [1, 2] });
   assert.equal(mal.tema, "bioluminiscencia");
