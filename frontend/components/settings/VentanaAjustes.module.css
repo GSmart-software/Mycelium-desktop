@@ -279,19 +279,12 @@
 }
 
 .pieVersion {
-  font: inherit;
-  color: inherit;
   padding: 0.15rem 0.4rem;
-  border-radius: var(--mic-radius-sm);
 }
 
-.pieVersion:hover {
-  color: var(--mic-text-primary);
-}
-
-.pieVersion:focus-visible {
-  outline: 2px solid var(--mic-focus);
-  outline-offset: 1px;
+/* Modo desarrollador encendido (`FUN-S-36`). */
+.pieDev {
+  font-family: var(--mic-font-mono, monospace);
 }
 
 /* Ventana angosta: las categorías pasan a una tira arriba. */

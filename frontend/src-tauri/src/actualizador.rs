@@ -10,7 +10,7 @@
 //!    el bucket).
 //!
 //! El estado del updater (última comprobación, versión omitida, versión fijada,
-//! endpoint propio, modo avanzado) vive en `actualizador.json` dentro del
+//! endpoint propio, modo desarrollador) vive en `actualizador.json` dentro del
 //! config-dir de la app, **no** en las preferencias del vault: la comprobación
 //! ocurre al arrancar —cuando puede no haber ningún vault abierto— y "omití la
 //! 1.4.0" es una decisión de la instalación, no de un vault concreto. Es el
@@ -44,7 +44,8 @@ const HOST_SIN_CONFIGURAR: &str = ".invalid";
 /// versión es escribir el manifiesto dos veces, en la raíz y en su carpeta.
 const MANIFIESTO: &str = "latest.json";
 
-/// Índice de versiones publicadas que lee el modo avanzado (`FUN-M-16`).
+/// Índice de versiones publicadas que lee el modo desarrollador (`FUN-M-16`,
+/// `FUN-S-36`).
 const INDICE_VERSIONES: &str = "versions.json";
 
 // ── Configuración persistida ────────────────────────────────────────────────
@@ -64,7 +65,7 @@ struct ConfigUpdater {
     /// Versión que el usuario decidió omitir ("Omitir esta versión").
     #[serde(default)]
     version_omitida: Option<String>,
-    /// Versión instalada a mano desde el modo avanzado. Mientras esté puesta,
+    /// Versión instalada a mano desde el modo desarrollador. Mientras esté puesta,
     /// NO se comprueba nada automáticamente (`FUN-M-16`, criterio 17).
     #[serde(default)]
     version_fijada: Option<String>,
@@ -72,9 +73,13 @@ struct ConfigUpdater {
     /// dominio). `None` → se usa el de `tauri.conf.json`.
     #[serde(default)]
     endpoint: Option<String>,
-    /// Modo avanzado (siete clics en el número de versión). Persistente.
-    #[serde(default)]
-    avanzado: bool,
+    /// Modo desarrollador (`FUN-S-36`): se activa con el comando oculto `>dev`
+    /// de la paleta. Persistente y global a la app. Hasta la 2.4 se llamaba
+    /// «modo avanzado» (siete clics en el número de versión, `FUN-M-16`) y se
+    /// guardaba como `avanzado`: el alias lee esos archivos, así quien lo tenía
+    /// encendido sigue con el modo desarrollador encendido.
+    #[serde(default, alias = "avanzado")]
+    dev: bool,
 }
 
 fn verdadero() -> bool {
@@ -89,7 +94,7 @@ impl Default for ConfigUpdater {
             version_omitida: None,
             version_fijada: None,
             endpoint: None,
-            avanzado: false,
+            dev: false,
         }
     }
 }
@@ -194,7 +199,7 @@ pub struct EstadoUpdater {
     pub ultima_comprobacion: Option<String>,
     pub version_omitida: Option<String>,
     pub version_fijada: Option<String>,
-    pub avanzado: bool,
+    pub dev: bool,
 }
 
 /// Una actualización disponible, tal como la anuncia el manifiesto.
@@ -209,7 +214,7 @@ pub struct InfoActualizacion {
     pub fecha: Option<String>,
 }
 
-/// Una versión publicada según `versions.json` (modo avanzado, `FUN-M-16`).
+/// Una versión publicada según `versions.json` (modo desarrollador, `FUN-M-16`).
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionPublicada {
@@ -308,7 +313,7 @@ pub fn updater_estado(app: tauri::AppHandle) -> Result<EstadoUpdater, String> {
         ultima_comprobacion: cfg.ultima_comprobacion,
         version_omitida: cfg.version_omitida,
         version_fijada: cfg.version_fijada,
-        avanzado: cfg.avanzado,
+        dev: cfg.dev,
     })
 }
 
@@ -318,10 +323,10 @@ pub fn updater_set_auto(app: tauri::AppHandle, valor: bool) -> Result<(), String
     mutar(&app, |c| c.auto = valor)
 }
 
-/// Activa/desactiva el modo avanzado (siete clics en el número de versión).
+/// Activa/desactiva el modo desarrollador (comando oculto `>dev`, `FUN-S-36`).
 #[tauri::command]
-pub fn updater_set_avanzado(app: tauri::AppHandle, valor: bool) -> Result<(), String> {
-    mutar(&app, |c| c.avanzado = valor)
+pub fn updater_set_dev(app: tauri::AppHandle, valor: bool) -> Result<(), String> {
+    mutar(&app, |c| c.dev = valor)
 }
 
 /// Fija un endpoint propio (o `null` para volver al compilado). Se valida acá
@@ -391,7 +396,7 @@ pub async fn updater_buscar(app: tauri::AppHandle) -> Result<Option<InfoActualiz
     }))
 }
 
-/// Lista lo publicado según `versions.json` (modo avanzado, `FUN-M-16`).
+/// Lista lo publicado según `versions.json` (modo desarrollador, `FUN-M-16`).
 #[tauri::command]
 pub async fn updater_versiones(app: tauri::AppHandle) -> Result<Vec<VersionPublicada>, String> {
     let endpoint = endpoint_efectivo(&app)?;
@@ -564,14 +569,14 @@ mod tests {
         assert!(cfg.auto);
         assert_eq!(cfg.version_omitida, None);
         assert_eq!(cfg.version_fijada, None);
-        assert!(!cfg.avanzado);
+        assert!(!cfg.dev);
 
         let mut cfg = leer_config(&archivo);
         cfg.auto = false;
         cfg.ultima_comprobacion = Some("2026-08-03".into());
         cfg.version_omitida = Some("1.4.0".into());
         cfg.endpoint = Some("https://pruebas.example/latest.json".into());
-        cfg.avanzado = true;
+        cfg.dev = true;
         escribir_config(&archivo, &cfg).unwrap();
 
         let leida = leer_config(&archivo);
@@ -582,6 +587,18 @@ mod tests {
         assert!(leer_config(&archivo).auto);
 
         std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn el_modo_avanzado_guardado_se_lee_como_dev() {
+        // `actualizador.json` escrito por una versión anterior a `FUN-S-36`.
+        let viejo: ConfigUpdater = serde_json::from_str(r#"{"auto":true,"avanzado":true}"#).unwrap();
+        assert!(viejo.dev);
+        let nuevo: ConfigUpdater = serde_json::from_str(r#"{"dev":true}"#).unwrap();
+        assert!(nuevo.dev);
+        assert!(!serde_json::from_str::<ConfigUpdater>("{}").unwrap().dev);
+        // Se vuelve a guardar con el nombre nuevo.
+        assert!(serde_json::to_string(&viejo).unwrap().contains("\"dev\":true"));
     }
 
     #[test]

@@ -55,11 +55,18 @@ const NOTAS_INICIO = "<!-- notas-release:inicio -->";
 const NOTAS_FIN = "<!-- notas-release:fin -->";
 
 /**
- * El modo avanzado (`FUN-M-16`) es deliberadamente oculto: anunciarlo en el
- * changelog lo desactivaría como tal. Se comprueba antes de compilar, que es
- * cuando corregirlo todavía es gratis.
+ * El modo desarrollador (`FUN-S-36`, antes «modo avanzado», `FUN-M-16`) es
+ * deliberadamente oculto: anunciarlo —o anunciar el comando `>dev` que lo
+ * enciende— en el changelog lo desactivaría como tal. Se comprueba antes de
+ * compilar, que es cuando corregirlo todavía es gratis.
  */
-const PROHIBIDO_EN_NOTAS = [/modo\s+avanzado/i, /FUN-M-16/i];
+const PROHIBIDO_EN_NOTAS = [
+  /modo\s+avanzado/i,
+  /modo\s+desarrollador/i,
+  />\s*dev/i,
+  /FUN-M-16/i,
+  /FUN-S-36/i,
+];
 
 /** Sin el límite de jobs, rustc se queda sin memoria (ver [[Compilacion y entorno de desarrollo]]). */
 const JOBS_CARGO = "2";
@@ -514,8 +521,8 @@ function leerNotas(version, rutaNotas) {
   for (const patron of PROHIBIDO_EN_NOTAS) {
     if (patron.test(texto)) {
       fallar(
-        `El changelog menciona el modo avanzado (coincide con ${patron}). Es una función ` +
-          "deliberadamente oculta (`FUN-M-16`): anunciarla en el diálogo de actualización la " +
+        `El changelog menciona el modo desarrollador (coincide con ${patron}). Es una función ` +
+          "deliberadamente oculta (`FUN-S-36`): anunciarla en el diálogo de actualización la " +
           "desactiva como tal. Quitá esa línea y repetí.",
       );
     }

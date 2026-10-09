@@ -30,9 +30,6 @@ import styles from "./VentanaAjustes.module.css";
 /** La marca que señala el ajuste al que llevó la búsqueda (app/globals.css). */
 const CLASE_DESTACADO = "mic-ajuste-destacado";
 
-/** Clics sobre la versión que activan el modo avanzado (`FUN-M-16`). */
-const CLICS_MODO_AVANZADO = 7;
-
 type CategoriaId =
   | "apariencia"
   | "tipografia"
@@ -53,9 +50,10 @@ type CategoriaId =
 type Ajuste = {
   rotulo: string;
   alias?: string[];
-  /** Vive tras los siete clics del modo avanzado: sin él no está en pantalla,
-   *  así que ofrecerlo sería mandar a un salto que no llega a ningún lado. */
-  soloAvanzado?: boolean;
+  /** Solo existe con el modo desarrollador (`FUN-S-36`): sin él no está en
+   *  pantalla, así que ofrecerlo sería mandar a un salto que no llega a ningún
+   *  lado —y además delataría que hay algo escondido—. */
+  soloDev?: boolean;
 };
 
 type Categoria = {
@@ -168,8 +166,8 @@ const CATEGORIAS: Categoria[] = [
     ajustes: [
       { rotulo: "Buscar actualizaciones automáticamente", alias: ["versión nueva", "actualizar"] },
       { rotulo: "Versión fijada", alias: ["volver atrás", "downgrade"] },
-      { rotulo: "Versiones publicadas", alias: ["instalar otra versión", "historial"], soloAvanzado: true },
-      { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloAvanzado: true },
+      { rotulo: "Versiones publicadas", alias: ["instalar otra versión", "historial"], soloDev: true },
+      { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloDev: true },
     ],
   },
 ];
@@ -211,11 +209,10 @@ function contenido(id: CategoriaId) {
 export function VentanaAjustes() {
   const abierto = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const avanzado = useUpdaterStore((s) => s.estado?.avanzado ?? false);
+  const dev = useUpdaterStore((s) => s.estado?.dev ?? false);
 
   const [categoria, setCategoria] = useState<CategoriaId>("apariencia");
   const [consulta, setConsulta] = useState("");
-  const [clics, setClics] = useState(0);
   /** Ajuste al que hay que saltar en cuanto su categoría esté pintada, y el
    *  contador que dispara el salto aunque ya se esté en esa categoría. */
   const pendienteRef = useRef<string | null>(null);
@@ -233,12 +230,10 @@ export function VentanaAjustes() {
   const cerrar = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
   useDialogoModal({ abierto, cerrar, dialogoRef });
 
-  // Cada apertura arranca limpia: sin búsqueda previa y con el contador de los
-  // siete clics en cero, que por eso hay que hacerlos seguidos y a propósito.
+  // Cada apertura arranca limpia: sin búsqueda previa.
   useEffect(() => {
     if (!abierto) return;
     setConsulta("");
-    setClics(0);
   }, [abierto]);
 
   /**
@@ -253,7 +248,7 @@ export function VentanaAjustes() {
     for (const c of CATEGORIAS) {
       if (normalizar(c.nombre).includes(q)) salida.push({ categoria: c, ajuste: c.nombre });
       for (const a of c.ajustes) {
-        if (a.soloAvanzado && !avanzado) continue;
+        if (a.soloDev && !dev) continue;
         const coincide =
           normalizar(a.rotulo).includes(q) ||
           (a.alias ?? []).some((alias) => normalizar(alias).includes(q));
@@ -261,7 +256,7 @@ export function VentanaAjustes() {
       }
     }
     return salida.slice(0, 12);
-  }, [consulta, avanzado]);
+  }, [consulta, dev]);
 
   /** ¿La búsqueda apunta a la ayuda y no a un ajuste? */
   const buscaAyuda = useMemo(() => {
@@ -460,28 +455,16 @@ export function VentanaAjustes() {
           </div>
         </div>
 
-        {/* Siete pulsaciones acá activan (o apagan) el modo avanzado: `FUN-M-16`.
-            Es un botón y no el `<footer>` entero porque así también llega el
-            teclado: con el clic sobre el pie, el modo avanzado era inalcanzable
-            sin ratón (crítica de Configuración, 2026-09-20). */}
+        {/* Hasta `FUN-S-36` el número era un botón: siete pulsaciones activaban el
+            modo avanzado. Ahora el modo desarrollador se enciende desde la
+            paleta y esto es texto. La marca «dev» solo se ve con el modo
+            encendido: dice en qué estado está la app (por qué hay opciones de
+            más en Actualizaciones) sin decir cómo se llega. */}
         <footer className={styles.pie}>
-          <button
-            type="button"
-            className={styles.pieVersion}
-            onClick={() => {
-              const siguiente = clics + 1;
-              if (siguiente < CLICS_MODO_AVANZADO) {
-                setClics(siguiente);
-                return;
-              }
-              setClics(0);
-              setCategoria("actualizaciones");
-              void useUpdaterStore.getState().setAvanzado(!avanzado);
-            }}
-          >
+          <span className={styles.pieVersion}>
             Mycelium v{APP_VERSION}
-            {avanzado && " · modo avanzado"}
-          </button>
+            {dev && <span className={styles.pieDev}> · dev</span>}
+          </span>
         </footer>
       </div>
     </div>
