@@ -36,7 +36,12 @@ const { TEMAS, TEMA_DEFECTO, TEMAS_DE_MARCA, temaValido, temasVisibles, admiteAt
 
 after(() => rm(TMP, { recursive: true, force: true }));
 
-const leer = (ruta) => readFile(join(FRONTEND, ruta), "utf8");
+// Sin los ``: el checkout de Windows convierte a CRLF (autocrlf) y los
+// `indexOf` de abajo buscan saltos `
+` a secas.
+const leer = async (ruta) => (await readFile(join(FRONTEND, ruta), "utf8")).replace(/
+/g, "
+");
 
 // ── Lógica pura ──────────────────────────────────────────────────────────────
 
