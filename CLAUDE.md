@@ -290,7 +290,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **2.5.0** (consolidada el 2026-10-09, pendiente de publicar; la publicada es la `2.4.0`, del 2026-10-06, la primera compilada por CI para Windows, macOS y Linux) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **2.5.0** (publicada el 2026-10-09: la ayuda integrada y la atmósfera Aurora; la próxima es `2.6.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 > [!warning] La versión vigente se lee del disco, no de esta tabla
