@@ -550,7 +550,8 @@ mano.**
 > Más la nota de release nueva (`docs/estado/Version X.Y.Z.md`), enlazada desde las tres
 > últimas. **El changelog** (lo que va entre `notas-release` en esa nota) **no menciona nada del
 > modo desarrollador** ni de lo que habilita: es oculto (regla del usuario, 2026-10-08;
-> `npm run publicar` lo rechaza, lista en `frontend/scripts/secreto-dev.mjs`, ver [[modo-dev]]). Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
+> `npm run publicar` lo rechaza, lista en `frontend/scripts/secreto-dev.mjs`, ver
+> [[Lo del modo dev no se anuncia]]). Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
 > documento nuevo empieza a declarar la versión, se agrega acá. Lo demás (`BACKLOG`,
 > catálogo de defectos, specs) menciona versiones **pasadas** como hechos y no se retoca.
 
