@@ -148,6 +148,16 @@
  *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
  *   `docs/estado/Version 2.4.0.md`.
  *
+ * - `2.5.0` — **la ayuda y la apariencia**: la ayuda integrada con F1
+ *   (`FUN-L-27`), la atmósfera Aurora (`FUN-M-54`), Geist Sans a 14px como
+ *   letra por defecto, una Configuración más liviana (`FUN-M-41`), los enlaces
+ *   a encabezados (`DEF-141`), deshacer en el lienzo (`DEF-137`), cinco
+ *   arreglos de búsqueda y las negaciones del `.mycignore` (`FUN-S-30`).
+ *   Framework de IA `2.1.0` (`FUN-L-29`). Absorbe `DEF-130` a `DEF-154`.
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
+ *   `docs/estado/Version 2.5.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
@@ -156,4 +166,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.4.0";
+export const APP_VERSION = "2.5.0";
