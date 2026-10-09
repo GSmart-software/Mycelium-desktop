@@ -222,6 +222,32 @@
   --mic-amber-icon:     #C9821E;
 }
 
+/* ── Tema Arrecife (`FUN-M-51`, solo con el modo dev) — modo claro ──
+   La marca de otro proyecto del usuario: cian y violeta sobre grises fríos (matiz
+   240). Los roles de Arrecife se mapean a los raw de Mycelium; la tabla de
+   correspondencia y lo derivado están en docs/features/tema-arrecife.md.
+   No admite atmósferas (preferencesStore no emite `data-atmosfera` con él) y su
+   forma —radios, bordes, gradiente— vive en styles/arrecife.css.
+
+   Derivados en claro, medidos (WCAG) sobre bg #EEF1F6 / patch / surface:
+   - acento: el cian de la marca (#3AB8D8) da 2.05:1 sobre el fondo claro y no
+     sirve para enlaces ni títulos. Se usa el cian mezclado al 50% con
+     textStrong (#2A6D82): 5.1 / 5.5 / 5.8. El cian puro sigue en el gradiente.
+   - base-deep: no es un fondo en claro (el código usa el suyo), es el tinte de
+     sombras y velos: textStrong, el mismo color de la sombra de Arrecife. */
+[data-theme='arrecife'] {
+  --mic-raw-base:       #F6F8FB;   /* patch: rail / topbar */
+  --mic-raw-base-deep:  #1A212C;   /* tinte de sombras y velos */
+  --mic-raw-accent:     #2A6D82;   /* cian legible (derivado, ver arriba) */
+  --mic-raw-glow:       #7444E4;   /* violeta de la marca: 5.0:1 sobre bg */
+  --mic-raw-mist:       #FFFFFF;   /* surface: paneles laterales, pestañas */
+  --mic-raw-canvas:     #EEF1F6;   /* bg: editor / fondo principal (nunca blanco) */
+  --mic-raw-ink:        #1A212C;   /* textStrong */
+  --mic-raw-ink-muted:  #5C6672;   /* text */
+
+  --mic-amber-icon:     #FFB300;   /* warning de Arrecife */
+}
+
 /* ── Dark mode (modifier ortogonal al tema) ───────────────────── */
 
 /* Va SIN tema en el selector: el modo oscuro es ortogonal, y lo que aquí se
@@ -270,6 +296,47 @@
   --mic-raw-ink-muted:  #ac9468;
   --mic-border:         #40300f;
   --mic-bg-hover:       rgba(255, 194, 71, 0.10);
+}
+
+/* Arrecife oscuro (`FUN-M-51`): el predeterminado de la marca.
+   Derivados, medidos sobre bg #14171E / patch / surface:
+   - glow: el violeta de la marca (#7444E4) da 3.15:1 sobre bg y no sirve para
+     etiquetas ni títulos. Se usa mezclado al 70% con textStrong (#9B7AEB):
+     5.45 / 5.12 / 4.84, y 4.83 sobre su píldora (violeta al 15%).
+   - base-deep: Arrecife no tiene un fondo más hondo que bg; para bloques de
+     código, velos y sombras se usa bg oscurecido (#0F1218). */
+[data-theme='arrecife'][data-dark='true'] {
+  --mic-raw-base:       #191D26;   /* patch: rail / topbar */
+  --mic-raw-base-deep:  #0F1218;   /* código, velos, sombras (derivado) */
+  --mic-raw-accent:     #3AB8D8;   /* cian de la marca: 7.7:1 sobre bg */
+  --mic-raw-glow:       #9B7AEB;   /* violeta legible (derivado, ver arriba) */
+  --mic-raw-canvas:     #14171E;   /* bg */
+  --mic-raw-mist:       #1D222C;   /* surface */
+  --mic-raw-ink:        #F7F9FC;   /* textStrong */
+  --mic-raw-ink-muted:  #8A9095;   /* text */
+}
+
+[data-theme='arrecife'][data-dark='true'] {
+  --mic-border:         #2B313D;
+  --mic-bg-hover:       rgba(247, 249, 252, 0.07);
+  /* Foco cian, como el de Arrecife (7.7:1 sobre bg). */
+  --mic-focus:          #3AB8D8;
+  /* El marco (rail, topbar) es patch: íconos en cian; el segundo color del
+     logo, el violeta. */
+  --mic-marco-glow:     var(--mic-raw-accent);
+  --mic-marco-acento:   var(--mic-raw-glow);
+}
+
+/* En claro el marco de Arrecife es CLARO (patch #F6F8FB), no oscuro como el de
+   Bioluminiscencia y Cantarela: las fórmulas del marco de :root (que aclaran el
+   glow para leerse sobre Esporo) acá quedarían blanco sobre blanco. Se usan las
+   de un marco claro, como hace la atmósfera Niebla. Medido sobre patch: íconos
+   5.5:1, texto de la barra de estado 5.5:1. */
+[data-theme='arrecife']:not([data-dark='true']) {
+  --mic-marco-glow:     var(--mic-raw-accent);
+  --mic-marco-acento:   var(--mic-raw-glow);
+  --mic-marco-texto:    var(--mic-raw-ink-muted);
+  --mic-marco-inactivo: 0.75;
 }
 
 /* ── Estados de sync (HU-04) ──────────────────────────────────── */
@@ -403,4 +470,21 @@
      eso el panel izquierdo cede ancho (ver workspace.module.css). 420px es una
      línea de ~50 caracteres a 16px, lo justo para leer sin cortar cada frase. */
   --mic-editor-min-width:   420px;
+}
+
+/* ── Arrecife en los dos modos (`FUN-M-51`) ──────────────────────
+   Sus bordes, su hover y sus semánticos. Va al FINAL del archivo a propósito:
+   los callouts y los estados de sync se definen en :root más arriba, con el
+   mismo peso que este selector, y gana el último. Los valores de oscuro
+   (borde y hover) están junto a su paleta y pesan más. Los colores de los
+   callouts que Arrecife no tiene (info, question, caution) quedan los de
+   Mycelium. */
+[data-theme='arrecife'] {
+  --mic-border:                   #D9DFE9;
+  --mic-bg-hover:                 rgba(26, 33, 44, 0.06);
+  --mic-callout-success-border:   #3ECF8E;
+  --mic-callout-error-border:     #E5484D;
+  --mic-callout-danger-border:    #E5484D;
+  --mic-sync-ok:                  #3ECF8E;
+  --mic-sync-warn:                #FFB300;
 }

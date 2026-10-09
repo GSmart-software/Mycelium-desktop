@@ -1,5 +1,6 @@
 /**
- * CSS autocontenido para el PDF (HU-10). Incluye los tokens de los dos temas y
+ * CSS autocontenido para el PDF (HU-10). Incluye los tokens de los tres temas
+ * (Arrecife, `FUN-M-51`, con los mismos raw que styles/tokens.css) y
  * el modo oscuro + un subconjunto de estilos del preview con reglas de salto de
  * página (CA5). KaTeX y highlight.js se cargan por CDN desde el backend.
  */
@@ -23,6 +24,16 @@ export const PRINT_CSS = `
   --mic-raw-base: #130d02; --mic-raw-base-deep: #2c200a; --mic-raw-accent: #c77f2e;
   --mic-raw-glow: #ffc247; --mic-raw-canvas: #1b1305; --mic-raw-mist: #241a08;
   --mic-raw-ink: #f6e8c8; --mic-raw-ink-muted: #ac9468;
+}
+[data-theme='arrecife'] {
+  --mic-raw-base: #F6F8FB; --mic-raw-base-deep: #1A212C; --mic-raw-accent: #2A6D82;
+  --mic-raw-glow: #7444E4; --mic-raw-mist: #FFFFFF; --mic-raw-canvas: #EEF1F6;
+  --mic-raw-ink: #1A212C; --mic-raw-ink-muted: #5C6672; --mic-amber-icon: #FFB300;
+}
+[data-theme='arrecife'][data-dark='true'] {
+  --mic-raw-base: #191D26; --mic-raw-base-deep: #0F1218; --mic-raw-accent: #3AB8D8;
+  --mic-raw-glow: #9B7AEB; --mic-raw-canvas: #14171E; --mic-raw-mist: #1D222C;
+  --mic-raw-ink: #F7F9FC; --mic-raw-ink-muted: #8A9095;
 }
 :root {
   --mic-bg-canvas: var(--mic-raw-canvas); --mic-bg-surface: var(--mic-raw-mist);

@@ -382,3 +382,11 @@
 .rowOtro:hover {
   opacity: 0.85;
 }
+
+/* Arrecife (`FUN-M-51`): la nota abierta lleva la selección suave de la marca
+   en vez del tinte del glow (Arrecife §6.15: ítem activo del árbol). La barra de
+   2px se queda. */
+:global(:root[data-theme='arrecife']) .rowHoja.rowActive {
+  background-color: transparent;
+  background-image: var(--arrecife-gradiente-suave);
+}

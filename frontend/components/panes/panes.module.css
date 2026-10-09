@@ -487,3 +487,9 @@
     opacity: 0.4;
   }
 }
+
+/* Arrecife (`FUN-M-51`): la pestaña activa suma la selección suave de la
+   marca sobre su fondo (Arrecife §6.9: ítem de navegación activo). */
+:global(:root[data-theme='arrecife']) .tabActive {
+  background-image: var(--arrecife-gradiente-suave);
+}

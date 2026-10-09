@@ -165,3 +165,9 @@
   border-radius: 3px;
   border: 1px solid var(--mic-border);
 }
+
+/* Arrecife (`FUN-M-51`): la opción marcada, con la selección suave de la marca
+   (Arrecife §6.11). */
+:global(:root[data-theme='arrecife']) .opcionActiva {
+  background: var(--arrecife-gradiente-suave);
+}

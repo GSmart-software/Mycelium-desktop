@@ -73,6 +73,9 @@ const CATEGORIAS: Categoria[] = [
     grupo: "Aspecto",
     ajustes: [
       { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "paleta"] },
+      // El tema de la marca Arrecife (`FUN-M-51`): su muestra solo existe con el
+      // modo dev, y sin él buscarlo por su nombre no tiene que devolver nada.
+      { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
       { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
       { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
@@ -252,7 +255,10 @@ export function VentanaAjustes() {
         const coincide =
           normalizar(a.rotulo).includes(q) ||
           (a.alias ?? []).some((alias) => normalizar(alias).includes(q));
-        if (coincide) salida.push({ categoria: c, ajuste: a.rotulo });
+        // Un mismo rótulo puede venir de dos entradas (una con alias solo para
+        // el modo dev): se ofrece una vez.
+        const repetido = salida.some((h) => h.categoria.id === c.id && h.ajuste === a.rotulo);
+        if (coincide && !repetido) salida.push({ categoria: c, ajuste: a.rotulo });
       }
     }
     return salida.slice(0, 12);
