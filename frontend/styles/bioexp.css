@@ -96,9 +96,11 @@
   --bioexp-brillo: 0 0 6px rgba(0, 112, 127, 0.35);
   --bioexp-brillo-icono: none;
   --bioexp-brillo-logo: drop-shadow(0 0 3px color-mix(in srgb, var(--mic-marco-glow) 45%, transparent));
+  /* En claro el brillo va al 6%: va ENCIMA del texto (panes.module.css) y con
+     más, el cian legible bajaba de 4.5:1 en el centro de cada foco. */
   --bioexp-ambiente:
-    radial-gradient(ellipse 55% 50% at 0% 0%, rgba(61, 255, 196, 0.12), transparent 70%),
-    radial-gradient(ellipse 60% 55% at 85% 100%, rgba(61, 139, 255, 0.08), transparent 70%);
+    radial-gradient(ellipse 55% 50% at 0% 0%, rgba(61, 255, 196, 0.06), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 85% 100%, rgba(61, 139, 255, 0.06), transparent 70%);
 }
 
 /* Mycelium respeta «reducir movimiento». */
