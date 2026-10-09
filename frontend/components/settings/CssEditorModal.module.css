@@ -152,3 +152,19 @@
   padding: 0.75rem 1rem;
   background: var(--mic-bg-canvas);
 }
+
+/* Arrecife (`FUN-M-51`): el botón primario con el gradiente de la marca
+   (styles/arrecife.css). Los otros temas no cambian. */
+:global(:root[data-theme='arrecife']) .primaryBtn {
+  background: var(--arrecife-gradiente);
+  color: #ffffff;
+  border-radius: var(--arrecife-radio-control);
+  box-shadow: var(--arrecife-sombra-boton);
+  transition: var(--arrecife-transicion);
+}
+
+:global(:root[data-theme='arrecife']) .primaryBtn:hover:not(:disabled) {
+  background: var(--arrecife-gradiente);
+  filter: brightness(1.1);
+  transform: var(--arrecife-elevar);
+}

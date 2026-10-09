@@ -54,3 +54,9 @@
   border-radius: 0;
   background-color: var(--mic-marco-glow);
 }
+
+/* Arrecife (`FUN-M-51`): la barra de la sección activa, en el gradiente de la
+   marca (indicador de selección, Arrecife §1). */
+:global(:root[data-theme='arrecife']) .button[aria-pressed='true']::before {
+  background: var(--arrecife-gradiente);
+}

@@ -116,9 +116,16 @@ const LEGADO = await fuente("../lib/db/legado.ts", {
   "./nombres": NOMBRES,
   "@tauri-apps/api/core": TAURI,
 });
+// El tema guardado se valida con `lib/temas.ts` (`FUN-M-51`), que a su vez usa
+// las atmósferas y el filtro del modo dev.
+const TEMAS = await fuente("../lib/temas.ts", {
+  "./atmosferas": await fuente("../lib/atmosferas.ts"),
+  "./modoDev": await fuente("../lib/modoDev.ts"),
+});
 const PREFS_VAULT = await fuente("../stores/prefsVaultStore.ts", {
   zustand: ZUSTAND,
   "@tauri-apps/api/core": TAURI,
+  "@/lib/temas": TEMAS,
 });
 const CSS = await fuente("../stores/cssStore.ts", {
   zustand: ZUSTAND,
@@ -195,6 +202,10 @@ test("normalizar conserva la apariencia válida y descarta la inválida", () => 
   assert.equal(ok.modoOscuro, false);
   assert.deepEqual(ok.preferencias, { editorSize: 18 });
   assert.equal(ok.numerosDeLinea, true);
+
+  // Arrecife (`FUN-M-51`) se conserva aunque el modo dev esté apagado: al
+  // reiniciar no cae al predeterminado.
+  assert.equal(prefsVault.normalizar({ tema: "arrecife" }).tema, "arrecife");
 
   const mal = prefsVault.normalizar({ tema: "neon", modoOscuro: "si", preferencias: [1, 2] });
   assert.equal(mal.tema, "bioluminiscencia");

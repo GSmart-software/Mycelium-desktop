@@ -24,6 +24,10 @@ export const SECRETO_DEV = [
   { patron: /comandos? de desarrollador/i, que: "los comandos de desarrollador de la paleta" },
   { patron: /versiones publicadas/i, que: "«Versiones publicadas» del actualizador" },
   { patron: /servidor de actualizaciones/i, que: "«Servidor de actualizaciones» del actualizador" },
+  // El tema Arrecife (`FUN-M-51`): la marca de otro proyecto del usuario, que
+  // solo se puede elegir con el modo. Toda mención, también «tema Arrecife».
+  { patron: /\barrecife\b/i, que: "el tema Arrecife" },
+  { patron: /\bFUN-M-51\b/i, que: "FUN-M-51 (el tema Arrecife)" },
 ];
 
 /** Devuelve la primera entrada de `SECRETO_DEV` que aparece en `texto`, o `null`. */

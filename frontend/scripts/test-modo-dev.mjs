@@ -102,6 +102,9 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Configurá tu propio servidor de actualizaciones",
     "Nuevos comandos de desarrollador en la paleta",
     "Cierra FUN-S-36",
+    "Nuevo tema: Arrecife, con el gradiente de la marca",
+    "Elegí arrecife en Apariencia",
+    "Cierra FUN-M-51",
   ]) {
     assert.notEqual(buscarSecretoDev(texto), null, `debería atrapar: ${texto}`);
   }
@@ -110,8 +113,28 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Buscá notas por propiedades y desarrollá tus ideas.",
     "Las actualizaciones se descargan solas.",
     "Developer notes",
+    "Un tema nuevo con su propia atmósfera",
+    "Los arrecifes de coral",
   ]) {
     assert.equal(buscarSecretoDev(texto), null, `no debería atrapar: ${texto}`);
   }
   assert.ok(SECRETO_DEV.length > 0);
+});
+
+test("la plantilla de snippets no nombra nada del modo dev (tampoco el tema Arrecife)", async () => {
+  const plantilla = await readFile(join(FRONTEND, "public/plantilla-estilos.css"), "utf8");
+  const secreto = buscarSecretoDev(plantilla);
+  assert.equal(secreto, null, `la plantilla menciona ${secreto?.que} (${secreto?.patron})`);
+});
+
+test("el tema Arrecife (`FUN-M-51`) está detrás del modo: muestra y buscador `soloDev`", async () => {
+  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
+  assert.match(temas, /id: "arrecife"[^}]*soloDev: true/, "la muestra de Arrecife tiene que ser soloDev");
+  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
+  // Toda entrada del buscador que lo nombre lleva `soloDev: true`.
+  const lineas = ajustes.split(/\r?\n/);
+  for (const linea of lineas.filter((l) => /arrecife/i.test(l) && /rotulo:/.test(l))) {
+    assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
+  }
+  assert.ok(lineas.some((l) => /alias: \["arrecife"\]/.test(l)), "falta el alias del buscador");
 });

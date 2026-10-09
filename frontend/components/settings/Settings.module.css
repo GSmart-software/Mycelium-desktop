@@ -184,6 +184,32 @@
   color: var(--mic-text-primary);
 }
 
+/* La marca «dev» de una muestra que solo existe con el modo desarrollador
+   (`FUN-M-51`). La misma que llevan los comandos de desarrollador en la paleta
+   (PaletaComandos.module.css): discreta, en mono, sin color propio. */
+.etiquetaDev {
+  margin-right: 0.35rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--mic-text-muted);
+}
+
+/* Selector de atmósfera con un tema que no las admite (`FUN-M-51`): se ve, pero
+   atenuado y sin responder. La opacidad va en cada muestra —la hoja—, no en el
+   grupo (DESIGN_SYSTEM § Atenuado), y el rótulo se apaga con el color. */
+.swatchDeshabilitada {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.labelDeshabilitado {
+  color: var(--mic-text-muted);
+}
+
 /* ── Atmósferas: una muestra en miniatura de la ventana ─────────────
    La muestra lleva los atributos de su combinación, así que las reglas de
    tokens.css (raw del tema y del modo) y atmosferas.css (semánticos) valen en
@@ -507,4 +533,36 @@
 .switch:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* Arrecife (`FUN-M-51`): el botón primario con el gradiente de la marca
+   (styles/arrecife.css). Los otros temas no cambian. */
+:global(:root[data-theme='arrecife']) .primaryBtn {
+  background: var(--arrecife-gradiente);
+  color: #ffffff;
+  border-radius: var(--arrecife-radio-control);
+  box-shadow: var(--arrecife-sombra-boton);
+  transition: var(--arrecife-transicion);
+}
+
+:global(:root[data-theme='arrecife']) .primaryBtn:hover:not(:disabled) {
+  background: var(--arrecife-gradiente);
+  filter: brightness(1.1);
+  transform: var(--arrecife-elevar);
+}
+
+/* Arrecife (`FUN-M-51`): el interruptor encendido lleva el gradiente de la
+   marca (Arrecife §6.7). */
+:global(:root[data-theme='arrecife']) .switch input:checked + .switchTrack {
+  background: var(--arrecife-gradiente);
+}
+
+/* Arrecife (`FUN-M-51`): la muestra elegida, con un marco en el gradiente.
+   El fondo del interior repite el del panel (el lienzo) para que el gradiente
+   quede solo en el borde. */
+:global(:root[data-theme='arrecife']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--arrecife-gradiente) border-box;
 }

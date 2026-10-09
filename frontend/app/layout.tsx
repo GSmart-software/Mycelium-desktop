@@ -15,6 +15,7 @@ import "katex/dist/katex.min.css";
 import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
 import "../styles/atmosferas.css";
+import "../styles/arrecife.css";
 import "../styles/editor.css";
 import "./globals.css";
 

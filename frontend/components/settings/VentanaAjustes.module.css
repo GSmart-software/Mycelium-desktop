@@ -325,3 +325,9 @@
     border-top: none;
   }
 }
+
+/* Arrecife (`FUN-M-51`): la categoría elegida, con la selección suave de la
+   marca (Arrecife §6.9). */
+:global(:root[data-theme='arrecife']) .categoriaActiva {
+  background: var(--arrecife-gradiente-suave);
+}

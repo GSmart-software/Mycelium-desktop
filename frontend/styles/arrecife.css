@@ -1,0 +1,74 @@
+/*
+ * Tema Arrecife (`FUN-M-51`, solo con el modo dev): la FORMA de la marca.
+ * Los colores están en tokens.css, como los de los otros temas; acá va lo que
+ * Bioluminiscencia y Cantarela no tienen: radios más grandes, bordes de 1.5px,
+ * el gradiente de marca y su foco con halo. Spec: docs/features/tema-arrecife.md.
+ *
+ * Todo va bajo `:root[data-theme='arrecife']`, así que los otros dos temas no
+ * cambian en nada. Lleva `:root` (y no el atributo a secas, como los colores)
+ * porque la forma es de la ventana: las muestras de Configuración repiten
+ * `data-theme` en un <span> y no deben heredar radios ni bordes.
+ *
+ * Lo de cada componente (el botón primario, la pestaña activa, el interruptor…)
+ * vive en su propio .module.css, con `:global(:root[data-theme='arrecife'])`
+ * delante y la marca «Arrecife (`FUN-M-51`)» en un comentario: así un renombre
+ * de clase no lo rompe en silencio. Esos componentes leen las variables de acá.
+ *
+ * Las variables son `--arrecife-*` y no `--mic-*` a propósito: no son tokens
+ * públicos —la plantilla de snippets no los ofrece— sino la marca de este tema.
+ *
+ * La tipografía: la interfaz ya es Geist (`--mic-font-sans`) en los tres temas.
+ * El texto de las notas NO se toca: su fuente la elige el usuario en
+ * Configuración → Tipografía y Arrecife no tiene editor de documentos.
+ */
+:root[data-theme='arrecife'] {
+  /* Gradiente de marca: siempre 135°, del cian al violeta. Botones primarios,
+     barras de progreso, interruptores encendidos, indicadores de selección. */
+  --arrecife-gradiente: linear-gradient(135deg, #3AB8D8 0%, #7444E4 100%);
+  /* Selección suave: ítem activo de una lista, pestaña activa. */
+  --arrecife-gradiente-suave: linear-gradient(125deg, rgba(58, 184, 216, 0.10), rgba(116, 68, 228, 0.10));
+  /* Sombra del botón primario y halo de foco. */
+  --arrecife-sombra-boton: 0 4px 16px rgba(116, 68, 228, 0.35);
+  --arrecife-halo: 0 0 0 3px rgba(58, 184, 216, 0.25);
+  /* Movimiento: el hover del botón primario sube 1px. */
+  --arrecife-transicion: filter 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+  --arrecife-elevar: translateY(-1px);
+  --arrecife-radio-control: 12px; /* botones e inputs */
+
+  /* Radios (Arrecife §4): base 16px, controles 12px. Los de Mycelium son 4/8/16;
+     el chico pasa a 8 —no a 12— porque también lo usan cosas de 16px de alto
+     (el código en línea, la marca «dev», chips del árbol), que con 12 quedarían
+     en píldora. Los controles que sí son botones o inputs toman 12 explícito. */
+  --mic-radius-sm: 8px;
+  --mic-radius-md: 12px;
+  --mic-radius-lg: 16px;
+}
+
+/* Arrecife pide que se respete «reducir movimiento» del sistema. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='arrecife'] {
+    --arrecife-transicion: none;
+    --arrecife-elevar: none;
+  }
+}
+
+/* ── Inputs: borde de 1.5px, radio 12px y foco cian con halo (Arrecife §6.6) ──
+   Solo los de texto: casillas, radios y deslizadores tienen su propio dibujo.
+   Los del dibujo (Excalidraw) tampoco: tienen su propio tema. `border-width`
+   solo no agrega un borde a un input que no lo tiene: los que van sin marco
+   (el título de la nota, una celda) siguen sin marco. */
+:root[data-theme='arrecife']
+  :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not(
+    .excalidraw *
+  ) {
+  border-width: 1.5px;
+  border-radius: var(--arrecife-radio-control);
+}
+
+:root[data-theme='arrecife']
+  :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not(
+    .excalidraw *
+  ):focus-visible {
+  border-color: var(--mic-focus);
+  box-shadow: var(--arrecife-halo);
+}
