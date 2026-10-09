@@ -2,7 +2,7 @@
  * Tema Arrecife (`FUN-M-51`, solo con el modo dev): la FORMA de la marca.
  * Los colores están en tokens.css, como los de los otros temas; acá va lo que
  * Bioluminiscencia y Cantarela no tienen: radios más grandes, bordes de 1.5px,
- * el gradiente de marca y su foco con halo. Spec: docs/features/tema-arrecife.md.
+ * el gradiente de marca y su foco en cian. Spec: docs/features/tema-arrecife.md.
  *
  * Todo va bajo `:root[data-theme='arrecife']`, así que los otros dos temas no
  * cambian en nada. Lleva `:root` (y no el atributo a secas, como los colores)
@@ -27,9 +27,8 @@
   --arrecife-gradiente: linear-gradient(135deg, #3AB8D8 0%, #7444E4 100%);
   /* Selección suave: ítem activo de una lista, pestaña activa. */
   --arrecife-gradiente-suave: linear-gradient(125deg, rgba(58, 184, 216, 0.10), rgba(116, 68, 228, 0.10));
-  /* Sombra del botón primario y halo de foco. */
+  /* Sombra del botón primario. */
   --arrecife-sombra-boton: 0 4px 16px rgba(116, 68, 228, 0.35);
-  --arrecife-halo: 0 0 0 3px rgba(58, 184, 216, 0.25);
   /* Movimiento: el hover del botón primario sube 1px. */
   --arrecife-transicion: filter 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
   --arrecife-elevar: translateY(-1px);
@@ -52,11 +51,15 @@
   }
 }
 
-/* ── Inputs: borde de 1.5px, radio 12px y foco cian con halo (Arrecife §6.6) ──
+/* ── Inputs: borde de 1.5px, radio 12px y foco con el borde en cian (Arrecife §6.6) ──
    Solo los de texto: casillas, radios y deslizadores tienen su propio dibujo.
    Los del dibujo (Excalidraw) tampoco: tienen su propio tema. `border-width`
    solo no agrega un borde a un input que no lo tiene: los que van sin marco
-   (el título de la nota, una celda) siguen sin marco. */
+   (el título de la nota, una celda) siguen sin marco.
+   Sin el halo de la spec (`box-shadow`, DEF-155): esta regla también alcanza al
+   campo sin borde de un buscador, cuyo marco es la caja que lo envuelve, y ahí
+   el halo dibujaba un óvalo dentro de la caja. Esa caja ya marca el foco con
+   su propio borde (`:focus-within`). */
 :root[data-theme='arrecife']
   :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not(
     .excalidraw *
@@ -70,7 +73,6 @@
     .excalidraw *
   ):focus-visible {
   border-color: var(--mic-focus);
-  box-shadow: var(--arrecife-halo);
 }
 
 /* ── Más marca (pedido del usuario, 2026-10-08: «que el brand destaque más») ──

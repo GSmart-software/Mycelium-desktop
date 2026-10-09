@@ -3,7 +3,7 @@
  * Bioluminiscencia —el tema por defecto— con la FORMA de los temas de marca
  * (Arrecife, `FUN-M-51`; GSmart, `FUN-M-52`). Los colores están en tokens.css;
  * acá va lo que Bioluminiscencia no tiene: el degradado de tres tonos, los
- * resplandores, la letra de los títulos, los radios y el foco con halo.
+ * resplandores, la letra de los títulos, los radios y el foco en el cian.
  * Spec: docs/features/tema-bioexp.md.
  *
  * Sigue la estructura de styles/arrecife.css y styles/gsmart.css:
@@ -74,7 +74,6 @@
   --bioexp-gradiente-suave: linear-gradient(120deg, rgba(61, 255, 196, 0.12), rgba(25, 230, 255, 0.08), rgba(61, 139, 255, 0.10));
   --bioexp-azul: #6FA8FF;
   --bioexp-sombra-boton: 0 0 0 1px rgba(61, 255, 196, 0.35), 0 4px 18px rgba(25, 230, 255, 0.35);
-  --bioexp-halo: 0 0 0 3px rgba(25, 230, 255, 0.25), 0 0 14px rgba(25, 230, 255, 0.30);
   --bioexp-resplandor: drop-shadow(0 0 10px rgba(61, 255, 196, 0.35));
   --bioexp-brillo: 0 0 10px rgba(61, 255, 196, 0.75);
   --bioexp-brillo-icono: drop-shadow(0 0 5px rgba(25, 230, 255, 0.65));
@@ -91,7 +90,6 @@
   --bioexp-gradiente-suave: linear-gradient(120deg, rgba(0, 112, 79, 0.10), rgba(0, 112, 127, 0.07), rgba(34, 87, 201, 0.08));
   --bioexp-azul: #2257C9;
   --bioexp-sombra-boton: 0 0 0 1px rgba(0, 112, 127, 0.35), 0 4px 14px rgba(0, 112, 127, 0.25);
-  --bioexp-halo: 0 0 0 3px rgba(0, 112, 127, 0.22);
   --bioexp-resplandor: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
   --bioexp-brillo: 0 0 6px rgba(0, 112, 127, 0.35);
   --bioexp-brillo-icono: none;
@@ -111,10 +109,14 @@
   }
 }
 
-/* ── Inputs: radio 12px y foco en el cian con halo (en oscuro, además, luz).
+/* ── Inputs: radio 12px y foco con el borde en el cian.
    Solo los de texto: casillas, radios y deslizadores tienen su propio dibujo,
    y los del dibujo (Excalidraw) tienen su propio tema. Los que van sin marco
-   (el título de la nota, una celda) siguen sin marco. */
+   (el título de la nota, una celda) siguen sin marco.
+   Sin halo (`box-shadow`, DEF-155): esta regla también alcanza al campo sin
+   borde de un buscador, cuyo marco es la caja que lo envuelve, y ahí el halo
+   dibujaba un óvalo dentro de la caja. Esa caja ya marca el foco con su propio
+   borde (`:focus-within`). */
 :root[data-theme='bioexp']
   :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not(
     .excalidraw *
@@ -127,7 +129,6 @@
     .excalidraw *
   ):focus-visible {
   border-color: var(--mic-focus);
-  box-shadow: var(--bioexp-halo);
 }
 
 /* ── Space Grotesk en títulos y etiquetas, nunca en párrafos ─────────────── */
