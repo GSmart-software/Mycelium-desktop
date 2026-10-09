@@ -5,6 +5,8 @@ import {
   Inter,
   JetBrains_Mono,
   Lora,
+  Manrope,
+  Michroma,
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
@@ -16,6 +18,7 @@ import "@excalidraw/excalidraw/index.css";
 import "../styles/tokens.css";
 import "../styles/atmosferas.css";
 import "../styles/arrecife.css";
+import "../styles/gsmart.css";
 import "../styles/editor.css";
 import "./globals.css";
 
@@ -43,11 +46,33 @@ const sourceCodePro = Source_Code_Pro({
   subsets: ["latin"],
 });
 
+// Las letras del tema GSmart (`FUN-M-52`): Manrope en la interfaz y Michroma en
+// títulos y etiquetas. Solo las usa styles/gsmart.css, bajo
+// `:root[data-theme='gsmart']`. `next/font/google` las descarga AL COMPILAR y
+// las sirve con la app: en ejecución no sale ningún pedido a Google, así que
+// andan sin red. Sin precarga: el resto de los temas no las pide, y el
+// navegador solo baja un @font-face cuando una regla lo usa.
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
+const michroma = Michroma({
+  variable: "--font-michroma",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
+
 const fontVariables = [
   inter.variable,
   lora.variable,
   firaCode.variable,
   sourceCodePro.variable,
+  manrope.variable,
+  michroma.variable,
 ].join(" ");
 
 export const metadata: Metadata = {

@@ -147,3 +147,21 @@
   border-bottom: 2px solid transparent;
   border-image: var(--arrecife-gradiente) 1;
 }
+
+/* GSmart (`FUN-M-52`): el nombre en Michroma y en el degradado de la marca
+   —en sus tintas legibles como texto, `--gsmart-degradado-texto`— y un filete
+   de 2px del degradado bajo la barra, de punta a punta. */
+:global(:root[data-theme='gsmart']) .logoFull {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  background: var(--gsmart-degradado-texto);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:global(:root[data-theme='gsmart']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--gsmart-degradado) 1;
+}

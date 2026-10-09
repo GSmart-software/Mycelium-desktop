@@ -5,20 +5,22 @@
  * Un tema decide QUÉ colores (los `--mic-raw-*` de `styles/tokens.css`); el
  * modo, claro u oscuro; y la atmósfera (lib/atmosferas.ts), cómo se reparten.
  *
- * El tercero, `arrecife` (`FUN-M-51`), es distinto de los otros dos en tres
- * cosas, y las tres viven acá para que no haya que adivinarlas en los
- * componentes:
- *  - **Solo se ofrece con el modo desarrollador** (`soloDev`). Apagar el modo no
- *    lo saca: un vault que lo tiene se sigue pintando así. Ver
- *    `docs/features/tema-arrecife.md`.
- *  - **No admite atmósferas**: trae sus propios fondos, marco y forma
- *    (`styles/arrecife.css`), y una atmósfera los pisaría.
- *  - Es la marca de otro proyecto del usuario, no de Mycelium.
+ * Los **temas de marca** —`arrecife` (`FUN-M-51`) y `gsmart` (`FUN-M-52`)—
+ * son distintos de los dos de Mycelium en tres cosas, y las tres viven acá para
+ * que no haya que adivinarlas en los componentes:
+ *  - **Solo se ofrecen con el modo desarrollador** (`soloDev`). Apagar el modo no
+ *    los saca: un vault que tiene uno se sigue pintando así. Ver
+ *    `docs/features/tema-arrecife.md` y `docs/features/tema-gsmart.md`.
+ *  - **No admiten atmósferas** (`TEMAS_DE_MARCA`): traen sus propios fondos,
+ *    marco y forma (`styles/arrecife.css`, `styles/gsmart.css`), y una atmósfera
+ *    los pisaría.
+ *  - Son marcas del usuario (de otro proyecto, o la suya personal), no de
+ *    Mycelium.
  */
 import { atmosferaValida, ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "./atmosferas";
 import { comandosDisponibles } from "./modoDev";
 
-export type Tema = "bioluminiscencia" | "cantarela" | "arrecife";
+export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart";
 
 export const TEMA_DEFECTO: Tema = "bioluminiscencia";
 
@@ -40,14 +42,26 @@ export const TEMAS: readonly InfoTema[] = [
   // Los acentos de la marca tal cual (cian y violeta), no los derivados que usa
   // la interfaz para leerse: la muestra es la identidad, no un texto.
   { id: "arrecife", nombre: "Arrecife", canvas: "#14171E", mist: "#1D222C", glow: "#7444E4", accent: "#3AB8D8", soloDev: true },
+  // GSmart (`FUN-M-52`), la marca personal del usuario: los colores del
+  // símbolo —el aguamarina de las líneas de la G y el cian del degradado— sobre
+  // el carbón. El azul profundo, la otra punta, casi no se ve sobre ese fondo.
+  { id: "gsmart", nombre: "GSmart", canvas: "#1E2023", mist: "#25282B", glow: "#A3ECE2", accent: "#12A8E8", soloDev: true },
 ];
+
+/**
+ * Los temas de marca: traen sus propios fondos, marco y forma, y por eso no
+ * admiten atmósferas. Un tema de marca nuevo se suma acá (y a `TEMAS`, con
+ * `soloDev` si va detrás del modo).
+ */
+export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart"];
 
 /**
  * El tema guardado, si es uno que existe; si no, el de defecto. El archivo de
  * preferencias vive en la carpeta del usuario y se puede editar a mano.
  *
- * `arrecife` es válido **siempre**, esté o no el modo dev: el modo decide si se
- * puede ELEGIR, no si un vault que ya lo tiene se puede abrir así.
+ * Los temas `soloDev` (`arrecife`, `gsmart`) son válidos **siempre**, esté o no
+ * el modo dev: el modo decide si se puede ELEGIR, no si un vault que ya lo tiene
+ * se puede abrir así.
  */
 export function temaValido(v: unknown, defecto: Tema = TEMA_DEFECTO): Tema {
   return TEMAS.some((t) => t.id === v) ? (v as Tema) : defecto;
@@ -58,9 +72,9 @@ export function temasVisibles(dev: boolean): InfoTema[] {
   return comandosDisponibles(TEMAS, dev);
 }
 
-/** ¿Las atmósferas se aplican a este tema? Con Arrecife, no. */
+/** ¿Las atmósferas se aplican a este tema? Con los de marca, no. */
 export function admiteAtmosfera(tema: Tema): boolean {
-  return tema !== "arrecife";
+  return !TEMAS_DE_MARCA.includes(tema);
 }
 
 /**

@@ -76,6 +76,8 @@ const CATEGORIAS: Categoria[] = [
       // El tema de la marca Arrecife (`FUN-M-51`): su muestra solo existe con el
       // modo dev, y sin él buscarlo por su nombre no tiene que devolver nada.
       { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
+      // Lo mismo con el tema de la marca GSmart (`FUN-M-52`).
+      { rotulo: "Tema", alias: ["gsmart"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
       { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
       { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },

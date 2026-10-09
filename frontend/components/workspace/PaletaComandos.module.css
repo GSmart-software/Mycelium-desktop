@@ -171,3 +171,8 @@
 :global(:root[data-theme='arrecife']) .opcionActiva {
   background: var(--arrecife-gradiente-suave);
 }
+
+/* GSmart (`FUN-M-52`): la opción marcada, con la selección suave de la marca. */
+:global(:root[data-theme='gsmart']) .opcionActiva {
+  background: var(--gsmart-degradado-suave);
+}

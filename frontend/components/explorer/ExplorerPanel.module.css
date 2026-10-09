@@ -406,3 +406,30 @@
 :global(:root[data-theme='arrecife']) .noteIcon {
   color: var(--mic-glow);
 }
+
+/* GSmart (`FUN-M-52`): la nota abierta, con la selección suave de la marca y
+   su barra de 2px en el degradado (vertical, como la barra). */
+:global(:root[data-theme='gsmart']) .rowHoja.rowActive {
+  box-shadow: none;
+  background-color: transparent;
+  background-image: var(--gsmart-degradado-vertical), var(--gsmart-degradado-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* GSmart (`FUN-M-52`): los dos tonos de la marca en el árbol: las carpetas en
+   el acento (como siempre) y las notas en aguamarina (el glow). */
+:global(:root[data-theme='gsmart']) .noteIcon {
+  color: var(--mic-glow);
+}
+
+/* GSmart (`FUN-M-52`): las cabeceras de sección («ARCHIVOS»…) en Michroma, en mayúsculas y con el espaciado
+   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
+   chica para que entre en el mismo lugar. */
+:global(:root[data-theme='gsmart']) .sectionHeader {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  font-size: 0.625rem;
+  letter-spacing: var(--gsmart-espaciado-etiqueta);
+}

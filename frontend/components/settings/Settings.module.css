@@ -566,3 +566,35 @@
     linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
     var(--arrecife-gradiente) border-box;
 }
+
+/* GSmart (`FUN-M-52`): el botón primario con el degradado de la marca
+   (styles/gsmart.css) y texto claro. Los otros temas no cambian. */
+:global(:root[data-theme='gsmart']) .primaryBtn {
+  background: var(--gsmart-degradado);
+  color: var(--gsmart-sobre-degradado);
+  border-radius: var(--gsmart-radio-control);
+  box-shadow: var(--gsmart-sombra-boton);
+  transition: var(--gsmart-transicion);
+}
+
+:global(:root[data-theme='gsmart']) .primaryBtn:hover:not(:disabled) {
+  background: var(--gsmart-degradado);
+  filter: brightness(1.1);
+  transform: var(--gsmart-elevar);
+}
+
+/* GSmart (`FUN-M-52`): el interruptor encendido lleva el degradado de la
+   marca. */
+:global(:root[data-theme='gsmart']) .switch input:checked + .switchTrack {
+  background: var(--gsmart-degradado);
+}
+
+/* GSmart (`FUN-M-52`): la muestra elegida, con un marco en el degradado. El
+   interior repite el fondo del panel para que el degradado quede solo en el
+   borde. */
+:global(:root[data-theme='gsmart']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--gsmart-degradado) border-box;
+}

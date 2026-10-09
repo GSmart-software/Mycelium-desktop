@@ -131,3 +131,13 @@
   margin: 0.3rem 0;
   background: var(--mic-border);
 }
+
+/* GSmart (`FUN-M-52`): los títulos de sección del menú de vaults en Michroma, en mayúsculas y con el espaciado
+   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
+   chica para que entre en el mismo lugar. */
+:global(:root[data-theme='gsmart']) .seccion {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  font-size: 0.625rem;
+  letter-spacing: var(--gsmart-espaciado-etiqueta);
+}
