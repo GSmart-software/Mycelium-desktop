@@ -140,12 +140,36 @@
 }
 
 /* ── Swatches de tema (HU-12 CA10) ──────────────────────────────── */
-/* Las muestras no crecen con la ventana: a partir de cierto tamaño dejan de
-   informar y solo ocupan. */
+/* Todas las muestras miden lo mismo, haya las que haya y se llamen como se
+   llamen: 120 × 80px, el tamaño que tenía la de «Bioluminiscencia» con el modo
+   dev (su nombre en una línea —97,6px a 12px semibold de Geist— más el relleno y
+   el borde: 117,6 × 79,6px; se redondea hacia arriba para que el nombre no
+   quede justo al borde si WebView2 lo dibuja un pelo más ancho). Antes eran
+   `flex: 1` en una fila de 460px: se repartían el ancho según cuántas había y la
+   del nombre largo se estiraba.
+
+   Si no entran en el ancho del bloque, la fila se desplaza en horizontal (con
+   la barra fina de globals.css) en vez de achicarlas o bajarlas de fila: una
+   sola fila mantiene el alto de la sección fijo y las muestras en el orden en
+   que se leen. Hoy, con cuatro (dos públicas y dos del modo dev), entran sin
+   barra en los 560px del bloque: 4 × 120 + 3 × 9,6 + 2 × 6 = 520,8px.
+   El relleno de 6px deja lugar al anillo de foco (2px a 2px de distancia) y al
+   borde de la elegida, que si no el `overflow` recortaría. */
 .swatchGroup {
   display: flex;
-  max-width: 460px;
   gap: 0.6rem;
+  padding: 6px;
+  margin: -6px;
+  overflow-x: auto;
+}
+
+/* Solo las de tema: `.swatch` es también la tarjeta de las atmósferas, que
+   siguen en su grilla de cinco columnas. */
+.swatchGroup > .swatch {
+  flex: 0 0 7.5rem;
+  width: 7.5rem;
+  height: 5rem;
+  min-width: 0;
 }
 
 .swatch {
@@ -184,10 +208,29 @@
   color: var(--mic-text-primary);
 }
 
+/* En las muestras de tema el nombre va en una sola línea, también con la marca
+   «dev» delante: el alto de la tarjeta es fijo. Si no entran los dos, la marca
+   queda entera (es lo que dice que la muestra es del modo dev) y el que se
+   recorta con elipsis es el nombre; el `title` del botón lo dice completo. */
+.swatchNameLinea {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.swatchNameTexto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* La marca «dev» de una muestra que solo existe con el modo desarrollador
    (`FUN-M-51`). La misma que llevan los comandos de desarrollador en la paleta
    (PaletaComandos.module.css): discreta, en mono, sin color propio. */
 .etiquetaDev {
+  flex: none;
   margin-right: 0.35rem;
   padding: 0 0.3rem;
   border: 1px solid var(--mic-border);

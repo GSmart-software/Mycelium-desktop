@@ -51,6 +51,7 @@ export function AppearanceSection() {
               type="button"
               className={`${styles.swatch} ${tema === t.id ? styles.swatchActive : ""}`}
               aria-pressed={tema === t.id}
+              title={t.nombre}
               onClick={() => setTema(t.id)}
             >
               <span className={styles.swatchPreview} style={{ background: t.canvas }}>
@@ -58,9 +59,9 @@ export function AppearanceSection() {
                 <span className={styles.swatchDot} style={{ background: t.accent }} />
                 <span className={styles.swatchDot} style={{ background: t.mist }} />
               </span>
-              <span className={styles.swatchName}>
+              <span className={`${styles.swatchName} ${styles.swatchNameLinea}`}>
                 {t.soloDev && <span className={styles.etiquetaDev}>dev</span>}
-                {t.nombre}
+                <span className={styles.swatchNameTexto}>{t.nombre}</span>
               </span>
             </button>
           ))}
