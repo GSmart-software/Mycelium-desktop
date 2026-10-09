@@ -162,3 +162,8 @@
 :global(:root[data-theme='gsmart']) .barraRelleno {
   background: var(--gsmart-degradado);
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): la barra de progreso de la apertura con el degradado del tema. */
+:global(:root[data-theme='bioexp']) .barraRelleno {
+  background: var(--bioexp-gradiente);
+}

@@ -9,6 +9,7 @@ import {
   Michroma,
   Source_Code_Pro,
   Source_Serif_4,
+  Space_Grotesk,
 } from "next/font/google";
 import { AyudaGlobal } from "@/components/ayuda/AyudaGlobal";
 import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
@@ -19,6 +20,7 @@ import "../styles/tokens.css";
 import "../styles/atmosferas.css";
 import "../styles/arrecife.css";
 import "../styles/gsmart.css";
+import "../styles/bioexp.css";
 import "../styles/editor.css";
 import "./globals.css";
 
@@ -66,6 +68,19 @@ const michroma = Michroma({
   preload: false,
 });
 
+// La letra de los títulos de Bioluminiscencia experimental (`FUN-M-53`): Space
+// Grotesk, una grotesca geométrica con rasgos propios (la «a», la «G», la «t»)
+// que le da al tema un aire técnico sin dejar de leerse. Solo la usa
+// styles/bioexp.css, bajo `:root[data-theme='bioexp']`, y solo en títulos y
+// etiquetas: la interfaz sigue en Geist. Igual que las de GSmart: se empaqueta
+// al compilar y no se precarga.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
+
 const fontVariables = [
   inter.variable,
   lora.variable,
@@ -73,6 +88,7 @@ const fontVariables = [
   sourceCodePro.variable,
   manrope.variable,
   michroma.variable,
+  spaceGrotesk.variable,
 ].join(" ");
 
 export const metadata: Metadata = {

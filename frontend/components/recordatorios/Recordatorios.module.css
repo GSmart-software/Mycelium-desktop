@@ -1052,3 +1052,19 @@
   filter: brightness(1.1);
   transform: var(--gsmart-elevar);
 }
+
+/* Bioluminiscencia experimental (`FUN-M-53`): el botón primario con el degradado del tema
+   (styles/bioexp.css) y texto oscuro. Los otros temas no cambian. */
+:global(:root[data-theme='bioexp']) .botonPrimario {
+  background: var(--bioexp-gradiente);
+  color: var(--bioexp-sobre-degradado);
+  border-radius: var(--bioexp-radio-control);
+  box-shadow: var(--bioexp-sombra-boton);
+  transition: var(--bioexp-transicion);
+}
+
+:global(:root[data-theme='bioexp']) .botonPrimario:hover:not(:disabled) {
+  background: var(--bioexp-gradiente);
+  filter: brightness(1.1);
+  transform: var(--bioexp-elevar);
+}

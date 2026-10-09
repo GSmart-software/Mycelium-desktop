@@ -276,6 +276,32 @@
   --mic-amber-icon:     #E0A63A;   /* aviso de la marca */
 }
 
+/* ── Bioluminiscencia experimental (`FUN-M-53`, solo con el modo dev) — claro ──
+   Los colores de Bioluminiscencia con la forma de los temas de marca (degradados,
+   resplandores, títulos en degradado: styles/bioexp.css). El protagonista es el
+   modo oscuro; este tiene que existir y leerse. Tabla de correspondencia y
+   contraste medido: docs/features/tema-bioexp.md.
+
+   A diferencia de Bioluminiscencia claro, el marco es CLARO (como en Arrecife y
+   GSmart): sobre un marco oscuro el filete y el lavado del rail no se verían.
+   - accent: el cian #19E6FF oscurecido conservando el tono (187°) → #00707F,
+     5.3 / 5.8 / 4.8 sobre fondo / panel / marco.
+   - glow: el verde agua #3DFFC4 oscurecido conservando el tono (162°) →
+     #00704F, 5.6 / 6.1 / 5.0. En crudo, ninguno de los dos pasa de 1.4:1.
+   - base-deep: el tinte de sombras y velos, el abismo del tema oscuro. */
+[data-theme='bioexp'] {
+  --mic-raw-base:       #DCECEE;   /* marco: rail / topbar (claro) */
+  --mic-raw-base-deep:  #062A33;   /* tinte de sombras y velos */
+  --mic-raw-accent:     #00707F;   /* cian legible (derivado, ver arriba) */
+  --mic-raw-glow:       #00704F;   /* verde agua legible (derivado, ver arriba) */
+  --mic-raw-mist:       #FFFFFF;   /* paneles laterales, pestañas */
+  --mic-raw-canvas:     #EEF6F6;   /* editor / fondo principal */
+  --mic-raw-ink:        #0F2529;   /* texto */
+  --mic-raw-ink-muted:  #475F63;   /* texto secundario */
+
+  --mic-amber-icon:     #C9821E;   /* el de Bioluminiscencia */
+}
+
 /* ── Dark mode (modifier ortogonal al tema) ───────────────────── */
 
 /* Va SIN tema en el selector: el modo oscuro es ortogonal, y lo que aquí se
@@ -385,6 +411,35 @@
   --mic-marco-acento:   var(--mic-raw-glow);
 }
 
+/* Bioluminiscencia experimental oscuro (`FUN-M-53`): la paleta abisal de
+   Bioluminiscencia tal cual —azul-negro profundo, verde agua y cian—, salvo el
+   texto secundario, un paso más claro (#6E9A99 → #7FA9A7): con el hover y la
+   selección suave del tema encima, el original quedaba al borde (4.6:1). Ahora
+   da 7.3 / 6.9 / 7.7 sobre fondo / panel / marco y 5.5–6.0 sobre el hover y la
+   selección. */
+[data-theme='bioexp'][data-dark='true'] {
+  --mic-raw-base:       #04090E;   /* rail / topbar (lo más profundo) */
+  --mic-raw-base-deep:  #0B1D27;   /* bloques de código y lienzo del grafo */
+  --mic-raw-accent:     #19E6FF;   /* cian: 12.4:1 sobre el fondo */
+  --mic-raw-glow:       #3DFFC4;   /* verde agua: 14.7:1 sobre el fondo */
+  --mic-raw-canvas:     #071219;   /* editor / fondo principal */
+  --mic-raw-mist:       #0A1A24;   /* paneles laterales, pestañas */
+  --mic-raw-ink:        #C6E7E1;   /* texto */
+  --mic-raw-ink-muted:  #7FA9A7;   /* texto secundario (aclarado, ver arriba) */
+}
+
+[data-theme='bioexp'][data-dark='true'] {
+  --mic-border:         #16343F;
+  --mic-bg-hover:       rgba(25, 230, 255, 0.10);
+  /* Foco en el cian (12.4:1 sobre el fondo): el anillo también brilla. */
+  --mic-focus:          #19E6FF;
+  /* El marco, como en Bioluminiscencia: íconos en verde agua, el segundo color
+     del logo en cian (los valores de :root, explícitos para que no dependan
+     de ellos). */
+  --mic-marco-glow:     var(--mic-raw-glow);
+  --mic-marco-acento:   var(--mic-raw-accent);
+}
+
 /* En claro el marco de Arrecife es CLARO (patch #F6F8FB), no oscuro como el de
    Bioluminiscencia y Cantarela: las fórmulas del marco de :root (que aclaran el
    glow para leerse sobre Esporo) acá quedarían blanco sobre blanco. Se usan las
@@ -402,6 +457,17 @@
    fondo 2: íconos en el acento 4.29:1 (≥3:1 de un objeto gráfico), texto de la
    barra de estado 6.68:1. */
 [data-theme='gsmart']:not([data-dark='true']) {
+  --mic-marco-glow:     var(--mic-raw-accent);
+  --mic-marco-acento:   var(--mic-raw-glow);
+  --mic-marco-texto:    var(--mic-raw-ink-muted);
+  --mic-marco-inactivo: 0.75;
+}
+
+/* Bioluminiscencia experimental claro (`FUN-M-53`): marco claro (#dceced), con
+   las fórmulas de marco claro de Arrecife y GSmart. Medido sobre el marco:
+   íconos en el cian legible 4.8:1, segundo color del logo 5.0:1, texto de la
+   barra de estado 5.6:1. */
+[data-theme='bioexp']:not([data-dark='true']) {
   --mic-marco-glow:     var(--mic-raw-accent);
   --mic-marco-acento:   var(--mic-raw-glow);
   --mic-marco-texto:    var(--mic-raw-ink-muted);
@@ -570,4 +636,14 @@
   --mic-callout-danger-border:    #E5534B;
   --mic-sync-ok:                  #34C38F;
   --mic-sync-warn:                #E0A63A;
+}
+
+/* ── Bioluminiscencia experimental en claro (`FUN-M-53`) ─────────
+   Va al final por la misma razón que los bloques de Arrecife y GSmart. Solo
+   borde y hover del modo claro: los de oscuro están junto a su paleta (y pesan
+   más). Callouts, estados de sync y demás quedan los de Mycelium: son los de
+   Bioluminiscencia. */
+[data-theme='bioexp']:not([data-dark='true']) {
+  --mic-border:                   #C7DEE1;
+  --mic-bg-hover:                 rgba(15, 37, 41, 0.06);
 }
