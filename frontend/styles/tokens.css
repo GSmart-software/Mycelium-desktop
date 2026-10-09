@@ -561,11 +561,12 @@
   --mic-font-serif: var(--font-source-serif), Georgia, serif;             /* modo lectura del preview */
   --mic-font-mono:  var(--font-jetbrains-mono), 'Fira Code', monospace;   /* editor, código, hints */
 
-  /* Contextuales (HU-14) — sobreescritos por preferencesStore */
-  --mic-editor-font-family:  var(--mic-font-mono);
-  --mic-editor-font-size:    16px;
-  --mic-preview-font-family: var(--mic-font-serif);
-  --mic-preview-font-size:   16px;
+  /* Contextuales (HU-14) — sobreescritos por preferencesStore, con los mismos
+     valores por defecto (Geist Sans a 14px en los dos, desde 2026-10-09) */
+  --mic-editor-font-family:  var(--mic-font-sans);
+  --mic-editor-font-size:    14px;
+  --mic-preview-font-family: var(--mic-font-sans);
+  --mic-preview-font-size:   14px;
 }
 
 /* ── Métricas ─────────────────────────────────────────────────── */
