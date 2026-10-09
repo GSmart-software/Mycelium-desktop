@@ -74,3 +74,23 @@
 :global(:root[data-theme='arrecife']) .rail {
   background-image: linear-gradient(180deg, rgba(58, 184, 216, 0.10), rgba(116, 68, 228, 0.12));
 }
+
+/* GSmart (`FUN-M-52`): la barra de la sección activa, en el degradado de la
+   marca (vertical, como la barra). */
+:global(:root[data-theme='gsmart']) .button[aria-pressed='true']::before {
+  background: var(--gsmart-degradado-vertical);
+}
+
+/* GSmart (`FUN-M-52`): el botón activo, con la selección suave de fondo y el
+   ícono en el acento. */
+:global(:root[data-theme='gsmart']) .button[aria-pressed='true'] {
+  background-image: var(--gsmart-degradado-suave);
+  background-color: rgba(59, 155, 232, 0.08);
+  color: var(--mic-accent);
+}
+
+/* GSmart (`FUN-M-52`): el rail lleva un lavado vertical de la marca, azul
+   profundo arriba y cian abajo, sobre su fondo. */
+:global(:root[data-theme='gsmart']) .rail {
+  background-image: linear-gradient(180deg, rgba(43, 74, 166, 0.16), rgba(18, 168, 232, 0.10));
+}

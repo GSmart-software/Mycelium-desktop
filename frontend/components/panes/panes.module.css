@@ -515,3 +515,25 @@
     radial-gradient(ellipse 60% 55% at 0% 0%, rgba(58, 184, 216, 0.13), transparent 70%),
     radial-gradient(ellipse 60% 55% at 100% 100%, rgba(116, 68, 228, 0.16), transparent 70%);
 }
+
+/* GSmart (`FUN-M-52`): la pestaña activa, con la selección suave de la marca y
+   una línea de 2px del degradado abajo (una capa más del fondo, sin
+   pseudo-elemento). Y el lienzo de las notas, el brillo ambiental de la marca:
+   azul profundo arriba a la izquierda y cian abajo a la derecha, muy suaves. */
+:global(:root[data-theme='gsmart']) .tabActive {
+  background-image: var(--gsmart-degradado), var(--gsmart-degradado-suave);
+  background-size: 100% 2px, 100% 100%;
+  background-position: bottom, 0 0;
+  background-repeat: no-repeat;
+}
+
+:global(:root[data-theme='gsmart']) .paneBody::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 60% 55% at 0% 0%, rgba(43, 74, 166, 0.20), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 100% 100%, rgba(18, 168, 232, 0.12), transparent 70%);
+}

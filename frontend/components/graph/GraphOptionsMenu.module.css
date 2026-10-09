@@ -252,3 +252,9 @@
 :global(:root[data-theme='arrecife']) .switch input:checked + .switchTrack {
   background: var(--arrecife-gradiente);
 }
+
+/* GSmart (`FUN-M-52`): el interruptor encendido lleva el degradado de la
+   marca. */
+:global(:root[data-theme='gsmart']) .switch input:checked + .switchTrack {
+  background: var(--gsmart-degradado);
+}

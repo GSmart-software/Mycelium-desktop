@@ -28,6 +28,10 @@ export const SECRETO_DEV = [
   // solo se puede elegir con el modo. Toda mención, también «tema Arrecife».
   { patron: /\barrecife\b/i, que: "el tema Arrecife" },
   { patron: /\bFUN-M-51\b/i, que: "FUN-M-51 (el tema Arrecife)" },
+  // El tema GSmart (`FUN-M-52`): la marca personal del usuario, también solo
+  // con el modo. Toda mención, también «tema GSmart».
+  { patron: /\bgsmart\b/i, que: "el tema GSmart" },
+  { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
 ];
 
 /** Devuelve la primera entrada de `SECRETO_DEV` que aparece en `texto`, o `null`. */

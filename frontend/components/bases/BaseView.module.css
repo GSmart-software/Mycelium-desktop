@@ -791,3 +791,19 @@
   filter: brightness(1.1);
   transform: var(--arrecife-elevar);
 }
+
+/* GSmart (`FUN-M-52`): el botón primario con el degradado de la marca
+   (styles/gsmart.css) y texto claro. Los otros temas no cambian. */
+:global(:root[data-theme='gsmart']) .botonPrimario {
+  background: var(--gsmart-degradado);
+  color: var(--gsmart-sobre-degradado);
+  border-radius: var(--gsmart-radio-control);
+  box-shadow: var(--gsmart-sombra-boton);
+  transition: var(--gsmart-transicion);
+}
+
+:global(:root[data-theme='gsmart']) .botonPrimario:hover:not(:disabled) {
+  background: var(--gsmart-degradado);
+  filter: brightness(1.1);
+  transform: var(--gsmart-elevar);
+}

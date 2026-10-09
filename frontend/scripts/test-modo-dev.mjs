@@ -105,6 +105,9 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Nuevo tema: Arrecife, con el gradiente de la marca",
     "Elegí arrecife en Apariencia",
     "Cierra FUN-M-51",
+    "Nuevo tema: GSmart, con el degradado de la marca",
+    "Elegí gsmart en Apariencia",
+    "Cierra FUN-M-52",
   ]) {
     assert.notEqual(buscarSecretoDev(texto), null, `debería atrapar: ${texto}`);
   }
@@ -115,13 +118,16 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Developer notes",
     "Un tema nuevo con su propia atmósfera",
     "Los arrecifes de coral",
+    // Solo la palabra entera: «gsmartphone» o «smart» no son el tema.
+    "Un gsmartphone de prueba",
+    "Un buscador smart",
   ]) {
     assert.equal(buscarSecretoDev(texto), null, `no debería atrapar: ${texto}`);
   }
   assert.ok(SECRETO_DEV.length > 0);
 });
 
-test("la plantilla de snippets no nombra nada del modo dev (tampoco el tema Arrecife)", async () => {
+test("la plantilla de snippets no nombra nada del modo dev (tampoco los temas Arrecife y GSmart)", async () => {
   const plantilla = await readFile(join(FRONTEND, "public/plantilla-estilos.css"), "utf8");
   const secreto = buscarSecretoDev(plantilla);
   assert.equal(secreto, null, `la plantilla menciona ${secreto?.que} (${secreto?.patron})`);
@@ -137,4 +143,15 @@ test("el tema Arrecife (`FUN-M-51`) está detrás del modo: muestra y buscador `
     assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
   }
   assert.ok(lineas.some((l) => /alias: \["arrecife"\]/.test(l)), "falta el alias del buscador");
+});
+
+test("el tema GSmart (`FUN-M-52`) está detrás del modo: muestra y buscador `soloDev`", async () => {
+  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
+  assert.match(temas, /id: "gsmart"[^}]*soloDev: true/, "la muestra de GSmart tiene que ser soloDev");
+  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
+  const lineas = ajustes.split(/\r?\n/);
+  for (const linea of lineas.filter((l) => /gsmart/i.test(l) && /rotulo:/.test(l))) {
+    assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
+  }
+  assert.ok(lineas.some((l) => /alias: \["gsmart"\]/.test(l)), "falta el alias del buscador");
 });

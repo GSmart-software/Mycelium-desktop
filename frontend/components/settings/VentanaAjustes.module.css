@@ -331,3 +331,19 @@
 :global(:root[data-theme='arrecife']) .categoriaActiva {
   background: var(--arrecife-gradiente-suave);
 }
+
+/* GSmart (`FUN-M-52`): la categoría elegida, con la selección suave de la
+   marca. */
+:global(:root[data-theme='gsmart']) .categoriaActiva {
+  background: var(--gsmart-degradado-suave);
+}
+
+/* GSmart (`FUN-M-52`): los títulos de grupo («ASPECTO», «EDITOR»…) en Michroma, en mayúsculas y con el espaciado
+   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
+   chica para que entre en el mismo lugar. */
+:global(:root[data-theme='gsmart']) .grupoTitulo {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  font-size: 0.625rem;
+  letter-spacing: var(--gsmart-espaciado-etiqueta);
+}
