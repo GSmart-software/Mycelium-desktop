@@ -493,3 +493,25 @@
 :global(:root[data-theme='arrecife']) .tabActive {
   background-image: var(--arrecife-gradiente-suave);
 }
+
+/* Arrecife (`FUN-M-51`): la pestaña activa lleva además una línea de 2px del
+   gradiente abajo. Va como una capa más del fondo para no ocupar un
+   pseudo-elemento. Y el lienzo de las notas, el brillo ambiental de la marca:
+   cian arriba a la izquierda y violeta abajo a la derecha, muy suaves. */
+:global(:root[data-theme='arrecife']) .tabActive {
+  background-image: var(--arrecife-gradiente), var(--arrecife-gradiente-suave);
+  background-size: 100% 2px, 100% 100%;
+  background-position: bottom, 0 0;
+  background-repeat: no-repeat;
+}
+
+:global(:root[data-theme='arrecife']) .paneBody::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 60% 55% at 0% 0%, rgba(58, 184, 216, 0.13), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 100% 100%, rgba(116, 68, 228, 0.16), transparent 70%);
+}
