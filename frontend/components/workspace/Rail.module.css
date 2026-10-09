@@ -123,3 +123,40 @@
 :global(:root[data-theme='bioexp']) .rail {
   background-image: linear-gradient(180deg, rgba(61, 255, 196, 0.10), rgba(25, 230, 255, 0.05) 50%, rgba(61, 139, 255, 0.12));
 }
+
+/* Aurora (`FUN-M-54`): la barra de la sección activa, en el degradado del
+   marco (vertical, como la barra) y encendida: irradia (`--aurora-brillo`, más
+   fuerte en oscuro). */
+:global(:root[data-atmosfera='aurora']) .button[aria-pressed='true']::before {
+  background: var(--aurora-degradado-marco-vertical);
+  box-shadow: var(--aurora-brillo);
+}
+
+/* Aurora (`FUN-M-54`): el botón activo, con la selección suave de fondo y el
+   ícono en el segundo color del marco. */
+:global(:root[data-atmosfera='aurora']) .button[aria-pressed='true'] {
+  background-image: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--mic-marco-glow) 12%, transparent),
+    color-mix(in srgb, var(--mic-marco-acento) 8%, transparent)
+  );
+  background-color: color-mix(in srgb, var(--mic-marco-acento) 6%, transparent);
+  color: var(--mic-marco-acento);
+}
+
+/* Aurora (`FUN-M-54`): en oscuro, el ícono activo también emite
+   (`--aurora-brillo-icono`; en claro, `none`). */
+:global(:root[data-atmosfera='aurora']) .button[aria-pressed='true'] svg {
+  filter: var(--aurora-brillo-icono);
+}
+
+/* Aurora (`FUN-M-54`): el rail lleva un lavado vertical del tema sobre su
+   fondo: el primer color arriba y el segundo abajo, como luz que baja. */
+:global(:root[data-atmosfera='aurora']) .rail {
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--mic-marco-glow) 10%, transparent),
+    color-mix(in srgb, var(--mic-marco-acento) 5%, transparent) 50%,
+    color-mix(in srgb, var(--mic-marco-acento) 12%, transparent)
+  );
+}

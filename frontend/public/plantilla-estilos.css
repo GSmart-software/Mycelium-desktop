@@ -52,7 +52,8 @@
    (que en CSS es :root):
      data-theme       'bioluminiscencia' o 'cantarela'      (Configuración › Tema)
      data-dark        'true' en modo oscuro; en claro NO está
-     data-atmosfera   'abisal', 'niebla', 'bosque' o 'papel' (una por modo)
+     data-atmosfera   'abisal', 'niebla', 'bosque', 'papel' o 'aurora'
+                      (una por modo)
 
    Por qué importa el selector: los temas y las atmósferas definen las
    variables con selectores de DOS atributos, como
@@ -106,6 +107,9 @@
    títulos con sus propias mezclas (tomando de acá el acento, el brillo y la
    tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si querés que un
    fondo sea exactamente el que elegiste, cambialo en la sección 2.
+   Aurora tampoco toca los fondos: usa los de Abisal y pone encima degradados
+   y luces con --mic-glow y --mic-accent, así que si cambiás esos dos colores,
+   sus degradados los siguen.
    ========================================================================== */
 
 /*
@@ -309,6 +313,18 @@
 .mic-doc-title-texto {
   background: none;
   -webkit-text-fill-color: var(--mic-text-primary);
+}
+*/
+
+/* Con la atmósfera Aurora, el título de la nota y el H1 de lectura van en
+   degradado y con resplandor, con un selector más fuerte: para dejarlos lisos
+   hay que apuntar con el suyo. */
+/*
+:root[data-atmosfera='aurora'] .mic-doc-title-texto,
+:root[data-atmosfera='aurora'] .mic-preview h1 {
+  background: none;
+  -webkit-text-fill-color: var(--mic-h1);
+  filter: none;
 }
 */
 

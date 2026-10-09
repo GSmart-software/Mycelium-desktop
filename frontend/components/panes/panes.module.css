@@ -559,3 +559,24 @@
   z-index: 1;
   background: var(--bioexp-ambiente);
 }
+
+/* Aurora (`FUN-M-54`): la pestaña activa, con la selección suave del tema y
+   una línea de 2px del degradado abajo (una capa más del fondo, sin
+   pseudo-elemento). Y el lienzo de las notas, la luz de fondo del tema
+   (`--aurora-ambiente`, styles/aurora.css): el glow arriba a la izquierda y el
+   acento abajo a la derecha; en claro, más tenue. */
+:global(:root[data-atmosfera='aurora']) .tabActive {
+  background-image: var(--aurora-degradado), var(--aurora-degradado-suave);
+  background-size: 100% 2px, 100% 100%;
+  background-position: bottom, 0 0;
+  background-repeat: no-repeat;
+}
+
+:global(:root[data-atmosfera='aurora']) .paneBody::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: var(--aurora-ambiente);
+}

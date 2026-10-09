@@ -1,4 +1,5 @@
-// Test de los temas (HU-12) y de los temas de marca, Arrecife (`FUN-M-51`),
+// Test de los temas (HU-12), de la atmósfera Aurora (`FUN-M-54`, al final) y
+// de los temas de marca, Arrecife (`FUN-M-51`),
 // GSmart (`FUN-M-52`) y Bioluminiscencia experimental (`FUN-M-53`): la lógica
 // pura de `lib/temas.ts` —qué tema guardado vale, qué muestras se ofrecen según
 // el modo dev, si la atmósfera se aplica— y lo que el CSS tiene que cumplir: la
@@ -34,6 +35,7 @@ for (const nombre of ["modoDev", "atmosferas", "temas"]) {
 }
 const { TEMAS, TEMA_DEFECTO, TEMAS_DE_MARCA, temaValido, temasVisibles, admiteAtmosfera, atmosferaEnUso } =
   await import(pathToFileURL(join(TMP, "temas.mjs")).href);
+const { ATMOSFERAS, atmosferaValida } = await import(pathToFileURL(join(TMP, "atmosferas.mjs")).href);
 
 after(() => rm(TMP, { recursive: true, force: true }));
 
@@ -530,4 +532,264 @@ test("GSmart: el cuerpo de las notas conserva la fuente que elige el usuario", (
     if (!/font-family/.test(m[2])) continue;
     assert.match(sel, /title|h1|h2|titulo/, `Michroma fuera de un título: ${sel}`);
   }
+});
+
+// ── Atmósfera Aurora (`FUN-M-54`) ────────────────────────────────────────────
+//
+// La quinta atmósfera, pública: los detalles gráficos de Bioluminiscencia
+// experimental (degradados, brillos, resplandores) con los colores del tema que
+// esté puesto. Se prueba que exista y se guarde, que su forma esté acotada, que
+// esté en los mismos lugares que la de `bioexp` (salvo lo que se dejó afuera a
+// propósito, con su motivo) y el contraste de sus degradados en los dos temas
+// públicos y los dos modos, calculado desde las fórmulas de `styles/aurora.css`.
+
+const auroraCss = await leer("styles/aurora.css");
+const AURORA = ":root[data-atmosfera='aurora']";
+const AURORA_MODULO = ":global(:root[data-atmosfera='aurora'])";
+
+/**
+ * Las reglas de `bioexp` que Aurora NO lleva, con su motivo. Una atmósfera
+ * reparte color: no cambia la letra ni la forma de los controles.
+ */
+const AURORA_SIN_GEMELO = new Map([
+  // styles/bioexp.css
+  [
+    ":root[data-theme='bioexp'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not( .excalidraw * )",
+    "radio de 12px en los inputs: forma, no color",
+  ],
+  [
+    ":root[data-theme='bioexp'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not( .excalidraw * ):focus-visible",
+    "foco de los inputs: ya es el borde en el color del tema, y sin halo (DEF-155)",
+  ],
+  [":root[data-theme='bioexp'] .mic-tab-menu-titulo", "letra de títulos (Space Grotesk)"],
+  [
+    ":root[data-theme='bioexp'] :is(.mic-doc-title-texto, .mic-doc-title-campo), :root[data-theme='bioexp'] :is(.mic-live-h1, .mic-live-h2), :root[data-theme='bioexp'] .mic-preview :is(h1, h2)",
+    "letra de títulos (Space Grotesk)",
+  ],
+  // Módulos
+  [":global(:root[data-theme='bioexp']) .sectionHeader", "letra de títulos (Space Grotesk)"],
+  [":global(:root[data-theme='bioexp']) .grupoTitulo", "letra de títulos (Space Grotesk)"],
+  [":global(:root[data-theme='bioexp']) .seccion", "letra de títulos (Space Grotesk)"],
+  [
+    ":global(:root[data-theme='bioexp']) .panelTexto :global(.cm-content), :global(:root[data-theme='bioexp']) .editor :global(.cm-content)",
+    "letra del código del visor: tipografía",
+  ],
+]);
+
+const aAurora = (s) =>
+  s.replaceAll(":global(:root[data-theme='bioexp'])", AURORA_MODULO).replaceAll(":root[data-theme='bioexp']", AURORA);
+
+test("Aurora está en el catálogo de atmósferas, se valida y se aplica con los temas públicos", () => {
+  const aurora = ATMOSFERAS.find((a) => a.id === "aurora");
+  assert.ok(aurora, "falta Aurora en ATMOSFERAS");
+  assert.equal(aurora.nombre, "Aurora");
+  assert.ok(aurora.descripcion.length > 0 && aurora.descripcion.length <= 60, "una línea corta");
+  assert.deepEqual(ATMOSFERAS.map((a) => a.id), ["abisal", "niebla", "bosque", "papel", "aurora"]);
+  assert.equal(atmosferaValida("aurora", "niebla"), "aurora");
+  assert.equal(atmosferaValida("Aurora", "niebla"), "niebla");
+  // Se elige para cada modo, con los dos temas públicos.
+  const prefs = { atmosferaOscuro: "aurora", atmosferaClaro: "aurora" };
+  for (const tema of ["bioluminiscencia", "cantarela"]) {
+    assert.equal(atmosferaEnUso(tema, true, prefs), "aurora");
+    assert.equal(atmosferaEnUso(tema, false, prefs), "aurora");
+  }
+  // Nunca encima de un tema de marca.
+  for (const tema of TEMAS_DE_MARCA) {
+    assert.equal(atmosferaEnUso(tema, true, prefs), null, tema);
+    assert.equal(atmosferaEnUso(tema, false, prefs), null, tema);
+  }
+});
+
+test("Aurora: su hoja va acotada a la atmósfera, no redefine tokens y no cambia la letra", async () => {
+  const layout = await leer("app/layout.tsx");
+  assert.match(layout, /import "\.\.\/styles\/aurora\.css";/);
+  const selectores = selectoresDe(auroraCss);
+  assert.ok(selectores.length > 0);
+  for (const lista of selectores) {
+    for (const s of lista.split(/,(?![^()]*\))/).map((x) => x.trim())) {
+      assert.ok(s.startsWith(AURORA), `regla sin acotar: ${s}`);
+    }
+  }
+  const css = sinComentarios(auroraCss);
+  // Sin colores propios ni fondos: los tokens son los del tema (y los fondos, los de Abisal).
+  assert.doesNotMatch(css, /--mic-[a-z0-9-]+\s*:/, "Aurora no redefine tokens --mic-*");
+  assert.doesNotMatch(css, /data-theme/, "Aurora no depende de un tema");
+  assert.doesNotMatch(css, /font-family|letter-spacing|--font-/, "una atmósfera no cambia la letra");
+  // Sin halo en el foco de los inputs (DEF-155).
+  assert.doesNotMatch(css, /:focus/);
+  // atmosferas.css no la nombra: sus reglas viven aparte.
+  assert.doesNotMatch(await leer("styles/atmosferas.css"), /aurora/i);
+});
+
+test("Aurora: en los módulos, toda regla va bajo el :global acotado (salvo su muestra en Apariencia)", async () => {
+  let reglas = 0;
+  for (const [archivo, sels] of await reglasDeModulos("aurora")) {
+    for (const sel of sels) {
+      reglas++;
+      for (const s of sel.split(/,(?![^()]*\))/).map((x) => x.trim())) {
+        if (archivo.endsWith("Settings.module.css") && s.startsWith(".muestra[data-atmosfera='aurora']")) continue;
+        assert.ok(s.startsWith(AURORA_MODULO), `${archivo}: ${s}`);
+        assert.doesNotMatch(s, /data-dark/, `${archivo}: lo que cambia con el modo va en variables: ${s}`);
+      }
+    }
+  }
+  assert.ok(reglas >= 30, `se esperaban las reglas de Aurora en los módulos (hay ${reglas})`);
+});
+
+test("Aurora lleva la luz en todos los lugares donde la lleva Bioluminiscencia experimental", async () => {
+  const deAurora = new Set(selectoresDe(auroraCss));
+  for (const s of selectoresDe(bioexpCss)) {
+    if (AURORA_SIN_GEMELO.has(s)) continue;
+    assert.ok(deAurora.has(aAurora(s)), `styles/aurora.css no tiene: ${aAurora(s)}`);
+  }
+  const aurora = await reglasDeModulos("aurora");
+  for (const [archivo, sels] of await reglasDeModulos("bioexp")) {
+    for (const s of sels) {
+      if (AURORA_SIN_GEMELO.has(s)) continue;
+      assert.ok(aurora.get(archivo)?.has(aAurora(s)), `${archivo} no tiene: ${aAurora(s)}`);
+    }
+  }
+  // La lista de exclusiones no tiene restos: cada una existe en bioexp.
+  const deBioexp = new Set(selectoresDe(bioexpCss));
+  const modulosBioexp = new Set([...(await reglasDeModulos("bioexp")).values()].flatMap((s) => [...s]));
+  for (const s of AURORA_SIN_GEMELO.keys()) assert.ok(deBioexp.has(s) || modulosBioexp.has(s), `exclusión sin regla: ${s}`);
+});
+
+// Contraste: se resuelven las fórmulas de aurora.css (y las de tokens.css que
+// usa) con los raw de cada tema y modo, como lo haría el navegador.
+const AURORA_PALETAS = [
+  ["bioluminiscencia", "claro", "[data-theme='bioluminiscencia']"],
+  ["bioluminiscencia", "oscuro", "[data-theme='bioluminiscencia'][data-dark='true']"],
+  ["cantarela", "claro", "[data-theme='cantarela']"],
+  ["cantarela", "oscuro", "[data-theme='cantarela'][data-dark='true']"],
+];
+
+/** Las declaraciones `--x: valor;` de un cuerpo de bloque. */
+const declaraciones = (cuerpo) =>
+  Object.fromEntries([...cuerpo.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim().replace(/\s+/g, " ")]));
+
+const hexDe = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("").toUpperCase();
+const rgbDe = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** `color-mix(in srgb, a p, b)` con colores opacos. */
+const mezclar = (a, p, b) => hexDe(rgbDe(a).map((v, i) => v * p + rgbDe(b)[i] * (1 - p)));
+
+function resolver(expr, vars) {
+  const e = expr.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(e)) return e.toUpperCase();
+  let m = e.match(/^var\((--[a-z0-9-]+)\)$/);
+  if (m) {
+    assert.ok(vars[m[1]], `sin valor para ${m[1]}`);
+    return resolver(vars[m[1]], vars);
+  }
+  m = e.match(/^color-mix\(in srgb, (var\([^)]+\)|#[0-9a-fA-F]{6}) (\d+)%, (var\([^)]+\)|#[0-9a-fA-F]{6})\)$/);
+  assert.ok(m, `fórmula no soportada: ${e}`);
+  return mezclar(resolver(m[1], vars), Number(m[2]) / 100, resolver(m[3], vars));
+}
+
+/** Las variables de una combinación tema × modo con Aurora puesta. */
+function varsAurora(selectorTema, oscuro) {
+  const raw = rawsDe(tokens, selectorTema);
+  const vars = Object.fromEntries(Object.entries(raw).map(([k, v]) => [`--mic-raw-${k}`, v]));
+  Object.assign(vars, {
+    "--mic-glow": "var(--mic-raw-glow)",
+    "--mic-accent": "var(--mic-raw-accent)",
+    "--mic-text-primary": "var(--mic-raw-ink)",
+    "--mic-text-muted": "var(--mic-raw-ink-muted)",
+    "--mic-bg-canvas": "var(--mic-raw-canvas)",
+    "--mic-bg-surface": "var(--mic-raw-mist)",
+    "--mic-bg-sidebar": "var(--mic-raw-base)",
+  });
+  // Los roles del glow (texto, enlace, marco) de tokens.css, y los de claro encima.
+  Object.assign(vars, declaraciones(bloqueDe(tokens, ":root", "--mic-glow-texto:")));
+  if (!oscuro) Object.assign(vars, declaraciones(bloqueDe(tokens, ":root:not([data-dark='true'])", "--mic-glow-texto:")));
+  Object.assign(vars, declaraciones(bloqueDe(auroraCss, AURORA, "--aurora-degradado:")));
+  const modo = oscuro ? `${AURORA}[data-dark='true']` : `${AURORA}:not([data-dark='true'])`;
+  Object.assign(vars, declaraciones(bloqueDe(auroraCss, modo, "--aurora-desde:")));
+  return vars;
+}
+
+const porcentaje = (texto, re) => {
+  const m = texto.match(re);
+  assert.ok(m, `no se encontró ${re}`);
+  return Number(m[1]) / 100;
+};
+
+for (const [tema, modo, selectorTema] of AURORA_PALETAS) {
+  const oscuro = modo === "oscuro";
+  test(`contraste de Aurora con ${tema} en ${modo}: botones, títulos en degradado, marco, selección, etiquetas y luz`, () => {
+    const v = varsAurora(selectorTema, oscuro);
+    const c = (n) => resolver(`var(${n})`, v);
+    const [canvas, mist, base, ink, muted] = ["--mic-raw-canvas", "--mic-raw-mist", "--mic-raw-base", "--mic-raw-ink", "--mic-raw-ink-muted"].map(c);
+    const glow = c("--mic-glow"), accent = c("--mic-accent"), glowTexto = c("--mic-glow-texto"), enlace = c("--mic-enlace");
+    const fallos = [];
+    const exigir = (que, a, b) => {
+      const r = contraste(a, b);
+      if (r < 4.5) fallos.push(`${que}: ${a} sobre ${b} = ${r.toFixed(2)}:1`);
+    };
+
+    // El texto del botón sobre cada parada del degradado.
+    const desde = c("--aurora-desde"), hasta = c("--aurora-hasta"), sobre = c("--aurora-sobre-degradado");
+    exigir("botón, 1ª parada", sobre, desde);
+    exigir("botón, 2ª parada", sobre, hasta);
+
+    // Las paradas del degradado de texto (título de la nota, H1 de lectura).
+    const m = v["--aurora-degradado-texto"].match(/^linear-gradient\(90deg, (var\([^)]+\)) 0%, (var\([^)]+\)) 100%\)$/);
+    assert.ok(m, "el degradado de texto tiene dos paradas");
+    for (const parada of [resolver(m[1], v), resolver(m[2], v)]) {
+      exigir("título en degradado / nota", parada, canvas);
+      exigir("título en degradado / paneles", parada, mist);
+    }
+
+    // El nombre de la app, en el degradado del marco, sobre el marco.
+    exigir("nombre sobre el marco, 1ª parada", c("--mic-marco-glow"), base);
+    exigir("nombre sobre el marco, 2ª parada", c("--mic-marco-acento"), base);
+
+    // La selección suave (pestaña, nota abierta, categoría, opción de la paleta).
+    const suaveGlow = porcentaje(v["--aurora-degradado-suave"], /var\(--mic-glow\) (\d+)%/);
+    const suaveAcento = porcentaje(v["--aurora-suave-hasta"], /^(\d+)%$/);
+    for (const fondo of [canvas, mist]) {
+      for (const [color, p] of [[glow, suaveGlow], [accent, suaveAcento]]) {
+        const bg = mezclar(color, p, fondo);
+        exigir("principal sobre la selección suave", ink, bg);
+        exigir("secundario sobre la selección suave", muted, bg);
+      }
+    }
+
+    // Las etiquetas sobre su pastilla.
+    const pastilla = [
+      [glow, porcentaje(v["--aurora-pastilla-desde"], /^(\d+)%$/)],
+      [accent, porcentaje(v["--aurora-pastilla-hasta"], /^(\d+)%$/)],
+    ];
+    for (const fondo of [canvas, mist]) {
+      for (const [color, p] of pastilla) exigir("etiqueta sobre su pastilla", glowTexto, mezclar(color, p, fondo));
+    }
+
+    // La luz ambiente va ENCIMA del texto: tiñe texto y fondo a la vez.
+    const amb = v["--aurora-ambiente"];
+    for (const [color, p] of [
+      [glow, porcentaje(amb, /var\(--mic-glow\) (\d+)%/)],
+      [accent, porcentaje(amb, /var\(--mic-accent\) (\d+)%/)],
+    ]) {
+      const bg = mezclar(color, p, canvas);
+      for (const [que, texto] of [["principal", ink], ["secundario", muted], ["enlace", enlace], ["etiqueta", glowTexto], ["título 1", resolver(m[1], v)], ["título 2", resolver(m[2], v)]]) {
+        exigir(`${que} bajo la luz ambiente`, mezclar(color, p, texto), bg);
+      }
+    }
+
+    assert.deepEqual(fallos, [], `${tema} ${modo}`);
+  });
+}
+
+test("Aurora: el degradado va del glow al acento del tema (en claro, hundidos en el tono de base)", () => {
+  const oscuro = declaraciones(bloqueDe(auroraCss, `${AURORA}[data-dark='true']`, "--aurora-desde:"));
+  assert.equal(oscuro["--aurora-desde"], "var(--mic-glow)");
+  assert.equal(oscuro["--aurora-hasta"], "var(--mic-accent)");
+  const claro = declaraciones(bloqueDe(auroraCss, `${AURORA}:not([data-dark='true'])`, "--aurora-desde:"));
+  assert.match(claro["--aurora-desde"], /^color-mix\(in srgb, var\(--mic-glow\) \d+%, var\(--mic-raw-base-deep\)\)$/);
+  assert.match(claro["--aurora-hasta"], /^color-mix\(in srgb, var\(--mic-accent\) \d+%, var\(--mic-raw-base-deep\)\)$/);
+  // Con Bioluminiscencia, del verde agua al cian; con Cantarela, del dorado al ámbar.
+  const bio = varsAurora("[data-theme='bioluminiscencia'][data-dark='true']", true);
+  assert.deepEqual([resolver("var(--aurora-desde)", bio), resolver("var(--aurora-hasta)", bio)], ["#3DFFC4", "#19E6FF"]);
+  const can = varsAurora("[data-theme='cantarela'][data-dark='true']", true);
+  assert.deepEqual([resolver("var(--aurora-desde)", can), resolver("var(--aurora-hasta)", can)], ["#FFC247", "#C77F2E"]);
 });

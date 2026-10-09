@@ -181,3 +181,8 @@
 :global(:root[data-theme='bioexp']) .opcionActiva {
   background: var(--bioexp-gradiente-suave);
 }
+
+/* Aurora (`FUN-M-54`): la opción marcada, con la selección suave del tema. */
+:global(:root[data-atmosfera='aurora']) .opcionActiva {
+  background: var(--aurora-degradado-suave);
+}

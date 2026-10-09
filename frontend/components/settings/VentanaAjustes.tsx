@@ -83,8 +83,8 @@ const CATEGORIAS: Categoria[] = [
       // ya lleva al tema público (la entrada de arriba).
       { rotulo: "Tema", alias: ["bioexp", "biolum. exp.", "experimental"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
-      { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
-      { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
+      { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
+      { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
     ],
   },
   {

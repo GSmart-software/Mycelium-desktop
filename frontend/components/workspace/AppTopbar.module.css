@@ -194,3 +194,28 @@
 :global(:root[data-theme='bioexp']) .logoMark {
   filter: var(--bioexp-brillo-logo);
 }
+
+/* Aurora (`FUN-M-54`): el nombre en el degradado del marco
+   (`--mic-marco-glow` → `--mic-marco-acento`, legibles sobre el marco en los dos
+   modos: en claro el marco sigue oscuro), con su resplandor; y un filete de
+   2px del mismo degradado bajo la barra, de punta a punta. La letra no cambia:
+   una atmósfera reparte color, no tipografía. */
+:global(:root[data-atmosfera='aurora']) .logoFull {
+  background: var(--aurora-degradado-marco);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: var(--aurora-resplandor-marco);
+}
+
+:global(:root[data-atmosfera='aurora']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--aurora-degradado-marco) 1;
+}
+
+/* Aurora (`FUN-M-54`): el isotipo con dos halos, el del primer color y uno más
+   ancho del segundo (`--aurora-brillo-logo`, más tenue en claro). Los tres
+   puntos ya siguen al tema (`DEF-154`). */
+:global(:root[data-atmosfera='aurora']) .logoMark {
+  filter: var(--aurora-brillo-logo);
+}

@@ -253,8 +253,12 @@ export function buildPrintCss(o: PdfPrintOpts, conCssDeLaApp = false): string {
     // Sin colores DEL TEXTO: todo en la tinta. Los bordes y fondos de los
     // callouts no son texto: los decide «Estilar callouts».
     const texto = o.fondoBlanco ? "#141414" : "var(--mic-text-primary)";
+    // `-webkit-text-fill-color`: los títulos en degradado (el H1 de lectura de
+    // la atmósfera Aurora, `FUN-M-54`, y el de los temas con forma) pintan el
+    // texto con el fondo recortado y el relleno transparente; sin esto el
+    // `color` de arriba no los alcanzaba y salían en color.
     partes.push(`
-      .mic-preview, .mic-preview * { color: ${texto} !important; }
+      .mic-preview, .mic-preview * { color: ${texto} !important; -webkit-text-fill-color: currentColor !important; }
       .mic-preview a, .mic-preview .mic-wikilink { text-decoration: underline; }
       .mic-preview blockquote { border-left-color: #999 !important; }
     `);

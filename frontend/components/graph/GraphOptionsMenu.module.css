@@ -264,3 +264,8 @@
 :global(:root[data-theme='bioexp']) .switch input:checked + .switchTrack {
   background: var(--bioexp-gradiente);
 }
+
+/* Aurora (`FUN-M-54`): el interruptor encendido lleva el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .switch input:checked + .switchTrack {
+  background: var(--aurora-degradado);
+}

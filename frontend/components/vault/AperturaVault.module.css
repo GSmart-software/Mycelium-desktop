@@ -167,3 +167,8 @@
 :global(:root[data-theme='bioexp']) .barraRelleno {
   background: var(--bioexp-gradiente);
 }
+
+/* Aurora (`FUN-M-54`): la barra de progreso con el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .barraRelleno {
+  background: var(--aurora-degradado);
+}

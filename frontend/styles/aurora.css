@@ -1,0 +1,223 @@
+/*
+ * Atmósfera Aurora (`FUN-M-54`): la quinta atmósfera, pública. Lleva los
+ * detalles gráficos de los temas experimentales del modo dev —degradados,
+ * brillos, resplandores— pero SIN colores propios: reparte los del tema que
+ * esté puesto, `--mic-glow` y `--mic-accent`. Con Bioluminiscencia el degradado
+ * va del verde agua al cian; con Cantarela, del dorado al ámbar.
+ * Spec: docs/features/atmosfera-aurora.md.
+ *
+ * El modelo es Bioluminiscencia experimental (`styles/bioexp.css`, `FUN-M-53`):
+ * cada regla de esta hoja es el gemelo de una de aquella, con los colores fijos
+ * cambiados por los del tema, y `scripts/test-temas.mjs` compara las dos regla
+ * por regla. Lo que se dejó afuera, y por qué, está en la spec y en la lista
+ * `AURORA_SIN_GEMELO` del test: la letra de títulos (una atmósfera reparte
+ * color, no tipografía), los radios y el foco de los inputs.
+ *
+ * Cómo está armada:
+ *  - Los fondos y el marco son los de Abisal (tokens.css tal cual): Aurora no
+ *    redefine ningún token semántico. Pone la luz encima.
+ *  - Todo va bajo `:root[data-atmosfera='aurora']`. Lleva `:root` porque la
+ *    forma es de la ventana: las muestras de Configuración repiten
+ *    `data-atmosfera` en un <span> y se pintan aparte (Settings.module.css).
+ *  - Lo de cada componente vive en su .module.css, con
+ *    `:global(:root[data-atmosfera='aurora'])` delante y la marca «Aurora
+ *    (`FUN-M-54`)» en un comentario.
+ *  - Las variables son `--aurora-*` y no `--mic-*`: no son tokens públicos.
+ *  - Nunca se pinta encima de un tema de marca: con ellos `atmosferaEnUso` da
+ *    `null` y `<html>` no lleva `data-atmosfera` (preferencesStore).
+ *
+ * Contraste (medido para los dos temas y los dos modos, tabla en la spec y
+ * comprobado por test-temas.mjs): todo texto ≥4.5:1, también el del botón sobre
+ * cada parada del degradado y cada parada de los títulos en degradado.
+ */
+:root[data-atmosfera='aurora'] {
+  /* El degradado de superficie (botones, interruptores, barras) y su versión
+     vertical (barras activas, barras de desplazamiento). Las paradas cambian
+     con el modo: ver abajo. */
+  --aurora-degradado: linear-gradient(120deg, var(--aurora-desde) 0%, var(--aurora-hasta) 100%);
+  --aurora-degradado-vertical: linear-gradient(180deg, var(--aurora-desde) 0%, var(--aurora-hasta) 100%);
+  /* El degradado del marco (rail, nombre de la app, filete de la barra
+     superior): con los colores del marco, que en claro sigue siendo oscuro y
+     pide el glow aclarado (`--mic-marco-glow`, tokens.css). */
+  --aurora-degradado-marco: linear-gradient(120deg, var(--mic-marco-glow) 0%, var(--mic-marco-acento) 100%);
+  --aurora-degradado-marco-vertical: linear-gradient(180deg, var(--mic-marco-glow) 0%, var(--mic-marco-acento) 100%);
+  /* La selección suave: pestaña activa, nota abierta, categoría de
+     Configuración, opción de la paleta. Al 8 y 6%: con más, el texto
+     secundario bajaba de 4.5:1 sobre los paneles. */
+  --aurora-degradado-suave: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--mic-glow) 8%, transparent),
+    color-mix(in srgb, var(--mic-accent) var(--aurora-suave-hasta), transparent)
+  );
+  --aurora-transicion: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, background-color 0.15s ease;
+  --aurora-elevar: translateY(-1px);
+}
+
+/* Lo que cambia con el modo. En oscuro las cosas irradian; en claro, los mismos
+   lugares llevan sombras suaves. Van por modo como variables, y no como reglas
+   `[data-dark]` en los módulos, porque en un .module.css toda regla de Aurora
+   empieza con `:global(:root[data-atmosfera='aurora'])` y nada más (lo exige
+   test-temas.mjs).
+   - `--aurora-desde` / `--aurora-hasta`: las paradas del degradado. En oscuro,
+     el glow y el acento crudos, con texto oscuro encima (el marco del tema). En
+     claro los crudos no llevan ni texto claro ni oscuro en las dos paradas (el
+     cian de Bioluminiscencia da 2.4:1 con blanco y el teal 3.6:1 con la tinta),
+     así que se hunden en el `--mic-raw-base-deep` del tema conservando el matiz,
+     y llevan texto blanco (≥4.7:1).
+   - `--aurora-degradado-texto`: el que se lee como TEXTO (título de la nota, H1
+     de lectura). En claro va en las variantes legibles de tokens.css,
+     `--mic-glow-texto` y `--mic-enlace` (≥5.1:1 sobre la nota y los paneles).
+   - `--aurora-resplandor`: el `drop-shadow` de los títulos en degradado.
+   - `--aurora-brillo`: el halo de la barra activa del rail.
+   - `--aurora-brillo-icono` y `--aurora-brillo-logo`: el del ícono activo del
+     rail y el del isotipo.
+   - `--aurora-ambiente`: la luz de fondo del lienzo de las notas. Va ENCIMA
+     del texto (panes.module.css), por eso en claro baja al 6%.
+   - `--aurora-pastilla-*`: el fondo de las etiquetas; en claro, más tenue, para
+     que `--mic-glow-texto` siga en ≥4.5:1 encima. */
+:root[data-atmosfera='aurora'][data-dark='true'] {
+  --aurora-desde: var(--mic-glow);
+  --aurora-hasta: var(--mic-accent);
+  --aurora-sobre-degradado: var(--mic-raw-base);
+  --aurora-hover: brightness(1.1);
+  --aurora-suave-hasta: 6%;
+  --aurora-degradado-texto: linear-gradient(90deg, var(--mic-glow) 0%, var(--mic-accent) 100%);
+  --aurora-sombra-boton:
+    0 0 0 1px color-mix(in srgb, var(--mic-glow) 35%, transparent),
+    0 4px 18px color-mix(in srgb, var(--mic-accent) 35%, transparent);
+  --aurora-resplandor: drop-shadow(0 0 10px color-mix(in srgb, var(--mic-glow) 35%, transparent));
+  --aurora-resplandor-marco: drop-shadow(0 0 10px color-mix(in srgb, var(--mic-marco-glow) 35%, transparent));
+  --aurora-brillo: 0 0 10px color-mix(in srgb, var(--mic-marco-glow) 75%, transparent);
+  --aurora-brillo-icono: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-marco-acento) 65%, transparent));
+  --aurora-brillo-logo:
+    drop-shadow(0 0 4px color-mix(in srgb, var(--mic-marco-glow) 80%, transparent))
+    drop-shadow(0 0 12px color-mix(in srgb, var(--mic-marco-acento) 55%, transparent));
+  --aurora-borde-luz: inset 3px 0 6px -3px color-mix(in srgb, var(--mic-glow) 70%, transparent);
+  --aurora-ambiente:
+    radial-gradient(ellipse 55% 50% at 0% 0%, color-mix(in srgb, var(--mic-glow) 11%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 85% 100%, color-mix(in srgb, var(--mic-accent) 10%, transparent), transparent 70%);
+  --aurora-pastilla-desde: 18%;
+  --aurora-pastilla-hasta: 14%;
+}
+:root[data-atmosfera='aurora']:not([data-dark='true']) {
+  --aurora-desde: color-mix(in srgb, var(--mic-glow) 57%, var(--mic-raw-base-deep));
+  --aurora-hasta: color-mix(in srgb, var(--mic-accent) 70%, var(--mic-raw-base-deep));
+  --aurora-sobre-degradado: #ffffff;
+  /* Al pasar, un pelo más hondo y no más claro: aclarar el degradado le bajaba
+     el contraste al texto blanco. */
+  --aurora-hover: brightness(0.92);
+  --aurora-suave-hasta: 5%;
+  --aurora-degradado-texto: linear-gradient(90deg, var(--mic-glow-texto) 0%, var(--mic-enlace) 100%);
+  --aurora-sombra-boton:
+    0 0 0 1px color-mix(in srgb, var(--aurora-hasta) 35%, transparent),
+    0 4px 14px color-mix(in srgb, var(--aurora-hasta) 25%, transparent);
+  --aurora-resplandor: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6));
+  /* El nombre de la app va sobre el marco, que en claro sigue oscuro: ahí no
+     cabe la sombra blanca de la nota, sino un resplandor tenue del marco. */
+  --aurora-resplandor-marco: drop-shadow(0 0 6px color-mix(in srgb, var(--mic-marco-glow) 30%, transparent));
+  --aurora-brillo: 0 0 6px color-mix(in srgb, var(--mic-marco-glow) 45%, transparent);
+  --aurora-brillo-icono: none;
+  --aurora-brillo-logo: drop-shadow(0 0 3px color-mix(in srgb, var(--mic-marco-glow) 45%, transparent));
+  --aurora-borde-luz: inset 3px 0 5px -3px color-mix(in srgb, var(--mic-glow) 45%, transparent);
+  --aurora-ambiente:
+    radial-gradient(ellipse 55% 50% at 0% 0%, color-mix(in srgb, var(--mic-glow) 6%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 85% 100%, color-mix(in srgb, var(--mic-accent) 6%, transparent), transparent 70%);
+  --aurora-pastilla-desde: 14%;
+  --aurora-pastilla-hasta: 10%;
+}
+
+/* Mycelium respeta «reducir movimiento». */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-atmosfera='aurora'] {
+    --aurora-transicion: none;
+    --aurora-elevar: none;
+  }
+}
+
+/* ── Las notas ──────────────────────────────────────────────────────────── */
+
+/* El título del documento, en el degradado del tema y con su resplandor. El
+   degradado ya lo tiene en todas las atmósferas (editor.css); Aurora le cambia
+   las tintas por las legibles de cada modo y ajusta la caja al texto: si
+   ocupara todo el ancho, el degradado se estiraría y el texto solo alcanzaría
+   el primer color. El resplandor va con `filter` y no con `text-shadow`: con
+   `background-clip: text`, la sombra de texto se pinta ENCIMA del degradado. */
+:root[data-atmosfera='aurora'] :is(.mic-doc-title-texto, .mic-doc-title-campo) {
+  background-image: var(--aurora-degradado-texto);
+  width: fit-content;
+  max-width: 100%;
+  filter: var(--aurora-resplandor);
+}
+
+/* Los H1 de la vista de lectura, también en el degradado, ajustados al texto y
+   con resplandor. En vivo el H1 es una línea de CodeMirror de todo el ancho: va
+   liso (`--mic-h1`), con el halo de abajo. */
+:root[data-atmosfera='aurora'] .mic-preview h1 {
+  width: fit-content;
+  max-width: 100%;
+  background-image: var(--aurora-degradado-texto);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--mic-accent);
+  filter: var(--aurora-resplandor);
+}
+
+/* Solo en oscuro: los títulos lisos (H1–H3 en vivo, H2–H3 en lectura) emiten
+   un poco de su propio color. Es una sombra difusa del color del texto: no le
+   quita contraste, lo rodea. */
+:root[data-atmosfera='aurora'][data-dark='true'] :is(.mic-live-h1, .mic-live-h2, .mic-live-h3),
+:root[data-atmosfera='aurora'][data-dark='true'] .mic-preview :is(h2, h3) {
+  text-shadow: 0 0 14px color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* Etiquetas: pastillas con el degradado de fondo y un filete de luz. La forma
+   de pastilla (radio completo) es lo único de forma que Aurora cambia: la pidió
+   el usuario para las etiquetas, y con 4px de radio el degradado se leía como
+   un resaltado de texto y no como una etiqueta. */
+:root[data-atmosfera='aurora'] :is(.mic-tag-cm, .mic-tag-pill) {
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--mic-glow) var(--aurora-pastilla-desde), transparent),
+    color-mix(in srgb, var(--mic-accent) var(--aurora-pastilla-hasta), transparent)
+  );
+  border-radius: 999px;
+  padding: 0.05em 0.6em;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mic-glow) 30%, transparent);
+}
+
+/* Selección de texto en el acento del tema. */
+:root[data-atmosfera='aurora'] ::selection {
+  background: color-mix(in srgb, var(--mic-accent) 28%, transparent);
+}
+
+/* Barras de desplazamiento con el degradado, atenuado; entero al pasar. */
+:root[data-atmosfera='aurora'] *::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--aurora-desde) 45%, transparent),
+    color-mix(in srgb, var(--aurora-hasta) 45%, transparent)
+  );
+}
+:root[data-atmosfera='aurora'] *::-webkit-scrollbar-thumb:hover {
+  background: var(--aurora-degradado-vertical);
+}
+
+/* Viñetas de lista en el glow legible de cada modo (en claro el crudo no llega
+   ni al 3:1 de un objeto gráfico). */
+:root[data-atmosfera='aurora'] :is(.mic-vineta, .mic-preview li)::marker,
+:root[data-atmosfera='aurora'] .mic-vineta {
+  color: var(--mic-glow-texto);
+}
+
+/* ── Impresión ──────────────────────────────────────────────────────────────
+   El PDF se arma con el CSS de la ventana y su `data-atmosfera` (`DEF-116`,
+   lib/printStyles.ts). En papel no hay luz que irradiar: los títulos salen sin
+   resplandor ni halo. La luz ambiente es del lienzo de la app y no llega al
+   PDF. */
+@media print {
+  :root[data-atmosfera='aurora'] .mic-preview :is(h1, h2, h3) {
+    filter: none;
+    text-shadow: none;
+  }
+}
