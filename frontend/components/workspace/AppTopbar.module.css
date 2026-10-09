@@ -32,6 +32,14 @@
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-marco-glow) 55%, transparent));
 }
 
+/* El tercer punto del logo (`DEF-154`): antes tomaba `--mic-callout-info-border`,
+   un azul fijo que no cambia con el tema (con Cantarela quedaba un punto azul
+   sobre una paleta ámbar). Ahora es la mezcla de los otros dos, así que sigue al
+   tema, a la atmósfera y al modo como ellos y se distingue de los dos. */
+.logoNodo3 {
+  fill: color-mix(in srgb, var(--mic-marco-glow) 50%, var(--mic-marco-acento));
+}
+
 .logo:hover {
   background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }
@@ -94,7 +102,6 @@
   margin-left: 0.25rem;
 }
 
-
 .vaultExitButton {
   display: grid;
   place-items: center;
@@ -123,4 +130,62 @@
   .searchKey {
     display: none;
   }
+}
+
+/* Arrecife (`FUN-M-51`): el nombre en el gradiente de la marca (Arrecife §1:
+   «siempre renderizado con el gradiente de marca») y un filete de 2px de la
+   marca bajo la barra, que la recorre de punta a punta. */
+:global(:root[data-theme='arrecife']) .logoFull {
+  background: var(--arrecife-gradiente);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:global(:root[data-theme='arrecife']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--arrecife-gradiente) 1;
+}
+
+/* GSmart (`FUN-M-52`): el nombre en Michroma y en el degradado de la marca
+   —en sus tintas legibles como texto, `--gsmart-degradado-texto`— y un filete
+   de 2px del degradado bajo la barra, de punta a punta. */
+:global(:root[data-theme='gsmart']) .logoFull {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  background: var(--gsmart-degradado-texto);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:global(:root[data-theme='gsmart']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--gsmart-degradado) 1;
+}
+
+/* Aurora (`FUN-M-54`): el nombre en el degradado del marco
+   (`--mic-marco-glow` → `--mic-marco-acento`, legibles sobre el marco en los dos
+   modos: en claro el marco sigue oscuro), con su resplandor; y un filete de
+   2px del mismo degradado bajo la barra, de punta a punta. La letra no cambia:
+   una atmósfera reparte color, no tipografía. */
+:global(:root[data-atmosfera='aurora']) .logoFull {
+  background: var(--aurora-degradado-marco);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: var(--aurora-resplandor-marco);
+}
+
+:global(:root[data-atmosfera='aurora']) .topbar {
+  border-bottom: 2px solid transparent;
+  border-image: var(--aurora-degradado-marco) 1;
+}
+
+/* Aurora (`FUN-M-54`): el isotipo con dos halos, el del primer color y uno más
+   ancho del segundo (`--aurora-brillo-logo`, más tenue en claro). Los tres
+   puntos ya siguen al tema (`DEF-154`). */
+:global(:root[data-atmosfera='aurora']) .logoMark {
+  filter: var(--aurora-brillo-logo);
 }

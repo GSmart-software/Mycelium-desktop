@@ -5,13 +5,36 @@
 //! archivo, el comportamiento por defecto ignora los directorios ocultos (`.*/`)
 //! y las carpetas de build/dependencias más habituales (ver `DEFAULT`).
 //!
-//! Sintaxis (subconjunto de gitignore, sin negaciones):
+//! Sintaxis (subconjunto de gitignore; con negaciones desde `FUN-S-30`):
 //! - Líneas vacías y `# comentarios` se omiten.
 //! - `nombre/` — ignora DIRECTORIOS con ese nombre en cualquier nivel.
 //! - `nombre` — ignora archivos o carpetas con ese nombre en cualquier nivel.
-//! - `ruta/con/barras` — anclada a la raíz del vault (p. ej. `docs/tmp/`).
+//! - `ruta/con/barras` o `/nombre` — anclada a la raíz del vault (p. ej.
+//!   `docs/tmp/`). Una `/` al principio o en el medio ancla; la del final solo
+//!   dice «directorio».
 //! - `*` y `?` — comodines dentro de un segmento (`*.tmp.md`, `.*/`).
-//! - `.mycelium/` (índice interno + papelera) se ignora SIEMPRE, esté o no.
+//! - `**` como segmento entero — cero o más carpetas (`a/**/b`, `**/nombre`);
+//!   al final (`a/**`), todo lo que hay DENTRO de `a`, no `a` misma.
+//! - `!patrón` — NEGACIÓN: vuelve a incluir lo que una regla anterior ignoró.
+//!   `\!` al principio es un `!` literal (un nombre que empieza con `!`).
+//! - `.mycelium/` (índice interno + papelera) se ignora SIEMPRE, esté o no, y
+//!   ninguna negación lo vuelve a incluir.
+//!
+//! Evaluación (la de git):
+//! 1. Las reglas se leen en orden y **la última que coincide gana**: una `!`
+//!    posterior re-incluye; una regla normal posterior vuelve a ignorar.
+//! 2. Una regla se compara con la ruta MISMA, no con sus ancestros. Lo que está
+//!    dentro de una carpeta ignorada queda ignorado porque su carpeta lo está, y
+//!    **no se puede re-incluir un archivo si una carpeta que lo contiene está
+//!    ignorada** —salvo re-incluyendo esa carpeta—. Por eso `.*/` + `!.claude/*.md`
+//!    no muestra nada: hace falta `!.claude/` (recetas en
+//!    `docs/features/mycignore.md`).
+//!
+//! La regla 2 es la que mantiene correcta la poda de los recorridos
+//! (`archivos::recorrer_todo`, `recorrer_observables`, `arbol_a_copiar`): una
+//! carpeta ignorada nunca tiene nada visible dentro, así que no entrar en ella
+//! no pierde nada. Y una carpeta re-incluida (`!.claude/`) ya no está ignorada,
+//! así que el recorrido entra sin ningún caso especial.
 
 use std::path::Path;
 
@@ -25,9 +48,9 @@ pub const ARCHIVO: &str = ".mycignore";
 /// `build/` y `vendor/` quedan fuera a propósito: es más probable que sean
 /// carpetas legítimas de notas que ruido de compilación.
 ///
-/// OJO: un `.mycignore` presente **reemplaza este default por completo** (la
-/// sintaxis no tiene negaciones). Quien tenga notas en una carpeta llamada
-/// `dist` escribe su propio archivo sin esa línea.
+/// OJO: un `.mycignore` presente **reemplaza este default por completo**. Quien
+/// tenga notas en una carpeta llamada `dist` escribe su propio archivo sin esa
+/// línea; quien quiera ver `.claude/` agrega `!.claude/` DEBAJO de `.*/`.
 const DEFAULT: &str = ".*/\nnode_modules/\ntarget/\ndist/\nout/";
 
 /// Cabecera explicativa de la plantilla que ofrece Configuración → Vault.
@@ -35,6 +58,9 @@ const CABECERA_PLANTILLA: &str = "\
 # .mycignore — qué ignora Mycelium en este vault (uno por línea)
 # nombre/ = carpetas con ese nombre en cualquier nivel
 # ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario
+# !patrón = vuelve a incluir (gana la última regla que coincide); p. ej.
+#   !.claude/ debajo de .*/ muestra .claude/. Lo que está dentro de una
+#   carpeta ignorada no vuelve si no re-incluís la carpeta.
 # .mycelium/ (índice interno) se ignora siempre.
 # Esto es el comportamiento por defecto: borrá la línea que no te sirva
 # (p. ej. si tenés notas en una carpeta llamada dist).
@@ -54,9 +80,12 @@ pub fn mycignore_default() -> String {
 
 /// Un patrón parseado del `.mycignore`.
 pub struct Patron {
-    /// Termina en `/`: solo coincide con directorios (y todo su contenido).
+    /// Empieza con `!`: si es la última regla que coincide, la ruta se INCLUYE.
+    negado: bool,
+    /// Termina en `/`: solo coincide con directorios (su contenido cae porque
+    /// cae la carpeta, ver `ignorada`).
     solo_dir: bool,
-    /// Contiene `/` interno: se compara desde la raíz del vault.
+    /// Tiene `/` al principio o en el medio: se compara desde la raíz del vault.
     anclado: bool,
     segmentos: Vec<Segmento>,
 }
@@ -75,11 +104,15 @@ enum Segmento {
     Literal(String),
     /// Con comodines: se hace glob sobre los caracteres ya separados.
     Glob(Vec<char>),
+    /// `**` como segmento entero: cero o más carpetas (`FUN-S-30`).
+    Cualquiera,
 }
 
 impl Segmento {
     fn compilar(texto: &str) -> Segmento {
-        if texto.contains(['*', '?']) {
+        if texto == "**" {
+            Segmento::Cualquiera
+        } else if texto.contains(['*', '?']) {
             Segmento::Glob(texto.chars().collect())
         } else {
             Segmento::Literal(texto.to_string())
@@ -102,14 +135,37 @@ pub fn parsear(texto: &str) -> Vec<Patron> {
             if linea.is_empty() || linea.starts_with('#') {
                 return None;
             }
+            // `!` niega; `\!` es un `!` literal (un nombre que empieza con `!`).
+            let (negado, linea) = match linea.strip_prefix('!') {
+                Some(resto) => (true, resto),
+                None => (false, linea.strip_prefix("\\!").map_or(linea, |_| &linea[1..])),
+            };
             let solo_dir = linea.ends_with('/');
-            let cuerpo = linea.trim_end_matches('/').trim_start_matches('/');
-            if cuerpo.is_empty() {
+            let sin_final = linea.trim_end_matches('/');
+            // Como en git: una `/` al principio o en el medio ancla a la raíz
+            // (`/borradores/`, `docs/tmp/`); la del final solo dice «directorio».
+            let anclado = sin_final.contains('/');
+            let mut segmentos: Vec<Segmento> = sin_final
+                .split('/')
+                .filter(|s| !s.is_empty())
+                .map(Segmento::compilar)
+                .collect();
+            if segmentos.is_empty() {
                 return None;
             }
-            let anclado = cuerpo.contains('/');
-            let segmentos: Vec<Segmento> = cuerpo.split('/').map(Segmento::compilar).collect();
-            Some(Patron { solo_dir, anclado, segmentos })
+            // `**/nombre` es `nombre` en cualquier nivel: se guarda sin anclar,
+            // que es más barato de comparar.
+            let anclado = if anclado
+                && segmentos.len() == 2
+                && matches!(segmentos[0], Segmento::Cualquiera)
+                && !matches!(segmentos[1], Segmento::Cualquiera)
+            {
+                segmentos.remove(0);
+                false
+            } else {
+                anclado
+            };
+            Some(Patron { negado, solo_dir, anclado, segmentos })
         })
         .collect()
 }
@@ -143,39 +199,64 @@ fn glob_seg(patron: &Segmento, seg: &str) -> bool {
     match patron {
         Segmento::Literal(texto) => texto == seg,
         Segmento::Glob(chars) => glob(chars, seg),
+        // Un `**` solo en la línea coincide con cualquier nombre (git).
+        Segmento::Cualquiera => true,
     }
 }
 
-/// ¿Un patrón coincide con la ruta (segmentos) dada?
+/// ¿Los segmentos del patrón coinciden con la ruta ENTERA `segs`?
+///
+/// `**` absorbe cero o más segmentos; al final del patrón, uno o más (`a/**`
+/// es lo que hay dentro de `a`, no `a`).
+fn coinciden_segmentos(pat: &[Segmento], segs: &[&str]) -> bool {
+    match pat.first() {
+        None => segs.is_empty(),
+        Some(Segmento::Cualquiera) => {
+            let resto = &pat[1..];
+            let minimo = usize::from(resto.is_empty());
+            (minimo..=segs.len()).any(|k| coinciden_segmentos(resto, &segs[k..]))
+        }
+        Some(seg) => {
+            !segs.is_empty()
+                && glob_seg(seg, segs[0])
+                && coinciden_segmentos(&pat[1..], &segs[1..])
+        }
+    }
+}
+
+/// ¿Un patrón coincide con la ruta `segs` MISMA? No mira los ancestros: que lo
+/// de adentro de una carpeta ignorada caiga con ella lo resuelve `ignorada`,
+/// carpeta por carpeta (antes lo hacía cada patrón, y por eso una negación no
+/// tenía dónde encajar).
 fn coincide(p: &Patron, segs: &[&str], es_dir: bool) -> bool {
+    if p.solo_dir && !es_dir {
+        return false;
+    }
     if p.anclado {
-        let k = p.segmentos.len();
-        if segs.len() < k {
-            return false;
-        }
-        if !p.segmentos.iter().zip(segs).all(|(pa, se)| glob_seg(pa, se)) {
-            return false;
-        }
-        if segs.len() > k {
-            return true; // está DENTRO de la ruta ignorada
-        }
-        return !p.solo_dir || es_dir;
+        coinciden_segmentos(&p.segmentos, segs)
+    } else {
+        // Sin anclar, el patrón es un único segmento y se compara con el nombre.
+        segs.last().is_some_and(|nombre| glob_seg(&p.segmentos[0], nombre))
     }
-    // Sin anclar: el patrón (un segmento) puede coincidir con cualquier componente.
-    let pa = &p.segmentos[0];
-    for (i, se) in segs.iter().enumerate() {
-        if glob_seg(pa, se) {
-            let es_ultimo = i == segs.len() - 1;
-            if !es_ultimo {
-                return true; // está dentro de un dir que coincide
-            }
-            return !p.solo_dir || es_dir;
-        }
-    }
-    false
 }
 
-/// ¿La ruta relativa POSIX está ignorada? `.mycelium` lo está SIEMPRE.
+/// Veredicto de las reglas sobre la ruta misma: decide la ÚLTIMA que coincide.
+fn excluida(segs: &[&str], es_dir: bool, patrones: &[Patron]) -> bool {
+    patrones
+        .iter()
+        .rev()
+        .find(|p| coincide(p, segs, es_dir))
+        .is_some_and(|p| !p.negado)
+}
+
+/// ¿La ruta relativa POSIX está ignorada? `.mycelium` lo está SIEMPRE, antes
+/// de mirar ningún patrón: ninguna negación lo re-incluye.
+///
+/// Como en git, primero se mira cada carpeta que contiene a la ruta, de la raíz
+/// hacia abajo: si alguna está ignorada, la ruta también, diga lo que diga una
+/// negación sobre ella. Los recorridos ya podan las carpetas ignoradas, así que
+/// para ellos esa vuelta siempre da «no»; el watcher, en cambio, pregunta por
+/// rutas sueltas y la necesita.
 pub fn ignorada(rel: &str, es_dir: bool, patrones: &[Patron]) -> bool {
     let segs: Vec<&str> = rel.split('/').filter(|s| !s.is_empty()).collect();
     if segs.is_empty() {
@@ -184,7 +265,11 @@ pub fn ignorada(rel: &str, es_dir: bool, patrones: &[Patron]) -> bool {
     if segs[0] == ".mycelium" {
         return true;
     }
-    patrones.iter().any(|p| coincide(p, &segs, es_dir))
+    if patrones.is_empty() {
+        return false;
+    }
+    (1..segs.len()).any(|k| excluida(&segs[..k], true, patrones))
+        || excluida(&segs, es_dir, patrones)
 }
 
 #[cfg(test)]
@@ -280,5 +365,129 @@ mod tests {
         assert!(!ignorada("foto-2026-final.jpg", false, &p));
         assert!(ignorada("archivo", false, &p)); // literal exacto
         assert!(!ignorada("archivos", false, &p)); // no por prefijo
+    }
+
+    // ── Negaciones (`FUN-S-30`) ──────────────────────────────────────────────
+
+    /// La última regla que coincide gana: la `!` re-incluye solo si va DESPUÉS.
+    #[test]
+    fn negacion_la_ultima_regla_que_coincide_gana() {
+        let p = parsear("*.log\n!importante.log\n");
+        assert!(ignorada("error.log", false, &p));
+        assert!(!ignorada("importante.log", false, &p));
+        assert!(!ignorada("sub/importante.log", false, &p));
+
+        let p = parsear("!importante.log\n*.log\n");
+        assert!(ignorada("importante.log", false, &p), "la ! de antes no vale");
+
+        // Y una regla normal posterior vuelve a ignorar.
+        let p = parsear("*.log\n!importante.log\nimportante.log\n");
+        assert!(ignorada("importante.log", false, &p));
+    }
+
+    /// Re-incluir la carpeta la vuelve a abrir con todo su contenido, salvo lo
+    /// que otra regla siga ignorando adentro.
+    #[test]
+    fn negacion_reincluye_una_carpeta() {
+        let p = parsear(".*/\n!.claude/\n");
+        assert!(!ignorada(".claude", true, &p));
+        assert!(!ignorada(".claude/CLAUDE.md", false, &p));
+        assert!(!ignorada(".claude/commands/vault-buscar.md", false, &p));
+        assert!(ignorada(".git", true, &p));
+        assert!(ignorada(".git/config", false, &p));
+        // Una carpeta oculta DENTRO de `.claude/` sigue cayendo por `.*/`.
+        assert!(ignorada(".claude/.cache/x.md", false, &p));
+        // `!.claude/` es de carpeta: un ARCHIVO llamado `.claude` no lo toca
+        // (y además los archivos ocultos nunca estuvieron ignorados).
+        assert!(!ignorada(".claude", false, &p));
+    }
+
+    /// Como en git: lo de adentro de una carpeta ignorada no se re-incluye
+    /// mientras la carpeta siga ignorada. Es lo que deja podar al recorrido.
+    #[test]
+    fn negacion_no_rescata_un_archivo_de_una_carpeta_ignorada() {
+        let p = parsear(".*/\n!.claude/*.md\n");
+        assert!(ignorada(".claude", true, &p));
+        assert!(ignorada(".claude/CLAUDE.md", false, &p));
+
+        let p = parsear(".*/\n!.claude/**\n"); // `**` final no incluye la carpeta
+        assert!(ignorada(".claude/CLAUDE.md", false, &p));
+
+        let p = parsear("borradores/\n!borradores/vale.md\n");
+        assert!(ignorada("borradores/vale.md", false, &p));
+        // Re-incluir la carpeta y después ignorar su contenido sí funciona.
+        let p = parsear("borradores/\n!borradores/\nborradores/*\n!borradores/vale.md\n");
+        assert!(!ignorada("borradores", true, &p));
+        assert!(!ignorada("borradores/vale.md", false, &p));
+        assert!(ignorada("borradores/otra.md", false, &p));
+    }
+
+    /// El caso que motivó `FUN-S-30`: ver solo los `.md` de primer nivel de
+    /// `.claude/` (las normas del vault), con el resto del default intacto.
+    #[test]
+    fn negacion_receta_solo_los_md_de_claude() {
+        let p = parsear(&format!("{DEFAULT}\n!.claude/\n.claude/*\n!.claude/*.md\n"));
+        assert!(!ignorada(".claude", true, &p));
+        assert!(!ignorada(".claude/normas.md", false, &p));
+        assert!(ignorada(".claude/settings.json", false, &p));
+        assert!(ignorada(".claude/skills", true, &p));
+        assert!(ignorada(".claude/skills/vault/SKILL.md", false, &p));
+        assert!(ignorada(".git/config", false, &p));
+        assert!(ignorada("node_modules/x/README.md", false, &p));
+        assert!(!ignorada("docs/nota.md", false, &p));
+
+        // Variante recursiva: todos los `.md` de `.claude/`, en cualquier nivel.
+        let p = parsear(&format!(
+            "{DEFAULT}\n!.claude/\n.claude/**\n!.claude/**/\n!.claude/**/*.md\n"
+        ));
+        assert!(!ignorada(".claude/normas.md", false, &p));
+        assert!(!ignorada(".claude/skills", true, &p));
+        assert!(!ignorada(".claude/skills/vault/SKILL.md", false, &p));
+        assert!(ignorada(".claude/skills/vault/validar.mjs", false, &p));
+        assert!(ignorada(".claude/settings.json", false, &p));
+    }
+
+    /// `\!` es un `!` literal al principio: ignora el archivo, no niega.
+    #[test]
+    fn barra_invertida_escapa_el_signo_de_exclamacion() {
+        let p = parsear("*.md\n\\!importante.md\n");
+        assert!(ignorada("!importante.md", false, &p));
+        assert!(ignorada("importante.md", false, &p), "no es una negación");
+        let p = parsear("\\!borrador/\n");
+        assert!(ignorada("!borrador/x.md", false, &p));
+        assert!(!ignorada("borrador/x.md", false, &p));
+    }
+
+    /// `.mycelium/` no se re-incluye con ninguna negación.
+    #[test]
+    fn negacion_no_reincluye_mycelium() {
+        let p = parsear("!.mycelium/\n!.mycelium/**\n!*\n!**/\n");
+        assert!(ignorada(".mycelium", true, &p));
+        assert!(ignorada(".mycelium/.trash/x.md", false, &p));
+        assert!(ignorada(".mycelium/recordatorios.json", false, &p));
+        // Solo la raíz: una `.mycelium` anidada sigue las reglas comunes.
+        assert!(!ignorada("sub/.mycelium", true, &p));
+    }
+
+    /// `/` al principio ancla (como en git) y `**` vale cero o más carpetas.
+    #[test]
+    fn barra_inicial_ancla_y_doble_asterisco() {
+        let p = parsear("/borradores/\n");
+        assert!(ignorada("borradores/x.md", false, &p));
+        assert!(!ignorada("sub/borradores/x.md", false, &p));
+
+        let p = parsear("**/tmp/\n");
+        assert!(ignorada("tmp", true, &p));
+        assert!(ignorada("a/b/tmp/x.md", false, &p));
+
+        let p = parsear("docs/**/borrador.md\n");
+        assert!(ignorada("docs/borrador.md", false, &p));
+        assert!(ignorada("docs/a/b/borrador.md", false, &p));
+        assert!(!ignorada("otra/borrador.md", false, &p));
+
+        let p = parsear("adjuntos/**\n");
+        assert!(!ignorada("adjuntos", true, &p), "`a/**` no es `a`");
+        assert!(ignorada("adjuntos/foto.png", false, &p));
+        assert!(ignorada("adjuntos/2026/foto.png", false, &p));
     }
 }

@@ -1,11 +1,7 @@
 import { create } from "zustand";
-import {
-  ATMOSFERA_CLARO_DEFECTO,
-  ATMOSFERA_OSCURO_DEFECTO,
-  atmosferaValida,
-  type Atmosfera,
-} from "@/lib/atmosferas";
+import { ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "@/lib/atmosferas";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
+import { atmosferaEnUso, type Tema } from "@/lib/temas";
 import { sanearContraDefectos, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 
 export type FontOption = { label: string; value: string };
@@ -29,7 +25,17 @@ export const PREVIEW_FONTS: FontOption[] = [
   { label: "Lora", value: "var(--font-lora), serif" },
 ];
 
-export type Tema = "bioluminiscencia" | "cantarela";
+/**
+ * La letra de un vault que no la eligió: Geist Sans a 14px, en edición y en
+ * lectura (decisión del usuario, 2026-10-09; antes eran JetBrains Mono y Source
+ * Serif 4 a 16px). Es la misma letra que la interfaz.
+ */
+const FUENTE_DEFECTO = "var(--font-geist-sans), sans-serif";
+const TAMANO_FUENTE_DEFECTO = 14;
+
+// El tipo vive en lib/temas.ts (con la lógica pura que se prueba); se reexporta
+// porque los componentes lo importan de acá desde siempre.
+export type { Tema };
 
 /**
  * Ancho de tabulación (`FUN-S-02`). Se escribe libre en vez de elegirse entre unos
@@ -176,10 +182,10 @@ export type Preferencias = {
 };
 
 const DEFAULT_PREFS: Preferencias = {
-  editorFont: EDITOR_FONTS[0].value,
-  editorSize: 16,
-  previewFont: PREVIEW_FONTS[0].value,
-  previewSize: 16,
+  editorFont: FUENTE_DEFECTO,
+  editorSize: TAMANO_FUENTE_DEFECTO,
+  previewFont: FUENTE_DEFECTO,
+  previewSize: TAMANO_FUENTE_DEFECTO,
   previewTabs: true,
   graphContinuousSim: false,
   autoCloseBrackets: true,
@@ -217,12 +223,13 @@ function applyToDom(s: Pick<PreferencesState, "tema" | "modoOscuro" | "prefs">) 
   html.setAttribute("data-theme", s.tema); // HU-12 CA6
   if (s.modoOscuro) html.setAttribute("data-dark", "true"); // HU-12 CA7
   else html.removeAttribute("data-dark");
-  html.setAttribute(
-    "data-atmosfera",
-    s.modoOscuro
-      ? atmosferaValida(s.prefs.atmosferaOscuro, ATMOSFERA_OSCURO_DEFECTO)
-      : atmosferaValida(s.prefs.atmosferaClaro, ATMOSFERA_CLARO_DEFECTO),
-  );
+  // Un tema sin atmósferas (los de marca: Arrecife, `FUN-M-51`, y GSmart,
+  // `FUN-M-52`) no lleva el atributo: así ninguna regla de atmosferas.css lo
+  // alcanza. La atmósfera guardada sigue en las preferencias y vuelve al
+  // cambiar de tema.
+  const atmosfera = atmosferaEnUso(s.tema, s.modoOscuro, s.prefs);
+  if (atmosfera) html.setAttribute("data-atmosfera", atmosfera);
+  else html.removeAttribute("data-atmosfera");
 
   html.style.setProperty("--mic-editor-font-family", s.prefs.editorFont);
   html.style.setProperty("--mic-editor-font-size", `${s.prefs.editorSize}px`);

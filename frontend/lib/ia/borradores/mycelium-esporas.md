@@ -164,8 +164,9 @@ sin propiedades. Así que **expandís vos las variables**, con las mismas reglas
    pidió «una reunión» y hay `Esporas/Reunión.md`, partí de ella en vez de inventar una
    estructura.
 2. **Decidí título y carpeta** como con cualquier nota (skill `mycelium-memoria`): título
-   específico y único (`grep -ril` antes). La app, en cambio, usaría el nombre de la
-   plantilla desambiguado (`Reunión`, `Reunión 1`…); no lo imites. **Carpeta**: la que el
+   específico y único (`grep -ril` antes). La app, en cambio, le pone un nombre
+   provisional numerado (`Reunión 1`, `Reunión 2`…, nunca el de la plantilla) y deja
+   que el usuario lo cambie; no lo imites. **Carpeta**: la que el
    vault ya usa para ese tipo (mirá dónde están las otras notas del mismo `tipo` o
    etiqueta). Si no hay ninguna, no inventes una jerarquía nueva en silencio: proponé la
    carpeta (o la raíz) y, si el usuario no está para contestar, usá la del área más

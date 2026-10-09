@@ -17,7 +17,8 @@ import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { reResolverTitulos } from "./enlacesIndice";
 import { enTandas, ftsBorrar, ftsPoner, marcadores } from "./ftsIndice";
-import { desambiguar, sanearNombre } from "./nombres";
+import { derivarIndice } from "./propiedades";
+import { crearCola, desambiguar, sanearNombre } from "./nombres";
 import { ahoraIso } from "./util";
 
 // Re-exporta el saneo puro (definido sin dependencias en `nombres.ts`) para que
@@ -176,6 +177,16 @@ export function unir(carpeta: string | null, nombre: string): string {
 // ── Colisiones de nombre en la misma carpeta (fase 7) ─────────────────────────
 
 /**
+ * Elegir un nombre libre y ocuparlo es UN paso (`DEF-136`): quien crea algo
+ * nuevo en el vault (`crearNota`, `duplicarNota`, `crearCarpeta`) llama a
+ * `nombreNotaLibre`/`nombreCarpetaLibre`, escribe en disco y hace el `INSERT`
+ * dentro de `conNombreReservado`. Sin la cola, dos creaciones seguidas elegían
+ * el mismo nombre (el índice todavía no tenía la primera) y la segunda fallaba
+ * con un choque de clave, después de pisar el archivo de la primera.
+ */
+export const conNombreReservado = crearCola();
+
+/**
  * Basenames (nombre de archivo con extensión + nombres de carpeta) ya ocupados
  * dentro de `carpetaId` (o la raíz si es `null`) según el ÍNDICE. Sirve para
  * desambiguar al crear/duplicar sin pisar un archivo real (dos entradas con el
@@ -316,8 +327,8 @@ export async function rekeyIndice(
 
   // 2) Notas nuevas (copiando tipo/tamaño/mtime/creado_en de la vieja). La
   // huella de los enlaces también: sus filas se repuntan tal cual (paso 3). La
-  // de lo indexable NO: `ftsPoner` de abajo indexa el texto crudo, y con la
-  // huella en NULL el próximo guardado la vuelve a indexar bien.
+  // de lo indexable NO: con la huella en NULL el próximo guardado vuelve a
+  // escribir la fila de búsqueda, que es lo seguro.
   for (const n of notas) {
     await execute(
       `INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, hash_enlaces, creado_en, actualizado_en)
@@ -328,9 +339,9 @@ export async function rekeyIndice(
 
   // 3) Repunte de hijos + reindex FTS (delete viejo + insert nuevo con el título).
   for (const n of notas) {
-    const cont = await select<{ contenido: string }>(
-      "SELECT contenido FROM contenidos WHERE nota_id = ?",
-      [n.oldId],
+    const cont = await select<{ contenido: string; tipo: string }>(
+      "SELECT contenido, (SELECT tipo FROM notas WHERE id = ?) AS tipo FROM contenidos WHERE nota_id = ?",
+      [n.oldId, n.oldId],
     );
     await execute("UPDATE contenidos SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE papelera SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
@@ -343,7 +354,9 @@ export async function rekeyIndice(
     await execute("UPDATE enlaces SET destino_id = ? WHERE destino_id = ?", [n.newId, n.oldId]);
     await execute("UPDATE etiquetas SET nota_id = ? WHERE nota_id = ?", [n.newId, n.oldId]);
     await ftsBorrar([n.oldId]);
-    await ftsPoner(n.newId, n.newTitulo, cont[0]?.contenido ?? "");
+    // El texto legible, como al guardar (`DEF-148`), no el crudo.
+    const buscable = derivarIndice(cont[0]?.contenido ?? "", cont[0]?.tipo);
+    await ftsPoner(n.newId, n.newTitulo, buscable.contenido, buscable.extra);
   }
 
   // 4) Borrado de notas viejas (ya sin hijos que las referencien).

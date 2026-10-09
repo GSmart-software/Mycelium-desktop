@@ -382,3 +382,73 @@
 .rowOtro:hover {
   opacity: 0.85;
 }
+
+/* Arrecife (`FUN-M-51`): la nota abierta lleva la selección suave de la marca
+   en vez del tinte del glow (Arrecife §6.15: ítem activo del árbol). La barra de
+   2px se queda. */
+:global(:root[data-theme='arrecife']) .rowHoja.rowActive {
+  background-color: transparent;
+  background-image: var(--arrecife-gradiente-suave);
+}
+
+/* Arrecife (`FUN-M-51`): la barra de la nota abierta, en el gradiente. */
+:global(:root[data-theme='arrecife']) .rowHoja.rowActive {
+  box-shadow: none;
+  background-image: var(--arrecife-gradiente), var(--arrecife-gradiente-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* Arrecife (`FUN-M-51`): las notas del árbol con el ícono en violeta, al lado
+   de las carpetas en cian: los dos colores de la marca en la lista que más se
+   mira. */
+:global(:root[data-theme='arrecife']) .noteIcon {
+  color: var(--mic-glow);
+}
+
+/* GSmart (`FUN-M-52`): la nota abierta, con la selección suave de la marca y
+   su barra de 2px en el degradado (vertical, como la barra). */
+:global(:root[data-theme='gsmart']) .rowHoja.rowActive {
+  box-shadow: none;
+  background-color: transparent;
+  background-image: var(--gsmart-degradado-vertical), var(--gsmart-degradado-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* GSmart (`FUN-M-52`): los dos tonos de la marca en el árbol: las carpetas en
+   el acento (como siempre) y las notas en aguamarina (el glow). */
+:global(:root[data-theme='gsmart']) .noteIcon {
+  color: var(--mic-glow);
+}
+
+/* GSmart (`FUN-M-52`): las cabeceras de sección («ARCHIVOS»…) en Michroma, en mayúsculas y con el espaciado
+   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
+   chica para que entre en el mismo lugar. */
+:global(:root[data-theme='gsmart']) .sectionHeader {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  font-size: 0.625rem;
+  letter-spacing: var(--gsmart-espaciado-etiqueta);
+}
+
+/* Aurora (`FUN-M-54`): la nota abierta, con la selección suave del tema, su
+   barra de 2px en el degradado (vertical, como la barra) y un borde de luz: la
+   barra no puede irradiar —es una capa del fondo—, así que el resplandor lo
+   pone el `inset` de la izquierda (`--aurora-borde-luz`, más tenue en claro). */
+:global(:root[data-atmosfera='aurora']) .rowHoja.rowActive {
+  box-shadow: var(--aurora-borde-luz);
+  background-color: transparent;
+  background-image: var(--aurora-degradado-vertical), var(--aurora-degradado-suave);
+  background-size: 2px 100%, 100% 100%;
+  background-position: left, 0 0;
+  background-repeat: no-repeat;
+}
+
+/* Aurora (`FUN-M-54`): los dos tonos del tema en el árbol: las carpetas en el
+   acento (como siempre) y las notas en el glow, en su variante legible. */
+:global(:root[data-atmosfera='aurora']) .noteIcon {
+  color: var(--mic-glow-texto);
+}

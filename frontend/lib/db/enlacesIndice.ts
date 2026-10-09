@@ -26,6 +26,7 @@ import {
 } from "@/lib/enlacesNota";
 import { indexarPorTitulo, type CarpetaEnlazable, type NotaEnlazable } from "@/lib/wikilinks";
 import { execute, select } from "./client";
+import { plegarEtiqueta } from "./fts";
 import { enTandas, marcadores } from "./ftsIndice";
 import { huellaDe } from "./util";
 
@@ -109,12 +110,43 @@ export async function escribirEnlacesTanda(
       [JSON.stringify(filas)],
     );
   }
-  const tags = entradas.flatMap(({ id, etiquetas }) => etiquetas.map((g) => ({ n: id, g })));
+  // `tag_plegado` (`DEF-152`): por donde filtra `tag:x` en la búsqueda.
+  const tags = entradas.flatMap(({ id, etiquetas }) =>
+    etiquetas.map((g) => ({ n: id, g, p: plegarEtiqueta(g) })),
+  );
   if (tags.length > 0) {
     await execute(
-      `INSERT INTO etiquetas (nota_id, tag)
-       SELECT json_extract(value, '$.n'), json_extract(value, '$.g') FROM json_each(?)`,
+      `INSERT INTO etiquetas (nota_id, tag, tag_plegado)
+       SELECT json_extract(value, '$.n'), json_extract(value, '$.g'), json_extract(value, '$.p')
+         FROM json_each(?)`,
       [JSON.stringify(tags)],
+    );
+  }
+}
+
+/**
+ * Completa `etiquetas.tag_plegado` de las filas que no lo tienen (`DEF-152`):
+ * las de un índice creado antes de esa columna, que el `ALTER TABLE` deja en
+ * NULL. Sin esto, `tag:x` no encontraría nada en un vault ya indexado hasta
+ * que cada nota se volviera a guardar.
+ *
+ * Como `plegarPropiedadesPendientes`: migra los datos que YA están en el índice
+ * sin releer archivos, plegando en JS (el `lower()` de SQLite solo entiende
+ * ASCII) y escribiendo con un `UPDATE … FROM json_each(?)` por tanda.
+ * Idempotente: en un índice al día, el `SELECT` no devuelve nada.
+ */
+export async function plegarEtiquetasPendientes(): Promise<void> {
+  const pendientes = await select<{ id: number; tag: string }>(
+    "SELECT rowid AS id, tag FROM etiquetas WHERE tag_plegado IS NULL",
+  );
+  const TANDA = 2000;
+  for (let i = 0; i < pendientes.length; i += TANDA) {
+    const tanda = pendientes.slice(i, i + TANDA).map((f) => ({ r: f.id, p: plegarEtiqueta(f.tag) }));
+    await execute(
+      `UPDATE etiquetas SET tag_plegado = json_extract(j.value, '$.p')
+         FROM json_each(?) AS j
+        WHERE etiquetas.rowid = json_extract(j.value, '$.r')`,
+      [JSON.stringify(tanda)],
     );
   }
 }

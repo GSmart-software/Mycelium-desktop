@@ -164,6 +164,44 @@
   font-weight: 600;
 }
 
+/* La ayuda (`FUN-L-27`), al pie de la lista: abre su propia ventana. Un filete
+   la separa de las categorías, que son otra cosa. */
+.botonAyuda {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 32px;
+  margin-top: auto;
+  padding: 0 0.55rem;
+  border-top: 1px solid var(--mic-border);
+  border-radius: 0 0 var(--mic-radius-sm) var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  text-align: left;
+  color: var(--mic-text-muted);
+}
+
+.botonAyuda:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.botonAyuda:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: -2px;
+}
+
+.botonAyudaTexto {
+  flex: 1;
+}
+
+.botonAyudaTecla {
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
 /* ── Resultados de la búsqueda, en lugar de las categorías ─────── */
 .resultados {
   display: flex;
@@ -241,19 +279,12 @@
 }
 
 .pieVersion {
-  font: inherit;
-  color: inherit;
   padding: 0.15rem 0.4rem;
-  border-radius: var(--mic-radius-sm);
 }
 
-.pieVersion:hover {
-  color: var(--mic-text-primary);
-}
-
-.pieVersion:focus-visible {
-  outline: 2px solid var(--mic-focus);
-  outline-offset: 1px;
+/* Modo desarrollador encendido (`FUN-S-36`). */
+.pieDev {
+  font-family: var(--mic-font-mono, monospace);
 }
 
 /* Ventana angosta: las categorías pasan a una tira arriba. */
@@ -288,4 +319,36 @@
   .panel {
     padding: 1rem 1rem 1.5rem;
   }
+
+  .botonAyuda {
+    margin-top: 0;
+    border-top: none;
+  }
+}
+
+/* Arrecife (`FUN-M-51`): la categoría elegida, con la selección suave de la
+   marca (Arrecife §6.9). */
+:global(:root[data-theme='arrecife']) .categoriaActiva {
+  background: var(--arrecife-gradiente-suave);
+}
+
+/* GSmart (`FUN-M-52`): la categoría elegida, con la selección suave de la
+   marca. */
+:global(:root[data-theme='gsmart']) .categoriaActiva {
+  background: var(--gsmart-degradado-suave);
+}
+
+/* GSmart (`FUN-M-52`): los títulos de grupo («ASPECTO», «EDITOR»…) en Michroma, en mayúsculas y con el espaciado
+   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
+   chica para que entre en el mismo lugar. */
+:global(:root[data-theme='gsmart']) .grupoTitulo {
+  font-family: var(--gsmart-letra-titulo);
+  font-weight: 400;
+  font-size: 0.625rem;
+  letter-spacing: var(--gsmart-espaciado-etiqueta);
+}
+
+/* Aurora (`FUN-M-54`): la categoría elegida, con la selección suave del tema. */
+:global(:root[data-atmosfera='aurora']) .categoriaActiva {
+  background: var(--aurora-degradado-suave);
 }

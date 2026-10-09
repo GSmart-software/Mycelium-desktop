@@ -13,7 +13,7 @@ import {
   omitirVersion,
   setComprobacionAutomatica,
   setEndpoint,
-  setModoAvanzado,
+  setModoDev,
   type EstadoUpdater,
   type InfoActualizacion,
   type ProgresoDescarga,
@@ -55,7 +55,8 @@ type UpdaterState = {
   omitir: () => Promise<void>;
   setProgreso: (p: ProgresoDescarga) => void;
   setAuto: (valor: boolean) => Promise<void>;
-  setAvanzado: (valor: boolean) => Promise<void>;
+  /** Enciende o apaga el modo desarrollador (`FUN-S-36`). */
+  setDev: (valor: boolean) => Promise<void>;
   guardarEndpoint: (valor: string | null) => Promise<void>;
   soltarFijacion: () => Promise<void>;
 };
@@ -64,7 +65,7 @@ type UpdaterState = {
 const texto = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * Manifiesto de la versión elegida a mano en el modo avanzado.
+ * Manifiesto de la versión elegida a mano en el modo desarrollador.
  *
  * Vive fuera del store a propósito: no lo pinta nada, solo lo consumen
  * `descargar` e `instalar`, y meterlo en el estado obligaría a limpiarlo en
@@ -157,7 +158,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     }
   },
 
-  /** Modo avanzado: ofrecer una versión elegida a mano de la lista. */
+  /** Modo desarrollador: ofrecer una versión elegida a mano de la lista. */
   ofrecerVersion(version, manifiesto, notas) {
     const actual = get().estado?.versionActual ?? "0.0.0";
     set({
@@ -233,8 +234,8 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
     await get().cargarEstado();
   },
 
-  async setAvanzado(valor) {
-    await setModoAvanzado(valor);
+  async setDev(valor) {
+    await setModoDev(valor);
     await get().cargarEstado();
   },
 

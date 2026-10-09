@@ -40,6 +40,7 @@ const fts = await cargar("../lib/db/fts.ts", true);
 const soloDesktop = fts === null ? { skip: "lib/db es solo-desktop; acá lo arma el backend .NET" } : {};
 const buildFtsQuery = fts?.buildFtsQuery ?? (() => "");
 const separarFiltrosPropiedad = fts?.separarFiltrosPropiedad ?? (() => ({ filtros: [], resto: "" }));
+const plegar = fts?.plegar ?? ((s) => s);
 
 // ── Carpetas de prueba ───────────────────────────────────────────────────────
 //
@@ -144,7 +145,7 @@ test("el filtro de columna se aplica a CADA termino, no solo al primero", soloDe
   assert.equal(buildFtsQuery("api rest", true, "nombre"), 'titulo : "api"* titulo : "rest"*');
   assert.equal(
     buildFtsQuery("api rest", true, "contenido"),
-    'contenido : "api"* contenido : "rest"*',
+    '{contenido extra} : "api"* {contenido extra} : "rest"*',
   );
 });
 
@@ -156,15 +157,17 @@ test("el modo exacto sigue mandando sobre el prefijo", soloDesktop, () => {
   assert.equal(buildFtsQuery("api", false, "nombre"), 'titulo : "api"');
 });
 
-test("`tag:` se traduce a `#tag` antes de restringir", soloDesktop, () => {
-  assert.equal(buildFtsQuery("tag:idea", true, "contenido"), 'contenido : "#idea"*');
+test("`tag:` no llega al FTS: es un filtro de etiqueta (DEF-152)", soloDesktop, () => {
+  const { etiquetas, resto } = separarFiltrosPropiedad("tag:idea api");
+  assert.deepEqual(etiquetas, ["idea"]);
+  assert.equal(buildFtsQuery(resto, true, "contenido"), '{contenido extra} : "api"*');
 });
 
 // ── HU-21 / FUN-M-04: lo que ya habia, para no romperlo al tocar el mismo modulo
 
 test("los filtros de propiedad se separan del texto", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad('estado:activo "frase exacta" api');
-  assert.deepEqual(filtros, [{ clave: "estado", valor: "activo" }]);
+  assert.deepEqual(filtros, [{ clave: "estado", valor: "activo", entero: false }]);
   assert.equal(resto, '"frase exacta" api');
 });
 
@@ -172,6 +175,94 @@ test("una URL pegada no es un filtro de propiedad", soloDesktop, () => {
   const { filtros, resto } = separarFiltrosPropiedad("https://ejemplo.com/x");
   assert.deepEqual(filtros, []);
   assert.equal(resto, "https://ejemplo.com/x");
+});
+
+// ── DEF-144: el filtro `clave:valor` compara como el texto ────────────────────
+
+test("plegar quita tildes y mayúsculas como el tokenizador del FTS", soloDesktop, () => {
+  assert.equal(plegar("Solanáceas"), "solanaceas");
+  assert.equal(plegar("PULGÓN"), "pulgon");
+  assert.equal(plegar("Pingüino"), "pinguino");
+  assert.equal(plegar("Piña"), "pina", "la ñ también, como en notas_fts");
+  assert.equal(plegar("Ärger Œuvre"), "arger œuvre", "solo se van las marcas, no las letras");
+  // Lo mismo escrito con la tilde ya separada (NFD), que es como llega a veces
+  // un nombre de archivo de macOS pegado en una propiedad.
+  assert.equal(plegar("solanáceas"), "solanaceas");
+  assert.equal(plegar("2026-10-07"), "2026-10-07");
+});
+
+test("un filtro con y sin tilde pliega a lo mismo, en la clave y en el valor", soloDesktop, () => {
+  const a = separarFiltrosPropiedad("familia:solanaceas").filtros[0];
+  const b = separarFiltrosPropiedad("Família:Solanáceas").filtros[0];
+  assert.deepEqual([plegar(a.clave), plegar(a.valor)], [plegar(b.clave), plegar(b.valor)]);
+});
+
+test("tag: va a la tabla de etiquetas, plegado; no a las propiedades ni al FTS (DEF-152)", soloDesktop, () => {
+  const { filtros, etiquetas, resto } = separarFiltrosPropiedad("tag:Solanáceas");
+  assert.deepEqual(filtros, []);
+  assert.deepEqual(etiquetas, ["solanaceas"]);
+  assert.equal(resto, "");
+});
+
+test("tag: admite el # delante, comillas, anidadas y mayúsculas en el prefijo", soloDesktop, () => {
+  assert.deepEqual(separarFiltrosPropiedad("tag:#Huerta").etiquetas, ["huerta"]);
+  assert.deepEqual(separarFiltrosPropiedad('tag:"huerta"').etiquetas, ["huerta"]);
+  assert.deepEqual(separarFiltrosPropiedad("TAG:Huerta/Riego").etiquetas, ["huerta/riego"]);
+  assert.deepEqual(separarFiltrosPropiedad("tag:huerta/").etiquetas, ["huerta"]);
+  // Repetida, una sola vez.
+  assert.deepEqual(separarFiltrosPropiedad("tag:x tag:X").etiquetas, ["x"]);
+});
+
+test("un tag: vacío (el que se está escribiendo) no filtra ni busca nada", soloDesktop, () => {
+  for (const q of ["tag:", "tag:#", 'tag:""']) {
+    const r = separarFiltrosPropiedad(q);
+    assert.deepEqual([r.filtros, r.etiquetas, r.resto], [[], [], ""], q);
+  }
+});
+
+test("un # suelto sigue siendo texto: solo tag: filtra por etiqueta", soloDesktop, () => {
+  const { etiquetas, resto } = separarFiltrosPropiedad("#idea");
+  assert.deepEqual(etiquetas, []);
+  assert.equal(resto, "#idea");
+});
+
+test("separar los filtros y armar la query FTS cortan los tokens igual", soloDesktop, () => {
+  const q = 'estado:activo "dos palabras" tag:x suelto';
+  const { etiquetas, resto } = separarFiltrosPropiedad(q);
+  assert.deepEqual(etiquetas, ["x"]);
+  assert.equal(buildFtsQuery(resto), '"dos palabras" "suelto"');
+});
+
+// ── DEF-145: `clave:"valor con espacios"` ─────────────────────────────────────
+
+test("un filtro con el valor entre comillas es un solo token, entero", soloDesktop, () => {
+  const { filtros, resto } = separarFiltrosPropiedad('bancal:"Bancal 1" riego');
+  assert.deepEqual(filtros, [{ clave: "bancal", valor: "Bancal 1", entero: true }]);
+  assert.equal(resto, "riego");
+  // Sin espacios también: las comillas piden el valor completo.
+  assert.deepEqual(separarFiltrosPropiedad('estado:"activo"').filtros, [
+    { clave: "estado", valor: "activo", entero: true },
+  ]);
+});
+
+test("una comilla que todavía no se cerró no rompe el filtro", soloDesktop, () => {
+  const { filtros, resto } = separarFiltrosPropiedad('bancal:"Banc');
+  assert.deepEqual(filtros, [{ clave: "bancal", valor: "Banc", entero: false }]);
+  assert.equal(resto, "");
+});
+
+test("las frases y lo que no es clave se siguen cortando como antes", soloDesktop, () => {
+  const q = 'estado:"en curso" "dos palabras" a/b:"x y" tag:x';
+  const { filtros, etiquetas, resto } = separarFiltrosPropiedad(q);
+  assert.deepEqual(filtros, [{ clave: "estado", valor: "en curso", entero: true }]);
+  assert.deepEqual(etiquetas, ["x"]);
+  assert.equal(buildFtsQuery(resto), '"dos palabras" "a/b:""x" "y"""');
+});
+
+test("aPalabras corta en la puntuación, como el tokenizador", soloDesktop, () => {
+  assert.equal(fts.aPalabras("semi-sombra"), "semi sombra");
+  assert.equal(fts.aPalabras("2026-10-07"), "2026 10 07");
+  assert.equal(fts.aPalabras("bancal 1"), "bancal 1");
 });
 
 test("folderPath arma la ruta completa", () => {
@@ -183,6 +274,7 @@ test("firstSearchTerm desarma comillas, tags y filtros", () => {
   assert.equal(firstSearchTerm('"rediseno del api" x'), "rediseno del api");
   assert.equal(firstSearchTerm("tag:idea"), "idea");
   assert.equal(firstSearchTerm("estado:activo"), "activo");
+  assert.equal(firstSearchTerm('bancal:"Bancal 1"'), "Bancal 1");
   assert.equal(firstSearchTerm("#idea"), "idea");
 });
 

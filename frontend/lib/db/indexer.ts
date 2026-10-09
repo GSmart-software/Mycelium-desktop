@@ -21,9 +21,20 @@ import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from 
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
-import { escribirEnlacesTanda, huellaEnlaces, reResolverClaves, type EntradaEnlaces } from "./enlacesIndice";
+import {
+  escribirEnlacesTanda,
+  huellaEnlaces,
+  plegarEtiquetasPendientes,
+  reResolverClaves,
+  type EntradaEnlaces,
+} from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
-import { derivarIndice, reindexarPropiedadesTanda, type FilaPropiedad } from "./propiedades";
+import {
+  derivarIndice,
+  plegarPropiedadesPendientes,
+  reindexarPropiedadesTanda,
+  type FilaPropiedad,
+} from "./propiedades";
 import { ahoraIso, byteLen } from "./util";
 import { LOCAL_VAULT_ID } from "./vaultContext";
 
@@ -97,20 +108,34 @@ const ESQUEMA_INDICE: string[] = [
      eliminado_en        TEXT NOT NULL,
      ruta_papelera       TEXT
    )`,
+  // `contenido` es el texto LEGIBLE de la nota y `extra` lo que se busca sin
+  // mostrarse —valores de propiedades, destinos de enlaces con alias—; el
+  // fragmento de un resultado sale de `contenido` (`DEF-148`, ver
+  // `derivarIndice`). Un índice anterior, con solo `contenido` y el texto
+  // crudo, se rehace en `migrarFtsLegible`.
   `CREATE VIRTUAL TABLE IF NOT EXISTS notas_fts USING fts5(
      nota_id UNINDEXED,
      titulo,
-     contenido
+     contenido,
+     extra
    )`,
   // Propiedades del frontmatter YAML (FUN-M-04). Una fila POR ELEMENTO de lista
   // (`orden` = posición; 0 si es escalar), para poder filtrar con `=` en vez de
   // `LIKE`. Se deriva del contenido igual que `notas_fts`.
+  //
+  // `clave_plegada` y `valor_plegado` (`DEF-144`): lo mismo sin tildes ni
+  // mayúsculas (`plegar`, en JS: el `lower()` y el `NOCASE` de SQLite solo
+  // entienden ASCII). Es por donde filtra la búsqueda `clave:valor`, para que
+  // compare como el texto. Un índice anterior las recibe por `ALTER TABLE` en
+  // `crearEsquemaIndice`, que además las llena.
   `CREATE TABLE IF NOT EXISTS propiedades (
-     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
-     clave   TEXT NOT NULL,
-     valor   TEXT NOT NULL,
-     tipo    TEXT NOT NULL,
-     orden   INTEGER NOT NULL
+     nota_id       TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     clave         TEXT NOT NULL,
+     valor         TEXT NOT NULL,
+     tipo          TEXT NOT NULL,
+     orden         INTEGER NOT NULL,
+     clave_plegada TEXT,
+     valor_plegado TEXT
    )`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_nota  ON propiedades(nota_id)`,
   `CREATE INDEX IF NOT EXISTS idx_propiedades_clave ON propiedades(clave, valor)`,
@@ -143,9 +168,14 @@ const ESQUEMA_INDICE: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_enlaces_destino ON enlaces(destino_id)`,
   `CREATE INDEX IF NOT EXISTS idx_enlaces_clave   ON enlaces(clave)`,
   `CREATE INDEX IF NOT EXISTS idx_enlaces_ancla   ON enlaces(clave_ancla)`,
+  // `tag` es la etiqueta como se escribió (sin `#`), que es lo que muestran el
+  // grafo y la tabla; `tag_plegado` (`DEF-152`), lo mismo plegado
+  // (`plegarEtiqueta`), por donde filtra `tag:x` en la búsqueda. Un índice
+  // anterior la recibe por `ALTER TABLE` en `crearEsquemaIndice`.
   `CREATE TABLE IF NOT EXISTS etiquetas (
-     nota_id TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
-     tag     TEXT NOT NULL
+     nota_id     TEXT NOT NULL REFERENCES notas(id) ON DELETE CASCADE,
+     tag         TEXT NOT NULL,
+     tag_plegado TEXT
    )`,
   `CREATE INDEX IF NOT EXISTS idx_etiquetas_nota ON etiquetas(nota_id)`,
 ];
@@ -186,6 +216,7 @@ async function asegurarEsquema(): Promise<void> {
 /** Crea el esquema del índice (idempotente) contra el executor activo. */
 export async function crearEsquemaIndice(): Promise<void> {
   const executor = await getExecutor();
+  await migrarFtsLegible();
   for (const sql of ESQUEMA_INDICE) {
     await execute(sql);
   }
@@ -211,11 +242,71 @@ export async function crearEsquemaIndice(): Promise<void> {
   } catch {
     // La columna ya existe: nada que hacer.
   }
+  // Ídem `propiedades.clave_plegada` y `valor_plegado` (`DEF-144`). El índice
+  // por esas columnas va después del ALTER (no en `ESQUEMA_INDICE`): en un
+  // índice anterior todavía no existen cuando corre la lista. Y las filas que ya
+  // había se pliegan acá, sin releer archivos.
+  try {
+    await execute("ALTER TABLE propiedades ADD COLUMN clave_plegada TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  try {
+    await execute("ALTER TABLE propiedades ADD COLUMN valor_plegado TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  await execute(
+    "CREATE INDEX IF NOT EXISTS idx_propiedades_plegado ON propiedades(clave_plegada, valor_plegado)",
+  );
+  await plegarPropiedadesPendientes();
+  // Ídem `etiquetas.tag_plegado` (`DEF-152`). El índice cubre la subconsulta
+  // de `tag:x` entera (`tag_plegado`, `nota_id`) sin tocar la tabla.
+  try {
+    await execute("ALTER TABLE etiquetas ADD COLUMN tag_plegado TEXT");
+  } catch {
+    // La columna ya existe: nada que hacer.
+  }
+  await execute("CREATE INDEX IF NOT EXISTS idx_etiquetas_plegado ON etiquetas(tag_plegado, nota_id)");
+  await plegarEtiquetasPendientes();
   // Qué `rowid` de `notas_fts` le toca a cada nota (`DEF-105`): sin esto, borrar
   // o actualizar una fila de búsqueda recorre la tabla entera. En un índice
   // anterior la llena a partir de lo que ya hay, una sola vez.
   await crearFtsFilas();
   esquemaCreadoEn = executor;
+}
+
+/**
+ * Rehace la tabla de búsqueda de un índice anterior a `DEF-148`.
+ *
+ * Hasta entonces `notas_fts` tenía solo `titulo` y `contenido`, y en
+ * `contenido` iba el texto crudo de la nota —con los valores de las propiedades
+ * pegados delante—: de ahí salían fragmentos con el frontmatter aplastado, los
+ * `[[enlaces]]` tal cual y el JSON de un canvas. Una tabla virtual FTS5 no
+ * admite `ALTER TABLE … ADD COLUMN`, así que se BORRA (junto con `fts_filas`,
+ * que apunta a sus filas) y `ESQUEMA_INDICE` la crea con la columna `extra`.
+ *
+ * No hace falta releer nada acá: sin fila de búsqueda, cada nota queda
+ * INCOMPLETA para `estadoDeNotas` (`DEF-121`), y el indexado que sigue a abrir
+ * el vault la relee y la indexa con el texto nuevo —una sola vez, como una
+ * primera apertura—. Hasta que termina, la búsqueda no encuentra las notas que
+ * todavía no pasó. Las huellas se anulan para que un guardado en ese hueco
+ * tampoco se saltee la fila (`putContenido` ya la escribe si falta, pero así no
+ * depende de eso).
+ *
+ * Detecta el índice viejo por las columnas de la tabla: en uno nuevo o ya
+ * migrado no hace nada.
+ */
+async function migrarFtsLegible(): Promise<void> {
+  const columnas = await select<{ name: string }>("SELECT name FROM pragma_table_info('notas_fts')");
+  if (columnas.length === 0 || columnas.some((c) => c.name === "extra")) return;
+  await execute("DROP TABLE IF EXISTS fts_filas");
+  await execute("DROP TABLE notas_fts");
+  try {
+    await execute("UPDATE notas SET hash_indexable = NULL");
+  } catch {
+    // Un índice anterior a `FUN-M-38` no tiene la columna: no hay huella que anular.
+  }
 }
 
 /**
@@ -762,9 +853,10 @@ async function escribirNotas(
       if (!meta) continue;
 
       const titulo = tituloDeRuta(id);
-      // Al índice de búsqueda va el CUERPO + los VALORES de las propiedades, no
-      // el YAML crudo; la huella es lo que `putContenido` compara al guardar.
-      const { indexable, propiedades, huella } = derivarIndice(leido.contenido);
+      // Al índice de búsqueda va el CUERPO legible + los VALORES de las
+      // propiedades, no el YAML ni la sintaxis cruda (`DEF-148`); la huella es lo
+      // que `putContenido` compara al guardar.
+      const { contenido: buscable, extra, propiedades, huella } = derivarIndice(leido.contenido, meta.tipo);
       // Los enlaces y las etiquetas (`FUN-L-25`): lo que el grafo antes sacaba
       // del texto en cada consulta. Entran sin resolver: ver abajo.
       const enlaces = derivarEnlaces(leido.contenido, meta.tipo);
@@ -784,7 +876,7 @@ async function escribirNotas(
       // Contenido: Excalidraw se guarda igual que el markdown. Upsert como en
       // `contenido.ts`.
       filasContenidos.push({ id, contenido: leido.contenido });
-      filasFts.push({ id, titulo, contenido: indexable });
+      filasFts.push({ id, titulo, contenido: buscable, extra });
       entradasPropiedades.push({ id, propiedades });
       entradasEnlaces.push({ id, enlaces, etiquetas });
       reescritas.push(id);

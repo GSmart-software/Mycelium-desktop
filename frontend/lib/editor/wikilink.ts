@@ -6,7 +6,14 @@ import type {
 import type { EditorView } from "@codemirror/view";
 import type { TreeCarpeta, TreeNota } from "@/stores/vaultStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { folderSegments, notasPorTitulo, resolveWikilink } from "@/lib/wikilinks";
+import {
+  esAnclaPropia,
+  etiquetaDeReferencia,
+  folderSegments,
+  notasPorTitulo,
+  resolveWikilink,
+  resolverReferencia,
+} from "@/lib/wikilinks";
 
 /**
  * Wikilinks estilo Obsidian en el editor: `[[archivo]]`, `[[archivo|alias]]` y
@@ -35,8 +42,21 @@ export function markMissingWikilinks(
     const href = a.getAttribute("href") ?? "";
     if (!href.startsWith("#wikilink:")) return;
     const target = decodeURIComponent(href.slice("#wikilink:".length));
-    const exists = resolveWikilink(target, notas, carpetas) !== undefined;
-    a.classList.toggle("mic-wikilink-missing", !exists);
+    // `[[#Encabezado]]` apunta a la nota donde está escrito: nunca roto (`DEF-141`).
+    if (esAnclaPropia(target)) {
+      a.classList.remove("mic-wikilink-missing");
+      return;
+    }
+    // El ancla no participa en encontrar la nota (`DEF-141`): `Tomate#Cuidados`
+    // existe si existe `Tomate`, aunque el encabezado no esté.
+    const r = resolverReferencia(target, notas, carpetas);
+    a.classList.toggle("mic-wikilink-missing", r.nota === undefined);
+    // La etiqueta sin alias se armó sin conocer el vault (`lib/markdown.ts`):
+    // acá se corrige si el `#` era parte del título y no un ancla.
+    if (a.dataset.sinAlias === "true") {
+      const etiqueta = etiquetaDeReferencia(r.base, r.ancla);
+      if (a.textContent !== etiqueta) a.textContent = etiqueta;
+    }
   });
 }
 

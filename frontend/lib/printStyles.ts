@@ -1,5 +1,7 @@
 /**
- * CSS autocontenido para el PDF (HU-10). Incluye los tokens de los dos temas y
+ * CSS autocontenido para el PDF (HU-10). Incluye los tokens de los cuatro temas
+ * (Arrecife, `FUN-M-51`, y GSmart, `FUN-M-52`, con los mismos raw que
+ * styles/tokens.css) y
  * el modo oscuro + un subconjunto de estilos del preview con reglas de salto de
  * página (CA5). KaTeX y highlight.js se cargan por CDN desde el backend.
  */
@@ -23,6 +25,26 @@ export const PRINT_CSS = `
   --mic-raw-base: #130d02; --mic-raw-base-deep: #2c200a; --mic-raw-accent: #c77f2e;
   --mic-raw-glow: #ffc247; --mic-raw-canvas: #1b1305; --mic-raw-mist: #241a08;
   --mic-raw-ink: #f6e8c8; --mic-raw-ink-muted: #ac9468;
+}
+[data-theme='arrecife'] {
+  --mic-raw-base: #F6F8FB; --mic-raw-base-deep: #1A212C; --mic-raw-accent: #2A6D82;
+  --mic-raw-glow: #7444E4; --mic-raw-mist: #FFFFFF; --mic-raw-canvas: #EEF1F6;
+  --mic-raw-ink: #1A212C; --mic-raw-ink-muted: #5C6672; --mic-amber-icon: #FFB300;
+}
+[data-theme='arrecife'][data-dark='true'] {
+  --mic-raw-base: #191D26; --mic-raw-base-deep: #0F1218; --mic-raw-accent: #3AB8D8;
+  --mic-raw-glow: #9B7AEB; --mic-raw-canvas: #14171E; --mic-raw-mist: #1D222C;
+  --mic-raw-ink: #F7F9FC; --mic-raw-ink-muted: #8A9095;
+}
+[data-theme='gsmart'] {
+  --mic-raw-base: #E8ECF1; --mic-raw-base-deep: #141E3C; --mic-raw-accent: #1F6FC4;
+  --mic-raw-glow: #166A5E; --mic-raw-mist: #FFFFFF; --mic-raw-canvas: #F3F5F8;
+  --mic-raw-ink: #1B1F24; --mic-raw-ink-muted: #4A525B; --mic-amber-icon: #E0A63A;
+}
+[data-theme='gsmart'][data-dark='true'] {
+  --mic-raw-base: #2E3134; --mic-raw-base-deep: #18191B; --mic-raw-accent: #3B9BE8;
+  --mic-raw-glow: #A3ECE2; --mic-raw-canvas: #1E2023; --mic-raw-mist: #25282B;
+  --mic-raw-ink: #ECEFF2; --mic-raw-ink-muted: #B3B9C0;
 }
 :root {
   --mic-bg-canvas: var(--mic-raw-canvas); --mic-bg-surface: var(--mic-raw-mist);
@@ -221,8 +243,12 @@ export function buildPrintCss(o: PdfPrintOpts, conCssDeLaApp = false): string {
     // Sin colores DEL TEXTO: todo en la tinta. Los bordes y fondos de los
     // callouts no son texto: los decide «Estilar callouts».
     const texto = o.fondoBlanco ? "#141414" : "var(--mic-text-primary)";
+    // `-webkit-text-fill-color`: los títulos en degradado (el H1 de lectura de
+    // la atmósfera Aurora, `FUN-M-54`, y el de los temas con forma) pintan el
+    // texto con el fondo recortado y el relleno transparente; sin esto el
+    // `color` de arriba no los alcanzaba y salían en color.
     partes.push(`
-      .mic-preview, .mic-preview * { color: ${texto} !important; }
+      .mic-preview, .mic-preview * { color: ${texto} !important; -webkit-text-fill-color: currentColor !important; }
       .mic-preview a, .mic-preview .mic-wikilink { text-decoration: underline; }
       .mic-preview blockquote { border-left-color: #999 !important; }
     `);

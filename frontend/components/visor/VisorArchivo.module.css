@@ -246,3 +246,12 @@
   min-height: 0;
   overflow: hidden;
 }
+
+/* GSmart (`FUN-M-52`): el código del visor en la mono de la marca. Pide
+   «JetBrains Mono» por nombre, que solo existe si está instalada en el sistema;
+   la que trae Mycelium es `--mic-font-mono`. */
+:global(:root[data-theme='gsmart']) .panelTexto :global(.cm-content),
+:global(:root[data-theme='gsmart']) .editor :global(.cm-content) {
+  font-family: var(--mic-font-mono);
+}
+

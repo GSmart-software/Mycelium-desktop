@@ -6,6 +6,7 @@ import { Download, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { useCssStore, type CssSnippet } from "@/stores/cssStore";
 import { CssEditorModal } from "./CssEditorModal";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 
 const WARN_BYTES = 50 * 1024; // HU-15 CA5
@@ -136,11 +137,9 @@ export function CustomCssSection() {
         />
       </div>
 
-      <p className={styles.hint}>
-        Tus snippets se guardan dentro del vault abierto y viajan con su carpeta:
-        al abrir otro vault verás los suyos. Activá los que quieras; el estilo se
-        actualiza al instante.
-      </p>
+      <Explicacion detalle="Viajan con la carpeta del vault: al abrir otro vault verás los suyos. El estilo se actualiza al instante.">
+        Tus snippets se guardan en este vault; activá los que quieras.
+      </Explicacion>
 
       <ul className={styles.snippetList}>
         {snippets.length === 0 && (

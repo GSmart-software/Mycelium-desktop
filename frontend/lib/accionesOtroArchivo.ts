@@ -17,8 +17,10 @@ import {
   sanearNombre,
   unir,
 } from "@/lib/db/vaultFs";
+import { avisoCaracteresReemplazados } from "@/lib/db/nombres";
 import { downloadBlob } from "@/lib/export";
 import { tabIdDeArchivo, urlDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
+import { avisar } from "@/stores/avisosStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
@@ -56,6 +58,9 @@ export async function renombrarOtro(vault: string, otro: OtroArchivo, nombreNuev
   }
   await moverRuta(vault, otro.ruta, destino);
   useTabsStore.getState().remapNota(tabIdDeArchivo(otro.ruta), tabIdDeArchivo(destino));
+  // `DEF-150 m`: el saneo cambió `: ? * …` por `-`; decirlo.
+  const reemplazo = avisoCaracteresReemplazados(nombreNuevo, `${limpio}${sufijo(otro)}`);
+  if (reemplazo) avisar(reemplazo);
   return destino;
 }
 

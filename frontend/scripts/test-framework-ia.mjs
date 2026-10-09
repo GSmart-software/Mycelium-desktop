@@ -1,7 +1,8 @@
-// Test headless de `generarFramework` (`lib/ia/framework.ts`): cuándo se
-// sobrescribe un archivo del framework y cuándo la versión nueva va al lado
-// (`DEF-118`). El módulo importa `invoke` de Tauri; acá se reemplaza por un
-// disco en memoria antes de transpilarlo, así que no hace falta ni Tauri ni build.
+// Test headless de `generarFramework` (`lib/ia/framework.ts`): el bloque
+// gestionado de `CLAUDE.md` y su migración desde la 1.x (`FUN-L-29`), los
+// archivos con prefijo `mycelium` en `.claude/` y el tamaño del núcleo. El
+// módulo importa `invoke` de Tauri; acá se reemplaza por un disco en memoria
+// antes de transpilarlo, así que no hace falta ni Tauri ni build.
 //
 //   node --test scripts/test-framework-ia.mjs
 import assert from "node:assert/strict";
@@ -33,7 +34,7 @@ const fuente = (await readFile(rutaTs, "utf8"))
     "const { MARCADOR_VERSION_IA, SKILLS_GENERADAS } = globalThis.__skillsGeneradas;",
   );
 const mod = await importarTs(fuente);
-const { generarFramework, archivosFramework, FRAMEWORK_IA_VERSION } = mod;
+const { generarFramework, archivosFramework, bloqueGestionado, planificarClaudeMd, FRAMEWORK_IA_VERSION } = mod;
 
 /** Un vault en memoria: ruta relativa → texto. */
 function montarVault(inicial = {}) {
@@ -41,101 +42,384 @@ function montarVault(inicial = {}) {
   globalThis.__invoke = async (cmd, args) => {
     if (cmd === "leer_archivo_texto") return disco.get(args.rutaRel) ?? null;
     if (cmd === "escribir_nota") return void disco.set(args.rutaRel, args.contenido);
+    if (cmd === "ia_borrar_anterior") return void disco.delete(args.rutaRel);
     throw new Error(`comando inesperado: ${cmd}`);
   };
   return disco;
 }
 
-const CLAUDE_NUEVO = archivosFramework().find((a) => a.ruta === "CLAUDE.md").contenido;
-const COPIA = `CLAUDE (mycelium-ia v${FRAMEWORK_IA_VERSION}).md`;
+const BLOQUE = bloqueGestionado();
+const BLOQUE_CRLF = bloqueGestionado("\r\n");
+const RUTA_JSON = ".claude/mycelium-ia.json";
+/** El contenido de un archivo generado, por ruta. */
+const generado = (ruta) => archivosFramework().find((a) => a.ruta === ruta)?.contenido;
+/** Todo lo que Mycelium le da a la IA, junto: para buscar dónde quedó cada regla. */
+const TODO = [BLOQUE, ...archivosFramework().map((a) => a.contenido)].join("\n");
+const SKILL = (s) => generado(`.claude/skills/${s}/SKILL.md`);
 
-/** El `CLAUDE.md` que generaba una versión vieja, sacado del historial de git. */
-function claudeMdDe(commit) {
+/** Una fuente de `framework.ts` de un commit viejo, y su versión. */
+function fuenteDe(commit) {
   const src = execSync(`git show ${commit}:frontend/lib/ia/framework.ts`).toString();
-  const version = src.match(/FRAMEWORK_IA_VERSION = "([^"]+)"/)[1];
-  const literal = src.match(/const CLAUDE_MD = (`[\s\S]*?\n`);/)[1];
-  return new Function("FRAMEWORK_IA_VERSION", `return ${literal}`)(version);
+  return { src, version: src.match(/FRAMEWORK_IA_VERSION = "([^"]+)"/)?.[1] };
+}
+/** Un template literal (`const NOMBRE = \`…\`;`) de una fuente vieja, evaluado. */
+function literalDe({ src, version }, nombre) {
+  const m = src.match(new RegExp(`const ${nombre} = (\`[\\s\\S]*?\\n\`);`));
+  return m ? new Function("FRAMEWORK_IA_VERSION", `return ${m[1]}`)(version) : null;
+}
+/** El `CLAUDE.md` que generaba una versión vieja, sacado del historial de git. */
+const claudeMdDe = (commit) => literalDe(fuenteDe(commit), "CLAUDE_MD");
+const sha = (t) => createHash("sha256").update(t.replace(/\r\n/g, "\n")).digest("hex");
+
+/** Lo que no deja de existir nunca más: el mecanismo de conflictos de la 1.x. */
+function sinConflictos(disco) {
+  for (const ruta of disco.keys()) {
+    assert.ok(!/mycelium-ia v/.test(ruta), `quedó una copia al lado: ${ruta}`);
+    assert.notEqual(ruta, "Conflictos instrucciones IA.md");
+  }
 }
 
-test("vault vacío: escribe todo y registra la huella del CLAUDE.md", async () => {
+const COMANDOS = ["vault-buscar", "vault-recordar", "vault-mapa", "vault-vincular", "vault-huerfanas", "vault-nota"];
+const CONSTANTE = {
+  "vault-buscar": "CMD_BUSCAR",
+  "vault-recordar": "CMD_RECORDAR",
+  "vault-mapa": "CMD_MAPA",
+  "vault-vincular": "CMD_VINCULAR",
+  "vault-huerfanas": "CMD_HUERFANAS",
+  "vault-nota": "CMD_NOTA",
+};
+/** Los comandos sueltos que escribía una versión vieja. */
+function comandosDe(commit) {
+  const f = fuenteDe(commit);
+  const salida = {};
+  for (const c of COMANDOS) {
+    const t = literalDe(f, CONSTANTE[c]);
+    if (t) salida[`.claude/commands/${c}.md`] = t;
+  }
+  return salida;
+}
+
+// ── El bloque gestionado de CLAUDE.md ───────────────────────────────────────
+
+test("el bloque: marcadores en su línea, versión en el de inicio, núcleo adentro", () => {
+  const lineas = BLOQUE.split("\n");
+  assert.match(lineas[0], new RegExp(`^<!-- mycelium:inicio v${FRAMEWORK_IA_VERSION.replace(/\./g, "\\.")} .*-->$`));
+  assert.equal(lineas.at(-1), "<!-- mycelium:fin -->");
+  assert.equal(lineas[1], "# Este vault es tu memoria");
+  assert.equal(BLOQUE_CRLF, BLOQUE.replace(/\n/g, "\r\n"));
+  assert.ok(!BLOQUE.includes("<!-- mycelium-ia v"), "el bloque no lleva la marca vieja");
+});
+
+test("el núcleo no pasa de 2,5 KB (se carga en cada sesión: lo que no entra va a una skill)", () => {
+  const bytes = Buffer.byteLength(BLOQUE, "utf8");
+  assert.ok(bytes <= 2560, `el bloque pesa ${bytes} bytes`);
+});
+
+test("vault vacío: CLAUDE.md es el bloque solo, y se registra la versión", async () => {
   const disco = montarVault();
-  assert.deepEqual(await generarFramework("V"), []);
-  assert.equal(disco.get("CLAUDE.md"), CLAUDE_NUEVO);
-  const json = JSON.parse(disco.get(".claude/mycelium-ia.json"));
-  assert.equal(json.version, FRAMEWORK_IA_VERSION);
-  assert.match(json.huellas["CLAUDE.md"], /^[0-9a-f]{64}$/);
+  const r = await generarFramework("V");
+  assert.equal(r.claudeMd, "creado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n`);
+  assert.equal(JSON.parse(disco.get(RUTA_JSON)).version, FRAMEWORK_IA_VERSION);
+  sinConflictos(disco);
 });
 
-test("regenerar sobre lo recién generado lo sobrescribe sin conflicto", async () => {
-  const disco = montarVault();
+test("un CLAUDE.md vacío cuenta como que no hay", async () => {
+  const disco = montarVault({ "CLAUDE.md": "\n\n" });
+  assert.equal((await generarFramework("V")).claudeMd, "creado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n`);
+});
+
+test("CLAUDE.md propio sin bloque: el bloque va arriba y lo del usuario queda debajo, intacto", async () => {
+  const mio = "# Mi proyecto\n\nReglas mías.\n";
+  const disco = montarVault({ "CLAUDE.md": mio });
+  const r = await generarFramework("V");
+  assert.equal(r.claudeMd, "insertado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n\n${mio}`);
+  assert.ok(disco.get("CLAUDE.md").endsWith(mio));
+  sinConflictos(disco);
+});
+
+test("CLAUDE.md con bloque: se reemplaza solo el bloque; lo de antes y lo de después, byte a byte", async () => {
+  const antes = "Algo mío arriba.\n\n";
+  const despues = "\n\n# Mi proyecto\n\nNo tocar.\n";
+  const viejo = "<!-- mycelium:inicio v1.9.9 — otro aviso -->\ncualquier cosa\nde otra versión\n<!-- mycelium:fin -->";
+  const disco = montarVault({ "CLAUDE.md": antes + viejo + despues });
+  const r = await generarFramework("V");
+  assert.equal(r.claudeMd, "actualizado");
+  assert.equal(disco.get("CLAUDE.md"), antes + BLOQUE + despues);
+});
+
+test("regenerar dos veces da lo mismo (idempotente), en todos los casos", async () => {
+  for (const inicial of [null, "# Mío\n", "# Mío\r\nCRLF\r\n", claudeMdDe("a347fd1"), `${claudeMdDe("a347fd1")}\n# Agregado\n`]) {
+    const disco = montarVault(inicial === null ? {} : { "CLAUDE.md": inicial });
+    await generarFramework("V");
+    const primera = new Map(disco);
+    await generarFramework("V");
+    for (const [ruta, texto] of disco) {
+      if (ruta === RUTA_JSON) continue; // lleva la fecha de generación
+      assert.equal(texto, primera.get(ruta), `${ruta} cambió al regenerar`);
+    }
+    assert.deepEqual([...disco.keys()].sort(), [...primera.keys()].sort());
+  }
+});
+
+test("CRLF: el bloque se escribe con los saltos del archivo y lo del usuario queda igual", async () => {
+  const mio = "# Mío\r\n\r\nCon CRLF.\r\n";
+  const disco = montarVault({ "CLAUDE.md": mio });
   await generarFramework("V");
-  assert.deepEqual(await generarFramework("V"), []);
-  assert.equal(disco.has(COPIA), false);
-});
-
-test("un CLAUDE.md generado y ampliado a mano NO se pisa (DEF-118)", async () => {
-  const disco = montarVault();
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE_CRLF}\r\n\r\n${mio}`);
+  // Con el bloque ya puesto, regenerar no toca un byte de afuera.
+  const conBloque = `Arriba\r\n${BLOQUE_CRLF.replace("# Este vault", "# Viejo")}\r\nAbajo\r\n`;
+  disco.set("CLAUDE.md", conBloque);
   await generarFramework("V");
-  const ampliado = `${CLAUDE_NUEVO}\n\n# Mi proyecto\n\nNotas propias.\n`;
-  disco.set("CLAUDE.md", ampliado);
-  const conflictos = await generarFramework("V");
-  assert.deepEqual(conflictos, [{ original: "CLAUDE.md", generado: COPIA }]);
-  assert.equal(disco.get("CLAUDE.md"), ampliado);
-  assert.equal(disco.get(COPIA), CLAUDE_NUEVO);
-  assert.ok(disco.has("Conflictos instrucciones IA.md"));
+  assert.equal(disco.get("CLAUDE.md"), `Arriba\r\n${BLOQUE_CRLF}\r\nAbajo\r\n`);
 });
 
-test("un CLAUDE.md viejo (1.2.0) sin tocar se actualiza aunque no haya huellas", async () => {
-  const disco = montarVault({ "CLAUDE.md": claudeMdDe("a347fd1") });
-  assert.deepEqual(await generarFramework("V"), []);
-  assert.equal(disco.get("CLAUDE.md"), CLAUDE_NUEVO);
-});
-
-test("un CLAUDE.md viejo con marca pero ampliado va al lado aunque no haya huellas", async () => {
-  const ampliado = `${claudeMdDe("a347fd1")}\n# Mycelium — guía del proyecto\n`;
-  const disco = montarVault({ "CLAUDE.md": ampliado });
-  assert.equal((await generarFramework("V")).length, 1);
-  assert.equal(disco.get("CLAUDE.md"), ampliado);
-});
-
-test("los saltos CRLF no cuentan como edición", async () => {
-  const disco = montarVault();
+test("un BOM sigue primero; el bloque va después", async () => {
+  const disco = montarVault({ "CLAUDE.md": "﻿# Mío\n" });
   await generarFramework("V");
-  disco.set("CLAUDE.md", CLAUDE_NUEVO.replace(/\n/g, "\r\n"));
-  assert.deepEqual(await generarFramework("V"), []);
+  assert.equal(disco.get("CLAUDE.md"), `﻿${BLOQUE}\n\n# Mío\n`);
+  await generarFramework("V");
+  assert.equal(disco.get("CLAUDE.md"), `﻿${BLOQUE}\n\n# Mío\n`);
 });
 
-test("si el usuario adopta la copia generada, la próxima vez se reconoce", async () => {
-  const disco = montarVault({ "CLAUDE.md": "# Mío, sin marca\n" });
-  await generarFramework("V");
-  disco.set("CLAUDE.md", disco.get(COPIA));
-  disco.delete(COPIA);
-  assert.deepEqual(await generarFramework("V"), []);
+test("un marcador citado en medio de una línea no es el bloque", async () => {
+  const mio = "Mycelium escribe entre `<!-- mycelium:inicio v…-->` y `<!-- mycelium:fin -->`.\n";
+  const disco = montarVault({ "CLAUDE.md": mio });
+  assert.equal((await generarFramework("V")).claudeMd, "insertado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n\n${mio}`);
 });
 
-test("lo de .claude/ se sobrescribe aunque se haya editado", async () => {
-  const disco = montarVault();
+test("bloque roto (inicio sin fin): error y no se escribe nada", async () => {
+  const roto = "# Mío\n<!-- mycelium:inicio v2.0.0 -->\nsin fin\n";
+  const disco = montarVault({ "CLAUDE.md": roto });
+  await assert.rejects(generarFramework("V"), /mycelium:fin/);
+  assert.equal(disco.get("CLAUDE.md"), roto);
+  assert.equal(disco.size, 1, "no se escribió ningún otro archivo");
+});
+
+test("CLAUDE.md que generó entero una 1.x, sin tocar: queda el bloque solo", async () => {
+  for (const commit of ["371959c", "a347fd1", "0ef85c4"]) {
+    const disco = montarVault({ "CLAUDE.md": claudeMdDe(commit) });
+    assert.equal((await generarFramework("V")).claudeMd, "reemplazado", commit);
+    assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n`, commit);
+    sinConflictos(disco);
+  }
+  // Con los saltos pasados a CRLF por git, también.
+  const disco = montarVault({ "CLAUDE.md": claudeMdDe("0ef85c4").replace(/\n/g, "\r\n") });
+  assert.equal((await generarFramework("V")).claudeMd, "reemplazado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE_CRLF}\r\n`);
+});
+
+test("CLAUDE.md viejo reconocido por la huella que registró la 1.6–1.8 en mycelium-ia.json", async () => {
+  const viejo = "<!-- mycelium-ia v1.7.0 -->\n# Uno que no está en la lista\n";
+  const disco = montarVault({
+    "CLAUDE.md": viejo,
+    [RUTA_JSON]: JSON.stringify({ version: "1.7.0", huellas: { "CLAUDE.md": sha(viejo) } }),
+  });
+  assert.equal((await generarFramework("V")).claudeMd, "reemplazado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n`);
+  assert.equal(JSON.parse(disco.get(RUTA_JSON)).huellas, undefined, "la 2.0.0 ya no registra huellas");
+});
+
+test("CLAUDE.md de una 1.x editado por el usuario: el bloque arriba y nada se descarta", async () => {
+  const editado = `${claudeMdDe("0ef85c4")}\n# Mycelium — guía del proyecto\n\nLo mío.\n`;
+  const disco = montarVault({ "CLAUDE.md": editado });
+  const r = await generarFramework("V");
+  assert.equal(r.claudeMd, "insertado-sobre-anterior");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n\n${editado}`);
+  sinConflictos(disco);
+  // La próxima vez ya tiene bloque: solo se actualiza el bloque.
+  assert.equal((await generarFramework("V")).claudeMd, "actualizado");
+  assert.equal(disco.get("CLAUDE.md"), `${BLOQUE}\n\n${editado}`);
+});
+
+test("planificarClaudeMd es pura: no lee ni escribe", async () => {
+  globalThis.__invoke = () => {
+    throw new Error("no debería tocar el disco");
+  };
+  assert.equal((await planificarClaudeMd(null)).contenido, `${BLOQUE}\n`);
+});
+
+// ── Lo de Mycelium lleva prefijo `mycelium` ──────────────────────────────────
+
+test("todo lo que se genera en .claude/ lleva prefijo mycelium", () => {
+  for (const { ruta } of archivosFramework()) {
+    assert.match(ruta, /^\.claude\/(skills\/mycelium-[a-z]+\/|commands\/mycelium\/)/, ruta);
+  }
+  assert.ok(!archivosFramework().some((a) => a.ruta === "CLAUDE.md"), "CLAUDE.md no es un archivo de Mycelium");
+});
+
+test("los comandos están en commands/mycelium/ con el nombre de siempre", () => {
+  for (const c of COMANDOS) assert.ok(generado(`.claude/commands/mycelium/${c}.md`), `falta ${c}`);
+});
+
+test("lo de .claude/ con prefijo se sobrescribe aunque se haya editado, y lo demás no se toca", async () => {
+  const disco = montarVault({ ".claude/commands/mio.md": "mío", ".claude/agents/x.md": "agente" });
   await generarFramework("V");
-  const ruta = ".claude/commands/vault-buscar.md";
+  const ruta = ".claude/commands/mycelium/vault-buscar.md";
   disco.set(ruta, `${disco.get(ruta)}\nextra\n`);
-  assert.deepEqual(await generarFramework("V"), []);
-  assert.equal(disco.get(ruta), archivosFramework().find((a) => a.ruta === ruta).contenido);
+  await generarFramework("V");
+  assert.equal(disco.get(ruta), generado(ruta));
+  assert.equal(disco.get(".claude/commands/mio.md"), "mío");
+  assert.equal(disco.get(".claude/agents/x.md"), "agente");
 });
 
-test("un archivo sin marca sigue yendo al lado (comportamiento previo)", async () => {
-  const disco = montarVault({ "CLAUDE.md": "# Mis instrucciones\n" });
-  assert.equal((await generarFramework("V")).length, 1);
-  assert.equal(disco.get("CLAUDE.md"), "# Mis instrucciones\n");
+// ── Migración de los comandos de la 1.x ─────────────────────────────────────
+
+test("comandos de la 1.x sin tocar: se borran (ya están en commands/mycelium/)", async () => {
+  for (const commit of ["371959c", "6b4be4c", "0ef85c4"]) {
+    const viejos = comandosDe(commit);
+    const disco = montarVault(viejos);
+    const r = await generarFramework("V");
+    assert.deepEqual(r.borrados.sort(), Object.keys(viejos).sort(), commit);
+    assert.deepEqual(r.conservados, []);
+    for (const ruta of Object.keys(viejos)) assert.equal(disco.has(ruta), false, `${commit}: quedó ${ruta}`);
+  }
+  // Con CRLF, también.
+  const crlf = Object.fromEntries(Object.entries(comandosDe("0ef85c4")).map(([r, t]) => [r, t.replace(/\n/g, "\r\n")]));
+  montarVault(crlf);
+  assert.equal((await generarFramework("V")).borrados.length, 6);
+});
+
+test("comandos de la 1.x editados por el usuario: se quedan, y se informan", async () => {
+  const viejos = comandosDe("0ef85c4");
+  const ruta = ".claude/commands/vault-buscar.md";
+  const editado = `${viejos[ruta]}\nY además, buscá en mi carpeta Diario.\n`;
+  const disco = montarVault({ ...viejos, [ruta]: editado, ".claude/commands/mio.md": "mío" });
+  const r = await generarFramework("V");
+  assert.deepEqual(r.conservados, [ruta]);
+  assert.equal(r.borrados.length, 5);
+  assert.equal(disco.get(ruta), editado);
+  assert.equal(disco.get(".claude/commands/mio.md"), "mío");
+});
+
+test("las huellas cubren cada CLAUDE.md y cada comando que publicó una 1.x", () => {
+  const commits = execSync("git log --follow --format=%h -- lib/ia/framework.ts").toString().trim().split("\n");
+  const enFuente = new Set(fuente.match(/"[0-9a-f]{64}"/g).map((h) => h.slice(1, -1)));
+  let vistos = 0;
+  for (const c of commits) {
+    const f = fuenteDe(c);
+    if (!/^1\./.test(f.version ?? "")) continue;
+    vistos++;
+    const claude = literalDe(f, "CLAUDE_MD");
+    if (claude && /mycelium-ia v1\./.test(claude.split("\n")[0])) {
+      assert.ok(enFuente.has(sha(claude)), `falta la huella del CLAUDE.md de ${c}`);
+    }
+    for (const c2 of COMANDOS) {
+      const t = literalDe(f, CONSTANTE[c2]);
+      if (!t) continue;
+      const h = sha(t.replace(/^<!-- mycelium-ia v[^\n]*-->\n/m, ""));
+      assert.ok(enFuente.has(h), `falta la huella de ${c2} de ${c}`);
+    }
+  }
+  assert.ok(vistos > 10, "el historial de git no está disponible");
+});
+
+// ── Qué dice el núcleo, y que no se perdió ninguna regla ────────────────────
+
+const SKILLS_TODAS = ["memoria", "vault", "operar", "base", "canvas", "drawio", "excalidraw", "esporas", "calendario"].map(
+  (s) => `mycelium-${s}`,
+);
+
+test("el núcleo: las dos obligaciones, doce reglas duras y un puntero por skill y comando", () => {
+  assert.match(BLOQUE, /\*\*Recuperá antes de responder\.\*\*/);
+  assert.match(BLOQUE, /\*\*Consolidá lo que valga recordar\.\*\*/);
+  const reglas = BLOQUE.slice(BLOQUE.indexOf("## Reglas duras"), BLOQUE.indexOf("## Skills"));
+  assert.equal(reglas.match(/^\d+\. \*\*/gm).length, 12);
+  for (const s of SKILLS_TODAS) {
+    assert.ok(BLOQUE.includes(`- \`${s}\`:`), `el núcleo no apunta a ${s}`);
+    assert.ok(SKILL(s), `el núcleo apunta a ${s}, que no se genera`);
+  }
+  for (const c of COMANDOS) assert.ok(BLOQUE.includes(`\`/${c}\``), `el núcleo no nombra /${c}`);
+  // La regla nueva: lo de Mycelium es lo que lleva prefijo, no todo `.claude/`.
+  assert.match(BLOQUE, /prefijo `mycelium`/);
+  assert.ok(!/No edites\s+`\.claude\/`/.test(TODO), "quedó «no edites .claude/»");
+});
+
+// Cada regla o afirmación del `CLAUDE.md` 1.8.1 y dónde quedó (la tabla está en
+// `docs/features/ia-framework-vault.md`). Si una frase se reescribe, se cambia
+// acá la frase, no se borra la fila.
+const DONDE_QUEDO = [
+  // Las dos obligaciones y la anatomía de la memoria.
+  ["núcleo", /Recuperá antes de responder/],
+  ["núcleo", /Consolidá lo que valga recordar/],
+  ["mycelium-memoria", /\*\*El enlace es la unidad de valor\.\*\*/],
+  ["mycelium-memoria", /Nota "mapa" \(MOC\)/],
+  // Tipos de archivo.
+  ["mycelium-vault", /\| `\.drawio` \| \*\*Diagrama formal\*\*/],
+  ["mycelium-vault", /validar-<formato>\.mjs/],
+  ["mycelium-vault", /Solo las notas están en la memoria/],
+  ["mycelium-vault", /«según el archivo `x\.py`»/],
+  ["mycelium-vault", /un `\.base` y un `\.canvas` \*\*sí\*\* son destinos válidos/],
+  ["mycelium-vault", /\*\*aporta aristas\*\*/],
+  ["mycelium-vault", /un `\[\[…\]\]` ahí no crea una asociación/],
+  // Protocolos.
+  ["mycelium-memoria", /\*\*Entradas\*\*/],
+  ["mycelium-memoria", /\*\*Facetas\*\*/],
+  ["mycelium-memoria", /ofrecé crear la nota que falta/],
+  ["mycelium-memoria", /\*\*Una idea por nota\*\*/],
+  ["mycelium-memoria", /\*\*Enlazá hacia adentro\*\*/],
+  ["mycelium-memoria", /Fecha y motivo de una decisión|fecha y motivo de una decisión/],
+  ["mycelium-memoria", /callouts/],
+  // Reglas duras.
+  ["núcleo", /\*\*Títulos únicos\*\*/],
+  ["mycelium-operar", /buscá `\[\[nombre viejo`/],
+  ["mycelium-operar", /Un `rm` no pasa por la\s+papelera/],
+  ["mycelium-operar", /`\? : \* \| " < > \\ \/`/],
+  ["mycelium-vault", /`\? : \* \| " < > \\ \/`/],
+  ["mycelium-vault", /mapas anidados, escalares multilínea/],
+  ["mycelium-vault", /con moderación/],
+  ["mycelium-vault", /leer, solo `recordatorios\.json`/],
+  ["mycelium-vault", /`preferencias\.json`/],
+  ["mycelium-vault", /No escondas ahí documentación que el usuario deba ver/],
+  ["mycelium-vault", /\*\*partí de ella\*\*/],
+  ["mycelium-vault", /copiarla deja `\{\{fecha\}\}` escrito/],
+  // Operar Mycelium.
+  ["mycelium-operar", /El contenido va por los archivos; operar la app va por Mycelium/],
+  ["mycelium-operar", /`mycelium_estado`: si su pestaña figura \*\*sin guardar\*\*/],
+  ["mycelium-operar", /\*\*no le roba el foco\*\*/],
+  ["mycelium-operar", /`NO_ENCONTRADO` trae las notas más parecidas/],
+  ["mycelium-operar", /\*\*Lo reversible no pregunta\*\*/],
+  ["mycelium-operar", /más de 5 notas/],
+  ["mycelium-operar", /`RECHAZADO`: \*\*es una respuesta, no un error\*\*/],
+  ["mycelium-operar", /una errata no se agrega, se corrige/],
+  ["mycelium-operar", /diccionario \*\*de Mycelium\*\*/],
+  ["mycelium-operar", /`CAMBIOS_SIN_GUARDAR`/],
+  ["mycelium-operar", /MYCELIUM_SIN_MCP=1/],
+  ["mycelium-operar", /el usuario agrega la palabra con el clic derecho/],
+  // Qué es Mycelium por fuera.
+  ["mycelium-vault", /\*\*renombrar una nota escribiendo en su título\*\*/],
+  ["mycelium-vault", /\*\*editor modal\*\* de un dibujo/],
+  ["mycelium-vault", /\*\*terminal integrada\*\*/],
+  ["mycelium-vault", /exportación a Markdown\/PDF\/carpeta/],
+];
+
+test("ninguna regla del CLAUDE.md 1.8.1 se perdió: cada una está donde dice la spec", () => {
+  for (const [donde, frase] of DONDE_QUEDO) {
+    const texto = donde === "núcleo" ? BLOQUE : SKILL(donde);
+    assert.match(texto, frase, `${donde} no dice ${frase}`);
+  }
+});
+
+test("mycelium-vault: .mycignore con negaciones, y DEF-131 no vuelve", () => {
+  const vault = SKILL("mycelium-vault");
+  assert.match(vault, /`!patrón` → \*\*negación\*\*/);
+  assert.ok(!/sin negaciones|no hay\s+negaciones/.test(vault));
+  assert.match(vault, /\| Embed de nota \| `!\[\[Título\]\]` \| \*\*No se dibuja\*\*/);
+  assert.match(vault, /Hacer clic en ella no hace nada/);
+  assert.ok(!/píldora/i.test(vault), "una #etiqueta no es una píldora clicable (DEF-131)");
 });
 
 // ── Las skills por herramienta (`FUN-L-26`) ─────────────────────────────────
 
-const SKILLS = ["drawio", "canvas", "excalidraw", "base", "esporas", "calendario"].map((s) => `mycelium-${s}`);
+const SKILLS = ["drawio", "canvas", "excalidraw", "base", "esporas", "calendario", "operar"].map((s) => `mycelium-${s}`);
 const VALIDADORES = ["drawio", "canvas", "excalidraw"].map(
   (f) => `.claude/skills/mycelium-${f}/validar-${f}.mjs`,
 );
 
-test("genera las seis skills y los tres validadores, con la versión puesta", async () => {
+test("genera las skills y los tres validadores, con la versión puesta", async () => {
   const disco = montarVault();
   await generarFramework("V");
   for (const s of SKILLS) {
@@ -153,30 +437,18 @@ test("genera las seis skills y los tres validadores, con la versión puesta", as
   for (const [ruta, texto] of disco) assert.ok(!texto.includes("{{VERSION_IA}}"), `${ruta}: quedó el marcador sin reemplazar`);
 });
 
-test("regenerar no da conflictos y restaura un validador tocado", async () => {
+test("regenerar restaura un validador tocado", async () => {
   const disco = montarVault();
   await generarFramework("V");
   const ruta = VALIDADORES[0];
   const original = disco.get(ruta);
   disco.set(ruta, `${original}\n// retocado\n`);
-  assert.deepEqual(await generarFramework("V"), []);
+  await generarFramework("V");
   assert.equal(disco.get(ruta), original);
 });
 
-test("CLAUDE.md lista cada skill y ya no manda a no editar .drawio ni .excalidraw", () => {
-  for (const s of SKILLS) assert.ok(CLAUDE_NUEVO.includes(`skill \`${s}\``), `CLAUDE.md no menciona ${s}`);
-  assert.ok(!/no editar a mano/i.test(CLAUDE_NUEVO));
-});
-
-test("HUELLAS_CLAUDE_MD_PREVIAS cubre cada CLAUDE.md publicado hasta la 1.6.0", () => {
-  const commits = execSync("git log --follow --format=%h -- lib/ia/framework.ts").toString().trim().split("\n");
-  const enFuente = new Set(fuente.match(/"[0-9a-f]{64}"/g).map((h) => h.slice(1, -1)));
-  for (const c of commits) {
-    const texto = claudeMdDe(c);
-    if (!/mycelium-ia v1\.[0-6]\.\d/.test(texto.split("\n")[0])) continue;
-    const h = createHash("sha256").update(texto.replace(/\r\n/g, "\n")).digest("hex");
-    assert.ok(enFuente.has(h), `falta la huella del CLAUDE.md de ${c}`);
-  }
+test("ninguna instrucción manda a no editar .drawio ni .excalidraw", () => {
+  assert.ok(!/no editar a mano/i.test(TODO));
 });
 
 // ── El calendario por MCP (`FUN-L-09`, Parte 2) ─────────────────────────────
@@ -189,17 +461,15 @@ const HERRAMIENTAS_CALENDARIO = [
   "mycelium_recordatorio_borrar",
 ];
 
-test("«Operar Mycelium» enseña las cinco herramientas del calendario", () => {
-  const operar = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("## Operar Mycelium"));
-  for (const h of HERRAMIENTAS_CALENDARIO) assert.ok(operar.includes(`\`${h}\``), `falta ${h} en «Operar Mycelium»`);
-  assert.match(CLAUDE_NUEVO, /registro de\s+actividad/);
-  // La regla 8 sigue: leer sí, escribir en .mycelium/ nunca, y el calendario solo por MCP.
-  assert.match(CLAUDE_NUEVO, /calendario se \*\*modifica solo\*\* con las herramientas/);
-  assert.ok(!/Solo lectura\. \|/.test(CLAUDE_NUEVO), "la fila de la skill ya no dice solo lectura");
+test("el calendario se modifica solo por MCP: núcleo, vault y operar lo dicen", () => {
+  assert.match(BLOQUE, /calendario y diccionario, solo por MCP/);
+  assert.match(SKILL("mycelium-vault"), /El calendario se\s+modifica solo con las herramientas `mycelium_recordatorio_\*`/);
+  assert.match(SKILL("mycelium-operar"), /registro de\s+actividad/);
+  assert.match(SKILL("mycelium-operar"), /no escribas `\.mycelium\/recordatorios\.json` ni `\.mycelium\/diccionario\.txt`/);
 });
 
 test("la skill del calendario lee por MCP primero y modifica solo por MCP", () => {
-  const skill = archivosFramework().find((a) => a.ruta === ".claude/skills/mycelium-calendario/SKILL.md").contenido;
+  const skill = SKILL("mycelium-calendario");
   assert.match(skill, /^description: .*SOLO con las herramientas mycelium_recordatorio_\*/m);
   assert.ok(skill.indexOf("mycelium_recordatorios") < skill.indexOf("consultar.mjs"), "primero la herramienta, después el script");
   for (const h of HERRAMIENTAS_CALENDARIO) assert.ok(skill.includes(h), `la skill no menciona ${h}`);
@@ -211,23 +481,14 @@ test("la skill del calendario lee por MCP primero y modifica solo por MCP", () =
 
 // ── Archivos por MCP y el hook de mv/rm (`FUN-L-09`, Parte 3) ───────────────
 
-const HERRAMIENTAS_ARCHIVOS = ["mycelium_renombrar", "mycelium_mover", "mycelium_borrar", "mycelium_papelera"];
-
-test("«Operar Mycelium» enseña las cuatro de archivos y qué hacer con un RECHAZADO", () => {
-  const operar = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("## Operar Mycelium"), CLAUDE_NUEVO.indexOf("## Qué es Mycelium por fuera"));
-  for (const h of HERRAMIENTAS_ARCHIVOS) assert.ok(operar.includes(`\`${h}\``), `falta ${h} en «Operar Mycelium»`);
-  assert.match(operar, /más de 5 notas/);
-  assert.match(operar, /`RECHAZADO`: \*\*es una respuesta, no un error\*\*/);
-  assert.match(operar, /MYCELIUM_SIN_MCP=1/);
-});
-
 test("la regla dura 2 manda a la herramienta, y mv solo sin MCP (con los enlaces a cargo de la IA)", () => {
-  const regla = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("2. **Para renombrar"), CLAUDE_NUEVO.indexOf("3. **Nada huérfano"));
-  assert.match(regla, /^2\. \*\*Para renombrar o mover, usá la herramienta\*\*/);
+  const regla = BLOQUE.slice(BLOQUE.indexOf("2. **Renombrar"), BLOQUE.indexOf("3. **Nada huérfano"));
   assert.ok(regla.indexOf("`mycelium_renombrar`") < regla.indexOf("`mv`"), "primero la herramienta");
-  assert.match(regla, /`mycelium_borrar`: va a la \*\*papelera de Mycelium\*\*/);
-  assert.match(regla, /\*\*los enlaces los\s+arreglás vos\*\*/);
-  assert.ok(!/Un \\`mv\\` desde la terminal —que es\s+como renombrás—/.test(CLAUDE_NUEVO), "ya no dice que la IA renombra con mv");
+  assert.match(regla, /`_borrar`/);
+  assert.match(regla, /los enlaces los arreglás vos/);
+  const operar = SKILL("mycelium-operar");
+  assert.match(operar, /papelera de Mycelium/);
+  assert.match(operar, /Renombrar o mover con `mv` \*\*no repara nada\*\*/);
 });
 
 // El script del hook es la fuente de verdad (`scripts/hook-mv-rm.mjs`): se
@@ -322,15 +583,13 @@ test("settings.json: quitar deja lo del usuario; si no queda nada, se puede borr
 
 // ── El diccionario del vault por MCP (`FUN-L-09`, Parte 4) ──────────────────
 
-test("«Operar Mycelium» enseña mycelium_diccionario y para qué sirve", () => {
-  const operar = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("## Operar Mycelium"), CLAUDE_NUEVO.indexOf("## Qué es Mycelium por fuera"));
-  assert.ok(operar.includes("`mycelium_diccionario`"), "falta mycelium_diccionario en «Operar Mycelium»");
+test("mycelium-operar enseña mycelium_diccionario y para qué sirve", () => {
+  const operar = SKILL("mycelium-operar");
+  assert.ok(operar.includes("`mycelium_diccionario`"), "falta mycelium_diccionario");
   assert.match(operar, /términos propios de este vault/);
-  assert.match(operar, /no escribas `\.mycelium\/recordatorios\.json` ni `\.mycelium\/diccionario\.txt`/);
   assert.match(operar, /diccionario \*\*de Mycelium\*\*/);
 });
 
-test("la regla 8 dice que el diccionario del vault no se escribe a mano", () => {
-  const regla = CLAUDE_NUEVO.slice(CLAUDE_NUEVO.indexOf("8. **No toques**"), CLAUDE_NUEVO.indexOf("9. **Visibilidad**"));
-  assert.match(regla, /`\.mycelium\/diccionario\.txt`\): solo con\s+`mycelium_diccionario`, nunca a mano/);
+test("el diccionario del vault no se escribe a mano", () => {
+  assert.match(SKILL("mycelium-vault"), /el diccionario solo con\s+`mycelium_diccionario`/);
 });

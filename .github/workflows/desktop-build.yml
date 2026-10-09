@@ -134,7 +134,8 @@ jobs:
         run: npm ci
 
       # `beforeBuildCommand` corre `preparar-mcp` (sidecar) y `next build`
-      # (que antes baja draw.io con `preparar-drawio`).
+      # (que antes baja draw.io con `preparar-drawio` y copia las fuentes de
+      # Excalidraw a `public/` con `preparar-excalidraw`, `DEF-153`).
       #
       # SIN clave de firma: `bundle.createUpdaterArtifacts` está en `true` en el
       # `tauri.conf.json` porque el build local de Windows (el respaldo) lo

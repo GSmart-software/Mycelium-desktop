@@ -3,9 +3,11 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  cargarExcalidraw,
   DibujoIlegible,
   encuadrarDibujo,
   hayAlgoDibujado,
+  IDIOMA_EXCALIDRAW,
   loadNotaScene,
   saveNotaScene,
   type ApiEncuadre,
@@ -15,7 +17,7 @@ import { ArchivoIlegible } from "./ArchivoIlegible";
 import styles from "./ExcalidrawModal.module.css";
 
 const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  async () => (await cargarExcalidraw()).Excalidraw,
   { ssr: false },
 );
 
@@ -117,6 +119,7 @@ export function ExcalidrawModal({
                 excalidrawAPI={(api) => {
                   apiRef.current = api as unknown as ExcalidrawApi;
                 }}
+                langCode={IDIOMA_EXCALIDRAW}
                 initialData={{
                   elements: (initialScene?.elements ?? []) as never,
                   files: (initialScene?.files ?? null) as never,

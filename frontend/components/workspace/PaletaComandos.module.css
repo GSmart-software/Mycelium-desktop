@@ -122,6 +122,17 @@
   white-space: nowrap;
 }
 
+/* Comando de desarrollador (`FUN-S-36`): una marca discreta antes del título. */
+.etiquetaDev {
+  flex-shrink: 0;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
 .detalle {
   flex: 1;
   min-width: 0;
@@ -153,4 +164,20 @@
   margin: 0 0.1rem;
   border-radius: 3px;
   border: 1px solid var(--mic-border);
+}
+
+/* Arrecife (`FUN-M-51`): la opción marcada, con la selección suave de la marca
+   (Arrecife §6.11). */
+:global(:root[data-theme='arrecife']) .opcionActiva {
+  background: var(--arrecife-gradiente-suave);
+}
+
+/* GSmart (`FUN-M-52`): la opción marcada, con la selección suave de la marca. */
+:global(:root[data-theme='gsmart']) .opcionActiva {
+  background: var(--gsmart-degradado-suave);
+}
+
+/* Aurora (`FUN-M-54`): la opción marcada, con la selección suave del tema. */
+:global(:root[data-atmosfera='aurora']) .opcionActiva {
+  background: var(--aurora-degradado-suave);
 }

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Tema } from "@/stores/preferencesStore";
+import { temaValido, TEMA_DEFECTO, type Tema } from "@/lib/temas";
 
 /**
  * Preferencias **de un vault**, no del usuario (`FUN-M-28` / `FUN-M-21`).
@@ -100,7 +100,7 @@ export const POR_DEFECTO: PrefsVault = {
   anchosTabla: {},
   // Los mismos con que arranca `preferencesStore` (la estética oscura
   // bioluminiscente de siempre); `preferencias` vacío = todas por defecto.
-  tema: "bioluminiscencia",
+  tema: TEMA_DEFECTO,
   modoOscuro: true,
   preferencias: {},
   controlIa: false,
@@ -138,7 +138,10 @@ export function normalizar(crudo: unknown): PrefsVault {
         ? o.nombresGrafo
         : POR_DEFECTO.nombresGrafo,
     anchosTabla: normalizarAnchos(o.anchosTabla),
-    tema: o.tema === "bioluminiscencia" || o.tema === "cantarela" ? o.tema : POR_DEFECTO.tema,
+    // Cualquier tema que exista, también `arrecife` (`FUN-M-51`) y `gsmart`
+    // (`FUN-M-52`) aunque el modo dev esté apagado: el modo decide si se puede
+    // elegir, no si se conserva. Uno que ya no existe cae al de defecto.
+    tema: temaValido(o.tema, POR_DEFECTO.tema),
     modoOscuro: typeof o.modoOscuro === "boolean" ? o.modoOscuro : POR_DEFECTO.modoOscuro,
     preferencias: esObjeto(o.preferencias) ? { ...o.preferencias } : {},
     controlIa: o.controlIa === true,

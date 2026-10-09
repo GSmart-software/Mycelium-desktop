@@ -280,6 +280,21 @@
   border-bottom-right-radius: var(--mic-radius-md);
   padding-bottom: 0.2em;
 }
+/* La cerca ``` con el cursor fuera del bloque (DEF-150 k): la de apertura
+   muestra solo el lenguaje, chico y a la derecha; la de cierre queda vacía.
+   Ocupa la línea entera para que no colapse su alto. */
+.mic-live-code-lang {
+  display: inline-block;
+  width: 100%;
+  min-height: 1em;
+  text-align: right;
+  font-family: var(--mic-font-sans);
+  font-size: 0.72em;
+  letter-spacing: 0.03em;
+  color: var(--mic-text-muted);
+  user-select: none;
+  cursor: text;
+}
 
 /* Regla horizontal (--- *** ___) en la edición en vivo: separador de página */
 .mic-live-hr {
@@ -692,6 +707,19 @@
   cursor: pointer;
 }
 
+/* Una dirección escrita suelta (`https://…`, `www.…`, un correo, o entre
+   `<…>`), en vivo (`DEF-132`). El resaltado de sintaxis la pinta como `url`, no
+   como `link`, así que sin esto quedaba en el color del texto y no se leía como
+   enlace. Mismo color que el texto de un `[enlace](…)`; el subrayado fino la
+   distingue de una palabra cualquiera, porque acá no hay texto que la nombre. */
+.cm-editor .mic-url-suelta,
+.cm-editor .mic-url-suelta * {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 /* Archivo referenciado inexistente. Se distingue por la FORMA —subrayado
    punteado— y por un tono atenuado entre el acento y el texto tenue. Antes se
    oscurecía mezclando con negro, que en oscuro lo dejaba en 2.2:1 y dentro de
@@ -1020,6 +1048,21 @@
   padding: var(--mic-radius-sm) var(--mic-radius-md);
   border: 1px solid color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
   text-align: left;
+}
+
+/* Alineación de la columna (`:---:`, `---:`) en lectura, dividido, ayuda y PDF
+   (DEF-143). remark-rehype la emite como el atributo `align` de cada celda, que
+   el navegador aplica como una sugerencia de presentación de especificidad cero:
+   la regla de arriba lo pisaba y toda columna quedaba a la izquierda. El
+   atributo en el selector le gana por especificidad. */
+.mic-preview th[align="center"],
+.mic-preview td[align="center"] {
+  text-align: center;
+}
+
+.mic-preview th[align="right"],
+.mic-preview td[align="right"] {
+  text-align: right;
 }
 
 .mic-preview th {

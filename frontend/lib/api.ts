@@ -14,7 +14,7 @@
  */
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
-import { getContenido, putContenido } from "@/lib/db/contenido";
+import { getContenido, leerContenidoEnDisco, putContenido } from "@/lib/db/contenido";
 import { DbError } from "@/lib/db/errors";
 import { conexiones, grafo, retroenlaces } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
@@ -22,6 +22,7 @@ import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/l
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
 import { notasParaTabla } from "@/lib/db/tabla";
 import { tree } from "@/lib/db/tree";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 export class ApiError extends Error {
   status: number;
@@ -139,8 +140,19 @@ async function dispatch(
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
     if (c === "propiedades" && method === "GET") return propiedadesDeNota(b);
+    // `?origen=disco` (`DEF-138`): el archivo tal como está AHORA, sin pasar por
+    // el índice —que va detrás del watcher—. Lo usa el editor para decidir si
+    // hay un conflicto con un cambio de afuera.
+    if (c === "contenido" && method === "GET" && q.get("origen") === "disco") {
+      return leerContenidoEnDisco(b);
+    }
     if (c === "contenido" && method === "GET") return getContenido(b);
-    if (c === "contenido" && method === "PUT") return putContenido(b, s(body.contenido));
+    if (c === "contenido" && method === "PUT") {
+      // `esperado` (`DEF-138`): lo que quien guarda cree que hay en disco. Si el
+      // archivo cambió desde entonces, no se escribe (409). Sin él, se escribe
+      // como siempre —lo usan quienes no editan sobre una lectura previa—.
+      return putContenido(b, s(body.contenido), body.esperado === undefined ? undefined : s(body.esperado));
+    }
   }
 
   throw new DbError(501, `Ruta no implementada: ${method} /${seg.join("/")}`);
@@ -161,7 +173,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   } catch (err) {
     if (err instanceof DbError) throw new ApiError(err.status, err.message);
     if (err instanceof ApiError) throw err;
-    const message = err instanceof Error ? err.message : "Error desconocido";
+    // Los rechazos de `invoke` (comandos de Rust, plugin SQL) son TEXTO: con
+    // `instanceof Error` a secas, todo error nativo salía como «Error
+    // desconocido» y el motivo real se perdía (`DEF-136`).
+    const message = mensajeDeError(err);
     throw new ApiError(500, message);
   }
 }

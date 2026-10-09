@@ -152,3 +152,18 @@
   margin-top: 0.15rem;
   color: var(--mic-callout-warning-border);
 }
+
+/* Arrecife (`FUN-M-51`): la barra de progreso de la apertura con el gradiente de la marca. */
+:global(:root[data-theme='arrecife']) .barraRelleno {
+  background: var(--arrecife-gradiente);
+}
+
+/* GSmart (`FUN-M-52`): la barra de progreso de la apertura con el degradado de la marca. */
+:global(:root[data-theme='gsmart']) .barraRelleno {
+  background: var(--gsmart-degradado);
+}
+
+/* Aurora (`FUN-M-54`): la barra de progreso con el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .barraRelleno {
+  background: var(--aurora-degradado);
+}

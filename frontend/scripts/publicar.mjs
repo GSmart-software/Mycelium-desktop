@@ -33,6 +33,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buscarSecretoDev } from "./secreto-dev.mjs";
 
 // ── Constantes del proyecto ───────────────────────────────────────────────────
 
@@ -53,13 +54,6 @@ const MARCADOR_ENDPOINT = ".invalid";
 /** Delimitadores de la parte de la nota de release que ve el usuario final. */
 const NOTAS_INICIO = "<!-- notas-release:inicio -->";
 const NOTAS_FIN = "<!-- notas-release:fin -->";
-
-/**
- * El modo avanzado (`FUN-M-16`) es deliberadamente oculto: anunciarlo en el
- * changelog lo desactivaría como tal. Se comprueba antes de compilar, que es
- * cuando corregirlo todavía es gratis.
- */
-const PROHIBIDO_EN_NOTAS = [/modo\s+avanzado/i, /FUN-M-16/i];
 
 /** Sin el límite de jobs, rustc se queda sin memoria (ver [[Compilacion y entorno de desarrollo]]). */
 const JOBS_CARGO = "2";
@@ -511,14 +505,16 @@ function leerNotas(version, rutaNotas) {
         "a ciegas si actualiza.",
     );
   }
-  for (const patron of PROHIBIDO_EN_NOTAS) {
-    if (patron.test(texto)) {
-      fallar(
-        `El changelog menciona el modo avanzado (coincide con ${patron}). Es una función ` +
-          "deliberadamente oculta (`FUN-M-16`): anunciarla en el diálogo de actualización la " +
-          "desactiva como tal. Quitá esa línea y repetí.",
-      );
-    }
+  // El modo desarrollador (`FUN-S-36`) y todo lo que habilita son ocultos a
+  // propósito: anunciarlos en el diálogo de actualización los desactiva como tales.
+  // Se comprueba antes de compilar, que es cuando corregirlo todavía es gratis.
+  const secreto = buscarSecretoDev(texto);
+  if (secreto) {
+    fallar(
+      `El changelog menciona ${secreto.que} (coincide con ${secreto.patron}). Lo del modo ` +
+        "desarrollador es deliberadamente oculto y no se anuncia: quitá esa línea y repetí. " +
+        "La lista completa está en scripts/secreto-dev.mjs.",
+    );
   }
   return { texto, origen };
 }

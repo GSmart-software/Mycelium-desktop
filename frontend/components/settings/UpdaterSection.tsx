@@ -8,6 +8,7 @@ import {
   type VersionPublicada,
 } from "@/lib/updater";
 import { useUpdaterStore } from "@/stores/updaterStore";
+import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
 
@@ -23,8 +24,8 @@ const texto = (e: unknown) => (e instanceof Error ? e.message : String(e));
  *    nada nuevo) e interruptor de la comprobación automática.
  * 2. **Si el updater no está configurado**: el motivo, en vez de botones que no
  *    harían nada. Es el estado en el que está hasta que existan las claves.
- * 3. **Solo en modo avanzado** (siete clics en el número de versión del pie):
- *    el endpoint propio y la lista de versiones publicadas.
+ * 3. **Solo en modo desarrollador** (`FUN-S-36`, el comando oculto `>dev` de
+ *    la paleta): el endpoint propio y la lista de versiones publicadas.
  */
 export function UpdaterSection() {
   const estado = useUpdaterStore((s) => s.estado);
@@ -145,11 +146,16 @@ export function UpdaterSection() {
             <span className={styles.switchTrack} aria-hidden />
           </label>
         </div>
-        <p className={styles.hint}>
-          Una vez al día, en el primer arranque de la jornada, y en segundo plano: la app
-          abre igual aunque no haya conexión y nunca se actualiza sola. Desactivalo y
-          Mycelium no hará <strong>ninguna</strong> petición de red al arrancar; el botón de
-          acá abajo sigue funcionando.
+        <Explicacion
+          detalle={
+            <>
+              En el primer arranque de la jornada y en segundo plano: la app abre igual aunque
+              no haya conexión. Desactivado, Mycelium no hace <strong>ninguna</strong> petición
+              de red al arrancar; el botón de acá abajo sigue funcionando.
+            </>
+          }
+        >
+          Una vez al día; nunca se actualiza sola, te pregunta.
           {estado.ultimaComprobacion && (
             <> Última comprobación: <strong>{estado.ultimaComprobacion}</strong>.</>
           )}
@@ -157,7 +163,7 @@ export function UpdaterSection() {
             <> Versión omitida: <strong>{estado.versionOmitida}</strong> (se volverá a
             avisar cuando salga otra).</>
           )}
-        </p>
+        </Explicacion>
         <div className={styles.btnRow}>
           <button
             type="button"
@@ -175,8 +181,8 @@ export function UpdaterSection() {
         )}
       </div>
 
-      {/* ── Modo avanzado (FUN-M-16) ──────────────────────────────────── */}
-      {estado.avanzado && (
+      {/* ── Modo desarrollador (FUN-M-16, FUN-S-36) ───────────────────── */}
+      {estado.dev && (
         <>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="mic-updater-endpoint">
@@ -198,12 +204,17 @@ export function UpdaterSection() {
                 }
               }}
             />
-            <p className={styles.hint}>
-              URL del <code>latest.json</code>. Vacío = el compilado en esta versión
-              (<code>{estado.endpointDefecto}</code>). Sirve para probar contra un bucket de
-              pruebas sin tocar el de producción, y para el día que haya que cambiar la URL
-              sin reinstalar nada.
-            </p>
+            <Explicacion
+              detalle={
+                <>
+                  Vacío = el compilado en esta versión (<code>{estado.endpointDefecto}</code>).
+                  Sirve para probar contra un bucket de pruebas sin tocar el de producción, y
+                  para el día que haya que cambiar la URL sin reinstalar nada.
+                </>
+              }
+            >
+              URL del <code>latest.json</code> de donde se leen las versiones.
+            </Explicacion>
             {errorEndpoint && (
               <p className={styles.warn} role="alert">
                 {errorEndpoint}
@@ -213,12 +224,17 @@ export function UpdaterSection() {
 
           <div className={styles.field}>
             <span className={styles.label}>Versiones publicadas</span>
-            <p className={styles.hint}>
-              Herramienta de desarrollo: instalar cualquier versión publicada, incluida una
-              anterior a la actual —para revisar cómo se comportaba algo, o para volver
-              atrás si una versión sale mal—. Elegir una <strong>fija</strong> la app en
-              ella y apaga el aviso diario hasta que lo deshagas.
-            </p>
+            <Explicacion
+              detalle={
+                <>
+                  Para revisar cómo se comportaba algo, o para volver atrás si una versión sale
+                  mal. Elegir una <strong>fija</strong> la app en ella y apaga el aviso diario
+                  hasta que lo deshagas.
+                </>
+              }
+            >
+              Instalar cualquier versión publicada, incluida una anterior.
+            </Explicacion>
             <div className={styles.btnRow}>
               <button
                 type="button"

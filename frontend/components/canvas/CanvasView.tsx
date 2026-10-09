@@ -1,10 +1,12 @@
 "use client";
 
-import { Ban, FileText, Maximize2, Save, Trash2, Type } from "lucide-react";
+import { Ban, FileText, Maximize2, Redo2, Save, Trash2, Type, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
+  ALTO_TARJETA,
+  ANCHO_TARJETA,
   anclaDe,
   buscarPorPrefijo,
   cajaDeNodos,
@@ -12,10 +14,12 @@ import {
   COLORES,
   encuadrar,
   ladosAutomaticos,
+  lugarLibre,
   nodoArchivo,
   nodoTexto,
   nuevaArista,
   nuevoId,
+  ordenDePintado,
   parsearCanvas,
   serializarCanvas,
   trazoArista,
@@ -23,7 +27,22 @@ import {
   type Lado,
   type Nodo,
 } from "@/lib/canvas";
-import { markMissingWikilinks, resolveWikilink } from "@/lib/editor/wikilink";
+import {
+  abrir as abrirEnHistorial,
+  accionDeTecla,
+  cerrar as cerrarEnHistorial,
+  deshacer,
+  historialVacio,
+  puedeDeshacer,
+  puedeRehacer,
+  registrar,
+  rehacer,
+  type Historial,
+} from "@/lib/historialCanvas";
+import { markMissingWikilinks } from "@/lib/editor/wikilink";
+import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
+import { resolverReferencia } from "@/lib/wikilinks";
+import { soltarFoco } from "@/lib/editor/tituloPendiente";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
@@ -47,6 +66,14 @@ type Arrastre =
   | { tipo: "nodo"; id: string; dx: number; dy: number }
   | { tipo: "tamano"; id: string; x0: number; y0: number; w0: number; h0: number }
   | { tipo: "arista"; desde: string; lado: Lado; x: number; y: number };
+
+/**
+ * El último lienzo que el usuario tocó (`DEF-137`). Con dos lienzos abiertos en
+ * paneles distintos, Ctrl+Z tiene que deshacer en el que se estaba usando, no
+ * en los dos: los atajos escuchan en la ventana y solo el que figura acá
+ * responde.
+ */
+let lienzoActivo: symbol | null = null;
 
 /**
  * Editor de canvas (`FUN-L-18`): lienzo infinito con tarjetas de markdown y de
@@ -89,6 +116,27 @@ export function CanvasView({ notaId }: { notaId: string }) {
    * `ultimoGuardadoRef` en `NoteEditor`, `DEF-117`).
    */
   const conocidoRef = useRef<string | null>(null);
+  /**
+   * Deshacer/rehacer (`DEF-137`): snapshots del documento, ver
+   * `lib/historialCanvas.ts`. Vive en una ref porque lo tocan los manejadores
+   * del puntero y del teclado, fuera del render; `puede` es lo que necesitan
+   * los botones de la barra, y `tocarHistorial` lo recalcula después de cada
+   * cambio del historial o del documento.
+   */
+  const historialRef = useRef<Historial<Canvas>>(historialVacio());
+  const [puede, setPuede] = useState({ deshacer: false, rehacer: false });
+  const tocarHistorial = useCallback(() => {
+    const h = historialRef.current;
+    const c = canvasRef.current;
+    const deshacerOk = c !== null && puedeDeshacer(h, c);
+    const rehacerOk = c !== null && puedeRehacer(h, c);
+    setPuede((p) =>
+      p.deshacer === deshacerOk && p.rehacer === rehacerOk
+        ? p
+        : { deshacer: deshacerOk, rehacer: rehacerOk },
+    );
+  }, []);
+  const yoRef = useRef<symbol>(Symbol("lienzo"));
 
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
@@ -162,20 +210,90 @@ export function CanvasView({ notaId }: { notaId: string }) {
     [notaId],
   );
 
-  /** Aplica un cambio al canvas y programa el guardado. */
-  const cambiar = useCallback(
-    (fn: (c: Canvas) => Canvas) => {
-      setCanvas((prev) => {
-        if (prev === null) return prev;
-        const siguiente = fn(prev);
-        sucioRef.current = true;
-        setSucio(true);
-        if (guardadoRef.current) clearTimeout(guardadoRef.current);
-        guardadoRef.current = setTimeout(() => void guardar(siguiente), GUARDADO_MS);
-        return siguiente;
-      });
+  /**
+   * Pone `siguiente` en pantalla y programa el guardado. Es el único camino al
+   * disco: un cambio, un deshacer y un rehacer se guardan igual.
+   *
+   * La ref se actualiza en el acto, sin esperar al render: un arrastre manda
+   * varios cambios entre dos renders y cada uno parte del anterior. Antes esto
+   * iba dentro del actualizador de `setCanvas`, con el temporizador como efecto
+   * secundario adentro (lo que `DEF-135` enseñó a no hacer).
+   */
+  const aplicar = useCallback(
+    (siguiente: Canvas) => {
+      canvasRef.current = siguiente;
+      setCanvas(siguiente);
+      sucioRef.current = true;
+      setSucio(true);
+      if (guardadoRef.current) clearTimeout(guardadoRef.current);
+      guardadoRef.current = setTimeout(() => void guardar(siguiente), GUARDADO_MS);
     },
     [guardar],
+  );
+
+  /**
+   * Aplica un cambio al canvas y programa el guardado. Por defecto es un paso
+   * del historial; con `enGesto` es parte del gesto abierto (un arrastre, la
+   * edición de un texto), que entra como UN paso al cerrarse.
+   */
+  const cambiar = useCallback(
+    (fn: (c: Canvas) => Canvas, enGesto = false) => {
+      const prev = canvasRef.current;
+      if (prev === null) return;
+      const siguiente = fn(prev);
+      if (siguiente === prev) return;
+      if (!enGesto) historialRef.current = registrar(historialRef.current, prev, siguiente);
+      aplicar(siguiente);
+      if (!enGesto) tocarHistorial();
+    },
+    [aplicar, tocarHistorial],
+  );
+
+  /** Empieza un gesto que va a ser un solo paso del historial. */
+  const abrirGesto = useCallback(
+    (clave: string) => {
+      const actual = canvasRef.current;
+      if (actual === null) return;
+      historialRef.current = abrirEnHistorial(historialRef.current, clave, actual);
+      tocarHistorial();
+    },
+    [tocarHistorial],
+  );
+
+  /** Termina el gesto `clave`: si cambió algo, entra como un paso. */
+  const cerrarGesto = useCallback(
+    (clave: string) => {
+      const actual = canvasRef.current;
+      if (actual === null) return;
+      historialRef.current = cerrarEnHistorial(historialRef.current, clave, actual);
+      tocarHistorial();
+    },
+    [tocarHistorial],
+  );
+
+  /** Sale de la edición del texto de una tarjeta: su escritura es un paso. */
+  const terminarEdicion = useCallback(() => {
+    const id = editandoRef.current;
+    if (id !== null) cerrarGesto(`texto:${id}`);
+    setEditando(null);
+  }, [cerrarGesto]);
+
+  /** Deshace o rehace un paso. La selección se suelta si su tarjeta ya no está. */
+  const moverEnHistorial = useCallback(
+    (accion: "deshacer" | "rehacer") => {
+      const actual = canvasRef.current;
+      // Mientras se escribe en una tarjeta, Ctrl+Z es el del texto.
+      if (actual === null || editandoRef.current !== null) return;
+      // A mitad de un arrastre no: el gesto seguiría moviendo sobre lo deshecho.
+      if (arrastre.current !== null) return;
+      const r = (accion === "deshacer" ? deshacer : rehacer)(historialRef.current, actual);
+      if (r === null) return;
+      historialRef.current = r.historial;
+      aplicar(r.documento);
+      tocarHistorial();
+      setSeleccion((s) => (s !== null && r.documento.nodos.some((n) => n.id === s) ? s : null));
+    },
+    [aplicar, tocarHistorial],
   );
 
   // ── Cambios de afuera (`FUN-L-26`) ─────────────────────────────────────────
@@ -211,7 +329,14 @@ export function CanvasView({ notaId }: { notaId: string }) {
         return;
       conocidoRef.current = disco;
       const nuevo = parsearCanvas(disco);
+      // El historial se descarta (`DEF-137`): sus snapshots son de la versión
+      // anterior del archivo, y deshacer hacia uno de ellos pisaría lo que llegó
+      // de afuera mezclando las dos. Recargar es, para el historial, abrir de
+      // nuevo el lienzo.
+      historialRef.current = historialVacio();
+      canvasRef.current = nuevo;
       setCanvas(nuevo);
+      tocarHistorial();
       setSeleccion((s) => (s !== null && nuevo.nodos.some((n) => n.id === s) ? s : null));
     }
     function onRecarga(ev: Event) {
@@ -219,7 +344,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     }
     window.addEventListener(EVENTO_RECARGA, onRecarga);
     return () => window.removeEventListener(EVENTO_RECARGA, onRecarga);
-  }, [notaId]);
+  }, [notaId, tocarHistorial]);
 
   // Al cerrar la pestaña puede quedar un guardado en vuelo: se fuerza.
   useEffect(
@@ -257,7 +382,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
         cambiar((c) => ({
           ...c,
           nodos: c.nodos.map((n) => (n.id === a.id ? { ...n, x: p.x - a.dx, y: p.y - a.dy } : n)),
-        }));
+        }), true);
       } else if (a.tipo === "tamano") {
         cambiar((c) => ({
           ...c,
@@ -270,7 +395,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
                 }
               : n,
           ),
-        }));
+        }), true);
       } else {
         arrastre.current = { ...a, x: p.x, y: p.y };
         // Redibuja la línea provisional sin tocar el documento.
@@ -282,6 +407,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
       const a = arrastre.current;
       arrastre.current = null;
       setDesplazando(false);
+      // Un arrastre entero —mover o redimensionar— es un solo paso.
+      if (a?.tipo === "nodo" || a?.tipo === "tamano") cerrarGesto("arrastre");
       if (a?.tipo !== "arista") return;
       const destino = (e.target as HTMLElement | null)?.closest("[data-nodo]");
       const id = destino?.getAttribute("data-nodo");
@@ -305,7 +432,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [cambiar, enLienzo]);
+  }, [cambiar, cerrarGesto, enLienzo]);
 
   /**
    * Zoom hacia el cursor: lo que está bajo el puntero no se mueve.
@@ -335,8 +462,10 @@ export function CanvasView({ notaId }: { notaId: string }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (seleccion === null || editando !== null) return;
-      const activo = document.activeElement?.tagName;
-      if (activo === "INPUT" || activo === "TEXTAREA") return;
+      const activo = document.activeElement as HTMLElement | null;
+      // El editor de notas es un `contenteditable`, no un INPUT: sin esto, borrar
+      // con Retroceso en una nota de otro panel borraba la tarjeta seleccionada.
+      if (activo?.tagName === "INPUT" || activo?.tagName === "TEXTAREA" || activo?.isContentEditable) return;
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       e.preventDefault();
       // Al borrar un nodo se van también sus flechas: una arista suelta dejaría
@@ -351,6 +480,39 @@ export function CanvasView({ notaId }: { notaId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [seleccion, editando, cambiar]);
 
+  // Deshacer y rehacer (`DEF-137`). Se escucha en la fase de captura para
+  // adelantarse al Ctrl+Z del explorador (deshacer el último movimiento de un
+  // archivo), que se aparta si la tecla ya fue atendida. Solo responde el
+  // lienzo que se usó por última vez, si se ve, y nunca con el foco en un campo
+  // de texto: ahí Ctrl+Z es el del campo.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const accion = accionDeTecla(e);
+      if (accion === null || e.defaultPrevented) return;
+      if (lienzoActivo !== yoRef.current) return;
+      const host = hostRef.current;
+      if (host === null || host.getClientRects().length === 0) return;
+      const foco = document.activeElement as HTMLElement | null;
+      if (
+        foco !== null &&
+        (foco.isContentEditable || foco.tagName === "INPUT" || foco.tagName === "TEXTAREA")
+      )
+        return;
+      if (editandoRef.current !== null) return;
+      e.preventDefault();
+      moverEnHistorial(accion);
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [moverEnHistorial]);
+
+  useEffect(() => {
+    const yo = yoRef.current;
+    return () => {
+      if (lienzoActivo === yo) lienzoActivo = null;
+    };
+  }, []);
+
   // ── Crear ──────────────────────────────────────────────────────────────────
   /** Centro visible del lienzo, para soltar ahí lo que se cree. */
   const centro = () => {
@@ -362,31 +524,52 @@ export function CanvasView({ notaId }: { notaId: string }) {
     };
   };
 
+  /**
+   * Id para una tarjeta nueva, elegido FUERA del actualizador de `cambiar`
+   * (`DEF-135`). Antes se sorteaba adentro y desde ahí se marcaba la tarjeta en
+   * edición: un actualizador de estado tiene que ser puro —React lo vuelve a
+   * correr en desarrollo y se queda con una sola de las pasadas—, y con un id al
+   * azar la tarjeta podía quedar con un id distinto del que se marcó «en
+   * edición». La tarjeta nueva no abría su texto, el foco se quedaba en el botón
+   * y el espacio tecleado para ella creaba otra.
+   */
+  const idNuevo = () => nuevoId((canvasRef.current?.nodos ?? []).map((n) => n.id));
+
   const agregarTexto = () => {
     const p = centro();
+    const id = idNuevo();
+    // Crear la tarjeta y escribir su texto es UN paso: el gesto se abre antes
+    // de crearla, así que deshacer se lleva la tarjeta con lo escrito.
+    abrirGesto(`texto:${id}`);
+    // En el lugar libre más cercano al centro, no encima de otra tarjeta
+    // (`DEF-150 h`). `lugarLibre` es pura: puede ir dentro del actualizador.
     cambiar((c) => {
-      const id = nuevoId(c.nodos.map((n) => n.id));
-      setEditando(id);
-      setSeleccion(id);
-      return { ...c, nodos: [...c.nodos, nodoTexto(id, p.x, p.y)] };
-    });
+      const q = lugarLibre(c.nodos, p, ANCHO_TARJETA, ALTO_TARJETA);
+      return { ...c, nodos: [...c.nodos, nodoTexto(id, q.x, q.y)] };
+    }, true);
+    setEditando(id);
+    setSeleccion(id);
   };
 
   const agregarNota = (notaDestino: string) => {
     const p = centro();
+    const id = idNuevo();
     setEligiendoNota(false);
+    // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
+    // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
     cambiar((c) => {
-      const id = nuevoId(c.nodos.map((n) => n.id));
-      setSeleccion(id);
-      // Se guarda la RUTA, no el id: es lo que pide el formato y lo que hace que
-      // el canvas se abra en Obsidian (ver `lib/rutasNotas.ts`).
-      return { ...c, nodos: [...c.nodos, nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino))] };
+      const nueva = nodoArchivo(id, p.x, p.y, rutaDeNota(notaDestino));
+      const q = lugarLibre(c.nodos, p, nueva.ancho, nueva.alto); // `DEF-150 h`
+      return { ...c, nodos: [...c.nodos, { ...nueva, x: q.x, y: q.y }] };
     });
+    setSeleccion(id);
   };
 
   /** Pinta la tarjeta seleccionada. `undefined` la devuelve al color de Mycelium. */
   const pintar = (color: string | undefined) => {
     if (seleccion === null) return;
+    // El mismo color no es un cambio: no debe dejar un paso que no hace nada.
+    if (canvasRef.current?.nodos.find((n) => n.id === seleccion)?.color === color) return;
     cambiar((c) => ({
       ...c,
       nodos: c.nodos.map((n) => (n.id === seleccion ? { ...n, color } : n)),
@@ -394,10 +577,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
   };
 
   const abrirPorTitulo = (titulo: string) => {
-    const destino = resolveWikilink(titulo, notas, carpetas);
+    const { nota: destino, ancla } = resolverReferencia(titulo, notas, carpetas);
     if (!destino) return;
     useTabsStore.getState().openNote(destino.id);
     router.replace(`/workspace?note=${encodeURIComponent(destino.id)}`);
+    // `[[Nota#Encabezado]]`: además de abrirla, ir al encabezado (`DEF-141`).
+    if (ancla) pedirSaltoAAncla(destino.id, ancla);
   };
 
   const abrirNota = (id: string) => {
@@ -438,10 +623,76 @@ export function CanvasView({ notaId }: { notaId: string }) {
     ? canvas.nodos.find((n) => n.id === provisional.desde)
     : undefined;
 
+  // Grupos y tarjetas se pintan en capas separadas (`DEF-151`).
+  const pintado = ordenDePintado(canvas.nodos);
+  const vistaDe = (n: Nodo) => (
+  <NodoVista
+    key={n.id}
+    nodo={n}
+    seleccionado={seleccion === n.id}
+    editando={editando === n.id}
+    notas={notas}
+    carpetas={carpetas}
+    onSeleccionar={() => setSeleccion(n.id)}
+    onEditar={() => {
+      abrirGesto(`texto:${n.id}`);
+      setEditando(n.id);
+    }}
+    onTerminarEdicion={terminarEdicion}
+    onTexto={(texto) =>
+      cambiar(
+        (c) => ({
+          ...c,
+          nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
+        }),
+        true,
+      )
+    }
+    onArrastrar={(e) => {
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
+    }}
+    onRedimensionar={(e) => {
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = {
+        tipo: "tamano",
+        id: n.id,
+        x0: p.x,
+        y0: p.y,
+        w0: n.ancho,
+        h0: n.alto,
+      };
+    }}
+    onConectar={(lado, e) => {
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "arista", desde: n.id, lado, x: p.x, y: p.y };
+    }}
+    onAbrirTitulo={abrirPorTitulo}
+    onAbrirNota={abrirNota}
+  />
+  );
+
   return (
-    <div className={styles.wrap}>
+    <div
+      className={styles.wrap}
+      // Tocar el lienzo o su barra lo vuelve el destino de Ctrl+Z (`DEF-137`).
+      onPointerDownCapture={() => {
+        lienzoActivo = yoRef.current;
+      }}
+    >
       <header className={styles.barra}>
-        <button type="button" className={styles.boton} onClick={agregarTexto}>
+        <button
+          type="button"
+          className={styles.boton}
+          onClick={(e) => {
+            // El foco pasa al texto de la tarjeta nueva; el botón no se lo queda,
+            // o un espacio tecleado para ella crearía otra (`DEF-135`).
+            soltarFoco(e.currentTarget);
+            agregarTexto();
+          }}
+        >
           <Type size={14} aria-hidden /> Tarjeta de texto
         </button>
         <button
@@ -462,6 +713,26 @@ export function CanvasView({ notaId }: { notaId: string }) {
           onClick={() => setVista({ x: 0, y: 0, escala: 1 })}
         >
           <Maximize2 size={14} aria-hidden /> {Math.round(vista.escala * 100)}%
+        </button>
+        <button
+          type="button"
+          className={styles.boton}
+          title="Deshacer (Ctrl+Z)"
+          aria-label="Deshacer"
+          disabled={!puede.deshacer}
+          onClick={() => moverEnHistorial("deshacer")}
+        >
+          <Undo2 size={14} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={styles.boton}
+          title="Rehacer (Ctrl+Y)"
+          aria-label="Rehacer"
+          disabled={!puede.rehacer}
+          onClick={() => moverEnHistorial("rehacer")}
+        >
+          <Redo2 size={14} aria-hidden />
         </button>
         {seleccion !== null && (
           <span className={styles.paleta} role="group" aria-label="Color de la tarjeta">
@@ -565,7 +836,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
           // "engancha" a mitad del gesto.
           e.preventDefault();
           setSeleccion(null);
-          setEditando(null);
+          terminarEdicion();
           setDesplazando(true);
           arrastre.current = {
             tipo: "lienzo",
@@ -582,7 +853,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
             transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.escala})`,
           }}
         >
-          {/* Las flechas van debajo de las tarjetas, y no reciben el puntero. */}
+          {/* Orden de pintado (`DEF-151`): grupos al fondo, encima las flechas y
+              arriba las tarjetas. Si un grupo quedaba sobre el SVG, tapaba las
+              flechas entre las tarjetas que contiene. */}
+          {pintado.grupos.map(vistaDe)}
+
+          {/* Las flechas no reciben el puntero: un clic las atraviesa. */}
           <svg className={styles.aristas} aria-hidden>
             <defs>
               <marker
@@ -615,46 +891,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
             )}
           </svg>
 
-          {canvas.nodos.map((n) => (
-            <NodoVista
-              key={n.id}
-              nodo={n}
-              seleccionado={seleccion === n.id}
-              editando={editando === n.id}
-              notas={notas}
-              carpetas={carpetas}
-              onSeleccionar={() => setSeleccion(n.id)}
-              onEditar={() => setEditando(n.id)}
-              onTerminarEdicion={() => setEditando(null)}
-              onTexto={(texto) =>
-                cambiar((c) => ({
-                  ...c,
-                  nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
-                }))
-              }
-              onArrastrar={(e) => {
-                const p = enLienzo(e);
-                arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
-              }}
-              onRedimensionar={(e) => {
-                const p = enLienzo(e);
-                arrastre.current = {
-                  tipo: "tamano",
-                  id: n.id,
-                  x0: p.x,
-                  y0: p.y,
-                  w0: n.ancho,
-                  h0: n.alto,
-                };
-              }}
-              onConectar={(lado, e) => {
-                const p = enLienzo(e);
-                arrastre.current = { tipo: "arista", desde: n.id, lado, x: p.x, y: p.y };
-              }}
-              onAbrirTitulo={abrirPorTitulo}
-              onAbrirNota={abrirNota}
-            />
-          ))}
+          {pintado.tarjetas.map(vistaDe)}
         </div>
 
         {canvas.nodos.length === 0 && (
@@ -758,6 +995,9 @@ function NodoVista({
     if (cuerpoRef.current) markMissingWikilinks(cuerpoRef.current, notas, carpetas);
   }, [html, notas, carpetas]);
 
+  /** Tarjetas cuya asa no lleva rótulo: su contenido ya dice lo que son. */
+  const sinRotulo = nodo.tipo === "text" || nodo.tipo === "link";
+
   const clases = [
     styles.nodo,
     seleccionado ? styles.nodoSel : "",
@@ -797,7 +1037,12 @@ function NodoVista({
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
           seleccionar texto ni pulsar un enlace dentro de ella. */}
       <div
-        className={css ? `${styles.asa} ${styles.asaColor}` : styles.asa}
+        className={[styles.asa, css ? styles.asaColor : "", sinRotulo ? styles.asaSinTitulo : ""]
+          .filter(Boolean)
+          .join(" ")}
+        // Una tarjeta de texto o de enlace no lleva rótulo (`DEF-150 i`): el asa
+        // queda como una franja fina, y el tooltip dice para qué está.
+        title={sinRotulo ? "Arrastrar para mover" : undefined}
         onPointerDown={(e) => {
           e.stopPropagation();
           onSeleccionar();
@@ -805,13 +1050,15 @@ function NodoVista({
         }}
         onDoubleClick={() => nodo.tipo === "text" && onEditar()}
       >
-        <span className={styles.asaTitulo}>
-          {nodo.tipo === "file"
-            ? (nota?.titulo ?? nodo.archivo ?? "")
-            : nodo.tipo === "group"
-              ? (nodo.etiqueta ?? "Grupo")
-              : "Texto"}
-        </span>
+        {/* El rótulo dice algo en una tarjeta de nota (su título) o en un grupo
+            (su etiqueta); en una de texto, «Texto» era ruido: lo que es ya se
+            ve en su contenido (`DEF-150 i`). Lo mismo una de enlace, que ya
+            muestra su URL. */}
+        {!sinRotulo && (
+          <span className={styles.asaTitulo}>
+            {nodo.tipo === "file" ? (nota?.titulo ?? nodo.archivo ?? "") : (nodo.etiqueta ?? "Grupo")}
+          </span>
+        )}
         {nodo.tipo === "file" && nota !== undefined && (
           <button
             type="button"

@@ -1,166 +1,556 @@
 /* ============================================================================
-   Plantilla de estilos personalizados — Mycelium
+   Plantilla de snippets de CSS — Mycelium
    ----------------------------------------------------------------------------
-   Pegá este contenido en Configuración › CSS personalizado y modificá lo que
-   quieras. Todo está comentado y desactivado: descomentá (quitá los \/* *\/ )
-   las reglas que quieras usar.
+   Es la base de un snippet nuevo (Configuración › Snippets CSS › «Nuevo
+   snippet») y la que baja «Descargar plantilla». Tal como viene NO cambia
+   nada: todo está comentado. Para usar un ejemplo, borrá la línea con la barra
+   y el asterisco de apertura y la del asterisco y la barra de cierre que lo
+   rodean, y cambiá los valores a tu gusto.
 
-   Cómo funciona:
-   - Los TOKENS (variables --mic-*) controlan los colores del tema. Cambiarlos
-     reestiliza toda la app de forma coherente.
-   - Los selectores .mic-preview ... estilizan el markdown renderizado
-     (modos Lectura y Dividido).
-   - Los selectores .mic-editor-host / .mic-live-* estilizan el editor en vivo.
-   - Podés limitar cambios a un tema/modo con
-     [data-theme='bioluminiscencia'] / [data-theme='cantarela'] y
-     [data-dark='true'] (oscuro) en el selector.
+   Índice
+     0. Cómo apuntar: temas, modo claro/oscuro y atmósferas
+     1. Paleta del tema (los colores de base)
+     2. Colores de la interfaz (fondos, texto, acento, bordes)
+     3. Colores por función (enlaces, foco, marco de la ventana)
+     4. Tipografía
+     5. Medidas (esquinas y ancho de la hoja)
+     6. Títulos y el título de la nota
+     7. Texto de la nota: párrafos, listas, citas, imágenes
+     8. Énfasis propio de Mycelium: _x_  __x__  ___x___
+     9. Enlaces y etiquetas
+    10. Código y resaltado de sintaxis
+    11. Callouts
+    12. Tareas y sus estados
+    13. Tablas
+    14. Propiedades (la tarjeta del frontmatter)
+    15. Diagramas, fórmulas y vídeos dentro de una nota
+    16. Búsqueda y corrector ortográfico
+    17. Calendario y consolas
+    18. Lo que se estila solo con colores: bases, lienzos, draw.io, explorador,
+        pestañas, grafo y la ayuda
+
+   Dos vistas, dos familias de clases:
+   - Lectura (y la vista dividida, la exportación a PDF y la ayuda integrada):
+     el HTML de la nota está dentro de .mic-preview, así que sus reglas
+     empiezan con «.mic-preview ...».
+   - Edición en vivo: CodeMirror, dentro de .mic-editor-host. Cada renglón es
+     una línea .cm-line con clases como .mic-live-h1 o .mic-live-quote según
+     lo que contiene.
+   Lo que se ve en las dos (callouts, tareas, etiquetas) se nombra en las dos.
+
+   Solo se documentan clases que empiezan con «mic-» y variables «--mic-»:
+   son las que Mycelium mantiene a propósito. Las clases con nombres raros
+   (con guion bajo y letras al azar) son internas y cambian en cada versión;
+   un snippet que se apoye en ellas se rompe sin aviso.
    ========================================================================== */
 
 
 /* ============================================================================
-   1) TOKENS DEL TEMA  (la forma más simple de recolorear todo)
+   0) CÓMO APUNTAR: TEMAS, MODO CLARO/OSCURO Y ATMÓSFERAS
    ----------------------------------------------------------------------------
-   Capa raw → la redefine cada tema. Capa semántica → la usa la interfaz.
+   El estilo tiene tres ejes, y los tres son atributos de la etiqueta <html>
+   (que en CSS es :root):
+     data-theme       'bioluminiscencia' o 'cantarela'      (Configuración › Tema)
+     data-dark        'true' en modo oscuro; en claro NO está
+     data-atmosfera   'abisal', 'niebla', 'bosque', 'papel' o 'aurora'
+                      (una por modo)
+
+   Por qué importa el selector: los temas y las atmósferas definen las
+   variables con selectores de DOS atributos, como
+   [data-theme='cantarela'][data-dark='true']. Un :root a secas tiene menos
+   peso y pierde contra ellos, así que para cambiar variables usá
+   :root[data-theme] (vale en cualquier tema y modo) o algo más específico.
+   El snippet se carga después que el estilo de Mycelium, así que a igual
+   peso gana el snippet.
+
+   Selectores listos:
+     :root[data-theme]                               siempre
+     :root[data-theme][data-dark='true']             solo modo oscuro
+     :root[data-theme]:not([data-dark='true'])       solo modo claro
+     :root[data-theme='cantarela']                   solo un tema
+     :root[data-theme='cantarela'][data-dark='true'] un tema en un modo
+     :root[data-atmosfera='papel']                   solo una atmósfera
+   Para el contenido (no para variables) se antepone igual:
+     [data-dark='true'] .mic-preview h1 { ... }
    ========================================================================== */
+
 /*
-   --mic-bg-canvas    fondo del editor / principal
-   --mic-bg-surface   paneles laterales, tabs
-   --mic-bg-sidebar   rail y topbar
-   --mic-bg-code      bloques de código y lienzo del grafo
-   --mic-bg-base      inputs, fondos recedidos
-   --mic-bg-hover     fondo al pasar el mouse
-   --mic-border       bordes
-   --mic-text-primary texto principal
-   --mic-text-muted   texto secundario
-   --mic-accent       botones, enlaces, acentos
-   --mic-glow         cursor, tags, resaltados, nodos del grafo
-*/
-/*
-:root {
-  --mic-bg-canvas:    #0e0e12;
-  --mic-bg-surface:   #16161d;
-  --mic-bg-sidebar:   #0a0a0e;
-  --mic-bg-code:      #1b1b24;
-  --mic-bg-base:      #0e0e12;
-  --mic-bg-hover:     rgba(255, 255, 255, 0.08);
-  --mic-border:       rgba(255, 255, 255, 0.14);
-  --mic-text-primary: #e6e6ea;
-  --mic-text-muted:   #9a9aa6;
-  --mic-accent:       #7c9cff;
-  --mic-glow:         #9ad8ff;
-}
-*/
-/* Solo un tema / modo concreto:
-[data-theme='cantarela'][data-dark='true'] {
+:root[data-theme][data-dark='true'] {
   --mic-glow: #ffd27a;
 }
 */
 
-/* Tipografía (también configurable desde Configuración › Tipografía) */
 /*
-:root {
-  --mic-editor-font-family:  "JetBrains Mono", monospace;
-  --mic-editor-font-size:    16px;
-  --mic-preview-font-family: "Source Serif 4", Georgia, serif;
-  --mic-preview-font-size:   17px;
+[data-atmosfera='papel']:not([data-dark='true']) .mic-preview {
+  line-height: 1.8;
 }
 */
 
 
 /* ============================================================================
-   2) MARKDOWN RENDERIZADO  (modos Lectura y Dividido)  —  .mic-preview
+   1) PALETA DEL TEMA  (crear un tema propio cambiando ocho colores)
+   ----------------------------------------------------------------------------
+   Es la capa de abajo: cada tema la define para claro y para oscuro, y todo
+   lo demás se calcula a partir de ella. Cambiando estos ocho colores se tiene
+   un tema nuevo coherente.
+     --mic-raw-base        marco de la ventana: barra superior, rail, barra de estado
+     --mic-raw-base-deep   tinte de sombras y velos
+     --mic-raw-accent      acento: botones y enlaces
+     --mic-raw-glow        brillo: cursor, etiquetas, resaltados, nodos del grafo
+     --mic-raw-mist        paneles laterales
+     --mic-raw-canvas      fondo de la nota
+     --mic-raw-ink         texto
+     --mic-raw-ink-muted   texto secundario
+     --mic-amber-icon      ámbar de los avisos (callout warning)
+
+   Ojo con las atmósferas: Niebla, Bosque y Papel recalculan fondos, bordes y
+   títulos con sus propias mezclas (tomando de acá el acento, el brillo y la
+   tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si querés que un
+   fondo sea exactamente el que elegiste, cambialo en la sección 2.
+   Aurora tampoco toca los fondos: usa los de Abisal y pone encima degradados
+   y luces con --mic-glow y --mic-accent, así que si cambiás esos dos colores,
+   sus degradados los siguen.
    ========================================================================== */
 
-/* Contenedor general */
-/* .mic-preview { line-height: 1.75; max-width: 80ch; margin: 0 auto; } */
+/*
+:root[data-theme][data-dark='true'] {
+  --mic-raw-base:      #0b0f14;
+  --mic-raw-base-deep: #121a22;
+  --mic-raw-accent:    #7c9cff;
+  --mic-raw-glow:      #9ad8ff;
+  --mic-raw-mist:      #151b23;
+  --mic-raw-canvas:    #0f141a;
+  --mic-raw-ink:       #e6e8ee;
+  --mic-raw-ink-muted: #9aa0ad;
+  --mic-amber-icon:    #e0a040;
+}
+*/
 
-/* Títulos */
-/* .mic-preview h1 { font-size: 2rem; font-weight: 800; } */
-/* .mic-preview h2 { font-size: 1.6rem; border-bottom: 1px solid var(--mic-border); } */
-/* .mic-preview h3 { font-size: 1.3rem; } */
-/* .mic-preview h4 { } */
-/* .mic-preview h5 { } */
-/* .mic-preview h6 { color: var(--mic-text-muted); } */
+/*
+:root[data-theme]:not([data-dark='true']) {
+  --mic-raw-base:      #1f2a44;
+  --mic-raw-base-deep: #16203a;
+  --mic-raw-accent:    #3355cc;
+  --mic-raw-glow:      #4f8df5;
+  --mic-raw-mist:      #eef1f8;
+  --mic-raw-canvas:    #f8f9fc;
+  --mic-raw-ink:       #1d2230;
+  --mic-raw-ink-muted: #5a6275;
+}
+*/
 
-/* Párrafos y texto */
-/* .mic-preview p { margin: 0.7em 0; } */
-/* .mic-preview strong { color: var(--mic-text-primary); } */
-/* .mic-preview em { font-style: italic; } */
-/* .mic-preview del { opacity: 0.6; } */
-/* .mic-preview mark { background: color-mix(in srgb, var(--mic-glow) 30%, transparent); } */
 
-/* Énfasis propio de Mycelium: distingue `_` de `*` (es solo visual aquí).
-   *x* cursiva · **x** negrita · ***x*** ambas (estilo estándar)
-   _x_ cursiva+glow · __x__ negrita+accent · ___x___ negrita+degradado
-   Clases en Lectura: em.mic-em-us, strong.mic-strong-us,
-   em.mic-em-us-tri-outer, strong.mic-em-us-tri */
-/* .mic-preview em.mic-em-us { color: var(--mic-glow); } */
-/* .mic-preview strong.mic-strong-us { color: var(--mic-accent); } */
-/* En vivo: .mic-em-cm-us, .mic-strong-cm-us, .mic-em-cm-tri (pintar también
-   descendientes para ganarle al resaltado de sintaxis): */
-/* .cm-editor .mic-em-cm-us, .cm-editor .mic-em-cm-us * { color: var(--mic-glow); } */
+/* ============================================================================
+   2) COLORES DE LA INTERFAZ  (la capa que usan los componentes)
+   ----------------------------------------------------------------------------
+     --mic-bg-canvas      fondo de la nota y de las vistas principales
+     --mic-bg-surface     paneles laterales, pestañas, encabezados de tabla
+     --mic-bg-sidebar     marco de la ventana (barra superior, rail)
+     --mic-bg-base        fondos hundidos: campos de texto, buscadores
+     --mic-bg-code        bloques de código
+     --mic-bg-hover       fondo al pasar el puntero
+     --mic-border         bordes
+     --mic-text-primary   texto
+     --mic-text-muted     texto secundario
+     --mic-accent         acento: botones, enlaces, marcas de lista
+     --mic-glow           brillo: cursor, selección, etiquetas, resaltados
+   ========================================================================== */
 
-/* Título del archivo (nombre, arriba del documento, degradado por defecto).
-   -editor usa la fuente del editor; -preview, la del preview. */
-/* .mic-doc-title { font-size: 1.9rem; } */
-/* .mic-doc-title-preview { letter-spacing: 0.01em; } */
+/*
+:root[data-theme] {
+  --mic-bg-canvas:    #101418;
+  --mic-bg-surface:   #161b21;
+  --mic-bg-sidebar:   #0b0e11;
+  --mic-bg-base:      #0d1114;
+  --mic-bg-code:      #12171c;
+  --mic-bg-hover:     rgba(255, 255, 255, 0.06);
+  --mic-border:       rgba(255, 255, 255, 0.1);
+  --mic-text-primary: #e3e6e8;
+  --mic-text-muted:   #8e969c;
+  --mic-accent:       #7c9cff;
+  --mic-glow:         #9ad8ff;
+}
+*/
 
-/* Enlaces */
-/* .mic-preview a { color: var(--mic-accent); text-decoration: underline; } */
-/* .mic-preview a:hover { color: var(--mic-glow); } */
+/* Avisos de estado: --mic-sync-ok es el verde de «listo, guardado» (en
+   Configuración y el editor de snippets) y --mic-sync-warn el naranja de «algo
+   no anduvo» (el punto de una pestaña que no se pudo guardar, el aviso de la
+   barra de estado). */
+/*
+:root[data-theme] {
+  --mic-sync-ok:   #3ca06b;
+  --mic-sync-warn: #e08d3c;
+}
+*/
 
-/* Enlaces internos [[wikilink]] y #tags */
-/* .mic-preview a.mic-wikilink { color: var(--mic-accent); border-bottom: 1px dashed; } */
-/* .mic-preview .mic-tag-pill { background: color-mix(in srgb, var(--mic-glow) 15%, transparent); color: var(--mic-glow); border-radius: 999px; } */
 
-/* Código inline y bloques */
-/* .mic-preview code { font-family: var(--mic-font-mono); font-size: 0.9em; } */
-/* .mic-preview :not(pre) > code { background: var(--mic-bg-code); padding: 0.1em 0.35em; border-radius: 4px; } */
-/* .mic-preview pre { background: var(--mic-bg-code); border-radius: 8px; padding: 1em; overflow-x: auto; } */
-/* .mic-preview pre code.hljs { background: transparent; } */
+/* ============================================================================
+   3) COLORES POR FUNCIÓN
+   ----------------------------------------------------------------------------
+   El brillo y el acento se diseñaron para fondo oscuro; en claro, puestos tal
+   cual, no se leen. Por eso cada uso tiene su variable, y Mycelium la ajusta
+   en modo claro para que llegue al contraste mínimo. Si cambiás un color acá,
+   comprobá que se lea en los dos modos.
+     --mic-glow-texto      texto e íconos en el color del brillo (etiquetas, _énfasis_)
+     --mic-enlace          enlaces dentro de una nota
+     --mic-focus           anillo de foco al navegar con el teclado
+     --mic-marca           «es este»: lo señalado sin estar enfocado
+     --mic-marco-glow      íconos y logo sobre el marco de la ventana
+     --mic-marco-acento    segundo color del logo
+     --mic-marco-texto     texto sobre el marco (barra de estado)
+     --mic-marco-inactivo  opacidad de un ícono del marco en reposo (0 a 1)
+   ========================================================================== */
 
-/* Citas */
-/* .mic-preview blockquote { border-left: 3px solid var(--mic-glow); padding-left: 1em; color: var(--mic-text-muted); } */
+/*
+:root[data-theme] {
+  --mic-enlace:         #5aa9ff;
+  --mic-focus:          #ffd27a;
+  --mic-marco-inactivo: 0.7;
+}
+*/
 
-/* Listas */
-/* .mic-preview ul { list-style: disc; padding-left: 1.4em; } */
-/* .mic-preview ol { list-style: decimal; padding-left: 1.4em; } */
-/* .mic-preview li { margin: 0.25em 0; } */
-/* .mic-preview li::marker { color: var(--mic-accent); } */
 
-/* Tareas (checkboxes) */
-/* .mic-preview input[type="checkbox"] { accent-color: var(--mic-accent); } */
-/* .mic-preview li.task-list-item { list-style: none; } */
+/* ============================================================================
+   4) TIPOGRAFÍA
+   ----------------------------------------------------------------------------
+     --mic-font-sans    la interfaz (menús, paneles, botones)
+     --mic-font-serif   la vista de lectura, por defecto
+     --mic-font-mono    el editor y el código
 
-/* Tablas */
-/* .mic-preview table { border-collapse: collapse; width: 100%; } */
-/* .mic-preview th, .mic-preview td { border: 1px solid var(--mic-border); padding: 0.5em 0.75em; } */
-/* .mic-preview thead th { background: var(--mic-bg-surface); } */
-/* .mic-preview tbody tr:nth-child(even) { background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent); } */
+   La letra y el tamaño de la NOTA se eligen en Configuración › Tipografía, y
+   Mycelium los escribe directamente en <html>: eso le gana a cualquier
+   snippet. Para forzarlos desde acá hace falta !important (y entonces el
+   ajuste de Configuración deja de tener efecto mientras el snippet esté
+   prendido):
+     --mic-editor-font-family   --mic-editor-font-size    (edición)
+     --mic-preview-font-family  --mic-preview-font-size   (lectura)
+   ========================================================================== */
 
-/* Regla horizontal, imágenes y notas al pie */
-/* .mic-preview hr { border: none; border-top: 1px solid var(--mic-border); margin: 1.5em 0; } */
-/* .mic-preview img { max-width: 100%; border-radius: 8px; } */
-/* .mic-preview .footnotes { font-size: 0.85em; color: var(--mic-text-muted); } */
+/*
+:root[data-theme] {
+  --mic-font-sans: "Inter", system-ui, sans-serif;
+  --mic-font-mono: "Cascadia Code", "JetBrains Mono", monospace;
+}
+*/
 
-/* Matemáticas (KaTeX) */
-/* .mic-preview .katex { font-size: 1.05em; } */
+/*
+:root[data-theme] {
+  --mic-preview-font-family: Georgia, serif !important;
+  --mic-preview-font-size:   18px !important;
+}
+*/
 
-/* Diagramas Mermaid y Excalidraw */
-/* .mic-preview .mic-mermaid svg { background: transparent; } */
-/* .mic-preview .mic-excalidraw-block { border: 1px dashed var(--mic-border); border-radius: 8px; } */
 
-/* Callouts (> [!tipo] Título).
-   El estilo lo deciden el atributo  data-callout="<tipo>"  y DOS variables:
-     --mic-callout-color  → color del borde, el título y el ícono
-     --mic-callout-icon   → ícono, como url(...) de un SVG/imagen
-   Las reglas [data-callout="..."] valen a la vez en Lectura y en Edición en vivo.
+/* ============================================================================
+   5) MEDIDAS
+   ----------------------------------------------------------------------------
+     --mic-radius-sm / -md / -lg   redondeo de esquinas (chico, mediano, grande)
+     --mic-ancho-lectura           ancho mínimo de la hoja de la nota (42rem)
+     --mic-ancho-hoja-max          ancho máximo: la hoja crece con el panel
+                                   entre los dos valores (72rem)
+   La hoja mide lo mismo en vivo y en lectura, así que cambiar estos valores
+   no la hace saltar al cambiar de vista.
+   ========================================================================== */
 
-   Tipos integrados: note, tip, important, warning, caution, info, success,
-   error, danger, question.
+/*
+:root[data-theme] {
+  --mic-radius-sm: 2px;
+  --mic-radius-md: 4px;
+  --mic-radius-lg: 8px;
+}
+*/
 
-   ── Crear un callout NUEVO (solo con CSS, sin tocar código) ──
-   Definí las dos variables para tu tipo y usalo con  > [!estudio] Título  */
+/*
+:root[data-theme] {
+  --mic-ancho-lectura:  38rem;
+  --mic-ancho-hoja-max: 50rem;
+}
+*/
+
+
+/* ============================================================================
+   6) TÍTULOS Y EL TÍTULO DE LA NOTA
+   ----------------------------------------------------------------------------
+   El color de cada nivel es una variable, y cambiarla vale en las dos vistas:
+     --mic-h1  --mic-h2  --mic-h3  --mic-h4  --mic-h5  --mic-h6
+   Para el tamaño o el peso: en lectura, .mic-preview h1 ... h6; en vivo, la
+   línea lleva .mic-live-h1 ... .mic-live-h6.
+   ========================================================================== */
+
+/*
+:root[data-theme] {
+  --mic-h1: #ffd27a;
+  --mic-h2: #9ad8ff;
+  --mic-h3: var(--mic-text-primary);
+}
+*/
+
+/*
+.mic-preview h1,
+.mic-live-h1 {
+  font-size: 2rem;
+  font-weight: 800;
+}
+*/
+
+/*
+.mic-preview h2 {
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--mic-border);
+}
+*/
+
+/* El título de la nota (su nombre, arriba del documento, con degradado):
+   .mic-doc-title es la caja; .mic-doc-title-texto, el texto con el degradado;
+   .mic-doc-title-editor y .mic-doc-title-preview, la versión de cada vista. */
+/*
+.mic-doc-title {
+  font-size: 2.2rem;
+}
+*/
+
+/*
+.mic-doc-title-texto {
+  background: none;
+  -webkit-text-fill-color: var(--mic-text-primary);
+}
+*/
+
+/* Con la atmósfera Aurora, el título de la nota y el H1 de lectura van en
+   degradado y con resplandor, con un selector más fuerte: para dejarlos lisos
+   hay que apuntar con el suyo. */
+/*
+:root[data-atmosfera='aurora'] .mic-doc-title-texto,
+:root[data-atmosfera='aurora'] .mic-preview h1 {
+  background: none;
+  -webkit-text-fill-color: var(--mic-h1);
+  filter: none;
+}
+*/
+
+/* Plegado de secciones: en vivo, la flecha está en el margen
+   (.cm-foldGutter); en lectura, cada título plegable es .mic-foldable, la
+   flecha .mic-fold-arrow y un título plegado lleva .mic-collapsed. */
+/*
+.mic-preview .mic-fold-arrow {
+  opacity: 0.25;
+}
+*/
+
+
+/* ============================================================================
+   7) TEXTO DE LA NOTA
+   ----------------------------------------------------------------------------
+   .mic-preview es el contenedor de la vista de lectura. En vivo el texto está
+   en .mic-editor-host .cm-content.
+   ========================================================================== */
+
+/*
+.mic-preview {
+  line-height: 1.8;
+}
+*/
+
+/*
+.mic-preview p {
+  margin-bottom: 1.1rem;
+}
+*/
+
+/*
+.mic-editor-host .cm-content {
+  line-height: 1.8;
+}
+*/
+
+/* Selección y cursor del editor. */
+/*
+.mic-editor-host .cm-cursor {
+  border-left-width: 2px;
+}
+*/
+
+/* Listas: el marcador (-, *, 1.) en vivo es .mic-list-mark. */
+/*
+.mic-preview li::marker,
+.mic-list-mark {
+  color: var(--mic-glow);
+}
+*/
+
+/* Viñetas: fuera de la línea activa, el - * + de una lista sin numerar se ve
+   como .mic-vineta (con el carácter •). Para otro carácter, cambiá el texto con
+   font-size: 0 y un ::before. */
+/*
+.mic-vineta {
+  font-size: 0;
+}
+.mic-vineta::before {
+  content: "–";
+  font-size: var(--mic-editor-font-size);
+}
+*/
+
+/* Citas: blockquote en lectura, .mic-live-quote en vivo. */
+/*
+.mic-preview blockquote,
+.mic-live-quote {
+  font-style: italic;
+}
+*/
+
+/* Separador (---): hr en lectura, .mic-live-hr en vivo. */
+/*
+.mic-preview hr {
+  border-top: 2px dashed var(--mic-border);
+}
+*/
+
+/* Imágenes del vault (![[foto.png]]): .mic-img en las dos vistas;
+   .mic-img-falta es el aviso de una imagen que no está. */
+/*
+.mic-img img {
+  border-radius: var(--mic-radius-md);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+*/
+
+/* Notas al pie. */
+/*
+.mic-preview .footnotes {
+  font-size: 0.85em;
+  color: var(--mic-text-muted);
+}
+*/
+
+
+/* ============================================================================
+   8) ÉNFASIS PROPIO DE MYCELIUM
+   ----------------------------------------------------------------------------
+   *x* y **x** son la cursiva y la negrita de siempre. Con guion bajo, Mycelium
+   les da color:
+     _x_      cursiva + brillo     lectura: em.mic-em-us        vivo: .mic-em-cm-us
+     __x__    negrita + acento     lectura: strong.mic-strong-us vivo: .mic-strong-cm-us
+     ___x___  negrita en degradado lectura: strong.mic-em-us-tri vivo: .mic-em-cm-tri
+   En vivo el color tiene que ir también a los descendientes (el «*» del
+   selector), porque el resaltado de sintaxis mete su propio span adentro.
+   ========================================================================== */
+
+/*
+.mic-preview em.mic-em-us,
+.cm-editor .mic-em-cm-us,
+.cm-editor .mic-em-cm-us * {
+  color: #ff9ad5;
+}
+*/
+
+/*
+.mic-preview strong.mic-strong-us,
+.cm-editor .mic-strong-cm-us,
+.cm-editor .mic-strong-cm-us * {
+  color: #ffd27a;
+}
+*/
+
+
+/* ============================================================================
+   9) ENLACES Y ETIQUETAS
+   ----------------------------------------------------------------------------
+   El color de los enlaces sale de --mic-enlace (sección 3), salvo el de un
+   enlace web en vivo, que toma --mic-accent.
+     [[enlace interno]]   lectura: a.mic-wikilink      vivo: .mic-wikilink-cm
+     ...a una nota que no existe: .mic-wikilink-missing / .mic-wikilink-cm-missing
+     enlace web           lectura: a                   vivo: .mic-enlace-externo
+     #etiqueta            lectura: .mic-tag-pill       vivo: .mic-tag-cm
+   ========================================================================== */
+
+/*
+.mic-preview a.mic-wikilink,
+.mic-wikilink-cm {
+  text-decoration: none;
+  border-bottom: 1px dashed currentColor;
+}
+*/
+
+/*
+.mic-tag-pill,
+.mic-tag-cm {
+  border-radius: 999px;
+  padding: 0.05em 0.6em;
+}
+*/
+
+
+/* ============================================================================
+   10) CÓDIGO Y RESALTADO DE SINTAXIS
+   ----------------------------------------------------------------------------
+   El fondo es --mic-bg-code. En lectura: pre (bloque), :not(pre) > code (en
+   línea) y el botón .mic-copy-btn; en vivo, cada línea del bloque es
+   .mic-live-code (y .mic-live-code-first / .mic-live-code-last en los bordes).
+
+   Los colores del resaltado son los mismos en vivo, en lectura, en el visor
+   de archivos y en el editor de snippets; Mycelium trae una versión para
+   claro y otra para oscuro:
+     --mic-syntax-comment   comentarios
+     --mic-syntax-keyword   palabras clave
+     --mic-syntax-string    textos entre comillas
+     --mic-syntax-number    números
+     --mic-syntax-variable  variables
+     --mic-syntax-property  propiedades
+     --mic-syntax-tag       etiquetas y tipos
+     --mic-syntax-class     clases
+     --mic-syntax-id        identificadores
+     --mic-syntax-pseudo    pseudoclases
+     --mic-syntax-value     valores
+     --mic-syntax-color     colores escritos
+   ========================================================================== */
+
+/*
+.mic-preview pre,
+.cm-line.mic-live-code {
+  font-size: 0.85rem;
+}
+*/
+
+/* En vivo, con el cursor fuera del bloque, las cercas ``` se esconden y la de
+   apertura muestra el lenguaje en .mic-live-code-lang (chico, a la derecha). */
+/*
+.mic-live-code-lang {
+  text-align: left;
+  text-transform: uppercase;
+}
+*/
+
+/*
+:root[data-theme][data-dark='true'] {
+  --mic-syntax-comment: #6a9955;
+  --mic-syntax-keyword: #c586c0;
+  --mic-syntax-string:  #ce9178;
+}
+*/
+
+
+/* ============================================================================
+   11) CALLOUTS   (> [!tipo] Título)
+   ----------------------------------------------------------------------------
+   Cada callout lleva data-callout="<tipo>" y toma dos variables:
+     --mic-callout-color   color del borde, el fondo, el título y el ícono
+     --mic-callout-icon    el ícono, como url(...) de un SVG
+   Las reglas [data-callout="..."] valen a la vez en lectura y en vivo.
+
+   El color de los tipos que ya trae Mycelium (note, tip, important, warning,
+   caution, info, success, error, danger, question) sale de:
+     --mic-callout-note-border      --mic-callout-tip-border
+     --mic-callout-important-border --mic-callout-warning-border
+     --mic-callout-caution-border   --mic-callout-info-border
+     --mic-callout-success-border   --mic-callout-error-border
+     --mic-callout-danger-border    --mic-callout-question-border
+   --mic-callout-icon-default es el ícono de un tipo que no tiene el suyo, y
+   --mic-callout-tinta (un porcentaje) cuánto color propio lleva el título:
+   el resto es el color del texto, para que se lea en modo claro.
+   ========================================================================== */
+
+/* Crear un callout NUEVO solo con CSS; se usa con  > [!estudio] Título  */
 /*
 [data-callout="estudio"] {
   --mic-callout-color: #c678dd;
@@ -168,88 +558,303 @@
 }
 */
 
-/* Redefinir un tipo integrado (p. ej. otro color para "note"): */
-/* [data-callout="note"] { --mic-callout-color: #3DFFC4; } */
+/* Otro color para un tipo que ya existe (dos maneras). */
+/*
+[data-callout="note"] {
+  --mic-callout-color: #3dffc4;
+}
+*/
 
-/* ESTRUCTURA EN LECTURA: el callout es un contenedor .mic-callout con un título
-   .mic-callout-title y párrafos de cuerpo. Para apuntar al título se usa un
-   selector DESCENDIENTE (con espacio), porque el título es hijo del contenedor.
-   En la edición en vivo la estructura es distinta (cada renglón es una línea):
-   ver la sección «Callouts en vivo» más abajo. */
-/* .mic-preview [data-callout="estudio"] .mic-callout-title { letter-spacing: .02em; } */
-/* .mic-preview [data-callout="estudio"] > p:not(.mic-callout-title) { font-style: italic; } */
+/*
+:root[data-theme] {
+  --mic-callout-warning-border: #f0a04b;
+}
+*/
 
-/* Título con el MISMO estilo en las dos vistas: combiná el selector de cada una
-   (descendiente en lectura, compuesto en vivo — ver más abajo). */
-/* .mic-preview [data-callout="estudio"] .mic-callout-title,
-   .mic-live-callout-head[data-callout="estudio"] {
-     background: linear-gradient(90deg, #c678dd, #7c9cff); color: #111;
-   } */
+/* LECTURA: el callout es una caja .mic-callout con su título
+   .mic-callout-title adentro (selector con espacio, porque el título es
+   hijo). Un callout plegable (> [!tipo]- o +) es un details.mic-callout. */
+/*
+.mic-preview .mic-callout {
+  border-radius: var(--mic-radius-md);
+}
+*/
 
-/* Ajustes generales de todos los callouts (lectura): */
-/* .mic-preview .mic-callout { border-radius: 8px; } */
-/* .mic-preview .mic-callout-title { font-weight: 700; } */
-/* .mic-preview details.mic-callout > summary { cursor: pointer; } */
+/*
+.mic-preview [data-callout="estudio"] .mic-callout-title {
+  letter-spacing: 0.02em;
+}
+*/
+
+/* EN VIVO no hay caja: cada renglón del callout es una línea suelta que lleva
+   ella misma el data-callout. Por eso el selector va PEGADO (sin espacio):
+     .mic-live-callout-head[data-callout="tipo"]    funciona
+     [data-callout="tipo"] .mic-live-callout-head   no encuentra nada
+   Clases por línea:
+     .mic-live-callout            todas las líneas del callout
+     .mic-live-callout-head       la cabecera (el primer renglón)
+     .mic-live-callout-foldable   la cabecera, si es plegable (- o +)
+     .mic-live-callout-collapsed  la cabecera, si está plegado (-)
+     .mic-live-callout-first      la primera línea (la cabecera)
+     .mic-live-callout-body       las líneas del contenido
+     .mic-live-callout-body-first la primera línea del contenido
+     .mic-live-callout-last       la última línea del callout entero (si está
+                                  plegado o es de un renglón, es la cabecera)
+   El chevron de plegar es .mic-callout-fold. Los callouts anidados llevan
+   data-callout-depth="2", "3"... */
+/*
+.mic-live-callout-head[data-callout="estudio"] {
+  font-weight: 800;
+}
+*/
+
+/*
+.mic-live-callout-first[data-callout="estudio"] {
+  border-top-right-radius: 8px;
+}
+*/
+
+/*
+.mic-live-callout-last[data-callout="estudio"] {
+  border-bottom-right-radius: 8px;
+}
+*/
+
+/* El mismo título en las dos vistas: los dos selectores juntos. */
+/*
+.mic-preview [data-callout="estudio"] .mic-callout-title,
+.mic-live-callout-head[data-callout="estudio"] {
+  text-transform: uppercase;
+}
+*/
 
 
 /* ============================================================================
-   3) EDITOR EN VIVO  —  .mic-editor-host / .mic-live-*
+   12) TAREAS Y SUS ESTADOS   (- [ ] pendiente, - [x] hecha, - [?] ...)
+   ----------------------------------------------------------------------------
+   La casilla es la misma en todos lados: .mic-live-check en vivo,
+   input.mic-task-check en lectura y .mic-tarea-icono en el menú de estados.
+   Lleva data-estado con el nombre del estado y data-task con el símbolo tal
+   cual (como en Obsidian: los snippets escritos para sus temas valen acá).
+
+   Estado     símbolo  data-estado   color
+   pendiente  [ ]      pendiente     (borde gris)
+   hecha      [x]      hecha         --mic-tarea-hecha
+   en curso   [/]      en-curso      --mic-tarea-en-curso
+   cancelada  [-]      cancelada     --mic-tarea-cancelada
+   pospuesta  [>]      pospuesta     --mic-tarea-pospuesta
+   destacada  [*]      destacada     --mic-tarea-destacada
+   importante [!]      importante    --mic-tarea-importante
+   pregunta   [?]      pregunta      --mic-tarea-pregunta
+   agregada   [+]      agregada      --mic-tarea-agregada
+
+   El texto de la tarea: en lectura, span.mic-tarea-texto dentro de un
+   li[data-estado]; en vivo, .mic-live-tarea-hecha y .mic-live-tarea-cancelada.
    ========================================================================== */
 
-/* Área de edición */
-/* .mic-editor-host .cm-editor { background: var(--mic-bg-canvas); } */
-/* .mic-editor-host .cm-content { caret-color: var(--mic-glow); } */
-/* .mic-editor-host .cm-cursor { border-left-color: var(--mic-glow); } */
-
-/* Títulos en vivo (h1..h6) */
-/* .mic-live-h1 { font-size: 1.9rem; font-weight: 800; } */
-/* .mic-live-h2 { font-size: 1.5rem; } */
-/* .mic-live-h3 { font-size: 1.2rem; } */
-
-/* Citas, listas y enlaces internos en vivo */
-/* .mic-live-quote { border-left: 3px solid var(--mic-glow); padding-left: 0.75rem; } */
-/* .mic-list-mark { color: var(--mic-accent); } */
-/* .mic-wikilink-cm { color: var(--mic-accent); } */
-/* .mic-tag-cm { color: var(--mic-glow); } */
-
-/* Callouts en vivo.
-   El color y el ícono salen de [data-callout="tipo"] + --mic-callout-color /
-   --mic-callout-icon (definidos en la sección 2; valen en lectura y en vivo).
-
-   OJO con la ESTRUCTURA: a diferencia de la lectura, en vivo NO hay un contenedor
-   ni un <p> de título. Cada renglón del callout es una LÍNEA independiente con
-   clases que indican su rol, y el atributo data-callout está EN cada línea. Por
-   eso, para apuntar a la cabecera se usa un selector COMPUESTO (sin espacio):
-       .mic-live-callout-head[data-callout="tipo"]        (correcto)
-       [data-callout="tipo"] .mic-live-callout-head       (NO funciona: no hay anidación)
-
-   Clases por línea (combinalas con [data-callout="tipo"]):
-     .mic-live-callout            todas las líneas del callout
-     .mic-live-callout-head       la cabecera (1er renglón)
-     .mic-live-callout-foldable   la cabecera, si el callout es desplegable (- o +)
-     .mic-live-callout-collapsed  la cabecera, si está plegada (-)
-     .mic-live-callout-first      primera línea del bloque (= la cabecera)
-     .mic-live-callout-body       líneas de contenido (cuerpo)
-     .mic-live-callout-body-first 1ª línea de contenido
-     .mic-live-callout-last       última línea del bloque
+/*
+:root[data-theme] {
+  --mic-tarea-hecha:     #3ca06b;
+  --mic-tarea-destacada: #f0c040;
+}
 */
 
-/* Cabecera */
-/* .mic-live-callout-head[data-callout="estudio"] { font-weight: 800; } */
+/* Casilla redonda. */
+/*
+.mic-live-check,
+.mic-preview input.mic-task-check,
+.mic-tarea-icono {
+  border-radius: 50%;
+}
+*/
 
-/* Cabecera desplegada (abierta) vs plegada (cerrada) */
-/* .mic-live-callout-foldable:not(.mic-live-callout-collapsed)[data-callout="estudio"] { opacity: 1; } */
-/* .mic-live-callout-collapsed[data-callout="estudio"] { opacity: .85; border-bottom-right-radius: 8px; } */
+/* Las tareas hechas, tachadas (Mycelium por defecto solo las apaga). */
+/*
+.mic-preview li[data-estado="hecha"] > .mic-tarea-texto,
+.mic-preview li[data-estado="hecha"] > p > .mic-tarea-texto,
+.cm-editor .mic-live-tarea-hecha {
+  text-decoration: line-through;
+}
+*/
 
-/* Cuerpo: 1ª línea de contenido · líneas intermedias · última línea de contenido */
-/* .mic-live-callout-body-first[data-callout="estudio"] { padding-top: .25em; } */
-/* .mic-live-callout-body[data-callout="estudio"]:not(.mic-live-callout-body-first):not(.mic-live-callout-last) { font-style: italic; } */
-/* .mic-live-callout-body.mic-live-callout-last[data-callout="estudio"] { padding-bottom: .25em; } */
 
-/* Bloque cohesionado: redondear los extremos (primera y última línea) */
-/* .mic-live-callout-first[data-callout="estudio"] { border-top-right-radius: 8px; } */
-/* .mic-live-callout-last[data-callout="estudio"]  { border-bottom-right-radius: 8px; } */
+/* ============================================================================
+   13) TABLAS
+   ----------------------------------------------------------------------------
+   En lectura, table/th/td dentro de .mic-preview. En vivo la tabla editable es
+   un .mic-live-table que TAMBIÉN lleva .mic-preview, así que las mismas
+   reglas valen en las dos vistas; adentro, la tabla es .mic-tab-tabla, cada
+   celda .mic-tab-celda y su texto .mic-tab-render.
+   ========================================================================== */
 
-/* Nota: .mic-live-callout-last marca la última línea del callout COMPLETO; en un
-   callout de una sola línea o plegado, esa marca cae en la cabecera. Por eso, para
-   la última línea de CONTENIDO usá .mic-live-callout-body.mic-live-callout-last. */
+/*
+.mic-preview th {
+  background: color-mix(in srgb, var(--mic-accent) 15%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+*/
+
+/*
+.mic-preview tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+*/
+
+
+/* ============================================================================
+   14) PROPIEDADES   (el frontmatter --- ... --- como tarjeta)
+   ----------------------------------------------------------------------------
+     .mic-props        la tarjeta (lectura y vivo; editable lleva además
+                       .mic-props-edit)
+     .mic-prop         cada fila
+     .mic-prop-clave   el nombre de la propiedad
+     .mic-prop-icono   el ícono del tipo
+     .mic-prop-valor   el valor
+     .mic-prop-pill    cada elemento de una lista o etiqueta
+     .mic-prop-check   una casilla (verdadero/falso)
+     .mic-live-props   el envoltorio de la tarjeta en vivo
+   ========================================================================== */
+
+/*
+.mic-props {
+  background: transparent;
+  border-style: dashed;
+}
+*/
+
+/*
+.mic-prop-clave {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+*/
+
+/*
+.mic-prop-pill {
+  border-radius: 999px;
+}
+*/
+
+
+/* ============================================================================
+   15) DIAGRAMAS, FÓRMULAS Y VÍDEOS DENTRO DE UNA NOTA
+   ----------------------------------------------------------------------------
+     Mermaid (```mermaid)          .mic-mermaid (error: .mic-mermaid-error)
+     Excalidraw embebido           lectura: .mic-excalidraw-block  vivo: .mic-live-excalidraw
+     draw.io embebido              lectura: .mic-drawio-block      vivo: .mic-live-drawio
+                                   (la imagen: .mic-drawio-img)
+     Fórmulas KaTeX ($...$)        lectura: .katex                 vivo: .mic-live-math
+                                   (en bloque: .mic-live-math-bloque)
+     Vídeo (![](youtube...))       lectura: .mic-video             vivo: .mic-live-video
+   El contenido de un dibujo o un diagrama lo pinta su propio editor: desde
+   acá se le cambia el marco, no los trazos.
+   Mermaid es la excepción: sus colores salen de estas variables, que siguen
+   al tema, al modo y a la atmósfera. Al cambiarlas, el diagrama se redibuja.
+   Si un color no llega al contraste mínimo (texto 4.5:1, líneas y bordes
+   3:1 sobre el fondo), Mycelium lo acerca a la tinta hasta que llegue.
+     --mic-mermaid-fondo    detrás de las etiquetas de las flechas
+     --mic-mermaid-nodo     relleno de las cajas
+     --mic-mermaid-nodo-2   cajas secundarias (actores, activaciones)
+     --mic-mermaid-grupo    subgrafos y notas
+     --mic-mermaid-borde    borde de las cajas
+     --mic-mermaid-linea    flechas y conectores
+     --mic-mermaid-texto    texto
+   El PDF con «Fondo blanco» no las usa: imprime los diagramas en grises.
+   ========================================================================== */
+
+/*
+:root[data-theme] {
+  --mic-mermaid-nodo: color-mix(in srgb, var(--mic-glow) 20%, var(--mic-bg-canvas));
+  --mic-mermaid-borde: var(--mic-glow);
+  --mic-mermaid-linea: var(--mic-text-primary);
+}
+*/
+
+/*
+.mic-preview .mic-excalidraw-block,
+.mic-preview .mic-drawio-block {
+  border: 1px solid var(--mic-border);
+  padding: 0.5rem;
+}
+*/
+
+/*
+.mic-preview .mic-video,
+.mic-live-video {
+  border-radius: 0;
+}
+*/
+
+
+/* ============================================================================
+   16) BÚSQUEDA Y CORRECTOR ORTOGRÁFICO
+   ----------------------------------------------------------------------------
+   Coincidencias de la búsqueda en la nota: en vivo, .cm-searchMatch (y la
+   actual, .cm-searchMatch-selected); en lectura se pintan con
+   ::highlight(mic-buscar) y ::highlight(mic-buscar-actual).
+   La palabra mal escrita es .mic-error-ortografico, subrayada con el color
+   --mic-error-ortografico.
+   ========================================================================== */
+
+/*
+::highlight(mic-buscar-actual) {
+  background-color: #ffd27a;
+  color: #000;
+}
+*/
+
+/*
+:root[data-theme] {
+  --mic-error-ortografico: #ff6b6b;
+}
+*/
+
+
+/* ============================================================================
+   17) CALENDARIO Y CONSOLAS
+   ----------------------------------------------------------------------------
+   Los ocho colores de los recordatorios tienen nombre (Hifa, Musgo, Liquen,
+   Yesca, Amanita, Coral, Espora, Bruma) y una variable cada uno, del 1 al 8:
+     --mic-recordatorio-1  --mic-recordatorio-2  --mic-recordatorio-3
+     --mic-recordatorio-4  --mic-recordatorio-5  --mic-recordatorio-6
+     --mic-recordatorio-7  --mic-recordatorio-8
+   Mycelium trae una versión para claro y otra para oscuro.
+
+   Las consolas integradas: --mic-terminal-bg es el fondo (la consola lo toma
+   al abrirse o al cambiar de tema o modo), y los colores con los que se marca
+   una consola en su pestaña son
+     --mic-consola-cian  --mic-consola-verde   --mic-consola-ambar
+     --mic-consola-rosa  --mic-consola-violeta --mic-consola-azul
+   ========================================================================== */
+
+/*
+:root[data-theme][data-dark='true'] {
+  --mic-recordatorio-1: #3fc7d6;
+  --mic-recordatorio-5: #ff5c5c;
+}
+*/
+
+/*
+:root[data-theme] {
+  --mic-terminal-bg:   #1e1e1e;
+  --mic-consola-verde: #22a05a;
+}
+*/
+
+
+/* ============================================================================
+   18) LO QUE SE ESTILA SOLO CON COLORES
+   ----------------------------------------------------------------------------
+   Las tablas .base, los lienzos .canvas, el editor de draw.io, el calendario,
+   el explorador, las pestañas, los menús, la configuración y la ventana de
+   ayuda no tienen clases estables: sus clases internas cambian en cada
+   versión. Se estilan con las variables de las secciones 1 a 5, que todos
+   ellos usan.
+   - El grafo toma --mic-glow y --mic-accent para los nodos.
+   - Los colores de las tarjetas de un lienzo (rojo, naranja...) son los del
+     formato JSON Canvas y no se cambian por CSS.
+   - La ayuda integrada usa la vista de lectura (.mic-preview): lo que cambies
+     ahí la alcanza también.
+   ========================================================================== */

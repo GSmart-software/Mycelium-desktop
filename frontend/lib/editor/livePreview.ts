@@ -45,7 +45,7 @@ import {
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
-import { esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { destinoDeUrlSuelta, esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import {
   ALLOW_VIDEO,
   esVideo,
@@ -70,7 +70,7 @@ import {
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
-import { EXCALIDRAW_RE, partirWikilink } from "@/lib/wikilinks";
+import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
 import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/matematicas";
 import { buscarEnTablas } from "@/lib/editor/buscarEnTablas";
@@ -636,6 +636,7 @@ const frontmatterField = StateField.define<FrontmatterState>({
 export function liveExtensions(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
+  etiquetaDe: (target: string) => string = etiquetaDeDestino,
 ): Extension {
   return [
     syntaxHighlighting(micelioHighlight),
@@ -667,7 +668,7 @@ export function liveExtensions(
       rangoDe: rangoDeTabla,
     }),
     navegarPorTitulo.of(onWikilinkClick),
-    livePreview(onWikilinkClick, noteExists),
+    livePreview(onWikilinkClick, noteExists, etiquetaDe),
   ];
 }
 
@@ -694,6 +695,57 @@ const CALLOUT_LABELS: Record<string, string> = {
 };
 
 const hide = Decoration.replace({});
+
+/**
+ * Viñeta de una lista sin numerar fuera de la línea activa (`DEF-150 b`): el
+ * `-` `*` o `+` escrito se ve como «•», como en la vista de lectura y en
+ * Obsidian. Ocupa un carácter, igual que el marcador, así que la sangría no se
+ * mueve al entrar y salir de la línea. Lleva `mic-list-mark` (el color de
+ * siempre) y `mic-vineta`, que un snippet puede estilar (otro carácter con
+ * `content`, otro color).
+ */
+class VinetaWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-list-mark mic-vineta";
+    span.textContent = "•";
+    span.setAttribute("aria-hidden", "true");
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+const vinetaWidget = new VinetaWidget();
+
+/**
+ * Lo que queda de una cerca ``` de un bloque de código con el cursor fuera
+ * del bloque (`DEF-150 k`): en la de apertura, la etiqueta del lenguaje
+ * (`.mic-live-code-lang`, estilable); en la de cierre, nada visible. Ocupa
+ * el ancho de la línea para que conserve su alto y un clic en ella lleve el
+ * cursor ahí, que muestra las cercas en crudo.
+ */
+class CercaWidget extends WidgetType {
+  constructor(readonly lenguaje: string) {
+    super();
+  }
+  eq(other: CercaWidget) {
+    return other.lenguaje === this.lenguaje;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "mic-live-code-lang";
+    span.textContent = this.lenguaje;
+    if (!this.lenguaje) span.setAttribute("aria-hidden", "true");
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
 
 /** Regla horizontal (--- *** ___): se dibuja como separador fuera de la línea activa. */
 class HrWidget extends WidgetType {
@@ -766,6 +818,35 @@ class CheckboxWidget extends WidgetType {
   }
 }
 
+/**
+ * Un `[[Nota#Encabezado]]` sin alias fuera de la línea activa (`DEF-141`): la
+ * etiqueta `Nota › Encabezado` en lugar del texto crudo. Lleva las mismas clases
+ * y el mismo `data-title` que la marca de un enlace común, así que el clic lo
+ * atiende el mismo `mousedown` de `livePreview` —por eso no ignora sus eventos—.
+ */
+class WikilinkAnclaWidget extends WidgetType {
+  constructor(
+    readonly etiqueta: string,
+    readonly destino: string,
+    readonly roto: boolean,
+  ) {
+    super();
+  }
+  eq(other: WikilinkAnclaWidget) {
+    return other.etiqueta === this.etiqueta && other.destino === this.destino && other.roto === this.roto;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = this.roto ? "mic-wikilink-cm mic-wikilink-cm-missing" : "mic-wikilink-cm";
+    span.dataset.title = this.destino;
+    span.textContent = this.etiqueta;
+    return span;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
 /** Etiqueta del tipo que reemplaza al marcador cuando no hay título. */
 class LabelWidget extends WidgetType {
   constructor(readonly label: string) {
@@ -825,13 +906,14 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
 export function livePreview(
   onWikilinkClick: (title: string) => void,
   noteExists: (target: string) => boolean,
+  etiquetaDe: (target: string) => string = etiquetaDeDestino,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, noteExists);
+        this.decorations = buildDecorations(view, noteExists, etiquetaDe);
       }
 
       update(update: ViewUpdate) {
@@ -849,7 +931,7 @@ export function livePreview(
           arbolNuevo ||
           refreshed
         ) {
-          this.decorations = buildDecorations(update.view, noteExists);
+          this.decorations = buildDecorations(update.view, noteExists, etiquetaDe);
         }
       }
     },
@@ -1101,6 +1183,7 @@ type PendingDeco = { from: number; to: number; deco: Decoration };
 function buildDecorations(
   view: EditorView,
   noteExists: (target: string) => boolean,
+  etiquetaDe: (target: string) => string = etiquetaDeDestino,
 ): DecorationSet {
   const decos: PendingDeco[] = [];
   const doc = view.state.doc;
@@ -1220,6 +1303,40 @@ function buildDecorations(
               deco: Decoration.line({ class: `mic-live-code${edge}` }),
             });
           }
+          // Las cercas ``` se esconden con el cursor FUERA del bloque, como en
+          // Obsidian (`DEF-150 k`): la de apertura deja en su lugar la etiqueta
+          // del lenguaje, discreta y a la derecha; la de cierre, la línea vacía
+          // con el fondo del bloque. Con el cursor en cualquier línea del bloque
+          // se ven las dos en crudo, para editarlas. El contenido no se toca
+          // (un bloque `mermaid` se sigue viendo como código).
+          //
+          // Se reemplazan por un widget y no se ocultan a secas: una línea sin
+          // nada visible adentro colapsaría su alto.
+          if (node.name === "FencedCode") {
+            let activo = false;
+            for (let n = first; n <= last && !activo; n++) activo = activeLines.has(n);
+            const marcas = node.node.getChildren("CodeMark");
+            if (!activo && marcas.length > 0) {
+              const apertura = doc.lineAt(marcas[0].from);
+              const info = node.node.getChild("CodeInfo");
+              decos.push({
+                from: marcas[0].from,
+                to: apertura.to,
+                deco: Decoration.replace({
+                  widget: new CercaWidget(info ? doc.sliceString(info.from, info.to).trim() : ""),
+                }),
+              });
+              const cierre = marcas[marcas.length - 1];
+              const lineaCierre = doc.lineAt(cierre.from);
+              if (marcas.length > 1 && lineaCierre.number !== apertura.number) {
+                decos.push({
+                  from: cierre.from,
+                  to: lineaCierre.to,
+                  deco: Decoration.replace({ widget: new CercaWidget("") }),
+                });
+              }
+            }
+          }
           return;
         }
 
@@ -1285,11 +1402,38 @@ function buildDecorations(
           }
           case "EmphasisMark":
           case "StrikethroughMark":
-          case "LinkMark":
-          case "URL": {
+          case "LinkMark": {
             const line = doc.lineAt(node.from);
             if (!activeLines.has(line.number)) {
               decos.push({ from: node.from, to: node.to, deco: hide });
+            }
+            break;
+          }
+          case "URL": {
+            // Solo se oculta el destino de un `[texto](url)` o `![alt](url)`,
+            // donde lo visible es el texto (o la imagen). El parser también
+            // llama `URL` a una dirección suelta —`https://…`, `www.…`, un
+            // correo— y a la de `<https://…>`: ahí la URL ES el texto, y
+            // ocultarla la hacía desaparecer de la línea (`DEF-132`). Esas
+            // quedan a la vista y se abren con un clic, como cualquier enlace.
+            const padre = node.node.parent?.name;
+            if (padre === "Link" || padre === "Image") {
+              const line = doc.lineAt(node.from);
+              if (!activeLines.has(line.number)) {
+                decos.push({ from: node.from, to: node.to, deco: hide });
+              }
+              break;
+            }
+            const destino = destinoDeUrlSuelta(doc.sliceString(node.from, node.to));
+            if (esEnlaceExterno(destino)) {
+              decos.push({
+                from: node.from,
+                to: node.to,
+                deco: Decoration.mark({
+                  class: "mic-enlace-externo mic-url-suelta",
+                  attributes: { "data-href": destino, title: destino },
+                }),
+              });
             }
             break;
           }
@@ -1318,7 +1462,29 @@ function buildDecorations(
             break;
           }
           case "ListMark": {
-            // Marcador de lista (- * + o 1.) coloreado, no se oculta (HU-01)
+            // Marcador de lista (HU-01). En la línea activa, y siempre en una
+            // lista numerada, se ve tal cual (`1.`), coloreado. Fuera de la
+            // línea activa, en una lista con viñetas (`DEF-150 b`, como en
+            // Obsidian):
+            // - en una tarea, `- ` se oculta y queda solo la casilla (el
+            //   `TaskMarker`, que se dibuja aparte);
+            // - en un ítem común, `-` `*` o `+` se dibuja como viñeta «•».
+            const item = node.node.parent;
+            const conVinetas = item?.parent?.name === "BulletList";
+            const line = doc.lineAt(node.from);
+            if (conVinetas && !activeLines.has(line.number)) {
+              const marcador = item?.getChild("Task")?.getChild("TaskMarker");
+              if (marcador) {
+                decos.push({ from: node.from, to: marcador.from, deco: hide });
+              } else {
+                decos.push({
+                  from: node.from,
+                  to: node.to,
+                  deco: Decoration.replace({ widget: vinetaWidget }),
+                });
+              }
+              break;
+            }
             decos.push({
               from: node.from,
               to: node.to,
@@ -1596,6 +1762,22 @@ function buildDecorations(
         }
         // Feedback de inexistencia: mismo color, más oscuro (CA8 mejora).
         const missing = !noteExists(target);
+        // Sin alias y con ancla (`[[Tomate#Cuidados]]`, `DEF-141`): fuera de la
+        // línea activa se muestra `Tomate › Cuidados`, como Obsidian, y no el
+        // texto crudo. Es un widget porque el `›` no está en el documento; con
+        // el cursor en la línea vuelve la fuente, como el resto.
+        if (!isActive && desdeEtiqueta === 0) {
+          const etiqueta = etiquetaDe(target);
+          if (etiqueta !== target) {
+            decos.push({
+              from: labelFrom,
+              to: innerTo,
+              deco: Decoration.replace({ widget: new WikilinkAnclaWidget(etiqueta, target, missing) }),
+            });
+            decos.push({ from: innerTo, to: start + match[0].length, deco: hide });
+            continue;
+          }
+        }
         decos.push({
           from: labelFrom,
           to: innerTo,

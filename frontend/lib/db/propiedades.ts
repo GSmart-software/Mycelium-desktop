@@ -10,7 +10,9 @@
  * Ver `docs/features/metadata-yaml.md` § 4.
  */
 import { cuerpoDe, separarFrontmatter, type Frontmatter, type Propiedad } from "@/lib/frontmatter";
+import { textoBuscable } from "@/lib/textoBuscable";
 import { execute, select } from "./client";
+import { plegar } from "./fts";
 import { huellaDe } from "./util";
 
 export type PropiedadDto = { clave: string; valor: string; tipo: string; orden: number };
@@ -26,16 +28,22 @@ function valoresDe(p: Propiedad): string[] {
 }
 
 /**
- * Texto que va al índice FTS: el CUERPO más los VALORES de las propiedades, sin
- * las claves ni la sintaxis YAML. Con esto buscar «activo» sigue encontrando la
- * nota, pero buscar «tags» deja de devolver todas las notas que tienen esa
- * clave — y los `snippet()` dejan de mostrar YAML.
+ * Lo que va al índice FTS (`DEF-148`): el CUERPO como se lee (`textoBuscable`:
+ * los enlaces por su texto visible, sin marcas de markdown; de un canvas, sus
+ * tarjetas y no su JSON) en `contenido`, y en `extra` lo que tiene que
+ * encontrarse sin verse en el fragmento: los VALORES de las propiedades y los
+ * destinos ocultos de los enlaces.
+ *
+ * Las claves y la sintaxis YAML no entran (`FUN-M-04`): buscar «activo» sigue
+ * encontrando la nota, pero buscar «tags» no devuelve todas las que tienen esa
+ * clave. Y los valores ya no van pegados delante del cuerpo: antes el
+ * fragmento de una coincidencia en una propiedad era el frontmatter aplastado
+ * en una línea («cultivo cucurbitáceas Bancal 3 planificado…»).
  */
-function textoIndexableDe(texto: string, fm: Frontmatter): string {
-  const cuerpo = cuerpoDe(texto, fm);
-  if (!fm.hay || !fm.soportado || fm.props.length === 0) return cuerpo;
-  const valores = fm.props.flatMap(valoresDe).filter((v) => v.length > 0);
-  return valores.length === 0 ? cuerpo : `${valores.join(" ")}\n${cuerpo}`;
+function textoIndexableDe(texto: string, fm: Frontmatter, tipo: string): { contenido: string; extra: string } {
+  const { visible, oculto } = textoBuscable(cuerpoDe(texto, fm), tipo);
+  const valores = !fm.hay || !fm.soportado ? [] : fm.props.flatMap(valoresDe).filter((v) => v.length > 0);
+  return { contenido: visible, extra: [...valores, ...oculto].join("\n") };
 }
 
 /** Una fila de `propiedades` de una nota: clave, valor, tipo y orden en su lista. */
@@ -55,11 +63,18 @@ function filasDe(fm: Frontmatter): FilaPropiedad[] {
 }
 
 /** Lo que el índice deriva del texto de una nota (ver `derivarIndice`). */
-export type DerivadoIndice = { indexable: string; propiedades: FilaPropiedad[]; huella: string };
+export type DerivadoIndice = {
+  /** Columna `contenido` de `notas_fts`: el texto legible, de donde sale el fragmento. */
+  contenido: string;
+  /** Columna `extra`: valores de propiedades y destinos ocultos (ver `textoIndexableDe`). */
+  extra: string;
+  propiedades: FilaPropiedad[];
+  huella: string;
+};
 
 /**
  * Todo lo que el índice deriva del texto de una nota, parseando el frontmatter
- * UNA vez: `indexable` va a `notas_fts`, `propiedades` a la tabla del mismo
+ * UNA vez: `contenido` y `extra` van a `notas_fts`, `propiedades` a la tabla del mismo
  * nombre y `huella` resume las dos (`FUN-M-38`, hallazgo H10). La huella se
  * guarda en `notas.hash_indexable`: si al guardar coincide con la anterior, ni
  * la tabla de búsqueda ni la de propiedades cambiarían, así que no se
@@ -67,12 +82,12 @@ export type DerivadoIndice = { indexable: string; propiedades: FilaPropiedad[]; 
  * guardado—. Se calcula sobre las FILAS y no sobre el frontmatter crudo: mover
  * una propiedad de línea o cambiarle un comentario no obliga a reindexar.
  */
-export function derivarIndice(texto: string): DerivadoIndice {
+export function derivarIndice(texto: string, tipo = "markdown"): DerivadoIndice {
   const fm = separarFrontmatter(texto);
-  const indexable = textoIndexableDe(texto, fm);
+  const { contenido, extra } = textoIndexableDe(texto, fm, tipo);
   const propiedades = filasDe(fm);
-  const huella = huellaDe(`${JSON.stringify(propiedades)}\u0000${indexable}`);
-  return { indexable, propiedades, huella };
+  const huella = huellaDe(`${JSON.stringify(propiedades)}\u0000${contenido}\u0000${extra}`);
+  return { contenido, extra, propiedades, huella };
 }
 
 /**
@@ -92,14 +107,18 @@ export async function reindexarPropiedadesTanda(
     "DELETE FROM propiedades WHERE nota_id IN (SELECT value FROM json_each(?))",
     [JSON.stringify(entradas.map((e) => e.id))],
   );
+  // La clave y el valor van además plegados (`DEF-144`): es por donde filtra la
+  // búsqueda `clave:valor`. Se calculan acá y no en `derivarIndice` para que la
+  // huella de la nota no cambie por esto.
   const filas = entradas.flatMap(({ id, propiedades }) =>
-    propiedades.map((f) => ({ n: id, ...f })),
+    propiedades.map((f) => ({ n: id, ...f, cp: plegar(f.c), vp: plegar(f.v) })),
   );
   if (filas.length === 0) return;
   await execute(
-    `INSERT INTO propiedades (nota_id, clave, valor, tipo, orden)
+    `INSERT INTO propiedades (nota_id, clave, valor, tipo, orden, clave_plegada, valor_plegado)
      SELECT json_extract(value, '$.n'), json_extract(value, '$.c'), json_extract(value, '$.v'),
-            json_extract(value, '$.t'), json_extract(value, '$.o')
+            json_extract(value, '$.t'), json_extract(value, '$.o'),
+            json_extract(value, '$.cp'), json_extract(value, '$.vp')
      FROM json_each(?)`,
     [JSON.stringify(filas)],
   );
@@ -147,4 +166,35 @@ export async function notasConPropiedad(
     params,
   );
   return { notas };
+}
+
+/**
+ * Completa `clave_plegada` y `valor_plegado` de las filas que no las tienen
+ * (`DEF-144`): las de un índice creado antes de esas columnas, que el
+ * `ALTER TABLE` deja en NULL. Sin esto, un filtro `clave:valor` no encontraría
+ * nada en un vault ya indexado hasta que cada nota se volviera a guardar.
+ *
+ * Es una migración de los datos que YA están en el índice, no un reindexado:
+ * no relee archivos. Se pliega en JS (ver `plegar`) y se escribe con un
+ * `UPDATE … FROM json_each(?)` por tanda. Idempotente: en un índice al día, el
+ * `SELECT` no devuelve nada y no se escribe.
+ */
+export async function plegarPropiedadesPendientes(): Promise<void> {
+  const pendientes = await select<{ id: number; clave: string; valor: string }>(
+    "SELECT rowid AS id, clave, valor FROM propiedades WHERE clave_plegada IS NULL OR valor_plegado IS NULL",
+  );
+  const TANDA = 2000;
+  for (let i = 0; i < pendientes.length; i += TANDA) {
+    const tanda = pendientes
+      .slice(i, i + TANDA)
+      .map((f) => ({ r: f.id, cp: plegar(f.clave), vp: plegar(f.valor) }));
+    await execute(
+      `UPDATE propiedades
+          SET clave_plegada = json_extract(j.value, '$.cp'),
+              valor_plegado = json_extract(j.value, '$.vp')
+         FROM json_each(?) AS j
+        WHERE propiedades.rowid = json_extract(j.value, '$.r')`,
+      [JSON.stringify(tanda)],
+    );
+  }
 }

@@ -290,7 +290,7 @@ casi todo el frontend y divergen en la capa de datos:
 
 | Versión | Rama | Versión actual | Stack de datos |
 |---|---|---|---|
-| **Desktop** | `desktop-tauri` | **2.4.0** (preparada el 2026-10-06, a publicar por CI; la publicada es `2.3.0`) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
+| **Desktop** | `desktop-tauri` | **2.5.0** (consolidada el 2026-10-09, pendiente de publicar; la publicada es la `2.4.0`, del 2026-10-06, la primera compilada por CI para Windows, macOS y Linux) | Tauri + **SQLite nativo** (`tauri-plugin-sql`) sobre una carpeta real; `frontend/lib/db/*` + `lib/api.ts` = dispatcher local |
 | **Web** | `web-cloud` | **2.1.0** | Next.js + backend **.NET** (D1/R2); `frontend/lib/api.ts` = cliente HTTP |
 
 > [!warning] La versión vigente se lee del disco, no de esta tabla
@@ -415,6 +415,25 @@ orquestador** hace el merge de cada rama de feature a su principal:
 Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 `desktop-tauri` directamente.
 
+> [!important] La ayuda y la plantilla de snippets se evalúan en cada cambio (regla del usuario, 2026-10-06)
+> Toda funcionalidad nueva y todo defecto corregido —por subagente **o hecho directo por el
+> orquestador**— pasa por una pregunta antes de integrarse: **¿cambia lo que dice la ayuda
+> o lo que se puede estilar?**
+> - **Ayuda integrada** (`frontend/ayuda/**`, [[ayuda-integrada]]): si el cambio agrega,
+>   quita o cambia algo que el usuario ve o hace —un botón, un atajo, una sintaxis, un
+>   comportamiento que una página describe—, se escribe o corrige la página, se regenera
+>   (`npm run generar-ayuda`) y se corre `scripts/test-ayuda.mjs`. Una funcionalidad nueva
+>   **no está terminada sin su página**; un defecto corregido revisa si alguna página
+>   describía el comportamiento roto (como pasó con `DEF-130`).
+> - **Plantilla de snippets** (`frontend/public/plantilla-estilos.css`, `DEF-123`): si el
+>   cambio agrega, renombra o quita una variable `--mic-*` pública o una clase global
+>   `mic-*` que alguien querría estilar, se actualiza la plantilla y se corre su test.
+>
+> La respuesta va **siempre** en el informe y en el resumen al usuario: «ayuda: actualizada
+> (qué página)» o «ayuda: no aplica (por qué)», y lo mismo para la plantilla. Un «no aplica»
+> sin motivo no vale. El orquestador no integra un cambio que no la traiga. Detalle en
+> [[Verificar antes de integrar]].
+
 > [!important] Una parte, una rama, un merge (regla del usuario, 2026-09-27)
 > Cuando un trabajo se hace por partes que el usuario va a **evaluar por separado en la
 > app** (como las siete partes del grafo en `FUN-L-25`), cada parte va en su propia rama y
@@ -467,7 +486,14 @@ Borra las ramas de feature tras integrar. **Nunca** fusiones `web-cloud` con
 - **Cerrá todo proceso que hayas abierto** (navegadores headless, servidores, `dotnet`,
   `next dev`) antes de terminar: un proceso vivo bloquea el worktree y te deja «esperando
   sin finalizar».
-- Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, dudas.
+- **Ayuda y plantilla de snippets**: antes de terminar, evaluá si tu cambio toca lo que
+  describe alguna página de `frontend/ayuda/**` o lo que se puede estilar desde
+  `frontend/public/plantilla-estilos.css`. Si sí, actualizalo (regenerá con `npm run
+  generar-ayuda` y corré `scripts/test-ayuda.mjs` y el test de la plantilla). Si no, decí
+  por qué. Ver la regla en «5. Integrar».
+- Devuelve un resumen: qué cambiaste, archivos, resultado de la verificación, **ayuda:
+  actualizada / no aplica (por qué)**, **plantilla: actualizada / no aplica (por qué)**,
+  dudas.
 
 ---
 
@@ -522,7 +548,10 @@ mano.**
 > 4. `docs/Mapa de documentacion.md` — la entrada «release actual de desktop» (y la de web).
 >
 > Más la nota de release nueva (`docs/estado/Version X.Y.Z.md`), enlazada desde las tres
-> últimas. Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
+> últimas. **El changelog** (lo que va entre `notas-release` en esa nota) **no menciona nada del
+> modo desarrollador** ni de lo que habilita: es oculto (regla del usuario, 2026-10-08;
+> `npm run publicar` lo rechaza, lista en `frontend/scripts/secreto-dev.mjs`, ver
+> [[Lo del modo dev no se anuncia]]). Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
 > documento nuevo empieza a declarar la versión, se agrega acá. Lo demás (`BACKLOG`,
 > catálogo de defectos, specs) menciona versiones **pasadas** como hechos y no se retoca.
 
@@ -553,7 +582,9 @@ del [[BACKLOG]] (`FUN-S/M/L/XL`) miden **esfuerzo**, no impacto de versión.
 > —`.base`, `.canvas`, y los que se guardan pero NO se indexan— más la corrección de que
 > renombrar ya repara los enlaces, salvo cuando lo hace la IA con `mv` · `1.6.0` `.drawio`
 > (`FUN-L-20`) · `1.7.0` una skill por herramienta y el MCP de control (`FUN-L-26`,
-> `FUN-L-09`) · `1.8.0` estados de tarea (`FUN-S-01`).
+> `FUN-L-09`) · `1.8.0` estados de tarea (`FUN-S-01`) · `1.8.1` la tabla de sintaxis deja
+> de prometer el embed de notas y las etiquetas clicables (`DEF-131`) · `2.0.0` instrucciones por capas (`FUN-L-29`) · `2.1.0` enlaces a encabezados,
+> aviso de cambios externos y nombre de la nota de una Espora (`DEF-138`, `DEF-140`, `DEF-141`).
 >
 > **Este vault tiene la `1.7.0`** desde el 2026-10-03. Como este `CLAUDE.md` no lleva la marca
 > `<!-- mycelium-ia` (se quitó a propósito tras `DEF-118`), Mycelium no lo pisa: escribe la

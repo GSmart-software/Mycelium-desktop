@@ -23,6 +23,7 @@ import {
 } from "@/lib/frontmatter";
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { mensajeDeError } from "@/lib/mensajeError";
 import styles from "./NotePanel.module.css";
 
 /**
@@ -179,7 +180,7 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
         setTexto(view.state.doc.toString());
         setError(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "No se pudo editar la propiedad.");
+        setError(mensajeDeError(e, "No se pudo editar la propiedad."));
       }
     },
     [paneId],

@@ -60,8 +60,12 @@ export async function crearFtsFilas(): Promise<void> {
   await execute("DELETE FROM notas_fts WHERE rowid NOT IN (SELECT fila FROM fts_filas)");
 }
 
-/** Lo que hace falta para poner la fila de búsqueda de una nota. */
-export type FilaFts = { id: string; titulo: string; contenido: string };
+/**
+ * Lo que hace falta para poner la fila de búsqueda de una nota: `contenido` es
+ * el texto legible y `extra` lo que se busca sin mostrarse (`DEF-148`, ver
+ * `derivarIndice`).
+ */
+export type FilaFts = { id: string; titulo: string; contenido: string; extra: string };
 
 /**
  * Pone (o reemplaza) la fila de búsqueda de VARIAS notas con dos sentencias en
@@ -86,10 +90,10 @@ export async function ftsPonerTanda(filas: FilaFts[]): Promise<void> {
     [JSON.stringify(filas.map((f) => f.id))],
   );
   await execute(
-    `INSERT OR REPLACE INTO notas_fts (rowid, nota_id, titulo, contenido)
+    `INSERT OR REPLACE INTO notas_fts (rowid, nota_id, titulo, contenido, extra)
      SELECT (SELECT fila FROM fts_filas WHERE nota_id = json_extract(j.value, '$.id')),
             json_extract(j.value, '$.id'), json_extract(j.value, '$.titulo'),
-            json_extract(j.value, '$.contenido')
+            json_extract(j.value, '$.contenido'), json_extract(j.value, '$.extra')
      FROM json_each(?) AS j`,
     [JSON.stringify(filas)],
   );
@@ -102,7 +106,7 @@ export async function ftsPonerTanda(filas: FilaFts[]): Promise<void> {
  * puede pesar cientos de KB— no se serializa a JSON ni SQLite lo vuelve a
  * parsear.
  */
-export async function ftsPoner(id: string, titulo: string, contenido: string): Promise<void> {
+export async function ftsPoner(id: string, titulo: string, contenido: string, extra = ""): Promise<void> {
   await execute(
     `INSERT INTO fts_filas (nota_id, fila)
      VALUES (?, (SELECT COALESCE(MAX(fila), 0) + 1 FROM fts_filas))
@@ -110,9 +114,9 @@ export async function ftsPoner(id: string, titulo: string, contenido: string): P
     [id],
   );
   await execute(
-    `INSERT OR REPLACE INTO notas_fts (rowid, nota_id, titulo, contenido)
-     VALUES ((SELECT fila FROM fts_filas WHERE nota_id = ?), ?, ?, ?)`,
-    [id, id, titulo, contenido],
+    `INSERT OR REPLACE INTO notas_fts (rowid, nota_id, titulo, contenido, extra)
+     VALUES ((SELECT fila FROM fts_filas WHERE nota_id = ?), ?, ?, ?, ?)`,
+    [id, id, titulo, contenido, extra],
   );
 }
 

@@ -12,6 +12,7 @@ import {
   CARPETA_ESPORAS_DEFECTO,
   normalizarCarpetaEsporas,
   sustituirVariables,
+  tituloNotaDesdeEspora,
 } from "@/lib/esporas";
 import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { cuerpoDe, ponerPropiedad, separarFrontmatter } from "@/lib/frontmatter";
@@ -86,9 +87,16 @@ function tituloDeId(id: string): string {
 
 /**
  * Crea una nota a partir de una Espora en `carpetaDestino` y devuelve su id.
- * El nombre sale del nombre de la plantilla; la desambiguación (`Reunión`,
- * `Reunión 2`) la resuelve `nombreNotaLibre` en la capa de datos, y `{{titulo}}`
- * se resuelve con el título FINAL, no con el que se pidió.
+ * El nombre es provisional y **nunca** el de la plantilla (`DEF-140`):
+ * `tituloNotaDesdeEspora` elige `Reunión 1`, `Reunión 2`… mirando los títulos de
+ * TODO el vault, no solo de la carpeta destino, para que la nota no nazca
+ * homónima de su molde. Quien la abre la deja con el título en edición
+ * (`DEF-135`). La capa de datos (`nombreNotaLibre`) sigue desambiguando por
+ * archivo en la carpeta, por si dos creaciones seguidas eligen el mismo nombre.
+ *
+ * `{{titulo}}` se resuelve con el título FINAL de la creación. Si el usuario
+ * renombra la nota después, el contenido **no** se re-expande (como Obsidian):
+ * la plantilla se aplica una sola vez, al crear.
  *
  * La nota se crea vacía (`crearNota` no acepta contenido — misma forma de API
  * que en web) y el contenido se escribe después con `putContenido`.
@@ -98,7 +106,11 @@ export async function crearNotaDesdeEspora(
   carpetaDestino: string | null,
 ): Promise<string> {
   const plantilla = await leerEspora(espora.id);
-  const id = await useVaultStore.getState().createNota(carpetaDestino, "markdown", espora.titulo);
+  const provisional = tituloNotaDesdeEspora(
+    espora.titulo,
+    useVaultStore.getState().notas.map((n) => n.titulo),
+  );
+  const id = await useVaultStore.getState().createNota(carpetaDestino, "markdown", provisional);
   const titulo =
     useVaultStore.getState().notas.find((n) => n.id === id)?.titulo ?? tituloDeId(id);
   const contenido = sustituirVariables(plantilla, { titulo });

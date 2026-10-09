@@ -3,6 +3,7 @@
 import { Maximize2, Minimize2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { SidebarNoteView } from "@/components/explorer/SidebarNoteView";
+import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
 import { iconoDePestana, tituloDePestana } from "@/lib/pestanas";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { findLeaf, useTabsStore } from "@/stores/tabsStore";
@@ -86,8 +87,11 @@ export function SidebarDock({
     const tab = leaf?.tabs.find((t) => t.id === drag.tabId);
     useTabsStore.getState().setDragging(null);
     if (!tab) return;
-    useSidebarViewerStore.getState().dock(tab.notaId);
-    useTabsStore.getState().closeTab(drag.srcPaneId, drag.tabId);
+    // Anclarla cierra la pestaña: si estaba en conflicto con el disco, primero
+    // se pone a salvo lo del usuario (`DEF-138`).
+    void cerrarPestanaSinPerder(drag.srcPaneId, drag.tabId).then((cerrada) => {
+      if (cerrada) useSidebarViewerStore.getState().dock(tab.notaId);
+    });
   }
 
   // Divisor (solo en split): arrastrar hacia ARRIBA agranda la región anclada.

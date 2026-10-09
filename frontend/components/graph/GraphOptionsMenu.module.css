@@ -246,3 +246,20 @@
   outline: 2px solid var(--mic-focus);
   outline-offset: 2px;
 }
+
+/* Arrecife (`FUN-M-51`): el interruptor encendido lleva el gradiente de la
+   marca (Arrecife §6.7). */
+:global(:root[data-theme='arrecife']) .switch input:checked + .switchTrack {
+  background: var(--arrecife-gradiente);
+}
+
+/* GSmart (`FUN-M-52`): el interruptor encendido lleva el degradado de la
+   marca. */
+:global(:root[data-theme='gsmart']) .switch input:checked + .switchTrack {
+  background: var(--gsmart-degradado);
+}
+
+/* Aurora (`FUN-M-54`): el interruptor encendido lleva el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .switch input:checked + .switchTrack {
+  background: var(--aurora-degradado);
+}

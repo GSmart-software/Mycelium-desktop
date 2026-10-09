@@ -9,6 +9,7 @@ import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { execute, select } from "./client";
 import { crearResolutor, escribirEnlacesTanda, huellaEnlaces, reResolverTitulos } from "./enlacesIndice";
 import { ftsPoner } from "./ftsIndice";
+import { derivarIndice } from "./propiedades";
 import { DbError } from "./errors";
 import { carpetaDeArchivo, tituloDeRuta } from "./indexer";
 import type { CreatedResponse, NotaTipo } from "./types";
@@ -16,6 +17,7 @@ import { ahoraIso } from "./util";
 import { getVaultActual } from "./vaultContext";
 import {
   basenameDe,
+  conNombreReservado,
   copiarArchivo,
   escribirNota,
   extDe,
@@ -62,14 +64,21 @@ export async function crearNota(
   // archivo real cuando dos títulos distintos sanean al mismo nombre o cuando ya
   // existe una carpeta con ese nombre. El título mostrado pasa a ser el nombre
   // saneado (como Obsidian). Se crea el archivo vacío.
-  const libre = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
-  // El `mtime` real del archivo, no `Date.now()` (`FUN-M-38`): si difieren, el
-  // próximo reindexado incremental relee la nota recién creada sin motivo.
-  const mtime = await escribirNota(vault, libre.id, "");
-  await execute(
-    "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
-    [libre.id, vaultId, carpetaId, libre.titulo, t, mtime, now, now],
-  );
+  //
+  // Elegir el nombre y ocuparlo (archivo + fila del índice) va en la cola
+  // `conNombreReservado` (`DEF-136`): dos creaciones seguidas elegían el mismo
+  // «Sin título N» y la segunda reventaba en el `INSERT`.
+  const libre = await conNombreReservado(async () => {
+    const elegido = await nombreNotaLibre(carpetaId, base, extDeTipo(t));
+    // El `mtime` real del archivo, no `Date.now()` (`FUN-M-38`): si difieren, el
+    // próximo reindexado incremental relee la nota recién creada sin motivo.
+    const mtime = await escribirNota(vault, elegido.id, "");
+    await execute(
+      "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
+      [elegido.id, vaultId, carpetaId, elegido.titulo, t, mtime, now, now],
+    );
+    return elegido;
+  });
   await execute(
     "INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, '', ?)",
     [libre.id, now],
@@ -169,16 +178,20 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
 
   // El sufijo por defecto es "(copia)" (estilo Obsidian) y la desambiguación se
   // hace a nivel de nombre de archivo (`nombreNotaLibre`).
-  const { id: nuevo, titulo } = await nombreNotaLibre(
-    nota.carpeta_id,
-    `${nota.titulo} (copia)`,
-    extDeTipo(nota.tipo),
-  );
-  await copiarArchivo(vault, id, nuevo);
-  await execute(
-    "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [nuevo, nota.vault_id, nota.carpeta_id, titulo, nota.tipo, nota.tamano_bytes, Date.now(), now, now],
-  );
+  // Nombre + copia + `INSERT` en un solo paso, como al crear (`DEF-136`).
+  const { id: nuevo, titulo } = await conNombreReservado(async () => {
+    const elegido = await nombreNotaLibre(
+      nota.carpeta_id,
+      `${nota.titulo} (copia)`,
+      extDeTipo(nota.tipo),
+    );
+    await copiarArchivo(vault, id, elegido.id);
+    await execute(
+      "INSERT INTO notas (id, vault_id, carpeta_id, titulo, tipo, tamano_bytes, mtime, creado_en, actualizado_en) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [elegido.id, nota.vault_id, nota.carpeta_id, elegido.titulo, nota.tipo, nota.tamano_bytes, Date.now(), now, now],
+    );
+    return elegido;
+  });
 
   // Copia del contenido (si existe) y reindex FTS de la copia.
   const cont = await select<{ contenido: string }>(
@@ -191,7 +204,9 @@ export async function duplicarNota(id: string): Promise<CreatedResponse> {
       cont[0].contenido,
       now,
     ]);
-    await ftsPoner(nuevo, titulo, cont[0].contenido);
+    // Lo mismo que indexa el guardado (`DEF-148`), no el texto crudo.
+    const buscable = derivarIndice(cont[0].contenido, nota.tipo);
+    await ftsPoner(nuevo, titulo, buscable.contenido, buscable.extra);
     // La copia enlaza a lo mismo que el original (`FUN-L-25`).
     const enlaces = derivarEnlaces(cont[0].contenido, nota.tipo);
     const etiquetas = derivarEtiquetas(cont[0].contenido, nota.tipo);

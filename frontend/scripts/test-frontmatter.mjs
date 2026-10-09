@@ -21,6 +21,7 @@ const mod = await import(`data:text/javascript,${encodeURIComponent(outputText)}
 const {
   separarFrontmatter,
   cuerpoDe,
+  inicioDelCuerpo,
   etiquetasDe,
   propiedadDe,
   ponerPropiedad,
@@ -451,4 +452,32 @@ test("el valor convertido se puede escribir y releer con el tipo nuevo", () => {
   const p = propiedadDe(nuevo, "cuando");
   assert.equal(p.tipo, "fecha");
   assert.equal(p.valor, "2026-03-04");
+});
+
+// DEF-139: al confirmar el título, el cursor va al principio del cuerpo.
+const NL = String.fromCharCode(10);
+const CRLF = String.fromCharCode(13, 10);
+
+test("inicioDelCuerpo: sin frontmatter es el principio del texto", () => {
+  assert.equal(inicioDelCuerpo(""), 0);
+  assert.equal(inicioDelCuerpo(["hola", "mundo"].join(NL)), 0);
+  // Un `---` sin cierre no es frontmatter.
+  assert.equal(inicioDelCuerpo(["---", "sin cierre"].join(NL)), 0);
+});
+
+test("inicioDelCuerpo: la primera línea después del cierre", () => {
+  const texto = ["---", "estado: activo", "---", "cuerpo"].join(NL);
+  assert.equal(inicioDelCuerpo(texto), texto.indexOf("cuerpo"));
+  const crlf = ["---", "a: 1", "---", "cuerpo"].join(CRLF);
+  assert.equal(inicioDelCuerpo(crlf), crlf.indexOf("cuerpo"));
+  // También con un frontmatter que Mycelium no interpreta.
+  const raro = ["---", "a:", "  b: 1", "...", "x"].join(NL);
+  assert.equal(inicioDelCuerpo(raro), raro.indexOf("x"));
+});
+
+test("inicioDelCuerpo: sin cuerpo después del cierre, el final del texto", () => {
+  const sinSalto = ["---", "a: 1", "---"].join(NL);
+  assert.equal(inicioDelCuerpo(sinSalto), sinSalto.length);
+  const conSalto = sinSalto + NL;
+  assert.equal(inicioDelCuerpo(conSalto), conSalto.length);
 });

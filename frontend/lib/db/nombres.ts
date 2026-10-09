@@ -69,6 +69,35 @@ export function sanearNombre(nombre: string, fallback = "Sin título"): string {
 }
 
 /**
+ * Los caracteres prohibidos (`\ / : * ? " < > |`) que aparecen en `nombre`, sin
+ * repetir y en el orden en que aparecen. Vacío si no hay ninguno. Son los que
+ * `sanearNombre` va a sustituir por `-` (`DEF-150 m`).
+ */
+export function caracteresProhibidosEn(nombre: string): string[] {
+  const vistos: string[] = [];
+  for (const c of nombre.match(CARACTERES_PROHIBIDOS) ?? []) {
+    if (!vistos.includes(c)) vistos.push(c);
+  }
+  return vistos;
+}
+
+/**
+ * El aviso para el usuario cuando el nombre que escribió lleva caracteres que un
+ * archivo no admite y el saneo los cambió por `-` (`DEF-150 m`); `null` si no
+ * había ninguno. `quedo` es el nombre que el archivo obtuvo, si se sabe.
+ *
+ * Antes el reemplazo era silencioso: «¿Qué es?» pasaba a llamarse «¿Qué es-» y
+ * el usuario no sabía por qué su título no era el que escribió.
+ */
+export function avisoCaracteresReemplazados(nombre: string, quedo?: string): string | null {
+  const cs = caracteresProhibidosEn(nombre);
+  if (cs.length === 0) return null;
+  const lista = cs.map((c) => `«${c}»`).join(" ");
+  const final = quedo ? `: quedó «${quedo}»` : "";
+  return `Se reemplazaron caracteres no permitidos en un nombre de archivo (${lista}) por «-»${final}.`;
+}
+
+/**
  * Desambiguación por sufijo incremental estilo Obsidian: si `base` ya está
  * ocupado, prueba `"base 1"`, `"base 2"`… hasta encontrar uno libre. `ocupado` es
  * un predicado (normalmente una consulta al índice) que decide si un candidato ya
@@ -79,4 +108,27 @@ export function desambiguar(base: string, ocupado: (candidato: string) => boolea
   let n = 1;
   while (ocupado(`${base} ${n}`)) n++;
   return `${base} ${n}`;
+}
+
+/**
+ * Cola de tareas asíncronas que corren **de a una**, en el orden en que se
+ * pidieron (`DEF-136`). Una tarea que falla no traba a las siguientes.
+ *
+ * Existe por la elección de un nombre libre: `nombreNotaLibre` lee del índice qué
+ * nombres están ocupados y el `INSERT` de la nota llega varios `await` después
+ * (escribir el archivo es un viaje a Rust). Dos creaciones seguidas —clics
+ * rápidos en «Nueva nota»— leían el índice antes de que la primera insertara,
+ * elegían las dos el mismo «Sin título N», la segunda pisaba el archivo de la
+ * primera y su `INSERT` reventaba con `UNIQUE constraint failed: notas.id`.
+ * Elegir el nombre y ocuparlo tiene que ser un solo paso: se hace dentro de la
+ * cola.
+ */
+export function crearCola(): <T>(tarea: () => Promise<T>) => Promise<T> {
+  let ultima: Promise<unknown> = Promise.resolve();
+  return <T>(tarea: () => Promise<T>): Promise<T> => {
+    const esta = ultima.then(tarea);
+    // La cola sigue aunque la tarea falle; quien la pidió recibe el rechazo.
+    ultima = esta.catch(() => undefined);
+    return esta;
+  };
 }

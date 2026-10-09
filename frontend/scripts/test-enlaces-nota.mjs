@@ -66,12 +66,15 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
+  "./fts": await fuente("../lib/db/fts.ts"),
   "./ftsIndice": FTS,
   "./util": UTIL,
 });
 const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
   "@/lib/frontmatter": FRONTMATTER,
   "./client": CLIENT,
+  "./fts": await fuente("../lib/db/fts.ts"),
   "./util": UTIL,
 });
 const INDEXER = await fuente("../lib/db/indexer.ts", {
@@ -95,10 +98,12 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./enlacesIndice": ENLACES_INDICE,
   "./ftsIndice": FTS,
   "./nombres": NOMBRES,
+  "./propiedades": PROPIEDADES,
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
   "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
+  "@/lib/conflictoExterno": await fuente("../lib/conflictoExterno.ts"),
   "./indexer": INDEXER,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "./client": CLIENT,
@@ -118,6 +123,7 @@ const NOTAS_DB = await fuente("../lib/db/notas.ts", {
   "./ftsIndice": FTS,
   "./errors": ERRORS,
   "./indexer": INDEXER,
+  "./propiedades": PROPIEDADES,
   "./util": UTIL,
   "./vaultContext": CONTEXTO,
   "./vaultFs": VAULTFS,
@@ -140,7 +146,7 @@ const GRAFO = await fuente("../lib/db/grafo.ts", { "./client": CLIENT, "./errors
 
 const { derivarEnlaces, derivarEtiquetas, claveDeEnlace, claveSinAncla, clavesDeTitulo, resolverEnlace } =
   await import(ENLACES_NOTA);
-const { partirWikilink, indexarPorTitulo, resolveWikilinkEnIndice } = await import(WIKILINKS);
+const { partirWikilink, indexarPorTitulo, resolveWikilinkEnIndice, resolverReferenciaEnIndice } = await import(WIKILINKS);
 const { referenciasDe } = await import(CANVAS);
 const { etiquetasDe } = await import(FRONTMATTER);
 const { sinCodigo } = await import(SINCODIGO);
@@ -282,7 +288,10 @@ function grafoPorEscaneo({ notas, carpetas, papelera }, { sinAncla = false } = {
   );
   const cs = carpetas.map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
   const resolver = (ref) => {
-    const entero = resolveWikilinkEnIndice(ref, indice, cs)?.id;
+    // Desde `DEF-141` el resolutor prueba solo sin el ancla: el «entero» de
+    // antes es el que resolvió sin cortar nada.
+    const r = resolverReferenciaEnIndice(ref, indice, cs);
+    const entero = r.ancla === null && r.base === ref.trim() ? r.nota?.id : undefined;
     if (entero || !sinAncla) return entero;
     // El ancla, en el último segmento: primero el corte más largo.
     const i = ref.lastIndexOf("/");

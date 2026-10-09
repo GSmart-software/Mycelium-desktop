@@ -2,7 +2,8 @@
 
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
@@ -32,6 +33,30 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const menuListaRef = useRef<HTMLDivElement>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
   useWheelHScroll(tabBarRef);
+
+  // La pestaña activa, siempre a la vista (`DEF-150 l`). Con un mínimo de ancho
+  // por pestaña, en un pane angosto la barra desborda y se desplaza; al activar
+  // una pestaña (clic, teclado, abrir una nota) o al achicarse el pane, se lleva
+  // a la vista. A mano y no con `scrollIntoView`: los botones de navegación y el
+  // «…» están anclados (`sticky`) y la taparían.
+  useEffect(() => {
+    const barra = tabBarRef.current;
+    if (!barra || !pane.activeTabId) return;
+    const mostrar = () => {
+      const tab = barra.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(pane.activeTabId!)}"]`);
+      if (!tab || barra.scrollWidth <= barra.clientWidth) return;
+      const caja = barra.getBoundingClientRect();
+      const izq = caja.left + (barra.querySelector<HTMLElement>(`.${styles.navGroup}`)?.offsetWidth ?? 0);
+      const der = caja.right - (menuRef.current?.offsetWidth ?? 0);
+      const r = tab.getBoundingClientRect();
+      if (r.left < izq) barra.scrollLeft -= izq - r.left + 4;
+      else if (r.right > der) barra.scrollLeft += r.right - der + 4;
+    };
+    mostrar();
+    const observador = new ResizeObserver(mostrar);
+    observador.observe(barra);
+    return () => observador.disconnect();
+  }, [pane.activeTabId, pane.tabs.length]);
 
   // El menú se posiciona con position:fixed para escapar del overflow del
   // tab bar (si no, quedaba recortado detrás del editor).
@@ -197,12 +222,15 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   ?.focus();
               } else if (e.key === "Delete") {
                 e.preventDefault();
-                store.closeTab(pane.id, tab.id);
-                pushUrl();
-                // El foco sigue en la barra, en la pestaña que quedó activa.
-                requestAnimationFrame(() =>
-                  tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
-                );
+                // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
+                void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => {
+                  if (!cerrada) return;
+                  pushUrl();
+                  // El foco sigue en la barra, en la pestaña que quedó activa.
+                  requestAnimationFrame(() =>
+                    tabBarRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]')?.focus(),
+                  );
+                });
               }
             }}
             draggable
@@ -267,8 +295,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               aria-label={`Cerrar ${titleOf(tab)}`}
               onClick={(e) => {
                 e.stopPropagation();
-                store.closeTab(pane.id, tab.id);
-                pushUrl();
+                void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => cerrada && pushUrl());
               }}
             >
               <X size={12} aria-hidden />

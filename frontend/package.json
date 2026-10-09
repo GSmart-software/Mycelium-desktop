@@ -1,10 +1,10 @@
 {
   "name": "frontend",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/preparar-drawio.mjs && next dev",
-    "build": "node scripts/preparar-drawio.mjs && next build",
+    "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs && next dev",
+    "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
@@ -12,7 +12,9 @@
     "versionar": "node scripts/versionar.mjs",
     "publicar": "node scripts/publicar.mjs",
     "preparar-drawio": "node scripts/preparar-drawio.mjs",
+    "preparar-excalidraw": "node scripts/preparar-excalidraw.mjs",
     "preparar-mcp": "node scripts/preparar-mcp.mjs",
+    "generar-ayuda": "node scripts/generar-ayuda.mjs",
     "wasm:ortografia": "node scripts/wasm-ortografia.mjs",
     "publicar-diccionarios": "node scripts/publicar-diccionarios.mjs"
   },

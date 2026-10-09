@@ -5,14 +5,46 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  margin-bottom: 0.9rem;
+}
+
+/* Cada ajuste es un bloque (`FUN-M-41`): el de campo (`.field`) y el de sí o no
+   (`.ajuste`, que arma `Interruptor`). Un filete fino los separa, así cada
+   ajuste —nombre, control y explicación— se lee como una unidad y no como un
+   párrafo más. Mismo ancho para los dos, para que los filetes no queden de
+   largos distintos. El primero de la sección no lleva filete. */
+.field,
+.ajuste {
+  max-width: 560px;
+  padding-block: 0.95rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+}
+
+.field:first-child,
+.ajuste:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Dentro del bloque más ancho, los controles conservan su medida de antes. */
+.field > .input,
+.field > .select,
+.field > .rangeRow {
   max-width: 420px;
 }
 
+/* En un campo el aire lo pone el `gap`: la explicación no suma margen propio. */
+.field > .hint,
+.field > .hintDetalle {
+  margin-top: 0;
+}
+
+/* El nombre del ajuste manda: en el color del texto, un punto más grande que su
+   explicación (que va en gris). Antes los dos iban en el mismo gris y tamaño, y
+   la vista no tenía de dónde agarrarse. */
 .label {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--mic-text-muted);
+  color: var(--mic-text-primary);
 }
 
 .input,
@@ -35,6 +67,15 @@
 .range {
   width: 100%;
   accent-color: var(--mic-glow);
+}
+
+/* Un campo para una cifra chica (`DEF-150 n`): con el `width: 100%` de
+   `.select`, «Ancho de tabulación» ocupaba 460px para escribir un 4. Ancho
+   para dos dígitos más los spinners. */
+.select.numero {
+  width: 5.5rem;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .rangeRow {
@@ -99,12 +140,36 @@
 }
 
 /* ── Swatches de tema (HU-12 CA10) ──────────────────────────────── */
-/* Las muestras no crecen con la ventana: a partir de cierto tamaño dejan de
-   informar y solo ocupan. */
+/* Todas las muestras miden lo mismo, haya las que haya y se llamen como se
+   llamen: 120 × 80px, el tamaño que tenía la de «Bioluminiscencia» con el modo
+   dev (su nombre en una línea —97,6px a 12px semibold de Geist— más el relleno y
+   el borde: 117,6 × 79,6px; se redondea hacia arriba para que el nombre no
+   quede justo al borde si WebView2 lo dibuja un pelo más ancho). Antes eran
+   `flex: 1` en una fila de 460px: se repartían el ancho según cuántas había y la
+   del nombre largo se estiraba.
+
+   Si no entran en el ancho del bloque, la fila se desplaza en horizontal (con
+   la barra fina de globals.css) en vez de achicarlas o bajarlas de fila: una
+   sola fila mantiene el alto de la sección fijo y las muestras en el orden en
+   que se leen. Hoy, con cuatro (dos públicas y dos del modo dev), entran sin
+   barra en los 560px del bloque: 4 × 120 + 3 × 9,6 + 2 × 6 = 520,8px.
+   El relleno de 6px deja lugar al anillo de foco (2px a 2px de distancia) y al
+   borde de la elegida, que si no el `overflow` recortaría. */
 .swatchGroup {
   display: flex;
-  max-width: 460px;
   gap: 0.6rem;
+  padding: 6px;
+  margin: -6px;
+  overflow-x: auto;
+}
+
+/* Solo las de tema: `.swatch` es también la tarjeta de las atmósferas, que
+   siguen en su grilla de cinco columnas. */
+.swatchGroup > .swatch {
+  flex: 0 0 7.5rem;
+  width: 7.5rem;
+  height: 5rem;
+  min-width: 0;
 }
 
 .swatch {
@@ -143,16 +208,63 @@
   color: var(--mic-text-primary);
 }
 
+/* En las muestras de tema el nombre va en una sola línea, también con la marca
+   «dev» delante: el alto de la tarjeta es fijo. Si no entran los dos, la marca
+   queda entera (es lo que dice que la muestra es del modo dev) y el que se
+   recorta con elipsis es el nombre; el `title` del botón lo dice completo. */
+.swatchNameLinea {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.swatchNameTexto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* La marca «dev» de una muestra que solo existe con el modo desarrollador
+   (`FUN-M-51`). La misma que llevan los comandos de desarrollador en la paleta
+   (PaletaComandos.module.css): discreta, en mono, sin color propio. */
+.etiquetaDev {
+  flex: none;
+  margin-right: 0.35rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--mic-text-muted);
+}
+
+/* Selector de atmósfera con un tema que no las admite (`FUN-M-51`): se ve, pero
+   atenuado y sin responder. La opacidad va en cada muestra —la hoja—, no en el
+   grupo (DESIGN_SYSTEM § Atenuado), y el rótulo se apaga con el color. */
+.swatchDeshabilitada {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.labelDeshabilitado {
+  color: var(--mic-text-muted);
+}
+
 /* ── Atmósferas: una muestra en miniatura de la ventana ─────────────
    La muestra lleva los atributos de su combinación, así que las reglas de
    tokens.css (raw del tema y del modo) y atmosferas.css (semánticos) valen en
    ella. Abisal no tiene reglas en atmosferas.css y el semántico de :root se
    hereda ya calculado con el modo de la app: por eso acá se reponen sus
-   valores desde los raw, que sí se recalculan en la muestra. */
+   valores desde los raw, que sí se recalculan en la muestra.
+   Cinco columnas desde Aurora (`FUN-M-54`): el ancho máximo sube de 620 a 700px
+   para que cada muestra siga cerca de las 130px que tenía. */
 .atmosferas {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  max-width: 620px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 700px;
   gap: 0.6rem;
 }
 
@@ -219,16 +331,38 @@
 /* ── Toggle sol/luna (HU-12 CA9) ────────────────────────────────── */
 /* Interruptor: el rótulo a la izquierda y el control a la derecha, a la misma
    distancia siempre, para que la columna de controles se lea de un vistazo. */
+/* Interruptor A LA IZQUIERDA de su nombre (`FUN-M-41`, pedido del usuario): a
+   la derecha de un bloque de 560px quedaba lejos del rótulo y la vista tenía
+   que cruzar el hueco para unirlos. Así los interruptores forman una columna y
+   cada uno queda pegado a lo que activa. El DOM no cambia (rótulo y después
+   control): lo invierte `order`, y la explicación se alinea bajo el nombre. */
 .toggleRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 0.65rem;
   max-width: 560px;
   min-height: 34px;
   /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
      uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
   margin-top: 1.2rem;
+}
+
+/* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */
+.ajuste > .toggleRow {
+  margin-top: 0;
+}
+
+.toggleRow > .switch {
+  order: -1;
+}
+
+/* La explicación arranca donde arranca el nombre, no bajo el interruptor. */
+.ajuste > .hint,
+.ajuste > .hintDetalle,
+.field:has(> .toggleRow) > .hint,
+.field:has(> .toggleRow) > .hintDetalle {
+  margin-left: calc(34px + 0.65rem);
 }
 
 /* El primero de la sección no necesita ese aire. */
@@ -241,13 +375,63 @@
   margin-bottom: 0.9rem;
 }
 
-
 .hint {
   max-width: 62ch;
   margin-top: 0.35rem;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--mic-text-muted);
+}
+
+/* «Más» de una explicación (`FUN-M-41`): texto, no botón con caja, para que la
+   línea visible siga leyéndose como una frase. Subrayado punteado para que se
+   note que se puede tocar sin competir con el contenido. */
+.mas {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.15rem;
+  border-radius: var(--mic-radius-sm);
+  font: inherit;
+  color: color-mix(in srgb, var(--mic-text-primary) 70%, var(--mic-text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mas:hover {
+  color: var(--mic-text-primary);
+}
+
+.mas svg {
+  transition: transform 120ms ease;
+}
+
+.masAbierto {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mas svg {
+    transition: none;
+  }
+}
+
+/* Lo plegado: el mismo tono que la línea visible, con un filete a la izquierda
+   para que se lea como continuación de ESE ajuste y no como uno nuevo. */
+.hintDetalle {
+  max-width: 62ch;
+  margin-top: 0.35rem;
+  padding-left: 0.65rem;
+  border-left: 2px solid color-mix(in srgb, var(--mic-text-muted) 25%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+.hintDetalle > p + p {
+  margin-top: 0.4rem;
 }
 
 .warn {
@@ -393,4 +577,118 @@
 .switch:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* Arrecife (`FUN-M-51`): el botón primario con el gradiente de la marca
+   (styles/arrecife.css). Los otros temas no cambian. */
+:global(:root[data-theme='arrecife']) .primaryBtn {
+  background: var(--arrecife-gradiente);
+  color: #ffffff;
+  border-radius: var(--arrecife-radio-control);
+  box-shadow: var(--arrecife-sombra-boton);
+  transition: var(--arrecife-transicion);
+}
+
+:global(:root[data-theme='arrecife']) .primaryBtn:hover:not(:disabled) {
+  background: var(--arrecife-gradiente);
+  filter: brightness(1.1);
+  transform: var(--arrecife-elevar);
+}
+
+/* Arrecife (`FUN-M-51`): el interruptor encendido lleva el gradiente de la
+   marca (Arrecife §6.7). */
+:global(:root[data-theme='arrecife']) .switch input:checked + .switchTrack {
+  background: var(--arrecife-gradiente);
+}
+
+/* Arrecife (`FUN-M-51`): la muestra elegida, con un marco en el gradiente.
+   El fondo del interior repite el del panel (el lienzo) para que el gradiente
+   quede solo en el borde. */
+:global(:root[data-theme='arrecife']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--arrecife-gradiente) border-box;
+}
+
+/* GSmart (`FUN-M-52`): el botón primario con el degradado de la marca
+   (styles/gsmart.css) y texto claro. Los otros temas no cambian. */
+:global(:root[data-theme='gsmart']) .primaryBtn {
+  background: var(--gsmart-degradado);
+  color: var(--gsmart-sobre-degradado);
+  border-radius: var(--gsmart-radio-control);
+  box-shadow: var(--gsmart-sombra-boton);
+  transition: var(--gsmart-transicion);
+}
+
+:global(:root[data-theme='gsmart']) .primaryBtn:hover:not(:disabled) {
+  background: var(--gsmart-degradado);
+  filter: brightness(1.1);
+  transform: var(--gsmart-elevar);
+}
+
+/* GSmart (`FUN-M-52`): el interruptor encendido lleva el degradado de la
+   marca. */
+:global(:root[data-theme='gsmart']) .switch input:checked + .switchTrack {
+  background: var(--gsmart-degradado);
+}
+
+/* GSmart (`FUN-M-52`): la muestra elegida, con un marco en el degradado. El
+   interior repite el fondo del panel para que el degradado quede solo en el
+   borde. */
+:global(:root[data-theme='gsmart']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--gsmart-degradado) border-box;
+}
+
+/* Aurora (`FUN-M-54`): el botón primario con el degradado del tema (styles/aurora.css)
+   y su sombra de luz. Las otras atmósferas no cambian. */
+:global(:root[data-atmosfera='aurora']) .primaryBtn {
+  background: var(--aurora-degradado);
+  color: var(--aurora-sobre-degradado);
+  box-shadow: var(--aurora-sombra-boton);
+  transition: var(--aurora-transicion);
+}
+
+:global(:root[data-atmosfera='aurora']) .primaryBtn:hover:not(:disabled) {
+  background: var(--aurora-degradado);
+  filter: var(--aurora-hover);
+  transform: var(--aurora-elevar);
+}
+
+/* Aurora (`FUN-M-54`): el interruptor encendido lleva el degradado del tema. */
+:global(:root[data-atmosfera='aurora']) .switch input:checked + .switchTrack {
+  background: var(--aurora-degradado);
+}
+
+/* Aurora (`FUN-M-54`): la muestra elegida, con un marco en el degradado. El
+   interior repite el fondo del panel para que el degradado quede solo en el
+   borde. */
+:global(:root[data-atmosfera='aurora']) .swatchActive {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
+    var(--aurora-degradado) border-box;
+}
+
+/* Aurora (`FUN-M-54`): su muestra en Apariencia adelanta la luz —el título en
+   el degradado del tema, un filete de color bajo el marco y un brillo en el
+   lienzo—, que no sale de los tokens como en las otras cuatro (Aurora no
+   redefine fondos). Va sobre el <span> de la muestra, que repite
+   `data-atmosfera`, y con los colores que `.muestra` repone desde los raw:
+   así se pinta con el tema y el modo que representa. */
+.muestra[data-atmosfera='aurora'] .muestraMarco {
+  box-shadow: inset 0 -2px 0 0 var(--mic-glow);
+  background-image: linear-gradient(90deg, transparent 70%, color-mix(in srgb, var(--mic-accent) 35%, transparent));
+}
+
+.muestra[data-atmosfera='aurora'] .muestraLienzo {
+  background-image: radial-gradient(ellipse 70% 80% at 0% 0%, color-mix(in srgb, var(--mic-glow) 18%, transparent), transparent 70%);
+}
+
+.muestra[data-atmosfera='aurora'] .muestraTitulo {
+  background: linear-gradient(90deg, var(--mic-glow), var(--mic-accent));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--mic-glow) 45%, transparent);
 }

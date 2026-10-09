@@ -49,3 +49,50 @@
   flex: 1;
   min-height: 0;
 }
+
+/* Arrecife (`FUN-M-51`): «Guardar» del dibujo con el gradiente de la marca
+   (styles/arrecife.css). Los otros temas no cambian. */
+:global(:root[data-theme='arrecife']) .save {
+  background: var(--arrecife-gradiente);
+  color: #ffffff;
+  border-radius: var(--arrecife-radio-control);
+  box-shadow: var(--arrecife-sombra-boton);
+  transition: var(--arrecife-transicion);
+}
+
+:global(:root[data-theme='arrecife']) .save:hover:not(:disabled) {
+  background: var(--arrecife-gradiente);
+  filter: brightness(1.1);
+  transform: var(--arrecife-elevar);
+}
+
+/* GSmart (`FUN-M-52`): «Guardar» del dibujo con el degradado de la marca
+   (styles/gsmart.css) y texto claro. Los otros temas no cambian. */
+:global(:root[data-theme='gsmart']) .save {
+  background: var(--gsmart-degradado);
+  color: var(--gsmart-sobre-degradado);
+  border-radius: var(--gsmart-radio-control);
+  box-shadow: var(--gsmart-sombra-boton);
+  transition: var(--gsmart-transicion);
+}
+
+:global(:root[data-theme='gsmart']) .save:hover:not(:disabled) {
+  background: var(--gsmart-degradado);
+  filter: brightness(1.1);
+  transform: var(--gsmart-elevar);
+}
+
+/* Aurora (`FUN-M-54`): «Guardar» del dibujo con el degradado del tema (styles/aurora.css)
+   y su sombra de luz. Las otras atmósferas no cambian. */
+:global(:root[data-atmosfera='aurora']) .save {
+  background: var(--aurora-degradado);
+  color: var(--aurora-sobre-degradado);
+  box-shadow: var(--aurora-sombra-boton);
+  transition: var(--aurora-transicion);
+}
+
+:global(:root[data-atmosfera='aurora']) .save:hover:not(:disabled) {
+  background: var(--aurora-degradado);
+  filter: var(--aurora-hover);
+  transform: var(--aurora-elevar);
+}

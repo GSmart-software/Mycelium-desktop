@@ -268,6 +268,36 @@ pub fn leer_archivo_texto(vault_ruta: String, ruta_rel: String) -> Result<Option
         .map_err(|e| format!("No se pudo leer {ruta_rel}: {e}"))
 }
 
+/// Los comandos que escribía el framework IA 1.x sueltos en `.claude/commands/`.
+/// Desde la 2.0.0 (`FUN-L-29`) viven en `.claude/commands/mycelium/`.
+const COMANDOS_IA_ANTERIORES: [&str; 6] = [
+    ".claude/commands/vault-buscar.md",
+    ".claude/commands/vault-recordar.md",
+    ".claude/commands/vault-mapa.md",
+    ".claude/commands/vault-vincular.md",
+    ".claude/commands/vault-huerfanas.md",
+    ".claude/commands/vault-nota.md",
+];
+
+/// Borra un comando que dejó el framework IA 1.x (`FUN-L-29`). **Lista
+/// cerrada**: el frontend lo pide solo cuando el archivo sigue tal cual lo
+/// escribió Mycelium (lo comprueba por su huella), así que no se pierde nada:
+/// la versión nueva ya está en `.claude/commands/mycelium/`. No pasa por la
+/// papelera porque no es una nota del índice. Que no exista no es un error.
+#[tauri::command]
+pub fn ia_borrar_anterior(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    if !COMANDOS_IA_ANTERIORES.contains(&ruta_rel.as_str()) {
+        return Err(format!("«{ruta_rel}» no es un comando del framework IA anterior: no se borra."));
+    }
+    let base = base_vault(&vault_ruta)?;
+    let ruta = ruta_segura(&base, &ruta_rel)?;
+    match std::fs::remove_file(&ruta) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("No se pudo borrar {ruta_rel}: {e}")),
+    }
+}
+
 /// Abre `ruta_rel` con la aplicación que el SO tenga asociada a su tipo.
 ///
 /// Es la salida de emergencia del visor de solo lectura (`FUN-L-11`): lo que
@@ -387,6 +417,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         base
+    }
+
+    #[test]
+    fn ia_borrar_anterior_solo_borra_los_comandos_de_la_lista() {
+        let base = tmp_vault("ia-anterior");
+        let v = base.to_string_lossy().to_string();
+        escribir_nota(v.clone(), ".claude/commands/vault-buscar.md".into(), "viejo".into()).unwrap();
+        escribir_nota(v.clone(), ".claude/commands/mio.md".into(), "mío".into()).unwrap();
+        ia_borrar_anterior(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
+        assert!(!base.join(".claude/commands/vault-buscar.md").exists());
+        // Que ya no exista no es un error.
+        ia_borrar_anterior(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
+        // Fuera de la lista, nada.
+        assert!(ia_borrar_anterior(v.clone(), ".claude/commands/mio.md".into()).is_err());
+        assert!(ia_borrar_anterior(v.clone(), "CLAUDE.md".into()).is_err());
+        assert!(base.join(".claude/commands/mio.md").exists());
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

@@ -7,13 +7,20 @@
  * Se elige una para cada modo, porque lo que funciona de noche no es lo que
  * funciona de día: por defecto Niebla en oscuro y Bosque en claro.
  */
-export type Atmosfera = "abisal" | "niebla" | "bosque" | "papel";
+export type Atmosfera = "abisal" | "niebla" | "bosque" | "papel" | "aurora";
 
+/**
+ * Aurora (`FUN-M-54`, 2026-10-09) es la única con forma además de color:
+ * degradados, brillos y resplandores con los colores del tema puesto. Sus
+ * reglas viven aparte, en styles/aurora.css y en los módulos de cada
+ * componente; sobre los fondos no hace nada (son los de Abisal).
+ */
 export const ATMOSFERAS: { id: Atmosfera; nombre: string; descripcion: string }[] = [
   { id: "abisal", nombre: "Abisal", descripcion: "Marco profundo y brillos del tema en títulos y acentos" },
   { id: "niebla", nombre: "Niebla", descripcion: "Sobria, grises fríos; la nota es lo más claro" },
   { id: "bosque", nombre: "Bosque", descripcion: "El color del tema en el marco, la nota en calma" },
   { id: "papel", nombre: "Papel", descripcion: "Editorial y cálida, casi sin color" },
+  { id: "aurora", nombre: "Aurora", descripcion: "Degradados y luces con los colores del tema" },
 ];
 
 export const ATMOSFERA_OSCURO_DEFECTO: Atmosfera = "niebla";

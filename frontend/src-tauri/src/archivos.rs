@@ -1243,6 +1243,43 @@ mod tests {
         std::fs::remove_dir_all(&base).unwrap();
     }
 
+    /// Una negación que re-incluye una carpeta oculta hace que el recorrido
+    /// ENTRE en ella (`FUN-S-30`); lo que sigue ignorado adentro, no. Y
+    /// `.mycelium/` no vuelve aunque una `!` lo pida.
+    #[test]
+    fn recorrer_vault_respeta_las_negaciones() {
+        let base = std::env::temp_dir().join(format!("mycelium-neg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join(".claude/skills/vault")).unwrap();
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        std::fs::create_dir_all(base.join(".mycelium/.trash")).unwrap();
+        std::fs::write(
+            base.join(".mycignore"),
+            ".*/\n!.claude/\n.claude/*\n!.claude/*.md\n!.mycelium/\n",
+        )
+        .unwrap();
+        std::fs::write(base.join(".claude/normas.md"), "#").unwrap();
+        std::fs::write(base.join(".claude/settings.json"), "{}").unwrap();
+        std::fs::write(base.join(".claude/skills/vault/SKILL.md"), "#").unwrap();
+        std::fs::write(base.join(".git/HEAD"), "x").unwrap();
+        std::fs::write(base.join(".mycelium/.trash/x.md"), "#").unwrap();
+        std::fs::write(base.join("nota.md"), "#").unwrap();
+
+        let r = recorrer_vault(base.to_string_lossy().to_string()).unwrap();
+        let mut notas: Vec<&str> = r.archivos_meta.iter().map(|a| a.ruta_relativa.as_str()).collect();
+        notas.sort();
+        assert_eq!(notas, vec![".claude/normas.md", "nota.md"]);
+        assert_eq!(r.directorios, vec![".claude".to_string()]);
+        assert!(!r.otros.iter().any(|a| a.ruta_relativa.starts_with(".claude/")));
+
+        let obs: Vec<String> =
+            rutas_observables(&base).iter().map(|p| rel_posix(&base, p).unwrap()).collect();
+        assert!(obs.contains(&".claude/normas.md".to_string()));
+        assert!(!obs.iter().any(|r| r.starts_with(".mycelium") || r.starts_with(".git")));
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
     /// `listar_archivos_meta` devuelve el tipo correcto por extensión, un
     /// `mtime > 0` para cada archivo y salta directorios ocultos (incl. el
     /// propio `.mycelium`).

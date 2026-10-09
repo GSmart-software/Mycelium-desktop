@@ -1,0 +1,451 @@
+/* Ventana de ayuda (`FUN-L-27`): el lenguaje del editor de snippets y de
+   Configuración —velo, cuadro con borde y sombra, cabecera en la superficie—
+   pero grande, porque acá se lee. Índice a la izquierda, página a la derecha. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--mic-raw-base-deep) 55%, transparent);
+}
+
+.ventana {
+  display: flex;
+  flex-direction: column;
+  width: min(88vw, 1400px);
+  height: 88vh;
+  max-width: 100%;
+  max-height: 100%;
+  background: var(--mic-bg-canvas);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--mic-raw-base-deep) 45%, transparent);
+  animation: aparecer 140ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ventana {
+    animation: none;
+  }
+}
+
+/* ── Cabecera ──────────────────────────────────────────────────── */
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem 0.6rem 1.1rem;
+  border-bottom: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+  flex-shrink: 0;
+}
+
+.iconoTitulo {
+  color: var(--mic-glow-texto);
+  flex-shrink: 0;
+}
+
+.titulo {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.cerrar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.cerrar:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+/* ── Cuerpo: índice + página ───────────────────────────────────── */
+.cuerpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+}
+
+.indice {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--mic-bg-surface);
+  border-right: 1px solid var(--mic-border);
+}
+
+.buscador {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 32px;
+  margin: 0.75rem 0.6rem 0.5rem;
+  padding: 0 0.6rem;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+  flex-shrink: 0;
+}
+
+.buscador:focus-within {
+  border-color: color-mix(in srgb, var(--mic-focus) 60%, transparent);
+}
+
+.lupa {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.campoBusqueda {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.campoBusqueda::placeholder {
+  color: var(--mic-text-muted);
+}
+
+/* ── Índice: árbol de temas y subtemas ─────────────────────────── */
+.arbol,
+.resultados {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem 0.6rem 1rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.filaTema,
+.filaPagina {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 30px;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filaTema {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.filaPagina {
+  padding-left: 1.85rem;
+  color: var(--mic-text-muted);
+}
+
+.filaTema:hover,
+.filaPagina:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.filaTema:focus-visible,
+.filaPagina:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: -2px;
+}
+
+/* La página abierta, con relleno: como la categoría elegida en Configuración. */
+.filaActual {
+  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+  color: var(--mic-text-primary);
+  font-weight: 600;
+}
+
+.filaTexto {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Una página sin escribir: se atenúa la etiqueta, no la fila (DESIGN_SYSTEM
+   § Atenuado). */
+.filaPendiente .filaTexto {
+  color: var(--mic-text-muted);
+  font-style: italic;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--mic-text-muted);
+  transition: transform 120ms ease-out;
+}
+
+.chevronAbierto {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+.chevronHueco {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.pronto {
+  flex-shrink: 0;
+  margin-left: 0.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--mic-border);
+  font-size: 0.625rem;
+  font-weight: 500;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+/* ── Resultados del buscador, en lugar del árbol ───────────────── */
+.resultado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--mic-radius-sm);
+  cursor: pointer;
+}
+
+.resultadoActivo {
+  background: color-mix(in srgb, var(--mic-glow) 14%, transparent);
+}
+
+.resultado[aria-current="page"] .resultadoTitulo {
+  font-weight: 600;
+}
+
+.resultadoTitulo {
+  display: flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.resultadoTema {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.resultadoFragmento {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mic-text-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sinResultados {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── La página ─────────────────────────────────────────────────── */
+.panel {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Ancho de lectura cómodo, centrado: la ventana es ancha, la línea no. Es la
+   medida de la vista de lectura (`--mic-ancho-lectura`, ~70 caracteres) más el
+   relleno de los costados. */
+.pagina {
+  max-width: calc(var(--mic-ancho-lectura) + 4rem);
+  margin: 0 auto;
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+.migas {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.tituloPagina {
+  margin: 0 0 1rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--mic-text-primary);
+}
+
+.tituloPagina:focus {
+  outline: none;
+}
+
+.tituloPagina:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 2px;
+}
+
+/* El HTML de la página es el de la vista de lectura (`.mic-preview`). Allá es
+   un panel que se desplaza solo (alto 100 %, `overflow` y relleno propios);
+   acá se desplaza `.panel` entero, con el título y las vecinas. Selector
+   compuesto para ganarle a la regla global sin depender del orden del CSS. */
+.pagina .contenido {
+  height: auto;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+}
+
+.vacia {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  font-size: 0.875rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Ejemplos: la fuente y cómo se ve ──────────────────────────── */
+.contenido :global(.mic-ayuda-ejemplo) {
+  margin: 0 0 1.1rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  overflow: hidden;
+}
+
+.contenido :global(.mic-ayuda-ejemplo-rotulo) {
+  padding: 0.3rem 0.75rem;
+  font-family: var(--mic-font-sans);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+  background: var(--mic-bg-surface);
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.contenido :global(.mic-ayuda-ejemplo-rotulo:not(:first-child)) {
+  border-top: 1px solid var(--mic-border);
+}
+
+.contenido :global(pre.mic-ayuda-ejemplo-fuente) {
+  margin: 0;
+  border-radius: 0;
+  white-space: pre-wrap;
+}
+
+/* En la fuente de un ejemplo, «Copiar» se ve siempre: es para lo que está. */
+.contenido :global(pre.mic-ayuda-ejemplo-fuente .mic-copy-btn) {
+  opacity: 1;
+}
+
+.contenido :global(.mic-ayuda-ejemplo-render) {
+  padding: 0.75rem 1rem 0.1rem;
+  background: var(--mic-bg-canvas);
+}
+
+/* ── Anterior / siguiente ──────────────────────────────────────── */
+.vecinas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--mic-border);
+}
+
+.vecina {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  text-align: left;
+  font: inherit;
+}
+
+.vecina:hover {
+  border-color: color-mix(in srgb, var(--mic-glow) 50%, transparent);
+  background: color-mix(in srgb, var(--mic-glow) 8%, transparent);
+}
+
+.vecina:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 2px;
+}
+
+.vecinaSiguiente {
+  grid-column: 2;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.vecinaRotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.vecinaTitulo {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+/* Ventana angosta: el índice arriba, con altura acotada, y la página debajo. */
+@media (max-width: 720px) {
+  .cuerpo {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 38%) 1fr;
+  }
+
+  .indice {
+    border-right: none;
+    border-bottom: 1px solid var(--mic-border);
+  }
+
+  .pagina {
+    padding: 1rem 1rem 2rem;
+  }
+}

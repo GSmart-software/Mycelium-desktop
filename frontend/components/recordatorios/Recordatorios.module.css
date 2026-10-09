@@ -280,18 +280,30 @@
 
 /* ── Lista (pestaña y panel) ──────────────────────────────────── */
 
+/* `DEF-150 g`: el título del período no se parte («7 de / octubre» junto a
+   Día · Semana · Mes en el panel). Si no entran los dos en una línea, el
+   selector baja a la siguiente; el título queda entero. */
 .listaCabecera {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
 }
 
 .listaTitulo {
   margin: 0;
+  min-width: 0;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--mic-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.listaCabecera > .segmentos {
+  flex-shrink: 0;
 }
 
 .listaTitulo::first-letter {
@@ -336,20 +348,31 @@
   background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
 }
 
+/* `DEF-150 g`: la hora tenía un ancho fijo de 4.6rem —pensado para «Todo el
+   día»— y una hora («08:00») dejaba un hueco grande antes del título, que en
+   el panel se cortaba a los pocos caracteres. Ahora la columna mide lo que
+   ocupa una hora (cifras tabulares, así las horas siguen alineadas entre sí) y
+   «Todo el día» se estira lo que necesita. */
 .itemHora {
   flex-shrink: 0;
-  width: 4.6rem;
+  min-width: 2.6rem;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--mic-text-muted);
 }
 
+/* El título usa el ancho que queda y, si no entra, sigue en una segunda línea
+   antes de cortarse con «…» (el completo, en el tooltip). */
 .itemTitulo {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .vacio {
@@ -530,11 +553,19 @@
 /* El detalle renderizado usa `.mic-preview` para heredar el estilo de lectura
    (enlaces, callouts, listas), pero no su papel de PANEL: ni alto completo ni
    scroll propio ni el fondo del lienzo. */
+/* `DEF-150 f`: el detalle se renderiza con `.mic-preview` (enlaces, listas,
+   código), pero en la letra de la INTERFAZ, no en la del modo lectura. El
+   popup es una pieza de interfaz —título, fecha, repetición y botones van en
+   la sans— y el detalle es una anotación de dos o tres líneas, no un
+   documento: con la serif del preview, el popup mezclaba dos letras (tres,
+   con la del editor detrás). Igual que la descripción de un evento en
+   cualquier calendario. El código adentro sigue en monoespaciada. */
 .detalle:global(.mic-preview) {
   height: auto;
   overflow: visible;
   padding: 0;
   background: transparent;
+  font-family: var(--mic-font-sans);
   font-size: 0.9rem;
   line-height: 1.6;
 }
@@ -758,10 +789,12 @@
   mask-image: none;
 }
 
+/* La misma letra de interfaz que el detalle del popup (`DEF-150 f`). */
 .tarjetaDetalle:global(.mic-preview) {
   height: auto;
   padding: 0;
   background: transparent;
+  font-family: var(--mic-font-sans);
   font-size: 0.8125rem;
   line-height: 1.5;
 }
@@ -986,4 +1019,51 @@
 .chipCheck {
   flex-shrink: 0;
   color: var(--rec);
+}
+
+/* Arrecife (`FUN-M-51`): el botón primario con el gradiente de la marca
+   (styles/arrecife.css). Los otros temas no cambian. */
+:global(:root[data-theme='arrecife']) .botonPrimario {
+  background: var(--arrecife-gradiente);
+  color: #ffffff;
+  border-radius: var(--arrecife-radio-control);
+  box-shadow: var(--arrecife-sombra-boton);
+  transition: var(--arrecife-transicion);
+}
+
+:global(:root[data-theme='arrecife']) .botonPrimario:hover:not(:disabled) {
+  background: var(--arrecife-gradiente);
+  filter: brightness(1.1);
+  transform: var(--arrecife-elevar);
+}
+
+/* GSmart (`FUN-M-52`): el botón primario con el degradado de la marca
+   (styles/gsmart.css) y texto claro. Los otros temas no cambian. */
+:global(:root[data-theme='gsmart']) .botonPrimario {
+  background: var(--gsmart-degradado);
+  color: var(--gsmart-sobre-degradado);
+  border-radius: var(--gsmart-radio-control);
+  box-shadow: var(--gsmart-sombra-boton);
+  transition: var(--gsmart-transicion);
+}
+
+:global(:root[data-theme='gsmart']) .botonPrimario:hover:not(:disabled) {
+  background: var(--gsmart-degradado);
+  filter: brightness(1.1);
+  transform: var(--gsmart-elevar);
+}
+
+/* Aurora (`FUN-M-54`): el botón primario con el degradado del tema (styles/aurora.css)
+   y su sombra de luz. Las otras atmósferas no cambian. */
+:global(:root[data-atmosfera='aurora']) .botonPrimario {
+  background: var(--aurora-degradado);
+  color: var(--aurora-sobre-degradado);
+  box-shadow: var(--aurora-sombra-boton);
+  transition: var(--aurora-transicion);
+}
+
+:global(:root[data-atmosfera='aurora']) .botonPrimario:hover:not(:disabled) {
+  background: var(--aurora-degradado);
+  filter: var(--aurora-hover);
+  transform: var(--aurora-elevar);
 }

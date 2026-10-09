@@ -60,33 +60,54 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
   overflow-y: auto;
 }
 
 .item {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.5rem;
+  gap: 0.1rem;
+  padding: 0.3rem 0.4rem;
   border-radius: var(--mic-radius-md);
   background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
 }
 
+/* `DEF-150 c`: el título ocupa lo que dejan la casilla y los dos botones, y
+   se corta con «…» (el completo, en el tooltip). */
 .titulo {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 0.8125rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Origen, fecha y días restantes en una sola línea, alineada con el título. */
 .meta {
-  font-size: 0.75rem;
+  padding-left: calc(13px + 0.4rem);
+  font-size: 0.6875rem;
   color: var(--mic-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .itemActions {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  flex: 0 0 auto;
+  gap: 0.2rem;
+}
+
+/* Botón de fila: solo ícono, con nombre accesible y tooltip en el TSX. */
+.restore.icono,
+.deleteForever.icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
 }
 
 .restore,

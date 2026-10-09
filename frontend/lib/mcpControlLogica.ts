@@ -15,7 +15,9 @@
  */
 import {
   candidatosWikilinkEnIndice,
+  encabezadosDe,
   indexarPorTitulo,
+  type Encabezado,
   type CarpetaEnlazable,
   type NotaEnlazable,
 } from "@/lib/wikilinks";
@@ -139,27 +141,11 @@ export function candidatasParecidas<N extends NotaEnlazable>(
     .map(({ n }) => ({ titulo: n.titulo, ruta: n.id }));
 }
 
-/** Un encabezado ATX (`## Texto`) fuera de los bloques de código. */
-export type Encabezado = { linea: number; nivel: number; texto: string };
-
-/** Los encabezados de una nota, con su línea (desde 1). */
-export function encabezadosDe(contenido: string): Encabezado[] {
-  const lineas = contenido.split(/\r?\n/);
-  const salida: Encabezado[] = [];
-  let valla: string | null = null;
-  lineas.forEach((l, i) => {
-    const v = /^\s{0,3}(`{3,}|~{3,})/.exec(l);
-    if (v) {
-      if (valla === null) valla = v[1][0];
-      else if (v[1][0] === valla) valla = null;
-      return;
-    }
-    if (valla !== null) return;
-    const m = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l);
-    if (m) salida.push({ linea: i + 1, nivel: m[1].length, texto: m[2] });
-  });
-  return salida;
-}
+/**
+ * Los encabezados de una nota viven en `lib/wikilinks.ts` desde `DEF-141`: el
+ * salto de un `[[Nota#Encabezado]]` los lee igual que `ir_a`.
+ */
+export { encabezadosDe, type Encabezado };
 
 /** Resultado de resolver un `ir_a` contra el contenido. */
 export type SaltoResuelto =

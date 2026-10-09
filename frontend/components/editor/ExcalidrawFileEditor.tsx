@@ -6,8 +6,10 @@ import { api } from "@/lib/api";
 import { motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import {
+  cargarExcalidraw,
   encuadrarDibujo,
   hayAlgoDibujado,
+  IDIOMA_EXCALIDRAW,
   leerEscena,
   type ApiEncuadre,
   type EscenaLeida,
@@ -23,7 +25,7 @@ import { ArchivoIlegible } from "./ArchivoIlegible";
 import styles from "./ExcalidrawFileEditor.module.css";
 
 const Excalidraw = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  async () => (await cargarExcalidraw()).Excalidraw,
   { ssr: false },
 );
 
@@ -287,6 +289,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
             apiRef.current = a as unknown as ExcalidrawApi;
           }}
           theme={dark ? "dark" : "light"}
+          langCode={IDIOMA_EXCALIDRAW}
           initialData={{
             elements: estado.escena.elements as never,
             files: estado.escena.files as never,

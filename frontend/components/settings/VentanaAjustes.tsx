@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { BookOpen, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
@@ -30,9 +30,6 @@ import styles from "./VentanaAjustes.module.css";
 /** La marca que señala el ajuste al que llevó la búsqueda (app/globals.css). */
 const CLASE_DESTACADO = "mic-ajuste-destacado";
 
-/** Clics sobre la versión que activan el modo avanzado (`FUN-M-16`). */
-const CLICS_MODO_AVANZADO = 7;
-
 type CategoriaId =
   | "apariencia"
   | "tipografia"
@@ -53,9 +50,10 @@ type CategoriaId =
 type Ajuste = {
   rotulo: string;
   alias?: string[];
-  /** Vive tras los siete clics del modo avanzado: sin él no está en pantalla,
-   *  así que ofrecerlo sería mandar a un salto que no llega a ningún lado. */
-  soloAvanzado?: boolean;
+  /** Solo existe con el modo desarrollador (`FUN-S-36`): sin él no está en
+   *  pantalla, así que ofrecerlo sería mandar a un salto que no llega a ningún
+   *  lado —y además delataría que hay algo escondido—. */
+  soloDev?: boolean;
 };
 
 type Categoria = {
@@ -75,9 +73,14 @@ const CATEGORIAS: Categoria[] = [
     grupo: "Aspecto",
     ajustes: [
       { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "paleta"] },
+      // El tema de la marca Arrecife (`FUN-M-51`): su muestra solo existe con el
+      // modo dev, y sin él buscarlo por su nombre no tiene que devolver nada.
+      { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
+      // Lo mismo con el tema de la marca GSmart (`FUN-M-52`).
+      { rotulo: "Tema", alias: ["gsmart"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
-      { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
-      { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "fondo"] },
+      { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
+      { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
     ],
   },
   {
@@ -168,14 +171,20 @@ const CATEGORIAS: Categoria[] = [
     ajustes: [
       { rotulo: "Buscar actualizaciones automáticamente", alias: ["versión nueva", "actualizar"] },
       { rotulo: "Versión fijada", alias: ["volver atrás", "downgrade"] },
-      { rotulo: "Versiones publicadas", alias: ["instalar otra versión", "historial"], soloAvanzado: true },
-      { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloAvanzado: true },
+      { rotulo: "Versiones publicadas", alias: ["instalar otra versión", "historial"], soloDev: true },
+      { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloDev: true },
     ],
   },
 ];
 
 /** Los grupos, en el orden en que se muestran. */
 const GRUPOS = ["Aspecto", "Trabajo", "Vault", "Sistema"];
+
+/**
+ * Lo que, buscado acá, ofrece abrir la ayuda (`FUN-L-27`): quien busca
+ * «atajos» o «manual» en Configuración no busca un ajuste.
+ */
+const ALIAS_AYUDA = ["ayuda", "manual", "wiki", "documentacion", "como se usa", "atajos", "sintaxis", "f1"];
 
 /** Sin tildes ni mayúsculas, para que «tipografia» encuentre «Tipografía». */
 const normalizar = (s: string) =>
@@ -205,11 +214,10 @@ function contenido(id: CategoriaId) {
 export function VentanaAjustes() {
   const abierto = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
-  const avanzado = useUpdaterStore((s) => s.estado?.avanzado ?? false);
+  const dev = useUpdaterStore((s) => s.estado?.dev ?? false);
 
   const [categoria, setCategoria] = useState<CategoriaId>("apariencia");
   const [consulta, setConsulta] = useState("");
-  const [clics, setClics] = useState(0);
   /** Ajuste al que hay que saltar en cuanto su categoría esté pintada, y el
    *  contador que dispara el salto aunque ya se esté en esa categoría. */
   const pendienteRef = useRef<string | null>(null);
@@ -227,12 +235,10 @@ export function VentanaAjustes() {
   const cerrar = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
   useDialogoModal({ abierto, cerrar, dialogoRef });
 
-  // Cada apertura arranca limpia: sin búsqueda previa y con el contador de los
-  // siete clics en cero, que por eso hay que hacerlos seguidos y a propósito.
+  // Cada apertura arranca limpia: sin búsqueda previa.
   useEffect(() => {
     if (!abierto) return;
     setConsulta("");
-    setClics(0);
   }, [abierto]);
 
   /**
@@ -247,15 +253,27 @@ export function VentanaAjustes() {
     for (const c of CATEGORIAS) {
       if (normalizar(c.nombre).includes(q)) salida.push({ categoria: c, ajuste: c.nombre });
       for (const a of c.ajustes) {
-        if (a.soloAvanzado && !avanzado) continue;
+        if (a.soloDev && !dev) continue;
         const coincide =
           normalizar(a.rotulo).includes(q) ||
           (a.alias ?? []).some((alias) => normalizar(alias).includes(q));
-        if (coincide) salida.push({ categoria: c, ajuste: a.rotulo });
+        // Un mismo rótulo puede venir de dos entradas (una con alias solo para
+        // el modo dev): se ofrece una vez.
+        const repetido = salida.some((h) => h.categoria.id === c.id && h.ajuste === a.rotulo);
+        if (coincide && !repetido) salida.push({ categoria: c, ajuste: a.rotulo });
       }
     }
     return salida.slice(0, 12);
-  }, [consulta, avanzado]);
+  }, [consulta, dev]);
+
+  /** ¿La búsqueda apunta a la ayuda y no a un ajuste? */
+  const buscaAyuda = useMemo(() => {
+    const q = normalizar(consulta.trim());
+    return q.length > 0 && ALIAS_AYUDA.some((a) => a.startsWith(q) || q.startsWith(a));
+  }, [consulta]);
+
+  /** Cierra Configuración y abre la ayuda: una ventana modal a la vez. */
+  const abrirAyuda = () => useUiStore.getState().abrirAyuda();
 
   /**
    * Va a un ajuste: abre su categoría y deja anotado a cuál hay que ir. El
@@ -338,6 +356,7 @@ export function VentanaAjustes() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="ajustes-titulo"
+        data-cede-a-la-ayuda
       >
         <header className={styles.cabecera}>
           <h2 id="ajustes-titulo" className={styles.titulo}>
@@ -352,6 +371,8 @@ export function VentanaAjustes() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && hallazgos.length > 0) {
                   irA(hallazgos[0].categoria, hallazgos[0].ajuste);
+                } else if (e.key === "Enter" && buscaAyuda) {
+                  abrirAyuda();
                 }
                 if (e.key === "Escape" && consulta) {
                   e.stopPropagation();
@@ -378,7 +399,13 @@ export function VentanaAjustes() {
           >
             {consulta.trim() ? (
               <div className={styles.resultados}>
-                {hallazgos.length === 0 ? (
+                {buscaAyuda && (
+                  <button type="button" className={styles.resultado} onClick={abrirAyuda}>
+                    <span className={styles.resultadoAjuste}>Abrir la ayuda</span>
+                    <span className={styles.resultadoCategoria}>Cómo se usa Mycelium · F1</span>
+                  </button>
+                )}
+                {hallazgos.length === 0 && buscaAyuda ? null : hallazgos.length === 0 ? (
                   <p className={styles.sinResultados}>Ningún ajuste se llama así.</p>
                 ) : (
                   hallazgos.map(({ categoria: c, ajuste }) => (
@@ -414,6 +441,17 @@ export function VentanaAjustes() {
                 </div>
               ))
             )}
+            {/* La ayuda no es una categoría más: no tiene ajustes ni se lee en
+                este panel, sino en su propia ventana (decisión del usuario del
+                2026-10-06). Por eso es un botón al pie de la lista, que cierra
+                Configuración y la abre, y no una entrada entre las categorías. */}
+            {!consulta.trim() && (
+              <button type="button" className={styles.botonAyuda} onClick={abrirAyuda}>
+                <BookOpen size={15} aria-hidden />
+                <span className={styles.botonAyudaTexto}>Ayuda</span>
+                <kbd className={styles.botonAyudaTecla}>F1</kbd>
+              </button>
+            )}
           </nav>
 
           <div className={styles.panel} ref={panelRef} key={actual.id}>
@@ -425,28 +463,16 @@ export function VentanaAjustes() {
           </div>
         </div>
 
-        {/* Siete pulsaciones acá activan (o apagan) el modo avanzado: `FUN-M-16`.
-            Es un botón y no el `<footer>` entero porque así también llega el
-            teclado: con el clic sobre el pie, el modo avanzado era inalcanzable
-            sin ratón (crítica de Configuración, 2026-09-20). */}
+        {/* Hasta `FUN-S-36` el número era un botón: siete pulsaciones activaban el
+            modo avanzado. Ahora el modo desarrollador se enciende desde la
+            paleta y esto es texto. La marca «dev» solo se ve con el modo
+            encendido: dice en qué estado está la app (por qué hay opciones de
+            más en Actualizaciones) sin decir cómo se llega. */}
         <footer className={styles.pie}>
-          <button
-            type="button"
-            className={styles.pieVersion}
-            onClick={() => {
-              const siguiente = clics + 1;
-              if (siguiente < CLICS_MODO_AVANZADO) {
-                setClics(siguiente);
-                return;
-              }
-              setClics(0);
-              setCategoria("actualizaciones");
-              void useUpdaterStore.getState().setAvanzado(!avanzado);
-            }}
-          >
+          <span className={styles.pieVersion}>
             Mycelium v{APP_VERSION}
-            {avanzado && " · modo avanzado"}
-          </button>
+            {dev && <span className={styles.pieDev}> · dev</span>}
+          </span>
         </footer>
       </div>
     </div>
