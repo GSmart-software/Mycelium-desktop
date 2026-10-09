@@ -1,12 +1,14 @@
 // Test de los temas (HU-12), de la atmósfera Aurora (`FUN-M-54`, al final) y
-// de los temas de marca, Arrecife (`FUN-M-51`),
-// GSmart (`FUN-M-52`) y Bioluminiscencia experimental (`FUN-M-53`): la lógica
+// de los temas de marca, Arrecife (`FUN-M-51`) y GSmart (`FUN-M-52`): la lógica
 // pura de `lib/temas.ts` —qué tema guardado vale, qué muestras se ofrecen según
 // el modo dev, si la atmósfera se aplica— y lo que el CSS tiene que cumplir: la
 // paleta completa en tokens.css y en el PDF, la forma acotada a cada tema, el
-// contraste medido de sus textos y, para GSmart y Bioluminiscencia
-// experimental, que la marca esté en los mismos lugares que la de los temas
-// anteriores y que sus letras no se pidan a la red.
+// contraste medido de sus textos y, para GSmart, que la marca esté en los
+// mismos lugares que la de Arrecife y que sus letras no se pidan a la red.
+//
+// El tema Bioluminiscencia experimental (`FUN-M-53`) se retiró el 2026-10-09:
+// lo único que queda de él acá es que un vault que lo tenía guardado cae al
+// tema por defecto.
 //
 // Mismo arnés que `scripts/test-modo-dev.mjs`: los módulos se transpilan a una
 // carpeta temporal DENTRO de `frontend/`.
@@ -46,7 +48,7 @@ const leer = async (ruta) => (await readFile(join(FRONTEND, ruta), "utf8")).repl
 // ── Lógica pura ──────────────────────────────────────────────────────────────
 
 test("el tema guardado vale si existe; los de marca también, con o sin modo dev", () => {
-  for (const t of ["bioluminiscencia", "cantarela", "arrecife", "gsmart", "bioexp"]) assert.equal(temaValido(t), t);
+  for (const t of ["bioluminiscencia", "cantarela", "arrecife", "gsmart"]) assert.equal(temaValido(t), t);
   for (const t of ["neon", "Arrecife", "GSmart", "BioExp", "bioluminiscencia-exp", "", null, undefined, 3, {}]) {
     assert.equal(temaValido(t), TEMA_DEFECTO, JSON.stringify(t));
   }
@@ -54,12 +56,19 @@ test("el tema guardado vale si existe; los de marca también, con o sin modo dev
   assert.equal(TEMA_DEFECTO, "bioluminiscencia");
 });
 
+test("un vault con el tema experimental retirado (`bioexp`, `FUN-M-53`) abre con el tema por defecto", () => {
+  assert.equal(temaValido("bioexp"), TEMA_DEFECTO);
+  assert.equal(temaValido("bioexp"), "bioluminiscencia");
+  assert.equal(TEMAS.some((t) => t.id === "bioexp"), false);
+  assert.equal(TEMAS_DE_MARCA.includes("bioexp"), false);
+});
+
 test("sin el modo dev, las muestras de marca no existen; con él, están al final", () => {
   assert.deepEqual(temasVisibles(false).map((t) => t.id), ["bioluminiscencia", "cantarela"]);
-  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "arrecife", "gsmart", "bioexp"]);
+  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "arrecife", "gsmart"]);
   // Solo los de marca son soloDev, y no se muta el catálogo.
-  assert.deepEqual(TEMAS.filter((t) => t.soloDev).map((t) => t.id), ["arrecife", "gsmart", "bioexp"]);
-  assert.equal(TEMAS.length, 5);
+  assert.deepEqual(TEMAS.filter((t) => t.soloDev).map((t) => t.id), ["arrecife", "gsmart"]);
+  assert.equal(TEMAS.length, 4);
 });
 
 test("la muestra de Arrecife lleva los colores de la marca", () => {
@@ -77,21 +86,12 @@ test("la muestra de GSmart lleva los colores del símbolo sobre el carbón", () 
   assert.equal(g.glow, "#A3ECE2");
 });
 
-test("la muestra de Bioluminiscencia experimental lleva la paleta oscura de Bioluminiscencia", () => {
-  const b = TEMAS.find((t) => t.id === "bioexp");
-  const bio = TEMAS.find((t) => t.id === "bioluminiscencia");
-  // El nombre corto: «Bioluminiscencia (exp.)» desborda la fila de cinco muestras.
-  assert.equal(b.nombre, "Biolum. exp.");
-  for (const k of ["canvas", "mist", "glow", "accent"]) assert.equal(b[k].toUpperCase(), bio[k].toUpperCase(), k);
-});
-
-test("los temas de marca son exactamente Arrecife, GSmart y Bioluminiscencia experimental, y no admiten atmósferas", () => {
-  assert.deepEqual([...TEMAS_DE_MARCA], ["arrecife", "gsmart", "bioexp"]);
+test("los temas de marca son exactamente Arrecife y GSmart, y no admiten atmósferas", () => {
+  assert.deepEqual([...TEMAS_DE_MARCA], ["arrecife", "gsmart"]);
   assert.equal(admiteAtmosfera("bioluminiscencia"), true);
   assert.equal(admiteAtmosfera("cantarela"), true);
   assert.equal(admiteAtmosfera("arrecife"), false);
   assert.equal(admiteAtmosfera("gsmart"), false);
-  assert.equal(admiteAtmosfera("bioexp"), false);
   // Todo tema de marca es del catálogo y va detrás del modo.
   for (const id of TEMAS_DE_MARCA) assert.equal(TEMAS.find((t) => t.id === id)?.soloDev, true, id);
 });
@@ -102,7 +102,7 @@ test("la atmósfera en uso: la del modo, la de defecto si la guardada no vale, n
   assert.equal(atmosferaEnUso("cantarela", false, prefs), "abisal");
   assert.equal(atmosferaEnUso("cantarela", true, { atmosferaOscuro: "x", atmosferaClaro: 1 }), "niebla");
   assert.equal(atmosferaEnUso("cantarela", false, { atmosferaOscuro: "x", atmosferaClaro: 1 }), "bosque");
-  for (const tema of ["arrecife", "gsmart", "bioexp"]) {
+  for (const tema of ["arrecife", "gsmart"]) {
     assert.equal(atmosferaEnUso(tema, true, prefs), null);
     assert.equal(atmosferaEnUso(tema, false, prefs), null);
   }
@@ -129,8 +129,6 @@ const claro = rawsDe(tokens, "[data-theme='arrecife']");
 const oscuro = rawsDe(tokens, "[data-theme='arrecife'][data-dark='true']");
 const gsClaro = rawsDe(tokens, "[data-theme='gsmart']");
 const gsOscuro = rawsDe(tokens, "[data-theme='gsmart'][data-dark='true']");
-const beClaro = rawsDe(tokens, "[data-theme='bioexp']");
-const beOscuro = rawsDe(tokens, "[data-theme='bioexp'][data-dark='true']");
 
 test("tokens.css define los ocho raw de Arrecife en claro y en oscuro", () => {
   assert.deepEqual(Object.keys(claro).sort(), [...RAW].sort());
@@ -171,30 +169,18 @@ test("tokens.css define los ocho raw de GSmart con los valores de la marca", () 
   assert.equal(gsClaro.glow, "#166A5E");
 });
 
-test("tokens.css define los ocho raw de Bioluminiscencia experimental; en oscuro, los de Bioluminiscencia", () => {
-  assert.deepEqual(Object.keys(beClaro).sort(), [...RAW].sort());
-  assert.deepEqual(Object.keys(beOscuro).sort(), [...RAW].sort());
-  // Oscuro: la paleta abisal de Bioluminiscencia tal cual, salvo el texto
-  // secundario, un paso más claro para leerse sobre el hover y la selección.
-  const bio = rawsDe(tokens, "[data-theme='bioluminiscencia'][data-dark='true']");
-  for (const k of RAW) {
-    if (k === "ink-muted") continue;
-    assert.equal(beOscuro[k], bio[k], k);
-  }
-  assert.equal(beOscuro["ink-muted"], "#7FA9A7");
-  // Claro: el cian y el verde agua oscurecidos conservando el tono.
-  assert.equal(beClaro.accent, "#00707F");
-  assert.equal(beClaro.glow, "#00704F");
-});
-
 test("el PDF (lib/printStyles.ts) lleva los mismos raw de los temas de marca que la app", async () => {
   const print = await leer("lib/printStyles.ts");
   assert.deepEqual(rawsDe(print, "[data-theme='arrecife']"), claro);
   assert.deepEqual(rawsDe(print, "[data-theme='arrecife'][data-dark='true']"), oscuro);
   assert.deepEqual(rawsDe(print, "[data-theme='gsmart']"), gsClaro);
   assert.deepEqual(rawsDe(print, "[data-theme='gsmart'][data-dark='true']"), gsOscuro);
-  assert.deepEqual(rawsDe(print, "[data-theme='bioexp']"), beClaro);
-  assert.deepEqual(rawsDe(print, "[data-theme='bioexp'][data-dark='true']"), beOscuro);
+});
+
+test("el tema retirado no deja paleta en tokens.css ni en el PDF, ni hoja propia", async () => {
+  assert.doesNotMatch(tokens, /bioexp/);
+  assert.doesNotMatch(await leer("lib/printStyles.ts"), /bioexp/);
+  assert.doesNotMatch(await leer("app/layout.tsx"), /bioexp|Space_Grotesk|space-grotesk/);
 });
 
 // Contraste WCAG 2.x (no a ojo): luminancia relativa de sRGB.
@@ -296,14 +282,6 @@ test("GSmart: los títulos de la nota (H1–H3 en hex) se leen sobre la nota y l
   }
 });
 
-// ── Bioluminiscencia experimental (`FUN-M-53`) ───────────────────────────────
-
-const bioexpCss = await leer("styles/bioexp.css");
-const BE_MODOS = [
-  ["oscuro", ":root[data-theme='bioexp'][data-dark='true']", beOscuro],
-  ["claro", ":root[data-theme='bioexp']:not([data-dark='true'])", beClaro],
-];
-
 /** El cuerpo del primer bloque de `css` (sin comentarios) con el selector exacto `selector` que declara `variable`. */
 function bloqueDe(css, selector, variable) {
   const limpio = sinComentarios(css);
@@ -313,48 +291,6 @@ function bloqueDe(css, selector, variable) {
   }
   assert.fail(`falta ${selector} con ${variable}`);
 }
-
-test("contraste de Bioluminiscencia experimental: texto, acento y glow ≥4.5:1 sobre sus fondos, en los dos modos", () => {
-  textosLegibles("bioexp", [["claro", beClaro], ["oscuro", beOscuro]]);
-  // El glow va como texto en los dos modos (H2, íconos de nota, viñetas), y en
-  // claro es además el segundo color del logo sobre el marco.
-  for (const [modo, , p] of BE_MODOS) {
-    for (const fondo of ["canvas", "mist", "base"]) {
-      const c = contraste(p.glow, p[fondo]);
-      assert.ok(c >= 4.5, `bioexp ${modo}: glow ${p.glow} sobre ${fondo} = ${c.toFixed(2)}:1`);
-    }
-  }
-});
-
-test("Bioluminiscencia experimental: el degradado de tres tonos lleva texto oscuro legible en cada parada", () => {
-  const raiz = bloqueDe(bioexpCss, ":root[data-theme='bioexp']", "--bioexp-gradiente:");
-  const m = raiz.match(/--bioexp-gradiente:\s*linear-gradient\(\d+deg, (#[0-9A-F]{6}) 0%, (#[0-9A-F]{6}) 50%, (#[0-9A-F]{6}) 100%\)/);
-  assert.ok(m, "el degradado tiene que ser de tres tonos en hex");
-  // Del glow al acento de Bioluminiscencia oscuro, y el azul abisal.
-  assert.deepEqual([m[1], m[2], m[3]], ["#3DFFC4", "#19E6FF", "#3D8BFF"]);
-  const sobre = raiz.match(/--bioexp-sobre-degradado:\s*(#[0-9A-F]{6})/)[1];
-  for (const parada of [m[1], m[2], m[3]]) {
-    const c = contraste(sobre, parada);
-    assert.ok(c >= 4.5, `texto ${sobre} sobre ${parada} = ${c.toFixed(2)}:1`);
-  }
-});
-
-test("Bioluminiscencia experimental: las tintas del degradado de texto y los títulos se leen en los dos modos", () => {
-  for (const [modo, selector, p] of BE_MODOS) {
-    const vars = bloqueDe(bioexpCss, selector, "--bioexp-gradiente-texto:");
-    const m = vars.match(/--bioexp-gradiente-texto:\s*linear-gradient\(90deg, (#[0-9A-F]{6}) 0%, (#[0-9A-F]{6}) 50%, (#[0-9A-F]{6}) 100%\)/);
-    assert.ok(m, `sin degradado de texto en ${modo}`);
-    const titulos = bloqueDe(bioexpCss, selector, "--mic-h1:");
-    const hex = [...titulos.matchAll(/--mic-h[1-3]:\s*(#[0-9A-F]{6})/g)].map((x) => x[1]);
-    assert.equal(hex.length, 3, `${modo}: H1–H3`);
-    for (const color of [m[1], m[2], m[3], ...hex]) {
-      for (const fondo of ["canvas", "mist"]) {
-        const c = contraste(color, p[fondo]);
-        assert.ok(c >= 4.5, `bioexp ${modo}: ${color} sobre ${fondo} = ${c.toFixed(2)}:1`);
-      }
-    }
-  }
-});
 
 /** Los selectores de una hoja (sin comentarios ni @media), con los espacios normalizados. */
 const selectoresDe = (css) =>
@@ -435,54 +371,6 @@ test("GSmart lleva su marca en todos los lugares donde Arrecife lleva la suya", 
   }
 });
 
-test("Bioluminiscencia experimental lleva la forma en todos los lugares donde la llevan Arrecife y GSmart", async () => {
-  // Hoja global: cada selector de arrecife.css y de gsmart.css tiene su gemelo
-  // en bioexp.css.
-  const deBioexp = new Set(selectoresDe(bioexpCss));
-  for (const [tema, hoja] of [["arrecife", await leer("styles/arrecife.css")], ["gsmart", gsmartCss]]) {
-    for (const s of selectoresDe(hoja)) {
-      const gemelo = s.replaceAll(`'${tema}'`, "'bioexp'");
-      assert.ok(deBioexp.has(gemelo), `styles/bioexp.css no tiene (de ${tema}): ${gemelo}`);
-    }
-  }
-  // Módulos: cada regla de Arrecife y de GSmart tiene la suya en el mismo archivo.
-  const bioexp = await reglasDeModulos("bioexp");
-  for (const tema of ["arrecife", "gsmart"]) {
-    for (const [archivo, sels] of await reglasDeModulos(tema)) {
-      for (const s of sels) {
-        const gemelo = s.replaceAll(`'${tema}'`, "'bioexp'");
-        assert.ok(bioexp.get(archivo)?.has(gemelo), `${archivo} no tiene (de ${tema}): ${gemelo}`);
-      }
-    }
-  }
-});
-
-test("Bioluminiscencia experimental: Space Grotesk se empaqueta con la app y solo la usa su tema", async () => {
-  const layout = await leer("app/layout.tsx");
-  const i = layout.indexOf("= Space_Grotesk({");
-  assert.ok(i >= 0, "falta Space Grotesk con next/font/google");
-  const opciones = layout.slice(i, layout.indexOf("});", i));
-  assert.match(opciones, /variable: "--font-space-grotesk"/);
-  assert.match(opciones, /preload: false/);
-  assert.match(opciones, /display: "swap"/);
-  for (const ruta of ["styles/tokens.css", "styles/editor.css", "app/globals.css", "styles/gsmart.css", "styles/arrecife.css"]) {
-    assert.doesNotMatch(await leer(ruta), /--font-space-grotesk/, ruta);
-  }
-  assert.match(bioexpCss, /--bioexp-letra-titulo: var\(--font-space-grotesk\)/);
-  // La interfaz sigue en la letra de Mycelium.
-  assert.doesNotMatch(sinComentarios(bioexpCss), /--mic-font-sans:/);
-});
-
-test("Bioluminiscencia experimental: el cuerpo de las notas conserva la fuente que elige el usuario", () => {
-  const css = sinComentarios(bioexpCss);
-  assert.doesNotMatch(css, /--mic-(editor|preview)-font-family/);
-  assert.doesNotMatch(css, /\.cm-content|\.mic-preview\s*\{|\.mic-preview p\b/);
-  for (const m of css.matchAll(/([^{}]+)\{([^}]*letra-titulo[^}]*)\}/g)) {
-    if (!/font-family/.test(m[2])) continue;
-    assert.match(m[1].trim(), /title|h1|h2|titulo/, `Space Grotesk fuera de un título: ${m[1].trim()}`);
-  }
-});
-
 test("GSmart: las letras se empaquetan con la app y solo las usa su tema", async () => {
   const layout = await leer("app/layout.tsx");
   for (const [familia, variable] of [
@@ -536,48 +424,78 @@ test("GSmart: el cuerpo de las notas conserva la fuente que elige el usuario", (
 
 // ── Atmósfera Aurora (`FUN-M-54`) ────────────────────────────────────────────
 //
-// La quinta atmósfera, pública: los detalles gráficos de Bioluminiscencia
-// experimental (degradados, brillos, resplandores) con los colores del tema que
-// esté puesto. Se prueba que exista y se guarde, que su forma esté acotada, que
-// esté en los mismos lugares que la de `bioexp` (salvo lo que se dejó afuera a
-// propósito, con su motivo) y el contraste de sus degradados en los dos temas
-// públicos y los dos modos, calculado desde las fórmulas de `styles/aurora.css`.
+// La quinta atmósfera, pública: degradados, brillos y resplandores con los
+// colores del tema que esté puesto. Se prueba que exista y se guarde, que su
+// forma esté acotada, que cubra los componentes y selectores de `AURORA_CUBRE`
+// y el contraste de sus degradados en los dos temas públicos y los dos modos,
+// calculado desde las fórmulas de `styles/aurora.css`.
+//
+// Antes se comparaba regla por regla con el tema Bioluminiscencia experimental
+// (`FUN-M-53`), del que nació el estilo. Al retirarse ese tema (2026-10-09), la
+// paridad pasó a ser esta lista explícita, sacada de las reglas que Aurora tenía
+// ese día. Lo que Aurora dejó afuera a propósito —la letra de los títulos, el
+// radio y el foco de los inputs: una atmósfera reparte color, no cambia la
+// letra ni la forma de los controles— lo vigila el test de su hoja (sin
+// `font-family`, sin `:focus`).
 
 const auroraCss = await leer("styles/aurora.css");
 const AURORA = ":root[data-atmosfera='aurora']";
 const AURORA_MODULO = ":global(:root[data-atmosfera='aurora'])";
 
-/**
- * Las reglas de `bioexp` que Aurora NO lleva, con su motivo. Una atmósfera
- * reparte color: no cambia la letra ni la forma de los controles.
- */
-const AURORA_SIN_GEMELO = new Map([
-  // styles/bioexp.css
-  [
-    ":root[data-theme='bioexp'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not( .excalidraw * )",
-    "radio de 12px en los inputs: forma, no color",
+/** Lo que Aurora tiene que cubrir: los selectores de su hoja y, por módulo, los de cada componente. */
+const AURORA_CUBRE = {
+  hoja: [
+    // Las variables: comunes, y las paradas de cada modo.
+    AURORA,
+    `${AURORA}[data-dark='true']`,
+    `${AURORA}:not([data-dark='true'])`,
+    // Títulos en degradado y en color.
+    `${AURORA} :is(.mic-doc-title-texto, .mic-doc-title-campo)`,
+    `${AURORA} .mic-preview h1`,
+    `${AURORA}[data-dark='true'] :is(.mic-live-h1, .mic-live-h2, .mic-live-h3), ${AURORA}[data-dark='true'] .mic-preview :is(h2, h3)`,
+    `${AURORA} .mic-preview :is(h1, h2, h3)`,
+    // Etiquetas, selección, barras de desplazamiento y viñetas.
+    `${AURORA} :is(.mic-tag-cm, .mic-tag-pill)`,
+    `${AURORA} ::selection`,
+    `${AURORA} *::-webkit-scrollbar-thumb`,
+    `${AURORA} *::-webkit-scrollbar-thumb:hover`,
+    `${AURORA} :is(.mic-vineta, .mic-preview li)::marker, ${AURORA} .mic-vineta`,
   ],
-  [
-    ":root[data-theme='bioexp'] :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), select, textarea):not( .excalidraw * ):focus-visible",
-    "foco de los inputs: ya es el borde en el color del tema, y sin halo (DEF-155)",
-  ],
-  [":root[data-theme='bioexp'] .mic-tab-menu-titulo", "letra de títulos (Space Grotesk)"],
-  [
-    ":root[data-theme='bioexp'] :is(.mic-doc-title-texto, .mic-doc-title-campo), :root[data-theme='bioexp'] :is(.mic-live-h1, .mic-live-h2), :root[data-theme='bioexp'] .mic-preview :is(h1, h2)",
-    "letra de títulos (Space Grotesk)",
-  ],
-  // Módulos
-  [":global(:root[data-theme='bioexp']) .sectionHeader", "letra de títulos (Space Grotesk)"],
-  [":global(:root[data-theme='bioexp']) .grupoTitulo", "letra de títulos (Space Grotesk)"],
-  [":global(:root[data-theme='bioexp']) .seccion", "letra de títulos (Space Grotesk)"],
-  [
-    ":global(:root[data-theme='bioexp']) .panelTexto :global(.cm-content), :global(:root[data-theme='bioexp']) .editor :global(.cm-content)",
-    "letra del código del visor: tipografía",
-  ],
-]);
-
-const aAurora = (s) =>
-  s.replaceAll(":global(:root[data-theme='bioexp'])", AURORA_MODULO).replaceAll(":root[data-theme='bioexp']", AURORA);
+  // Por módulo, lo que va detrás de `AURORA_MODULO`.
+  modulos: {
+    "components/bases/BaseView.module.css": [".botonPrimario", ".botonPrimario:hover:not(:disabled)"],
+    "components/editor/EditorToolbar.module.css": [".linkConfirm", ".linkConfirm:hover:not(:disabled)"],
+    "components/editor/ExcalidrawModal.module.css": [".save", ".save:hover:not(:disabled)"],
+    "components/enlaces/RelinkView.module.css": [".primario", ".primario:hover:not(:disabled)"],
+    "components/explorer/EsporasPanel.module.css": [".primario", ".primario:hover:not(:disabled)"],
+    "components/explorer/ExplorerPanel.module.css": [".rowHoja.rowActive", ".noteIcon"],
+    "components/explorer/ImportDialogs.module.css": [".btnPrimary", ".btnPrimary:hover:not(:disabled)"],
+    "components/graph/GraphOptionsMenu.module.css": [".switch input:checked + .switchTrack"],
+    "components/panes/panes.module.css": [".tabActive", ".paneBody::after"],
+    "components/recordatorios/Recordatorios.module.css": [".botonPrimario", ".botonPrimario:hover:not(:disabled)"],
+    "components/settings/CssEditorModal.module.css": [".primaryBtn", ".primaryBtn:hover:not(:disabled)"],
+    "components/settings/DiccionariosCorrector.module.css": [".botonPrimario", ".botonPrimario:hover:not(:disabled)"],
+    "components/settings/Settings.module.css": [
+      ".primaryBtn",
+      ".primaryBtn:hover:not(:disabled)",
+      ".switch input:checked + .switchTrack",
+      ".swatchActive",
+    ],
+    "components/settings/VentanaAjustes.module.css": [".categoriaActiva"],
+    "components/vault/AperturaVault.module.css": [".barraRelleno"],
+    "components/workspace/AppTopbar.module.css": [".logoFull", ".topbar", ".logoMark"],
+    "components/workspace/PaletaComandos.module.css": [".opcionActiva"],
+    "components/workspace/Rail.module.css": [
+      ".button[aria-pressed='true']::before",
+      ".button[aria-pressed='true']",
+      ".button[aria-pressed='true'] svg",
+      ".rail",
+    ],
+    "components/workspace/UpdateDialog.module.css": [".primaryBtn", ".primaryBtn:hover:not(:disabled)", ".progressBar"],
+    "app/(vaults)/vaults/page.module.css": [".openButton", ".openButton:hover:not(:disabled)"],
+    "app/page.module.css": [".cta", ".cta:hover:not(:disabled)"],
+  },
+};
 
 test("Aurora está en el catálogo de atmósferas, se valida y se aplica con los temas públicos", () => {
   const aurora = ATMOSFERAS.find((a) => a.id === "aurora");
@@ -636,23 +554,17 @@ test("Aurora: en los módulos, toda regla va bajo el :global acotado (salvo su m
   assert.ok(reglas >= 30, `se esperaban las reglas de Aurora en los módulos (hay ${reglas})`);
 });
 
-test("Aurora lleva la luz en todos los lugares donde la lleva Bioluminiscencia experimental", async () => {
+test("Aurora lleva la luz en todos los componentes y selectores de su lista", async () => {
   const deAurora = new Set(selectoresDe(auroraCss));
-  for (const s of selectoresDe(bioexpCss)) {
-    if (AURORA_SIN_GEMELO.has(s)) continue;
-    assert.ok(deAurora.has(aAurora(s)), `styles/aurora.css no tiene: ${aAurora(s)}`);
-  }
-  const aurora = await reglasDeModulos("aurora");
-  for (const [archivo, sels] of await reglasDeModulos("bioexp")) {
-    for (const s of sels) {
-      if (AURORA_SIN_GEMELO.has(s)) continue;
-      assert.ok(aurora.get(archivo)?.has(aAurora(s)), `${archivo} no tiene: ${aAurora(s)}`);
+  for (const s of AURORA_CUBRE.hoja) assert.ok(deAurora.has(s), `styles/aurora.css no tiene: ${s}`);
+  // Las claves con barras normales: `relative` da barras invertidas en Windows.
+  const aurora = new Map([...(await reglasDeModulos("aurora"))].map(([archivo, sels]) => [archivo.replaceAll("\\", "/"), sels]));
+  for (const [archivo, sufijos] of Object.entries(AURORA_CUBRE.modulos)) {
+    for (const sufijo of sufijos) {
+      const s = `${AURORA_MODULO} ${sufijo}`;
+      assert.ok(aurora.get(archivo)?.has(s), `${archivo} no tiene: ${s}`);
     }
   }
-  // La lista de exclusiones no tiene restos: cada una existe en bioexp.
-  const deBioexp = new Set(selectoresDe(bioexpCss));
-  const modulosBioexp = new Set([...(await reglasDeModulos("bioexp")).values()].flatMap((s) => [...s]));
-  for (const s of AURORA_SIN_GEMELO.keys()) assert.ok(deBioexp.has(s) || modulosBioexp.has(s), `exclusión sin regla: ${s}`);
 });
 
 // Contraste: se resuelven las fórmulas de aurora.css (y las de tokens.css que

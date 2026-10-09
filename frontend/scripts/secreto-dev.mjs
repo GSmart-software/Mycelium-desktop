@@ -33,7 +33,9 @@ export const SECRETO_DEV = [
   { patron: /\bgsmart\b/i, que: "el tema GSmart" },
   { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
   // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
-  // con la forma de los temas de marca, también solo con el modo. Se atrapa por
+  // con la forma de los temas de marca, también solo con el modo. RETIRADO el
+  // 2026-10-09 (ya no existe en la app), pero los patrones se quedan: nunca se
+  // publicó y un changelog tampoco tiene que nombrarlo ahora. Se atrapa por
   // su id, por su nombre completo y por el de su muestra —pero NO
   // «Bioluminiscencia» a secas, que es el tema público por defecto, ni
   // «experimental» suelto—.

@@ -434,35 +434,6 @@
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
 
-/* Bioluminiscencia experimental (`FUN-M-53`): la nota abierta, con la
-   selección suave del tema y su barra de 2px en el degradado (vertical, como la
-   barra). La barra no puede irradiar —es una capa del fondo—: el resplandor
-   lo pone el `inset` de 3px a la izquierda, en el verde agua. */
-:global(:root[data-theme='bioexp']) .rowHoja.rowActive {
-  box-shadow: inset 3px 0 6px -3px color-mix(in srgb, var(--mic-glow) 70%, transparent);
-  background-color: transparent;
-  background-image: var(--bioexp-gradiente-vertical), var(--bioexp-gradiente-suave);
-  background-size: 2px 100%, 100% 100%;
-  background-position: left, 0 0;
-  background-repeat: no-repeat;
-}
-
-/* Bioluminiscencia experimental (`FUN-M-53`): los dos tonos del tema en el
-   árbol: las carpetas en el cian (el acento, como siempre) y las notas en el
-   verde agua (el glow). */
-:global(:root[data-theme='bioexp']) .noteIcon {
-  color: var(--mic-glow);
-}
-
-/* Bioluminiscencia experimental (`FUN-M-53`): las cabeceras de sección
-   («ARCHIVOS»…) en Space Grotesk, en mayúsculas y con el espaciado amplio del
-   tema (styles/bioexp.css). Conservan su tamaño y su peso: Space Grotesk no es
-   más ancha que Geist, como sí lo es la letra de los títulos de GSmart. */
-:global(:root[data-theme='bioexp']) .sectionHeader {
-  font-family: var(--bioexp-letra-titulo);
-  letter-spacing: var(--bioexp-espaciado-etiqueta);
-}
-
 /* Aurora (`FUN-M-54`): la nota abierta, con la selección suave del tema, su
    barra de 2px en el degradado (vertical, como la barra) y un borde de luz: la
    barra no puede irradiar —es una capa del fondo—, así que el resplandor lo

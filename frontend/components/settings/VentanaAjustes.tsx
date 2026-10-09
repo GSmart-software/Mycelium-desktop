@@ -78,10 +78,6 @@ const CATEGORIAS: Categoria[] = [
       { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
       // Lo mismo con el tema de la marca GSmart (`FUN-M-52`).
       { rotulo: "Tema", alias: ["gsmart"], soloDev: true },
-      // Y con Bioluminiscencia experimental (`FUN-M-53`): por su id, por el
-      // nombre de su muestra y por «experimental». «Bioluminiscencia» a secas
-      // ya lleva al tema público (la entrada de arriba).
-      { rotulo: "Tema", alias: ["bioexp", "biolum. exp.", "experimental"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
       { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
       { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },

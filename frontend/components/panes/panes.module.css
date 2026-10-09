@@ -538,28 +538,6 @@
     radial-gradient(ellipse 60% 55% at 100% 100%, rgba(18, 168, 232, 0.12), transparent 70%);
 }
 
-/* Bioluminiscencia experimental (`FUN-M-53`): la pestaña activa, con la
-   selección suave del tema y una línea de 2px del degradado abajo (una capa
-   más del fondo, sin pseudo-elemento). Y el lienzo de las notas, el brillo de
-   fondo del tema (`--bioexp-ambiente`, styles/bioexp.css): verde agua arriba a
-   la izquierda, un velo de cian a la derecha y azul abisal abajo; en claro,
-   más tenue y sin el velo. */
-:global(:root[data-theme='bioexp']) .tabActive {
-  background-image: var(--bioexp-gradiente), var(--bioexp-gradiente-suave);
-  background-size: 100% 2px, 100% 100%;
-  background-position: bottom, 0 0;
-  background-repeat: no-repeat;
-}
-
-:global(:root[data-theme='bioexp']) .paneBody::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  background: var(--bioexp-ambiente);
-}
-
 /* Aurora (`FUN-M-54`): la pestaña activa, con la selección suave del tema y
    una línea de 2px del degradado abajo (una capa más del fondo, sin
    pseudo-elemento). Y el lienzo de las notas, la luz de fondo del tema

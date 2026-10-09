@@ -142,10 +142,3 @@
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
 
-/* Bioluminiscencia experimental (`FUN-M-53`): los títulos de sección del menú
-   de vaults en Space Grotesk, con el espaciado amplio del tema
-   (styles/bioexp.css). Conservan tamaño y peso. */
-:global(:root[data-theme='bioexp']) .seccion {
-  font-family: var(--bioexp-letra-titulo);
-  letter-spacing: var(--bioexp-espaciado-etiqueta);
-}

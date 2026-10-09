@@ -223,9 +223,8 @@ function applyToDom(s: Pick<PreferencesState, "tema" | "modoOscuro" | "prefs">) 
   html.setAttribute("data-theme", s.tema); // HU-12 CA6
   if (s.modoOscuro) html.setAttribute("data-dark", "true"); // HU-12 CA7
   else html.removeAttribute("data-dark");
-  // Un tema sin atmósferas (los de marca: Arrecife, `FUN-M-51`, GSmart,
-  // `FUN-M-52`, y Bioluminiscencia experimental, `FUN-M-53`) no lleva el
-  // atributo: así ninguna regla de atmosferas.css lo
+  // Un tema sin atmósferas (los de marca: Arrecife, `FUN-M-51`, y GSmart,
+  // `FUN-M-52`) no lleva el atributo: así ninguna regla de atmosferas.css lo
   // alcanza. La atmósfera guardada sigue en las preferencias y vuelve al
   // cambiar de tema.
   const atmosfera = atmosferaEnUso(s.tema, s.modoOscuro, s.prefs);

@@ -332,7 +332,6 @@
   margin-bottom: 0.9rem;
 }
 
-
 .hint {
   max-width: 62ch;
   margin-top: 0.35rem;
@@ -599,38 +598,6 @@
   background:
     linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
     var(--gsmart-degradado) border-box;
-}
-
-/* Bioluminiscencia experimental (`FUN-M-53`): el botón primario con el degradado del tema
-   (styles/bioexp.css) y texto oscuro. Los otros temas no cambian. */
-:global(:root[data-theme='bioexp']) .primaryBtn {
-  background: var(--bioexp-gradiente);
-  color: var(--bioexp-sobre-degradado);
-  border-radius: var(--bioexp-radio-control);
-  box-shadow: var(--bioexp-sombra-boton);
-  transition: var(--bioexp-transicion);
-}
-
-:global(:root[data-theme='bioexp']) .primaryBtn:hover:not(:disabled) {
-  background: var(--bioexp-gradiente);
-  filter: brightness(1.1);
-  transform: var(--bioexp-elevar);
-}
-
-/* Bioluminiscencia experimental (`FUN-M-53`): el interruptor encendido lleva
-   el degradado del tema. */
-:global(:root[data-theme='bioexp']) .switch input:checked + .switchTrack {
-  background: var(--bioexp-gradiente);
-}
-
-/* Bioluminiscencia experimental (`FUN-M-53`): la muestra elegida, con un marco en el degradado. El
-   interior repite el fondo del panel para que el degradado quede solo en el
-   borde. */
-:global(:root[data-theme='bioexp']) .swatchActive {
-  border-color: transparent;
-  background:
-    linear-gradient(var(--mic-bg-canvas), var(--mic-bg-canvas)) padding-box,
-    var(--bioexp-gradiente) border-box;
 }
 
 /* Aurora (`FUN-M-54`): el botón primario con el degradado del tema (styles/aurora.css)

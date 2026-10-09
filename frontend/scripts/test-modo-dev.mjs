@@ -140,7 +140,7 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
   assert.ok(SECRETO_DEV.length > 0);
 });
 
-test("la plantilla de snippets no nombra nada del modo dev (tampoco los temas Arrecife, GSmart y Bioluminiscencia experimental)", async () => {
+test("la plantilla de snippets no nombra nada del modo dev (tampoco los temas Arrecife y GSmart)", async () => {
   const plantilla = await readFile(join(FRONTEND, "public/plantilla-estilos.css"), "utf8");
   const secreto = buscarSecretoDev(plantilla);
   assert.equal(secreto, null, `la plantilla menciona ${secreto?.que} (${secreto?.patron})`);
@@ -167,19 +167,4 @@ test("el tema GSmart (`FUN-M-52`) está detrás del modo: muestra y buscador `so
     assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
   }
   assert.ok(lineas.some((l) => /alias: \["gsmart"\]/.test(l)), "falta el alias del buscador");
-});
-
-test("el tema Bioluminiscencia experimental (`FUN-M-53`) está detrás del modo: muestra y buscador `soloDev`", async () => {
-  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
-  assert.match(temas, /id: "bioexp"[^}]*soloDev: true/, "la muestra de bioexp tiene que ser soloDev");
-  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
-  const lineas = ajustes.split(/\r?\n/);
-  for (const linea of lineas.filter((l) => /bioexp|experimental|biolum\./i.test(l) && /rotulo:/.test(l))) {
-    assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
-  }
-  assert.ok(lineas.some((l) => /alias: \["bioexp"/.test(l)), "falta el alias del buscador");
-  // La entrada pública del tema no ofrece la variante experimental.
-  const publica = lineas.find((l) => /alias: \["colores"/.test(l));
-  assert.ok(publica, "falta la entrada pública del tema");
-  assert.doesNotMatch(publica, /bioexp|experimental|biolum\./i);
 });
