@@ -32,6 +32,14 @@
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--mic-marco-glow) 55%, transparent));
 }
 
+/* El tercer punto del logo (`DEF-154`): antes tomaba `--mic-callout-info-border`,
+   un azul fijo que no cambia con el tema (con Cantarela quedaba un punto azul
+   sobre una paleta ámbar). Ahora es la mezcla de los otros dos, así que sigue al
+   tema, a la atmósfera y al modo como ellos y se distingue de los dos. */
+.logoNodo3 {
+  fill: color-mix(in srgb, var(--mic-marco-glow) 50%, var(--mic-marco-acento));
+}
+
 .logo:hover {
   background-color: color-mix(in srgb, var(--mic-marco-glow) 15%, transparent);
 }

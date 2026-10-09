@@ -52,7 +52,7 @@ export function AppTopbar() {
           />
           <circle cx="9" cy="10" r="4" fill="var(--mic-marco-glow)" />
           <circle cx="23" cy="8" r="3" fill="var(--mic-marco-acento)" />
-          <circle cx="16" cy="23" r="4" fill="var(--mic-callout-info-border)" />
+          <circle cx="16" cy="23" r="4" className={styles.logoNodo3} />
         </svg>
         <span className={styles.logoFull}>Mycelium</span>
       </button>
