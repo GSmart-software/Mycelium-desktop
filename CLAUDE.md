@@ -548,7 +548,9 @@ mano.**
 > 4. `docs/Mapa de documentacion.md` — la entrada «release actual de desktop» (y la de web).
 >
 > Más la nota de release nueva (`docs/estado/Version X.Y.Z.md`), enlazada desde las tres
-> últimas. Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
+> últimas. **El changelog** (lo que va entre `notas-release` en esa nota) **no menciona nada del
+> modo desarrollador** ni de lo que habilita: es oculto (regla del usuario, 2026-10-08;
+> `npm run publicar` lo rechaza, lista en `frontend/scripts/secreto-dev.mjs`, ver [[modo-dev]]). Regla del usuario (2026-09-26): la lista es cerrada y se recorre entera; si un
 > documento nuevo empieza a declarar la versión, se agrega acá. Lo demás (`BACKLOG`,
 > catálogo de defectos, specs) menciona versiones **pasadas** como hechos y no se retoca.
 

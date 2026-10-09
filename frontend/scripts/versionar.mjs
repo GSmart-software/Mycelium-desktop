@@ -118,9 +118,10 @@ function plantillaNota(version, anterior) {
 <!-- Lo que sigue es lo ÚNICO que ve el usuario en el diálogo de actualización.
      Escribilo para alguien que solo quiere decidir si actualiza: qué gana, en
      viñetas cortas. Nada de nombres de archivo ni de IDs internos.
-     NO menciones el modo desarrollador ni su comando (FUN-S-36, antes el modo
-     avanzado de FUN-M-16): es deliberadamente oculto y
-     \`npm run publicar\` rechaza el changelog si aparece. -->
+     NO menciones nada del modo desarrollador: ni el modo, ni su comando, ni lo
+     que habilita (sus comandos de la paleta, las opciones ocultas del
+     actualizador). Es deliberadamente oculto y \`npm run publicar\` rechaza el
+     changelog si aparece (lista en scripts/secreto-dev.mjs). -->
 <!-- notas-release:fin -->
 
 ## Cómo comprobarlo en la app

@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { after, test } from "node:test";
 import ts from "typescript";
+import { SECRETO_DEV, buscarSecretoDev } from "./secreto-dev.mjs";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 const FRONTEND = join(AQUI, "..");
@@ -76,17 +77,41 @@ test("la paleta declara sus comandos de desarrollador con `soloDev: true`", asyn
   }
 });
 
-test("la ayuda no revela el comando oculto ni el modo", async () => {
-  const prohibido = [/>\s*dev\b/i, /modo\s+desarrollador/i, /modo\s+avanzado/i, /FUN-S-36/];
+test("la ayuda no revela el modo ni nada de lo que habilita", async () => {
   const recorrer = async (dir) => {
     for (const e of await readdir(dir, { withFileTypes: true })) {
       const ruta = join(dir, e.name);
       if (e.isDirectory()) await recorrer(ruta);
       else if (e.name.endsWith(".md")) {
         const texto = await readFile(ruta, "utf8");
-        for (const p of prohibido) assert.doesNotMatch(texto, p, `${ruta} menciona ${p}`);
+        const secreto = buscarSecretoDev(texto);
+        assert.equal(secreto, null, `${ruta} menciona ${secreto?.que} (${secreto?.patron})`);
       }
     }
   };
   await recorrer(join(FRONTEND, "ayuda"));
+});
+
+test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F12", () => {
+  for (const texto of [
+    "Escribí >dev en la paleta",
+    "Nuevo: modo desarrollador",
+    "el modo dev ahora…",
+    "Mycelium v2.5.0 · dev",
+    "Elegí cualquier versión en «Versiones publicadas».",
+    "Configurá tu propio servidor de actualizaciones",
+    "Nuevos comandos de desarrollador en la paleta",
+    "Cierra FUN-S-36",
+  ]) {
+    assert.notEqual(buscarSecretoDev(texto), null, `debería atrapar: ${texto}`);
+  }
+  for (const texto of [
+    "F12 abre las herramientas de desarrollador, útiles para escribir CSS propio.",
+    "Buscá notas por propiedades y desarrollá tus ideas.",
+    "Las actualizaciones se descargan solas.",
+    "Developer notes",
+  ]) {
+    assert.equal(buscarSecretoDev(texto), null, `no debería atrapar: ${texto}`);
+  }
+  assert.ok(SECRETO_DEV.length > 0);
 });
