@@ -138,9 +138,9 @@ export function normalizar(crudo: unknown): PrefsVault {
         ? o.nombresGrafo
         : POR_DEFECTO.nombresGrafo,
     anchosTabla: normalizarAnchos(o.anchosTabla),
-    // Cualquier tema que exista, también `arrecife` (`FUN-M-51`), `gsmart`
-    // (`FUN-M-52`) y `bioexp` (`FUN-M-53`) aunque el modo dev esté apagado: el
-    // modo decide si se puede elegir, no si se conserva.
+    // Cualquier tema que exista, también `arrecife` (`FUN-M-51`) y `gsmart`
+    // (`FUN-M-52`) aunque el modo dev esté apagado: el modo decide si se puede
+    // elegir, no si se conserva. Uno que ya no existe cae al de defecto.
     tema: temaValido(o.tema, POR_DEFECTO.tema),
     modoOscuro: typeof o.modoOscuro === "boolean" ? o.modoOscuro : POR_DEFECTO.modoOscuro,
     preferencias: esObjeto(o.preferencias) ? { ...o.preferencias } : {},

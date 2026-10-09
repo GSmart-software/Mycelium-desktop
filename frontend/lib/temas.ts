@@ -5,28 +5,28 @@
  * Un tema decide QUÉ colores (los `--mic-raw-*` de `styles/tokens.css`); el
  * modo, claro u oscuro; y la atmósfera (lib/atmosferas.ts), cómo se reparten.
  *
- * Los **temas de marca** —`arrecife` (`FUN-M-51`), `gsmart` (`FUN-M-52`) y
- * `bioexp` (`FUN-M-53`)— son distintos de los dos de Mycelium en dos cosas, y
- * las dos viven acá para que no haya que adivinarlas en los componentes:
+ * Los **temas de marca** —`arrecife` (`FUN-M-51`) y `gsmart` (`FUN-M-52`)— son
+ * distintos de los dos de Mycelium en dos cosas, y las dos viven acá para que no
+ * haya que adivinarlas en los componentes:
  *  - **Solo se ofrecen con el modo desarrollador** (`soloDev`). Apagar el modo no
  *    los saca: un vault que tiene uno se sigue pintando así. Ver
- *    `docs/features/tema-arrecife.md`, `docs/features/tema-gsmart.md` y
- *    `docs/features/tema-bioexp.md`.
+ *    `docs/features/tema-arrecife.md` y `docs/features/tema-gsmart.md`.
  *  - **No admiten atmósferas** (`TEMAS_DE_MARCA`): traen sus propios fondos,
- *    marco y forma (`styles/arrecife.css`, `styles/gsmart.css`,
- *    `styles/bioexp.css`), y una atmósfera los pisaría.
+ *    marco y forma (`styles/arrecife.css`, `styles/gsmart.css`), y una atmósfera
+ *    los pisaría.
  *
  * De dónde sale cada marca: Arrecife es la de otro proyecto del usuario y
- * GSmart, su marca personal. `bioexp` no es una marca ajena sino una variante
- * EXPERIMENTAL de la propia de Mycelium: los colores de Bioluminiscencia
- * —el tema por defecto— con la forma y la presencia de marca de los otros dos
- * (degradados, resplandores, títulos en degradado). «De marca» acá quiere decir
- * «trae su propia forma», no «es de otro».
+ * GSmart, su marca personal. «De marca» acá quiere decir «trae su propia
+ * forma», no «es de otro».
+ *
+ * Un tema guardado que ya no existe cae al de defecto (`temaValido`). Es lo que
+ * le pasa a un vault que tenía el tema experimental retirado el 2026-10-09
+ * (`FUN-M-53`).
  */
 import { atmosferaValida, ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "./atmosferas";
 import { comandosDisponibles } from "./modoDev";
 
-export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart" | "bioexp";
+export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart";
 
 export const TEMA_DEFECTO: Tema = "bioluminiscencia";
 
@@ -52,12 +52,6 @@ export const TEMAS: readonly InfoTema[] = [
   // símbolo —el aguamarina de las líneas de la G y el cian del degradado— sobre
   // el carbón. El azul profundo, la otra punta, casi no se ve sobre ese fondo.
   { id: "gsmart", nombre: "GSmart", canvas: "#1E2023", mist: "#25282B", glow: "#A3ECE2", accent: "#12A8E8", soloDev: true },
-  // Bioluminiscencia experimental (`FUN-M-53`): los colores de Bioluminiscencia
-  // con la forma de los temas de marca. La muestra lleva su paleta oscura, la
-  // misma que la de Bioluminiscencia: lo que cambia es la forma, no los puntos.
-  // El nombre va corto: con cinco muestras, «Bioluminiscencia (exp.)» no entra
-  // en la fila de Apariencia sin desbordarla.
-  { id: "bioexp", nombre: "Biolum. exp.", canvas: "#071219", mist: "#0A1A24", glow: "#3DFFC4", accent: "#19E6FF", soloDev: true },
 ];
 
 /**
@@ -65,13 +59,13 @@ export const TEMAS: readonly InfoTema[] = [
  * admiten atmósferas. Un tema de marca nuevo se suma acá (y a `TEMAS`, con
  * `soloDev` si va detrás del modo).
  */
-export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart", "bioexp"];
+export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart"];
 
 /**
  * El tema guardado, si es uno que existe; si no, el de defecto. El archivo de
  * preferencias vive en la carpeta del usuario y se puede editar a mano.
  *
- * Los temas `soloDev` (`arrecife`, `gsmart`, `bioexp`) son válidos **siempre**, esté o no
+ * Los temas `soloDev` (`arrecife`, `gsmart`) son válidos **siempre**, esté o no
  * el modo dev: el modo decide si se puede ELEGIR, no si un vault que ya lo tiene
  * se puede abrir así.
  */

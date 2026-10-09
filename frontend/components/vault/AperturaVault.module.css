@@ -163,11 +163,6 @@
   background: var(--gsmart-degradado);
 }
 
-/* Bioluminiscencia experimental (`FUN-M-53`): la barra de progreso de la apertura con el degradado del tema. */
-:global(:root[data-theme='bioexp']) .barraRelleno {
-  background: var(--bioexp-gradiente);
-}
-
 /* Aurora (`FUN-M-54`): la barra de progreso con el degradado del tema. */
 :global(:root[data-atmosfera='aurora']) .barraRelleno {
   background: var(--aurora-degradado);

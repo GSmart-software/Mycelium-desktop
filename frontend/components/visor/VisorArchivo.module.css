@@ -255,11 +255,3 @@
   font-family: var(--mic-font-mono);
 }
 
-/* Bioluminiscencia experimental (`FUN-M-53`): lo mismo que en GSmart, el código
-   del visor en la mono que trae Mycelium (`--mic-font-mono`). Fuera de los
-   temas de marca, el visor pide «JetBrains Mono» por nombre, que solo existe si
-   está instalada en el sistema. */
-:global(:root[data-theme='bioexp']) .panelTexto :global(.cm-content),
-:global(:root[data-theme='bioexp']) .editor :global(.cm-content) {
-  font-family: var(--mic-font-mono);
-}

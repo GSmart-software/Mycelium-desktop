@@ -1,17 +1,17 @@
 /*
- * Atmósfera Aurora (`FUN-M-54`): la quinta atmósfera, pública. Lleva los
- * detalles gráficos de los temas experimentales del modo dev —degradados,
- * brillos, resplandores— pero SIN colores propios: reparte los del tema que
- * esté puesto, `--mic-glow` y `--mic-accent`. Con Bioluminiscencia el degradado
- * va del verde agua al cian; con Cantarela, del dorado al ámbar.
- * Spec: docs/features/atmosfera-aurora.md.
+ * Atmósfera Aurora (`FUN-M-54`): la quinta atmósfera, pública. Lleva detalles
+ * gráficos —degradados, brillos, resplandores— pero SIN colores propios:
+ * reparte los del tema que esté puesto, `--mic-glow` y `--mic-accent`. Con
+ * Bioluminiscencia el degradado va del verde agua al cian; con Cantarela, del
+ * dorado al ámbar. Spec: docs/features/atmosfera-aurora.md.
  *
- * El modelo es Bioluminiscencia experimental (`styles/bioexp.css`, `FUN-M-53`):
- * cada regla de esta hoja es el gemelo de una de aquella, con los colores fijos
- * cambiados por los del tema, y `scripts/test-temas.mjs` compara las dos regla
- * por regla. Lo que se dejó afuera, y por qué, está en la spec y en la lista
- * `AURORA_SIN_GEMELO` del test: la letra de títulos (una atmósfera reparte
- * color, no tipografía), los radios y el foco de los inputs.
+ * El estilo nació de un tema experimental del modo dev, ya retirado: de él se
+ * trajeron los degradados, los brillos y los resplandores, con los colores
+ * fijos cambiados por los del tema. Lo que se dejó afuera, y por qué, está en
+ * la spec: la letra de títulos (una atmósfera reparte color, no tipografía),
+ * los radios y el foco de los inputs. Qué componentes y selectores tiene que
+ * cubrir Aurora lo fija una lista explícita en `scripts/test-temas.mjs`
+ * (`AURORA_CUBRE`).
  *
  * Cómo está armada:
  *  - Los fondos y el marco son los de Abisal (tokens.css tal cual): Aurora no
