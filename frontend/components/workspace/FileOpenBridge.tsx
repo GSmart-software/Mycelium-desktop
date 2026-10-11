@@ -71,10 +71,13 @@ export function FileOpenBridge() {
     let unlisten: (() => void) | undefined;
     let cancelado = false;
     void (async () => {
-      const [{ invoke }, { listen }] = await Promise.all([
+      const [{ invoke }, { getCurrentWebviewWindow }] = await Promise.all([
         import("@tauri-apps/api/core"),
-        import("@tauri-apps/api/event"),
+        import("@tauri-apps/api/webviewWindow"),
       ]);
+      // En esta ventana: el `listen` global también recibe los `open-files`
+      // dirigidos a otra, y la nota se abría en todos los vaults (`DEF-158`).
+      const listen = getCurrentWebviewWindow().listen.bind(getCurrentWebviewWindow());
       const iniciales = await invoke<OpenedFile[]>("take_opened_files");
       cola.current.push(...iniciales);
       void procesar();

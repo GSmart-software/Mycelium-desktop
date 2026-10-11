@@ -232,14 +232,15 @@ pub fn terminal_abrir(
                     if datos.is_empty() {
                         continue;
                     }
-                    let _ = destino.emit("terminal-datos", DatosEvento { id: id.clone(), datos });
+                    // A la ventana dueña de la consola: `emit` llegaría a todas (`DEF-158`).
+                    let _ = destino.emit_to(destino.label(), "terminal-datos", DatosEvento { id: id.clone(), datos });
                 }
             }
         }
         if let Ok(mut sesiones) = mapa.lock() {
             sesiones.remove(&id);
         }
-        let _ = destino.emit("terminal-salida", SalidaEvento { id });
+        let _ = destino.emit_to(destino.label(), "terminal-salida", SalidaEvento { id });
     });
 
     Ok(())

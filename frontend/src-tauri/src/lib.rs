@@ -132,7 +132,9 @@ pub fn run() {
             // Con archivos en el argv es una asociacion de archivo: la nota va a
             // la ventana que este mirando el usuario, no a una ventana nueva.
             if let Some(win) = ventana_para_abrir(app) {
-                let _ = win.emit("open-files", archivos);
+                // `emit_to` y no `emit`: en Tauri 2 `emit` llega a todas las
+                // ventanas y la nota se abriría en cada vault (`DEF-158`).
+                let _ = win.emit_to(win.label(), "open-files", archivos);
                 let _ = win.unminimize();
                 let _ = win.set_focus();
             }
