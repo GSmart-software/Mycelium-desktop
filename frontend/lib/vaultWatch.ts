@@ -174,7 +174,13 @@ async function reconciliar(ruta: string): Promise<string[]> {
  * escuchar (llamarla al desmontar/salir para no duplicar listeners).
  */
 export async function escucharCambiosVault(): Promise<UnlistenFn> {
-  const { listen } = await import("@tauri-apps/api/event");
+  // Se escucha en ESTA ventana y no con el `listen` global de
+  // `@tauri-apps/api/event`: ese escucha con destino «Any» y recibe también los
+  // eventos que Rust dirige con `emit_to` a otra ventana, o sea los cambios de
+  // la carpeta de otro vault, que aparecían como copias fantasma en este
+  // explorador (`DEF-158`).
+  const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  const ventana = getCurrentWebviewWindow();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let procesando = false;
   // Llegó un cambio mientras se procesaba otro (`DEF-106`). Antes ese cambio se
@@ -269,7 +275,7 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   // Cuándo llegó el primer evento de la ráfaga que se está juntando.
   let desde: number | null = null;
 
-  const unlisten = await listen<CambioVault[]>(EVENTO_TAURI, (evento) => {
+  const unlisten = await ventana.listen<CambioVault[]>(EVENTO_TAURI, (evento) => {
     const cambios = evento.payload ?? [];
     if (cambios.length === 0) return;
     // 1) El árbol, ya. Anotados como pendientes ANTES de aplicarlos: si una

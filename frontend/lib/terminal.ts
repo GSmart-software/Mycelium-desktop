@@ -3,7 +3,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listarShells, tabIdDe } from "@/lib/terminalBase";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -299,13 +299,17 @@ function ensureInfra() {
   if (infraLista) return;
   infraLista = true;
 
+  // Solo los eventos de las consolas de ESTA ventana: el `listen` global recibe
+  // también la salida de las consolas de las demás (`DEF-158`).
+  const ventana = getCurrentWebviewWindow();
+
   // Salida del PTY → xterm de la instancia correspondiente.
-  void listen<{ id: string; datos: string }>("terminal-datos", (e) => {
+  void ventana.listen<{ id: string; datos: string }>("terminal-datos", (e) => {
     instancias.get(e.payload.id)?.term.write(e.payload.datos);
   });
 
   // Proceso terminado por sí mismo (p. ej. `exit`) → finalizar la consola (CA7).
-  void listen<{ id: string }>("terminal-salida", (e) => {
+  void ventana.listen<{ id: string }>("terminal-salida", (e) => {
     if (instancias.has(e.payload.id)) finalizarConsola(e.payload.id);
   });
 

@@ -72,8 +72,10 @@ export function ControlesVentana({ className }: { className?: string }) {
 
     void reportar();
     void (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
-      const parar = await listen<boolean>("marco://hover-maximizar", (e) => {
+      // En esta ventana: el `listen` global recibe también el hover de las
+      // demás (`DEF-158`).
+      const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+      const parar = await getCurrentWebviewWindow().listen<boolean>("marco://hover-maximizar", (e) => {
         if (vivo) setHoverMaximizar(e.payload);
       });
       if (vivo) desuscribir = parar;

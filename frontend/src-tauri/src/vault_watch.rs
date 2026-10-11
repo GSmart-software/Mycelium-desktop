@@ -231,9 +231,11 @@ pub fn iniciar_watcher(
         return Err(format!("La carpeta del vault no existe: {vault_ruta}"));
     }
 
-    // El evento va a ESTA ventana, no a todas (`FUN-L-16`): con `app.emit` cada
-    // ventana recibía los cambios de la carpeta de las demás y reindexaba la suya
-    // sin motivo.
+    // El evento va a ESTA ventana, no a todas (`FUN-L-16`): si llegara a las
+    // demás, cada una aplicaría a su árbol los cambios de otra carpeta (copias
+    // fantasma en el explorador, `DEF-158`) y reindexaría la suya sin motivo.
+    // Por eso `emit_to` con la etiqueta: en Tauri 2, `Emitter::emit` manda a
+    // TODAS las ventanas aunque se llame sobre una (`Window::emit` no la acota).
     let destino = ventana.clone();
     let base_evt = base.clone();
     let mut debouncer = new_debouncer(
@@ -270,7 +272,7 @@ pub fn iniciar_watcher(
             }
 
             if !cambios.is_empty() {
-                let _ = destino.emit("vault-cambios", cambios);
+                let _ = destino.emit_to(destino.label(), "vault-cambios", cambios);
             }
         },
     )

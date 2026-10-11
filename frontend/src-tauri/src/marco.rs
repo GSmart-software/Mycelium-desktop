@@ -71,7 +71,8 @@ mod win {
             if let Some(c) = guard.values_mut().find(|c| c.capa == capa.0 as isize) {
                 if c.hover != encendido {
                     c.hover = encendido;
-                    let _ = c.ventana.emit(EVENTO_HOVER, encendido);
+                    // A esta ventana: `emit` llegaría a todas (`DEF-158`).
+                    let _ = c.ventana.emit_to(c.ventana.label(), EVENTO_HOVER, encendido);
                 }
             }
         }
