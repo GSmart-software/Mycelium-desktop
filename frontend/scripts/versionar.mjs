@@ -20,7 +20,12 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ_FRONTEND = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const RAIZ_REPO = resolve(RAIZ_FRONTEND, "..");
+// El vault (repo `mycelium-docs`): ahí viven `docs/` e `installers/`. Este repo
+// está adentro, en `<vault>/desktop/`, así que son dos niveles arriba de
+// `frontend/`. `MYCELIUM_VAULT` lo fija a mano para un clon en otro lugar.
+const RAIZ_VAULT = process.env.MYCELIUM_VAULT
+  ? resolve(process.env.MYCELIUM_VAULT)
+  : resolve(RAIZ_FRONTEND, "..", "..");
 
 const ok = (t) => console.log(`      ok   ${t}`);
 const aviso = (t) => console.log(`      !    ${t}`);
@@ -104,7 +109,7 @@ function plantillaNota(version, anterior) {
   const hoy = new Date().toISOString().slice(0, 10);
   return `# Versión ${version}
 
-**Solo desktop** (\`desktop-tauri\`) · ${hoy} · sobre [[Version ${anterior}]]
+**Solo desktop** (\`mycelium-desktop\`) · ${hoy} · sobre [[Version ${anterior}]]
 
 <!-- Un párrafo: cuál es el tema de esta versión y qué IDs entran. -->
 
@@ -219,7 +224,7 @@ function principal(argv) {
   }
 
   // ── Esqueleto de la nota de release ─────────────────────────────────────────
-  const nota = join(RAIZ_REPO, "docs", "estado", `Version ${nueva}.md`);
+  const nota = join(RAIZ_VAULT, "docs", "estado", `Version ${nueva}.md`);
   if (existsSync(nota)) {
     ok(`la nota docs/estado/Version ${nueva}.md ya existe, no se toca`);
   } else if (simulacro) {

@@ -38,7 +38,12 @@ import { buscarSecretoDev } from "./secreto-dev.mjs";
 // ── Constantes del proyecto ───────────────────────────────────────────────────
 
 const RAIZ_FRONTEND = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const RAIZ_REPO = resolve(RAIZ_FRONTEND, "..");
+// El vault (repo `mycelium-docs`): ahí viven `docs/` e `installers/`. Este repo
+// está adentro, en `<vault>/desktop/`, así que son dos niveles arriba de
+// `frontend/`. `MYCELIUM_VAULT` lo fija a mano para un clon en otro lugar.
+const RAIZ_VAULT = process.env.MYCELIUM_VAULT
+  ? resolve(process.env.MYCELIUM_VAULT)
+  : resolve(RAIZ_FRONTEND, "..", "..");
 
 /**
  * Nombre del bucket de R2. La URL pública (`pub-<hash>.r2.dev`) no lo contiene,
@@ -470,7 +475,7 @@ function leerNotas(version, rutaNotas) {
     texto = readFileSync(ruta, "utf8").replace(/^﻿/, "").trim();
     origen = ruta;
   } else {
-    const ruta = join(RAIZ_REPO, "docs/estado", `Version ${version}.md`);
+    const ruta = join(RAIZ_VAULT, "docs/estado", `Version ${version}.md`);
     if (!existsSync(ruta)) {
       fallar(
         `No existe la nota de release "docs/estado/Version ${version}.md". El changelog sale ` +
@@ -535,7 +540,7 @@ function nombresDeArtefactos(version) {
 function localizarArtefactos(version, { sinCompilar }) {
   const { exe, sig, msi } = nombresDeArtefactos(version);
   const bundle = join(RAIZ_FRONTEND, "src-tauri/target/release/bundle");
-  const preservados = join(RAIZ_REPO, "installers", `v${version}`);
+  const preservados = join(RAIZ_VAULT, "installers", `v${version}`);
 
   const candidatos = [
     { origen: "la compilación (target/release/bundle)", exe: join(bundle, "nsis", exe), sig: join(bundle, "nsis", sig), msi: join(bundle, "msi", msi) },
@@ -1112,14 +1117,14 @@ async function principal() {
   const publicado = await comprobarQueNoEstaPublicada(base, version, opciones.forzar);
   comprobarQueNoSePierdenPlataformas(publicado, opciones);
   const notas = leerNotas(version, opciones.notas);
-  ok(`changelog leído de ${notas.origen.replace(RAIZ_REPO, "").replace(/^[\\/]/, "")} (${notas.texto.length} caracteres)`);
+  ok(`changelog leído de ${notas.origen.replace(RAIZ_VAULT, "").replace(/^[\\/]/, "")} (${notas.texto.length} caracteres)`);
   const encontradosCi = opciones.ci ? localizarArtefactosCi(opciones.ci, version) : null;
   hechos.push("comprobaciones previas");
 
   // Se preserva antes de subir para tener los artefactos y los manifiestos a salvo
   // aunque la subida falle: `target/` se borra con cualquier `cargo clean`, y la
   // carpeta de descargas de CI es del usuario.
-  const destino = join(RAIZ_REPO, "installers", `v${version}`);
+  const destino = join(RAIZ_VAULT, "installers", `v${version}`);
   let artefactos;
   if (encontradosCi) {
     // ── 2. Copiar a installers/, firmar y verificar las firmas de los tres sistemas ──
