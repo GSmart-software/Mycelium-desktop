@@ -145,8 +145,8 @@ pub fn run() {
         // Red de seguridad de `DEF-101`: ningún camino puede sacar a la app de
         // su propia página. Va DESPUÉS del opener porque lo usa para derivar.
         .plugin(navegacion::init())
-        // Las DevTools nacen apagadas en cada webview y se encienden por vault
-        // (`devtools.rs`).
+        // Las DevTools nacen apagadas en cada webview y se encienden por vault;
+        // en Windows, la puerta son los atajos y el menú contextual (`devtools.rs`).
         .plugin(devtools::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`

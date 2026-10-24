@@ -368,7 +368,7 @@ pub fn config_local_fijar(ventana: tauri::Window, ruta: String, cambio: Cambio) 
     let dir = dir_config(ventana.app_handle())?;
     let config = fijar_para(&ventana.state::<crate::ventanas::VentanasState>(), ventana.label(), &ruta, &dir, &cambio)?;
     if matches!(cambio, Cambio::Devtools { .. }) {
-        crate::devtools::aplicar_a(ventana.app_handle(), ventana.label(), config.devtools);
+        crate::devtools::al_mover_interruptor(ventana.app_handle(), ventana.label(), config.devtools);
     }
     if matches!(cambio, Cambio::ControlIa { valor: false }) {
         // Apagado acá, el canal no puede seguir abierto aunque el frontend no

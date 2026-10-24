@@ -7,11 +7,13 @@ export const AVISO_CONSOLA =
   "No pegues en la consola código que te pase otra persona: puede leer tus archivos.";
 
 /**
- * Atajo global para abrir/cerrar las herramientas de desarrollador del webview:
+ * Atajo global para abrir las herramientas de desarrollador del webview:
  * **F12** o **Ctrl/Cmd+Shift+I**. Solo abren si el vault de la ventana tiene
  * encendido «Herramientas de desarrollo» en Configuración → Avanzado; lo decide
- * Rust (`src-tauri/src/devtools.rs`), que además las apaga en WebView2 para que
- * el atajo nativo y «Inspeccionar» del menú contextual tampoco las abran.
+ * Rust (`src-tauri/src/devtools.rs`), que además, en WebView2, frena el atajo
+ * nativo y quita «Inspeccionar» del menú contextual. En Windows no se pueden
+ * cerrar desde acá (WebView2 no tiene cómo): se cierran con su X. En macOS y
+ * Linux, el mismo atajo las cierra.
  *
  * Se monta en el layout raíz para que funcione en toda la app (incluido el
  * selector de vaults). Si no corre dentro de Tauri, el `invoke` falla y se
