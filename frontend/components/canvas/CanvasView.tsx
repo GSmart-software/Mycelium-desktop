@@ -11,6 +11,7 @@ import {
   buscarPorPrefijo,
   cajaDeNodos,
   colorCss,
+  htmlTarjetaEnlace,
   COLORES,
   encuadrar,
   ladosAutomaticos,
@@ -43,7 +44,7 @@ import { markMissingWikilinks } from "@/lib/editor/wikilink";
 import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
 import { resolverReferencia } from "@/lib/wikilinks";
 import { soltarFoco } from "@/lib/editor/tituloPendiente";
-import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { destinoExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
@@ -986,7 +987,8 @@ function NodoVista({
   const html = useMemo(() => {
     if (nodo.tipo === "text") return renderNota(nodo.texto ?? "");
     if (nodo.tipo === "file") return renderNota(contenido ?? "");
-    if (nodo.tipo === "link") return `<p><a href="${nodo.url ?? ""}">${nodo.url ?? ""}</a></p>`;
+    // Escapado y validado: la URL viene cruda del archivo (`DEF-159`).
+    if (nodo.tipo === "link") return htmlTarjetaEnlace(nodo.url, destinoExterno);
     return "";
   }, [nodo.tipo, nodo.texto, nodo.url, contenido]);
 

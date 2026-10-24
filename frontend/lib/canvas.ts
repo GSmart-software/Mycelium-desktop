@@ -347,8 +347,47 @@ export const COLORES: { preset: string; nombre: string; css: string }[] = [
  */
 export function colorCss(color: string | undefined): string | null {
   if (color === undefined || color === "") return null;
-  if (color.startsWith("#")) return color;
+  // Solo un hex de verdad: el valor viene crudo del JSON y termina en el
+  // `style` de la tarjeta y en el trazo de la flecha (`DEF-159`). Cualquier otra
+  // cosa que empiece por `#` se dibuja sin color, como un preset desconocido.
+  if (color.startsWith("#")) return /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color) ? color : null;
   return COLORES.find((c) => c.preset === color)?.css ?? null;
+}
+
+// ── Tarjeta de enlace ─────────────────────────────────────────────────────────
+
+const ESCAPES_HTML: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+const escaparHtml = (s: string): string => s.replace(/[&<>"']/g, (c) => ESCAPES_HTML[c]);
+
+/**
+ * El HTML del cuerpo de una tarjeta de enlace (`"type": "link"`).
+ *
+ * > [!danger] `url` llega CRUDO del archivo (`DEF-159`)
+ * > Antes se interpolaba tal cual en `<a href="${url}">${url}</a>`, y eso iba a
+ * > `dangerouslySetInnerHTML`: un `.canvas` con
+ * > `"url": "x\"><img src=x onerror=…>"` ejecutaba código **al abrirlo**, sin
+ * > ningún clic. Ahora el texto se escapa siempre, y el enlace solo existe si la
+ * > URL es un destino externo permitido; si no, se muestra como texto.
+ *
+ * `destino` es `destinoExterno` de `lib/enlacesExternos.ts`; se recibe por
+ * parámetro para que este módulo siga sin imports (lo prueba
+ * `scripts/test-canvas.mjs` sin empaquetar nada).
+ */
+export function htmlTarjetaEnlace(
+  url: string | undefined,
+  destino: (href: string) => string | null,
+): string {
+  const texto = url ?? "";
+  const href = texto === "" ? null : destino(texto);
+  if (href === null) return `<p>${escaparHtml(texto)}</p>`;
+  return `<p><a href="${escaparHtml(href)}">${escaparHtml(texto)}</a></p>`;
 }
 
 // ── Búsqueda de notas ─────────────────────────────────────────────────────────
