@@ -49,11 +49,14 @@ const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
     "es tu memoria»): borralas y dejá solo lo tuyo.",
 };
 
-/** Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. */
+/**
+ * Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. Lo
+ * abre Rust (`DEF-161`): exportar e importar solo aceptan una carpeta de fuera
+ * del vault si salió de ese selector.
+ */
 async function elegirCarpeta(title: string): Promise<string | null> {
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const elegida = await open({ directory: true, multiple: false, title });
-  return typeof elegida === "string" ? elegida : null;
+  const { elegirCarpetaExterna } = await import("@/lib/vaultMode");
+  return elegirCarpetaExterna(title);
 }
 
 /**

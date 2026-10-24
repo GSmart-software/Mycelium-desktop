@@ -226,6 +226,9 @@ pub fn iniciar_watcher(
     state: tauri::State<WatcherState>,
     vault_ruta: String,
 ) -> Result<(), String> {
+    // Solo el vault de esta ventana (`DEF-161`): el watcher le cuenta al
+    // frontend los nombres y fechas de todo lo que cambia en la carpeta.
+    let vault_ruta = crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?;
     let base = PathBuf::from(&vault_ruta);
     if !base.is_dir() {
         return Err(format!("La carpeta del vault no existe: {vault_ruta}"));

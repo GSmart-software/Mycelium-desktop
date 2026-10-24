@@ -112,13 +112,31 @@ pub fn listar_vaults(app: tauri::AppHandle) -> Result<Vec<VaultRef>, String> {
     Ok(vaults)
 }
 
-/// Vincula una carpeta (debe existir y ser un directorio). La añade al registro.
+/// Abre el selector de carpetas nativo **desde Rust** y vincula la elegida
+/// (`DEF-161`). Devuelve su `VaultRef`, o `null` si el usuario canceló.
+///
+/// Reemplaza a `vincular_vault(ruta)`, que vinculaba cualquier ruta que mandara
+/// JS: con un vault vinculado, `registrar_vault` abre el asset scope sobre la
+/// carpeta y todos los comandos del vault operan en ella, así que vincular desde
+/// la webview era dejarle a un XSS elegir qué carpeta del disco leer y escribir.
+/// Ahora la única forma de que una carpeta entre a `vaults.json` es que el
+/// usuario la elija en un diálogo que la webview no controla.
 #[tauri::command]
-pub fn vincular_vault(app: tauri::AppHandle, ruta: String) -> Result<VaultRef, String> {
+pub async fn elegir_vault(ventana: tauri::Window) -> Result<Option<VaultRef>, String> {
+    let titulo = "Elegí la carpeta que querés abrir como vault";
+    let Some(ruta) = crate::dialogos::elegir_carpeta_nativa(&ventana, titulo).await? else {
+        return Ok(None);
+    };
+    vincular(ventana.app_handle(), ruta.to_string_lossy().to_string()).map(Some)
+}
+
+/// Vincula una carpeta (debe existir y ser un directorio). La añade al registro.
+/// Ya **no** es un comando: solo la llama [`elegir_vault`].
+fn vincular(app: &tauri::AppHandle, ruta: String) -> Result<VaultRef, String> {
     if !Path::new(&ruta).is_dir() {
         return Err(format!("La carpeta no existe o no es un directorio: {ruta}"));
     }
-    let config = ruta_config(&app)?;
+    let config = ruta_config(app)?;
     let mut reg = leer_registro(&config);
     let ref_ = aplicar_vincular(&mut reg, &ruta);
     escribir_registro(&config, &reg)?;

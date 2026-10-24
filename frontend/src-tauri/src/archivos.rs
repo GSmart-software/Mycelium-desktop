@@ -155,8 +155,7 @@ pub(crate) fn ruta_segura(base: &Path, relativa: &str) -> Result<PathBuf, String
 /// Escribe los archivos del vault dentro de `destino`, creando los subdirectorios
 /// necesarios. Devuelve cuántos archivos se escribieron. Los archivos existentes
 /// con el mismo nombre se sobrescriben (la confirmación la pide la UI).
-#[tauri::command]
-pub fn exportar_a_carpeta(destino: String, archivos: Vec<ArchivoExport>) -> Result<usize, String> {
+pub(crate) fn exportar_a_carpeta_en(destino: String, archivos: Vec<ArchivoExport>) -> Result<usize, String> {
     let base = PathBuf::from(&destino);
     if !base.is_dir() {
         return Err(format!("La carpeta destino no existe: {destino}"));
@@ -270,13 +269,6 @@ fn recorrer_vault_en(origen: &str) -> Result<RecorridoVault, String> {
     Ok(out)
 }
 
-/// Un solo recorrido del vault para el índice, el explorador y el watcher
-/// (`FUN-M-13`, `FUN-M-38`): notas con metadatos, otros archivos y directorios.
-#[tauri::command]
-pub fn recorrer_vault(origen: String) -> Result<RecorridoVault, String> {
-    recorrer_vault_en(&origen)
-}
-
 /// Rutas ABSOLUTAS que el vault mira de verdad: las carpetas no ignoradas y los
 /// archivos importables que hay dentro.
 ///
@@ -322,17 +314,6 @@ fn recorrer_observables(
     }
 }
 
-/// Lee recursivamente `origen` y devuelve los `.md`/`.excalidraw`/`.base` con su ruta
-/// relativa (separador `/`), su `mtime` (ms epoch) y su `tipo` — **sin el
-/// contenido**. Con esto el indexador decide qué reindexar, y el texto lo pide
-/// después con `leer_archivos`. Qué se ignora lo decide el `.mycignore` del
-/// vault (ver el default de `mycignore::DEFAULT`). Envoltorio de
-/// `recorrer_vault`: el indexador ya no lo usa (pide las tres listas de una vez).
-#[tauri::command]
-pub fn listar_archivos_meta(origen: String) -> Result<Vec<ArchivoMeta>, String> {
-    Ok(recorrer_vault_en(&origen)?.archivos_meta)
-}
-
 /// Extensión en minúsculas, sin el punto. Cadena vacía si no tiene.
 pub(crate) fn extension_de(path: &Path) -> String {
     path.extension()
@@ -353,8 +334,7 @@ pub(crate) fn extension_de(path: &Path) -> String {
 /// cada uno en cuanto alguien tocara solo uno. El `tipo` de cada entrada es su
 /// extensión, que es justo lo que el explorador necesita mostrar. Envoltorio de
 /// `recorrer_vault`; el explorador toma esta lista del indexador (`FUN-M-38`).
-#[tauri::command]
-pub fn listar_otros_archivos(origen: String) -> Result<Vec<ArchivoMeta>, String> {
+pub(crate) fn listar_otros_archivos_en(origen: String) -> Result<Vec<ArchivoMeta>, String> {
     Ok(recorrer_vault_en(&origen)?.otros)
 }
 
@@ -369,8 +349,7 @@ pub fn listar_otros_archivos(origen: String) -> Result<Vec<ArchivoMeta>, String>
 /// **omite en silencio**: el resultado puede traer menos entradas que `rutas`
 /// —p. ej. si el archivo se borró entre las dos fases— y el llamador debe
 /// tolerarlo.
-#[tauri::command]
-pub fn leer_archivos(origen: String, rutas: Vec<String>) -> Result<Vec<ArchivoLeido>, String> {
+pub(crate) fn leer_archivos_en(origen: String, rutas: Vec<String>) -> Result<Vec<ArchivoLeido>, String> {
     let base = PathBuf::from(&origen);
     if !base.is_dir() {
         return Err(format!("La carpeta de origen no existe: {origen}"));
@@ -431,8 +410,7 @@ const TOPE_VISOR: u64 = 8 * 1024 * 1024;
 /// `max_bytes` se recorta a `TOPE_VISOR`. Si el archivo lo supera, se devuelve
 /// el principio con `truncado = true`, cortado en el último salto de línea para
 /// no dejar media línea a la vista.
-#[tauri::command]
-pub fn leer_archivo_visor(
+pub(crate) fn leer_archivo_visor_en(
     origen: String,
     ruta: String,
     max_bytes: u64,
@@ -534,8 +512,7 @@ pub struct EscrituraVisor {
 ///
 /// Un `mtime` de 0 significa "el SO no lo expone": ahí no hay nada que comparar
 /// y se guarda igual, porque negarse dejaría el archivo inguardable para siempre.
-#[tauri::command]
-pub fn escribir_archivo_visor(
+pub(crate) fn escribir_archivo_visor_en(
     origen: String,
     ruta: String,
     contenido: String,
@@ -565,20 +542,9 @@ pub fn escribir_archivo_visor(
     Ok(EscrituraVisor { guardado: true, mtime })
 }
 
-/// Lista las rutas relativas POSIX de TODOS los subdirectorios de `origen`
-/// (incluidos los vacíos), según el `.mycignore` del vault. A diferencia del
-/// listado de archivos, aquí importan también los directorios VACÍOS: son la
-/// única forma de que una carpeta sin notas sobreviva a un reindex. Envoltorio
-/// de `recorrer_vault`.
-#[tauri::command]
-pub fn listar_directorios(origen: String) -> Result<Vec<String>, String> {
-    Ok(recorrer_vault_en(&origen)?.directorios)
-}
-
 /// `true` si la carpeta tiene al menos una entrada. La UI lo usa para pedir
 /// confirmación antes de exportar sobre una carpeta con contenido.
-#[tauri::command]
-pub fn carpeta_no_vacia(ruta: String) -> Result<bool, String> {
+pub(crate) fn carpeta_no_vacia_en(ruta: String) -> Result<bool, String> {
     let base = PathBuf::from(&ruta);
     if !base.is_dir() {
         return Err(format!("La carpeta no existe: {ruta}"));
@@ -698,8 +664,7 @@ fn preparar_copia(
 /// relativa **al origen**. Es la primera mitad de la importación —la UI pregunta
 /// qué hacer con cada uno— y comparte el recorrido con `copiar_arbol` para que
 /// las dos vean exactamente los mismos archivos.
-#[tauri::command(async)]
-pub fn conflictos_de_copia(
+pub(crate) fn conflictos_de_copia_en(
     vault_ruta: String,
     origen: String,
     destino_rel: String,
@@ -744,8 +709,7 @@ fn nombre_libre(ruta: &Path) -> PathBuf {
 ///
 /// `async` (fuera del hilo principal) desde `FUN-S-26`: soltar un archivo de
 /// cientos de MB lo copia acá, y en el hilo principal congelaba la ventana.
-#[tauri::command(async)]
-pub fn copiar_arbol(
+pub(crate) fn copiar_arbol_en(
     vault_ruta: String,
     origen: String,
     destino_rel: String,
@@ -920,6 +884,117 @@ pub fn borrar_temporal_importacion(dir: String) -> Result<(), String> {
     std::fs::remove_dir_all(&ruta).map_err(|e| format!("No se pudo borrar {dir}: {e}"))
 }
 
+// ── Comandos (`DEF-161`) ─────────────────────────────────────────────────────
+//
+// Las funciones `*_en` de arriba hacen el trabajo sobre la carpeta que reciben;
+// los comandos de acá abajo deciden **cuál** puede ser esa carpeta, porque la
+// ruta llega de la webview y la webview no es de fiar:
+//
+// - la del vault, solo si es la que esta ventana registró (`ventanas::vault_de`);
+// - una de fuera del vault (exportar, importar una carpeta), solo si el usuario
+//   la eligió en el selector nativo abierto desde Rust (`dialogos`), o si es una
+//   carpeta temporal de importación (`temporal_valida`).
+
+/// El origen de una importación: una carpeta temporal de importación o una
+/// carpeta elegida en el selector nativo por esta ventana.
+fn origen_permitido(ventana: &tauri::Window, origen: &str) -> Result<String, String> {
+    if let Ok(temporal) = temporal_valida(origen) {
+        return Ok(temporal.to_string_lossy().to_string());
+    }
+    crate::dialogos::elegida_por(ventana, origen).map(|p| p.to_string_lossy().to_string())
+}
+
+/// Exporta el vault a una carpeta **elegida en el selector nativo** (ver
+/// `exportar_a_carpeta_en`).
+#[tauri::command]
+pub fn exportar_a_carpeta(
+    ventana: tauri::Window,
+    destino: String,
+    archivos: Vec<ArchivoExport>,
+) -> Result<usize, String> {
+    let destino = crate::dialogos::elegida_por(&ventana, &destino)?;
+    exportar_a_carpeta_en(destino.to_string_lossy().to_string(), archivos)
+}
+
+/// Si una carpeta elegida en el selector tiene contenido (ver `carpeta_no_vacia_en`).
+#[tauri::command]
+pub fn carpeta_no_vacia(ventana: tauri::Window, ruta: String) -> Result<bool, String> {
+    let ruta = crate::dialogos::elegida_por(&ventana, &ruta)?;
+    carpeta_no_vacia_en(ruta.to_string_lossy().to_string())
+}
+
+/// Un solo recorrido del vault para el índice, el explorador y el watcher
+/// (`FUN-M-13`, `FUN-M-38`): notas con metadatos, otros archivos y directorios.
+#[tauri::command]
+pub fn recorrer_vault(ventana: tauri::Window, origen: String) -> Result<RecorridoVault, String> {
+    recorrer_vault_en(&crate::ventanas::base_de_ventana(&ventana, &origen)?)
+}
+
+/// Los archivos del vault que no son notas (ver `listar_otros_archivos_en`).
+#[tauri::command]
+pub fn listar_otros_archivos(ventana: tauri::Window, origen: String) -> Result<Vec<ArchivoMeta>, String> {
+    listar_otros_archivos_en(crate::ventanas::base_de_ventana(&ventana, &origen)?)
+}
+
+/// El texto de las notas pedidas (ver `leer_archivos_en`).
+#[tauri::command]
+pub fn leer_archivos(
+    ventana: tauri::Window,
+    origen: String,
+    rutas: Vec<String>,
+) -> Result<Vec<ArchivoLeido>, String> {
+    leer_archivos_en(crate::ventanas::base_de_ventana(&ventana, &origen)?, rutas)
+}
+
+/// Un archivo del vault para el visor (ver `leer_archivo_visor_en`).
+#[tauri::command]
+pub fn leer_archivo_visor(
+    ventana: tauri::Window,
+    origen: String,
+    ruta: String,
+    max_bytes: u64,
+) -> Result<ArchivoVisor, String> {
+    leer_archivo_visor_en(crate::ventanas::base_de_ventana(&ventana, &origen)?, ruta, max_bytes)
+}
+
+/// Guarda un archivo editado en el visor (ver `escribir_archivo_visor_en`).
+#[tauri::command]
+pub fn escribir_archivo_visor(
+    ventana: tauri::Window,
+    origen: String,
+    ruta: String,
+    contenido: String,
+    mtime_esperado: Option<i64>,
+) -> Result<EscrituraVisor, String> {
+    let base = crate::ventanas::base_de_ventana(&ventana, &origen)?;
+    escribir_archivo_visor_en(base, ruta, contenido, mtime_esperado)
+}
+
+/// Qué chocaría al importar (ver `conflictos_de_copia_en`).
+#[tauri::command(async)]
+pub fn conflictos_de_copia(
+    ventana: tauri::Window,
+    vault_ruta: String,
+    origen: String,
+    destino_rel: String,
+) -> Result<Vec<String>, String> {
+    let vault = crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?;
+    conflictos_de_copia_en(vault, origen_permitido(&ventana, &origen)?, destino_rel)
+}
+
+/// Importa una carpeta al vault (ver `copiar_arbol_en`).
+#[tauri::command(async)]
+pub fn copiar_arbol(
+    ventana: tauri::Window,
+    vault_ruta: String,
+    origen: String,
+    destino_rel: String,
+    decisiones: std::collections::HashMap<String, DecisionConflicto>,
+) -> Result<ResultadoCopia, String> {
+    let vault = crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?;
+    copiar_arbol_en(vault, origen_permitido(&ventana, &origen)?, destino_rel, decisiones)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,16 +1022,16 @@ mod tests {
 
         for destino in ["..", "../fuera", "sub/../../fuera", "/etc", "C:/Windows"] {
             assert!(
-                copiar_arbol(v.clone(), o.clone(), destino.into(), Default::default()).is_err(),
+                copiar_arbol_en(v.clone(), o.clone(), destino.into(), Default::default()).is_err(),
                 "{destino} debía rechazarse"
             );
-            assert!(conflictos_de_copia(v.clone(), o.clone(), destino.into()).is_err());
+            assert!(conflictos_de_copia_en(v.clone(), o.clone(), destino.into()).is_err());
         }
         assert!(!raiz.join("fuera").exists());
         assert!(!raiz.join("nota.md").exists(), "nada salió del vault");
 
         // Tampoco dentro de sí misma: el vault es parte del origen.
-        let r = copiar_arbol(v.clone(), raiz.to_string_lossy().to_string(), "".into(), Default::default());
+        let r = copiar_arbol_en(v.clone(), raiz.to_string_lossy().to_string(), "".into(), Default::default());
         assert!(r.is_err());
 
         std::fs::remove_dir_all(&raiz).unwrap();
@@ -982,7 +1057,7 @@ mod tests {
         let o = origen.to_string_lossy().to_string();
 
         // Sin `.mycignore` en el origen: el default.
-        let r = copiar_arbol(v.clone(), o.clone(), "Importado".into(), Default::default()).unwrap();
+        let r = copiar_arbol_en(v.clone(), o.clone(), "Importado".into(), Default::default()).unwrap();
         let mut copiados = r.copiados.clone();
         copiados.sort();
         assert_eq!(
@@ -1004,7 +1079,7 @@ mod tests {
 
         // Con `.mycignore` en el origen: manda el suyo (y él no se copia).
         std::fs::write(origen.join(".mycignore"), "adjuntos/\n*.pdf\n").unwrap();
-        let r = copiar_arbol(v.clone(), o.clone(), "Otra".into(), Default::default()).unwrap();
+        let r = copiar_arbol_en(v.clone(), o.clone(), "Otra".into(), Default::default()).unwrap();
         let mut copiados = r.copiados.clone();
         copiados.sort();
         assert_eq!(
@@ -1034,7 +1109,7 @@ mod tests {
         let v = vault.to_string_lossy().to_string();
         let o = origen.to_string_lossy().to_string();
 
-        let mut conflictos = conflictos_de_copia(v.clone(), o.clone(), "".into()).unwrap();
+        let mut conflictos = conflictos_de_copia_en(v.clone(), o.clone(), "".into()).unwrap();
         conflictos.sort();
         assert_eq!(conflictos, vec!["a.md", "b.md", "c.md", "d.md"]);
 
@@ -1044,7 +1119,7 @@ mod tests {
             ("c.md".to_string(), DecisionConflicto::Cancelar),
             // `d.md` sin decisión: se conservan los dos.
         ]);
-        let r = copiar_arbol(v.clone(), o, "".into(), decisiones).unwrap();
+        let r = copiar_arbol_en(v.clone(), o, "".into(), decisiones).unwrap();
 
         let leer = |n: &str| std::fs::read_to_string(vault.join(n)).unwrap();
         assert_eq!(leer("a.md"), "nuevo", "reemplazar reemplaza");
@@ -1175,9 +1250,9 @@ mod tests {
                 contenido: "{\"type\":\"excalidraw\"}".into(),
             },
         ];
-        assert_eq!(exportar_a_carpeta(destino.clone(), archivos).unwrap(), 3);
+        assert_eq!(exportar_a_carpeta_en(destino.clone(), archivos).unwrap(), 3);
         assert!(base.join("proyectos/2026/plan.md").exists());
-        assert!(carpeta_no_vacia(destino.clone()).unwrap());
+        assert!(carpeta_no_vacia_en(destino.clone()).unwrap());
 
         // Ruido que el recorrido debe dejar fuera de las notas: un directorio
         // oculto y una extensión ajena.
@@ -1185,7 +1260,7 @@ mod tests {
         std::fs::write(base.join(".git/config"), "x").unwrap();
         std::fs::write(base.join("imagen.png"), "x").unwrap();
 
-        let mut rutas: Vec<String> = recorrer_vault(destino.clone())
+        let mut rutas: Vec<String> = recorrer_vault_en(&destino)
             .unwrap()
             .archivos_meta
             .into_iter()
@@ -1196,7 +1271,7 @@ mod tests {
             rutas,
             vec!["adjuntos/diagrama.excalidraw", "proyectos/2026/plan.md", "raiz.md"]
         );
-        let leidos = leer_archivos(destino, rutas).unwrap();
+        let leidos = leer_archivos_en(destino, rutas).unwrap();
         assert_eq!(leidos[2].contenido, "# Raíz con acentos ñ");
         assert_eq!(leidos[1].contenido, "contenido anidado");
 
@@ -1265,7 +1340,7 @@ mod tests {
         std::fs::write(base.join(".mycelium/.trash/x.md"), "#").unwrap();
         std::fs::write(base.join("nota.md"), "#").unwrap();
 
-        let r = recorrer_vault(base.to_string_lossy().to_string()).unwrap();
+        let r = recorrer_vault_en(&base.to_string_lossy()).unwrap();
         let mut notas: Vec<&str> = r.archivos_meta.iter().map(|a| a.ruta_relativa.as_str()).collect();
         notas.sort();
         assert_eq!(notas, vec![".claude/normas.md", "nota.md"]);
@@ -1296,7 +1371,7 @@ mod tests {
         std::fs::write(base.join("imagen.png"), "x").unwrap();
 
         let mut metas =
-            listar_archivos_meta(base.to_string_lossy().to_string()).unwrap();
+            recorrer_vault_en(&base.to_string_lossy()).unwrap().archivos_meta;
         metas.sort_by(|a, b| a.ruta_relativa.cmp(&b.ruta_relativa));
 
         assert_eq!(metas.len(), 2);
@@ -1323,7 +1398,7 @@ mod tests {
         let origen = base.to_string_lossy().to_string();
 
         // Solo lo pedido, en el orden pedido.
-        let leidos = leer_archivos(
+        let leidos = leer_archivos_en(
             origen.clone(),
             vec!["sub/otra.md".into(), "nota.md".into()],
         )
@@ -1334,7 +1409,7 @@ mod tests {
         assert_eq!(leidos[1].contenido, "# hola ñ");
 
         // Un archivo que ya no está se omite: el llamador recibe menos entradas.
-        let leidos = leer_archivos(
+        let leidos = leer_archivos_en(
             origen.clone(),
             vec!["nota.md".into(), "fantasma.md".into()],
         )
@@ -1343,12 +1418,12 @@ mod tests {
         assert_eq!(leidos[0].ruta_relativa, "nota.md");
 
         // Path traversal: error, no lectura fuera del vault.
-        assert!(leer_archivos(origen.clone(), vec!["../fuera.md".into()]).is_err());
-        assert!(leer_archivos(origen.clone(), vec!["sub/../../fuera.md".into()]).is_err());
-        assert!(leer_archivos(origen.clone(), vec!["/etc/passwd".into()]).is_err());
+        assert!(leer_archivos_en(origen.clone(), vec!["../fuera.md".into()]).is_err());
+        assert!(leer_archivos_en(origen.clone(), vec!["sub/../../fuera.md".into()]).is_err());
+        assert!(leer_archivos_en(origen.clone(), vec!["/etc/passwd".into()]).is_err());
 
         // Lista vacía: no falla y no devuelve nada.
-        assert!(leer_archivos(origen, vec![]).unwrap().is_empty());
+        assert!(leer_archivos_en(origen, vec![]).unwrap().is_empty());
 
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -1365,27 +1440,27 @@ mod tests {
 
         // Texto normal: entero, sin avisos.
         std::fs::write(base.join("notas.txt"), "línea uno\nlínea dos ñ\n").unwrap();
-        let v = leer_archivo_visor(origen.clone(), "notas.txt".into(), 1024).unwrap();
+        let v = leer_archivo_visor_en(origen.clone(), "notas.txt".into(), 1024).unwrap();
         assert_eq!(v.contenido, "línea uno\nlínea dos ñ\n");
         assert!(!v.truncado && !v.binario);
         assert_eq!(v.bytes, std::fs::metadata(base.join("notas.txt")).unwrap().len());
 
         // Binario con extensión de texto: no se decodifica a la fuerza.
         std::fs::write(base.join("mentiroso.txt"), [0x50u8, 0x00, 0x4b, 0x03]).unwrap();
-        let v = leer_archivo_visor(origen.clone(), "mentiroso.txt".into(), 1024).unwrap();
+        let v = leer_archivo_visor_en(origen.clone(), "mentiroso.txt".into(), 1024).unwrap();
         assert!(v.binario, "un NUL delata al binario");
         assert!(v.contenido.is_empty());
 
         // Texto en otra codificación (latin-1): tampoco se vuelca con basura.
         std::fs::write(base.join("latin.txt"), [b'a', 0xF1, b'o']).unwrap();
-        let v = leer_archivo_visor(origen.clone(), "latin.txt".into(), 1024).unwrap();
+        let v = leer_archivo_visor_en(origen.clone(), "latin.txt".into(), 1024).unwrap();
         assert!(v.binario, "0xF1 suelto no es UTF-8 válido");
 
         // Archivo grande: fragmento cortado en un salto de línea, con el
         // tamaño REAL para que el aviso pueda decir cuánto se está omitiendo.
         let grande = "0123456789\n".repeat(200); // 2200 bytes
         std::fs::write(base.join("log.txt"), &grande).unwrap();
-        let v = leer_archivo_visor(origen.clone(), "log.txt".into(), 100).unwrap();
+        let v = leer_archivo_visor_en(origen.clone(), "log.txt".into(), 100).unwrap();
         assert!(v.truncado && !v.binario);
         assert_eq!(v.bytes, 2200);
         assert!(v.contenido.len() <= 100);
@@ -1393,15 +1468,15 @@ mod tests {
 
         // Cortar en mitad de un carácter multibyte NO es "no es UTF-8".
         std::fs::write(base.join("acentos.txt"), "ñ".repeat(50)).unwrap();
-        let v = leer_archivo_visor(origen.clone(), "acentos.txt".into(), 9).unwrap();
+        let v = leer_archivo_visor_en(origen.clone(), "acentos.txt".into(), 9).unwrap();
         assert!(!v.binario, "una secuencia incompleta al final es el borde del fragmento");
         assert!(v.truncado);
         assert_eq!(v.contenido, "ññññ", "9 bytes = 4 caracteres y medio → 4 enteros");
 
         // Lo que no existe y lo que intenta salirse: error, no un resultado vacío.
-        assert!(leer_archivo_visor(origen.clone(), "fantasma.txt".into(), 1024).is_err());
-        assert!(leer_archivo_visor(origen.clone(), "../fuera.txt".into(), 1024).is_err());
-        assert!(leer_archivo_visor(origen, "/etc/passwd".into(), 1024).is_err());
+        assert!(leer_archivo_visor_en(origen.clone(), "fantasma.txt".into(), 1024).is_err());
+        assert!(leer_archivo_visor_en(origen.clone(), "../fuera.txt".into(), 1024).is_err());
+        assert!(leer_archivo_visor_en(origen, "/etc/passwd".into(), 1024).is_err());
 
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -1425,7 +1500,7 @@ mod tests {
         std::fs::write(base.join(".git/HEAD"), "x").unwrap();
         std::fs::write(base.join("node_modules/x/README.md"), "x").unwrap();
 
-        let r = recorrer_vault(base.to_string_lossy().to_string()).unwrap();
+        let r = recorrer_vault_en(&base.to_string_lossy()).unwrap();
         let mut notas: Vec<(&str, &str)> =
             r.archivos_meta.iter().map(|a| (a.ruta_relativa.as_str(), a.tipo.as_str())).collect();
         notas.sort();
@@ -1442,8 +1517,8 @@ mod tests {
         assert_eq!(dirs, vec!["Proyectos", "Proyectos/2026", "Vacía"]);
 
         // Los envoltorios devuelven lo mismo que la pasada única.
-        assert_eq!(listar_archivos_meta(base.to_string_lossy().to_string()).unwrap().len(), 2);
-        assert_eq!(listar_otros_archivos(base.to_string_lossy().to_string()).unwrap().len(), 2);
+        assert_eq!(recorrer_vault_en(&base.to_string_lossy()).unwrap().archivos_meta.len(), 2);
+        assert_eq!(listar_otros_archivos_en(base.to_string_lossy().to_string()).unwrap().len(), 2);
 
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -1460,7 +1535,7 @@ mod tests {
         std::fs::create_dir_all(base.join(".git")).unwrap();
         std::fs::write(base.join("Proyectos/2026/plan.md"), "x").unwrap();
 
-        let mut dirs = listar_directorios(base.to_string_lossy().to_string()).unwrap();
+        let mut dirs = recorrer_vault_en(&base.to_string_lossy()).unwrap().directorios;
         dirs.sort();
         assert_eq!(dirs, vec!["Proyectos", "Proyectos/2026", "Vacía"]);
 
