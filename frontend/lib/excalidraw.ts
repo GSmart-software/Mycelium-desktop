@@ -3,6 +3,7 @@ import { resolveWikilink } from "@/lib/editor/wikilink";
 import { useVaultStore } from "@/stores/vaultStore";
 import type { TreeNota } from "@/stores/vaultStore";
 import { diagnosticarExcalidraw, motivoDeExcepcion } from "@/lib/archivosIlegibles";
+import { sinRespaldoRemoto } from "@/lib/excalidrawFuentes";
 
 /**
  * Dibujos de Excalidraw (HU-16/HU-17). Un dibujo es **un archivo del vault**
@@ -48,12 +49,21 @@ declare global {
  * respaldo; las prueba en orden y se queda con la primera que responde. Sin la
  * variable, la única era esm.sh: sin red el texto de los dibujos salía con la
  * fuente del sistema, y abrir un dibujo —o mostrar un embed, o exportarlo, que
- * incrusta las fuentes en el SVG— hacía una petición a un tercero. Con ella,
- * esm.sh queda solo como respaldo si faltara la carpeta local.
+ * incrusta las fuentes en el SVG— hacía una petición a un tercero.
+ *
+ * Con ella, Excalidraw igual **agrega** esm.sh como segunda URL de cada
+ * `FontFace` (no hay opción para quitarlo), y Chromium evalúa la CSP de todas
+ * las URLs del `src` al crear la fuente: la primera vez que se abría un dibujo
+ * salían ~230 violaciones `font-src` (casi todas de los trozos de Xiaolai),
+ * aunque la carpeta local cargaba bien. Por eso `sinRespaldoRemoto()` (`lib/excalidrawFuentes.ts`) saca esm.sh
+ * del `src` antes de crear la fuente: la carpeta local viaja siempre con la app
+ * (la llena `preparar-excalidraw` en cada `build`, y el smoke de fuentes falla
+ * si falta), y un respaldo a un tercero la CSP lo bloquearía igual.
  */
 export async function cargarExcalidraw(): Promise<typeof import("@excalidraw/excalidraw")> {
   if (typeof window !== "undefined" && window.EXCALIDRAW_ASSET_PATH === undefined) {
     window.EXCALIDRAW_ASSET_PATH = RUTA_RECURSOS_EXCALIDRAW;
+    sinRespaldoRemoto();
   }
   return import("@excalidraw/excalidraw");
 }

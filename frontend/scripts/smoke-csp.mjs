@@ -447,7 +447,7 @@ try {
     // Las violaciones del documento ya llegan por `securitypolicyviolation`; la
     // consola se mira por las que no (las de un worker, por ejemplo). Se ignoran
     // los ecos de las esperadas (ver `descartarEsperadas`).
-    if (/esm\.sh\/@excalidraw|Skipped glyph subsetting/.test(t)) return;
+    if (/Skipped glyph subsetting/.test(t)) return;
     if (/Content Security Policy|unsafe-eval|Refused to/i.test(t)) erroresConsola.push(t);
     else if (VERBOSO && m.type() === "error") console.log(`  [consola] ${t.slice(0, 200)}`);
   });
@@ -482,10 +482,10 @@ try {
   };
   /**
    * Saca de la lista las violaciones que se esperan y no rompen nada:
-   * - `font-src` hacia esm.sh: Excalidraw arma cada `FontFace` con la carpeta
-   *   local (`EXCALIDRAW_ASSET_PATH`, `DEF-153`) y esm.sh de respaldo; Chromium
-   *   evalúa la CSP de las dos URLs al crearla. La local carga; el respaldo a un
-   *   tercero queda bloqueado, que es lo que se quiere.
+   * Ya NO se espera ninguna `font-src` hacia esm.sh: Excalidraw suma esm.sh de
+   *   respaldo a cada `FontFace` y Chromium evaluaba la CSP de todas las URLs al
+   *   crearla (~230 violaciones al abrir un dibujo); `cargarExcalidraw()` saca ese
+   *   respaldo del `src` (`lib/excalidraw.ts`). Si vuelven, es un fallo.
    * - `eval` desde una sonda de compatibilidad con `try/catch`: el polyfill
    *   `is-generator-function` (`Function("return function*() {}")`) y el
    *   `get-intrinsic` (`getEvalledConstructor`). Si falla, cae al camino sin eval.
@@ -499,8 +499,8 @@ try {
   const descartarEsperadas = async (desde) => {
     for (let i = violaciones.length - 1; i >= desde; i--) {
       const v = violaciones[i];
-      let esperada = v.directiva === "font-src" && v.bloqueado.startsWith("https://esm.sh/@excalidraw/");
-      if (!esperada && v.bloqueado === "eval" && v.origen?.startsWith(base) && v.linea) {
+      let esperada = false;
+      if (v.bloqueado === "eval" && v.origen?.startsWith(base) && v.linea) {
         if (!fuentes.has(v.origen)) fuentes.set(v.origen, await (await fetch(v.origen)).text());
         const linea = fuentes.get(v.origen).split("\n")[v.linea - 1] ?? "";
         const cerca = linea.slice(Math.max(0, v.columna - 300), v.columna + 300);
@@ -615,7 +615,7 @@ if (violaciones.length > 0 || erroresConsola.length > 0) {
   codigo = 1;
 }
 if (esperadas > 0) {
-  console.log(`\n(${esperadas} violaciones esperadas descartadas: respaldo de fuentes a esm.sh y sondas de eval con try/catch)`);
+  console.log(`\n(${esperadas} violaciones esperadas descartadas: sondas de eval con try/catch)`);
 }
 console.log(codigo === 0 ? "\nCSP: sin violaciones inesperadas." : "\nCSP: hay fallos (ver arriba).");
 process.exit(codigo);

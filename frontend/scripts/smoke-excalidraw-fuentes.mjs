@@ -15,7 +15,12 @@
 //   3. que el editor y la exportación pidan las fuentes al origen local, todas
 //      respondan 200, ninguna petición vaya a esm.sh (ni a otro tercero) y el SVG
 //      exportado incruste las fuentes;
-//   4. control: sin la variable, Excalidraw las pide a esm.sh (el defecto).
+//   4. que, servida con la CSP de la app (`font-src 'self' data:`), no salga
+//      ninguna violación hacia esm.sh: Excalidraw suma esm.sh de respaldo a cada
+//      `FontFace` y `sinRespaldoRemoto()` (`lib/excalidrawFuentes.ts`, el módulo
+//      real, transpilado) lo saca del `src`;
+//   5. control: sin la variable ni el arreglo, Excalidraw las pide a esm.sh (el
+//      defecto) y la CSP lo reporta.
 //
 // Requiere `npm run preparar-excalidraw` antes (lo corren `dev` y `build`).
 //
@@ -33,6 +38,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, relative, resolve } from "node:path";
 import { chromium } from "playwright";
+import ts from "typescript";
 
 const FRONTEND = resolve(import.meta.dirname, "..");
 const require = createRequire(join(FRONTEND, "package.json"));
@@ -104,12 +110,25 @@ if (copiadas === 0) {
 const tmp = mkdtempSync(join(tmpdir(), "smoke-excalidraw-fuentes-"));
 const salida = join(tmp, "dist");
 writeFileSync(
+  join(tmp, "excalidrawFuentes.js"),
+  ts.transpileModule(readFileSync(join(FRONTEND, "lib", "excalidrawFuentes.ts"), "utf8"), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  }).outputText,
+);
+writeFileSync(
   join(tmp, "entrada.js"),
   `import { createElement } from "react";
+import { sinRespaldoRemoto } from "./excalidrawFuentes.js";
+window.__violaciones = [];
+document.addEventListener("securitypolicyviolation", (e) =>
+  window.__violaciones.push(e.effectiveDirective + " " + e.blockedURI));
 import { createRoot } from "react-dom/client";
 // Igual que cargarExcalidraw(): la ruta se define ANTES de cargar el paquete
 // (salvo en la corrida de control, ?sin-ruta).
-if (!location.search.includes("sin-ruta")) window.EXCALIDRAW_ASSET_PATH = ${JSON.stringify(ruta)};
+if (!location.search.includes("sin-ruta")) {
+  window.EXCALIDRAW_ASSET_PATH = ${JSON.stringify(ruta)};
+  sinRespaldoRemoto();
+}
 import("@excalidraw/excalidraw").then(async (ex) => {
   const familias = Object.entries(ex.FONT_FAMILY);
   const elementos = ex.convertToExcalidrawElements(
@@ -151,9 +170,13 @@ const PAGINA = `<!doctype html><html><head><meta charset="utf-8">
 <style>html,body,#raiz{margin:0;height:100%}</style></head>
 <body><div id="raiz"></div><script src="/app.js"></script></body></html>`;
 const TIPOS = { ".js": "text/javascript", ".woff2": "font/woff2" };
+// La parte de la CSP de la app (`tauri.conf.json`) que cuenta para las fuentes.
+const CSP = "font-src 'self' data:";
 const servidor = createServer((req, res) => {
   const url = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  if (url === "/") return res.writeHead(200, { "content-type": "text/html" }).end(PAGINA);
+  if (url === "/") {
+    return res.writeHead(200, { "content-type": "text/html", "content-security-policy": CSP }).end(PAGINA);
+  }
   // Lo de `public/` se sirve como lo sirve la app; el resto, del bundle.
   const base = url.startsWith(ruta) ? PUBLICO : salida;
   const archivo = normalize(join(base, url));
@@ -191,11 +214,12 @@ async function abrir(navegador, consulta) {
   await pagina.waitForLoadState("networkidle");
   const svg = await pagina.evaluate(() => window.__svg);
   const familias = await pagina.evaluate(() => window.__familias);
+  const violaciones = await pagina.evaluate(() => window.__violaciones);
   const cargadas = await pagina.evaluate(() =>
     [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replaceAll('"', "")),
   );
   await pagina.close();
-  return { externas, fuentesLocales, svg, familias, cargadas };
+  return { externas, fuentesLocales, svg, familias, cargadas, violaciones };
 }
 
 const navegador = await chromium.launch();
@@ -225,13 +249,22 @@ try {
     `el SVG exportado incrusta las fuentes en base64 (${incrustadas} @font-face)`,
   );
   comprobar(!/esm\.sh/.test(con.svg), "el SVG exportado no referencia esm.sh");
+  const aEsmCsp = con.violaciones.filter((v) => v.includes("esm.sh"));
+  comprobar(
+    con.violaciones.length === 0,
+    `con la CSP de la app, ninguna violación (${con.violaciones.length}; a esm.sh: ${aEsmCsp.length})`,
+  );
 
-  // 4. Control: sin la variable, el defecto se reproduce.
+  // 5. Control: sin la variable, el defecto se reproduce.
   const sin = await abrir(navegador, "?sin-ruta");
   const aEsm = sin.externas.filter((u) => u.includes("esm.sh"));
   comprobar(
     aEsm.length > 0,
     `control: sin EXCALIDRAW_ASSET_PATH las pide a esm.sh (${aEsm.length} peticiones abortadas, p. ej. ${aEsm[0] ?? "-"})`,
+  );
+  comprobar(
+    sin.violaciones.some((v) => v.includes("esm.sh")),
+    `control: la CSP reporta el respaldo a esm.sh (${sin.violaciones.length} violaciones)`,
   );
 } finally {
   await navegador.close();
