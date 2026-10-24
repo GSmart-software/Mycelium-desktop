@@ -59,7 +59,7 @@ import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
 import { renderDrawioIn } from "@/lib/drawioRender";
-import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
 import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import {
@@ -1596,18 +1596,11 @@ export function NoteEditor({
         }
         return;
       }
-      const anchor = (event.target as HTMLElement).closest("a");
-      if (!anchor) return;
-      const href = anchor.getAttribute("href") ?? "";
       // Un enlace a una página web abre el navegador del sistema y NO navega la
-      // webview: hacerlo se llevaba la app entera (`DEF-101`).
-      if (manejarClicDeEnlace(event, href)) return;
-      if (href.startsWith("#wikilink:")) {
-        event.preventDefault();
-        openByTitle(decodeURIComponent(href.slice("#wikilink:".length)));
-      } else if (href.startsWith("#tag:")) {
-        event.preventDefault(); // la vista de tags llega en una versión futura
-      }
+      // webview (`DEF-101`); un wikilink abre la nota; el resto —etiquetas, la
+      // vista de tags llega en una versión futura, y lo que el saneo dejó sin
+      // destino— no navega nunca (`DEF-160`).
+      atenderClicEnEnlace(event, { abrirNota: openByTitle });
     },
     [openByTitle, router],
   );

@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { resolveWikilink } from "@/lib/editor/wikilink";
 import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
 import { resolverReferencia } from "@/lib/wikilinks";
-import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
 import { aDate, type Ocurrencia, type Repeticion } from "@/lib/recordatorios";
 import { CALENDAR_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -45,17 +45,9 @@ export function useEnlacesDelVault(alAbrir?: () => void) {
   /** Clic dentro del detalle renderizado: enlaces del vault y de la web. */
   const onClicDetalle = useCallback(
     (event: React.MouseEvent) => {
-      const a = (event.target as HTMLElement).closest("a");
-      if (!a) return;
-      const href = a.getAttribute("href") ?? "";
-      // Un enlace a la web va al navegador del sistema (`DEF-101`).
-      if (manejarClicDeEnlace(event, href)) return;
-      if (href.startsWith("#wikilink:")) {
-        event.preventDefault();
-        abrir(decodeURIComponent(href.slice("#wikilink:".length)));
-      } else if (href.startsWith("#")) {
-        event.preventDefault();
-      }
+      // Un enlace a la web va al navegador del sistema (`DEF-101`); ningún
+      // `<a>` navega la webview (`DEF-160`).
+      atenderClicEnEnlace(event, { abrirNota: abrir });
     },
     [abrir],
   );

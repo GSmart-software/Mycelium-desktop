@@ -27,6 +27,7 @@ import {
 import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from "@/lib/frontmatter";
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { MARCADOR_TAREA_RE, estaMarcada, estadoDeSimbolo } from "@/lib/estadosTarea";
+import { sanearUrlsHast, type NodoHast } from "@/lib/enlacesExternos";
 
 type MdNode = {
   type: string;
@@ -623,6 +624,18 @@ function nodoDeVideo(video: VideoEmbebido): MdNode {
 }
 
 /**
+ * Plugin rehype: quita del HTML todo `href`/`src` con un esquema que no sea de
+ * los nuestros (`DEF-160`). Sin esto, `[a](javascript:…)` y `<javascript:…>`
+ * salían como `<a href="javascript:…">` y la webview los ejecutaba al hacer
+ * clic: con los comandos de Tauri al alcance de JS, eso es ejecutar código en el
+ * equipo. Va al FINAL de la cadena para cubrir también lo que agregan los demás
+ * plugins (vídeos, KaTeX). La regla vive en `lib/enlacesExternos.ts`.
+ */
+function rehypeSanearUrls() {
+  return (tree: NodoHast) => sanearUrlsHast(tree);
+}
+
+/**
  * La cadena de plugins, en UNA sola definición. Se instancia dos veces porque
  * el marcado de líneas solo lo quiere la vista de lectura: en una exportación a
  * PDF o en una tarjeta de canvas esos atributos serían ruido.
@@ -644,6 +657,7 @@ function crearProcesador(conLineas: boolean) {
     // mermaid/excalidraw se renderizan aparte (HU-18/HU-16); no resaltarlos
     .use(rehypeHighlight, { plainText: ["mermaid", "excalidraw"] })
     .use(rehypeKatex)
+    .use(rehypeSanearUrls)
     .use(rehypeStringify);
 }
 
@@ -664,7 +678,7 @@ const HTML_ESCAPES: Record<string, string> = {
   '"': "&quot;",
 };
 
-const escapar = (s: string): string => s.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]);
+export const escapar = (s: string): string => s.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]);
 
 /**
  * Renderiza un valor como markdown EN LÍNEA (sin el `<p>` envolvente): así un

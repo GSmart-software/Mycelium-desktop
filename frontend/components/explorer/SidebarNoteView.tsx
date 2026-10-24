@@ -23,6 +23,7 @@ import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { useEnlacesDelVault } from "@/components/recordatorios/comun";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -184,6 +185,9 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
 function ReadOnlyNote({ notaId }: { notaId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState("");
+  // Los enlaces se atienden como en la vista de lectura: wikilink → la nota,
+  // web → el navegador, el resto no navega la webview (`DEF-160`).
+  const { onClicDetalle } = useEnlacesDelVault();
   // Las imágenes se resuelven contra la lista de archivos del vault y la
   // carpeta de la nota (`DEF-126`): si cambian, hay que volver a resolverlas.
   const otros = useVaultStore((s) => s.otros);
@@ -225,7 +229,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
   const inner = useHtmlDecorable(html, [notaId, otros, carpeta]);
 
   return (
-    <div ref={containerRef} className="mic-preview mic-layout-read">
+    <div ref={containerRef} className="mic-preview mic-layout-read" onClick={onClicDetalle}>
       <div dangerouslySetInnerHTML={inner} />
     </div>
   );
