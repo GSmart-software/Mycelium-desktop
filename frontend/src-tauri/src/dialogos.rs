@@ -81,6 +81,34 @@ pub async fn elegir_carpeta(
     Ok(Some(ruta.to_string_lossy().to_string()))
 }
 
+/// Abre el selector de archivos nativo para elegir un `.zip` a importar, lo
+/// anota para esta ventana como una carpeta elegida y devuelve su ruta (o
+/// `null` si se canceló). Es lo único que habilita a `extraer_zip_importacion`
+/// (`DEF-165`): Rust necesita saber de qué archivo viene lo extraído para
+/// pasarle su marca de la web, y la webview no puede inventarle una ruta.
+#[tauri::command]
+pub async fn elegir_zip(ventana: tauri::Window, titulo: Option<String>) -> Result<Option<String>, String> {
+    let titulo = titulo.unwrap_or_else(|| "Elegí un .zip".to_string());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    ventana
+        .app_handle()
+        .dialog()
+        .file()
+        .set_title(&titulo)
+        .set_parent(&ventana)
+        .add_filter("Archivo .zip", &["zip"])
+        .pick_file(move |elegido| {
+            let _ = tx.send(elegido);
+        });
+    let elegido = rx.await.map_err(|_| "El selector de archivos se cerró sin responder.".to_string())?;
+    let Some(ruta) = elegido else { return Ok(None) };
+    let ruta = ruta
+        .into_path()
+        .map_err(|e| format!("El archivo elegido no es una ruta del disco: {e}"))?;
+    anotar(&ventana.state::<ElegidasState>(), ventana.label(), &ruta)?;
+    Ok(Some(ruta.to_string_lossy().to_string()))
+}
+
 /// Anota `ruta` como elegida por la ventana `label`.
 fn anotar(state: &ElegidasState, label: &str, ruta: &Path) -> Result<(), String> {
     let canonica = ruta

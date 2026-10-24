@@ -584,22 +584,71 @@ pub struct ResultadoCopia {
     pub copiados: Vec<String>,
     /// Lo que no se copió, con el motivo (`ruta: motivo`), en ruta del origen.
     pub omitidos: Vec<String>,
+    /// Lo que la regla fija de la importación dejó fuera (`DEF-165`, ver
+    /// `excluida_al_importar`), en ruta del origen: las carpetas con `/` al
+    /// final y sin su contenido (`.git/`, no cada objeto de adentro).
+    pub excluidos: Vec<String>,
+    /// De lo copiado, lo que conviene revisar: instrucciones para agentes de IA
+    /// (`CLAUDE.md`, `AGENTS.md`…), en ruta del vault. Se copian —son notas—,
+    /// pero un agente que abra el vault las obedece (ver `es_instruccion_ia`).
+    pub revisar: Vec<String>,
 }
 
-/// Archivos (no directorios) del árbol `origen` que se copian, en rutas
-/// relativas POSIX, y los directorios —también los vacíos— que hay que crear.
-/// Aplica el `.mycignore` del **origen** (o el default: los directorios ocultos
-/// como `.obsidian/` y `.git/` no entran), `.mycelium` siempre fuera. El
-/// `.mycignore` de la raíz del origen tampoco se copia: es la configuración de
-/// aquel vault, ya aplicada acá, y en la raíz de este reemplazaría la suya.
-/// Los enlaces simbólicos no se siguen (igual que el recorrido del vault).
-fn arbol_a_copiar(origen: &Path) -> Result<(Vec<String>, Vec<String>), String> {
+/// Regla fija de la importación (`DEF-165`): **nada oculto entra** —archivo o
+/// carpeta cuyo nombre empiece con `.`, en cualquier nivel: `.claude/`, `.git/`,
+/// `.mcp.json`, `.vscode/`, `.obsidian/`, `.mycignore`, `.mycelium/`…— ni las
+/// carpetas de dependencias y build del default del `.mycignore`
+/// (`node_modules/`, `target/`, `dist/`, `out/`, en cualquier nivel).
+///
+/// > [!warning] El `.mycignore` del origen NO se honra
+/// > Hasta `DEF-165` decidía él: un zip con un `.mycignore` vacío o con
+/// > `!.claude/` metía en el vault `.claude/settings.json` (hooks que Claude Code
+/// > ejecuta), `.git/` (con `core.fsmonitor`, que git ejecuta) y `.mcp.json`
+/// > (servidores MCP que el agente lanza). Y aun con el default entraban
+/// > `.mcp.json` y cualquier archivo oculto suelto, porque `.*/` solo excluye
+/// > directorios. Después el `.mycignore` del vault los escondía del explorador:
+/// > el usuario no los veía, y las herramientas sí.
+fn excluida_al_importar(relativa: &str, es_dir: bool, patrones: &[crate::mycignore::Patron]) -> bool {
+    let nombre = relativa.rsplit('/').next().unwrap_or(relativa);
+    nombre.starts_with('.') || crate::mycignore::ignorada(relativa, es_dir, patrones)
+}
+
+/// `true` si `nombre` es un archivo de instrucciones para agentes de IA:
+/// `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` y sus variantes (`CLAUDE.local.md`,
+/// `CLAUDE (mycelium-ia v1.7.0).md`, `AGENTS.override.md`), sin importar
+/// mayúsculas. `CLAUDETTE.md` no: después del prefijo tiene que venir un
+/// separador.
+fn es_instruccion_ia(nombre: &str) -> bool {
+    let n = nombre.to_lowercase();
+    if !n.ends_with(".md") {
+        return false;
+    }
+    ["claude", "agents", "gemini"].iter().any(|prefijo| {
+        n.strip_prefix(prefijo)
+            .and_then(|resto| resto.chars().next())
+            .is_some_and(|c| matches!(c, '.' | ' ' | '-' | '_' | '('))
+    })
+}
+
+/// Lo que se copia de un árbol de origen: archivos (no directorios) en rutas
+/// relativas POSIX, los directorios —también los vacíos— que hay que crear y lo
+/// que la regla fija dejó fuera.
+struct ArbolACopiar {
+    archivos: Vec<String>,
+    dirs: Vec<String>,
+    excluidos: Vec<String>,
+}
+
+/// Recorre el árbol `origen` aplicando la regla fija de la importación
+/// (`excluida_al_importar`). Lo excluido se anota una sola vez: una carpeta
+/// excluida no se recorre. Los enlaces simbólicos no se siguen (igual que el
+/// recorrido del vault).
+fn arbol_a_copiar(origen: &Path) -> Result<ArbolACopiar, String> {
     fn recorrer(
         dir: &Path,
         base: &Path,
         patrones: &[crate::mycignore::Patron],
-        archivos: &mut Vec<String>,
-        dirs: &mut Vec<String>,
+        out: &mut ArbolACopiar,
     ) -> Result<(), String> {
         let entradas = std::fs::read_dir(dir)
             .map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
@@ -607,28 +656,34 @@ fn arbol_a_copiar(origen: &Path) -> Result<(Vec<String>, Vec<String>), String> {
             let entrada =
                 entrada.map_err(|e| format!("No se pudo leer {}: {e}", dir.display()))?;
             let Ok(tipo) = entrada.file_type() else { continue };
+            if !tipo.is_dir() && !tipo.is_file() {
+                continue;
+            }
             let ruta = entrada.path();
             let relativa = rel_posix(base, &ruta)?;
-            if crate::mycignore::ignorada(&relativa, tipo.is_dir(), patrones) {
+            if excluida_al_importar(&relativa, tipo.is_dir(), patrones) {
+                out.excluidos
+                    .push(if tipo.is_dir() { format!("{relativa}/") } else { relativa });
                 continue;
             }
             if tipo.is_dir() {
-                dirs.push(relativa);
-                recorrer(&ruta, base, patrones, archivos, dirs)?;
-            } else if tipo.is_file() && relativa != crate::mycignore::ARCHIVO {
-                archivos.push(relativa);
+                out.dirs.push(relativa);
+                recorrer(&ruta, base, patrones, out)?;
+            } else {
+                out.archivos.push(relativa);
             }
         }
         Ok(())
     }
 
-    let patrones = crate::mycignore::cargar(origen);
-    let mut archivos = Vec::new();
-    let mut dirs = Vec::new();
-    recorrer(origen, origen, &patrones, &mut archivos, &mut dirs)?;
-    archivos.sort();
-    dirs.sort();
-    Ok((archivos, dirs))
+    // Solo el default: el `.mycignore` que traiga el origen no se lee.
+    let patrones = crate::mycignore::patrones_default();
+    let mut out = ArbolACopiar { archivos: Vec::new(), dirs: Vec::new(), excluidos: Vec::new() };
+    recorrer(origen, origen, &patrones, &mut out)?;
+    out.archivos.sort();
+    out.dirs.sort();
+    out.excluidos.sort();
+    Ok(out)
 }
 
 /// Valida origen y destino de una copia: el vault existe, el origen es una
@@ -670,8 +725,8 @@ pub(crate) fn conflictos_de_copia_en(
     destino_rel: String,
 ) -> Result<Vec<String>, String> {
     let (origen_dir, destino) = preparar_copia(&vault_ruta, &origen, &destino_rel)?;
-    let (archivos, _) = arbol_a_copiar(&origen_dir)?;
-    Ok(archivos
+    Ok(arbol_a_copiar(&origen_dir)?
+        .archivos
         .into_iter()
         .filter(|r| destino.join(r).exists())
         .collect())
@@ -697,8 +752,9 @@ fn nombre_libre(ruta: &Path) -> PathBuf {
 }
 
 /// Copia el árbol `origen` —todo: notas, imágenes, PDF, lo que haya— dentro de
-/// `destino_rel` del vault, respetando el `.mycignore` del origen (ver
-/// `arbol_a_copiar`). Devuelve qué quedó copiado y qué se omitió; el indexado lo
+/// `destino_rel` del vault, salvo lo oculto y las carpetas de dependencias
+/// (`excluida_al_importar`, `DEF-165`). Devuelve qué quedó copiado, qué se
+/// omitió, qué dejó fuera la regla fija y qué conviene revisar; el indexado lo
 /// hace después el frontend (`indexarVault`), una sola vez.
 ///
 /// Un archivo cuyo destino ya existe sigue `decisiones` (clave = su ruta
@@ -716,9 +772,9 @@ pub(crate) fn copiar_arbol_en(
     decisiones: std::collections::HashMap<String, DecisionConflicto>,
 ) -> Result<ResultadoCopia, String> {
     let (origen_dir, destino) = preparar_copia(&vault_ruta, &origen, &destino_rel)?;
-    let (archivos, dirs) = arbol_a_copiar(&origen_dir)?;
+    let ArbolACopiar { archivos, dirs, excluidos } = arbol_a_copiar(&origen_dir)?;
     let vault = PathBuf::from(&vault_ruta);
-    let mut out = ResultadoCopia::default();
+    let mut out = ResultadoCopia { excluidos, ..Default::default() };
 
     std::fs::create_dir_all(&destino)
         .map_err(|e| format!("No se pudo crear {}: {e}", destino.display()))?;
@@ -744,8 +800,18 @@ pub(crate) fn copiar_arbol_en(
                 DecisionConflicto::Renombrar => objetivo = nombre_libre(&objetivo),
             }
         }
+        // `fs::copy` es `CopyFileExW` en Windows: copia también los flujos
+        // alternativos, así que la marca de la web (`:Zone.Identifier`) llega al
+        // vault con el archivo (test `copiar_arbol_conserva_la_marca_de_la_web`).
         match std::fs::copy(origen_dir.join(&relativa), &objetivo) {
-            Ok(_) => out.copiados.push(rel_posix(&vault, &objetivo)?),
+            Ok(_) => {
+                let en_vault = rel_posix(&vault, &objetivo)?;
+                let nombre = objetivo.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+                if es_instruccion_ia(&nombre) {
+                    out.revisar.push(en_vault.clone());
+                }
+                out.copiados.push(en_vault);
+            }
             Err(e) => out.omitidos.push(format!("{relativa}: {e}")),
         }
     }
@@ -756,8 +822,10 @@ pub(crate) fn copiar_arbol_en(
 //
 // Lo que no llega como carpeta —un `.zip`, archivos soltados o elegidos con el
 // selector— se baja primero a una carpeta temporal y sigue el MISMO camino que
-// una carpeta: `conflictos_de_copia` + `copiar_arbol`. Así el `.mycignore`, los
-// conflictos y los adjuntos se resuelven en un solo lugar.
+// una carpeta: `conflictos_de_copia` + `copiar_arbol`. Así lo que no se importa,
+// los conflictos y los adjuntos se resuelven en un solo lugar. El `.zip` lo
+// extrae Rust (`extraer_zip_en`, `DEF-165`); lo soltado o elegido llega por
+// `escribir_trozo`.
 //
 // Los bytes viajan por **IPC binario** (`FUN-S-26`): el cuerpo crudo de la
 // llamada (`InvokeBody::Raw`) y los datos en encabezados, un trozo por llamada.
@@ -882,6 +950,111 @@ pub fn escribir_trozo_importacion(request: tauri::ipc::Request<'_>) -> Result<()
 pub fn borrar_temporal_importacion(dir: String) -> Result<(), String> {
     let ruta = temporal_valida(&dir)?;
     std::fs::remove_dir_all(&ruta).map_err(|e| format!("No se pudo borrar {dir}: {e}"))
+}
+
+// ── Marca de la web (`DEF-165`) ───────────────────────────────────────────────
+//
+// Windows anota de dónde vino un archivo en el flujo alternativo
+// `:Zone.Identifier` (Mark-of-the-Web): es lo que hace que Office abra un
+// documento bajado de internet en Vista protegida, con las macros apagadas, y que
+// SmartScreen avise antes de ejecutar algo. Un archivo extraído de un zip sin
+// copiarle la marca del zip queda «limpio»: la importación lo lavaba.
+
+/// El contenido del `:Zone.Identifier` de `ruta`, si tiene (solo Windows).
+#[cfg(windows)]
+fn marca_de_la_web(ruta: &Path) -> Option<Vec<u8>> {
+    let mut flujo = ruta.as_os_str().to_owned();
+    flujo.push(":Zone.Identifier");
+    std::fs::read(PathBuf::from(flujo)).ok()
+}
+
+#[cfg(not(windows))]
+fn marca_de_la_web(_ruta: &Path) -> Option<Vec<u8>> {
+    None
+}
+
+/// Le pone a `ruta` la marca `zona` (el contenido de un `:Zone.Identifier`).
+#[cfg(windows)]
+fn marcar(ruta: &Path, zona: &[u8]) -> std::io::Result<()> {
+    let mut flujo = ruta.as_os_str().to_owned();
+    flujo.push(":Zone.Identifier");
+    std::fs::write(PathBuf::from(flujo), zona)
+}
+
+#[cfg(not(windows))]
+fn marcar(_ruta: &Path, _zona: &[u8]) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// Extrae el `.zip` `zip` dentro de la carpeta `dir` y devuelve cuántos archivos
+/// escribió. Antes lo abría la webview con JSZip y bajaba cada archivo por
+/// `escribir_trozo`: Rust no sabía de qué zip venían, y los archivos llegaban al
+/// vault sin la marca de la web (`DEF-165`). Ahora:
+///
+/// - **la marca del zip pasa a cada archivo extraído** —lo mismo que hace el
+///   Explorador de Windows—; si el zip no tiene, no se inventa una;
+/// - una entrada que se sale de su carpeta (`../`, ruta absoluta, unidad) hace
+///   fallar la extracción entera: un zip así no es un vault, es un ataque;
+/// - los enlaces simbólicos no se extraen (el recorrido tampoco los sigue).
+///
+/// Lo oculto (`.claude/`, `.git/`…) sí se extrae a la temporal: lo descarta
+/// `copiar_arbol` con la misma regla que a una carpeta, y así figura en el
+/// resumen de lo que no se importó.
+pub(crate) fn extraer_zip_en(zip: &Path, dir: &Path) -> Result<usize, String> {
+    let archivo =
+        std::fs::File::open(zip).map_err(|e| format!("No se pudo abrir {}: {e}", zip.display()))?;
+    let mut zip_archivo = zip::ZipArchive::new(std::io::BufReader::new(archivo))
+        .map_err(|e| format!("{} no es un .zip válido: {e}", zip.display()))?;
+    let zona = marca_de_la_web(zip);
+    let mut escritos = 0usize;
+    for i in 0..zip_archivo.len() {
+        let mut entrada =
+            zip_archivo.by_index(i).map_err(|e| format!("No se pudo leer el .zip: {e}"))?;
+        let nombre = entrada.name().to_string();
+        // `enclosed_name` ya rechaza `..` y lo absoluto; `ruta_segura` es la
+        // misma defensa que usa el resto de la app, por las dudas.
+        let relativa = entrada
+            .enclosed_name()
+            .ok_or_else(|| format!("El .zip tiene una ruta no permitida: {nombre}"))?;
+        let destino = ruta_segura(dir, &relativa.to_string_lossy())?;
+        if destino == dir || entrada.is_symlink() {
+            continue;
+        }
+        if entrada.is_dir() {
+            std::fs::create_dir_all(&destino)
+                .map_err(|e| format!("No se pudo crear {}: {e}", destino.display()))?;
+            continue;
+        }
+        if let Some(padre) = destino.parent() {
+            std::fs::create_dir_all(padre)
+                .map_err(|e| format!("No se pudo crear {}: {e}", padre.display()))?;
+        }
+        let mut salida = std::fs::File::create(&destino)
+            .map_err(|e| format!("No se pudo escribir {}: {e}", destino.display()))?;
+        std::io::copy(&mut entrada, &mut salida)
+            .map_err(|e| format!("No se pudo extraer {nombre}: {e}"))?;
+        drop(salida);
+        if let Some(zona) = &zona {
+            // Sin la marca el archivo es más peligroso que con ella: si no se
+            // puede poner, la extracción falla en vez de seguir sin avisar.
+            marcar(&destino, zona)
+                .map_err(|e| format!("No se pudo marcar {} como descargado: {e}", destino.display()))?;
+        }
+        escritos += 1;
+    }
+    Ok(escritos)
+}
+
+/// Extrae un `.zip` **elegido en el selector nativo** (`dialogos::elegir_zip`)
+/// en una carpeta temporal de importación (ver `extraer_zip_en`). De ahí sigue
+/// el camino de una carpeta: `conflictos_de_copia` + `copiar_arbol`.
+#[tauri::command(async)]
+pub fn extraer_zip_importacion(ventana: tauri::Window, zip: String, dir: String) -> Result<usize, String> {
+    let zip = crate::dialogos::elegida_por(&ventana, &zip)?;
+    if !zip.is_file() {
+        return Err(format!("No es un archivo: {}", zip.display()));
+    }
+    extraer_zip_en(&zip, &temporal_valida(&dir)?)
 }
 
 // ── Comandos (`DEF-161`) ─────────────────────────────────────────────────────
@@ -1037,11 +1210,10 @@ mod tests {
         std::fs::remove_dir_all(&raiz).unwrap();
     }
 
-    /// Criterio de D9: el `.mycignore` del origen decide qué entra; sin él, el
-    /// default deja fuera los directorios ocultos (`.obsidian/`). Los adjuntos
-    /// entran como cualquier archivo, y las carpetas vacías también.
+    /// Criterio de D9: los adjuntos entran como cualquier archivo, y las
+    /// carpetas vacías también; lo oculto (`.obsidian/`) no.
     #[test]
-    fn copiar_arbol_respeta_el_mycignore_del_origen_y_copia_adjuntos() {
+    fn copiar_arbol_copia_adjuntos_y_deja_fuera_lo_oculto() {
         let raiz = arbol("copia-ignore");
         let vault = raiz.join("vault");
         let origen = raiz.join("obsidian");
@@ -1056,7 +1228,6 @@ mod tests {
         let v = vault.to_string_lossy().to_string();
         let o = origen.to_string_lossy().to_string();
 
-        // Sin `.mycignore` en el origen: el default.
         let r = copiar_arbol_en(v.clone(), o.clone(), "Importado".into(), Default::default()).unwrap();
         let mut copiados = r.copiados.clone();
         copiados.sort();
@@ -1069,6 +1240,8 @@ mod tests {
             ]
         );
         assert!(r.omitidos.is_empty());
+        assert_eq!(r.excluidos, vec![".obsidian/"]);
+        assert!(r.revisar.is_empty());
         assert!(!vault.join("Importado/.obsidian").exists(), ".obsidian/ no entra");
         assert!(vault.join("Importado/Vacía").is_dir(), "la carpeta vacía también");
         assert_eq!(
@@ -1077,17 +1250,229 @@ mod tests {
             "los binarios se copian byte a byte"
         );
 
-        // Con `.mycignore` en el origen: manda el suyo (y él no se copia).
-        std::fs::write(origen.join(".mycignore"), "adjuntos/\n*.pdf\n").unwrap();
-        let r = copiar_arbol_en(v.clone(), o.clone(), "Otra".into(), Default::default()).unwrap();
-        let mut copiados = r.copiados.clone();
-        copiados.sort();
-        assert_eq!(
-            copiados,
-            vec!["Otra/.obsidian/app.json", "Otra/Notas/plan.md"],
-            "su .mycignore reemplaza al default: .obsidian/ ya no está ignorado"
+        std::fs::remove_dir_all(&raiz).unwrap();
+    }
+
+    /// `DEF-165`: el `.mycignore` del origen no decide nada. Uno que des-ignora
+    /// todo (`!.claude/`, vacío) no mete `.claude/`, `.git/` ni `.mcp.json`; ni
+    /// los archivos ocultos sueltos, en la raíz o anidados, ni las carpetas de
+    /// dependencias. `CLAUDE.md` y `AGENTS.md` sí entran, y figuran para revisar.
+    #[test]
+    fn copiar_arbol_nunca_trae_lo_oculto_aunque_el_origen_lo_pida() {
+        let raiz = arbol("copia-ocultos");
+        let vault = raiz.join("vault");
+        let origen = raiz.join("origen");
+        std::fs::create_dir_all(&vault).unwrap();
+        for d in [".claude/commands", ".git/hooks", "Notas/.vscode", "Notas/sub", "node_modules/x", "Proy/target"] {
+            std::fs::create_dir_all(origen.join(d)).unwrap();
+        }
+        let archivos = [
+            ".claude/settings.json",
+            ".claude/commands/hola.md",
+            ".git/config",
+            ".mcp.json",
+            ".env",
+            ".mycignore",
+            "Notas/.vscode/settings.json",
+            "Notas/sub/.oculto.md",
+            "node_modules/x/index.js",
+            "Proy/target/a.bin",
+            "CLAUDE.md",
+            "Notas/AGENTS.md",
+            "CLAUDE (mycelium-ia v1.7.0).md",
+            "Notas/sub/nota.md",
+            "Claudette.md",
+        ];
+        for a in archivos {
+            std::fs::write(origen.join(a), "x").unwrap();
+        }
+        let v = vault.to_string_lossy().to_string();
+        let o = origen.to_string_lossy().to_string();
+
+        for ignore in ["!.claude/\n!.git/\n", "", "!.*\n!.*/\n"] {
+            std::fs::write(origen.join(".mycignore"), ignore).unwrap();
+            let _ = std::fs::remove_dir_all(&vault);
+            std::fs::create_dir_all(&vault).unwrap();
+
+            let conflictos = conflictos_de_copia_en(v.clone(), o.clone(), "".into()).unwrap();
+            assert!(conflictos.is_empty());
+            let r = copiar_arbol_en(v.clone(), o.clone(), "".into(), Default::default()).unwrap();
+            let mut copiados = r.copiados.clone();
+            copiados.sort();
+            assert_eq!(
+                copiados,
+                vec!["CLAUDE (mycelium-ia v1.7.0).md", "CLAUDE.md", "Claudette.md", "Notas/AGENTS.md", "Notas/sub/nota.md"],
+                "con .mycignore {ignore:?}"
+            );
+            assert_eq!(
+                r.excluidos,
+                vec![
+                    ".claude/",
+                    ".env",
+                    ".git/",
+                    ".mcp.json",
+                    ".mycignore",
+                    "Notas/.vscode/",
+                    "Notas/sub/.oculto.md",
+                    "Proy/target/",
+                    "node_modules/",
+                ]
+            );
+            let mut revisar = r.revisar.clone();
+            revisar.sort();
+            assert_eq!(revisar, vec!["CLAUDE (mycelium-ia v1.7.0).md", "CLAUDE.md", "Notas/AGENTS.md"]);
+            for oculto in [".claude", ".git", ".mcp.json", ".env", ".mycignore", "Notas/.vscode", "Notas/sub/.oculto.md", "node_modules"] {
+                assert!(!vault.join(oculto).exists(), "{oculto} no debía entrar");
+            }
+        }
+
+        std::fs::remove_dir_all(&raiz).unwrap();
+    }
+
+    /// `.mycelium/` del origen —índice, papelera, calendario de otro vault— no
+    /// entra: es oculto como cualquier otro.
+    #[test]
+    fn copiar_arbol_no_trae_el_mycelium_del_origen() {
+        let raiz = arbol("copia-mycelium");
+        let vault = raiz.join("vault");
+        let origen = raiz.join("origen");
+        std::fs::create_dir_all(&vault).unwrap();
+        std::fs::create_dir_all(origen.join(".mycelium/.trash")).unwrap();
+        std::fs::write(origen.join(".mycelium/recordatorios.json"), "[]").unwrap();
+        std::fs::write(origen.join("nota.md"), "x").unwrap();
+        let r = copiar_arbol_en(
+            vault.to_string_lossy().to_string(),
+            origen.to_string_lossy().to_string(),
+            "".into(),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(r.copiados, vec!["nota.md"]);
+        assert_eq!(r.excluidos, vec![".mycelium/"]);
+        assert!(!vault.join(".mycelium").exists());
+        std::fs::remove_dir_all(&raiz).unwrap();
+    }
+
+    #[test]
+    fn reconoce_las_instrucciones_para_agentes() {
+        for si in ["CLAUDE.md", "claude.md", "AGENTS.md", "GEMINI.md", "CLAUDE.local.md", "CLAUDE (mycelium-ia v2.1.0).md", "AGENTS.override.md"] {
+            assert!(es_instruccion_ia(si), "{si}");
+        }
+        for no in ["Claudette.md", "agentes.md", "CLAUDE.txt", "notas sobre CLAUDE.md", "CLAUDE"] {
+            assert!(!es_instruccion_ia(no), "{no}");
+        }
+    }
+
+    /// Un `.zip` de prueba en `ruta` con las entradas `(nombre, contenido)`;
+    /// un nombre que termina en `/` es una carpeta.
+    fn zip_de_prueba(ruta: &Path, entradas: &[(&str, &[u8])]) {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(ruta).unwrap());
+        let opciones = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        for (nombre, contenido) in entradas {
+            if nombre.ends_with('/') {
+                zip.add_directory(*nombre, opciones).unwrap();
+            } else {
+                zip.start_file(*nombre, opciones).unwrap();
+                zip.write_all(contenido).unwrap();
+            }
+        }
+        zip.finish().unwrap();
+    }
+
+    /// `DEF-165`: el zip lo extrae Rust, con lo oculto incluido en la temporal
+    /// (lo descarta `copiar_arbol`), y sin dejar que una entrada se salga.
+    #[test]
+    fn extraer_zip_extrae_el_arbol_y_rechaza_entradas_que_se_salen() {
+        let raiz = arbol("zip-extraer");
+        let zip = raiz.join("vault.zip");
+        zip_de_prueba(
+            &zip,
+            &[
+                ("Vault/", b""),
+                ("Vault/nota.md", b"# hola"),
+                ("Vault/Vacía/", b""),
+                ("Vault/.claude/settings.json", b"{}"),
+                ("Vault/img.png", &[0, 1, 2]),
+            ],
         );
-        assert!(!vault.join("Otra/.mycignore").exists());
+        let dir = raiz.join("temporal");
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(extraer_zip_en(&zip, &dir).unwrap(), 3);
+        assert_eq!(std::fs::read(dir.join("Vault/nota.md")).unwrap(), b"# hola");
+        assert_eq!(std::fs::read(dir.join("Vault/img.png")).unwrap(), vec![0, 1, 2]);
+        assert!(dir.join("Vault/Vacía").is_dir());
+
+        // Y de la temporal al vault, lo oculto queda fuera.
+        let vault = raiz.join("vault");
+        std::fs::create_dir_all(&vault).unwrap();
+        let r = copiar_arbol_en(
+            vault.to_string_lossy().to_string(),
+            dir.to_string_lossy().to_string(),
+            "".into(),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(r.excluidos, vec!["Vault/.claude/"]);
+        assert!(!vault.join("Vault/.claude").exists());
+
+        let mut malos = vec!["../fuera.md", "/fuera.md", "a/../../fuera.md"];
+        if cfg!(windows) {
+            malos.push("C:/fuera.md");
+        }
+        for malo in malos {
+            let zip_malo = raiz.join("malo.zip");
+            zip_de_prueba(&zip_malo, &[("bien.md", b"x"), (malo, b"x")]);
+            let destino = raiz.join("malo");
+            let _ = std::fs::remove_dir_all(&destino);
+            std::fs::create_dir_all(&destino).unwrap();
+            assert!(extraer_zip_en(&zip_malo, &destino).is_err(), "{malo:?} debía rechazarse");
+            assert!(!raiz.join("fuera.md").exists());
+        }
+        assert!(extraer_zip_en(&raiz.join("vault/Vault/nota.md"), &dir).is_err(), "no es un zip");
+
+        std::fs::remove_dir_all(&raiz).unwrap();
+    }
+
+    /// `DEF-165`: la marca de la web del zip pasa a cada archivo extraído, y de
+    /// la temporal al vault (`fs::copy` copia los flujos alternativos). Sin
+    /// marca en el zip, no se inventa una.
+    #[cfg(windows)]
+    #[test]
+    fn extraer_zip_propaga_la_marca_de_la_web() {
+        let raiz = arbol("zip-motw");
+        let zip = raiz.join("bajado.zip");
+        zip_de_prueba(&zip, &[("informe.docm", b"PK"), ("sub/nota.md", b"x")]);
+        let zona = b"[ZoneTransfer]\r\nZoneId=3\r\nHostUrl=https://ejemplo.invalid/bajado.zip\r\n";
+
+        // Sin marca: nada.
+        let limpio = raiz.join("limpio");
+        std::fs::create_dir_all(&limpio).unwrap();
+        extraer_zip_en(&zip, &limpio).unwrap();
+        assert!(marca_de_la_web(&limpio.join("informe.docm")).is_none());
+
+        // Con marca: en cada archivo.
+        marcar(&zip, zona).unwrap();
+        assert_eq!(marca_de_la_web(&zip).as_deref(), Some(&zona[..]));
+        let marcado = raiz.join("marcado");
+        std::fs::create_dir_all(&marcado).unwrap();
+        extraer_zip_en(&zip, &marcado).unwrap();
+        for a in ["informe.docm", "sub/nota.md"] {
+            assert_eq!(marca_de_la_web(&marcado.join(a)).as_deref(), Some(&zona[..]), "{a}");
+        }
+
+        // Y la copia al vault la conserva.
+        let vault = raiz.join("vault");
+        std::fs::create_dir_all(&vault).unwrap();
+        copiar_arbol_en(
+            vault.to_string_lossy().to_string(),
+            marcado.to_string_lossy().to_string(),
+            "".into(),
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(marca_de_la_web(&vault.join("informe.docm")).as_deref(), Some(&zona[..]));
 
         std::fs::remove_dir_all(&raiz).unwrap();
     }

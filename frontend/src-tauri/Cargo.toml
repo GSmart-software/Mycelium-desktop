@@ -74,6 +74,10 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # compila nada nuevo.
 flate2 = "1"
 sha2 = "0.10"
+# Importar un `.zip` (`DEF-165`, src/archivos.rs): lo extrae Rust para pasarle a
+# cada archivo la marca de la web del zip. Ya estaba en el árbol (el updater);
+# solo se le suma `deflate-flate2`, sobre el `flate2` de arriba.
+zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
 trash = "5.2.3"
 # Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
 # la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.
