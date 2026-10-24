@@ -3,8 +3,8 @@ name = "app"
 version = "2.5.0"
 description = "A Tauri App"
 authors = ["you"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/GSmart-software/Mycelium-desktop"
 edition = "2021"
 rust-version = "1.77.2"
 
