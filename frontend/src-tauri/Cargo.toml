@@ -89,6 +89,13 @@ mycelium-vault = { path = "crates/mycelium-vault" }
 # Tauri; se piden solo las features que faltan (`net`, `macros`). Misma versión:
 # no se compila dos veces.
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros", "rt"] }
+# El índice de cada vault lo abre Rust y no la webview (`DEF-166`, `src/indice.rs`):
+# se arma el pool con las mismas versiones que ya trae `tauri-plugin-sql` y se le
+# entrega por su estado público. `libsqlite3-sys`, para el autorizador que impide
+# `ATTACH` y `VACUUM INTO` (crear bases en cualquier carpeta). Sin features
+# propias: las fija sqlx, y así no se compila una segunda copia de SQLite.
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
+libsqlite3-sys = { version = "0.30", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

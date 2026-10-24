@@ -18,7 +18,8 @@
     "dialog:default",
     "opener:allow-open-url",
     "opener:allow-default-urls",
-    "sql:default",
-    "sql:allow-execute"
+    "sql:allow-select",
+    "sql:allow-execute",
+    "sql:allow-close"
   ]
 }

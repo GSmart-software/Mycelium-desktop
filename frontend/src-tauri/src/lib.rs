@@ -7,6 +7,7 @@ mod archivos;
 mod control;
 mod dialogos;
 mod diccionarios;
+mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
@@ -232,6 +233,7 @@ pub fn run() {
             vault_config::listar_vaults,
             vault_config::elegir_vault,
             dialogos::elegir_carpeta,
+            indice::abrir_indice_vault,
             vault_config::desvincular_vault,
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
