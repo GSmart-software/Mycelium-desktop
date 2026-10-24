@@ -5,7 +5,9 @@ use tauri::Manager;
 mod actualizador;
 mod archivos;
 mod control;
+mod dialogos;
 mod diccionarios;
+mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
@@ -170,6 +172,8 @@ pub fn run() {
         // Descargas de diccionarios del corrector en curso (`FUN-L-12`).
         .manage(diccionarios::DescargasState::default())
         .manage(ventanas::VentanasState::default())
+        // Carpetas de fuera del vault elegidas en el selector nativo (`DEF-161`).
+        .manage(dialogos::ElegidasState::default())
         // La escucha del MCP de control, una por ventana (`FUN-L-09`).
         .manage(control::ControlState::default())
         // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
@@ -196,12 +200,10 @@ pub fn run() {
             archivos::escribir_trozo_importacion,
             archivos::borrar_temporal_importacion,
             archivos::recorrer_vault,
-            archivos::listar_archivos_meta,
             archivos::listar_otros_archivos,
             archivos::leer_archivos,
             archivos::leer_archivo_visor,
             archivos::escribir_archivo_visor,
-            archivos::listar_directorios,
             archivos::carpeta_no_vacia,
             mycignore::mycignore_default,
             marco::marco_zona_maximizar,
@@ -229,7 +231,9 @@ pub fn run() {
             diccionarios::diccionario_personal_escribir,
             recordatorios::notificar_recordatorio,
             vault_config::listar_vaults,
-            vault_config::vincular_vault,
+            vault_config::elegir_vault,
+            dialogos::elegir_carpeta,
+            indice::abrir_indice_vault,
             vault_config::desvincular_vault,
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,

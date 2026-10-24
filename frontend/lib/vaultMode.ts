@@ -24,9 +24,25 @@ export async function listarVaults(): Promise<VaultRef[]> {
   return invoke<VaultRef[]>("listar_vaults");
 }
 
-/** Vincula una carpeta (debe existir). La añade al registro y la devuelve. */
-export async function vincularVault(ruta: string): Promise<VaultRef> {
-  return invoke<VaultRef>("vincular_vault", { ruta });
+/**
+ * Abre el selector de carpetas del sistema y vincula la elegida; `null` si el
+ * usuario cancela.
+ *
+ * El selector lo abre **Rust** (`DEF-161`), no el plugin `dialog` desde acá: un
+ * vault vinculado es una carpeta que todos los comandos del vault pueden leer y
+ * escribir, así que la ruta no puede salir de la webview.
+ */
+export async function elegirVault(): Promise<VaultRef | null> {
+  return (await invoke<VaultRef | null>("elegir_vault")) ?? null;
+}
+
+/**
+ * Abre el selector de carpetas del sistema para trabajar FUERA del vault
+ * (exportar, importar una carpeta); `null` si se cancela. Rust anota la carpeta
+ * para esta ventana, y es la única que esos comandos aceptan (`DEF-161`).
+ */
+export async function elegirCarpetaExterna(titulo: string): Promise<string | null> {
+  return (await invoke<string | null>("elegir_carpeta", { titulo })) ?? null;
 }
 
 /** Olvida un vault del registro (no toca los archivos en disco). */

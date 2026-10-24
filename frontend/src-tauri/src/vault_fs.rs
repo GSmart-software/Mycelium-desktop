@@ -82,8 +82,7 @@ pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), St
 /// lo anota para que el watcher reconozca el evento que esta misma escritura va
 /// a provocar y no reindexe el vault por un guardado propio. Si el SO no lo
 /// expone, 0: la nota se reindexará una vez de más, nada peor.
-#[tauri::command]
-pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
+pub(crate) fn escribir_nota_en(vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
     asegurar_padre(&destino)?;
@@ -96,8 +95,7 @@ pub fn escribir_nota(vault_ruta: String, ruta_rel: String, contenido: String) ->
 /// Renombra o mueve un archivo O carpeta dentro del vault. Sirve tanto para
 /// renombrar (mismo directorio, nombre distinto) como para mover (otro
 /// directorio). Crea el directorio padre del destino.
-#[tauri::command]
-pub fn mover_ruta(vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
+pub(crate) fn mover_ruta_en(vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
     let origen = ruta_segura(&base, &origen_rel)?;
     let destino = ruta_segura(&base, &destino_rel)?;
@@ -125,8 +123,7 @@ pub fn mover_ruta(vault_ruta: String, origen_rel: String, destino_rel: String) -
 }
 
 /// Crea un directorio (y sus ancestros) dentro del vault. Idempotente.
-#[tauri::command]
-pub fn crear_directorio(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+pub(crate) fn crear_directorio_en(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
     std::fs::create_dir_all(&destino)
@@ -134,8 +131,7 @@ pub fn crear_directorio(vault_ruta: String, ruta_rel: String) -> Result<(), Stri
 }
 
 /// Copia un archivo dentro del vault (para duplicar notas). Crea el padre.
-#[tauri::command]
-pub fn copiar_archivo(vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
+pub(crate) fn copiar_archivo_en(vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
     let origen = ruta_segura(&base, &origen_rel)?;
     let destino = ruta_segura(&base, &destino_rel)?;
@@ -150,8 +146,7 @@ pub fn copiar_archivo(vault_ruta: String, origen_rel: String, destino_rel: Strin
 /// Si ya existe algo con esa ruta en la papelera, añade un sufijo con timestamp.
 /// Devuelve la **ruta relativa dentro del vault** donde quedó (p. ej.
 /// `.mycelium/.trash/Proyectos/plan.md`) para poder restaurarla luego.
-#[tauri::command]
-pub fn borrar_a_papelera(vault_ruta: String, ruta_rel: String) -> Result<String, String> {
+pub(crate) fn borrar_a_papelera_en(vault_ruta: String, ruta_rel: String) -> Result<String, String> {
     let base = base_vault(&vault_ruta)?;
     let origen = ruta_segura(&base, &ruta_rel)?;
     if !origen.exists() {
@@ -172,8 +167,7 @@ pub fn borrar_a_papelera(vault_ruta: String, ruta_rel: String) -> Result<String,
 }
 
 /// Restaura un elemento de la papelera a `destino_rel` dentro del vault.
-#[tauri::command]
-pub fn restaurar_de_papelera(
+pub(crate) fn restaurar_de_papelera_en(
     vault_ruta: String,
     ruta_papelera_rel: String,
     destino_rel: String,
@@ -237,8 +231,7 @@ fn a_papelera_del_sistema(destino: &Path) -> std::io::Result<()> {
 /// de `.mycelium/.trash`, no solo la fila del índice, y lo manda a la **papelera del
 /// sistema**. Tras borrar, poda los directorios ancestros que queden vacíos dentro
 /// de la papelera.
-#[tauri::command]
-pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
+pub(crate) fn borrar_definitivo_en(vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_papelera_rel)?;
     if !destino.exists() {
@@ -256,8 +249,7 @@ pub fn borrar_definitivo(vault_ruta: String, ruta_papelera_rel: String) -> Resul
 /// Lee un archivo de texto del vault (ruta validada). Lo usa el framework IA
 /// (FUN-L-08) para detectar la versión instalada (`.claude/mycelium-ia.json`).
 /// Devuelve `Ok(None)` si el archivo no existe.
-#[tauri::command]
-pub fn leer_archivo_texto(vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
+pub(crate) fn leer_archivo_texto_en(vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
     let base = base_vault(&vault_ruta)?;
     let ruta = ruta_segura(&base, &ruta_rel)?;
     if !ruta.is_file() {
@@ -284,8 +276,7 @@ const COMANDOS_IA_ANTERIORES: [&str; 6] = [
 /// escribió Mycelium (lo comprueba por su huella), así que no se pierde nada:
 /// la versión nueva ya está en `.claude/commands/mycelium/`. No pasa por la
 /// papelera porque no es una nota del índice. Que no exista no es un error.
-#[tauri::command]
-pub fn ia_borrar_anterior(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+pub(crate) fn ia_borrar_anterior_en(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     if !COMANDOS_IA_ANTERIORES.contains(&ruta_rel.as_str()) {
         return Err(format!("«{ruta_rel}» no es un comando del framework IA anterior: no se borra."));
     }
@@ -298,19 +289,56 @@ pub fn ia_borrar_anterior(vault_ruta: String, ruta_rel: String) -> Result<(), St
     }
 }
 
+/// Extensiones que el sistema **ejecuta** en vez de abrir con un visor: los
+/// tipos de `PATHEXT` de Windows y los que el shell lanza igual (accesos
+/// directos, instaladores, scripts de WSH, paneles de control, registro), más
+/// los equivalentes de macOS y Linux. Lista cerrada y en minúsculas.
+const EJECUTABLES: &[&str] = &[
+    "exe", "com", "bat", "cmd", "pif", "scr", "cpl", "msi", "msp", "msc", "lnk", "url", "scf", "hta",
+    "js", "jse", "vbs", "vbe", "wsf", "wsh", "ps1", "psm1", "reg", "jar", "appref-ms", "application",
+    "gadget", "inf", "settingcontent-ms", "library-ms", "search-ms", "app", "command", "sh", "desktop",
+    "appimage", "run", "bin",
+];
+
+/// `true` si `ruta` es de un tipo que el sistema ejecutaría al «abrirlo».
+fn es_ejecutable(ruta: &Path) -> bool {
+    let ext = crate::archivos::extension_de(ruta);
+    // Sin extensión, en Unix puede ser un binario con permiso de ejecución.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(m) = std::fs::metadata(ruta) {
+            if m.permissions().mode() & 0o111 != 0 {
+                return true;
+            }
+        }
+    }
+    EJECUTABLES.contains(&ext.as_str())
+}
+
 /// Abre `ruta_rel` con la aplicación que el SO tenga asociada a su tipo.
 ///
 /// Es la salida de emergencia del visor de solo lectura (`FUN-L-11`): lo que
 /// Mycelium no puede mostrar —un binario, un archivo de 500 MB, un tipo sin
 /// visor propio— se le pasa a quien sí sabe. Pariente de `revelar_en_sistema`,
 /// que en cambio **muestra** el archivo en el explorador sin abrirlo.
-#[tauri::command]
-pub fn abrir_con_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+///
+/// > [!warning] No abre ejecutables (`DEF-161`)
+/// > «La aplicación asociada» de un `.bat`, un `.exe` o un `.lnk` es el propio
+/// > sistema **ejecutándolo**. Como desde la webview se puede escribir un
+/// > archivo cualquiera en el vault (`escribir_nota`), abrir eso era ejecutar
+/// > lo que un XSS escribió. Para esos tipos queda «Mostrar en el explorador».
+pub(crate) fn abrir_con_sistema_en(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     use std::process::Command;
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
     if !destino.exists() {
         return Err(format!("No existe en disco: {ruta_rel}"));
+    }
+    if destino.is_file() && es_ejecutable(&destino) {
+        return Err(format!(
+            "«{ruta_rel}» se ejecutaría al abrirlo: Mycelium no lo abre. Usá «Mostrar en el explorador»."
+        ));
     }
 
     #[cfg(target_os = "windows")]
@@ -353,8 +381,7 @@ pub fn abrir_con_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), Str
 /// Abre el explorador de archivos del SO mostrando (y seleccionando, donde se
 /// pueda) el archivo/carpeta `ruta_rel` del vault. Solo tiene sentido en modo
 /// carpeta (los archivos existen en disco).
-#[tauri::command]
-pub fn revelar_en_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+pub(crate) fn revelar_en_sistema_en(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     use std::process::Command;
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
@@ -407,6 +434,88 @@ pub fn revelar_en_sistema(vault_ruta: String, ruta_rel: String) -> Result<(), St
     Err("Plataforma no soportada.".to_string())
 }
 
+// ── Comandos (`DEF-161`) ─────────────────────────────────────────────────────
+//
+// Cada comando comprueba que `vault_ruta` sea el vault que registró la ventana
+// que lo invoca (`ventanas::base_de_ventana`) y trabaja sobre esa carpeta, la
+// registrada. Hasta `DEF-161` se validaba solo la parte relativa: la base la
+// decidía JS, y con ella cualquier carpeta del disco era «el vault».
+
+use crate::ventanas::base_de_ventana as base;
+
+/// Ver `escribir_nota_en`.
+#[tauri::command]
+pub fn escribir_nota(ventana: tauri::Window, vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
+    escribir_nota_en(base(&ventana, &vault_ruta)?, ruta_rel, contenido)
+}
+
+/// Ver `mover_ruta_en`.
+#[tauri::command]
+pub fn mover_ruta(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
+    mover_ruta_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
+}
+
+/// Ver `crear_directorio_en`.
+#[tauri::command]
+pub fn crear_directorio(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    crear_directorio_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
+/// Ver `copiar_archivo_en`.
+#[tauri::command]
+pub fn copiar_archivo(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
+    copiar_archivo_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
+}
+
+/// Ver `borrar_a_papelera_en`.
+#[tauri::command]
+pub fn borrar_a_papelera(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<String, String> {
+    borrar_a_papelera_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
+/// Ver `restaurar_de_papelera_en`.
+#[tauri::command]
+pub fn restaurar_de_papelera(
+    ventana: tauri::Window,
+    vault_ruta: String,
+    ruta_papelera_rel: String,
+    destino_rel: String,
+) -> Result<(), String> {
+    restaurar_de_papelera_en(base(&ventana, &vault_ruta)?, ruta_papelera_rel, destino_rel)
+}
+
+/// Ver `borrar_definitivo_en`.
+#[tauri::command]
+pub fn borrar_definitivo(ventana: tauri::Window, vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
+    borrar_definitivo_en(base(&ventana, &vault_ruta)?, ruta_papelera_rel)
+}
+
+/// Ver `leer_archivo_texto_en`.
+#[tauri::command]
+pub fn leer_archivo_texto(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
+    leer_archivo_texto_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
+/// Ver `ia_borrar_anterior_en`.
+#[tauri::command]
+pub fn ia_borrar_anterior(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    ia_borrar_anterior_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
+/// Ver `abrir_con_sistema_en`. Solo rutas dentro del vault de la ventana: es
+/// el comando que **ejecuta** lo que toca (abre con el programa asociado), así
+/// que con una base libre bastaba un `.bat` cualquiera del disco.
+#[tauri::command]
+pub fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    abrir_con_sistema_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
+/// Ver `revelar_en_sistema_en`.
+#[tauri::command]
+pub fn revelar_en_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    revelar_en_sistema_en(base(&ventana, &vault_ruta)?, ruta_rel)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,15 +532,15 @@ mod tests {
     fn ia_borrar_anterior_solo_borra_los_comandos_de_la_lista() {
         let base = tmp_vault("ia-anterior");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), ".claude/commands/vault-buscar.md".into(), "viejo".into()).unwrap();
-        escribir_nota(v.clone(), ".claude/commands/mio.md".into(), "mío".into()).unwrap();
-        ia_borrar_anterior(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
+        escribir_nota_en(v.clone(), ".claude/commands/vault-buscar.md".into(), "viejo".into()).unwrap();
+        escribir_nota_en(v.clone(), ".claude/commands/mio.md".into(), "mío".into()).unwrap();
+        ia_borrar_anterior_en(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
         assert!(!base.join(".claude/commands/vault-buscar.md").exists());
         // Que ya no exista no es un error.
-        ia_borrar_anterior(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
+        ia_borrar_anterior_en(v.clone(), ".claude/commands/vault-buscar.md".into()).unwrap();
         // Fuera de la lista, nada.
-        assert!(ia_borrar_anterior(v.clone(), ".claude/commands/mio.md".into()).is_err());
-        assert!(ia_borrar_anterior(v.clone(), "CLAUDE.md".into()).is_err());
+        assert!(ia_borrar_anterior_en(v.clone(), ".claude/commands/mio.md".into()).is_err());
+        assert!(ia_borrar_anterior_en(v.clone(), "CLAUDE.md".into()).is_err());
         assert!(base.join(".claude/commands/mio.md").exists());
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -440,7 +549,7 @@ mod tests {
     fn escritura_atomica_crea_el_archivo_y_subdirs() {
         let base = tmp_vault("escribir");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "Proyectos/2026/plan.md".into(), "# Plan ñ".into()).unwrap();
+        escribir_nota_en(v.clone(), "Proyectos/2026/plan.md".into(), "# Plan ñ".into()).unwrap();
         let destino = base.join("Proyectos/2026/plan.md");
         assert!(destino.exists());
         assert_eq!(std::fs::read_to_string(&destino).unwrap(), "# Plan ñ");
@@ -457,8 +566,8 @@ mod tests {
     fn escribir_sobrescribe_destino_existente() {
         let base = tmp_vault("sobrescribir");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "n.md".into(), "uno".into()).unwrap();
-        escribir_nota(v.clone(), "n.md".into(), "dos".into()).unwrap();
+        escribir_nota_en(v.clone(), "n.md".into(), "uno".into()).unwrap();
+        escribir_nota_en(v.clone(), "n.md".into(), "dos".into()).unwrap();
         assert_eq!(std::fs::read_to_string(base.join("n.md")).unwrap(), "dos");
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -467,8 +576,8 @@ mod tests {
     fn mover_renombra_archivo() {
         let base = tmp_vault("mover");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "viejo.md".into(), "x".into()).unwrap();
-        mover_ruta(v.clone(), "viejo.md".into(), "sub/nuevo.md".into()).unwrap();
+        escribir_nota_en(v.clone(), "viejo.md".into(), "x".into()).unwrap();
+        mover_ruta_en(v.clone(), "viejo.md".into(), "sub/nuevo.md".into()).unwrap();
         assert!(!base.join("viejo.md").exists());
         assert!(base.join("sub/nuevo.md").exists());
         std::fs::remove_dir_all(&base).unwrap();
@@ -478,8 +587,8 @@ mod tests {
     fn copiar_duplica_archivo() {
         let base = tmp_vault("copiar");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "a.md".into(), "contenido".into()).unwrap();
-        copiar_archivo(v.clone(), "a.md".into(), "a (copia).md".into()).unwrap();
+        escribir_nota_en(v.clone(), "a.md".into(), "contenido".into()).unwrap();
+        copiar_archivo_en(v.clone(), "a.md".into(), "a (copia).md".into()).unwrap();
         assert!(base.join("a.md").exists());
         assert_eq!(std::fs::read_to_string(base.join("a (copia).md")).unwrap(), "contenido");
         std::fs::remove_dir_all(&base).unwrap();
@@ -489,25 +598,25 @@ mod tests {
     fn borrar_a_papelera_mueve_bajo_trash_y_restaura() {
         let base = tmp_vault("papelera");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "Carpeta/nota.md".into(), "hola".into()).unwrap();
+        escribir_nota_en(v.clone(), "Carpeta/nota.md".into(), "hola".into()).unwrap();
 
-        let papelera_rel = borrar_a_papelera(v.clone(), "Carpeta/nota.md".into()).unwrap();
+        let papelera_rel = borrar_a_papelera_en(v.clone(), "Carpeta/nota.md".into()).unwrap();
         assert_eq!(papelera_rel, ".mycelium/.trash/Carpeta/nota.md");
         assert!(!base.join("Carpeta/nota.md").exists());
         assert!(base.join(&papelera_rel).exists());
 
         // Segunda vez con el mismo nombre: sufijo de timestamp (sin colisión).
-        escribir_nota(v.clone(), "Carpeta/nota.md".into(), "otra".into()).unwrap();
-        let segunda = borrar_a_papelera(v.clone(), "Carpeta/nota.md".into()).unwrap();
+        escribir_nota_en(v.clone(), "Carpeta/nota.md".into(), "otra".into()).unwrap();
+        let segunda = borrar_a_papelera_en(v.clone(), "Carpeta/nota.md".into()).unwrap();
         assert_ne!(segunda, papelera_rel, "la colisión debe desambiguar");
         assert!(base.join(&segunda).exists());
 
         // Restaurar la primera de vuelta a su ruta original.
-        restaurar_de_papelera(v.clone(), papelera_rel.clone(), "Carpeta/nota.md".into()).unwrap();
+        restaurar_de_papelera_en(v.clone(), papelera_rel.clone(), "Carpeta/nota.md".into()).unwrap();
         assert_eq!(std::fs::read_to_string(base.join("Carpeta/nota.md")).unwrap(), "hola");
 
         // Borrado definitivo del segundo.
-        borrar_definitivo(v.clone(), segunda.clone()).unwrap();
+        borrar_definitivo_en(v.clone(), segunda.clone()).unwrap();
         assert!(!base.join(&segunda).exists());
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -516,9 +625,9 @@ mod tests {
     fn borrar_a_papelera_mueve_carpeta_entera() {
         let base = tmp_vault("papelera-dir");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "Sub/a.md".into(), "a".into()).unwrap();
-        escribir_nota(v.clone(), "Sub/b.md".into(), "b".into()).unwrap();
-        let rel = borrar_a_papelera(v.clone(), "Sub".into()).unwrap();
+        escribir_nota_en(v.clone(), "Sub/a.md".into(), "a".into()).unwrap();
+        escribir_nota_en(v.clone(), "Sub/b.md".into(), "b".into()).unwrap();
+        let rel = borrar_a_papelera_en(v.clone(), "Sub".into()).unwrap();
         assert_eq!(rel, ".mycelium/.trash/Sub");
         assert!(!base.join("Sub").exists());
         assert!(base.join(".mycelium/.trash/Sub/a.md").exists());
@@ -530,10 +639,10 @@ mod tests {
     fn mover_rechaza_pisar_un_destino_existente() {
         let base = tmp_vault("colision");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "a.md".into(), "aaa".into()).unwrap();
-        escribir_nota(v.clone(), "b.md".into(), "bbb".into()).unwrap();
+        escribir_nota_en(v.clone(), "a.md".into(), "aaa".into()).unwrap();
+        escribir_nota_en(v.clone(), "b.md".into(), "bbb".into()).unwrap();
         // Mover a.md sobre b.md (que ya existe) debe fallar y NO pisar b.md.
-        assert!(mover_ruta(v.clone(), "a.md".into(), "b.md".into()).is_err());
+        assert!(mover_ruta_en(v.clone(), "a.md".into(), "b.md".into()).is_err());
         assert_eq!(std::fs::read_to_string(base.join("a.md")).unwrap(), "aaa");
         assert_eq!(std::fs::read_to_string(base.join("b.md")).unwrap(), "bbb");
         std::fs::remove_dir_all(&base).unwrap();
@@ -543,10 +652,10 @@ mod tests {
     fn borrar_definitivo_poda_subcarpetas_vacias_de_la_papelera() {
         let base = tmp_vault("poda");
         let v = base.to_string_lossy().to_string();
-        escribir_nota(v.clone(), "Carpeta/Sub/nota.md".into(), "hola".into()).unwrap();
-        let rel = borrar_a_papelera(v.clone(), "Carpeta/Sub/nota.md".into()).unwrap();
+        escribir_nota_en(v.clone(), "Carpeta/Sub/nota.md".into(), "hola".into()).unwrap();
+        let rel = borrar_a_papelera_en(v.clone(), "Carpeta/Sub/nota.md".into()).unwrap();
         assert!(base.join(&rel).exists());
-        borrar_definitivo(v.clone(), rel).unwrap();
+        borrar_definitivo_en(v.clone(), rel).unwrap();
         // Al quedar vacías, las subcarpetas de la papelera se podan, pero la raíz
         // `.mycelium/.trash` se conserva.
         assert!(!base.join(".mycelium/.trash/Carpeta").exists());
@@ -555,17 +664,31 @@ mod tests {
     }
 
     #[test]
+    fn abrir_con_sistema_no_ejecuta_programas() {
+        let base = tmp_vault("ejecutables");
+        let v = base.to_string_lossy().to_string();
+        for nombre in ["x.bat", "x.EXE", "acceso.lnk", "s.ps1", "w.vbs", "i.msi"] {
+            escribir_nota_en(v.clone(), nombre.into(), "echo".into()).unwrap();
+            assert!(abrir_con_sistema_en(v.clone(), nombre.into()).is_err(), "{nombre}");
+        }
+        assert!(es_ejecutable(&base.join("x.cmd")));
+        assert!(!es_ejecutable(&base.join("informe.pdf")));
+        assert!(!es_ejecutable(&base.join("foto.png")));
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
     fn todos_rechazan_path_traversal() {
         let base = tmp_vault("traversal");
         let v = base.to_string_lossy().to_string();
-        assert!(escribir_nota(v.clone(), "../fuera.md".into(), "x".into()).is_err());
-        assert!(mover_ruta(v.clone(), "../a.md".into(), "b.md".into()).is_err());
-        assert!(mover_ruta(v.clone(), "a.md".into(), "../b.md".into()).is_err());
-        assert!(crear_directorio(v.clone(), "../hack".into()).is_err());
-        assert!(copiar_archivo(v.clone(), "../a.md".into(), "b.md".into()).is_err());
-        assert!(borrar_a_papelera(v.clone(), "/etc/passwd".into()).is_err());
-        assert!(restaurar_de_papelera(v.clone(), "../x".into(), "y.md".into()).is_err());
-        assert!(borrar_definitivo(v.clone(), "../../x".into()).is_err());
+        assert!(escribir_nota_en(v.clone(), "../fuera.md".into(), "x".into()).is_err());
+        assert!(mover_ruta_en(v.clone(), "../a.md".into(), "b.md".into()).is_err());
+        assert!(mover_ruta_en(v.clone(), "a.md".into(), "../b.md".into()).is_err());
+        assert!(crear_directorio_en(v.clone(), "../hack".into()).is_err());
+        assert!(copiar_archivo_en(v.clone(), "../a.md".into(), "b.md".into()).is_err());
+        assert!(borrar_a_papelera_en(v.clone(), "/etc/passwd".into()).is_err());
+        assert!(restaurar_de_papelera_en(v.clone(), "../x".into(), "y.md".into()).is_err());
+        assert!(borrar_definitivo_en(v.clone(), "../../x".into()).is_err());
         std::fs::remove_dir_all(&base).unwrap();
     }
 }

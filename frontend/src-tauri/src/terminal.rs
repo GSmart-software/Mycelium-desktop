@@ -162,9 +162,39 @@ pub fn terminal_shells() -> Vec<ShellInfo> {
     shells
 }
 
-/// Crea la sesión PTY `id` corriendo `shell` en `cwd` (o el home del usuario).
-/// La salida fluye por el evento `terminal-datos`; el fin del proceso, por
-/// `terminal-salida`.
+/// El ejecutable de la shell `id`, **si** es una de las que la app detectó
+/// (`DEF-162`). Hasta entonces el frontend mandaba la ruta del ejecutable y
+/// Rust lanzaba lo que llegara: desde la webview se podía correr cualquier
+/// programa del disco. Ahora JS manda el id y la ruta la pone Rust.
+fn resolver_shell(shells: &[ShellInfo], id: &str) -> Result<String, String> {
+    shells
+        .iter()
+        .find(|s| s.id == id)
+        .map(|s| s.ruta.clone())
+        .ok_or_else(|| format!("«{id}» no es una de las shells detectadas en este sistema."))
+}
+
+/// Carpeta de trabajo de la consola (`DEF-162`): `pedida` si está dentro del
+/// vault de la ventana (una subcarpeta, «Abrir terminal aquí» del explorador);
+/// si no existe o se sale de él, la raíz del vault. Se compara en forma
+/// canónica para que ni `..` ni un enlace la saquen afuera.
+fn cwd_permitido(vault: &str, pedida: Option<&str>) -> Result<PathBuf, String> {
+    let raiz = PathBuf::from(vault);
+    let raiz_canonica = raiz
+        .canonicalize()
+        .map_err(|e| format!("La carpeta del vault no existe ({vault}): {e}"))?;
+    let dentro = pedida
+        .map(PathBuf::from)
+        .and_then(|p| p.canonicalize().ok().map(|c| (p, c)))
+        .filter(|(p, c)| p.is_dir() && c.starts_with(&raiz_canonica))
+        .map(|(p, _)| p);
+    Ok(dentro.unwrap_or(raiz))
+}
+
+/// Crea la sesión PTY `id` corriendo la shell `shell` (un **id** de
+/// `terminal_shells`, no una ruta) en `cwd`, que tiene que estar dentro del
+/// vault de la ventana (si no, la raíz del vault). La salida fluye por el
+/// evento `terminal-datos`; el fin del proceso, por `terminal-salida`.
 #[tauri::command]
 pub fn terminal_abrir(
     ventana: tauri::Window,
@@ -175,6 +205,11 @@ pub fn terminal_abrir(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
+    let vault = crate::ventanas::vault_de_ventana(&ventana)
+        .ok_or("Abrí un vault para usar la terminal: la consola arranca en su carpeta.")?;
+    let ejecutable = resolver_shell(&terminal_shells(), &shell)?;
+    let dir = cwd_permitido(&vault, cwd.as_deref())?;
+
     let mut sesiones = state.0.lock().map_err(|_| "Estado de terminales no disponible")?;
     if sesiones.contains_key(&id) {
         return Ok(()); // ya abierta (remount del componente): se reutiliza
@@ -185,13 +220,8 @@ pub fn terminal_abrir(
         .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| format!("No se pudo crear la pseudo-terminal: {e}"))?;
 
-    let mut cmd = CommandBuilder::new(&shell);
+    let mut cmd = CommandBuilder::new(&ejecutable);
     cmd.env("TERM", "xterm-256color");
-    let dir = cwd
-        .map(PathBuf::from)
-        .filter(|p| p.is_dir())
-        .or_else(dirs_home)
-        .ok_or("No hay directorio de trabajo válido")?;
     cmd.cwd(dir);
 
     let child = par
@@ -314,15 +344,6 @@ pub fn cerrar_de_ventana(state: &TerminalesState, label: &str) {
     }
 }
 
-/// Home del usuario (fallback de cwd sin depender de crates extra).
-fn dirs_home() -> Option<PathBuf> {
-    #[cfg(windows)]
-    let var = "USERPROFILE";
-    #[cfg(not(windows))]
-    let var = "HOME";
-    std::env::var_os(var).map(PathBuf::from).filter(|p| p.is_dir())
-}
-
 /// Input del usuario (teclas de xterm) → PTY.
 #[tauri::command]
 pub fn terminal_escribir(
@@ -366,7 +387,46 @@ pub fn terminal_cerrar(state: tauri::State<TerminalesState>, id: String) -> Resu
 
 #[cfg(test)]
 mod tests {
-    use super::decodificar;
+    use super::{cwd_permitido, decodificar, resolver_shell, ShellInfo};
+
+    #[test]
+    fn solo_se_lanza_una_shell_detectada() {
+        let shells = vec![ShellInfo {
+            id: "cmd".into(),
+            nombre: "cmd".into(),
+            ruta: r"C:\Windows\System32\cmd.exe".into(),
+        }];
+        assert_eq!(resolver_shell(&shells, "cmd").unwrap(), r"C:\Windows\System32\cmd.exe");
+        // Una ruta en vez de un id —lo que mandaba el frontend antes, y lo que
+        // mandaría un XSS— no es una shell de la lista.
+        assert!(resolver_shell(&shells, r"C:\Windows\System32\cmd.exe").is_err());
+        assert!(resolver_shell(&shells, r"C:\Users\x\Downloads\malo.exe").is_err());
+        assert!(resolver_shell(&shells, "calc").is_err());
+        assert!(resolver_shell(&[], "cmd").is_err());
+    }
+
+    #[test]
+    fn el_cwd_no_sale_del_vault() {
+        let base = std::env::temp_dir().join(format!("mic-terminal-cwd-{}", std::process::id()));
+        let vault = base.join("Vault");
+        let fuera = base.join("Fuera");
+        std::fs::create_dir_all(vault.join("Sub")).unwrap();
+        std::fs::create_dir_all(&fuera).unwrap();
+        let v = vault.to_string_lossy().to_string();
+
+        let sub = vault.join("Sub");
+        assert_eq!(cwd_permitido(&v, Some(&sub.to_string_lossy())).unwrap(), sub);
+        assert_eq!(cwd_permitido(&v, None).unwrap(), vault);
+        // Fuera del vault, con `..` o inexistente: la raíz del vault.
+        assert_eq!(cwd_permitido(&v, Some(&fuera.to_string_lossy())).unwrap(), vault);
+        let escape = vault.join("Sub").join("..").join("..").join("Fuera");
+        assert_eq!(cwd_permitido(&v, Some(&escape.to_string_lossy())).unwrap(), vault);
+        assert_eq!(cwd_permitido(&v, Some("Z:/no/existe")).unwrap(), vault);
+        // Sin vault en disco, no hay consola.
+        assert!(cwd_permitido(&base.join("NoEsta").to_string_lossy(), None).is_err());
+
+        let _ = std::fs::remove_dir_all(base);
+    }
 
     /// Lo que el defecto rompía: un carácter partido entre dos lecturas.
     /// `─` (U+2500, el marco de una TUI) son tres bytes.

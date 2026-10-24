@@ -6,8 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   abrirVaultEnVentana,
   desvincularVault,
+  elegirVault,
   listarVaults,
-  vincularVault,
   type VaultRef,
 } from "@/lib/vaultMode";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -60,10 +60,9 @@ export default function VaultsPage() {
 
   async function onVincular() {
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const elegido = await open({ directory: true });
-      if (typeof elegido !== "string") return; // cancelado o multiselección
-      await vincularVault(elegido);
+      // El selector lo abre Rust y vincula lo elegido (`DEF-161`).
+      const vinculado = await elegirVault();
+      if (vinculado === null) return; // cancelado
       await refrescar();
     } catch (e) {
       setError(mensajeDeError(e, "No se pudo vincular la carpeta."));

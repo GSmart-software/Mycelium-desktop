@@ -39,10 +39,23 @@ export function setExecutor(executor: SqlExecutor | null): void {
   activo = executor;
 }
 
-/** Crea un executor sobre `tauri-plugin-sql` para la base `dbUrl` (carga perezosa). */
-async function loadTauriExecutor(dbUrl: string): Promise<SqlExecutor> {
-  const { default: Database } = await import("@tauri-apps/plugin-sql");
-  const db = await Database.load(dbUrl);
+/**
+ * Crea un executor sobre `tauri-plugin-sql` para el índice del vault abierto en
+ * esta ventana (carga perezosa).
+ *
+ * La base NO la abre la webview (`DEF-166`): la capability ya no da
+ * `sql:allow-load`, porque con él `Database.load` creaba una base en cualquier
+ * ruta absoluta del disco. La abre Rust (`abrir_indice_vault`), con el nombre
+ * que deriva del vault de la ventana, y devuelve la clave con la que el plugin
+ * la conoce; acá solo se la toma con `Database.get`.
+ */
+async function loadTauriExecutor(vaultRuta: string): Promise<SqlExecutor> {
+  const [{ default: Database }, { invoke }] = await Promise.all([
+    import("@tauri-apps/plugin-sql"),
+    import("@tauri-apps/api/core"),
+  ]);
+  const clave = await invoke<string>("abrir_indice_vault", { vaultRuta });
+  const db = Database.get(clave);
   return {
     select: (sql, params = []) => db.select(sql, params),
     execute: async (sql, params = []) => {
@@ -53,29 +66,16 @@ async function loadTauriExecutor(dbUrl: string): Promise<SqlExecutor> {
 }
 
 /**
- * Hash corto y estable de una ruta absoluta: los primeros 16 hex de su SHA-256
- * (vía SubtleCrypto). Se usa para nombrar el archivo del índice de cada vault
- * (`index-<hash>.db`) sin depender de la ruta absoluta —arbitraria en Windows—.
- */
-async function hashRuta(ruta: string): Promise<string> {
-  const datos = new TextEncoder().encode(ruta);
-  const buf = await crypto.subtle.digest("SHA-256", datos);
-  return Array.from(new Uint8Array(buf))
-    .slice(0, 8) // 8 bytes = 16 caracteres hex
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
  * Abre (creando si no existe) el índice derivado del vault ubicado en
  * `vaultRuta` y lo deja como executor activo. El índice vive en el app-data de
- * la app —NO dentro del vault—, un archivo por vault: `sqlite:index-<hash>.db`,
- * donde `<hash>` deriva de la ruta absoluta del vault. Nombre relativo → el
- * plugin lo resuelve dentro del app-data. El índice es desechable/reconstruible.
+ * la app —NO dentro del vault—, un archivo por vault: `index-<hash>.db`, donde
+ * `<hash>` es el `hashRuta` de la ruta registrada del vault. Desde `DEF-166` el
+ * nombre lo calcula Rust (`mycelium_vault::rutas::nombre_indice_app`, el mismo
+ * hash que usaba esta función): `vaultRuta` tiene que ser el vault que esta
+ * ventana registró. El índice es desechable/reconstruible.
  */
 export async function abrirIndiceDeVault(vaultRuta: string): Promise<SqlExecutor> {
-  const hash = await hashRuta(vaultRuta);
-  const executor = await loadTauriExecutor(`sqlite:index-${hash}.db`);
+  const executor = await loadTauriExecutor(vaultRuta);
   // WAL en el índice (FUN-M-12): el indexado hace miles de statements sueltos,
   // cada uno con su transacción implícita, y con `journal_mode=delete` eso es un
   // fsync por statement sobre un caché que es reconstruible por definición.

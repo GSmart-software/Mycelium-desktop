@@ -2,7 +2,7 @@
 
 import { AppWindow, ChevronDown, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { abrirVaultEnVentana, listarVaults, nombreDeVault, vincularVault, type VaultRef } from "@/lib/vaultMode";
+import { abrirVaultEnVentana, elegirVault, listarVaults, nombreDeVault, type VaultRef } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { mensajeDeError } from "@/lib/mensajeError";
 import styles from "./MenuVaults.module.css";
@@ -96,10 +96,9 @@ export function MenuVaults({ rutaActual }: { rutaActual: string }) {
   const abrirCarpeta = async () => {
     cerrar(false);
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const elegida = await open({ directory: true });
-      if (typeof elegida !== "string") return; // cancelado
-      const vault = await vincularVault(elegida);
+      // El selector lo abre Rust y vincula lo elegido (`DEF-161`).
+      const vault = await elegirVault();
+      if (vault === null) return; // cancelado
       await abrirEnVentana(vault.ruta);
     } catch (e) {
       console.error("[Mycelium] vaults · no se pudo vincular la carpeta", e);
