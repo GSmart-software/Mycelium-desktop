@@ -32,6 +32,11 @@ export const SECRETO_DEV = [
   // con el modo. Toda mención, también «tema GSmart».
   { patron: /\bgsmart\b/i, que: "el tema GSmart" },
   { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
+  // El tema Amethystina (`FUN-M-55`): un tema normal —solo colores, violeta—,
+  // pero que por ahora solo se puede elegir con el modo, para probarlo. Toda
+  // mención, también «tema Amethystina».
+  { patron: /\bamethystina\b/i, que: "el tema Amethystina" },
+  { patron: /\bFUN-M-55\b/i, que: "FUN-M-55 (el tema Amethystina)" },
   // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
   // con la forma de los temas de marca, también solo con el modo. RETIRADO el
   // 2026-10-09 (ya no existe en la app), pero los patrones se quedan: nunca se

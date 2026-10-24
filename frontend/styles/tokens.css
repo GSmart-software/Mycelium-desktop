@@ -222,6 +222,31 @@
   --mic-amber-icon:     #C9821E;
 }
 
+/* ── Tema Amethystina (`FUN-M-55`, solo con el modo dev) — modo claro ──
+   Por la *Laccaria amethystina*, violeta del sombrero al pie, que se aclara a
+   lila con el sol. Un tema normal, como Cantarela: solo los ocho raw, admite
+   las atmósferas y no tiene hoja de forma. Chrome violeta profundo + contenido
+   lila muy claro + acentos violeta. Contraste medido en
+   docs/features/temas-amethystina-amanita.md.
+
+   base y glow se ajustaron al medir las atmósferas: con Aurora, el nombre de la
+   app va en el degradado del marco (glow 80% con mist) sobre base, y daba 3.6:1
+   con base #3D1D6B y glow #8A4EE0. Con un base un poco más hondo y un glow un
+   poco más claro llega a 4.6:1; el glow sigue ≥3:1 sobre la nota (3.7) y los
+   paneles (3.4). */
+[data-theme='amethystina'] {
+  --mic-raw-base:       #35195F;   /* rail / topbar / sidebar */
+  --mic-raw-base-deep:  #2A1349;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
+  --mic-raw-accent:     #6C3DBD;   /* botones y enlaces (violeta legible) */
+  --mic-raw-glow:       #9860E8;   /* highlights, cursor, tags (violeta claro) */
+  --mic-raw-mist:       #EFE6F9;   /* paneles laterales */
+  --mic-raw-canvas:     #F7F3FC;   /* editor / fondo principal */
+  --mic-raw-ink:        #251E30;
+  --mic-raw-ink-muted:  #62577A;
+
+  --mic-amber-icon:     #C9821E;
+}
+
 /* ── Tema Arrecife (`FUN-M-51`, solo con el modo dev) — modo claro ──
    La marca de otro proyecto del usuario: cian y violeta sobre grises fríos (matiz
    240). Los roles de Arrecife se mapean a los raw de Mycelium; la tabla de
@@ -324,6 +349,19 @@
   --mic-raw-ink-muted:  #ac9468;
   --mic-border:         #40300f;
   --mic-bg-hover:       rgba(255, 194, 71, 0.10);
+}
+
+/* Amethystina oscuro (`FUN-M-55`) = la estética abisal en violeta: casi negro
+   morado + glows lila. Bordes y hover salen de las fórmulas de :root. */
+[data-theme='amethystina'][data-dark='true'] {
+  --mic-raw-base:       #0a0611;   /* rail / sidebar */
+  --mic-raw-base-deep:  #1d1430;   /* bloques de código y lienzo del grafo */
+  --mic-raw-accent:     #b78cff;   /* botones y enlaces — violeta (texto oscuro encima) */
+  --mic-raw-glow:       #dcb6ff;   /* nodos, tags, cursor, resaltados — lila */
+  --mic-raw-canvas:     #120c1c;   /* editor / fondo principal */
+  --mic-raw-mist:       #1a1228;   /* paneles laterales, tabs */
+  --mic-raw-ink:        #e8def5;
+  --mic-raw-ink-muted:  #9d8db4;
 }
 
 /* Arrecife oscuro (`FUN-M-51`): el predeterminado de la marca.
