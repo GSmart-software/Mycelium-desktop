@@ -16,7 +16,7 @@ import { avisar } from "@/stores/avisosStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { usePrefVault } from "@/stores/prefsVaultStore";
+import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ENLACES_TAB_ID } from "@/lib/pestanas";
 import { RUTA_MYCIGNORE, tabIdDeArchivo } from "@/lib/otrosArchivos";
@@ -92,6 +92,8 @@ export function VaultSection() {
   const [generandoIa, setGenerandoIa] = useState(false);
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
   const controlIa = usePrefVault("controlIa");
+  // El vault lo traía encendido de otra máquina (`DEF-169`): acá arranca apagado.
+  const controlIaDelVault = usePrefsVaultStore((s) => s.controlIaDelVault);
   const [cambiandoControl, setCambiandoControl] = useState(false);
   // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
   // de validación, que se confirma al salir del campo.
@@ -524,6 +526,9 @@ export function VaultSection() {
               <>
                 Claude Code puede <strong>operar la app</strong>: mostrarte notas, usar el
                 calendario, renombrar y mover.
+                {controlIaDelVault && !controlIa && (
+                  <> Este vault lo traía encendido de otra computadora; acá queda apagado hasta que lo enciendas.</>
+                )}
               </>
             }
             detalle={
@@ -532,7 +537,8 @@ export function VaultSection() {
                 la raíz del vault, y todo queda en «Actividad de la IA» con Deshacer. Apagado,
                 ningún programa puede pedirle nada a Mycelium — pero{" "}
                 <strong>no impide que la IA lea o escriba los archivos del vault</strong>: eso lo
-                hace con sus propias herramientas, como siempre.
+                hace con sus propias herramientas, como siempre. Se decide en esta computadora
+                y para este vault: no viaja con la carpeta.
               </>
             }
           />

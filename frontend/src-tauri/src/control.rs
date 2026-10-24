@@ -101,6 +101,12 @@ pub async fn mcp_control_encender(
     // El canal se abre para el vault de ESTA ventana y no para uno que diga JS
     // (`DEF-161`): el pipe expone las operaciones del frontend sobre ese vault.
     let ruta = crate::ventanas::base_de_ventana(&ventana, &ruta)?;
+    // Solo si ESTA máquina encendió el control para este vault (`DEF-169`): el
+    // `controlIa` de `.mycelium/preferencias.json` viaja con el vault y un vault
+    // ajeno lo traería puesto. El frontend ya lo respeta; esto es lo de abajo.
+    if !crate::config_local::config_en(&crate::config_local::dir_config(ventana.app_handle())?, &ruta)?.control_ia {
+        return Err("El control de la IA está apagado en este vault.".to_string());
+    }
     let app = ventana.app_handle().clone();
     let etiqueta = ventana.label().to_string();
     let dir_app = app

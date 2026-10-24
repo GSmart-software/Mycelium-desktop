@@ -47,6 +47,7 @@ import {
 } from "@/lib/pestanas";
 import { nombreDeVault } from "@/lib/vaultMode";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useConfigLocalStore } from "@/stores/configLocalStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
@@ -665,9 +666,19 @@ export async function sincronizarControlAlAbrir(vault: string): Promise<void> {
  */
 export async function cambiarControl(vault: string, encender: boolean): Promise<string> {
   const prefs = usePrefsVaultStore.getState();
+  const local = useConfigLocalStore.getState();
   if (encender) {
-    await abrirCanal(vault);
+    // Primero la decisión de la máquina (`DEF-169`): Rust no abre el canal sin
+    // ella. Si el canal no se abre, se vuelve a apagar.
+    await local.fijar({ clave: "controlIa", valor: true });
+    try {
+      await abrirCanal(vault);
+    } catch (e) {
+      await local.fijar({ clave: "controlIa", valor: false }).catch(() => {});
+      throw e;
+    }
     prefs.set("controlIa", true);
+    usePrefsVaultStore.setState({ controlIaDelVault: false });
     const { mcp: r, avisoHook } = await asegurarIntegracion(vault);
     if (r.creado) prefs.set("mcpJsonCreado", true);
     const hook = avisoHook ? ` (Ojo: ${avisoHook})` : "";
@@ -682,6 +693,7 @@ export async function cambiarControl(vault: string, encender: boolean): Promise<
       `(la primera vez te pide aprobar el servidor «mycelium» del .mcp.json).${hook}`
     );
   }
+  await local.fijar({ clave: "controlIa", valor: false });
   await cerrarCanal();
   prefs.set("controlIa", false);
   await quitarMcpJson(vault, prefs.prefs.mcpJsonCreado);
