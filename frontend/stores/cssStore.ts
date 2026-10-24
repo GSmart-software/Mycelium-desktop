@@ -1,14 +1,10 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { getVaultActual } from "@/lib/db/vaultContext";
+import { useConfigLocalStore, type ConfigLocalVault } from "@/stores/configLocalStore";
 
-/** Snippet de CSS personalizado del usuario (estilo Obsidian, HU-13/15). */
-export type CssSnippet = {
-  id: string;
-  nombre: string;
-  activo: boolean;
-  contenido: string;
-};
+import { snippetsDelArchivo, type CssSnippet } from "@/lib/snippetsArchivo";
+export type { CssSnippet } from "@/lib/snippetsArchivo";
 
 type CssState = {
   snippets: CssSnippet[];
@@ -35,26 +31,13 @@ const ARCHIVO = "snippets.json";
 type ArchivoSnippets = { version: 1; snippets: CssSnippet[] };
 
 /** Lee los snippets del vault abierto. Sin vault, sin archivo o ilegible → []. */
-async function leerSnippets(): Promise<CssSnippet[]> {
+async function leerSnippets(local: ConfigLocalVault): Promise<CssSnippet[]> {
   const texto = await invoke<string | null>("leer_estado_vault", {
     ruta: getVaultActual(),
     nombre: ARCHIVO,
   });
   if (texto === null) return [];
-  const crudo = JSON.parse(texto) as { snippets?: unknown };
-  if (!Array.isArray(crudo.snippets)) return [];
-  // El archivo se puede editar a mano: un snippet sin id o sin CSS no entra.
-  return crudo.snippets.flatMap((s): CssSnippet[] => {
-    if (s === null || typeof s !== "object") return [];
-    const o = s as Record<string, unknown>;
-    if (typeof o.id !== "string" || typeof o.contenido !== "string") return [];
-    return [{
-      id: o.id,
-      nombre: typeof o.nombre === "string" ? o.nombre : o.id,
-      activo: o.activo !== false,
-      contenido: o.contenido,
-    }];
-  });
+  return snippetsDelArchivo(JSON.parse(texto), local.snippets);
 }
 
 /**
@@ -66,7 +49,9 @@ let cola: Promise<void> = Promise.resolve();
 function guardarSnippets(estado: () => CssSnippet[]): Promise<void> {
   cola = cola
     .then(async () => {
-      const datos: ArchivoSnippets = { version: 1, snippets: estado() };
+      // Sin `traido`: es de esta máquina, no del vault.
+      const snippets = estado().map(({ id, nombre, activo, contenido }) => ({ id, nombre, activo, contenido }));
+      const datos: ArchivoSnippets = { version: 1, snippets };
       await invoke("escribir_estado_vault", {
         ruta: getVaultActual(),
         nombre: ARCHIVO,
@@ -100,12 +85,19 @@ function applySnippets(snippets: CssSnippet[]) {
     .join("\n\n");
 }
 
+/** Guarda en la configuración local si `id` se aplica. Sin vault, no hay nada que recordar. */
+async function recordarActivo(id: string, activo: boolean): Promise<void> {
+  if (useConfigLocalStore.getState().ruta === null) return;
+  await useConfigLocalStore.getState().fijar({ clave: "snippet", id, activo });
+}
+
 export const useCssStore = create<CssState>((set, get) => ({
   snippets: [],
 
   async load() {
     try {
-      const snippets = await leerSnippets();
+      const local = await useConfigLocalStore.getState().cargar(getVaultActual() || null);
+      const snippets = await leerSnippets(local);
       set({ snippets });
       applySnippets(snippets);
     } catch {
@@ -115,7 +107,9 @@ export const useCssStore = create<CssState>((set, get) => ({
   },
 
   async importSnippet(nombre, contenido) {
+    // Lo crea el usuario en esta máquina: se enciende, como siempre.
     const snippet: CssSnippet = { id: crypto.randomUUID(), nombre, activo: true, contenido };
+    await recordarActivo(snippet.id, true);
     const snippets = [...get().snippets, snippet];
     set({ snippets });
     applySnippets(snippets);
@@ -124,7 +118,9 @@ export const useCssStore = create<CssState>((set, get) => ({
   },
 
   async toggle(id, activo) {
-    const snippets = get().snippets.map((s) => (s.id === id ? { ...s, activo } : s));
+    // La decisión se guarda primero en la máquina: si falla, no se aplica.
+    await recordarActivo(id, activo);
+    const snippets = get().snippets.map((s) => (s.id === id ? { id: s.id, nombre: s.nombre, contenido: s.contenido, activo } : s));
     set({ snippets });
     applySnippets(snippets); // en vivo, sin recargar
     await guardarSnippets(() => get().snippets);
@@ -149,5 +145,9 @@ export const useCssStore = create<CssState>((set, get) => ({
     set({ snippets });
     applySnippets(snippets);
     await guardarSnippets(() => get().snippets);
+    await useConfigLocalStore
+      .getState()
+      .fijar({ clave: "olvidarSnippet", id })
+      .catch(() => {});
   },
 }));

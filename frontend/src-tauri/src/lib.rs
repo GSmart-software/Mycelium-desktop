@@ -4,7 +4,9 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod config_local;
 mod control;
+mod devtools;
 mod dialogos;
 mod diccionarios;
 mod indice;
@@ -84,19 +86,6 @@ fn ventana_para_abrir<R: tauri::Runtime>(
         .cloned()
 }
 
-/// Abre/cierra las herramientas de desarrollador del webview. Disponible también
-/// en las builds de producción gracias a la feature `devtools` del crate `tauri`
-/// (sin ella, estas APIs solo existen con `debug_assertions`). El frontend lo
-/// invoca con F12 / Ctrl+Shift+I: sirve para escribir CSS propio y depurar.
-#[tauri::command]
-fn alternar_devtools(webview: tauri::WebviewWindow) {
-    if webview.is_devtools_open() {
-        webview.close_devtools();
-    } else {
-        webview.open_devtools();
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pendientes: Vec<String> = args_de_nota(&std::env::args().collect::<Vec<_>>());
@@ -156,6 +145,9 @@ pub fn run() {
         // Red de seguridad de `DEF-101`: ningún camino puede sacar a la app de
         // su propia página. Va DESPUÉS del opener porque lo usa para derivar.
         .plugin(navegacion::init())
+        // Las DevTools nacen apagadas en cada webview y se encienden por vault
+        // (`devtools.rs`).
+        .plugin(devtools::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`
         // leyendo la config compilada, así que sin claves la app arranca igual
@@ -187,7 +179,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
-            alternar_devtools,
+            devtools::alternar_devtools,
+            config_local::config_local_leer,
+            config_local::config_local_fijar,
             terminal::terminal_shells,
             terminal::terminal_abrir,
             terminal::terminal_escribir,
@@ -272,6 +266,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Antes de que se pueda vincular un vault nuevo (`config_local.rs`).
+            config_local::migrar_al_arrancar(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

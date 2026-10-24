@@ -272,6 +272,22 @@ const escaparAtributo = (v: string): string =>
   v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 /**
+ * CSS que se puede meter entre `<style>` y `</style>` de un documento armado
+ * como texto (`DEF-164`).
+ *
+ * El parser de HTML corta un `<style>` en el primer `</style` que encuentre,
+ * esté donde esté: dentro de un `content: "…"` o de un comentario también. Así
+ * un snippet con `content: "</style><img src=x onerror=…>"` cerraba la hoja y
+ * metía HTML propio en el documento de impresión. Se escapa **todo** `<` como
+ * la secuencia `\3c ` (el escape de CSS de U+003C, con el espacio que lo termina): dentro de
+ * una cadena o un `url()` es el mismo carácter, en un comentario no importa, y
+ * fuera de ellos un `<` no es CSS válido de todos modos.
+ */
+export function cssParaHtml(css: string): string {
+  return css.replace(/</g, "\\3c ");
+}
+
+/**
  * El documento completo que se imprime (`DEF-116`). Puro: recibe todo lo que
  * sale de la ventana —su CSS y los atributos de su `<html>`: el tema, la
  * atmósfera, las variables de las tipografías, las preferencias de fuente— y lo
@@ -296,7 +312,7 @@ export function armarDocumentoImpresion(p: {
   return (
     `<!doctype html><html${attrs}><head><meta charset="utf-8">` +
     `<title>${escaparAtributo(p.titulo)}</title>` +
-    (p.css ? `<style>${p.css}</style>` : "") +
+    (p.css ? `<style>${cssParaHtml(p.css)}</style>` : "") +
     `<style>@page { size: ${p.pageSize}; margin: 16mm; } ${buildPrintCss(p.opts, p.css !== "")}</style></head>` +
     `<body><div class="mic-preview">${p.html}</div></body></html>`
   );

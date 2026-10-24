@@ -14,7 +14,8 @@ const WARN_BYTES = 50 * 1024; // HU-15 CA5
 /**
  * Gestor de snippets de CSS personalizado (estilo Obsidian, HU-13/15): lista de
  * snippets guardados en el vault abierto (`.mycelium/snippets.json`), cada uno con switch
- * para activar/desactivar,
+ * para activar/desactivar —qué está activo lo guarda la configuración local de
+ * esta máquina, no el vault (`DEF-164`)—,
  * exportar y eliminar; botón general para importar un .css. Los cambios se
  * aplican en vivo, sin recargar.
  */
@@ -24,6 +25,8 @@ export function CustomCssSection() {
   const toggle = useCssStore((s) => s.toggle);
   const rename = useCssStore((s) => s.rename);
   const remove = useCssStore((s) => s.remove);
+  /** Los que vinieron con el vault y esta computadora nunca decidió (`DEF-164`). */
+  const traidos = snippets.filter((s) => s.traido).length;
 
   /**
    * Borrar un snippet pregunta y, hecho, ofrece traerlo de vuelta: el contenido
@@ -137,9 +140,18 @@ export function CustomCssSection() {
         />
       </div>
 
-      <Explicacion detalle="Viajan con la carpeta del vault: al abrir otro vault verás los suyos. El estilo se actualiza al instante.">
+      <Explicacion detalle="El CSS viaja con la carpeta del vault: al abrir otro vault verás los suyos. Cuáles están activos se decide en esta computadora, así que los que llegan con un vault ajeno arrancan apagados. El estilo se actualiza al instante.">
         Tus snippets se guardan en este vault; activá los que quieras.
       </Explicacion>
+
+      {/* `DEF-164`: lo que vino con el vault no se aplica solo. */}
+      {traidos > 0 && (
+        <p className={styles.warn} role="status">
+          {traidos === 1
+            ? "Este vault trae 1 snippet. Revisalo antes de activarlo."
+            : `Este vault trae ${traidos} snippets. Revisalos antes de activarlos.`}
+        </p>
+      )}
 
       <ul className={styles.snippetList}>
         {snippets.length === 0 && (
@@ -154,7 +166,11 @@ export function CustomCssSection() {
               <input
                 type="checkbox"
                 checked={s.activo}
-                onChange={(e) => void toggle(s.id, e.target.checked)}
+                onChange={(e) =>
+                  void toggle(s.id, e.target.checked).catch(() =>
+                    avisar(`No se pudo ${e.target.checked ? "activar" : "desactivar"} «${s.nombre}».`),
+                  )
+                }
               />
               <span className={styles.switchTrack} aria-hidden />
             </label>
