@@ -16,6 +16,13 @@
  * no vuelve a bajar ni a extraer nada. El `.war` bajado queda cacheado en
  * `.drawio-cache/` para que un cambio de recorte no cueste otra descarga.
  *
+ * También deja `public/drawio/LICENSE`: draw.io es Apache-2.0, que exige que
+ * toda redistribución lleve una copia de la licencia, y el `.war` no la trae
+ * (solo trae las de sus bibliotecas internas: `img/`, `shapes/`, `stencils/`,
+ * `templates/`, `js/libavoid-js/`, que el recorte conserva). La copia sale de
+ * `scripts/licencias/drawio-LICENSE.txt`, el `LICENSE` de jgraph/drawio en la
+ * etiqueta de la release fijada. El repo no tiene `NOTICE`.
+ *
  * Uso:  npm run preparar-drawio
  *       npm run preparar-drawio -- --forzar     (rehace la extracción)
  *       npm run preparar-drawio -- --sin-recorte (extrae la webapp entera)
@@ -46,6 +53,12 @@ const DESTINO = join(FRONTEND, "public", "drawio");
 const CACHE = join(FRONTEND, ".drawio-cache");
 const WAR_CACHEADO = join(CACHE, `draw-${VERSION}.war`);
 const SELLO = join(DESTINO, ".preparado.json");
+const LICENCIA = join(AQUI, "licencias", "drawio-LICENSE.txt");
+
+/** Copia la licencia de draw.io junto a la webapp (ver el encabezado). */
+async function copiarLicencia() {
+  await writeFile(join(DESTINO, "LICENSE"), await readFile(LICENCIA));
+}
 
 /**
  * Lo que se saca de la webapp tras extraerla (§ 3 de la spec: el recorte se
@@ -215,6 +228,7 @@ async function main() {
     const { bytes, archivos } = await medir(DESTINO);
     log(`ya preparado: draw.io v${VERSION} en public/drawio/`);
     log(`  ${archivos} archivos, ${mb(bytes)} — nada que hacer`);
+    await copiarLicencia();
     return;
   }
 
@@ -245,6 +259,7 @@ async function main() {
     escritos += 1;
   }
 
+  await copiarLicencia();
   const { bytes, archivos } = await medir(DESTINO);
   await writeFile(
     SELLO,

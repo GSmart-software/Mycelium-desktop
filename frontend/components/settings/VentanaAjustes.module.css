@@ -282,6 +282,38 @@
   padding: 0.15rem 0.4rem;
 }
 
+/* «Licencias de terceros»: un enlace discreto junto a la versión. */
+.pieEnlace {
+  padding: 0.15rem 0.3rem;
+  border-radius: var(--mic-radius-sm);
+  font: inherit;
+  color: var(--mic-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  user-select: none;
+}
+
+.pieEnlace:hover,
+.pieEnlace[aria-pressed="true"] {
+  color: var(--mic-text-primary);
+}
+
+/* El texto de los avisos: tal cual, en monoespaciada, sin cortar líneas largas. */
+.licencias {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-surface);
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--mic-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 /* Modo desarrollador encendido (`FUN-S-36`). */
 .pieDev {
   font-family: var(--mic-font-mono, monospace);

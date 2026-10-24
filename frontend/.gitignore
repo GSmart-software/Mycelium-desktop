@@ -69,3 +69,8 @@ scripts/*.png
 /.diccionarios-fuente/
 # Carpeta temporal de scripts/test-ortografia.mjs (se borra sola al terminar).
 /.tmp-test-ortografia/
+
+# Avisos de licencia de terceros: los arma scripts/generar-avisos-terceros.mjs
+# en cada dev/build desde los lockfiles (y su sello de idempotencia).
+/public/THIRD-PARTY-NOTICES.txt
+/.avisos-terceros.json

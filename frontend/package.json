@@ -4,8 +4,8 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs && next dev",
-    "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",
+    "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-avisos-terceros.mjs && node scripts/generar-ayuda.mjs && next dev",
+    "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-avisos-terceros.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
@@ -14,6 +14,7 @@
     "publicar": "node scripts/publicar.mjs",
     "preparar-drawio": "node scripts/preparar-drawio.mjs",
     "preparar-excalidraw": "node scripts/preparar-excalidraw.mjs",
+    "generar-avisos-terceros": "node scripts/generar-avisos-terceros.mjs",
     "preparar-mcp": "node scripts/preparar-mcp.mjs",
     "generar-ayuda": "node scripts/generar-ayuda.mjs",
     "wasm:ortografia": "node scripts/wasm-ortografia.mjs",

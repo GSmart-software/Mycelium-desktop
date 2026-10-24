@@ -566,6 +566,19 @@ try {
     await pagina.waitForTimeout(4000);
   });
 
+  await paso("Configuración → Licencias de terceros", async () => {
+    await pagina.getByRole("button", { name: "Configuración" }).first().click();
+    await pagina.getByRole("button", { name: "Licencias de terceros" }).click();
+    const aviso = pagina.getByLabel("Avisos de licencia de terceros");
+    await aviso.waitFor({ timeout: 20000 });
+    const texto = await aviso.textContent();
+    for (const esperado of ["Apache License", "SIL OPEN FONT LICENSE", "Paquetes de npm", "Crates de Rust"]) {
+      if (!texto.includes(esperado)) throw new Error(`el aviso no menciona «${esperado}»`);
+    }
+    await captura("licencias-de-terceros");
+    await pagina.keyboard.press("Escape");
+  });
+
   // Lo que la CSP TIENE que cortar: estas violaciones se esperan (prueban el
   // bloqueo) y lo que se exige es que el código inyectado no haya corrido.
   await paso("la CSP corta handlers en línea, javascript: y la impresión", async () => {
