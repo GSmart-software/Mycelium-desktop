@@ -165,7 +165,11 @@ pub fn registrar_vault(
         .0
         .lock()
         .map_err(|_| "Registro de ventanas no disponible".to_string())?
-        .insert(propia, ruta);
+        .insert(propia.clone(), ruta.clone());
+    // Las DevTools de esta ventana, según lo que esta máquina decidió para ESTE
+    // vault (`devtools.rs`): encendidas en otro vault no cuentan acá.
+    let devtools = crate::config_local::de_ventana(ventana.app_handle(), &propia).devtools;
+    crate::devtools::aplicar_a(ventana.app_handle(), &propia, devtools);
     Ok(())
 }
 
@@ -180,6 +184,8 @@ pub fn soltar_vault(
 ) {
     soltar_de(&state, ventana.label());
     crate::control::detener_de(&control, ventana.label());
+    // Sin vault, sin DevTools (salvo en desarrollo).
+    crate::devtools::aplicar_a(ventana.app_handle(), ventana.label(), false);
 }
 
 /// Suelta el vault de una ventana por su etiqueta. Lo usa además el cierre de

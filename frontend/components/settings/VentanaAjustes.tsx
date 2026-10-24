@@ -3,6 +3,7 @@
 import { BookOpen, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
+import { AvanzadoSection } from "@/components/settings/AvanzadoSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
@@ -38,7 +39,8 @@ type CategoriaId =
   | "grafo"
   | "consolas"
   | "vault"
-  | "actualizaciones";
+  | "actualizaciones"
+  | "avanzado";
 
 /**
  * Una entrada del buscador. El `rotulo` es el texto tal cual aparece en la
@@ -175,6 +177,18 @@ const CATEGORIAS: Categoria[] = [
       { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloDev: true },
     ],
   },
+  {
+    id: "avanzado",
+    nombre: "Avanzado",
+    descripcion: "Lo que se enciende solo en esta computadora y para este vault.",
+    grupo: "Sistema",
+    ajustes: [
+      {
+        rotulo: "Herramientas de desarrollo",
+        alias: ["devtools", "consola", "inspeccionar", "f12", "depurar"],
+      },
+    ],
+  },
 ];
 
 /** Los grupos, en el orden en que se muestran. */
@@ -208,6 +222,8 @@ function contenido(id: CategoriaId) {
       return <VaultSection />;
     case "actualizaciones":
       return <UpdaterSection />;
+    case "avanzado":
+      return <AvanzadoSection />;
   }
 }
 

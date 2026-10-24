@@ -35,9 +35,10 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-# `devtools`: habilita las herramientas de desarrollador TAMBIÉN en las builds de
-# producción (por defecto solo existen en debug). Son útiles para que el usuario
-# escriba su propio CSS o depure el uso diario; se abren con F12 / Ctrl+Shift+I.
+# `devtools`: compila las herramientas de desarrollador TAMBIÉN en las builds de
+# producción (por defecto solo existen en debug). Se abren con F12 / Ctrl+Shift+I
+# solo si el vault de la ventana tiene encendido «Herramientas de desarrollo» en
+# esta máquina (src/devtools.rs); en desarrollo, siempre.
 # `protocol-asset`: sirve archivos del disco al webview por el esquema `asset:`
 # (FUN-L-11). Sin esta feature el protocolo no se registra y `convertFileSrc`
 # devuelve una URL que no responde. El ámbito NO es global: se abre en runtime,
@@ -118,3 +119,7 @@ windows = { version = "0.61", features = [
 # El toast de un recordatorio con manejador de clic (`FUN-L-22`, src/recordatorios.rs).
 # Misma versión que trae `tauri-plugin-notification` por debajo: no se compila dos veces.
 tauri-winrt-notification = "0.7"
+# Las DevTools por vault (src/devtools.rs): `SetAreDevToolsEnabled` sobre el
+# controlador de WebView2, por webview y en tiempo de ejecución. Misma versión
+# que trae wry: no se compila dos veces.
+webview2-com = "0.38"
