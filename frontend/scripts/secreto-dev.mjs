@@ -37,6 +37,16 @@ export const SECRETO_DEV = [
   // mención, también «tema Amethystina».
   { patron: /\bamethystina\b/i, que: "el tema Amethystina" },
   { patron: /\bFUN-M-55\b/i, que: "FUN-M-55 (el tema Amethystina)" },
+  // El tema Amanita (`FUN-M-56`): el gemelo rojo de Amethystina, también solo
+  // con el modo. Acá NO alcanza la palabra entera: «Amanita» es además el color
+  // 5 de los recordatorios (lib/recordatorios.ts), que es público y lo nombran
+  // la plantilla de snippets y la ayuda del calendario. Se atrapa el TEMA: su id
+  // entre comillas, «Amanita» cerca de «tema» o de «Apariencia» en la misma
+  // frase, y el ID de la funcionalidad.
+  { patron: /['"`]amanita['"`]/, que: "el tema Amanita (su id)" },
+  { patron: /\btemas?\b[^.\n]{0,40}\bamanita\b/i, que: "el tema Amanita" },
+  { patron: /\bamanita\b[^.\n]{0,40}\b(?:temas?|apariencia)\b/i, que: "el tema Amanita" },
+  { patron: /\bFUN-M-56\b/i, que: "FUN-M-56 (el tema Amanita)" },
   // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
   // con la forma de los temas de marca, también solo con el modo. RETIRADO el
   // 2026-10-09 (ya no existe en la app), pero los patrones se quedan: nunca se

@@ -111,6 +111,11 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Nuevo tema: Amethystina, en violeta",
     "Elegí amethystina en Apariencia",
     "Cierra FUN-M-55",
+    "Nuevo tema: Amanita, en rojo",
+    "Nuevos temas Amethystina y Amanita",
+    "Elegí Amanita en Apariencia",
+    'data-theme="amanita"',
+    "Cierra FUN-M-56",
     "Nuevo tema: Bioluminiscencia (exp.), con resplandores",
     "Nuevo tema: Bioluminiscencia experimental",
     "Elegí Biolum. exp. en Apariencia",
@@ -130,6 +135,10 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     // Solo la palabra entera: «gsmartphone» o «smart» no son el tema.
     "Un gsmartphone de prueba",
     "Un buscador smart",
+    // «Amanita» es también el color 5 de los recordatorios, que es público:
+    // nombrarlo como color no revela el tema.
+    "Ocho colores para los recordatorios: Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma.",
+    "El recordatorio en Amanita se ve mejor en oscuro",
     // Bioluminiscencia es el tema público por defecto: nombrarlo no revela
     // nada. Tampoco «experimental» suelto.
     "Bioluminiscencia",
@@ -181,4 +190,15 @@ test("el tema Amethystina (`FUN-M-55`) está detrás del modo: muestra y buscado
     assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
   }
   assert.ok(lineas.some((l) => /alias: \["amethystina"\]/.test(l)), "falta el alias del buscador");
+});
+
+test("el tema Amanita (`FUN-M-56`) está detrás del modo: muestra y buscador `soloDev`", async () => {
+  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
+  assert.match(temas, /id: "amanita"[^}]*soloDev: true/, "la muestra de Amanita tiene que ser soloDev");
+  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
+  const lineas = ajustes.split(/\r?\n/);
+  for (const linea of lineas.filter((l) => /amanita/i.test(l) && /rotulo:/.test(l))) {
+    assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
+  }
+  assert.ok(lineas.some((l) => /alias: \["amanita"\]/.test(l)), "falta el alias del buscador");
 });

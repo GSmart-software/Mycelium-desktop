@@ -82,6 +82,8 @@ const CATEGORIAS: Categoria[] = [
       { rotulo: "Tema", alias: ["gsmart"], soloDev: true },
       // Y con Amethystina (`FUN-M-55`), un tema normal que también va detrás del modo.
       { rotulo: "Tema", alias: ["amethystina"], soloDev: true },
+      // Lo mismo con Amanita (`FUN-M-56`).
+      { rotulo: "Tema", alias: ["amanita"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
       { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
       { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
