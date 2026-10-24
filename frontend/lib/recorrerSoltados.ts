@@ -42,8 +42,8 @@ export async function leerTodasLasEntradas(lector: LectorDeCarpeta): Promise<Ent
 
 /**
  * Una carpeta soltada que no se copia: las ocultas (`.git/`, `.obsidian/`…),
- * que el default del `.mycignore` deja fuera de todos modos al copiar
- * (`copiar_arbol`). Saltarlas acá evita leer y mandar por IPC un `.git` entero
+ * que la importación deja fuera de todos modos al copiar (`copiar_arbol`,
+ * `DEF-165`). Saltarlas acá evita leer y mandar por IPC un `.git` entero
  * para después descartarlo.
  */
 function carpetaOmitida(nombre: string): boolean {

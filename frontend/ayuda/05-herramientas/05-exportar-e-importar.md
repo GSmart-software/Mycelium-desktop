@@ -35,11 +35,36 @@ está **Exportar a carpeta…**, útil para tenerlo en git o en una carpeta sinc
 ## Importar
 
 En Configuración → **Vault** → **Importar vault de Obsidian**, elegí una carpeta o un
-`.zip`. Se respeta la estructura de carpetas y se deja afuera la configuración de Obsidian
-(`.obsidian/`).
+`.zip`. Se respeta la estructura de carpetas y entran las notas, las imágenes, los PDF y
+cualquier otro archivo.
 
 Si un archivo ya existe con ese nombre en la carpeta de destino, Mycelium pregunta uno por
 uno: **Renombrar**, **Reemplazar** o **Cancelar este archivo**.
+
+### Lo que nunca se importa
+
+- **Todo lo oculto**: cualquier archivo o carpeta cuyo nombre empiece con un punto, en
+  cualquier nivel. Por ejemplo `.obsidian/`, `.git/`, `.claude/`, `.vscode/`, `.mcp.json`,
+  `.env`, `.mycignore` o el `.mycelium/` de otro vault. Es la configuración de otras
+  herramientas, y parte de ella puede ejecutar programas en tu equipo.
+- **Las carpetas de dependencias y de compilación**: `node_modules/`, `target/`, `dist/` y
+  `out/`.
+
+Esto no cambia aunque lo que importás traiga su propio `.mycignore`: lo que dice ese
+archivo no se aplica.
+
+### El aviso al terminar
+
+Al terminar aparece un resumen con lo que se importó, lo que se omitió agrupado (por ejemplo
+«No se importó: .claude/, .git/ y 3 archivos ocultos») y, si entre lo copiado hay
+instrucciones para asistentes de IA (`CLAUDE.md`, `AGENTS.md` y sus variantes), la lista de
+esos archivos. Se importan porque son notas, pero un asistente que abra el vault las sigue:
+leelos antes de usarlo.
+
+> [!info] Un `.zip` bajado de internet sigue marcado como descargado
+> En Windows, cada archivo que sale de un `.zip` descargado conserva la marca de «descargado
+> de internet» del zip. Así Office abre un documento importado en la Vista protegida, como
+> si lo hubieras bajado directamente.
 
 > [!tip] Con la app de escritorio no hace falta importar
 > Tu vault de Obsidian ya es una carpeta: podés abrirlo directamente como vault de

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
@@ -9,7 +9,7 @@ import {
   generarFramework,
   versionInstalada,
 } from "@/lib/ia/framework";
-import { collectFromZip } from "@/lib/import";
+import { elegirZip } from "@/lib/import";
 import { asegurarIntegracion, cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
@@ -85,7 +85,6 @@ export function VaultSection() {
     avisar(texto);
   };
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
-  const zipRef = useRef<HTMLInputElement>(null);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
@@ -281,9 +280,25 @@ export function VaultSection() {
     try {
       const origen = await elegirCarpeta("Elegí la carpeta del vault a importar");
       if (!origen) return;
-      // Se copia la carpeta entera —adjuntos incluidos— respetando su
-      // `.mycignore` (`FUN-M-40`); lo vacío se ve en el resumen.
+      // Se copia la carpeta entera —adjuntos incluidos— salvo lo oculto y las
+      // dependencias (`FUN-M-40`, `DEF-165`); lo omitido se ve en el resumen.
       await useImportStore.getState().run({ carpeta: origen }, activeFolder(), "Vault de Obsidian");
+    } catch (e) {
+      fallar((e as Error).message ?? String(e));
+    }
+  };
+
+  /**
+   * El `.zip` lo elige el selector nativo y lo extrae Rust (`DEF-165`): así
+   * sabe de qué archivo viene y le pasa su marca de la web a lo extraído.
+   */
+  const handleImportarZip = async () => {
+    setMensaje(null);
+    setError(null);
+    try {
+      const zip = await elegirZip("Elegí el .zip a importar");
+      if (!zip) return;
+      await useImportStore.getState().run({ zip }, activeFolder(), "Vault de Obsidian");
     } catch (e) {
       fallar((e as Error).message ?? String(e));
     }
@@ -444,26 +459,11 @@ export function VaultSection() {
             type="button"
             className={styles.secondaryBtn}
             disabled={ocupado}
-            onClick={() => zipRef.current?.click()}
+            onClick={() => void handleImportarZip()}
           >
             Importar .zip
           </button>
         </div>
-        <input
-          ref={zipRef}
-          type="file"
-          accept=".zip"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              void collectFromZip(file).then((archivos) =>
-                useImportStore.getState().run({ archivos }, activeFolder(), "Vault de Obsidian"),
-              );
-            }
-            e.target.value = "";
-          }}
-        />
       </div>
 
       <div className={styles.field}>
