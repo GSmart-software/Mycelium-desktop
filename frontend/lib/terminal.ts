@@ -174,7 +174,9 @@ export async function abrirPty(termId: string): Promise<void> {
   try {
     await invoke("terminal_abrir", {
       id: termId,
-      shell: elegida.ruta,
+      // El id y no la ruta (`DEF-162`): Rust la resuelve contra las shells que
+      // detectó, para que la webview no pueda lanzar cualquier ejecutable.
+      shell: elegida.id,
       cwd,
       cols: inst.term.cols,
       rows: inst.term.rows,
