@@ -79,6 +79,10 @@ sha2 = "0.10"
 # cada archivo la marca de la web del zip. Ya estaba en el árbol (el updater);
 # solo se le suma `deflate-flate2`, sobre el `flate2` de arriba.
 zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
+# Comparar versiones en el control de bajada del updater (src/actualizador.rs):
+# es el tipo que usa el plugin en `version_comparator`. Ya estaba en el árbol
+# (el updater): no se compila nada nuevo.
+semver = "1"
 trash = "5.2.3"
 # Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
 # la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.
