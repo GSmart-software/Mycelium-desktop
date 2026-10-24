@@ -21,6 +21,7 @@ const {
   canvasInicial,
   encuadrar,
   colorCss,
+  htmlTarjetaEnlace,
   ErrorCanvas,
   ladosAutomaticos,
   lugarLibre,
@@ -35,6 +36,16 @@ const {
   serializarCanvas,
   trazoArista,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
+
+// La validación de enlaces externos, para la tarjeta de enlace (`DEF-159`).
+const rutaEnlaces = fileURLToPath(new URL("../lib/enlacesExternos.ts", import.meta.url));
+const { destinoExterno } = await import(
+  `data:text/javascript,${encodeURIComponent(
+    ts.transpileModule(await readFile(rutaEnlaces, "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
+    }).outputText,
+  )}`
+);
 
 // Un canvas como los que escribe Obsidian, con TODO lo que el formato permite.
 const OBSIDIAN = JSON.stringify(
@@ -324,6 +335,50 @@ test("los presets del formato se traducen a un color CSS", () => {
 
 test("un hex ajeno se respeta aunque la paleta no lo ofrezca", () => {
   assert.equal(colorCss("#123456"), "#123456");
+});
+
+test("un color que empieza por # pero no es hex se descarta (DEF-159)", () => {
+  assert.equal(colorCss("#fff"), "#fff");
+  assert.equal(colorCss("#ffff"), "#ffff");
+  assert.equal(colorCss("#12345678"), "#12345678");
+  assert.equal(colorCss("#red;background:url(https://x)"), null);
+  assert.equal(colorCss('#"><img src=x onerror=alert(1)>'), null);
+  assert.equal(colorCss("#12345"), null);
+});
+
+// ── Tarjeta de enlace (DEF-159) ─────────────────────────────────────────────
+
+test("tarjeta de enlace: una URL con comillas y < no inyecta HTML", () => {
+  const html = htmlTarjetaEnlace('x"><img src=x onerror=alert(1)>', destinoExterno);
+  assert.doesNotMatch(html, /<img/);
+  assert.doesNotMatch(html, /<a /, "no es un destino permitido: va como texto");
+  assert.equal(html, "<p>x&quot;&gt;&lt;img src=x onerror=alert(1)&gt;</p>");
+});
+
+test("tarjeta de enlace: una URL web válida con comillas queda escapada en href y texto", () => {
+  const html = htmlTarjetaEnlace('https://ejemplo.com/"><script>alert(1)</script>', destinoExterno);
+  assert.doesNotMatch(html, /<script/);
+  assert.doesNotMatch(html, /"></);
+  assert.ok(html.startsWith('<p><a href="https://ejemplo.com/'), html);
+  assert.ok(html.includes('">https://ejemplo.com/&quot;&gt;&lt;script&gt;'), html);
+});
+
+test("tarjeta de enlace: un esquema no permitido se muestra como texto, sin enlace", () => {
+  for (const url of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "file:///C:/x", "data:text/html,x", "search-ms:q"]) {
+    const html = htmlTarjetaEnlace(url, destinoExterno);
+    assert.doesNotMatch(html, /<a /, url);
+    assert.equal(html, `<p>${url}</p>`, url);
+  }
+});
+
+test("tarjeta de enlace: http/https/mailto siguen siendo enlaces", () => {
+  assert.equal(
+    htmlTarjetaEnlace("https://obsidian.md", destinoExterno),
+    '<p><a href="https://obsidian.md/">https://obsidian.md</a></p>',
+  );
+  assert.match(htmlTarjetaEnlace("mailto:a@b.com", destinoExterno), /<a href="mailto:a@b\.com">/);
+  assert.equal(htmlTarjetaEnlace(undefined, destinoExterno), "<p></p>");
+  assert.equal(htmlTarjetaEnlace("", destinoExterno), "<p></p>");
 });
 
 test("un preset que no existe no rompe: se dibuja sin color", () => {

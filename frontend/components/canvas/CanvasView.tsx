@@ -11,6 +11,7 @@ import {
   buscarPorPrefijo,
   cajaDeNodos,
   colorCss,
+  htmlTarjetaEnlace,
   COLORES,
   encuadrar,
   ladosAutomaticos,
@@ -43,7 +44,7 @@ import { markMissingWikilinks } from "@/lib/editor/wikilink";
 import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
 import { resolverReferencia } from "@/lib/wikilinks";
 import { soltarFoco } from "@/lib/editor/tituloPendiente";
-import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { atenderClicEnEnlace, destinoExterno } from "@/lib/enlacesExternos";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
@@ -986,7 +987,8 @@ function NodoVista({
   const html = useMemo(() => {
     if (nodo.tipo === "text") return renderNota(nodo.texto ?? "");
     if (nodo.tipo === "file") return renderNota(contenido ?? "");
-    if (nodo.tipo === "link") return `<p><a href="${nodo.url ?? ""}">${nodo.url ?? ""}</a></p>`;
+    // Escapado y validado: la URL viene cruda del archivo (`DEF-159`).
+    if (nodo.tipo === "link") return htmlTarjetaEnlace(nodo.url, destinoExterno);
     return "";
   }, [nodo.tipo, nodo.texto, nodo.url, contenido]);
 
@@ -1097,18 +1099,9 @@ function NodoVista({
             className={`mic-preview ${styles.render}`}
             dangerouslySetInnerHTML={{ __html: html }}
             onDoubleClick={() => nodo.tipo === "text" && onEditar()}
-            onClick={(e) => {
-              const a = (e.target as HTMLElement).closest("a");
-              const href = a?.getAttribute("href") ?? "";
-              // Una tarjeta puede traer un enlace web: al navegador (`FUN-S-20`).
-              if (manejarClicDeEnlace(e, href)) return;
-              if (href.startsWith("#wikilink:")) {
-                e.preventDefault();
-                onAbrirTitulo(decodeURIComponent(href.slice("#wikilink:".length)));
-              } else if (href.startsWith("#tag:")) {
-                e.preventDefault();
-              }
-            }}
+            // Un enlace web va al navegador (`FUN-S-20`), un wikilink abre la
+            // nota y el resto no navega la webview nunca (`DEF-160`).
+            onClick={(e) => atenderClicEnEnlace(e, { abrirNota: onAbrirTitulo })}
           />
         )}
       </div>

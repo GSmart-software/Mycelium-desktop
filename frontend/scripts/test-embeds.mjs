@@ -33,6 +33,7 @@ const MODULOS = [
   "lib/editor/wikilink.ts",
   "lib/video.ts",
   "lib/imagenes.ts",
+  "lib/enlacesExternos.ts",
   "lib/estadosTarea.ts",
 ];
 

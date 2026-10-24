@@ -42,6 +42,7 @@ const MODULOS = [
   "lib/editor/wikilink.ts",
   "lib/video.ts",
   "lib/imagenes.ts",
+  "lib/enlacesExternos.ts",
 ];
 
 await rm(TMP, { recursive: true, force: true });
@@ -107,6 +108,22 @@ test("las páginas escritas no llevan HTML crudo (el motor lo descarta y el text
 });
 
 // ── Enlaces y cobertura ─────────────────────────────────────────────────────
+
+test("el saneo de URLs no se lleva los enlaces ayuda: del HTML (DEF-160)", () => {
+  // Las páginas se renderizan con el pipeline de las notas, que quita todo
+  // `href` con un esquema ajeno: `ayuda:` tiene que sobrevivir, o la ayuda
+  // queda sin navegación entre páginas.
+  let vistos = 0;
+  for (const p of ESCRITAS) {
+    const html = htmlDePagina(p.cuerpo);
+    for (const destino of indice.enlacesDeAyuda(p.cuerpo)) {
+      assert.ok(html.includes(`href="ayuda:${destino}`), `${p.id}: se perdió el enlace a ayuda:${destino}`);
+      vistos++;
+    }
+    assert.doesNotMatch(html, /Enlace bloqueado/, `${p.id}: un enlace quedó bloqueado`);
+  }
+  assert.ok(vistos > 0);
+});
 
 test("cada enlace ayuda: lleva a una página que existe en la misma versión", () => {
   for (const p of ESCRITAS) {
