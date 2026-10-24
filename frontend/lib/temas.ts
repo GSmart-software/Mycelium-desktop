@@ -19,7 +19,8 @@
  * GSmart, su marca personal. «De marca» acá quiere decir «trae su propia
  * forma», no «es de otro».
  *
- * También hay temas **normales** detrás del modo —`amethystina` (`FUN-M-55`)—:
+ * También hay temas **normales** detrás del modo —`amethystina` (`FUN-M-55`) y
+ * `amanita` (`FUN-M-56`)—:
  * son `soloDev` pero no de marca, así que admiten las atmósferas. Ver
  * `docs/features/temas-amethystina-amanita.md`.
  *
@@ -30,7 +31,7 @@
 import { atmosferaValida, ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "./atmosferas";
 import { comandosDisponibles } from "./modoDev";
 
-export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart" | "amethystina";
+export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart" | "amethystina" | "amanita";
 
 export const TEMA_DEFECTO: Tema = "bioluminiscencia";
 
@@ -59,6 +60,8 @@ export const TEMAS: readonly InfoTema[] = [
   // Amethystina (`FUN-M-55`): un tema normal —solo colores, admite atmósferas—,
   // pero, como los de marca, detrás del modo mientras el usuario lo prueba.
   { id: "amethystina", nombre: "Amethystina", canvas: "#120c1c", mist: "#1a1228", glow: "#dcb6ff", accent: "#b78cff", soloDev: true },
+  // Amanita (`FUN-M-56`): lo mismo, en rojo, con el durazno de las motas.
+  { id: "amanita", nombre: "Amanita", canvas: "#1a0c0b", mist: "#241211", glow: "#ffb59c", accent: "#ff6656", soloDev: true },
 ];
 
 /**
@@ -72,7 +75,7 @@ export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart"];
  * El tema guardado, si es uno que existe; si no, el de defecto. El archivo de
  * preferencias vive en la carpeta del usuario y se puede editar a mano.
  *
- * Los temas `soloDev` (`arrecife`, `gsmart`, `amethystina`) son válidos **siempre**, esté o no
+ * Los temas `soloDev` (`arrecife`, `gsmart`, `amethystina`, `amanita`) son válidos **siempre**, esté o no
  * el modo dev: el modo decide si se puede ELEGIR, no si un vault que ya lo tiene
  * se puede abrir así.
  */

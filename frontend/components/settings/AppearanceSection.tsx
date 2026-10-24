@@ -14,8 +14,8 @@ import styles from "./Settings.module.css";
  * esté: la del otro modo rige cuando se cambie.
  *
  * Las muestras de tema salen de `lib/temas.ts`. Las marcadas `soloDev` (el tema
- * Arrecife, `FUN-M-51`, el tema GSmart, `FUN-M-52`, y el tema Amethystina,
- * `FUN-M-55`) solo existen con el modo
+ * Arrecife, `FUN-M-51`, el tema GSmart, `FUN-M-52`, y los temas Amethystina,
+ * `FUN-M-55`, y Amanita, `FUN-M-56`) solo existen con el modo
  * desarrollador y llevan la
  * marca «dev», como los comandos de desarrollador de la paleta. Sin el modo, un
  * vault que ya está en ese tema se sigue pintando así, pero su muestra no

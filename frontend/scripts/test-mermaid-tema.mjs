@@ -37,6 +37,9 @@ const TEMAS = {
   // Amethystina (`FUN-M-55`), un tema normal detrás del modo dev.
   "amethystina claro": { canvas: "#F7F3FC", mist: "#EFE6F9", accent: "#6C3DBD", glow: "#9860E8", ink: "#251E30", muted: "#62577A" },
   "amethystina oscuro": { canvas: "#120c1c", mist: "#1a1228", accent: "#b78cff", glow: "#dcb6ff", ink: "#e8def5", muted: "#9d8db4" },
+  // Amanita (`FUN-M-56`), igual.
+  "amanita claro": { canvas: "#FCF6F3", mist: "#F8E9E4", accent: "#B81F2D", glow: "#D0602A", ink: "#2E2120", muted: "#6F5652" },
+  "amanita oscuro": { canvas: "#1a0c0b", mist: "#241211", accent: "#ff6656", glow: "#ffb59c", ink: "#f5e1dc", muted: "#b38c86" },
 };
 
 /** Los tokens `--mic-mermaid-*` como los resuelve `tokens.css`. */

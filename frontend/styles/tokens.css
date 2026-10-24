@@ -247,6 +247,32 @@
   --mic-amber-icon:     #C9821E;
 }
 
+/* ── Tema Amanita (`FUN-M-56`, solo con el modo dev) — modo claro ──
+   Por la *Amanita muscaria*, el hongo rojo de los cuentos. Un tema normal, como
+   Amethystina: solo los ocho raw, admite las atmósferas. El rojo va a botones y
+   enlaces; etiquetas, cursor y nodos toman el tono cálido de las motas y del
+   pie, para que el tema no sea todo rojo. Que el acento se parezca al rojo de
+   error es aceptado (decisión del usuario, 2026-10-24). Chrome rojo profundo +
+   contenido crema rosado + acentos rojo. Contraste medido en
+   docs/features/temas-amethystina-amanita.md.
+
+   base y glow se ajustaron al medir las atmósferas, por lo mismo que en
+   Amethystina: con Aurora, el nombre de la app (glow 80% con mist) daba 3.5:1
+   sobre base con base #6E1414 y glow #C9541F. Así llega a 4.65:1, y el glow
+   sigue ≥3:1 sobre la nota (3.6) y los paneles (3.3). */
+[data-theme='amanita'] {
+  --mic-raw-base:       #561010;   /* rail / topbar / sidebar */
+  --mic-raw-base-deep:  #4A0D0D;   /* tinte de sombras y velos (el código usa su propio fondo en claro) */
+  --mic-raw-accent:     #B81F2D;   /* botones y enlaces (rojo legible) */
+  --mic-raw-glow:       #D0602A;   /* highlights, cursor, tags (naranja cálido) */
+  --mic-raw-mist:       #F8E9E4;   /* paneles laterales */
+  --mic-raw-canvas:     #FCF6F3;   /* editor / fondo principal */
+  --mic-raw-ink:        #2E2120;
+  --mic-raw-ink-muted:  #6F5652;
+
+  --mic-amber-icon:     #C9821E;
+}
+
 /* ── Tema Arrecife (`FUN-M-51`, solo con el modo dev) — modo claro ──
    La marca de otro proyecto del usuario: cian y violeta sobre grises fríos (matiz
    240). Los roles de Arrecife se mapean a los raw de Mycelium; la tabla de
@@ -362,6 +388,20 @@
   --mic-raw-mist:       #1a1228;   /* paneles laterales, tabs */
   --mic-raw-ink:        #e8def5;
   --mic-raw-ink-muted:  #9d8db4;
+}
+
+/* Amanita oscuro (`FUN-M-56`) = la estética abisal en rojo: casi negro
+   rojizo + rojo coral y el durazno de las motas. Bordes y hover salen de las
+   fórmulas de :root. */
+[data-theme='amanita'][data-dark='true'] {
+  --mic-raw-base:       #0f0606;   /* rail / sidebar */
+  --mic-raw-base-deep:  #2a1212;   /* bloques de código y lienzo del grafo */
+  --mic-raw-accent:     #ff6656;   /* botones y enlaces — rojo coral (texto oscuro encima) */
+  --mic-raw-glow:       #ffb59c;   /* nodos, tags, cursor, resaltados — durazno */
+  --mic-raw-canvas:     #1a0c0b;   /* editor / fondo principal */
+  --mic-raw-mist:       #241211;   /* paneles laterales, tabs */
+  --mic-raw-ink:        #f5e1dc;
+  --mic-raw-ink-muted:  #b38c86;
 }
 
 /* Arrecife oscuro (`FUN-M-51`): el predeterminado de la marca.
