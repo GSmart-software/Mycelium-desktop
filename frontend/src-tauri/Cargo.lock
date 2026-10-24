@@ -109,6 +109,7 @@ dependencies = [
  "tauri-winrt-notification",
  "tokio",
  "trash",
+ "webview2-com",
  "windows 0.61.3",
  "zip",
 ]

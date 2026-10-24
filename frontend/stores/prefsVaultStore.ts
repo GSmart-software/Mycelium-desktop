@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { temaValido, TEMA_DEFECTO, type Tema } from "@/lib/temas";
+import { useConfigLocalStore } from "@/stores/configLocalStore";
 
 /**
  * Preferencias **de un vault**, no del usuario (`FUN-M-28` / `FUN-M-21`).
@@ -68,10 +69,16 @@ export type PrefsVault = {
   /**
    * «Dejar que la IA controle Mycelium» (`FUN-L-09`): si esta ventana abre el
    * canal del MCP de control para el vault. **Apagado por defecto**: que un
-   * proceso externo pueda manejar la app se concede, no viene puesto. El
-   * servidor MCP lee esta clave del disco para distinguir «app cerrada» de
-   * «control apagado» (`crates/mycelium-vault/src/preferencias.rs`): si se
-   * renombra, hay que renombrarla allá.
+   * proceso externo pueda manejar la app se concede, no viene puesto.
+   *
+   * > [!important] En el archivo es solo un espejo (`DEF-169`)
+   * > La decisión es de la máquina (`configLocalStore`): al cargar, este valor
+   * > se reemplaza por el de la configuración local, y lo que diga el archivo
+   * > del vault no enciende nada. Se sigue escribiendo —con el valor local—
+   * > porque lo leen el servidor MCP, para distinguir «app cerrada» de
+   * > «control apagado» (`crates/mycelium-vault/src/preferencias.rs`), y el
+   * > hook de `mv`/`rm` (`scripts/hook-mv-rm.mjs`): si se renombra, hay que
+   * > renombrarla allá.
    */
   controlIa: boolean;
   /**
@@ -208,6 +215,11 @@ function normalizarAnchos(crudo: unknown): AnchosTabla {
 
 type EstadoPrefsVault = {
   prefs: PrefsVault;
+  /**
+   * El vault traía `controlIa: true` en su archivo pero esta máquina no lo
+   * encendió (`DEF-169`): Configuración lo muestra apagado y lo cuenta.
+   */
+  controlIaDelVault: boolean;
   /** Ruta del vault que cargó estas preferencias; null = ninguno todavía. */
   ruta: string | null;
   /** Carga las del vault indicado. Idempotente para la misma ruta. */
@@ -245,11 +257,13 @@ function guardarDiferido(ruta: string | null, prefs: PrefsVault) {
 export const usePrefsVaultStore = create<EstadoPrefsVault>((set, get) => ({
   prefs: { ...POR_DEFECTO },
   ruta: null,
+  controlIaDelVault: false,
 
   async cargar(ruta) {
     if (get().ruta === ruta) return;
     if (ruta === null) {
-      set({ prefs: { ...POR_DEFECTO }, ruta: null });
+      set({ prefs: { ...POR_DEFECTO }, ruta: null, controlIaDelVault: false });
+      void useConfigLocalStore.getState().cargar(null);
       return;
     }
     let crudo: unknown = null;
@@ -261,7 +275,14 @@ export const usePrefsVaultStore = create<EstadoPrefsVault>((set, get) => ({
       // arranca con los valores por defecto y el próximo guardado lo rehace.
       crudo = null;
     }
-    set({ prefs: normalizar(crudo), ruta });
+    const delArchivo = normalizar(crudo);
+    // El control lo decide esta máquina, no el archivo (`DEF-169`).
+    const local = await useConfigLocalStore.getState().cargar(ruta);
+    const prefs = { ...delArchivo, controlIa: local.controlIa };
+    set({ prefs, ruta, controlIaDelVault: delArchivo.controlIa && !local.controlIa });
+    // El espejo del archivo se corrige enseguida: si no, el hook de mv/rm y el
+    // servidor MCP seguirían creyendo lo que trajo el vault.
+    if (crudo !== null && delArchivo.controlIa !== local.controlIa) guardarDiferido(ruta, prefs);
   },
 
   set(clave, valor) {

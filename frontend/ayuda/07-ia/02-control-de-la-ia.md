@@ -8,7 +8,9 @@ sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, ope
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
 muestre una nota, sepa qué tenés abierto, agende un recordatorio o renombre una nota sin
 romper los enlaces que llegan a ella. Lo hace por un servidor MCP que viene con Mycelium. Está
-**apagado** por defecto, y se prende por vault.
+**apagado** por defecto, y se prende por vault **en cada computadora**: la decisión no viaja
+con la carpeta, así que un vault que te pasaron, o uno que nunca abriste acá, llega con el
+control apagado aunque en otra computadora estuviera encendido.
 
 ## Para qué sirve
 
