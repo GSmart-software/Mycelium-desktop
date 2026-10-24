@@ -1,0 +1,44 @@
+name: CodeQL
+
+# Análisis estático de CodeQL (gratis en repos públicos). Los resultados van a
+# Security → Code scanning. Tres lenguajes, todos con `build-mode: none` (sin
+# compilar): el código de la app (JavaScript/TypeScript), los workflows de
+# GitHub Actions y el backend de Tauri (Rust, soporte estable desde CodeQL 2.23).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Lunes 04:23 UTC: avisos nuevos sobre código que no cambió.
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analizar:
+    name: Analizar (${{ matrix.lenguaje }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        lenguaje: [javascript-typescript, actions, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.lenguaje }}
+          build-mode: none
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:${{ matrix.lenguaje }}
