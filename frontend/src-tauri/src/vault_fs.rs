@@ -316,6 +316,23 @@ fn es_ejecutable(ruta: &Path) -> bool {
     EJECUTABLES.contains(&ext.as_str())
 }
 
+/// Tipos que no son programas pero que, al abrirlos, pueden ejecutar código o
+/// saltarse la marca de la web (`DEF-165`): documentos de Office con macros
+/// (`.docm`, `.xlsm`, `.pptm` y sus plantillas y complementos; `.xlsb` también
+/// las admite), complementos de Excel que son bibliotecas (`.xll`), ayuda
+/// compilada (`.chm`, corre scripts) e imágenes de disco que Windows monta al
+/// abrirlas (`.iso`, `.img`, `.vhd`, `.vhdx`). No se rechazan —son documentos
+/// legítimos—, pero antes de abrirlos Rust pregunta con un diálogo nativo.
+const PIDEN_CONFIRMACION: &[&str] = &[
+    "docm", "dotm", "xlsm", "xltm", "xlam", "xlsb", "pptm", "potm", "ppsm", "ppam", "sldm", "xll",
+    "chm", "iso", "img", "vhd", "vhdx",
+];
+
+/// `true` si abrir `ruta` pide confirmación (ver `PIDEN_CONFIRMACION`).
+fn pide_confirmacion(ruta: &Path) -> bool {
+    PIDEN_CONFIRMACION.contains(&crate::archivos::extension_de(ruta).as_str())
+}
+
 /// Abre `ruta_rel` con la aplicación que el SO tenga asociada a su tipo.
 ///
 /// Es la salida de emergencia del visor de solo lectura (`FUN-L-11`): lo que
@@ -505,9 +522,41 @@ pub fn ia_borrar_anterior(ventana: tauri::Window, vault_ruta: String, ruta_rel: 
 /// Ver `abrir_con_sistema_en`. Solo rutas dentro del vault de la ventana: es
 /// el comando que **ejecuta** lo que toca (abre con el programa asociado), así
 /// que con una base libre bastaba un `.bat` cualquiera del disco.
+///
+/// Un documento con macros o una imagen de disco (`pide_confirmacion`) se abre
+/// solo si el usuario lo confirma en un diálogo **nativo**, que la webview no
+/// puede contestar por él (`DEF-165`). Si dice que no, no pasa nada: no es un
+/// error.
 #[tauri::command]
-pub fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
-    abrir_con_sistema_en(base(&ventana, &vault_ruta)?, ruta_rel)
+pub async fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
+    let vault = base(&ventana, &vault_ruta)?;
+    if pide_confirmacion(Path::new(&ruta_rel)) {
+        use tauri::Manager;
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+        let nombre = Path::new(&ruta_rel)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| ruta_rel.clone());
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        ventana
+            .app_handle()
+            .dialog()
+            .message(format!(
+                "«{nombre}» puede ejecutar código al abrirlo (macros, complementos o una imagen de disco). \
+                 Abrilo solo si sabés de dónde viene y confiás en quien lo hizo."
+            ))
+            .title("¿Abrir este archivo?")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::OkCancelCustom("Abrir".into(), "Cancelar".into()))
+            .parent(&ventana)
+            .show(move |ok| {
+                let _ = tx.send(ok);
+            });
+        if !rx.await.unwrap_or(false) {
+            return Ok(());
+        }
+    }
+    abrir_con_sistema_en(vault, ruta_rel)
 }
 
 /// Ver `revelar_en_sistema_en`.
@@ -675,6 +724,20 @@ mod tests {
         assert!(!es_ejecutable(&base.join("informe.pdf")));
         assert!(!es_ejecutable(&base.join("foto.png")));
         std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// `DEF-165`: los documentos con macros y las imágenes de disco piden
+    /// confirmación; un documento común o una imagen, no. Ninguno es ejecutable:
+    /// no se rechazan.
+    #[test]
+    fn documentos_con_macros_piden_confirmacion() {
+        for nombre in ["informe.docm", "Cuentas.XLSM", "charla.pptm", "addin.xll", "disco.iso", "ayuda.chm"] {
+            assert!(pide_confirmacion(Path::new(nombre)), "{nombre}");
+            assert!(!es_ejecutable(Path::new(nombre)), "{nombre}");
+        }
+        for nombre in ["informe.docx", "Cuentas.xlsx", "charla.pptx", "nota.md", "foto.png", "a.pdf"] {
+            assert!(!pide_confirmacion(Path::new(nombre)), "{nombre}");
+        }
     }
 
     #[test]
