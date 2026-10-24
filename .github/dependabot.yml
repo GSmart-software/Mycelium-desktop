@@ -1,0 +1,50 @@
+# Actualizaciones de dependencias con Dependabot.
+#
+# Una vez por semana, agrupadas por ecosistema para no llenar el repo de PRs: las
+# subidas menores y de parche van juntas en un solo PR por ecosistema; las
+# mayores, que pueden romper algo, van una por PR. Las alertas de seguridad
+# (Dependabot security updates) se activan aparte, en Settings → Code security,
+# y abren su PR en cuanto sale el aviso, sin esperar a la semana.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Argentina/Buenos_Aires
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-menores:
+        update-types: [minor, patch]
+
+  - package-ecosystem: cargo
+    directory: /frontend/src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Argentina/Buenos_Aires
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      cargo-menores:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Argentina/Buenos_Aires
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      acciones:
+        patterns: ["*"]

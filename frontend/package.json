@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "2.5.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs && next dev",
     "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",

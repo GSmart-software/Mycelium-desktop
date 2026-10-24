@@ -1,0 +1,54 @@
+name: Seguridad de dependencias
+
+# Auditoría de dependencias con avisos conocidos:
+# - npm: `npm audit` sobre lo que se empaqueta (sin las de desarrollo), falla
+#   con avisos de severidad alta o crítica.
+# - Rust: `cargo audit` contra la base de RustSec. Los avisos aceptados, con su
+#   motivo, están en `frontend/src-tauri/.cargo/audit.toml`.
+# Corre en cada cambio y una vez por semana, porque los avisos nuevos aparecen
+# sin que cambie el código.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      # `npm audit` lee el `package-lock.json`: no hace falta instalar nada.
+      - name: Auditar dependencias de producción
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  cargo:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-audit
+
+      - name: Auditar Cargo.lock
+        working-directory: frontend/src-tauri
+        run: cargo audit
