@@ -13,7 +13,8 @@ escribís un [snippet CSS](ayuda:configuracion/css-y-snippets).
 
 Están **apagadas** por defecto, en cada vault. Abrí **Configuración → Avanzado** y prendé
 «Herramientas de desarrollo». Desde ahí se abren con **F12** o **Ctrl+Shift+I**, o con clic
-derecho → «Inspeccionar».
+derecho → «Inspeccionar», sin reiniciar nada. La consola se abre en su propia ventana y se
+cierra con su X.
 
 Se encienden **en esta computadora y para este vault**: en los demás vaults siguen apagadas, y
 la decisión no viaja con la carpeta.
