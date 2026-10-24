@@ -438,7 +438,12 @@ pub async fn updater_descargar(
     let update = construir(&app, &endpoint, objetivo)
         .await?
         .ok_or_else(|| match version {
-            Some(v) => format!("El manifiesto de la versión {v} no anuncia esa versión."),
+            // Puede ser que el manifiesto anuncie otra o que la pedida no sea más
+            // nueva que la instalada y no se permita bajar (`version_aceptable`).
+            Some(v) => format!(
+                "No se puede instalar la versión {v}: el manifiesto no la anuncia o no \
+                 es más nueva que la instalada."
+            ),
             None => "No hay ninguna versión más nueva que la instalada.".to_string(),
         })?;
 
@@ -481,15 +486,38 @@ pub fn updater_descartar(estado: tauri::State<'_, DescargaState>) -> Result<(), 
 
 // ── Motor ───────────────────────────────────────────────────────────────────
 
+/// Decide si el updater acepta la versión `remota` estando instalada `actual`.
+///
+/// - Sin `pedida` (la búsqueda normal): solo una MAYOR que la instalada.
+/// - Con `pedida` (elegir versión): tiene que ser exactamente esa, y además,
+///   **fuera del modo desarrollador**, mayor que la instalada. Bajar de versión
+///   —o reinstalar la misma— queda solo para el modo desarrollador: sin este
+///   control, cualquiera que llegara a invocar `updater_descargar` con una
+///   versión vieja (firmada, pero quizá con fallos ya corregidos) la instalaba.
+///
+/// El control vive acá y no en la UI porque el comando es lo que se expone al
+/// webview: la UI solo esconde el selector.
+fn version_aceptable(
+    actual: &semver::Version,
+    remota: &semver::Version,
+    pedida: Option<&str>,
+    dev: bool,
+) -> bool {
+    match pedida {
+        None => remota > actual,
+        Some(pedida) => remota.to_string() == pedida && (dev || remota > actual),
+    }
+}
+
 /// Construye el `Update` a partir del manifiesto que toque.
 ///
-/// - Sin `version`: el manifiesto raíz y la comparación por defecto del plugin
-///   (solo instala si la remota es MAYOR que la instalada).
-/// - Con `version`: el manifiesto de esa carpeta y un `version_comparator`
-///   propio que acepta exactamente esa versión. El comparador **sustituye por
-///   completo** al `>` por defecto, que es lo que permite bajar de versión sin
-///   salirse del plugin; el instalador NSIS lo admite porque
-///   `bundle.windows.allowDowngrades` vale su default (`true`).
+/// - Sin `version`: el manifiesto raíz y solo una versión MAYOR que la
+///   instalada (lo mismo que el `>` por defecto del plugin, dicho explícito).
+/// - Con `version`: el manifiesto de esa carpeta y exactamente esa versión. El
+///   `version_comparator` **sustituye por completo** al `>` por defecto, que es
+///   lo que permite bajar de versión sin salirse del plugin —solo en modo
+///   desarrollador, ver `version_aceptable`—; el instalador NSIS lo admite
+///   porque `bundle.windows.allowDowngrades` vale su default (`true`).
 async fn construir(
     app: &tauri::AppHandle,
     endpoint: &str,
@@ -510,11 +538,10 @@ async fn construir(
         .endpoints(vec![url])
         .map_err(|e| format!("Endpoint rechazado: {e}"))?;
 
-    if let Some(pedida) = pedida {
-        builder = builder.version_comparator(move |_actual, remota| {
-            remota.version.to_string() == pedida
-        });
-    }
+    let dev = leer_config(&ruta_config(app)?).dev;
+    builder = builder.version_comparator(move |actual, remota| {
+        version_aceptable(&actual, &remota.version, pedida.as_deref(), dev)
+    });
 
     builder
         .build()
@@ -608,6 +635,30 @@ mod tests {
         assert!(motivo_desactivado("dW50cnVzdGVk", "https://x.invalid/latest.json").is_some());
         assert!(motivo_desactivado("dW50cnVzdGVk", "").is_some());
         assert!(motivo_desactivado("dW50cnVzdGVk", "https://x/latest.json").is_none());
+    }
+
+    #[test]
+    fn bajar_de_version_solo_en_modo_dev() {
+        let v = |s: &str| semver::Version::parse(s).unwrap();
+        let actual = v("2.5.0");
+
+        // Búsqueda normal: solo una mayor, con o sin modo dev.
+        assert!(version_aceptable(&actual, &v("2.6.0"), None, false));
+        assert!(!version_aceptable(&actual, &v("2.5.0"), None, false));
+        assert!(!version_aceptable(&actual, &v("2.4.1"), None, true));
+
+        // Versión elegida, sin modo dev: menor e igual, rechazadas.
+        assert!(!version_aceptable(&actual, &v("2.4.0"), Some("2.4.0"), false));
+        assert!(!version_aceptable(&actual, &v("2.5.0"), Some("2.5.0"), false));
+        assert!(version_aceptable(&actual, &v("2.6.0"), Some("2.6.0"), false));
+
+        // Con modo dev: se permite bajar o reinstalar.
+        assert!(version_aceptable(&actual, &v("2.4.0"), Some("2.4.0"), true));
+        assert!(version_aceptable(&actual, &v("2.5.0"), Some("2.5.0"), true));
+
+        // Siempre tiene que ser la pedida: un manifiesto que anuncia otra no vale.
+        assert!(!version_aceptable(&actual, &v("2.6.0"), Some("2.7.0"), true));
+        assert!(!version_aceptable(&actual, &v("2.3.0"), Some("2.4.0"), true));
     }
 
     #[test]
