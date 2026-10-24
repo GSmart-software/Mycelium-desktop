@@ -19,6 +19,10 @@
  * GSmart, su marca personal. «De marca» acá quiere decir «trae su propia
  * forma», no «es de otro».
  *
+ * También hay temas **normales** detrás del modo —`amethystina` (`FUN-M-55`)—:
+ * son `soloDev` pero no de marca, así que admiten las atmósferas. Ver
+ * `docs/features/temas-amethystina-amanita.md`.
+ *
  * Un tema guardado que ya no existe cae al de defecto (`temaValido`). Es lo que
  * le pasa a un vault que tenía el tema experimental retirado el 2026-10-09
  * (`FUN-M-53`).
@@ -26,7 +30,7 @@
 import { atmosferaValida, ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "./atmosferas";
 import { comandosDisponibles } from "./modoDev";
 
-export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart";
+export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart" | "amethystina";
 
 export const TEMA_DEFECTO: Tema = "bioluminiscencia";
 
@@ -52,6 +56,9 @@ export const TEMAS: readonly InfoTema[] = [
   // símbolo —el aguamarina de las líneas de la G y el cian del degradado— sobre
   // el carbón. El azul profundo, la otra punta, casi no se ve sobre ese fondo.
   { id: "gsmart", nombre: "GSmart", canvas: "#1E2023", mist: "#25282B", glow: "#A3ECE2", accent: "#12A8E8", soloDev: true },
+  // Amethystina (`FUN-M-55`): un tema normal —solo colores, admite atmósferas—,
+  // pero, como los de marca, detrás del modo mientras el usuario lo prueba.
+  { id: "amethystina", nombre: "Amethystina", canvas: "#120c1c", mist: "#1a1228", glow: "#dcb6ff", accent: "#b78cff", soloDev: true },
 ];
 
 /**
@@ -65,7 +72,7 @@ export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart"];
  * El tema guardado, si es uno que existe; si no, el de defecto. El archivo de
  * preferencias vive en la carpeta del usuario y se puede editar a mano.
  *
- * Los temas `soloDev` (`arrecife`, `gsmart`) son válidos **siempre**, esté o no
+ * Los temas `soloDev` (`arrecife`, `gsmart`, `amethystina`) son válidos **siempre**, esté o no
  * el modo dev: el modo decide si se puede ELEGIR, no si un vault que ya lo tiene
  * se puede abrir así.
  */

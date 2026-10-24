@@ -108,6 +108,9 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     "Nuevo tema: GSmart, con el degradado de la marca",
     "Elegí gsmart en Apariencia",
     "Cierra FUN-M-52",
+    "Nuevo tema: Amethystina, en violeta",
+    "Elegí amethystina en Apariencia",
+    "Cierra FUN-M-55",
     "Nuevo tema: Bioluminiscencia (exp.), con resplandores",
     "Nuevo tema: Bioluminiscencia experimental",
     "Elegí Biolum. exp. en Apariencia",
@@ -167,4 +170,15 @@ test("el tema GSmart (`FUN-M-52`) está detrás del modo: muestra y buscador `so
     assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
   }
   assert.ok(lineas.some((l) => /alias: \["gsmart"\]/.test(l)), "falta el alias del buscador");
+});
+
+test("el tema Amethystina (`FUN-M-55`) está detrás del modo: muestra y buscador `soloDev`", async () => {
+  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
+  assert.match(temas, /id: "amethystina"[^}]*soloDev: true/, "la muestra de Amethystina tiene que ser soloDev");
+  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
+  const lineas = ajustes.split(/\r?\n/);
+  for (const linea of lineas.filter((l) => /amethystina/i.test(l) && /rotulo:/.test(l))) {
+    assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
+  }
+  assert.ok(lineas.some((l) => /alias: \["amethystina"\]/.test(l)), "falta el alias del buscador");
 });

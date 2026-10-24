@@ -227,6 +227,8 @@ test("normalizar conserva la apariencia válida y descarta la inválida", () => 
   assert.equal(prefsVault.normalizar({ tema: "arrecife" }).tema, "arrecife");
   // Y GSmart (`FUN-M-52`), igual.
   assert.equal(prefsVault.normalizar({ tema: "gsmart" }).tema, "gsmart");
+  // Y Amethystina (`FUN-M-55`), el tema normal detrás del modo.
+  assert.equal(prefsVault.normalizar({ tema: "amethystina" }).tema, "amethystina");
   // El tema experimental retirado el 2026-10-09 (`FUN-M-53`): un vault que lo
   // tenía guardado abre con el tema por defecto.
   assert.equal(prefsVault.normalizar({ tema: "bioexp" }).tema, "bioluminiscencia");

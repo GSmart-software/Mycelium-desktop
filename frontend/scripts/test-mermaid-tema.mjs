@@ -34,6 +34,9 @@ const TEMAS = {
   "cantarela claro": { canvas: "#FBF7EE", mist: "#FAF0DC", accent: "#9A6212", glow: "#D99A1F", ink: "#2C2620", muted: "#6B5E4C" },
   "bioluminiscencia oscuro": { canvas: "#071219", mist: "#0a1a24", accent: "#19e6ff", glow: "#3dffc4", ink: "#c6e7e1", muted: "#6e9a99" },
   "cantarela oscuro": { canvas: "#1b1305", mist: "#241a08", accent: "#c77f2e", glow: "#ffc247", ink: "#f6e8c8", muted: "#ac9468" },
+  // Amethystina (`FUN-M-55`), un tema normal detrás del modo dev.
+  "amethystina claro": { canvas: "#F7F3FC", mist: "#EFE6F9", accent: "#6C3DBD", glow: "#9860E8", ink: "#251E30", muted: "#62577A" },
+  "amethystina oscuro": { canvas: "#120c1c", mist: "#1a1228", accent: "#b78cff", glow: "#dcb6ff", ink: "#e8def5", muted: "#9d8db4" },
 };
 
 /** Los tokens `--mic-mermaid-*` como los resuelve `tokens.css`. */
@@ -57,7 +60,7 @@ function verificarContraste(v, nombre) {
   assert.ok(contraste(v.nodeBorder, v.background) >= CONTRASTE_LINEA, `${nombre}: borde`);
 }
 
-test("los cuatro combos tema × modo llegan al contraste sin corregir nada", () => {
+test("los combos tema × modo llegan al contraste sin corregir nada", () => {
   for (const [nombre, t] of Object.entries(TEMAS)) {
     const c = tokens(t);
     const v = variablesMermaid(c);
