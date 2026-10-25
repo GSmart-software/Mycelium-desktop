@@ -148,19 +148,19 @@
    `flex: 1` en una fila de 460px: se repartían el ancho según cuántas había y la
    del nombre largo se estiraba.
 
-   Si no entran en el ancho del bloque, la fila se desplaza en horizontal (con
-   la barra fina de globals.css) en vez de achicarlas o bajarlas de fila: una
-   sola fila mantiene el alto de la sección fijo y las muestras en el orden en
-   que se leen. Hoy, con cuatro (dos públicas y dos del modo dev), entran sin
-   barra en los 560px del bloque: 4 × 120 + 3 × 9,6 + 2 × 6 = 520,8px.
+   Si no entran en el ancho del bloque, bajan a la fila siguiente, sin achicarse:
+   el usuario quiere verlas todas a la vez, sin barra de desplazamiento
+   (2026-10-24). Antes la fila se desplazaba en horizontal; con seis muestras
+   (cuatro públicas y dos del modo dev) ya no entraban en los 560px del bloque:
+   6 × 120 + 5 × 9,6 + 2 × 6 = 780px. Con cuatro, 520,8px: una sola fila.
    El relleno de 6px deja lugar al anillo de foco (2px a 2px de distancia) y al
-   borde de la elegida, que si no el `overflow` recortaría. */
+   borde de la elegida. */
 .swatchGroup {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   padding: 6px;
   margin: -6px;
-  overflow-x: auto;
 }
 
 /* Solo las de tema: `.swatch` es también la tarjeta de las atmósferas, que
