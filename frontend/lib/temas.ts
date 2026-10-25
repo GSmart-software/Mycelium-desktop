@@ -19,9 +19,9 @@
  * GSmart, su marca personal. «De marca» acá quiere decir «trae su propia
  * forma», no «es de otro».
  *
- * También hay temas **normales** detrás del modo —`amethystina` (`FUN-M-55`) y
- * `amanita` (`FUN-M-56`)—:
- * son `soloDev` pero no de marca, así que admiten las atmósferas. Ver
+ * `amethystina` (`FUN-M-55`) y `amanita` (`FUN-M-56`) son temas **normales**, como los
+ * dos primeros: solo colores, admiten las atmósferas. Nacieron detrás del modo y
+ * el usuario los hizo públicos el 2026-10-24. Ver
  * `docs/features/temas-amethystina-amanita.md`.
  *
  * Un tema guardado que ya no existe cae al de defecto (`temaValido`). Es lo que
@@ -50,6 +50,12 @@ export type InfoTema = {
 export const TEMAS: readonly InfoTema[] = [
   { id: "bioluminiscencia", nombre: "Bioluminiscencia", canvas: "#071219", mist: "#0a1a24", glow: "#3DFFC4", accent: "#19E6FF" },
   { id: "cantarela", nombre: "Cantarela", canvas: "#1b1305", mist: "#241a08", glow: "#FFC247", accent: "#C77F2E" },
+  // Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`): temas normales —solo
+  // colores, admiten atmósferas—, públicos desde el 2026-10-24. Van antes de los
+  // soloDev para que, con el modo, las muestras de desarrollador queden al final.
+  { id: "amethystina", nombre: "Amethystina", canvas: "#120c1c", mist: "#1a1228", glow: "#dcb6ff", accent: "#b78cff" },
+  // Amanita, en rojo, con el durazno de las motas.
+  { id: "amanita", nombre: "Amanita", canvas: "#1a0c0b", mist: "#241211", glow: "#ffb59c", accent: "#ff6656" },
   // Los acentos de la marca tal cual (cian y violeta), no los derivados que usa
   // la interfaz para leerse: la muestra es la identidad, no un texto.
   { id: "arrecife", nombre: "Arrecife", canvas: "#14171E", mist: "#1D222C", glow: "#7444E4", accent: "#3AB8D8", soloDev: true },
@@ -57,11 +63,6 @@ export const TEMAS: readonly InfoTema[] = [
   // símbolo —el aguamarina de las líneas de la G y el cian del degradado— sobre
   // el carbón. El azul profundo, la otra punta, casi no se ve sobre ese fondo.
   { id: "gsmart", nombre: "GSmart", canvas: "#1E2023", mist: "#25282B", glow: "#A3ECE2", accent: "#12A8E8", soloDev: true },
-  // Amethystina (`FUN-M-55`): un tema normal —solo colores, admite atmósferas—,
-  // pero, como los de marca, detrás del modo mientras el usuario lo prueba.
-  { id: "amethystina", nombre: "Amethystina", canvas: "#120c1c", mist: "#1a1228", glow: "#dcb6ff", accent: "#b78cff", soloDev: true },
-  // Amanita (`FUN-M-56`): lo mismo, en rojo, con el durazno de las motas.
-  { id: "amanita", nombre: "Amanita", canvas: "#1a0c0b", mist: "#241211", glow: "#ffb59c", accent: "#ff6656", soloDev: true },
 ];
 
 /**
@@ -75,7 +76,7 @@ export const TEMAS_DE_MARCA: readonly Tema[] = ["arrecife", "gsmart"];
  * El tema guardado, si es uno que existe; si no, el de defecto. El archivo de
  * preferencias vive en la carpeta del usuario y se puede editar a mano.
  *
- * Los temas `soloDev` (`arrecife`, `gsmart`, `amethystina`, `amanita`) son válidos **siempre**, esté o no
+ * Los temas `soloDev` (`arrecife`, `gsmart`) son válidos **siempre**, esté o no
  * el modo dev: el modo decide si se puede ELEGIR, no si un vault que ya lo tiene
  * se puede abrir así.
  */

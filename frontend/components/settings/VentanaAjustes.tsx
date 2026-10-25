@@ -75,16 +75,12 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "Los colores de Mycelium: el tema, el modo y la atmósfera de cada modo.",
     grupo: "Aspecto",
     ajustes: [
-      { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "paleta"] },
+      { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "amethystina", "amanita", "violeta", "rojo", "paleta"] },
       // El tema de la marca Arrecife (`FUN-M-51`): su muestra solo existe con el
       // modo dev, y sin él buscarlo por su nombre no tiene que devolver nada.
       { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
       // Lo mismo con el tema de la marca GSmart (`FUN-M-52`).
       { rotulo: "Tema", alias: ["gsmart"], soloDev: true },
-      // Y con Amethystina (`FUN-M-55`), un tema normal que también va detrás del modo.
-      { rotulo: "Tema", alias: ["amethystina"], soloDev: true },
-      // Lo mismo con Amanita (`FUN-M-56`).
-      { rotulo: "Tema", alias: ["amanita"], soloDev: true },
       { rotulo: "Modo oscuro", alias: ["modo claro", "oscuro", "claro", "noche"] },
       { rotulo: "Atmósfera en modo oscuro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
       { rotulo: "Atmósfera en modo claro", alias: ["abisal", "niebla", "bosque", "papel", "aurora", "fondo", "degradado"] },
