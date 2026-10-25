@@ -50,7 +50,8 @@
    ----------------------------------------------------------------------------
    El estilo tiene tres ejes, y los tres son atributos de la etiqueta <html>
    (que en CSS es :root):
-     data-theme       'bioluminiscencia' o 'cantarela'      (Configuración › Tema)
+     data-theme       'bioluminiscencia', 'cantarela',      (Configuración › Tema)
+                      'amethystina' o 'amanita'
      data-dark        'true' en modo oscuro; en claro NO está
      data-atmosfera   'abisal', 'niebla', 'bosque', 'papel' o 'aurora'
                       (una por modo)

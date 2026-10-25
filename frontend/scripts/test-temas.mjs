@@ -64,12 +64,12 @@ test("un vault con el tema experimental retirado (`bioexp`, `FUN-M-53`) abre con
 });
 
 test("sin el modo dev, las muestras soloDev no existen; con él, están al final", () => {
-  assert.deepEqual(temasVisibles(false).map((t) => t.id), ["bioluminiscencia", "cantarela"]);
-  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "arrecife", "gsmart", "amethystina", "amanita"]);
-  // Los de marca, Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) —normales,
-  // pero para probar— son
-  // soloDev, y no se muta el catálogo.
-  assert.deepEqual(TEMAS.filter((t) => t.soloDev).map((t) => t.id), ["arrecife", "gsmart", "amethystina", "amanita"]);
+  // Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) son públicos desde el
+  // 2026-10-24: se ven siempre, antes de los de marca.
+  assert.deepEqual(temasVisibles(false).map((t) => t.id), ["bioluminiscencia", "cantarela", "amethystina", "amanita"]);
+  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "amethystina", "amanita", "arrecife", "gsmart"]);
+  // Solo los de marca son soloDev, y no se muta el catálogo.
+  assert.deepEqual(TEMAS.filter((t) => t.soloDev).map((t) => t.id), ["arrecife", "gsmart"]);
   assert.equal(TEMAS.length, 6);
 });
 
@@ -134,8 +134,9 @@ const claro = rawsDe(tokens, "[data-theme='arrecife']");
 const oscuro = rawsDe(tokens, "[data-theme='arrecife'][data-dark='true']");
 const gsClaro = rawsDe(tokens, "[data-theme='gsmart']");
 const gsOscuro = rawsDe(tokens, "[data-theme='gsmart'][data-dark='true']");
-// Los temas normales detrás del modo dev (`FUN-M-55`, `FUN-M-56`): solo los ocho raw por modo.
-const NORMALES_DEV = {
+// Amethystina y Amanita (`FUN-M-55`, `FUN-M-56`), temas normales: solo los ocho raw por modo.
+// Nacieron detrás del modo dev y son públicos desde el 2026-10-24.
+const NORMALES_NUEVOS = {
   amethystina: {
     claro: { base: "#35195F", "base-deep": "#2A1349", accent: "#6C3DBD", glow: "#9860E8", canvas: "#F7F3FC", mist: "#EFE6F9", ink: "#251E30", "ink-muted": "#62577A" },
     oscuro: { base: "#0A0611", "base-deep": "#1D1430", accent: "#B78CFF", glow: "#DCB6FF", canvas: "#120C1C", mist: "#1A1228", ink: "#E8DEF5", "ink-muted": "#9D8DB4" },
@@ -341,7 +342,7 @@ async function reglasDeModulos(tema) {
   return salida;
 }
 
-for (const [tema, modos] of Object.entries(NORMALES_DEV)) {
+for (const [tema, modos] of Object.entries(NORMALES_NUEVOS)) {
   test(`${tema}: los ocho raw en tokens.css y en el PDF, sin forma propia ni atmósfera bloqueada`, async () => {
     const print = await leer("lib/printStyles.ts");
     for (const [modo, selector] of [["claro", `[data-theme='${tema}']`], ["oscuro", `[data-theme='${tema}'][data-dark='true']`]]) {
@@ -349,7 +350,7 @@ for (const [tema, modos] of Object.entries(NORMALES_DEV)) {
       assert.deepEqual(rawsDe(print, selector), modos[modo], `${tema} ${modo} en el PDF`);
     }
     assert.equal(TEMAS_DE_MARCA.includes(tema), false);
-    assert.equal(TEMAS.find((t) => t.id === tema)?.soloDev, true);
+    assert.equal(TEMAS.find((t) => t.id === tema)?.soloDev, undefined);
     // Un tema normal no trae hoja de forma ni reglas en los módulos.
     assert.doesNotMatch(await leer("app/layout.tsx"), new RegExp(tema, "i"));
     assert.equal((await reglasDeModulos(tema)).size, 0);

@@ -32,21 +32,9 @@ export const SECRETO_DEV = [
   // con el modo. Toda mención, también «tema GSmart».
   { patron: /\bgsmart\b/i, que: "el tema GSmart" },
   { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
-  // El tema Amethystina (`FUN-M-55`): un tema normal —solo colores, violeta—,
-  // pero que por ahora solo se puede elegir con el modo, para probarlo. Toda
-  // mención, también «tema Amethystina».
-  { patron: /\bamethystina\b/i, que: "el tema Amethystina" },
-  { patron: /\bFUN-M-55\b/i, que: "FUN-M-55 (el tema Amethystina)" },
-  // El tema Amanita (`FUN-M-56`): el gemelo rojo de Amethystina, también solo
-  // con el modo. Acá NO alcanza la palabra entera: «Amanita» es además el color
-  // 5 de los recordatorios (lib/recordatorios.ts), que es público y lo nombran
-  // la plantilla de snippets y la ayuda del calendario. Se atrapa el TEMA: su id
-  // entre comillas, «Amanita» cerca de «tema» o de «Apariencia» en la misma
-  // frase, y el ID de la funcionalidad.
-  { patron: /['"`]amanita['"`]/, que: "el tema Amanita (su id)" },
-  { patron: /\btemas?\b[^.\n]{0,40}\bamanita\b/i, que: "el tema Amanita" },
-  { patron: /\bamanita\b[^.\n]{0,40}\b(?:temas?|apariencia)\b/i, que: "el tema Amanita" },
-  { patron: /\bFUN-M-56\b/i, que: "FUN-M-56 (el tema Amanita)" },
+  // Los temas Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) estuvieron acá
+  // mientras solo se podían elegir con el modo. Desde el 2026-10-24 son públicos:
+  // la ayuda y el changelog los nombran.
   // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
   // con la forma de los temas de marca, también solo con el modo. RETIRADO el
   // 2026-10-09 (ya no existe en la app), pero los patrones se quedan: nunca se

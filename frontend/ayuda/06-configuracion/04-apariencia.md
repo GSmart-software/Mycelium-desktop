@@ -1,7 +1,7 @@
 ---
 titulo: Apariencia
 tema: Configuración
-sinonimos: [tema, modo oscuro, modo claro, atmósfera, colores, fondo, degradado, bioluminiscencia, cantarela, abisal, niebla, bosque, papel, aurora]
+sinonimos: [tema, modo oscuro, modo claro, atmósfera, colores, fondo, degradado, bioluminiscencia, cantarela, amethystina, amanita, violeta, rojo, abisal, niebla, bosque, papel, aurora]
 ---
 
 Cómo se ve Mycelium lo deciden tres cosas, y cada una se elige por separado: el **tema**
@@ -18,7 +18,8 @@ para ese modo.
 ## Cómo se usa
 
 1. Abrí **Configuración → Apariencia**.
-2. **Tema**: Bioluminiscencia (verde agua y cian) o Cantarela (dorado y ámbar).
+2. **Tema**: Bioluminiscencia (verde agua y cian), Cantarela (dorado y ámbar), Amethystina
+   (lila y violeta) o Amanita (rojo, con el tono cálido de las motas en las etiquetas).
 3. **Modo oscuro**: el interruptor pasa de claro a oscuro y vuelve.
 4. **Atmósfera en modo oscuro** y **Atmósfera en modo claro**: cada muestra es una ventana en
    miniatura pintada con esa combinación, aunque estés en el otro modo. Tocá la que quieras.
@@ -39,7 +40,7 @@ Para cambiar la atmósfera del modo que estás usando sin abrir Configuración, 
 > [!tip] Aurora
 > Usa los fondos de Abisal y pone encima la luz: el botón principal, el título de la nota, la
 > pestaña activa y las etiquetas llevan un **degradado del tema** —del verde agua al cian con
-> Bioluminiscencia, del dorado al ámbar con Cantarela—, y la nota tiene un brillo tenue de fondo.
+> Bioluminiscencia, del dorado al ámbar con Cantarela, del lila al violeta con Amethystina—, y la nota tiene un brillo tenue de fondo.
 > En modo oscuro las cosas irradian; en claro, las mismas llevan sombras suaves. No cambia la
 > letra ni el tamaño de nada, y todo el texto sigue leyéndose con el mismo contraste.
 

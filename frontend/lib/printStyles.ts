@@ -1,6 +1,6 @@
 /**
  * CSS autocontenido para el PDF (HU-10). Incluye los tokens de todos los temas
- * (Arrecife, `FUN-M-51`, GSmart, `FUN-M-52`, Amethystina, `FUN-M-55`, y Amanita, `FUN-M-56`,
+ * (Amethystina, `FUN-M-55`, Amanita, `FUN-M-56`, Arrecife, `FUN-M-51`, y GSmart, `FUN-M-52`,
  * con los mismos raw que
  * styles/tokens.css) y
  * el modo oscuro + un subconjunto de estilos del preview con reglas de salto de
