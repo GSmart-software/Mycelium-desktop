@@ -197,16 +197,12 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
  * el PDF se parece a lo que se ve, y no vuelve a desfasarse con el próximo
  * cambio de diseño.
  *
- * Ese CSS es el de una app de escritorio —`html, body { height: 100% }`, una
- * hoja con ancho máximo— y hay que soltarlo para que el documento fluya en
- * páginas. Más los saltos de página.
+ * Ese CSS es el de una app de escritorio —una hoja con ancho máximo y márgenes
+ * de pantalla— y hay que soltarlo para el papel; el alto lo suelta
+ * `SOLTAR_ALTO_DE_LA_APP`. Más los saltos de página.
  */
 const PRINT_SOBRE_APP = `
-html, body { height: auto !important; max-width: none !important; overflow: visible !important; margin: 0 !important; }
-.mic-preview {
-  height: auto !important; overflow: visible !important;
-  max-width: none !important; padding: 0 !important; margin: 0 !important;
-}
+.mic-preview { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 .mic-preview h1, .mic-preview h2, .mic-preview h3,
 .mic-preview h4, .mic-preview h5, .mic-preview h6 { break-after: avoid; page-break-after: avoid; }
 .mic-preview pre, .mic-preview table, .mic-preview blockquote, .mic-preview .mic-callout,
@@ -214,6 +210,19 @@ html, body { height: auto !important; max-width: none !important; overflow: visi
   break-inside: avoid; page-break-inside: avoid;
 }
 .mic-preview img, .mic-preview svg { max-width: 100%; height: auto; }
+`;
+
+/**
+ * Suelta el alto de la ventana para que el documento fluya en páginas. Va con el
+ * CSS de la app **siempre**, con o sin «Estilos de Mycelium» (`DEF-170`): el
+ * `html, body { height: 100%; overflow-x: hidden }` de `globals.css` hace del
+ * `body` una caja con desplazamiento del alto del papel, y Chromium imprimía
+ * solo esa caja —una página, lo que entraba en el scroll—. Antes vivía en
+ * `PRINT_SOBRE_APP`, así que sin los estilos de Mycelium nadie lo soltaba.
+ */
+const SOLTAR_ALTO_DE_LA_APP = `
+html, body { height: auto !important; max-width: none !important; overflow: visible !important; margin: 0 !important; }
+.mic-preview { height: auto !important; overflow: visible !important; }
 `;
 
 /**
@@ -239,6 +248,7 @@ export function buildPrintCss(o: PdfPrintOpts, conCssDeLaApp = false): string {
     "html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }",
   ];
   const sobreApp = o.estilosMycelium && conCssDeLaApp;
+  if (conCssDeLaApp) partes.push(SOLTAR_ALTO_DE_LA_APP);
   partes.push(!o.estilosMycelium ? PRINT_CSS_MINIMO : sobreApp ? PRINT_SOBRE_APP : PRINT_CSS);
 
   if (o.fondoBlanco) {

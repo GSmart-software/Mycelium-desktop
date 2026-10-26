@@ -80,3 +80,19 @@ test("cssParaHtml solo toca los `<`", () => {
   assert.equal(cssParaHtml("a > b { color: red }"), "a > b { color: red }");
   assert.equal(cssParaHtml("<!--"), "\\3c !--");
 });
+
+test("con el CSS de la app, el documento de impresión suelta el alto con y sin «Estilos de Mycelium» (DEF-170)", () => {
+  // `globals.css` deja `html, body { height: 100% }`: sin soltarlo, Chromium
+  // imprimía una sola página, la que entraba en el scroll.
+  for (const estilosMycelium of [true, false]) {
+    const html = armarDocumentoImpresion({
+      css: "html, body { height: 100%; overflow-x: hidden; }",
+      atributos: {},
+      html: "<p>x</p>",
+      titulo: "t",
+      pageSize: "A4",
+      opts: { fondoBlanco: true, colores: false, callouts: true, estilosMycelium },
+    });
+    assert.match(html, /html, body \{ height: auto !important;[^}]*overflow: visible !important/, `estilosMycelium: ${estilosMycelium}`);
+  }
+});
