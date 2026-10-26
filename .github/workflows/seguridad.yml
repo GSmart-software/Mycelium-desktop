@@ -7,7 +7,12 @@ name: Seguridad de dependencias
 #   motivo, están en `frontend/src-tauri/.cargo/audit.toml`.
 # Corre en cada cambio y una vez por semana, porque los avisos nuevos aparecen
 # sin que cambie el código.
+#
+# Lo llama también `desktop-build.yml` (`workflow_call`) antes de compilar: con
+# un aviso alto o crítico no se generan instaladores (regla del usuario,
+# 2026-10-26).
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:

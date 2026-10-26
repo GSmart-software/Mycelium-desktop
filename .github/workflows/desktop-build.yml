@@ -11,6 +11,10 @@ name: Desktop (Tauri) — instaladores de Windows, macOS y Linux
 # (`npm run publicar -- --ci <carpeta>`) descarga estos tres artefactos, los
 # firma con `tauri signer sign` y los sube a R2.
 #
+# Solo compila si antes pasan CodeQL (sin alertas altas ni críticas abiertas) y
+# la seguridad de dependencias (`npm audit` y `cargo audit`): ver los jobs
+# `codeql` y `dependencias`.
+#
 # Disparadores:
 # - push a `despliegues`: es lo que deja un PR fusionado hacia esa rama. Un
 #   build por versión. Un push a `desktop-tauri` NO dispara nada.
@@ -57,8 +61,28 @@ permissions:
   contents: read
 
 jobs:
+  # Antes de compilar, los controles de seguridad (regla del usuario,
+  # 2026-10-26): si CodeQL deja una alerta alta o crítica abierta, o la
+  # auditoría de dependencias encuentra un aviso alto o crítico, no se genera
+  # ningún instalador. Se llaman como workflows reutilizables para que corran
+  # sobre ESTE commit, no sobre el último que pasó por `main`.
+  codeql:
+    name: CodeQL
+    uses: ./.github/workflows/codeql.yml
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+  dependencias:
+    name: Seguridad de dependencias
+    uses: ./.github/workflows/seguridad.yml
+    permissions:
+      contents: read
+
   build:
     name: ${{ matrix.nombre }}
+    needs: [codeql, dependencias]
     # Lo mínimo para atestar la procedencia: `id-token` para el certificado de
     # Sigstore y `attestations` para guardar la atestación en el repo.
     permissions:
