@@ -113,7 +113,7 @@ tauri-plugin-single-instance = "2"
 # que contestar a mano el mensaje con el que Windows pregunta qué hay bajo el
 # puntero. Misma versión que ya traen tao/wry, para no compilar dos copias.
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   # El descriptor de seguridad del canal de control (src/control.rs).
