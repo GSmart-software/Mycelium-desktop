@@ -76,6 +76,7 @@ import { FormulaWidget, formulasEnLinea, formulasField } from "@/lib/editor/mate
 import { buscarEnTablas } from "@/lib/editor/buscarEnTablas";
 import { estaMarcada, estadoDeSimbolo, estiloDeTexto, simboloAlClic } from "@/lib/estadosTarea";
 import { cambiarSimboloTarea } from "@/lib/editor/tareas";
+import { CALLOUT_HEAD_RE, CALLOUT_PLIEGUE_RE } from "@/lib/editor/calloutCabecera";
 
 /** Estilos inline del live preview (HU-01 CA6/CA7). */
 const micelioHighlight = HighlightStyle.define([
@@ -675,10 +676,6 @@ export function liveExtensions(
 const WIKILINK_RE = /\[\[([^[\]]+)\]\]/g;
 
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
-/** Cabecera de callout: `> [!tipo]` (con `>` anidados para callouts dentro de
- *  callouts, DEF-022) y símbolo de plegado opcional (-/+). Grupo 1 = marcadores
- *  `>` (su nº = profundidad), 2 = tipo, 3 = símbolo. */
-const CALLOUT_HEAD_RE = /^((?:\s*>\s*)+)\[!([\w-]+)\]([-+]?)/;
 
 /** Etiquetas por tipo, usadas como título cuando el callout no tiene uno. */
 const CALLOUT_LABELS: Record<string, string> = {
@@ -889,7 +886,7 @@ class FoldWidget extends WidgetType {
 /** Alterna el símbolo de plegado (-/+) de la cabecera de un callout. */
 function toggleCalloutFold(view: EditorView, headFrom: number) {
   const line = view.state.doc.lineAt(headFrom);
-  const match = /^((?:\s*>\s*)+\[!\w+\])([-+])/.exec(line.text);
+  const match = CALLOUT_PLIEGUE_RE.exec(line.text);
   if (!match) return;
   const pos = line.from + match[1].length;
   view.dispatch({
