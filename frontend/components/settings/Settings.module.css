@@ -348,6 +348,36 @@
   margin-top: 1.2rem;
 }
 
+/* Sub-ajustes de un interruptor (`FUN-M-57`, las partes de la consola con
+   efectos): van dentro del bloque de su ajuste, colgados de una línea a la
+   izquierda, sin filetes entre ellos y con poco aire, para que se lean como
+   partes de una sola opción y no como ajustes sueltos. */
+.subajustes {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.7rem;
+  margin-left: 1.05rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
+}
+
+.subajustes > .ajuste {
+  padding-block: 0.28rem;
+  border-top: 0;
+}
+
+.subajustes .toggleRow {
+  min-height: 26px;
+}
+
+.subajustes .label {
+  font-weight: 500;
+}
+
+.subajustes .hint {
+  margin-top: 0;
+}
+
 /* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */
 .ajuste > .toggleRow {
   margin-top: 0;
