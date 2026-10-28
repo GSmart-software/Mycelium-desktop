@@ -147,6 +147,20 @@ test("la numeración de las consolas es por vault", async () => {
   );
 });
 
+// La consola estilada (`FUN-M-57`): apagada, y con todas sus partes listas
+// para cuando se encienda.
+const EFECTOS_POR_DEFECTO = {
+  efectos: false,
+  efectoFondo: true,
+  efectoPulso: true,
+  efectoParticulas: true,
+  efectoBorde: true,
+  efectoMarca: true,
+  efectoBrillo: true,
+  efectoTubo: true,
+  efectoColores: true,
+};
+
 test("las preferencias son del usuario: sobreviven al cambio de vault", async () => {
   const almacen = almacenFalso();
   const store = await cargarStore(almacen);
@@ -166,7 +180,7 @@ test("las preferencias son del usuario: sobreviven al cambio de vault", async ()
   );
   assert.deepEqual(
     JSON.parse(almacen.getItem("mic-consolas-prefs")),
-    { shellPorDefecto: "git-bash", restaurarSesiones: true, restaurarScrollback: false },
+    { shellPorDefecto: "git-bash", restaurarSesiones: true, restaurarScrollback: false, ...EFECTOS_POR_DEFECTO },
     "las preferencias viven en su propia clave, fuera de la del vault",
   );
 });
@@ -213,6 +227,7 @@ test("un almacén roto no impide abrir una consola", async () => {
     shellPorDefecto: null,
     restaurarSesiones: true,
     restaurarScrollback: true,
+    ...EFECTOS_POR_DEFECTO,
   });
   await store.getState().usarAlmacenDeVault("/vaults/A");
   assert.equal(store.getState().registrar("a1", { shellId: null, cwd: null }), "Terminal 1");

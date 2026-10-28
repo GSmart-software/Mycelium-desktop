@@ -1,11 +1,151 @@
-/* Contenedor de la terminal integrada: llena el cuerpo del pane. Fondo propio
+/* Contenedor de la terminal integrada. Sin efectos: fondo propio
    (--mic-terminal-bg) y 10px de aire alrededor del grid de xterm.
 
-   El relleno va acá y no en `.xterm-screen`: xterm mide las coordenadas del
+   Con «Consola estilada» (`.conEfectos`, `FUN-M-57`, Configuración → Consolas)
+   la consola llega al máximo de estilo, y cada parte se enciende aparte: `TerminalView`
+   monta cada capa solo si su opción está encendida, y pone `.pulso` (el fondo
+   se mueve) y `.brillo` (el texto brilla) en la escena.
+
+   xterm 6 dibuja con el DOM (filas = div, tramos = span), así que el texto
+   acepta CSS; lo que no se toca por CSS es la grilla (tamaño de letra,
+   interlineado, relleno dentro de `.xterm-screen`): eso lo mide xterm, y va
+   por sus opciones (`lib/terminal.ts`).
+
+   Capas, de atrás hacia adelante, con la opción que las enciende:
+     .escena   fondo de la consola y recorte
+     .luces    dos manchas de luz del tema         Fondo (se mueven con Pulso)
+     .micelio  la red de hifas como marca de agua  Fondo (respira con Pulso)
+     .esporas  partículas que suben                Partículas
+     .terminal xterm, transparente                 (el brillo: Brillo del texto)
+     .crt      líneas, viñeta, grano y el haz      Pantalla de tubo
+     .marco    un borde de luz que gira            Borde animado
+     .rotulo   el rótulo de la esquina             Marca Mycelium
+   Todo lo que va delante del texto tiene `pointer-events: none`. */
+
+@property --giro {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.escena {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--mic-terminal-bg);
+}
+
+.conEfectos {
+  background:
+    radial-gradient(120% 90% at 50% 120%, color-mix(in srgb, var(--mic-glow) 10%, transparent), transparent 60%),
+    var(--mic-terminal-bg);
+}
+
+.luces,
+.micelio,
+.esporas,
+.crt,
+.marco {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ---- Aurora: dos manchas grandes y difusas que derivan ---- */
+.luces {
+  inset: -30%;
+  z-index: 0;
+  opacity: 0.55;
+  filter: blur(42px) saturate(1.4);
+  background:
+    radial-gradient(38% 30% at 30% 35%, color-mix(in srgb, var(--mic-glow) 55%, transparent), transparent 70%),
+    radial-gradient(34% 28% at 72% 62%, color-mix(in srgb, var(--mic-accent) 60%, transparent), transparent 70%),
+    radial-gradient(22% 18% at 60% 22%, color-mix(in srgb, var(--mic-glow) 30%, #fff 10%), transparent 70%);
+}
+
+.pulso .luces {
+  animation: deriva 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes deriva {
+  0%   { transform: translate(-4%, -3%) rotate(0deg) scale(1); }
+  50%  { transform: translate(5%, 4%) rotate(14deg) scale(1.12); }
+  100% { transform: translate(-2%, 6%) rotate(-10deg) scale(0.95); }
+}
+
+/* ---- Micelio: la marca de agua, teñida con el brillo del tema ---- */
+.micelio {
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(120deg, var(--mic-glow), var(--mic-accent), var(--mic-glow));
+  background-size: 300% 300%;
+  -webkit-mask: url("/consola/micelio.svg") center / min(92%, 980px) auto no-repeat;
+  mask: url("/consola/micelio.svg") center / min(92%, 980px) auto no-repeat;
+  opacity: 0.13;
+}
+
+.pulso .micelio {
+  animation:
+    respira 9s ease-in-out infinite,
+    corre 14s linear infinite;
+}
+
+@keyframes respira {
+  0%, 100% { opacity: 0.09; transform: scale(1); }
+  50%      { opacity: 0.17; transform: scale(1.025); }
+}
+
+@keyframes corre {
+  to { background-position: 300% 0; }
+}
+
+/* ---- Esporas: puntos de luz que suben, en dos capas a distinta velocidad ---- */
+.esporas {
+  inset: 0;
+  z-index: 0;
+}
+
+.esporas::before,
+.esporas::after {
+  content: "";
+  position: absolute;
+  inset: -100% 0 0;
+  background-image:
+    radial-gradient(1.6px 1.6px at 12% 18%, var(--mic-glow), transparent),
+    radial-gradient(1.2px 1.2px at 34% 72%, var(--mic-accent), transparent),
+    radial-gradient(2px 2px at 58% 40%, var(--mic-glow), transparent),
+    radial-gradient(1px 1px at 76% 86%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 88% 28%, var(--mic-accent), transparent),
+    radial-gradient(1px 1px at 22% 94%, var(--mic-glow), transparent),
+    radial-gradient(1.8px 1.8px at 66% 8%, var(--mic-glow), transparent);
+  background-size: 340px 340px;
+  opacity: 0.7;
+  animation: suben 26s linear infinite;
+}
+
+.esporas::after {
+  background-size: 520px 520px;
+  opacity: 0.45;
+  filter: blur(0.6px);
+  animation-duration: 40s;
+  animation-direction: normal;
+}
+
+@keyframes suben {
+  to { transform: translateY(50%); }
+}
+
+/* ---- La consola ---- */
+/* El relleno va acá y no en `.xterm-screen`: xterm mide las coordenadas del
    ratón desde el rectángulo de esa caja, y un relleno adentro correría la
    selección respecto del cursor. Como el tema del xterm usa el mismo color, el
    aire y las celdas se ven como una sola hoja. */
 .terminal {
+  position: relative;
+  z-index: 1;
   height: 100%;
   min-height: 0;
   padding: 10px;
@@ -22,4 +162,191 @@
    de color. */
 .terminal :global(.xterm-viewport) {
   background-color: var(--mic-terminal-bg);
+}
+
+/* Con efectos, transparente: se ve la escena de atrás. */
+.conEfectos .terminal {
+  padding: 16px 20px 26px;
+  background: transparent;
+}
+
+.conEfectos .terminal :global(.xterm-viewport) {
+  background-color: transparent !important;
+}
+
+/* El texto brilla con su propio color: vale para cualquier programa, también
+   para una sesión de Claude Code. */
+.brillo .terminal :global(.xterm-rows) {
+  text-shadow:
+    0 0 1px currentColor,
+    0 0 7px color-mix(in srgb, currentColor 55%, transparent),
+    0 0 18px color-mix(in srgb, currentColor 22%, transparent);
+}
+
+/* La negrita, más encendida. */
+.brillo .terminal :global(.xterm-rows .xterm-bold) {
+  text-shadow:
+    0 0 1px currentColor,
+    0 0 10px color-mix(in srgb, currentColor 75%, transparent),
+    0 0 26px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+/* El cursor: una barra de luz con halo. */
+.brillo .terminal :global(.xterm-cursor) {
+  filter: drop-shadow(0 0 4px var(--mic-glow)) drop-shadow(0 0 10px var(--mic-glow));
+}
+
+/* Barra de desplazamiento: una hifa fina. */
+.conEfectos .terminal :global(.xterm-viewport)::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--mic-glow), var(--mic-accent));
+  border-radius: 99px;
+}
+
+/* ---- CRT: delante del texto, sin tocar el mouse ---- */
+.crt {
+  inset: 0;
+  z-index: 2;
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 100% at 50% 50%, transparent 58%, rgb(0 0 0 / 0.55) 100%);
+  mix-blend-mode: multiply;
+}
+
+/* El grano, que tiembla. */
+.crt::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  animation: grano 0.9s steps(6) infinite;
+}
+
+/* El haz que baja cada tanto. */
+.crt::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 22%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--mic-glow) 9%, transparent) 70%,
+    color-mix(in srgb, var(--mic-glow) 22%, transparent) 96%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  transform: translateY(-120%);
+  animation: barre 7.5s cubic-bezier(0.55, 0, 0.45, 1) infinite;
+}
+
+@keyframes grano {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-6%, 4%); }
+  40%  { transform: translate(5%, -7%); }
+  60%  { transform: translate(-3%, 8%); }
+  80%  { transform: translate(7%, 2%); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes barre {
+  0%, 35% { transform: translateY(-120%); }
+  100%    { transform: translateY(560%); }
+}
+
+/* ---- Marco: un borde de luz que gira ---- */
+.marco {
+  inset: 0;
+  z-index: 3;
+  padding: 1.5px;
+  border-radius: 10px;
+  background: conic-gradient(
+    from var(--giro),
+    transparent 0deg,
+    var(--mic-glow) 40deg,
+    var(--mic-accent) 80deg,
+    transparent 140deg,
+    transparent 200deg,
+    color-mix(in srgb, var(--mic-glow) 60%, transparent) 250deg,
+    transparent 320deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: gira 6s linear infinite;
+  box-shadow: inset 0 0 40px color-mix(in srgb, var(--mic-glow) 14%, transparent);
+}
+
+@keyframes gira {
+  to { --giro: 360deg; }
+}
+
+/* ---- Rótulo ---- */
+.rotulo {
+  position: absolute;
+  right: 18px;
+  bottom: 6px;
+  z-index: 3;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 9.5px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.32em;
+  color: var(--mic-glow);
+  opacity: 0.55;
+  text-shadow: 0 0 8px var(--mic-glow);
+  animation: parpadeo 5s infinite;
+}
+
+.rotulo b {
+  color: var(--mic-accent);
+  font-weight: 800;
+}
+
+.latido {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mic-glow);
+  box-shadow: 0 0 6px var(--mic-glow), 0 0 14px var(--mic-glow);
+  animation: late 1.4s ease-in-out infinite;
+}
+
+@keyframes late {
+  0%, 100% { transform: scale(0.7); opacity: 0.6; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes parpadeo {
+  0%, 92%, 100% { opacity: 0.55; }
+  93% { opacity: 0.15; }
+  94% { opacity: 0.6; }
+  96% { opacity: 0.25; }
+}
+
+/* En claro: menos oscuridad del tubo y luz más contenida. */
+:global(:root:not([data-dark='true'])) .crt {
+  background:
+    repeating-linear-gradient(0deg, rgb(0 0 0 / 0.06) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 100% at 50% 50%, transparent 62%, rgb(0 0 0 / 0.18) 100%);
+}
+
+:global(:root:not([data-dark='true'])) .brillo .terminal :global(.xterm-rows) {
+  text-shadow: 0 0 6px color-mix(in srgb, currentColor 25%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulso .luces,
+  .pulso .micelio,
+  .esporas::before,
+  .esporas::after,
+  .crt::before,
+  .crt::after,
+  .marco,
+  .rotulo,
+  .latido {
+    animation: none;
+  }
 }

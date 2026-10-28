@@ -53,8 +53,45 @@ export function estaCorriendo(termId: string): boolean {
   return instancias.get(termId)?.ptyAbierto === true;
 }
 
-/** Tema del xterm a partir de los tokens CSS activos de Mycelium. */
+/**
+ * Resuelve un color CSS cualquiera (`var()`, `color-mix()`, nombres) a un
+ * `rgb()`/`rgba()` que xterm entienda: xterm parsea sus colores él mismo y no
+ * sabe de `color-mix`. Se lo pinta a una sonda y se lee el color computado.
+ */
+let sonda: HTMLSpanElement | null = null;
+function resolverColor(css: string, respaldo: string): string {
+  if (!sonda) {
+    sonda = document.createElement("span");
+    sonda.style.display = "none";
+    document.body.appendChild(sonda);
+  }
+  sonda.style.color = "";
+  sonda.style.color = css;
+  if (!sonda.style.color) return respaldo;
+  return getComputedStyle(sonda).color || respaldo;
+}
+
+/** ¿Está encendida la consola estilada (`FUN-M-57`)? */
+const conEfectos = () => useTerminalStore.getState().prefs.efectos;
+
+/** ¿Van los colores del tema (paleta ANSI, cursor en barra, interlineado)? */
+const conColores = () => {
+  const { efectos, efectoColores } = useTerminalStore.getState().prefs;
+  return efectos && efectoColores;
+};
+
+/**
+ * Tema del xterm a partir de los tokens CSS activos de Mycelium. Con efectos el
+ * fondo es transparente siempre —la escena lo dibuja—, tenga o no los colores
+ * del tema.
+ */
 function temaXterm() {
+  if (!conEfectos()) return temaSobrio();
+  if (!conColores()) return { ...temaSobrio(), background: "rgba(0, 0, 0, 0)" };
+  return temaConEfectos();
+}
+
+function temaSobrio() {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
   return {
@@ -63,6 +100,75 @@ function temaXterm() {
     cursor: v("--mic-accent", "#c77f2e"),
     selectionBackground: "rgba(127, 127, 127, 0.35)",
   };
+}
+
+/**
+ * Con efectos (`FUN-M-57`): fondo transparente —lo que se ve detrás lo dibuja
+ * la escena de `TerminalView`— y los 16 colores ANSI derivados del tema: cada
+ * color «normal» se tiñe con el brillo del tema y el «brillante» con el
+ * acento, así la paleta combina con cada tema. Los programas que piden un
+ * color RGB exacto (Claude Code con su tema normal) lo conservan.
+ */
+function temaConEfectos() {
+  // En claro, los neones de la paleta se hunden en la tinta para leerse sobre
+  // el fondo claro.
+  const oscuro = document.documentElement.dataset.dark === "true";
+  const mezcla = (base: string, tinte: string, pct: number) => {
+    const color = `color-mix(in oklab, ${base} ${100 - pct}%, ${tinte} ${pct}%)`;
+    return resolverColor(
+      oscuro ? color : `color-mix(in oklab, ${color} 55%, var(--mic-text-primary) 45%)`,
+      base,
+    );
+  };
+  const glow = "var(--mic-glow)";
+  const acento = "var(--mic-accent)";
+  const tinta = "var(--mic-text-primary)";
+  return {
+    background: "rgba(0, 0, 0, 0)",
+    foreground: resolverColor(tinta, "#f6e8c8"),
+    cursor: resolverColor(glow, "#c77f2e"),
+    cursorAccent: resolverColor("var(--mic-bg-canvas)", "#000"),
+    selectionBackground: resolverColor(`color-mix(in srgb, ${glow} 38%, transparent)`, "rgba(127,127,127,.35)"),
+    selectionForeground: resolverColor(tinta, "#fff"),
+    black: mezcla("#14121c", glow, 10),
+    red: mezcla("#ff4f6d", glow, 18),
+    green: mezcla("#3ff2a3", glow, 18),
+    yellow: mezcla("#ffd25e", glow, 18),
+    blue: mezcla("#5aa8ff", glow, 18),
+    magenta: mezcla("#e46cff", glow, 18),
+    cyan: mezcla("#3fe6f2", glow, 18),
+    white: mezcla("#d9d4e6", tinta, 30),
+    brightBlack: mezcla("#6b6580", glow, 25),
+    brightRed: mezcla("#ff8095", acento, 22),
+    brightGreen: mezcla("#8affc8", acento, 22),
+    brightYellow: mezcla("#ffe9a3", acento, 22),
+    brightBlue: mezcla("#9cc9ff", acento, 22),
+    brightMagenta: mezcla("#f2a6ff", acento, 22),
+    brightCyan: mezcla("#9cf6ff", acento, 22),
+    brightWhite: oscuro ? "#ffffff" : resolverColor("var(--mic-text-primary)", "#000"),
+  };
+}
+
+/**
+ * Lo de la grilla que cambia con los efectos: interlineado, negrita y cursor.
+ * Va por las opciones de xterm y no por CSS porque xterm mide la celda.
+ */
+function opcionesDeEstilo() {
+  return conColores()
+    ? {
+        lineHeight: 1.18,
+        fontWeightBold: 800 as const,
+        cursorStyle: "bar" as const,
+        cursorWidth: 2,
+        cursorInactiveStyle: "underline" as const,
+      }
+    : {
+        lineHeight: 1,
+        fontWeightBold: "bold" as const,
+        cursorStyle: "block" as const,
+        cursorWidth: 1,
+        cursorInactiveStyle: "outline" as const,
+      };
 }
 
 /** Instancia xterm de una terminal (se crea una única vez por sesión). */
@@ -74,6 +180,10 @@ export function getInstancia(termId: string): Instancia {
     fontFamily: "'JetBrains Mono', Consolas, monospace",
     fontSize: 13,
     cursorBlink: true,
+    ...opcionesDeEstilo(),
+    // Sin esto xterm pinta un fondo opaco y la escena de la consola con
+    // efectos no se vería. Con el tema sobrio el fondo es opaco igual.
+    allowTransparency: true,
     scrollback: 5000,
     theme: temaXterm(),
     // `term.unicode` es API «propuesta» en xterm: sin esto, fijar el ancho de
@@ -327,6 +437,23 @@ function ensureInfra() {
   observerTema.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["data-theme", "data-dark", "data-atmosfera"],
+  });
+
+  // Encender o apagar los efectos (`FUN-M-57`) rige en el acto en las consolas
+  // vivas. El reajuste de filas por el interlineado lo hace cada `TerminalView`.
+  useTerminalStore.subscribe((estado, antes) => {
+    if (
+      estado.prefs.efectos === antes.prefs.efectos &&
+      estado.prefs.efectoColores === antes.prefs.efectoColores
+    ) {
+      return;
+    }
+    const tema = temaXterm();
+    const opciones = opcionesDeEstilo();
+    for (const inst of instancias.values()) {
+      Object.assign(inst.term.options, opciones);
+      inst.term.options.theme = tema;
+    }
   });
 
   // Al cerrar la app: volcar el scrollback de cada consola para poder

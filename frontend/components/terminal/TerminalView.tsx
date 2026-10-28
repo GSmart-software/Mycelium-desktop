@@ -20,6 +20,14 @@ import styles from "./TerminalView.module.css";
  */
 export function TerminalView({ termId }: { termId: string }) {
   const contRef = useRef<HTMLDivElement>(null);
+  const ajustarRef = useRef<(() => void) | null>(null);
+  const prefs = useTerminalStore((s) => s.prefs);
+  const efectos = prefs.efectos;
+  // Cada parte rige solo con el general encendido; el pulso, además, con fondo.
+  const parte = (on: boolean) => efectos && on;
+  const fondo = parte(prefs.efectoFondo);
+  const pulso = fondo && prefs.efectoPulso;
+  const colores = parte(prefs.efectoColores);
 
   useEffect(() => {
     const cont = contRef.current;
@@ -54,6 +62,7 @@ export function TerminalView({ termId }: { termId: string }) {
         void invoke("terminal_redimensionar", { id: termId, cols, rows }).catch(() => {});
       }
     };
+    ajustarRef.current = ajustar;
     const observer = new ResizeObserver(ajustar);
     observer.observe(cont);
     ajustar();
@@ -89,5 +98,45 @@ export function TerminalView({ termId }: { termId: string }) {
     };
   }, [termId]);
 
-  return <div ref={contRef} className={styles.terminal} />;
+  // Los efectos cambian el interlineado y el relleno: cambian las filas que
+  // entran sin que cambie el tamaño del pane, así que el ResizeObserver no se
+  // entera. Se reajusta tras pintar.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => ajustarRef.current?.());
+    return () => cancelAnimationFrame(id);
+  }, [efectos, colores]);
+
+  // Con efectos (`FUN-M-57`) la consola vive en una «escena», y cada parte se
+  // elige en Configuración → Consolas. Detrás del texto (xterm es
+  // transparente): la aurora, la red de micelio y las esporas. Delante, sin
+  // recibir el mouse: el tubo CRT, el marco de luz que gira y el rótulo. Sin
+  // efectos, solo el contenedor.
+  const clases = [
+    styles.escena,
+    efectos && styles.conEfectos,
+    pulso && styles.pulso,
+    parte(prefs.efectoBrillo) && styles.brillo,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className={clases}>
+      {fondo && (
+        <>
+          <div className={styles.luces} aria-hidden />
+          <div className={styles.micelio} aria-hidden />
+        </>
+      )}
+      {parte(prefs.efectoParticulas) && <div className={styles.esporas} aria-hidden />}
+      <div ref={contRef} className={styles.terminal} />
+      {parte(prefs.efectoTubo) && <div className={styles.crt} aria-hidden />}
+      {parte(prefs.efectoBorde) && <div className={styles.marco} aria-hidden />}
+      {parte(prefs.efectoMarca) && (
+        <div className={styles.rotulo} aria-hidden>
+          <span className={styles.latido} />
+          MYCELIUM <b>//</b> TTY
+        </div>
+      )}
+    </div>
+  );
 }

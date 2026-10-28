@@ -47,12 +47,54 @@ type TerminalPrefs = {
   restaurarSesiones: boolean;
   /** Además, restaurar el texto de la última sesión como historial. */
   restaurarScrollback: boolean;
+  /**
+   * La consola estilada (`FUN-M-57`). El interruptor general; cada
+   * `efecto*` elige una parte y solo rige con él encendido.
+   */
+  efectos: boolean;
+  /** La aurora y la red de micelio detrás del texto. */
+  efectoFondo: boolean;
+  /** El fondo se mueve: la aurora deriva y el micelio respira. Necesita `efectoFondo`. */
+  efectoPulso: boolean;
+  /** Las esporas que suben. */
+  efectoParticulas: boolean;
+  /** El borde de luz que gira. */
+  efectoBorde: boolean;
+  /** El rótulo «MYCELIUM // TTY» en la esquina de abajo. */
+  efectoMarca: boolean;
+  /** El resplandor del texto y del cursor. */
+  efectoBrillo: boolean;
+  /** La pantalla de tubo: líneas, viñeta, grano y el haz que baja. */
+  efectoTubo: boolean;
+  /** La paleta ANSI teñida con el tema, el cursor en barra y el interlineado amplio. */
+  efectoColores: boolean;
 };
+
+/** Las partes de la consola estilada, en el orden de Configuración. */
+export type EfectoConsola =
+  | "efectoFondo"
+  | "efectoPulso"
+  | "efectoParticulas"
+  | "efectoBorde"
+  | "efectoMarca"
+  | "efectoBrillo"
+  | "efectoTubo"
+  | "efectoColores";
 
 const PREFS_POR_DEFECTO: TerminalPrefs = {
   shellPorDefecto: null,
   restaurarSesiones: true,
   restaurarScrollback: true,
+  efectos: false,
+  // Con el general encendido se ve la consola entera; cada parte se apaga sola.
+  efectoFondo: true,
+  efectoPulso: true,
+  efectoParticulas: true,
+  efectoBorde: true,
+  efectoMarca: true,
+  efectoBrillo: true,
+  efectoTubo: true,
+  efectoColores: true,
 };
 
 /**

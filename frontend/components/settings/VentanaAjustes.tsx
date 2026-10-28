@@ -136,12 +136,21 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "consolas",
     nombre: "Consolas",
-    descripcion: "Qué pasa con las terminales integradas al cerrar y volver a abrir Mycelium.",
+    descripcion: "La shell, qué pasa con las terminales integradas al cerrar y volver a abrir Mycelium, y su aspecto.",
     grupo: "Trabajo",
     ajustes: [
       { rotulo: "Shell por defecto", alias: ["terminal", "consola", "powershell", "bash", "cmd"] },
       { rotulo: "Restaurar terminales al abrir", alias: ["sesiones", "reabrir"] },
       { rotulo: "Restaurar el historial", alias: ["scrollback", "texto anterior"] },
+      { rotulo: "Consola estilada", alias: ["estilada", "estilo", "efectos", "aurora", "crt", "brillo", "micelio"] },
+      { rotulo: "Fondo", alias: ["aurora", "micelio", "fondo de la consola"] },
+      { rotulo: "Pulso del fondo", alias: ["animación", "pulso", "respira"] },
+      { rotulo: "Partículas", alias: ["esporas", "partículas"] },
+      { rotulo: "Borde animado", alias: ["borde", "marco"] },
+      { rotulo: "Marca Mycelium", alias: ["marca", "rótulo", "logo", "tty"] },
+      { rotulo: "Brillo del texto", alias: ["brillo", "resplandor", "glow"] },
+      { rotulo: "Pantalla de tubo", alias: ["crt", "tubo", "retro", "scanlines"] },
+      { rotulo: "Colores del tema", alias: ["paleta", "ansi", "colores de la consola", "cursor"] },
     ],
   },
   {
