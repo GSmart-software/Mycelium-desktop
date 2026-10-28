@@ -159,7 +159,8 @@
  *   `docs/estado/Version 2.5.0.md`.
  *
  * - `2.6.0` — **los temas nuevos y la seguridad**: los temas Amethystina y
- *   Amanita (`FUN-M-55`, `FUN-M-56`), la CSP de la webview, las herramientas
+ *   Amanita (`FUN-M-55`, `FUN-M-56`), la consola estilada (`FUN-M-57`), la
+ *   CSP de la webview, las herramientas
  *   de desarrollo por vault, el actualizador que no baja de versión, las
  *   dependencias parcheadas y los avisos de licencias de terceros. Absorbe los
  *   arreglos de la primera auditoría de seguridad, `DEF-158` y `DEF-170`.
