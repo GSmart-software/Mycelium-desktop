@@ -1,10 +1,10 @@
 [package]
 name = "app"
-version = "2.5.0"
+version = "2.6.0"
 description = "A Tauri App"
 authors = ["you"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/GSmart-software/Mycelium-desktop"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -35,9 +35,10 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-# `devtools`: habilita las herramientas de desarrollador TAMBIÉN en las builds de
-# producción (por defecto solo existen en debug). Son útiles para que el usuario
-# escriba su propio CSS o depure el uso diario; se abren con F12 / Ctrl+Shift+I.
+# `devtools`: compila las herramientas de desarrollador TAMBIÉN en las builds de
+# producción (por defecto solo existen en debug). Se abren con F12 / Ctrl+Shift+I
+# solo si el vault de la ventana tiene encendido «Herramientas de desarrollo» en
+# esta máquina (src/devtools.rs); en desarrollo, siempre.
 # `protocol-asset`: sirve archivos del disco al webview por el esquema `asset:`
 # (FUN-L-11). Sin esta feature el protocolo no se registra y `convertFileSrc`
 # devuelve una URL que no responde. El ámbito NO es global: se abre en runtime,
@@ -74,6 +75,14 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # compila nada nuevo.
 flate2 = "1"
 sha2 = "0.10"
+# Importar un `.zip` (`DEF-165`, src/archivos.rs): lo extrae Rust para pasarle a
+# cada archivo la marca de la web del zip. Ya estaba en el árbol (el updater);
+# solo se le suma `deflate-flate2`, sobre el `flate2` de arriba.
+zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
+# Comparar versiones en el control de bajada del updater (src/actualizador.rs):
+# es el tipo que usa el plugin en `version_comparator`. Ya estaba en el árbol
+# (el updater): no se compila nada nuevo.
+semver = "1"
 trash = "5.2.3"
 # Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
 # la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.
@@ -89,6 +98,13 @@ mycelium-vault = { path = "crates/mycelium-vault" }
 # Tauri; se piden solo las features que faltan (`net`, `macros`). Misma versión:
 # no se compila dos veces.
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "macros", "rt"] }
+# El índice de cada vault lo abre Rust y no la webview (`DEF-166`, `src/indice.rs`):
+# se arma el pool con las mismas versiones que ya trae `tauri-plugin-sql` y se le
+# entrega por su estado público. `libsqlite3-sys`, para el autorizador que impide
+# `ATTACH` y `VACUUM INTO` (crear bases en cualquier carpeta). Sin features
+# propias: las fija sqlx, y así no se compila una segunda copia de SQLite.
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
+libsqlite3-sys = { version = "0.30", default-features = false }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
@@ -111,3 +127,7 @@ windows = { version = "0.61", features = [
 # El toast de un recordatorio con manejador de clic (`FUN-L-22`, src/recordatorios.rs).
 # Misma versión que trae `tauri-plugin-notification` por debajo: no se compila dos veces.
 tauri-winrt-notification = "0.7"
+# Las DevTools por vault (src/devtools.rs): `SetAreDevToolsEnabled` sobre el
+# controlador de WebView2, por webview y en tiempo de ejecución. Misma versión
+# que trae wry: no se compila dos veces.
+webview2-com = "0.38"

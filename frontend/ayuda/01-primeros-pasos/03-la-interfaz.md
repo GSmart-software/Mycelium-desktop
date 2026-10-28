@@ -1,7 +1,7 @@
 ---
 titulo: La interfaz
 tema: Primeros pasos
-sinonimos: [pantalla, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior]
+sinonimos: [pantalla, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión]
 ---
 
 La ventana de Mycelium tiene cinco zonas: la **barra superior**, el **rail** de íconos a la
@@ -19,7 +19,9 @@ Saber qué hay en cada zona te ahorra buscar: casi todo está a un clic o a una 
 2. **Rail**: cada ícono abre su panel lateral —**Explorador**, **Búsqueda global**,
    **Esporas**, **Calendario**, **Consolas**, **Actividad de la IA** y, abajo,
    **Papelera**—; un segundo clic en el mismo ícono lo cierra. **Grafo de conexiones**
-   abre el grafo como pestaña y el engranaje abre **Configuración** (**Ctrl+,**).
+   abre el grafo como pestaña y el engranaje abre **Configuración** (**Ctrl+,**). Al pie de
+   Configuración están la versión que tenés y **Licencias de terceros**, los avisos de
+   licencia del software y las fuentes de otros autores que trae Mycelium.
 3. **Área de trabajo**: cada archivo se abre en una pestaña. Arrastrá una pestaña al borde
    de otro panel para dividir la vista, o usá el menú **⋯** de la barra de pestañas:
    **Dividir a la derecha** o **Dividir hacia abajo**.

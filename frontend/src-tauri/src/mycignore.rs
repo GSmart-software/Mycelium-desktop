@@ -126,6 +126,13 @@ pub fn cargar(base: &Path) -> Vec<Patron> {
     parsear(&texto)
 }
 
+/// Los patrones del default, sin mirar ningún `.mycignore`. Los usa la
+/// importación (`archivos::arbol_a_copiar`, `DEF-165`): lo que se trae de afuera
+/// no se filtra con la configuración que trae consigo.
+pub fn patrones_default() -> Vec<Patron> {
+    parsear(DEFAULT)
+}
+
 /// Parsea el texto de un `.mycignore`.
 pub fn parsear(texto: &str) -> Vec<Patron> {
     texto

@@ -158,6 +158,16 @@
  *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
  *   `docs/estado/Version 2.5.0.md`.
  *
+ * - `2.6.0` — **los temas nuevos y la seguridad**: los temas Amethystina y
+ *   Amanita (`FUN-M-55`, `FUN-M-56`), la consola estilada (`FUN-M-57`), la
+ *   CSP de la webview, las herramientas
+ *   de desarrollo por vault, el actualizador que no baja de versión, las
+ *   dependencias parcheadas y los avisos de licencias de terceros. Absorbe los
+ *   arreglos de la primera auditoría de seguridad, `DEF-158` y `DEF-170`.
+ *
+ *   **Minor, y uno solo**: dos temas nuevos y un interruptor nuevo. Ver
+ *   `docs/estado/Version 2.6.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
@@ -166,4 +176,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.5.0";
+export const APP_VERSION = "2.6.0";

@@ -9,6 +9,7 @@ import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
+import { useEnlacesDelVault } from "@/components/recordatorios/comun";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import { findLeaf, useTabsStore, type LeafPane } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -26,6 +27,9 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     return source.tabs.find((t) => t.id === source.activeTabId)?.notaId ?? null;
   });
   const [html, setHtml] = useState("");
+  // Los enlaces se atienden como en la vista de lectura: wikilink → la nota,
+  // web → el navegador, el resto no navega la webview (`DEF-160`).
+  const { onClicDetalle } = useEnlacesDelVault();
   // Imágenes del vault (`DEF-126`): se vuelven a resolver si cambia la lista
   // de archivos o la carpeta de la nota.
   const otros = useVaultStore((s) => s.otros);
@@ -105,7 +109,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   }
 
   return (
-    <div ref={containerRef} className="mic-preview mic-layout-read">
+    <div ref={containerRef} className="mic-preview mic-layout-read" onClick={onClicDetalle}>
       <div dangerouslySetInnerHTML={inner} />
     </div>
   );

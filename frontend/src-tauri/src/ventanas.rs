@@ -16,19 +16,103 @@
 //! > abierto, se levanta esa ventana.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Qué vault tiene abierto cada ventana: etiqueta → ruta de la carpeta.
+///
+/// Desde `DEF-161` es además **la fuente de verdad de la base** de todos los
+/// comandos que tocan el vault: el frontend sigue mandando la ruta, pero Rust la
+/// compara con la de esta tabla (ver [`vault_de`]) y usa la suya. La cadena
+/// guardada es la **registrada** en `vaults.json`, no la que mandó JS.
 #[derive(Default)]
 pub struct VentanasState(pub Mutex<HashMap<String, String>>);
 
 /// Comparación de rutas tolerante a mayúsculas y a las barras de Windows: la
 /// misma carpeta escrita de dos formas sigue siendo la misma carpeta.
 fn misma_ruta(a: &str, b: &str) -> bool {
-    let norm = |s: &str| s.replace('\\', "/").trim_end_matches('/').to_lowercase();
-    norm(a) == norm(b)
+    mycelium_vault::rutas::misma_ruta(a, b)
+}
+
+/// `true` si `a` y `b` son la misma carpeta: misma escritura (normalizada) o,
+/// si no, el mismo destino una vez que el sistema resuelve enlaces y `..`.
+fn misma_carpeta(a: &str, b: &str) -> bool {
+    if misma_ruta(a, b) {
+        return true;
+    }
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// La carpeta del vault de la ventana `label`, **si** `pedida` es esa carpeta
+/// (`DEF-161`).
+///
+/// Es la defensa que faltaba: `ruta_segura` solo validaba la parte relativa, y
+/// la base llegaba de JS con un `is_dir()` como único control, así que un XSS
+/// en la webview podía leer y escribir cualquier carpeta del disco pasándola
+/// como «vault». Ahora la base es la que esta ventana registró al abrir el
+/// vault (`registrar_vault`, que solo acepta carpetas de `vaults.json`).
+///
+/// Por qué **comparar** y no ignorar lo que manda JS: el frontend tiene
+/// escrituras diferidas (las preferencias se guardan 400 ms después) que pueden
+/// dispararse después de cambiar de vault en la misma ventana. Si Rust derivara
+/// la base sin mirar, esa escritura caería en el vault NUEVO; con la
+/// comparación se rechaza, que es lo correcto.
+pub fn vault_de(state: &VentanasState, label: &str, pedida: &str) -> Result<String, String> {
+    let mapa = state.0.lock().map_err(|_| "Registro de ventanas no disponible".to_string())?;
+    validar_base(&mapa, label, pedida)
+}
+
+/// Lógica pura de [`vault_de`], para los tests.
+fn validar_base(mapa: &HashMap<String, String>, label: &str, pedida: &str) -> Result<String, String> {
+    let Some(registrada) = mapa.get(label) else {
+        return Err("Esta ventana no tiene ningún vault abierto.".to_string());
+    };
+    if !misma_carpeta(registrada, pedida) {
+        return Err(format!("«{pedida}» no es el vault abierto en esta ventana."));
+    }
+    Ok(registrada.clone())
+}
+
+/// Atajo para los comandos: la carpeta del vault de `ventana`, comprobada
+/// contra la que pidió el frontend. Ver [`vault_de`].
+pub fn base_de_ventana<R: tauri::Runtime>(ventana: &tauri::Window<R>, pedida: &str) -> Result<String, String> {
+    vault_de(&ventana.state::<VentanasState>(), ventana.label(), pedida)
+}
+
+/// La carpeta del vault de `ventana`, sin compararla con nada: para los comandos
+/// que no reciben la ruta (la terminal, que solo la usa para acotar el cwd).
+pub fn vault_de_ventana<R: tauri::Runtime>(ventana: &tauri::Window<R>) -> Option<String> {
+    ventana.state::<VentanasState>().0.lock().ok()?.get(ventana.label()).cloned()
+}
+
+/// La entrada de `vaults.json` que corresponde a `ruta` (`DEF-161`): solo se
+/// puede abrir como vault una carpeta que el usuario vinculó, y vincular pasa
+/// por el selector de carpetas nativo abierto desde Rust (`dialogos.rs`).
+/// Devuelve la cadena **registrada**, que es la que nombra el índice y el canal
+/// del MCP (`mycelium_vault::rutas`).
+pub fn vault_conocido(config: &Path, ruta: &str) -> Result<String, String> {
+    let reg = mycelium_vault::registro::leer_registro(config);
+    let entrada = reg
+        .entrada(ruta)
+        .ok_or_else(|| format!("«{ruta}» no es un vault vinculado: elegilo con «Abrir carpeta como vault»."))?;
+    if !Path::new(&entrada.ruta).is_dir() {
+        return Err(format!("La carpeta del vault no existe: {}", entrada.ruta));
+    }
+    Ok(entrada.ruta.clone())
+}
+
+/// Dónde está `vaults.json` para esta app.
+pub fn config_vaults<R: tauri::Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("No se pudo resolver el config-dir: {e}"))?
+        .join(mycelium_vault::registro::ARCHIVO))
 }
 
 /// Etiqueta de la ventana que tiene abierto ese vault, si alguna.
@@ -62,6 +146,10 @@ pub fn registrar_vault(
     state: tauri::State<VentanasState>,
     ruta: String,
 ) -> Result<(), String> {
+    // Solo un vault vinculado (`DEF-161`): abrir el asset scope —recursivo— y
+    // dejar operar a todos los comandos sobre una carpeta que eligió JS era
+    // entregarle el disco a cualquier XSS.
+    let ruta = vault_conocido(&config_vaults(ventana.app_handle())?, &ruta)?;
     let propia = ventana.label().to_string();
     if let Some(otra) = ventana_con(&state, &ruta) {
         if otra != propia {
@@ -77,7 +165,11 @@ pub fn registrar_vault(
         .0
         .lock()
         .map_err(|_| "Registro de ventanas no disponible".to_string())?
-        .insert(propia, ruta);
+        .insert(propia.clone(), ruta.clone());
+    // Las DevTools de esta ventana, según lo que esta máquina decidió para ESTE
+    // vault (`devtools.rs`): encendidas en otro vault no cuentan acá.
+    let devtools = crate::config_local::de_ventana(ventana.app_handle(), &propia).devtools;
+    crate::devtools::al_registrar_vault(ventana.app_handle(), &propia, devtools);
     Ok(())
 }
 
@@ -92,6 +184,8 @@ pub fn soltar_vault(
 ) {
     soltar_de(&state, ventana.label());
     crate::control::detener_de(&control, ventana.label());
+    // Sin vault, sin DevTools (salvo en desarrollo).
+    crate::devtools::al_soltar_vault(ventana.app_handle(), ventana.label());
 }
 
 /// Suelta el vault de una ventana por su etiqueta. Lo usa además el cierre de
@@ -123,6 +217,9 @@ pub async fn abrir_vault_en_ventana(
     state: tauri::State<'_, VentanasState>,
     ruta: String,
 ) -> Result<bool, String> {
+    // Solo vaults vinculados (`DEF-161`): la ventana nueva lo rechazaría al
+    // registrarlo, así que no tiene sentido abrirla para que falle.
+    let ruta = vault_conocido(&config_vaults(&app)?, &ruta)?;
     if let Some(label) = ventana_con(&state, &ruta) {
         if let Some(win) = app.get_webview_window(&label) {
             let _ = win.unminimize();
@@ -201,6 +298,7 @@ pub fn al_cerrar(app: &AppHandle, label: &str) {
     crate::vault_watch::detener_de(&app.state::<crate::vault_watch::WatcherState>(), label);
     crate::terminal::cerrar_de_ventana(&app.state::<crate::terminal::TerminalesState>(), label);
     crate::control::detener_de(&app.state::<crate::control::ControlState>(), label);
+    crate::dialogos::olvidar_de(&app.state::<crate::dialogos::ElegidasState>(), label);
     soltar_de(&app.state::<VentanasState>(), label);
 }
 
@@ -240,6 +338,67 @@ mod tests {
         assert!(misma_ruta("C:\\Notas\\Vault", "c:/notas/vault"));
         assert!(misma_ruta("/home/x/vault/", "/home/x/vault"));
         assert!(!misma_ruta("C:/notas/a", "C:/notas/b"));
+    }
+
+    #[test]
+    fn una_base_que_no_es_el_vault_de_la_ventana_se_rechaza() {
+        let dir = std::env::temp_dir().join(format!("mic-ventanas-base-{}", std::process::id()));
+        let otra = std::env::temp_dir().join(format!("mic-ventanas-otra-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::create_dir_all(&otra).unwrap();
+        let v = dir.to_string_lossy().to_string();
+        let mut mapa = HashMap::new();
+        mapa.insert("vault-1".to_string(), v.clone());
+
+        // La misma carpeta, escrita igual o de otra forma: vale, y se devuelve
+        // la cadena registrada, no la pedida.
+        assert_eq!(validar_base(&mapa, "vault-1", &v).unwrap(), v);
+        assert_eq!(validar_base(&mapa, "vault-1", &v.to_uppercase()).unwrap(), v);
+        assert_eq!(validar_base(&mapa, "vault-1", &format!("{v}/")).unwrap(), v);
+        // Otra carpeta que existe: no.
+        assert!(validar_base(&mapa, "vault-1", &otra.to_string_lossy()).is_err());
+        // La raíz del disco: no.
+        assert!(validar_base(&mapa, "vault-1", "C:/").is_err());
+        assert!(validar_base(&mapa, "vault-1", "/").is_err());
+        // Una subcarpeta del vault como base: no (la base es el vault entero).
+        assert!(validar_base(&mapa, "vault-1", &dir.join("sub").to_string_lossy()).is_err());
+        // Una ventana sin vault registrado: no, aunque la carpeta sea válida.
+        assert!(validar_base(&mapa, "vault-2", &v).is_err());
+
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(otra);
+    }
+
+    #[test]
+    fn solo_se_registra_un_vault_vinculado() {
+        let base = std::env::temp_dir().join(format!("mic-ventanas-reg-{}", std::process::id()));
+        let vault = base.join("Vault");
+        let intrusa = base.join("Intrusa");
+        std::fs::create_dir_all(&vault).unwrap();
+        std::fs::create_dir_all(&intrusa).unwrap();
+        let config = base.join("vaults.json");
+        let registro = serde_json::json!({
+            "vaults": [{ "ruta": vault.to_string_lossy(), "nombre": "Vault" }],
+            "abrirUltimo": false,
+        });
+        std::fs::write(&config, registro.to_string()).unwrap();
+
+        let registrada = vault.to_string_lossy().to_string();
+        assert_eq!(vault_conocido(&config, &registrada).unwrap(), registrada);
+        // Otra escritura de la misma carpeta resuelve a la cadena registrada.
+        assert_eq!(vault_conocido(&config, &registrada.to_uppercase()).unwrap(), registrada);
+        // Una carpeta que existe pero nadie vinculó: no.
+        assert!(vault_conocido(&config, &intrusa.to_string_lossy()).is_err());
+        // Ni la raíz del disco.
+        assert!(vault_conocido(&config, "C:/").is_err());
+        assert!(vault_conocido(&config, "/").is_err());
+        // Sin registro, nada.
+        assert!(vault_conocido(&base.join("no-existe.json"), &registrada).is_err());
+        // Vinculado pero borrado del disco: tampoco.
+        std::fs::remove_dir_all(&vault).unwrap();
+        assert!(vault_conocido(&config, &registrada).is_err());
+
+        let _ = std::fs::remove_dir_all(base);
     }
 
     #[test]

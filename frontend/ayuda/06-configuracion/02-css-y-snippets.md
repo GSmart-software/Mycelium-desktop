@@ -28,6 +28,13 @@ cambios se ven al instante, sin recargar, y apagar el snippet vuelve todo a como
 En la app de escritorio, los snippets se guardan **en el vault**: viajan con él, y al abrir
 otro vault ves los de ese.
 
+> [!warning] Los snippets de un vault que llega de otro lado arrancan apagados
+> Cuáles están activos lo decide **esta computadora**, no el vault. Si abrís un vault que te
+> pasaron —un zip, una carpeta compartida— o uno que nunca abriste acá, sus snippets se ven
+> en la lista pero no se aplican, y Configuración te avisa cuántos trae. Revisá el CSS de cada
+> uno antes de encenderlo: un snippet puede cambiar cualquier cosa de la pantalla. Los que
+> creás o importás vos arrancan encendidos.
+
 ## La plantilla
 
 «Descargar plantilla» baja un `.css` comentado con todo lo que se puede tocar, por secciones:

@@ -1085,6 +1085,12 @@ class VideoWidget extends WidgetType {
       view.dispatch({ selection: { anchor: this.pos } });
       view.focus();
     });
+    // El `preventDefault()` del mousedown no cancela la navegación del `click`
+    // que viene después: el enlace del recuadro sin conexión no navega la
+    // webview (`DEF-160`); lo abrió ya el mousedown.
+    caja.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("a")) event.preventDefault();
+    });
 
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       // Sin red: el enlace y el motivo, nunca un recuadro en blanco.

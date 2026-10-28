@@ -1,6 +1,7 @@
 /**
- * CSS autocontenido para el PDF (HU-10). Incluye los tokens de los cuatro temas
- * (Arrecife, `FUN-M-51`, y GSmart, `FUN-M-52`, con los mismos raw que
+ * CSS autocontenido para el PDF (HU-10). Incluye los tokens de todos los temas
+ * (Amethystina, `FUN-M-55`, Amanita, `FUN-M-56`, Arrecife, `FUN-M-51`, y GSmart, `FUN-M-52`,
+ * con los mismos raw que
  * styles/tokens.css) y
  * el modo oscuro + un subconjunto de estilos del preview con reglas de salto de
  * página (CA5). KaTeX y highlight.js se cargan por CDN desde el backend.
@@ -45,6 +46,26 @@ export const PRINT_CSS = `
   --mic-raw-base: #2E3134; --mic-raw-base-deep: #18191B; --mic-raw-accent: #3B9BE8;
   --mic-raw-glow: #A3ECE2; --mic-raw-canvas: #1E2023; --mic-raw-mist: #25282B;
   --mic-raw-ink: #ECEFF2; --mic-raw-ink-muted: #B3B9C0;
+}
+[data-theme='amethystina'] {
+  --mic-raw-base: #35195F; --mic-raw-base-deep: #2A1349; --mic-raw-accent: #6C3DBD;
+  --mic-raw-glow: #9860E8; --mic-raw-mist: #EFE6F9; --mic-raw-canvas: #F7F3FC;
+  --mic-raw-ink: #251E30; --mic-raw-ink-muted: #62577A; --mic-amber-icon: #C9821E;
+}
+[data-theme='amethystina'][data-dark='true'] {
+  --mic-raw-base: #0a0611; --mic-raw-base-deep: #1d1430; --mic-raw-accent: #b78cff;
+  --mic-raw-glow: #dcb6ff; --mic-raw-canvas: #120c1c; --mic-raw-mist: #1a1228;
+  --mic-raw-ink: #e8def5; --mic-raw-ink-muted: #9d8db4;
+}
+[data-theme='amanita'] {
+  --mic-raw-base: #561010; --mic-raw-base-deep: #4A0D0D; --mic-raw-accent: #B81F2D;
+  --mic-raw-glow: #D0602A; --mic-raw-mist: #F8E9E4; --mic-raw-canvas: #FCF6F3;
+  --mic-raw-ink: #2E2120; --mic-raw-ink-muted: #6F5652; --mic-amber-icon: #C9821E;
+}
+[data-theme='amanita'][data-dark='true'] {
+  --mic-raw-base: #0f0606; --mic-raw-base-deep: #2a1212; --mic-raw-accent: #ff6656;
+  --mic-raw-glow: #ffb59c; --mic-raw-canvas: #1a0c0b; --mic-raw-mist: #241211;
+  --mic-raw-ink: #f5e1dc; --mic-raw-ink-muted: #b38c86;
 }
 :root {
   --mic-bg-canvas: var(--mic-raw-canvas); --mic-bg-surface: var(--mic-raw-mist);
@@ -176,16 +197,12 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
  * el PDF se parece a lo que se ve, y no vuelve a desfasarse con el próximo
  * cambio de diseño.
  *
- * Ese CSS es el de una app de escritorio —`html, body { height: 100% }`, una
- * hoja con ancho máximo— y hay que soltarlo para que el documento fluya en
- * páginas. Más los saltos de página.
+ * Ese CSS es el de una app de escritorio —una hoja con ancho máximo y márgenes
+ * de pantalla— y hay que soltarlo para el papel; el alto lo suelta
+ * `SOLTAR_ALTO_DE_LA_APP`. Más los saltos de página.
  */
 const PRINT_SOBRE_APP = `
-html, body { height: auto !important; max-width: none !important; overflow: visible !important; margin: 0 !important; }
-.mic-preview {
-  height: auto !important; overflow: visible !important;
-  max-width: none !important; padding: 0 !important; margin: 0 !important;
-}
+.mic-preview { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 .mic-preview h1, .mic-preview h2, .mic-preview h3,
 .mic-preview h4, .mic-preview h5, .mic-preview h6 { break-after: avoid; page-break-after: avoid; }
 .mic-preview pre, .mic-preview table, .mic-preview blockquote, .mic-preview .mic-callout,
@@ -193,6 +210,19 @@ html, body { height: auto !important; max-width: none !important; overflow: visi
   break-inside: avoid; page-break-inside: avoid;
 }
 .mic-preview img, .mic-preview svg { max-width: 100%; height: auto; }
+`;
+
+/**
+ * Suelta el alto de la ventana para que el documento fluya en páginas. Va con el
+ * CSS de la app **siempre**, con o sin «Estilos de Mycelium» (`DEF-170`): el
+ * `html, body { height: 100%; overflow-x: hidden }` de `globals.css` hace del
+ * `body` una caja con desplazamiento del alto del papel, y Chromium imprimía
+ * solo esa caja —una página, lo que entraba en el scroll—. Antes vivía en
+ * `PRINT_SOBRE_APP`, así que sin los estilos de Mycelium nadie lo soltaba.
+ */
+const SOLTAR_ALTO_DE_LA_APP = `
+html, body { height: auto !important; max-width: none !important; overflow: visible !important; margin: 0 !important; }
+.mic-preview { height: auto !important; overflow: visible !important; }
 `;
 
 /**
@@ -218,6 +248,7 @@ export function buildPrintCss(o: PdfPrintOpts, conCssDeLaApp = false): string {
     "html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }",
   ];
   const sobreApp = o.estilosMycelium && conCssDeLaApp;
+  if (conCssDeLaApp) partes.push(SOLTAR_ALTO_DE_LA_APP);
   partes.push(!o.estilosMycelium ? PRINT_CSS_MINIMO : sobreApp ? PRINT_SOBRE_APP : PRINT_CSS);
 
   if (o.fondoBlanco) {
@@ -272,6 +303,22 @@ const escaparAtributo = (v: string): string =>
   v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
 /**
+ * CSS que se puede meter entre `<style>` y `</style>` de un documento armado
+ * como texto (`DEF-164`).
+ *
+ * El parser de HTML corta un `<style>` en el primer `</style` que encuentre,
+ * esté donde esté: dentro de un `content: "…"` o de un comentario también. Así
+ * un snippet con `content: "</style><img src=x onerror=…>"` cerraba la hoja y
+ * metía HTML propio en el documento de impresión. Se escapa **todo** `<` como
+ * la secuencia `\3c ` (el escape de CSS de U+003C, con el espacio que lo termina): dentro de
+ * una cadena o un `url()` es el mismo carácter, en un comentario no importa, y
+ * fuera de ellos un `<` no es CSS válido de todos modos.
+ */
+export function cssParaHtml(css: string): string {
+  return css.replace(/</g, "\\3c ");
+}
+
+/**
  * El documento completo que se imprime (`DEF-116`). Puro: recibe todo lo que
  * sale de la ventana —su CSS y los atributos de su `<html>`: el tema, la
  * atmósfera, las variables de las tipografías, las preferencias de fuente— y lo
@@ -296,7 +343,7 @@ export function armarDocumentoImpresion(p: {
   return (
     `<!doctype html><html${attrs}><head><meta charset="utf-8">` +
     `<title>${escaparAtributo(p.titulo)}</title>` +
-    (p.css ? `<style>${p.css}</style>` : "") +
+    (p.css ? `<style>${cssParaHtml(p.css)}</style>` : "") +
     `<style>@page { size: ${p.pageSize}; margin: 16mm; } ${buildPrintCss(p.opts, p.css !== "")}</style></head>` +
     `<body><div class="mic-preview">${p.html}</div></body></html>`
   );

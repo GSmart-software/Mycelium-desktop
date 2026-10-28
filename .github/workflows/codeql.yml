@@ -1,0 +1,80 @@
+name: CodeQL
+
+# Análisis estático de CodeQL (gratis en repos públicos). Los resultados van a
+# Security → Code scanning. Tres lenguajes, todos con `build-mode: none` (sin
+# compilar): el código de la app (JavaScript/TypeScript), los workflows de
+# GitHub Actions y el backend de Tauri (Rust, soporte estable desde CodeQL 2.23).
+#
+# Además es una PUERTA: el job `puerta` falla si queda abierta alguna alerta de
+# severidad alta o crítica en la rama analizada. `analyze` sube los resultados
+# pero termina en verde aunque haya alertas, así que sin la puerta «CodeQL pasó»
+# no decía nada. Lo llama `desktop-build.yml` (`workflow_call`) antes de
+# compilar: con una alerta alta abierta no se generan instaladores (regla del
+# usuario, 2026-10-26). Un falso positivo se descarta en Security → Code
+# scanning, con su motivo, y deja de contar.
+on:
+  workflow_call:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Lunes 04:23 UTC: avisos nuevos sobre código que no cambió.
+    - cron: "23 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analizar:
+    name: Analizar (${{ matrix.lenguaje }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        lenguaje: [javascript-typescript, actions, rust]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: ${{ matrix.lenguaje }}
+          build-mode: none
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:${{ matrix.lenguaje }}
+
+  puerta:
+    name: Sin alertas altas ni críticas
+    needs: analizar
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: read
+    steps:
+      # `analyze` espera a que GitHub procese lo subido (`wait-for-processing`
+      # por defecto), así que acá las alertas de este análisis ya están.
+      # Cuentan las abiertas de esta rama; las descartadas, no.
+      - name: Comprobar las alertas abiertas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/merge', github.event.pull_request.number) || github.ref }}
+        run: |
+          filtro='.[] | select(.rule.security_severity_level == "high" or .rule.security_severity_level == "critical")
+            | "\(.rule.security_severity_level)  \(.rule.id)  \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)  \(.html_url)"'
+          altas=$(gh api --paginate "repos/$REPO/code-scanning/alerts?ref=$REF&state=open&per_page=100" --jq "$filtro")
+          if [ -n "$altas" ]; then
+            echo "::error::CodeQL tiene alertas de severidad alta o crítica abiertas en $REF:"
+            echo "$altas"
+            echo "Se resuelven, o se descartan con motivo en Security → Code scanning. Hasta entonces no se compila."
+            exit 1
+          fi
+          echo "CodeQL: ninguna alerta alta ni crítica abierta en $REF."

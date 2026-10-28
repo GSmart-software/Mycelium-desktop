@@ -19,6 +19,11 @@
  * GSmart, su marca personal. «De marca» acá quiere decir «trae su propia
  * forma», no «es de otro».
  *
+ * `amethystina` (`FUN-M-55`) y `amanita` (`FUN-M-56`) son temas **normales**, como los
+ * dos primeros: solo colores, admiten las atmósferas. Nacieron detrás del modo y
+ * el usuario los hizo públicos el 2026-10-24. Ver
+ * `docs/features/temas-amethystina-amanita.md`.
+ *
  * Un tema guardado que ya no existe cae al de defecto (`temaValido`). Es lo que
  * le pasa a un vault que tenía el tema experimental retirado el 2026-10-09
  * (`FUN-M-53`).
@@ -26,7 +31,7 @@
 import { atmosferaValida, ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "./atmosferas";
 import { comandosDisponibles } from "./modoDev";
 
-export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart";
+export type Tema = "bioluminiscencia" | "cantarela" | "arrecife" | "gsmart" | "amethystina" | "amanita";
 
 export const TEMA_DEFECTO: Tema = "bioluminiscencia";
 
@@ -45,6 +50,12 @@ export type InfoTema = {
 export const TEMAS: readonly InfoTema[] = [
   { id: "bioluminiscencia", nombre: "Bioluminiscencia", canvas: "#071219", mist: "#0a1a24", glow: "#3DFFC4", accent: "#19E6FF" },
   { id: "cantarela", nombre: "Cantarela", canvas: "#1b1305", mist: "#241a08", glow: "#FFC247", accent: "#C77F2E" },
+  // Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`): temas normales —solo
+  // colores, admiten atmósferas—, públicos desde el 2026-10-24. Van antes de los
+  // soloDev para que, con el modo, las muestras de desarrollador queden al final.
+  { id: "amethystina", nombre: "Amethystina", canvas: "#120c1c", mist: "#1a1228", glow: "#dcb6ff", accent: "#b78cff" },
+  // Amanita, en rojo, con el durazno de las motas.
+  { id: "amanita", nombre: "Amanita", canvas: "#1a0c0b", mist: "#241211", glow: "#ffb59c", accent: "#ff6656" },
   // Los acentos de la marca tal cual (cian y violeta), no los derivados que usa
   // la interfaz para leerse: la muestra es la identidad, no un texto.
   { id: "arrecife", nombre: "Arrecife", canvas: "#14171E", mist: "#1D222C", glow: "#7444E4", accent: "#3AB8D8", soloDev: true },

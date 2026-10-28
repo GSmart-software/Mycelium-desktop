@@ -60,14 +60,25 @@ const TAURI = aUrl(`export const invoke = (cmd, args) => globalThis.__invoke(cmd
  * `.mycelium/` en memoria, con los mismos comandos y la misma lista cerrada que
  * `prefs_vault.rs` (los legados se leen y se borran, no se escriben).
  */
-function mycelium(inicial = {}) {
+function mycelium(inicial = {}, local = { controlIa: false, devtools: false, snippets: {} }) {
   const archivos = new Map(Object.entries(inicial));
+  // La configuración local de la máquina (`config_local.rs`, `DEF-164`).
+  const config = structuredClone(local);
+  archivos.local = config;
   const ESTADOS = ["preferencias.json", "snippets.json", "papelera.json", "recordatorios.json"];
   const LEGADOS = ["apariencia.json"];
   const comprobar = (nombre, permitidos) => {
     if (!permitidos.includes(nombre)) throw `Archivo de estado desconocido: ${nombre}`;
   };
-  globalThis.__invoke = async (cmd, { nombre, contenido }) => {
+  globalThis.__invoke = async (cmd, { nombre, contenido, cambio }) => {
+    if (cmd === "config_local_leer") return structuredClone(config);
+    if (cmd === "config_local_fijar") {
+      if (cambio.clave === "snippet") config.snippets[cambio.id] = cambio.activo;
+      else if (cambio.clave === "olvidarSnippet") delete config.snippets[cambio.id];
+      else if (cambio.clave === "controlIa" || cambio.clave === "devtools") config[cambio.clave] = cambio.valor;
+      else throw `cambio desconocido: ${cambio.clave}`;
+      return structuredClone(config);
+    }
     if (cmd === "leer_estado_vault") {
       comprobar(nombre, [...ESTADOS, ...LEGADOS]);
       return archivos.get(nombre) ?? null;
@@ -122,15 +133,22 @@ const TEMAS = await fuente("../lib/temas.ts", {
   "./atmosferas": await fuente("../lib/atmosferas.ts"),
   "./modoDev": await fuente("../lib/modoDev.ts"),
 });
+const CONFIG_LOCAL = await fuente("../stores/configLocalStore.ts", {
+  zustand: ZUSTAND,
+  "@tauri-apps/api/core": TAURI,
+});
 const PREFS_VAULT = await fuente("../stores/prefsVaultStore.ts", {
   zustand: ZUSTAND,
   "@tauri-apps/api/core": TAURI,
   "@/lib/temas": TEMAS,
+  "@/stores/configLocalStore": CONFIG_LOCAL,
 });
 const CSS = await fuente("../stores/cssStore.ts", {
   zustand: ZUSTAND,
   "@tauri-apps/api/core": TAURI,
   "@/lib/db/vaultContext": CONTEXTO,
+  "@/stores/configLocalStore": CONFIG_LOCAL,
+  "@/lib/snippetsArchivo": await fuente("../lib/snippetsArchivo.ts"),
 });
 
 const { DbError } = await import(ERRORS);
@@ -138,6 +156,7 @@ const client = await import(CLIENT);
 const contexto = await import(CONTEXTO);
 const legado = await import(LEGADO);
 const prefsVault = await import(PREFS_VAULT);
+const configLocal = await import(CONFIG_LOCAL);
 const { useCssStore } = await import(CSS);
 
 const VAULT = "C:/vaults/prueba";
@@ -208,6 +227,10 @@ test("normalizar conserva la apariencia válida y descarta la inválida", () => 
   assert.equal(prefsVault.normalizar({ tema: "arrecife" }).tema, "arrecife");
   // Y GSmart (`FUN-M-52`), igual.
   assert.equal(prefsVault.normalizar({ tema: "gsmart" }).tema, "gsmart");
+  // Y Amethystina (`FUN-M-55`), el tema normal detrás del modo.
+  assert.equal(prefsVault.normalizar({ tema: "amethystina" }).tema, "amethystina");
+  // Y Amanita (`FUN-M-56`).
+  assert.equal(prefsVault.normalizar({ tema: "amanita" }).tema, "amanita");
   // El tema experimental retirado el 2026-10-09 (`FUN-M-53`): un vault que lo
   // tenía guardado abre con el tema por defecto.
   assert.equal(prefsVault.normalizar({ tema: "bioexp" }).tema, "bioluminiscencia");
@@ -246,6 +269,30 @@ test("cargar lee preferencias.json con el comando de estado del vault", async ()
   assert.equal(store.getState().ruta, VAULT);
   assert.equal(store.getState().prefs.tema, "cantarela");
   assert.equal(store.getState().prefs.numerosDeLinea, true);
+  await store.getState().cargar(null);
+});
+
+test("el controlIa que trae el vault no enciende el control (DEF-169)", async () => {
+  const archivos = mycelium({ "preferencias.json": JSON.stringify({ controlIa: true, numerosDeLinea: true }) });
+  const store = prefsVault.usePrefsVaultStore;
+  await store.getState().cargar(null);
+  await store.getState().cargar(VAULT);
+  assert.equal(store.getState().prefs.controlIa, false, "manda la configuración local");
+  assert.equal(store.getState().controlIaDelVault, true, "Configuración puede contarlo");
+  // El espejo del archivo se corrige (lo leen el hook de mv/rm y el servidor MCP).
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(leerJson(archivos, "preferencias.json").controlIa, false);
+  assert.equal(leerJson(archivos, "preferencias.json").numerosDeLinea, true);
+  await store.getState().cargar(null);
+});
+
+test("un vault conocido con el control encendido en la máquina lo conserva", async () => {
+  mycelium({ "preferencias.json": JSON.stringify({ controlIa: true }) }, { controlIa: true, devtools: false, snippets: {} });
+  const store = prefsVault.usePrefsVaultStore;
+  await store.getState().cargar(null);
+  await store.getState().cargar(VAULT);
+  assert.equal(store.getState().prefs.controlIa, true);
+  assert.equal(store.getState().controlIaDelVault, false);
   await store.getState().cargar(null);
 });
 
@@ -371,8 +418,9 @@ test("cssStore lee y escribe snippets.json sin pasar por el índice", async () =
         { id: "roto" }, // sin CSS: se descarta
       ],
     }),
-  });
+  }, { controlIa: false, devtools: false, snippets: { a: true } });
   contexto.setVaultActual(VAULT);
+  await configLocal.useConfigLocalStore.getState().cargar(null);
   const css = useCssStore.getState();
   await css.load();
   assert.deepEqual(useCssStore.getState().snippets, [
@@ -391,6 +439,28 @@ test("cssStore lee y escribe snippets.json sin pasar por el índice", async () =
 
   await useCssStore.getState().remove("a");
   assert.deepEqual(leerJson(archivos, "snippets.json").snippets.map((s) => s.id), [nuevo.id]);
+  // Lo decidido vive en la máquina: el nuevo encendido, el borrado olvidado.
+  assert.deepEqual(archivos.local.snippets, { [nuevo.id]: true });
+});
+
+test("los snippets de un vault que la máquina no conoce llegan apagados (DEF-164)", async () => {
+  const archivos = mycelium({
+    "snippets.json": JSON.stringify({
+      version: 1,
+      snippets: [{ id: "ajeno", nombre: "Ajeno", activo: true, contenido: "body{display:none}" }],
+    }),
+  });
+  contexto.setVaultActual(VAULT);
+  await configLocal.useConfigLocalStore.getState().cargar(null);
+  await useCssStore.getState().load();
+  assert.deepEqual(useCssStore.getState().snippets, [
+    { id: "ajeno", nombre: "Ajeno", activo: false, contenido: "body{display:none}", traido: true },
+  ]);
+  // Encenderlo es decisión de esta máquina, y deja de contar como traído.
+  await useCssStore.getState().toggle("ajeno", true);
+  assert.equal(useCssStore.getState().snippets[0].activo, true);
+  assert.equal(useCssStore.getState().snippets[0].traido, undefined);
+  assert.deepEqual(archivos.local.snippets, { ajeno: true });
 });
 
 test("sin vault abierto, cssStore queda vacío en vez de fallar", async () => {

@@ -48,8 +48,8 @@ const leer = async (ruta) => (await readFile(join(FRONTEND, ruta), "utf8")).repl
 // ── Lógica pura ──────────────────────────────────────────────────────────────
 
 test("el tema guardado vale si existe; los de marca también, con o sin modo dev", () => {
-  for (const t of ["bioluminiscencia", "cantarela", "arrecife", "gsmart"]) assert.equal(temaValido(t), t);
-  for (const t of ["neon", "Arrecife", "GSmart", "BioExp", "bioluminiscencia-exp", "", null, undefined, 3, {}]) {
+  for (const t of ["bioluminiscencia", "cantarela", "arrecife", "gsmart", "amethystina", "amanita"]) assert.equal(temaValido(t), t);
+  for (const t of ["neon", "Arrecife", "GSmart", "Amethystina", "Amanita", "BioExp", "bioluminiscencia-exp", "", null, undefined, 3, {}]) {
     assert.equal(temaValido(t), TEMA_DEFECTO, JSON.stringify(t));
   }
   assert.equal(temaValido("neon", "cantarela"), "cantarela");
@@ -63,12 +63,14 @@ test("un vault con el tema experimental retirado (`bioexp`, `FUN-M-53`) abre con
   assert.equal(TEMAS_DE_MARCA.includes("bioexp"), false);
 });
 
-test("sin el modo dev, las muestras de marca no existen; con él, están al final", () => {
-  assert.deepEqual(temasVisibles(false).map((t) => t.id), ["bioluminiscencia", "cantarela"]);
-  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "arrecife", "gsmart"]);
+test("sin el modo dev, las muestras soloDev no existen; con él, están al final", () => {
+  // Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) son públicos desde el
+  // 2026-10-24: se ven siempre, antes de los de marca.
+  assert.deepEqual(temasVisibles(false).map((t) => t.id), ["bioluminiscencia", "cantarela", "amethystina", "amanita"]);
+  assert.deepEqual(temasVisibles(true).map((t) => t.id), ["bioluminiscencia", "cantarela", "amethystina", "amanita", "arrecife", "gsmart"]);
   // Solo los de marca son soloDev, y no se muta el catálogo.
   assert.deepEqual(TEMAS.filter((t) => t.soloDev).map((t) => t.id), ["arrecife", "gsmart"]);
-  assert.equal(TEMAS.length, 4);
+  assert.equal(TEMAS.length, 6);
 });
 
 test("la muestra de Arrecife lleva los colores de la marca", () => {
@@ -92,6 +94,9 @@ test("los temas de marca son exactamente Arrecife y GSmart, y no admiten atmósf
   assert.equal(admiteAtmosfera("cantarela"), true);
   assert.equal(admiteAtmosfera("arrecife"), false);
   assert.equal(admiteAtmosfera("gsmart"), false);
+  // Amethystina va detrás del modo pero NO es de marca: admite atmósferas.
+  assert.equal(admiteAtmosfera("amethystina"), true);
+  assert.equal(admiteAtmosfera("amanita"), true);
   // Todo tema de marca es del catálogo y va detrás del modo.
   for (const id of TEMAS_DE_MARCA) assert.equal(TEMAS.find((t) => t.id === id)?.soloDev, true, id);
 });
@@ -129,6 +134,18 @@ const claro = rawsDe(tokens, "[data-theme='arrecife']");
 const oscuro = rawsDe(tokens, "[data-theme='arrecife'][data-dark='true']");
 const gsClaro = rawsDe(tokens, "[data-theme='gsmart']");
 const gsOscuro = rawsDe(tokens, "[data-theme='gsmart'][data-dark='true']");
+// Amethystina y Amanita (`FUN-M-55`, `FUN-M-56`), temas normales: solo los ocho raw por modo.
+// Nacieron detrás del modo dev y son públicos desde el 2026-10-24.
+const NORMALES_NUEVOS = {
+  amethystina: {
+    claro: { base: "#35195F", "base-deep": "#2A1349", accent: "#6C3DBD", glow: "#9860E8", canvas: "#F7F3FC", mist: "#EFE6F9", ink: "#251E30", "ink-muted": "#62577A" },
+    oscuro: { base: "#0A0611", "base-deep": "#1D1430", accent: "#B78CFF", glow: "#DCB6FF", canvas: "#120C1C", mist: "#1A1228", ink: "#E8DEF5", "ink-muted": "#9D8DB4" },
+  },
+  amanita: {
+    claro: { base: "#561010", "base-deep": "#4A0D0D", accent: "#B81F2D", glow: "#D0602A", canvas: "#FCF6F3", mist: "#F8E9E4", ink: "#2E2120", "ink-muted": "#6F5652" },
+    oscuro: { base: "#0F0606", "base-deep": "#2A1212", accent: "#FF6656", glow: "#FFB59C", canvas: "#1A0C0B", mist: "#241211", ink: "#F5E1DC", "ink-muted": "#B38C86" },
+  },
+};
 
 test("tokens.css define los ocho raw de Arrecife en claro y en oscuro", () => {
   assert.deepEqual(Object.keys(claro).sort(), [...RAW].sort());
@@ -325,6 +342,38 @@ async function reglasDeModulos(tema) {
   return salida;
 }
 
+for (const [tema, modos] of Object.entries(NORMALES_NUEVOS)) {
+  test(`${tema}: los ocho raw en tokens.css y en el PDF, sin forma propia ni atmósfera bloqueada`, async () => {
+    const print = await leer("lib/printStyles.ts");
+    for (const [modo, selector] of [["claro", `[data-theme='${tema}']`], ["oscuro", `[data-theme='${tema}'][data-dark='true']`]]) {
+      assert.deepEqual(rawsDe(tokens, selector), modos[modo], `${tema} ${modo} en tokens.css`);
+      assert.deepEqual(rawsDe(print, selector), modos[modo], `${tema} ${modo} en el PDF`);
+    }
+    assert.equal(TEMAS_DE_MARCA.includes(tema), false);
+    assert.equal(TEMAS.find((t) => t.id === tema)?.soloDev, undefined);
+    // Un tema normal no trae hoja de forma ni reglas en los módulos.
+    assert.doesNotMatch(await leer("app/layout.tsx"), new RegExp(tema, "i"));
+    assert.equal((await reglasDeModulos(tema)).size, 0);
+  });
+
+  test(`contraste de ${tema}: texto, secundario y acento ≥4.5:1 sobre la nota y los paneles, en los dos modos`, () => {
+    // Como Bioluminiscencia y Cantarela, el marco (base) es oscuro también en
+    // claro: ahí no se escribe con la tinta sino con --mic-marco-texto, así que
+    // no se mide la tinta sobre base (eso lo hace textosLegibles, para los de marca).
+    for (const [modo, p] of Object.entries(modos)) {
+      for (const fondo of ["canvas", "mist"]) {
+        for (const texto of ["ink", "ink-muted", "accent"]) {
+          const c = contraste(p[texto], p[fondo]);
+          assert.ok(c >= 4.5, `${tema} ${modo}: ${texto} ${p[texto]} sobre ${fondo} ${p[fondo]} = ${c.toFixed(2)}:1`);
+        }
+        // El glow pinta etiquetas, cursor y nodos: ≥3:1.
+        const c = contraste(p.glow, p[fondo]);
+        assert.ok(c >= 3, `${tema} ${modo}: glow ${p.glow} sobre ${fondo} = ${c.toFixed(2)}:1`);
+      }
+    }
+  });
+}
+
 for (const tema of ["arrecife", "gsmart"]) {
   test(`la forma de ${tema} no alcanza a los otros temas`, async () => {
     // styles/<tema>.css: cada regla va bajo :root[data-theme='<tema>'].
@@ -505,9 +554,9 @@ test("Aurora está en el catálogo de atmósferas, se valida y se aplica con los
   assert.deepEqual(ATMOSFERAS.map((a) => a.id), ["abisal", "niebla", "bosque", "papel", "aurora"]);
   assert.equal(atmosferaValida("aurora", "niebla"), "aurora");
   assert.equal(atmosferaValida("Aurora", "niebla"), "niebla");
-  // Se elige para cada modo, con los dos temas públicos.
+  // Se elige para cada modo, con los temas normales (también los de detrás del modo dev).
   const prefs = { atmosferaOscuro: "aurora", atmosferaClaro: "aurora" };
-  for (const tema of ["bioluminiscencia", "cantarela"]) {
+  for (const tema of ["bioluminiscencia", "cantarela", "amethystina", "amanita"]) {
     assert.equal(atmosferaEnUso(tema, true, prefs), "aurora");
     assert.equal(atmosferaEnUso(tema, false, prefs), "aurora");
   }
@@ -574,6 +623,10 @@ const AURORA_PALETAS = [
   ["bioluminiscencia", "oscuro", "[data-theme='bioluminiscencia'][data-dark='true']"],
   ["cantarela", "claro", "[data-theme='cantarela']"],
   ["cantarela", "oscuro", "[data-theme='cantarela'][data-dark='true']"],
+  ["amethystina", "claro", "[data-theme='amethystina']"],
+  ["amethystina", "oscuro", "[data-theme='amethystina'][data-dark='true']"],
+  ["amanita", "claro", "[data-theme='amanita']"],
+  ["amanita", "oscuro", "[data-theme='amanita'][data-dark='true']"],
 ];
 
 /** Las declaraciones `--x: valor;` de un cuerpo de bloque. */

@@ -1,0 +1,25 @@
+# Configuración de `cargo audit` (RustSec) para el workflow `seguridad.yml`.
+#
+# Cada aviso ignorado lleva su motivo y se revisa en cada subida de dependencias:
+# un aviso que pase a afectar al binario se saca de esta lista.
+
+[advisories]
+ignore = [
+  # rsa (Marvin Attack, sin versión corregida). Está en el Cargo.lock solo
+  # porque `sqlx-mysql` lo declara, y sqlx-mysql es una dependencia opcional de
+  # tauri-plugin-sql que Mycelium no activa (usa SQLite): `cargo tree -i rsa
+  # --target all` no lo encuentra en el grafo que se compila.
+  "RUSTSEC-2023-0071",
+  # rkyv 0.7 (validación insuficiente de archivos con Rc/Arc). Lo trae
+  # `rust_decimal` como dependencia opcional; tampoco entra al grafo compilado
+  # (`cargo tree -i rkyv --target all` vacío).
+  "RUSTSEC-2026-0235",
+  # zip 4.6 (bits SUID/SGID, enlaces simbólicos y permisos al extraer). Lo usa
+  # tauri-plugin-updater para desempaquetar la actualización, que antes se
+  # verifica con la firma minisign de Mycelium: un zip malicioso necesitaría la
+  # clave privada. La corrección es zip >= 9, una subida mayor que tiene que
+  # hacer el plugin. Revisar con cada versión nueva de tauri-plugin-updater.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+]

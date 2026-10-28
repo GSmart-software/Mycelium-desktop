@@ -76,8 +76,7 @@ fn ruta_en(vault: &Path, nombre: &str, permitidos: &[&[&str]]) -> Result<PathBuf
 /// vault recién abierto no tiene ninguno— y uno ilegible no debe impedir abrir
 /// el vault. El frontend cae a sus valores por defecto y el archivo se reescribe
 /// entero en el próximo guardado.
-#[tauri::command]
-pub fn leer_estado_vault(ruta: String, nombre: String) -> Result<Option<String>, String> {
+pub(crate) fn leer_estado_vault_en(ruta: String, nombre: String) -> Result<Option<String>, String> {
     let destino = ruta_en(Path::new(&ruta), &nombre, &[ESTADOS, LEGADOS])?;
     Ok(std::fs::read_to_string(destino).ok())
 }
@@ -88,8 +87,7 @@ pub fn leer_estado_vault(ruta: String, nombre: String) -> Result<Option<String>,
 /// interrumpida no deje el archivo a medias: perder una preferencia es leve,
 /// pero un JSON truncado haría que el vault arrancara siempre con los valores
 /// por defecto sin decir por qué. Un archivo legado no se puede escribir.
-#[tauri::command]
-pub fn escribir_estado_vault(ruta: String, nombre: String, contenido: String) -> Result<(), String> {
+pub(crate) fn escribir_estado_vault_en(ruta: String, nombre: String, contenido: String) -> Result<(), String> {
     let destino = ruta_en(Path::new(&ruta), &nombre, &[ESTADOS])?;
     if let Some(dir) = destino.parent() {
         std::fs::create_dir_all(dir)
@@ -101,14 +99,37 @@ pub fn escribir_estado_vault(ruta: String, nombre: String, contenido: String) ->
 /// Borra un archivo **legado** ya migrado. Solo los de `LEGADOS`: los estados
 /// vigentes no se borran nunca desde la webview. Que no exista no es un error
 /// (la migración pudo correr antes, en otra ventana o en otra sesión).
-#[tauri::command]
-pub fn borrar_estado_vault(ruta: String, nombre: String) -> Result<(), String> {
+pub(crate) fn borrar_estado_vault_en(ruta: String, nombre: String) -> Result<(), String> {
     let destino = ruta_en(Path::new(&ruta), &nombre, &[LEGADOS])?;
     match std::fs::remove_file(&destino) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("No se pudo borrar {}: {e}", destino.display())),
     }
+}
+
+// ── Comandos (`DEF-161`) ─────────────────────────────────────────────────────
+//
+// La lista cerrada de nombres impedía salirse de `.mycelium/`, pero la carpeta
+// que lo contiene la decidía JS: `<cualquier carpeta>/.mycelium/*` se leía y se
+// escribía. Ahora `ruta` tiene que ser el vault de la ventana que invoca.
+
+/// Ver `leer_estado_vault_en`.
+#[tauri::command]
+pub fn leer_estado_vault(ventana: tauri::Window, ruta: String, nombre: String) -> Result<Option<String>, String> {
+    leer_estado_vault_en(crate::ventanas::base_de_ventana(&ventana, &ruta)?, nombre)
+}
+
+/// Ver `escribir_estado_vault_en`.
+#[tauri::command]
+pub fn escribir_estado_vault(ventana: tauri::Window, ruta: String, nombre: String, contenido: String) -> Result<(), String> {
+    escribir_estado_vault_en(crate::ventanas::base_de_ventana(&ventana, &ruta)?, nombre, contenido)
+}
+
+/// Ver `borrar_estado_vault_en`.
+#[tauri::command]
+pub fn borrar_estado_vault(ventana: tauri::Window, ruta: String, nombre: String) -> Result<(), String> {
+    borrar_estado_vault_en(crate::ventanas::base_de_ventana(&ventana, &ruta)?, nombre)
 }
 
 #[cfg(test)]
@@ -123,11 +144,11 @@ mod tests {
     }
 
     fn leer(v: &str, nombre: &str) -> Option<String> {
-        leer_estado_vault(v.to_string(), nombre.to_string()).unwrap()
+        leer_estado_vault_en(v.to_string(), nombre.to_string()).unwrap()
     }
 
     fn escribir(v: &str, nombre: &str, contenido: &str) -> Result<(), String> {
-        escribir_estado_vault(v.to_string(), nombre.to_string(), contenido.to_string())
+        escribir_estado_vault_en(v.to_string(), nombre.to_string(), contenido.to_string())
     }
 
     #[test]
@@ -173,8 +194,8 @@ mod tests {
         let v = vault_temporal("fuera-de-lista");
         assert!(escribir(&v, "../fuera.json", "x").is_err());
         assert!(escribir(&v, "otro.json", "x").is_err());
-        assert!(leer_estado_vault(v.clone(), "otro.json".into()).is_err());
-        assert!(borrar_estado_vault(v, "../fuera.json".into()).is_err());
+        assert!(leer_estado_vault_en(v.clone(), "otro.json".into()).is_err());
+        assert!(borrar_estado_vault_en(v, "../fuera.json".into()).is_err());
     }
 
     #[test]
@@ -198,7 +219,7 @@ mod tests {
         escribir(&v, "actividad.jsonl", jsonl).unwrap();
         assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some(jsonl));
         // Y no se borra desde la webview: se recorta al escribir.
-        assert!(borrar_estado_vault(v, "actividad.jsonl".into()).is_err());
+        assert!(borrar_estado_vault_en(v, "actividad.jsonl".into()).is_err());
     }
 
     #[test]
@@ -215,7 +236,7 @@ vault
 vault
 "));
         // Y no se puede borrar desde la webview: quitar palabras es reescribirlo.
-        assert!(borrar_estado_vault(v, "diccionario.txt".into()).is_err());
+        assert!(borrar_estado_vault_en(v, "diccionario.txt".into()).is_err());
     }
 
     #[test]
@@ -238,17 +259,17 @@ vault
 
         assert_eq!(leer(&v, "apariencia.json").as_deref(), Some(r#"{"tema":"cantarela"}"#));
         assert!(escribir(&v, "apariencia.json", "{}").is_err());
-        borrar_estado_vault(v.clone(), "apariencia.json".into()).unwrap();
+        borrar_estado_vault_en(v.clone(), "apariencia.json".into()).unwrap();
         assert!(!archivo.exists());
         // Borrarlo otra vez no falla: la migración puede correr dos veces.
-        borrar_estado_vault(v, "apariencia.json".into()).unwrap();
+        borrar_estado_vault_en(v, "apariencia.json".into()).unwrap();
     }
 
     #[test]
     fn un_estado_vigente_no_se_puede_borrar() {
         let v = vault_temporal("no-borra");
         escribir(&v, "preferencias.json", "{}").unwrap();
-        assert!(borrar_estado_vault(v.clone(), "preferencias.json".into()).is_err());
+        assert!(borrar_estado_vault_en(v.clone(), "preferencias.json".into()).is_err());
         assert!(Path::new(&v).join(DIR).join("preferencias.json").is_file());
     }
 }

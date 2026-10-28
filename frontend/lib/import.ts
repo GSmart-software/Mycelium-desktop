@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import { EXTENSIONES_DE_NOTA } from "@/lib/extensionesDeTipo";
 import { recorrerEntradas, type EntradaSoltada } from "@/lib/recorrerSoltados";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -9,11 +8,16 @@ import { useVaultStore } from "@/stores/vaultStore";
  * (`FUN-M-40`, D9):
  *
  * - una carpeta del disco → `importarCarpeta`: el comando Rust `copiar_arbol`
- *   la copia entera —notas, imágenes, PDF, lo que haya— respetando su
- *   `.mycignore` (o el default, que deja fuera `.obsidian/` y `.git/`);
- * - lo que no llega como carpeta —un `.zip`, archivos soltados o elegidos con
- *   el selector— → `importarArchivos`: se baja a una carpeta temporal y sigue
- *   el mismo camino.
+ *   la copia entera —notas, imágenes, PDF, lo que haya— **salvo lo oculto**
+ *   (`.claude/`, `.git/`, `.mcp.json`, `.obsidian/`…, en cualquier nivel) y las
+ *   carpetas de dependencias (`node_modules/`…). El `.mycignore` del origen no
+ *   cuenta (`DEF-165`);
+ * - un `.zip` → `importarZip`: lo elige el selector nativo y lo extrae Rust a una
+ *   carpeta temporal, con la marca de la web del zip en cada archivo (`DEF-165`);
+ * - archivos soltados o elegidos → `importarArchivos`: se bajan a una carpeta
+ *   temporal.
+ *
+ * Los dos últimos siguen después el mismo camino que una carpeta.
  *
  * Antes era la tubería de la web: cada nota se creaba con `POST` + `PUT` por el
  * dispatcher, los adjuntos se contaban como «no soportados» y «reemplazar»
@@ -29,7 +33,17 @@ export type ImportSummary = {
   notas: number;
   adjuntos: number;
   omitidos: string[];
+  /**
+   * Lo que la regla fija dejó fuera (`DEF-165`), en ruta del origen: lo oculto
+   * y las carpetas de dependencias; una carpeta lleva `/` al final.
+   */
+  excluidos: string[];
+  /** Lo copiado que conviene revisar: instrucciones para agentes (`CLAUDE.md`, `AGENTS.md`). */
+  revisar: string[];
 };
+
+/** Lo que devuelve el comando `copiar_arbol`. */
+type ResultadoCopia = { copiados: string[]; omitidos: string[]; excluidos: string[]; revisar: string[] };
 
 type Opciones = {
   /** Se llama una vez por archivo en conflicto (su nombre) y espera la decisión. */
@@ -72,16 +86,12 @@ export async function collectFromDataTransfer(dt: DataTransfer): Promise<Collect
   return recorrerEntradas(entries as unknown as EntradaSoltada[]);
 }
 
-/** Extrae los archivos de un .zip (p. ej. un vault de Obsidian, HU-11 CA1). */
-export async function collectFromZip(zipFile: File): Promise<CollectedFile[]> {
-  const zip = await JSZip.loadAsync(zipFile);
-  const out: CollectedFile[] = [];
-  for (const entry of Object.values(zip.files)) {
-    if (entry.dir) continue;
-    const blob = await entry.async("blob");
-    out.push({ path: entry.name, file: new File([blob], entry.name.split("/").pop() ?? entry.name) });
-  }
-  return out;
+/**
+ * Abre el selector de archivos nativo —desde Rust— para elegir un `.zip`;
+ * `null` si se cancela. Solo un zip elegido así se puede extraer (`DEF-165`).
+ */
+export async function elegirZip(titulo: string): Promise<string | null> {
+  return invocar<string | null>("elegir_zip", { titulo });
 }
 
 /** Si una ruta es una nota del vault (el resto son adjuntos). */
@@ -117,7 +127,7 @@ export async function importarCarpeta(
     decisiones[ruta] = (await opts.resolveConflict?.(ruta)) ?? "renombrar";
   }
 
-  const resultado = await invocar<{ copiados: string[]; omitidos: string[] }>("copiar_arbol", {
+  const resultado = await invocar<ResultadoCopia>("copiar_arbol", {
     ...args,
     decisiones,
   });
@@ -135,7 +145,41 @@ export async function importarCarpeta(
     notas,
     adjuntos: resultado.copiados.length - notas,
     omitidos: resultado.omitidos,
+    excluidos: resultado.excluidos,
+    revisar: resultado.revisar,
   };
+}
+
+/** Crea una carpeta temporal de importación, corre `trabajo` con ella y la borra. */
+async function conTemporal<T>(trabajo: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await invocar<string>("crear_temporal_importacion", {});
+  try {
+    return await trabajo(dir);
+  } finally {
+    await invocar<void>("borrar_temporal_importacion", { dir }).catch(() => {
+      // Queda en el temporal del sistema, que el SO limpia: no es fatal.
+    });
+  }
+}
+
+/**
+ * Importa el `.zip` `zip` (elegido con `elegirZip`): Rust lo extrae a una
+ * carpeta temporal —pasándole a cada archivo la marca de la web del zip, si la
+ * tiene— y de ahí sigue `importarCarpeta`.
+ *
+ * Antes lo abría la webview con JSZip y bajaba los archivos por `escribirTrozo`:
+ * llegaban al vault sin la marca, y un `.docm` bajado de internet se abría
+ * fuera de la Vista protegida de Office (`DEF-165`).
+ */
+export async function importarZip(
+  zip: string,
+  destFolderId: string | null,
+  opts: Opciones = {},
+): Promise<ImportSummary> {
+  return conTemporal(async (dir) => {
+    await invocar<number>("extraer_zip_importacion", { zip, dir });
+    return importarCarpeta(dir, destFolderId, opts);
+  });
 }
 
 /**
@@ -160,10 +204,9 @@ async function escribirTrozo(dir: string, ruta: string, desde: number, bytes: Ui
 }
 
 /**
- * Importa archivos que no llegan como carpeta (un .zip, archivos soltados o
- * elegidos): se bajan a una carpeta temporal, uno por uno y en trozos por IPC
- * binario, y de ahí sigue `importarCarpeta`. La carpeta temporal se borra al
- * terminar.
+ * Importa archivos que no llegan como carpeta (soltados o elegidos): se bajan a
+ * una carpeta temporal, uno por uno y en trozos por IPC binario, y de ahí sigue
+ * `importarCarpeta`. La carpeta temporal se borra al terminar.
  *
  * Antes los bytes iban en el JSON como `number[]` (20 MB eran 71 MB de JSON y
  * ~2,3 s): un archivo grande era inviable.
@@ -173,9 +216,7 @@ export async function importarArchivos(
   destFolderId: string | null,
   opts: Opciones = {},
 ): Promise<ImportSummary> {
-  let dir: string | null = null;
-  try {
-    dir = await invocar<string>("crear_temporal_importacion", {});
+  return conTemporal(async (dir) => {
     const bytes = { hechos: 0, total: files.reduce((n, f) => n + f.file.size, 0) };
     opts.onProgress?.(0, files.length, bytes);
     let hechos = 0;
@@ -192,12 +233,6 @@ export async function importarArchivos(
       } while (desde < f.file.size);
       opts.onProgress?.(++hechos, files.length, bytes);
     }
-    return await importarCarpeta(dir, destFolderId, opts);
-  } finally {
-    if (dir !== null) {
-      await invocar<void>("borrar_temporal_importacion", { dir }).catch(() => {
-        // Queda en el temporal del sistema, que el SO limpia: no es fatal.
-      });
-    }
-  }
+    return importarCarpeta(dir, destFolderId, opts);
+  });
 }

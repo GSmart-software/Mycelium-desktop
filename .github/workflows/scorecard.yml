@@ -1,0 +1,55 @@
+name: OpenSSF Scorecard
+
+# Evaluación de prácticas de seguridad de la cadena de suministro de OpenSSF
+# Scorecard (https://github.com/ossf/scorecard). Sigue la plantilla oficial de
+# `ossf/scorecard-action`: con `publish_results: true` el resultado se publica en
+# la API pública de Scorecard (insignia y https://scorecard.dev/viewer/) y el
+# SARIF se sube a Security → Code scanning.
+#
+# OJO: con `publish_results: true` la acción exige que este workflow no tenga
+# `env` ni `defaults` globales, que el job corra en un runner de GitHub y que
+# solo use acciones aprobadas (las de abajo). No agregar pasos.
+on:
+  # Para la comprobación «Branch-Protection».
+  branch_protection_rule:
+  schedule:
+    - cron: "17 3 * * 6"
+  push:
+    branches: [main]
+
+permissions: read-all
+
+jobs:
+  analisis:
+    name: Análisis de Scorecard
+    runs-on: ubuntu-latest
+    if: github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request'
+    permissions:
+      # Subir el SARIF a code scanning.
+      security-events: write
+      # Publicar los resultados y obtener la insignia.
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Análisis
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Subir el SARIF como artefacto
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SARIF
+          path: results.sarif
+          retention-days: 5
+
+      - name: Subir a code scanning
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: results.sarif

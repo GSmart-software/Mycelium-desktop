@@ -148,19 +148,19 @@
    `flex: 1` en una fila de 460px: se repartían el ancho según cuántas había y la
    del nombre largo se estiraba.
 
-   Si no entran en el ancho del bloque, la fila se desplaza en horizontal (con
-   la barra fina de globals.css) en vez de achicarlas o bajarlas de fila: una
-   sola fila mantiene el alto de la sección fijo y las muestras en el orden en
-   que se leen. Hoy, con cuatro (dos públicas y dos del modo dev), entran sin
-   barra en los 560px del bloque: 4 × 120 + 3 × 9,6 + 2 × 6 = 520,8px.
+   Si no entran en el ancho del bloque, bajan a la fila siguiente, sin achicarse:
+   el usuario quiere verlas todas a la vez, sin barra de desplazamiento
+   (2026-10-24). Antes la fila se desplazaba en horizontal; con seis muestras
+   (cuatro públicas y dos del modo dev) ya no entraban en los 560px del bloque:
+   6 × 120 + 5 × 9,6 + 2 × 6 = 780px. Con cuatro, 520,8px: una sola fila.
    El relleno de 6px deja lugar al anillo de foco (2px a 2px de distancia) y al
-   borde de la elegida, que si no el `overflow` recortaría. */
+   borde de la elegida. */
 .swatchGroup {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
   padding: 6px;
   margin: -6px;
-  overflow-x: auto;
 }
 
 /* Solo las de tema: `.swatch` es también la tarjeta de las atmósferas, que
@@ -346,6 +346,36 @@
   /* Aire entre un ajuste y la explicación del anterior: sin esto, el rótulo de
      uno quedaba pegado al párrafo del de arriba y no se veía dónde empezaba. */
   margin-top: 1.2rem;
+}
+
+/* Sub-ajustes de un interruptor (`FUN-M-57`, las partes de la consola con
+   efectos): van dentro del bloque de su ajuste, colgados de una línea a la
+   izquierda, sin filetes entre ellos y con poco aire, para que se lean como
+   partes de una sola opción y no como ajustes sueltos. */
+.subajustes {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.7rem;
+  margin-left: 1.05rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
+}
+
+.subajustes > .ajuste {
+  padding-block: 0.28rem;
+  border-top: 0;
+}
+
+.subajustes .toggleRow {
+  min-height: 26px;
+}
+
+.subajustes .label {
+  font-weight: 500;
+}
+
+.subajustes .hint {
+  margin-top: 0;
 }
 
 /* Dentro de su bloque, el filete ya separa: el margen de arriba sobra. */

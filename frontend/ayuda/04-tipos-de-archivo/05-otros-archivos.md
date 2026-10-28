@@ -37,6 +37,15 @@ Con clic derecho: **Abrir**, **Abrir con la aplicación predeterminada**, **Reno
 **Duplicar**, **Guardar una copia…** (fuera del vault), **Mostrar en el explorador** y
 **Eliminar**.
 
+**Abrir con la aplicación predeterminada** no abre programas ni scripts (`.exe`, `.bat`,
+`.cmd`, `.ps1`, `.lnk`, `.msi` y parecidos): abrirlos sería ejecutarlos. Para esos, **Mostrar
+en el explorador** y abrilo desde ahí si sabés qué es.
+
+Los documentos que pueden ejecutar código sin ser programas —de Office con macros (`.docm`,
+`.xlsm`, `.pptm` y parecidos), complementos de Excel (`.xll`), ayuda compilada (`.chm`) e
+imágenes de disco (`.iso`, `.img`, `.vhd`)— se abren, pero antes Mycelium pregunta si
+querés hacerlo.
+
 > [!warning] Estos archivos no tienen la red de las notas
 > Eliminar uno lo manda a la papelera **del sistema**, no a la de Mycelium: se recupera
 > desde ahí. Tampoco entran en la búsqueda, ni en el grafo, ni en el autocompletado de `[[`.

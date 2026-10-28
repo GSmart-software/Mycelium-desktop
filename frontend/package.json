@@ -1,10 +1,11 @@
 {
   "name": "frontend",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
-    "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs && next dev",
-    "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",
+    "dev": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-avisos-terceros.mjs && node scripts/generar-ayuda.mjs && next dev",
+    "build": "node scripts/preparar-drawio.mjs && node scripts/preparar-excalidraw.mjs && node scripts/generar-avisos-terceros.mjs && node scripts/generar-ayuda.mjs --comprobar && next build",
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",
@@ -13,6 +14,7 @@
     "publicar": "node scripts/publicar.mjs",
     "preparar-drawio": "node scripts/preparar-drawio.mjs",
     "preparar-excalidraw": "node scripts/preparar-excalidraw.mjs",
+    "generar-avisos-terceros": "node scripts/generar-avisos-terceros.mjs",
     "preparar-mcp": "node scripts/preparar-mcp.mjs",
     "generar-ayuda": "node scripts/generar-ayuda.mjs",
     "wasm:ortografia": "node scripts/wasm-ortografia.mjs",
@@ -41,10 +43,10 @@
     "@xterm/addon-unicode-graphemes": "^0.4.0",
     "@xterm/xterm": "^6.0.0",
     "jszip": "^3.10.1",
-    "katex": "^0.17.0",
+    "katex": "^0.18.11",
     "lucide-react": "^1.17.0",
     "mermaid": "^11.15.0",
-    "next": "16.2.9",
+    "next": "16.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "rehype-highlight": "^7.0.2",
@@ -64,8 +66,18 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.4.3",
     "playwright": "^1.60.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "katex": "$katex",
+    "lodash-es": "^4.18.1",
+    "@excalidraw/excalidraw": {
+      "nanoid": "3.3.20"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "5.1.16"
+    }
   }
 }

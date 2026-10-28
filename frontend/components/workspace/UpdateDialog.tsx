@@ -2,6 +2,7 @@
 
 import { ArrowDownToLine, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo } from "react";
+import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
 import { renderMarkdown } from "@/lib/markdown";
 import { EVENTO_PROGRESO, fechaLegible, type ProgresoDescarga } from "@/lib/updater";
 import { useUpdaterStore } from "@/stores/updaterStore";
@@ -88,7 +89,11 @@ export function UpdateDialog() {
           {fecha && ` · publicada el ${fecha}`}
         </p>
 
-        <div className={`mic-preview ${styles.notes}`}>
+        {/* Las notas vienen de la red y el manifiesto NO está firmado
+            (`DEF-160`): el pipeline ya quitó todo `href`/`src` con un esquema
+            ajeno, y este clic se asegura de que ningún enlace navegue la
+            webview. Uno web abre el navegador; un wikilink no hace nada. */}
+        <div className={`mic-preview ${styles.notes}`} onClick={(e) => atenderClicEnEnlace(e)}>
           {notasHtml ? (
             <div dangerouslySetInnerHTML={{ __html: notasHtml }} />
           ) : (

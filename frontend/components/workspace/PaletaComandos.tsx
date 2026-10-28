@@ -277,7 +277,8 @@ export function PaletaComandos() {
         // El mismo comando que F12 y Ctrl+Shift+I (`DevToolsHotkey`).
         ejecutar: async () => {
           const { invoke } = await import("@tauri-apps/api/core");
-          await invoke("alternar_devtools");
+          // `forzar`: este comando no depende del interruptor del vault.
+          await invoke("alternar_devtools", { forzar: true });
         },
       },
     ],

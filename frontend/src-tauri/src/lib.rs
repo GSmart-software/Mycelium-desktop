@@ -4,8 +4,12 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod config_local;
 mod control;
+mod devtools;
+mod dialogos;
 mod diccionarios;
+mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
@@ -82,19 +86,6 @@ fn ventana_para_abrir<R: tauri::Runtime>(
         .cloned()
 }
 
-/// Abre/cierra las herramientas de desarrollador del webview. Disponible también
-/// en las builds de producción gracias a la feature `devtools` del crate `tauri`
-/// (sin ella, estas APIs solo existen con `debug_assertions`). El frontend lo
-/// invoca con F12 / Ctrl+Shift+I: sirve para escribir CSS propio y depurar.
-#[tauri::command]
-fn alternar_devtools(webview: tauri::WebviewWindow) {
-    if webview.is_devtools_open() {
-        webview.close_devtools();
-    } else {
-        webview.open_devtools();
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pendientes: Vec<String> = args_de_nota(&std::env::args().collect::<Vec<_>>());
@@ -154,6 +145,9 @@ pub fn run() {
         // Red de seguridad de `DEF-101`: ningún camino puede sacar a la app de
         // su propia página. Va DESPUÉS del opener porque lo usa para derivar.
         .plugin(navegacion::init())
+        // Las DevTools nacen apagadas en cada webview y se encienden por vault;
+        // en Windows, la puerta son los atajos y el menú contextual (`devtools.rs`).
+        .plugin(devtools::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`
         // leyendo la config compilada, así que sin claves la app arranca igual
@@ -170,6 +164,8 @@ pub fn run() {
         // Descargas de diccionarios del corrector en curso (`FUN-L-12`).
         .manage(diccionarios::DescargasState::default())
         .manage(ventanas::VentanasState::default())
+        // Carpetas de fuera del vault elegidas en el selector nativo (`DEF-161`).
+        .manage(dialogos::ElegidasState::default())
         // La escucha del MCP de control, una por ventana (`FUN-L-09`).
         .manage(control::ControlState::default())
         // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
@@ -183,7 +179,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             take_opened_files,
-            alternar_devtools,
+            devtools::alternar_devtools,
+            config_local::config_local_leer,
+            config_local::config_local_fijar,
             terminal::terminal_shells,
             terminal::terminal_abrir,
             terminal::terminal_escribir,
@@ -195,13 +193,12 @@ pub fn run() {
             archivos::crear_temporal_importacion,
             archivos::escribir_trozo_importacion,
             archivos::borrar_temporal_importacion,
+            archivos::extraer_zip_importacion,
             archivos::recorrer_vault,
-            archivos::listar_archivos_meta,
             archivos::listar_otros_archivos,
             archivos::leer_archivos,
             archivos::leer_archivo_visor,
             archivos::escribir_archivo_visor,
-            archivos::listar_directorios,
             archivos::carpeta_no_vacia,
             mycignore::mycignore_default,
             marco::marco_zona_maximizar,
@@ -229,7 +226,10 @@ pub fn run() {
             diccionarios::diccionario_personal_escribir,
             recordatorios::notificar_recordatorio,
             vault_config::listar_vaults,
-            vault_config::vincular_vault,
+            vault_config::elegir_vault,
+            dialogos::elegir_carpeta,
+            dialogos::elegir_zip,
+            indice::abrir_indice_vault,
             vault_config::desvincular_vault,
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
@@ -268,6 +268,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Antes de que se pueda vincular un vault nuevo (`config_local.rs`).
+            config_local::migrar_al_arrancar(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

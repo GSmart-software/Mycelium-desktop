@@ -98,6 +98,15 @@ pub async fn mcp_control_encender(
     state: tauri::State<'_, ControlState>,
     ruta: String,
 ) -> Result<String, String> {
+    // El canal se abre para el vault de ESTA ventana y no para uno que diga JS
+    // (`DEF-161`): el pipe expone las operaciones del frontend sobre ese vault.
+    let ruta = crate::ventanas::base_de_ventana(&ventana, &ruta)?;
+    // Solo si ESTA máquina encendió el control para este vault (`DEF-169`): el
+    // `controlIa` de `.mycelium/preferencias.json` viaja con el vault y un vault
+    // ajeno lo traería puesto. El frontend ya lo respeta; esto es lo de abajo.
+    if !crate::config_local::config_en(&crate::config_local::dir_config(ventana.app_handle())?, &ruta)?.control_ia {
+        return Err("El control de la IA está apagado en este vault.".to_string());
+    }
     let app = ventana.app_handle().clone();
     let etiqueta = ventana.label().to_string();
     let dir_app = app
@@ -200,8 +209,7 @@ const BORRABLES: [&str; 3] = [".mcp.json", ".claude/settings.json", ".claude/hoo
 /// raíz (por defecto), `.claude/settings.json` o el script del hook. **Lista
 /// cerrada**: el frontend lo pide cuando, al apagar el control, quedó vacío y
 /// lo había creado Mycelium (o el script es suyo). Que no exista no es un error.
-#[tauri::command]
-pub fn mcp_config_borrar(vault_ruta: String, archivo: Option<String>) -> Result<(), String> {
+pub(crate) fn mcp_config_borrar_en(vault_ruta: String, archivo: Option<String>) -> Result<(), String> {
     let rel = archivo.as_deref().unwrap_or(BORRABLES[0]);
     if !BORRABLES.contains(&rel) {
         return Err(format!("«{rel}» no es un archivo del control de la IA: no se borra."));
@@ -212,6 +220,14 @@ pub fn mcp_config_borrar(vault_ruta: String, archivo: Option<String>) -> Result<
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("No se pudo borrar {}: {e}", archivo.display())),
     }
+}
+
+/// Ver `mcp_config_borrar_en`. La lista cerrada acotaba el nombre, pero la
+/// carpeta la decidía JS: con `vault_ruta` = el home se borraba
+/// `~/.claude/settings.json` (`DEF-161`). Ahora es el vault de esta ventana.
+#[tauri::command]
+pub fn mcp_config_borrar(ventana: tauri::Window, vault_ruta: String, archivo: Option<String>) -> Result<(), String> {
+    mcp_config_borrar_en(crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?, archivo)
 }
 
 /// Apaga la escucha de una ventana por su etiqueta. La usan el comando de
@@ -539,13 +555,13 @@ mod tests {
         std::fs::write(dir.join(".claude/settings.json"), "{}").unwrap();
         std::fs::write(dir.join("Nota.md"), "x").unwrap();
         let v = dir.to_string_lossy().to_string();
-        assert!(mcp_config_borrar(v.clone(), Some("Nota.md".into())).is_err());
-        assert!(mcp_config_borrar(v.clone(), Some("../fuera.json".into())).is_err());
+        assert!(mcp_config_borrar_en(v.clone(), Some("Nota.md".into())).is_err());
+        assert!(mcp_config_borrar_en(v.clone(), Some("../fuera.json".into())).is_err());
         assert!(dir.join("Nota.md").exists());
-        mcp_config_borrar(v.clone(), Some(".claude/settings.json".into())).unwrap();
+        mcp_config_borrar_en(v.clone(), Some(".claude/settings.json".into())).unwrap();
         assert!(!dir.join(".claude/settings.json").exists());
         // Lo que no existe no es un error (el `.mcp.json`, por defecto).
-        mcp_config_borrar(v, None).unwrap();
+        mcp_config_borrar_en(v, None).unwrap();
         let _ = std::fs::remove_dir_all(dir);
     }
 

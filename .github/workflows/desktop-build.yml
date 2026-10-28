@@ -11,6 +11,10 @@ name: Desktop (Tauri) — instaladores de Windows, macOS y Linux
 # (`npm run publicar -- --ci <carpeta>`) descarga estos tres artefactos, los
 # firma con `tauri signer sign` y los sube a R2.
 #
+# Solo compila si antes pasan CodeQL (sin alertas altas ni críticas abiertas) y
+# la seguridad de dependencias (`npm audit` y `cargo audit`): ver los jobs
+# `codeql` y `dependencias`.
+#
 # Disparadores:
 # - push a `despliegues`: es lo que deja un PR fusionado hacia esa rama. Un
 #   build por versión. Un push a `desktop-tauri` NO dispara nada.
@@ -31,6 +35,23 @@ name: Desktop (Tauri) — instaladores de Windows, macOS y Linux
 #     Mycelium_<version>_amd64.deb        instalador (Debian/Ubuntu)
 #     Mycelium-<version>-1.x86_64.rpm     instalador (Fedora/openSUSE)
 #     Mycelium_<version>_amd64.AppImage   instalador Y artefacto del updater (linux-x86_64)
+#
+# Además, por plataforma, un artefacto aparte con la lista de materiales de
+# software (SBOM, CycloneDX 1.5) de lo que va adentro del instalador:
+#
+#   mycelium-<version>-sbom-<plataforma>
+#     sbom-frontend.cdx.json              dependencias npm empaquetadas (sin las de desarrollo)
+#     sbom-rust-<plataforma>.cdx.json     crates de Rust compilados para esa plataforma
+#
+# Y una atestación de procedencia (SLSA, `actions/attest-build-provenance`) de
+# cada distribuible y cada SBOM: prueba que el archivo salió de este workflow,
+# de este commit. Se verifica con
+# `gh attestation verify <archivo> --repo GSmart-software/Mycelium-desktop`.
+# Ojo: la atestación cubre el archivo tal como sale de acá; `publicar.mjs` lo
+# firma con minisign en un `.sig` aparte, sin tocar sus bytes, así que vale
+# también para lo publicado. La atestación va por el SHA-256 del contenido, no
+# por el nombre: el `Mycelium.app.tar.gz` que `publicar.mjs` renombra sigue
+# verificando.
 on:
   push:
     branches: [despliegues]
@@ -40,8 +61,34 @@ permissions:
   contents: read
 
 jobs:
+  # Antes de compilar, los controles de seguridad (regla del usuario,
+  # 2026-10-26): si CodeQL deja una alerta alta o crítica abierta, o la
+  # auditoría de dependencias encuentra un aviso alto o crítico, no se genera
+  # ningún instalador. Se llaman como workflows reutilizables para que corran
+  # sobre ESTE commit, no sobre el último que pasó por `main`.
+  codeql:
+    name: CodeQL
+    uses: ./.github/workflows/codeql.yml
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+  dependencias:
+    name: Seguridad de dependencias
+    uses: ./.github/workflows/seguridad.yml
+    permissions:
+      contents: read
+
   build:
     name: ${{ matrix.nombre }}
+    needs: [codeql, dependencias]
+    # Lo mínimo para atestar la procedencia: `id-token` para el certificado de
+    # Sigstore y `attestations` para guardar la atestación en el repo.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -62,7 +109,9 @@ jobs:
             triple: x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # Las tres fuentes de la versión tienen que decir lo mismo: si no, el
       # instalador se llamaría de una forma y la app diría otra cosa (y el
@@ -101,13 +150,17 @@ jobs:
             libwebkit2gtk-4.1-dev libgtk-3-dev libssl-dev libxdo-dev \
             libayatana-appindicator3-dev librsvg2-dev
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Fijada por SHA en vez de la rama móvil `stable`: la versión de Rust la
+      # sigue eligiendo `toolchain: stable`, que es lo que hacía esa rama.
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1 (master)
+        with:
+          toolchain: stable
 
       # El sidecar `mycelium-mcp` lo compila `scripts/preparar-mcp.mjs` para el
       # triple del HOST y lo deja como `binaries/mycelium-mcp-<host>`; Tauri lo
@@ -124,7 +177,7 @@ jobs:
             exit 1
           fi
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: frontend/src-tauri -> target
           key: ${{ matrix.triple }}
@@ -245,9 +298,51 @@ jobs:
           done
           ls -la distribuibles
 
+      # SBOM del frontend con el `npm sbom` que trae Node 24. `--legacy-peer-deps`
+      # solo apaga la validación de peers: `@radix-ui/*` (de Excalidraw) declara
+      # React ≤ 18 y Mycelium usa React 19, y sin eso `npm sbom` se niega a
+      # generar la lista. No cambia qué paquetes entran.
+      - name: SBOM del frontend
+        shell: bash
+        working-directory: frontend
+        run: |
+          mkdir -p ../sbom
+          npm sbom --sbom-format cyclonedx --omit dev --legacy-peer-deps > ../sbom/sbom-frontend.cdx.json
+          node -e 'const b=require("../sbom/sbom-frontend.cdx.json"); if (b.bomFormat!=="CycloneDX"||!b.components?.length) process.exit(1); console.log(`frontend: ${b.components.length} componentes`)'
+
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        with:
+          tool: cargo-cyclonedx
+
+      # Un SBOM por paquete del workspace, junto a su Cargo.toml: el de la app es
+      # `src-tauri/sbom-rust.json` y es el que se sube (los crates internos ya
+      # figuran adentro como componentes). Para el triple del host, que acá es
+      # el del instalador (ver «Host = target»).
+      - name: SBOM de Rust
+        shell: bash
+        working-directory: frontend/src-tauri
+        run: |
+          cargo cyclonedx --format json --spec-version 1.5 --override-filename sbom-rust -q
+          cp sbom-rust.json "../../sbom/sbom-rust-${{ matrix.nombre }}.cdx.json"
+          node -e 'const b=require("./sbom-rust.json"); if (b.bomFormat!=="CycloneDX"||!b.components?.length) process.exit(1); console.log(`rust: ${b.components.length} componentes`)'
+
+      - name: Atestar la procedencia
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            distribuibles/*
+            sbom/*
+
       - name: Subir artefactos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mycelium-${{ steps.version.outputs.version }}-${{ matrix.nombre }}
           path: distribuibles/
+          if-no-files-found: error
+
+      - name: Subir el SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mycelium-${{ steps.version.outputs.version }}-sbom-${{ matrix.nombre }}
+          path: sbom/
           if-no-files-found: error

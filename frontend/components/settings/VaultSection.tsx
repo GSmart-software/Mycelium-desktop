@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
@@ -9,14 +9,14 @@ import {
   generarFramework,
   versionInstalada,
 } from "@/lib/ia/framework";
-import { collectFromZip } from "@/lib/import";
+import { elegirZip } from "@/lib/import";
 import { asegurarIntegracion, cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { usePrefVault } from "@/stores/prefsVaultStore";
+import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ENLACES_TAB_ID } from "@/lib/pestanas";
 import { RUTA_MYCIGNORE, tabIdDeArchivo } from "@/lib/otrosArchivos";
@@ -49,11 +49,14 @@ const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
     "es tu memoria»): borralas y dejá solo lo tuyo.",
 };
 
-/** Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. */
+/**
+ * Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. Lo
+ * abre Rust (`DEF-161`): exportar e importar solo aceptan una carpeta de fuera
+ * del vault si salió de ese selector.
+ */
 async function elegirCarpeta(title: string): Promise<string | null> {
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const elegida = await open({ directory: true, multiple: false, title });
-  return typeof elegida === "string" ? elegida : null;
+  const { elegirCarpetaExterna } = await import("@/lib/vaultMode");
+  return elegirCarpetaExterna(title);
 }
 
 /**
@@ -82,13 +85,14 @@ export function VaultSection() {
     avisar(texto);
   };
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
-  const zipRef = useRef<HTMLInputElement>(null);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
   const controlIa = usePrefVault("controlIa");
+  // El vault lo traía encendido de otra máquina (`DEF-169`): acá arranca apagado.
+  const controlIaDelVault = usePrefsVaultStore((s) => s.controlIaDelVault);
   const [cambiandoControl, setCambiandoControl] = useState(false);
   // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
   // de validación, que se confirma al salir del campo.
@@ -278,9 +282,25 @@ export function VaultSection() {
     try {
       const origen = await elegirCarpeta("Elegí la carpeta del vault a importar");
       if (!origen) return;
-      // Se copia la carpeta entera —adjuntos incluidos— respetando su
-      // `.mycignore` (`FUN-M-40`); lo vacío se ve en el resumen.
+      // Se copia la carpeta entera —adjuntos incluidos— salvo lo oculto y las
+      // dependencias (`FUN-M-40`, `DEF-165`); lo omitido se ve en el resumen.
       await useImportStore.getState().run({ carpeta: origen }, activeFolder(), "Vault de Obsidian");
+    } catch (e) {
+      fallar((e as Error).message ?? String(e));
+    }
+  };
+
+  /**
+   * El `.zip` lo elige el selector nativo y lo extrae Rust (`DEF-165`): así
+   * sabe de qué archivo viene y le pasa su marca de la web a lo extraído.
+   */
+  const handleImportarZip = async () => {
+    setMensaje(null);
+    setError(null);
+    try {
+      const zip = await elegirZip("Elegí el .zip a importar");
+      if (!zip) return;
+      await useImportStore.getState().run({ zip }, activeFolder(), "Vault de Obsidian");
     } catch (e) {
       fallar((e as Error).message ?? String(e));
     }
@@ -441,26 +461,11 @@ export function VaultSection() {
             type="button"
             className={styles.secondaryBtn}
             disabled={ocupado}
-            onClick={() => zipRef.current?.click()}
+            onClick={() => void handleImportarZip()}
           >
             Importar .zip
           </button>
         </div>
-        <input
-          ref={zipRef}
-          type="file"
-          accept=".zip"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              void collectFromZip(file).then((archivos) =>
-                useImportStore.getState().run({ archivos }, activeFolder(), "Vault de Obsidian"),
-              );
-            }
-            e.target.value = "";
-          }}
-        />
       </div>
 
       <div className={styles.field}>
@@ -521,6 +526,9 @@ export function VaultSection() {
               <>
                 Claude Code puede <strong>operar la app</strong>: mostrarte notas, usar el
                 calendario, renombrar y mover.
+                {controlIaDelVault && !controlIa && (
+                  <> Este vault lo traía encendido de otra computadora; acá queda apagado hasta que lo enciendas.</>
+                )}
               </>
             }
             detalle={
@@ -529,7 +537,8 @@ export function VaultSection() {
                 la raíz del vault, y todo queda en «Actividad de la IA» con Deshacer. Apagado,
                 ningún programa puede pedirle nada a Mycelium — pero{" "}
                 <strong>no impide que la IA lea o escriba los archivos del vault</strong>: eso lo
-                hace con sus propias herramientas, como siempre.
+                hace con sus propias herramientas, como siempre. Se decide en esta computadora
+                y para este vault: no viaja con la carpeta.
               </>
             }
           />

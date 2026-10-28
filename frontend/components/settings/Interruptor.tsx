@@ -16,6 +16,11 @@ interface Props {
   detalle?: ReactNode;
   /** Clase extra para la fila (espaciados propios de una sección). */
   className?: string;
+  /**
+   * Ajustes que dependen de este (`FUN-M-57`): van dentro de su bloque, bajo la
+   * explicación, como sub-ítems. Con `Subajustes`.
+   */
+  children?: ReactNode;
 }
 
 /**
@@ -29,7 +34,7 @@ interface Props {
  * El rótulo no es un `<label>` envolvente: la píldora ya es el control y el
  * texto queda a la izquierda, así que se atan con `aria-labelledby`.
  */
-export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detalle, className }: Props) {
+export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detalle, className, children }: Props) {
   const id = useId();
   return (
     <div className={styles.ajuste}>
@@ -49,6 +54,7 @@ export function Interruptor({ etiqueta, valor, onChange, disabled, ayuda, detall
         </label>
       </div>
       {ayuda && <Explicacion detalle={detalle}>{ayuda}</Explicacion>}
+      {children && <div className={styles.subajustes}>{children}</div>}
     </div>
   );
 }

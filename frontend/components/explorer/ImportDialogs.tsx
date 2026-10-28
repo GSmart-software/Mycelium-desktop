@@ -3,6 +3,7 @@
 import { PdfExportDialog } from "@/components/editor/PdfExportDialog";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
+import { textoExcluidos } from "@/lib/resumenImportacion";
 import styles from "./ImportDialogs.module.css";
 
 /**
@@ -138,6 +139,27 @@ export function ImportDialogs() {
                   <li key={i}>{o}</li>
                 ))}
               </ul>
+            )}
+            {/* Lo que la importación nunca trae (`DEF-165`): lo oculto y las dependencias. */}
+            {textoExcluidos(summary.excluidos) && (
+              <p className={styles.modalText}>
+                No se importó: {textoExcluidos(summary.excluidos)}. Lo oculto (la configuración de
+                otras herramientas, que puede ejecutar código) y las dependencias nunca se importan.
+              </p>
+            )}
+            {/* Se copian —son notas—, pero un asistente de IA las obedece al abrir el vault. */}
+            {summary.revisar.length > 0 && (
+              <>
+                <p className={styles.modalText}>
+                  Revisalos antes de usar un asistente de IA en este vault: son instrucciones que
+                  el asistente sigue.
+                </p>
+                <ul className={styles.omitidos}>
+                  {summary.revisar.map((r) => (
+                    <li key={r}>{r}</li>
+                  ))}
+                </ul>
+              </>
             )}
             <div className={styles.modalActions}>
               <button type="button" className={styles.btnPrimary} onClick={clearSummary}>

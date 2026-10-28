@@ -15,7 +15,7 @@ el foco en un lugar —el texto de una nota, el explorador, una consola—: cada
 | **Ctrl+O** | Ir a una nota por su nombre. |
 | **Ctrl+P** o **Ctrl+Shift+P** | La paleta de comandos. |
 | **Ctrl+,** | Configuración. |
-| **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollador, útiles para escribir CSS propio. |
+| **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollo, si las encendiste para este vault en Configuración → Avanzado. |
 
 ## Pestañas y paneles
 

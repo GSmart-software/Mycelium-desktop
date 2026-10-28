@@ -3,9 +3,11 @@
 import { BookOpen, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
+import { AvanzadoSection } from "@/components/settings/AvanzadoSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
+import { LicenciasTerceros } from "@/components/settings/LicenciasTerceros";
 import { TerminalSection } from "@/components/settings/TerminalSection";
 import { TypographySection } from "@/components/settings/TypographySection";
 import { UpdaterSection } from "@/components/settings/UpdaterSection";
@@ -38,7 +40,8 @@ type CategoriaId =
   | "grafo"
   | "consolas"
   | "vault"
-  | "actualizaciones";
+  | "actualizaciones"
+  | "avanzado";
 
 /**
  * Una entrada del buscador. El `rotulo` es el texto tal cual aparece en la
@@ -72,7 +75,7 @@ const CATEGORIAS: Categoria[] = [
     descripcion: "Los colores de Mycelium: el tema, el modo y la atmósfera de cada modo.",
     grupo: "Aspecto",
     ajustes: [
-      { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "paleta"] },
+      { rotulo: "Tema", alias: ["colores", "bioluminiscencia", "cantarela", "amethystina", "amanita", "violeta", "rojo", "paleta"] },
       // El tema de la marca Arrecife (`FUN-M-51`): su muestra solo existe con el
       // modo dev, y sin él buscarlo por su nombre no tiene que devolver nada.
       { rotulo: "Tema", alias: ["arrecife"], soloDev: true },
@@ -133,12 +136,21 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "consolas",
     nombre: "Consolas",
-    descripcion: "Qué pasa con las terminales integradas al cerrar y volver a abrir Mycelium.",
+    descripcion: "La shell, qué pasa con las terminales integradas al cerrar y volver a abrir Mycelium, y su aspecto.",
     grupo: "Trabajo",
     ajustes: [
       { rotulo: "Shell por defecto", alias: ["terminal", "consola", "powershell", "bash", "cmd"] },
       { rotulo: "Restaurar terminales al abrir", alias: ["sesiones", "reabrir"] },
       { rotulo: "Restaurar el historial", alias: ["scrollback", "texto anterior"] },
+      { rotulo: "Consola estilada", alias: ["estilada", "estilo", "efectos", "aurora", "crt", "brillo", "micelio"] },
+      { rotulo: "Fondo", alias: ["aurora", "micelio", "fondo de la consola"] },
+      { rotulo: "Pulso del fondo", alias: ["animación", "pulso", "respira"] },
+      { rotulo: "Partículas", alias: ["esporas", "partículas"] },
+      { rotulo: "Borde animado", alias: ["borde", "marco"] },
+      { rotulo: "Marca Mycelium", alias: ["marca", "rótulo", "logo", "tty"] },
+      { rotulo: "Brillo del texto", alias: ["brillo", "resplandor", "glow"] },
+      { rotulo: "Pantalla de tubo", alias: ["crt", "tubo", "retro", "scanlines"] },
+      { rotulo: "Colores del tema", alias: ["paleta", "ansi", "colores de la consola", "cursor"] },
     ],
   },
   {
@@ -175,6 +187,18 @@ const CATEGORIAS: Categoria[] = [
       { rotulo: "Servidor de actualizaciones", alias: ["endpoint", "url"], soloDev: true },
     ],
   },
+  {
+    id: "avanzado",
+    nombre: "Avanzado",
+    descripcion: "Lo que se enciende solo en esta computadora y para este vault.",
+    grupo: "Sistema",
+    ajustes: [
+      {
+        rotulo: "Herramientas de desarrollo",
+        alias: ["devtools", "consola", "inspeccionar", "f12", "depurar"],
+      },
+    ],
+  },
 ];
 
 /** Los grupos, en el orden en que se muestran. */
@@ -208,6 +232,8 @@ function contenido(id: CategoriaId) {
       return <VaultSection />;
     case "actualizaciones":
       return <UpdaterSection />;
+    case "avanzado":
+      return <AvanzadoSection />;
   }
 }
 
@@ -218,6 +244,9 @@ export function VentanaAjustes() {
 
   const [categoria, setCategoria] = useState<CategoriaId>("apariencia");
   const [consulta, setConsulta] = useState("");
+  /** El panel muestra «Licencias de terceros» (el enlace del pie) en vez de la
+   *  categoría. Elegir cualquier categoría vuelve a ella. */
+  const [licencias, setLicencias] = useState(false);
   /** Ajuste al que hay que saltar en cuanto su categoría esté pintada, y el
    *  contador que dispara el salto aunque ya se esté en esa categoría. */
   const pendienteRef = useRef<string | null>(null);
@@ -239,6 +268,7 @@ export function VentanaAjustes() {
   useEffect(() => {
     if (!abierto) return;
     setConsulta("");
+    setLicencias(false);
   }, [abierto]);
 
   /**
@@ -283,6 +313,7 @@ export function VentanaAjustes() {
   const irA = (c: Categoria, ajuste: string) => {
     pendienteRef.current = ajuste;
     setCategoria(c.id);
+    setLicencias(false);
     setConsulta("");
     setSalto((n) => n + 1);
   };
@@ -339,6 +370,7 @@ export function VentanaAjustes() {
             ? (i + 1) % CATEGORIAS.length
             : (i - 1 + CATEGORIAS.length) % CATEGORIAS.length;
     setCategoria(CATEGORIAS[siguiente].id);
+    setLicencias(false);
     navRef.current
       ?.querySelector<HTMLElement>(`[data-categoria="${CATEGORIAS[siguiente].id}"]`)
       ?.focus();
@@ -430,10 +462,15 @@ export function VentanaAjustes() {
                       key={c.id}
                       type="button"
                       data-categoria={c.id}
-                      className={c.id === categoria ? `${styles.categoria} ${styles.categoriaActiva}` : styles.categoria}
-                      aria-current={c.id === categoria}
+                      className={
+                        !licencias && c.id === categoria ? `${styles.categoria} ${styles.categoriaActiva}` : styles.categoria
+                      }
+                      aria-current={!licencias && c.id === categoria}
                       tabIndex={c.id === categoria ? 0 : -1}
-                      onClick={() => setCategoria(c.id)}
+                      onClick={() => {
+                        setCategoria(c.id);
+                        setLicencias(false);
+                      }}
                     >
                       {c.nombre}
                     </button>
@@ -454,13 +491,26 @@ export function VentanaAjustes() {
             )}
           </nav>
 
-          <div className={styles.panel} ref={panelRef} key={actual.id}>
-            <div className={styles.panelCabecera}>
-              <h3 className={styles.panelTitulo}>{actual.nombre}</h3>
-              <p className={styles.panelDescripcion}>{actual.descripcion}</p>
+          {licencias ? (
+            <div className={styles.panel} key="licencias">
+              <div className={styles.panelCabecera}>
+                <h3 className={styles.panelTitulo}>Licencias de terceros</h3>
+                <p className={styles.panelDescripcion}>
+                  Mycelium incluye software y fuentes de otros autores. Estos son sus avisos de
+                  licencia, tal como los publican.
+                </p>
+              </div>
+              <LicenciasTerceros />
             </div>
-            {contenido(actual.id)}
-          </div>
+          ) : (
+            <div className={styles.panel} ref={panelRef} key={actual.id}>
+              <div className={styles.panelCabecera}>
+                <h3 className={styles.panelTitulo}>{actual.nombre}</h3>
+                <p className={styles.panelDescripcion}>{actual.descripcion}</p>
+              </div>
+              {contenido(actual.id)}
+            </div>
+          )}
         </div>
 
         {/* Hasta `FUN-S-36` el número era un botón: siete pulsaciones activaban el
@@ -473,6 +523,15 @@ export function VentanaAjustes() {
             Mycelium v{APP_VERSION}
             {dev && <span className={styles.pieDev}> · dev</span>}
           </span>
+          <span aria-hidden> · </span>
+          <button
+            type="button"
+            className={styles.pieEnlace}
+            aria-pressed={licencias}
+            onClick={() => setLicencias((v) => !v)}
+          >
+            Licencias de terceros
+          </button>
         </footer>
       </div>
     </div>

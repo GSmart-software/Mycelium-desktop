@@ -32,6 +32,9 @@ export const SECRETO_DEV = [
   // con el modo. Toda mención, también «tema GSmart».
   { patron: /\bgsmart\b/i, que: "el tema GSmart" },
   { patron: /\bFUN-M-52\b/i, que: "FUN-M-52 (el tema GSmart)" },
+  // Los temas Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) estuvieron acá
+  // mientras solo se podían elegir con el modo. Desde el 2026-10-24 son públicos:
+  // la ayuda y el changelog los nombran.
   // Bioluminiscencia experimental (`FUN-M-53`): la paleta de Bioluminiscencia
   // con la forma de los temas de marca, también solo con el modo. RETIRADO el
   // 2026-10-09 (ya no existe en la app), pero los patrones se quedan: nunca se

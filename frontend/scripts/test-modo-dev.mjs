@@ -127,6 +127,12 @@ test("la lista de lo secreto del modo dev atrapa lo que habilita y deja pasar F1
     // Solo la palabra entera: «gsmartphone» o «smart» no son el tema.
     "Un gsmartphone de prueba",
     "Un buscador smart",
+    // Amethystina y Amanita son temas públicos desde el 2026-10-24, y «Amanita»
+    // también es el color 5 de los recordatorios.
+    "Nuevos temas: Amethystina, en violeta, y Amanita, en rojo",
+    "Elegí Amanita en Apariencia",
+    "Ocho colores para los recordatorios: Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma.",
+    "El recordatorio en Amanita se ve mejor en oscuro",
     // Bioluminiscencia es el tema público por defecto: nombrarlo no revela
     // nada. Tampoco «experimental» suelto.
     "Bioluminiscencia",
@@ -167,4 +173,19 @@ test("el tema GSmart (`FUN-M-52`) está detrás del modo: muestra y buscador `so
     assert.match(linea, /soloDev: true/, `entrada del buscador sin soloDev: ${linea.trim()}`);
   }
   assert.ok(lineas.some((l) => /alias: \["gsmart"\]/.test(l)), "falta el alias del buscador");
+});
+
+test("los temas Amethystina (`FUN-M-55`) y Amanita (`FUN-M-56`) son públicos: muestra y buscador sin `soloDev`", async () => {
+  // Nacieron detrás del modo y el usuario los hizo públicos el 2026-10-24.
+  const temas = await readFile(join(FRONTEND, "lib/temas.ts"), "utf8");
+  const ajustes = await readFile(join(FRONTEND, "components/settings/VentanaAjustes.tsx"), "utf8");
+  const lineas = ajustes.split(/\r?\n/);
+  for (const id of ["amethystina", "amanita"]) {
+    assert.match(temas, new RegExp(`id: "${id}"`), `falta la muestra de ${id}`);
+    assert.doesNotMatch(temas, new RegExp(`id: "${id}"[^}]*soloDev`), `la muestra de ${id} ya no es soloDev`);
+    const entradas = lineas.filter((l) => new RegExp(id, "i").test(l) && /rotulo:/.test(l));
+    assert.ok(entradas.length > 0, `falta ${id} en el buscador`);
+    for (const linea of entradas) assert.doesNotMatch(linea, /soloDev/, `entrada del buscador con soloDev: ${linea.trim()}`);
+    assert.equal(buscarSecretoDev(`Nuevo tema: ${id}`), null, `${id} ya no es secreto`);
+  }
 });
