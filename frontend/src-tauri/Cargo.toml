@@ -74,7 +74,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 # lo descomprimido. Las dos ya estaban en el árbol (updater, zip): no se
 # compila nada nuevo.
 flate2 = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 # Importar un `.zip` (`DEF-165`, src/archivos.rs): lo extrae Rust para pasarle a
 # cada archivo la marca de la web del zip. Ya estaba en el árbol (el updater);
 # solo se le suma `deflate-flate2`, sobre el `flate2` de arriba.
