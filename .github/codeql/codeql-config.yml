@@ -1,0 +1,13 @@
+# Qué NO analiza CodeQL: código que nunca llega al usuario ni corre con datos
+# ajenos. Los tests y la medición del framework de IA (`eval/`) solo corren en
+# la PC del mantenedor y en CI, sobre archivos del propio repo.
+#
+# Los scripts de compilación y publicación (`frontend/scripts/*.mjs` que no son
+# tests) SÍ se analizan: `publicar.mjs` firma y sube los instaladores. Si una
+# alerta ahí es un falso positivo, se descarta con su motivo en Security → Code
+# scanning, no se agrega a esta lista.
+name: Mycelium desktop
+
+paths-ignore:
+  - eval
+  - frontend/scripts/test-*.mjs
