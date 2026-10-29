@@ -42,6 +42,16 @@ jobs:
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
 
+      # El mismo SBOM que genera `desktop-build.yml` al compilar, pero desde el
+      # lockfile y en cada cambio: si el árbol queda inconsistente (un override
+      # que npm 11 no acepta, como pasó con la 2.6.0), falla acá y no recién en
+      # el release.
+      - name: SBOM de dependencias de producción
+        working-directory: frontend
+        run: |
+          npm sbom --package-lock-only --sbom-format cyclonedx --omit dev --legacy-peer-deps > "$RUNNER_TEMP/sbom.cdx.json"
+          node -e 'const b=require(process.argv[1]); if (b.bomFormat!=="CycloneDX"||!b.components?.length) process.exit(1); console.log(`frontend: ${b.components.length} componentes`)' "$RUNNER_TEMP/sbom.cdx.json"
+
   cargo:
     name: cargo audit
     runs-on: ubuntu-latest
