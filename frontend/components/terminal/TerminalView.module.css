@@ -153,6 +153,17 @@
   overflow: hidden;
 }
 
+/* El padre del xterm, SIN relleno (`DEF-172`). El FitAddon calcula filas y
+   columnas con el `height` y el `width` calculados del padre, y con
+   `box-sizing: border-box` esos valores incluyen el relleno: con el aire en el
+   padre directo, el grid salía de más tantas filas y columnas como cupieran en
+   el relleno (con efectos, 42px de alto y 40 de ancho) y lo de abajo y la
+   derecha quedaba fuera de la vista. */
+.grilla {
+  height: 100%;
+  width: 100%;
+}
+
 .terminal :global(.xterm) {
   height: 100%;
 }
