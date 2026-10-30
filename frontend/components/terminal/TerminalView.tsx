@@ -128,7 +128,9 @@ export function TerminalView({ termId }: { termId: string }) {
         </>
       )}
       {parte(prefs.efectoParticulas) && <div className={styles.esporas} aria-hidden />}
-      <div ref={contRef} className={styles.terminal} />
+      <div className={styles.terminal}>
+        <div ref={contRef} className={styles.grilla} />
+      </div>
       {parte(prefs.efectoTubo) && <div className={styles.crt} aria-hidden />}
       {parte(prefs.efectoBorde) && <div className={styles.marco} aria-hidden />}
       {parte(prefs.efectoMarca) && (
