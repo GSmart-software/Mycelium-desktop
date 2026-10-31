@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { esSentinela } from "@/lib/pestanas";
+import {
+  empujarEnLinea,
+  lineaDe,
+  lineaEnPaso,
+  lineaHeredada,
+  type Linea,
+} from "@/lib/historialPestana";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /**
@@ -23,9 +30,6 @@ export type Tab = {
   historial?: string[];
   indice?: number;
 };
-
-/** Tope de entradas por línea de historial (DEF-040): se descartan las viejas. */
-const MAX_HISTORIAL = 50;
 
 export type LeafPane = {
   id: string;
@@ -73,29 +77,9 @@ const newId = () => Math.random().toString(36).slice(2, 10);
 // store: acá solo se consulta `esSentinela` al abrir, navegar y reconciliar.
 
 // ── Historial por pestaña (DEF-040) ───────────────────────────────
-
-/**
- * Línea de historial de una pestaña, normalizada. Tolera las pestañas viejas
- * (sin `historial`/`indice`) y los índices fuera de rango: en ambos casos la
- * línea es simplemente el documento que la pestaña muestra ahora.
- */
-function lineaDe(tab: Tab): { historial: string[]; indice: number } {
-  const historial =
-    tab.historial && tab.historial.length > 0 ? tab.historial : [tab.notaId];
-  const indice = Math.min(Math.max(tab.indice ?? historial.length - 1, 0), historial.length - 1);
-  return { historial, indice };
-}
-
-/**
- * Añade `notaId` al final de la línea de `tab`: trunca la rama de adelante
- * (comportamiento estándar de un historial: navegar atrás y abrir otra cosa
- * descarta lo que había delante) y recorta a `MAX_HISTORIAL`.
- */
-function empujarEnLinea(tab: Tab, notaId: string): { historial: string[]; indice: number } {
-  const { historial, indice } = lineaDe(tab);
-  const linea = [...historial.slice(0, indice + 1), notaId].slice(-MAX_HISTORIAL);
-  return { historial: linea, indice: linea.length - 1 };
-}
+//
+// `lineaDe`, `empujarEnLinea` y la herencia entre pestañas (`FUN-S-34`) viven en
+// `lib/historialPestana.ts`, como funciones puras con su test.
 
 /** Reescribe los ids de la línea (renombres/movimientos) sin perder la posición. */
 function reescribirLinea(tab: Tab, map: (id: string) => string): Tab {
@@ -165,6 +149,30 @@ type TabsState = {
    * activo (`FUN-S-13`)—; sin él, en el activo.
    */
   openNoteBackground: (notaId: string, paneId?: string) => void;
+  /**
+   * Abre un enlace en una pestaña NUEVA (`FUN-S-34`): Ctrl+clic (con foco) o
+   * clic con la rueda (`foco: false`) sobre un `[[enlace]]`. La pestaña nueva
+   * hereda la línea de historial de la de origen —`origen`, o la activa del
+   * pane activo—, así que «Atrás» en ella vuelve a la nota del enlace. Siempre
+   * crea una pestaña, aunque la nota ya esté abierta: se la pidió explícitamente.
+   */
+  abrirEnPestanaNueva: (
+    notaId: string,
+    opciones: { foco: boolean; origen?: { paneId: string; tabId: string } },
+  ) => void;
+  /**
+   * Clic con la rueda en una flecha del historial (`FUN-S-13`): abre en segundo
+   * plano el paso `delta` de la pestaña activa del pane, en una pestaña nueva
+   * que se lleva la línea entera (`FUN-S-34`).
+   */
+  abrirPasoAparte: (paneId: string, delta: -1 | 1) => void;
+  /**
+   * Lo común de abrir en segundo plano: `openNoteBackground` y las flechas del
+   * historial. `linea` es la línea con la que nace la pestaña (por defecto, una
+   * propia). Si el pane está vacío abre con foco; si la nota ya está abierta en
+   * él, no hace nada.
+   */
+  abrirAparte: (notaId: string, paneId?: string, linea?: Linea) => void;
   /** Fija una pestaña de preview como permanente (al editar o doble-clic). */
   pinTab: (paneId: string, tabId: string) => void;
   /**
@@ -399,6 +407,50 @@ export const useTabsStore = create<TabsState>()(
   },
 
   openNoteBackground(notaId, paneId) {
+    get().abrirAparte(notaId, paneId);
+  },
+
+  abrirEnPestanaNueva(notaId, { foco, origen }) {
+    const { root, activePaneId } = get();
+    const paneOrigen = findLeaf(root, origen?.paneId ?? activePaneId) ?? firstLeaf(root);
+    const tabOrigen = paneOrigen.tabs.find((t) => t.id === (origen?.tabId ?? paneOrigen.activeTabId));
+    // Un pane de preview vinculado no recibe pestañas nuevas (igual que `openNote`).
+    const destino =
+      paneOrigen.linkedTo === null
+        ? paneOrigen
+        : allLeaves(root).find((l) => l.linkedTo === null) ?? paneOrigen;
+    const newTab: Tab = {
+      id: newId(),
+      notaId,
+      preview: false,
+      ...lineaHeredada(tabOrigen, notaId, (id) => !esSentinela(id)),
+    };
+    set({
+      root: mapTree(root, (leaf) => {
+        if (leaf.id !== destino.id) return leaf;
+        // Al lado de la pestaña de origen, como un navegador; si el origen está
+        // en otro pane, al final.
+        const i = tabOrigen ? leaf.tabs.findIndex((t) => t.id === tabOrigen.id) : -1;
+        const tabs =
+          i >= 0
+            ? [...leaf.tabs.slice(0, i + 1), newTab, ...leaf.tabs.slice(i + 1)]
+            : [...leaf.tabs, newTab];
+        return { ...leaf, tabs, activeTabId: foco || leaf.activeTabId === null ? newTab.id : leaf.activeTabId };
+      }),
+      ...(foco ? { activePaneId: destino.id } : {}),
+    });
+  },
+
+  abrirPasoAparte(paneId, delta) {
+    const leaf = findLeaf(get().root, paneId);
+    const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId);
+    if (!tab) return;
+    const linea = lineaEnPaso(tab, delta);
+    if (!linea) return;
+    get().abrirAparte(linea.historial[linea.indice], paneId, linea);
+  },
+
+  abrirAparte(notaId, paneId, linea) {
     const { root, activePaneId } = get();
     let targetLeaf = findLeaf(root, paneId ?? activePaneId) ?? firstLeaf(root);
     if (targetLeaf.linkedTo !== null) {
@@ -412,8 +464,15 @@ export const useTabsStore = create<TabsState>()(
     // Si ya está abierta, no robar el foco ni duplicar.
     if (targetLeaf.tabs.some((t) => t.notaId === notaId)) return;
 
-    // Pestaña permanente en segundo plano: se conserva el foco actual.
-    const newTab: Tab = { id: newId(), notaId, preview: false, historial: [notaId], indice: 0 };
+    // Pestaña permanente en segundo plano: se conserva el foco actual. Con
+    // `linea` (las flechas del historial, `FUN-S-34`) se lleva esa línea; si no,
+    // arranca una propia: abrir desde el explorador no viene de ninguna nota.
+    const newTab: Tab = {
+      id: newId(),
+      notaId,
+      preview: false,
+      ...(linea ?? { historial: [notaId], indice: 0 }),
+    };
     set({
       root: mapTree(root, (leaf) =>
         leaf.id === targetLeaf.id ? { ...leaf, tabs: [...leaf.tabs, newTab] } : leaf,

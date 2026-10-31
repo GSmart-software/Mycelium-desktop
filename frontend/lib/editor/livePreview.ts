@@ -46,6 +46,7 @@ import {
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
 import { destinoDeUrlSuelta, esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { dondeAbrirClic, type DondeAbrir } from "@/lib/enlacesExternos";
 import {
   ALLOW_VIDEO,
   esVideo,
@@ -901,7 +902,7 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
  * texto (negrita, tamaño de heading, etc.) lo aplica syntaxHighlighting.
  */
 export function livePreview(
-  onWikilinkClick: (title: string) => void,
+  onWikilinkClick: (title: string, donde?: DondeAbrir) => void,
   noteExists: (target: string) => boolean,
   etiquetaDe: (target: string) => string = etiquetaDeDestino,
 ) {
@@ -945,7 +946,8 @@ export function livePreview(
           const link = (event.target as HTMLElement).closest(".mic-wikilink-cm");
           if (link) {
             event.preventDefault();
-            onWikilinkClick(link.getAttribute("data-title") ?? "");
+            // Ctrl+clic o rueda: en una pestaña nueva (`FUN-S-34`).
+            onWikilinkClick(link.getAttribute("data-title") ?? "", dondeAbrirClic(event));
             return true;
           }
           // Enlace a una página web (`FUN-S-20`). Acá NO hay un `<a>`: el live
