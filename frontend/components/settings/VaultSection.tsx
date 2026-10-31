@@ -27,6 +27,7 @@ import { Interruptor } from "./Interruptor";
 import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 // Títulos de progreso (DEF-018): identifican qué exportación corre para etiquetar
 // el botón correcto y la barra global.
@@ -87,6 +88,9 @@ export function VaultSection() {
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
+  // Reconstrucción del índice (`FUN-S-23`): el avance sale del mismo store.
+  const reconstruyendo = useVaultSessionStore((s) => s.reconstruyendo);
+  const progresoIndice = useVaultSessionStore((s) => (s.reconstruyendo ? s.progreso : null));
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
@@ -242,6 +246,37 @@ export function VaultSection() {
   };
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
+
+  /**
+   * Reconstruir el índice (`FUN-S-23`): lo borra y lo arma de nuevo desde los
+   * archivos. Con aviso, porque en un vault grande tarda y mientras tanto la
+   * búsqueda y el grafo están incompletos.
+   */
+  const handleReconstruirIndice = async () => {
+    setMensaje(null);
+    setError(null);
+    const ok = await confirmar(
+      "Se borra el índice de este vault y se vuelve a armar leyendo todas las notas de la carpeta.\n\n" +
+        "• En un vault grande puede tardar varios minutos. Mientras tanto, la búsqueda, el grafo y " +
+        "los enlaces pueden verse incompletos.\n" +
+        "• No se pierde ninguna nota: el índice es una copia que se arma a partir de los archivos.\n" +
+        "• Los snippets, la apariencia, las preferencias y la papelera viven en la carpeta " +
+        ".mycelium/ del vault y no se tocan.\n\n" +
+        "Sirve cuando la búsqueda o el grafo muestran algo que no coincide con los archivos.",
+      "Reconstruir",
+    );
+    if (!ok) return;
+    try {
+      const r = await useVaultSessionStore.getState().reconstruirIndice();
+      informar(
+        r.borrado
+          ? `Índice reconstruido: ${r.notas} notas.`
+          : `No se pudo borrar el archivo del índice, así que se volvieron a leer las ${r.notas} notas sobre el existente.`,
+      );
+    } catch (e) {
+      fallar(mensajeDeError(e, "No se pudo reconstruir el índice."));
+    }
+  };
 
   /**
    * Abre el `.mycignore` en una **pestaña** del visor de archivos (`FUN-S-25`),
@@ -581,6 +616,40 @@ export function VaultSection() {
           </p>
         )}
       </div>
+
+      {/* Reconstruir el índice (FUN-S-23): la salida cuando el caché no coincide
+          con los archivos, sin buscar el index-<hash>.db a mano. */}
+      {rutaVault && (
+        <div className={styles.field}>
+          <span className={styles.label}>Índice del vault</span>
+          <Explicacion
+            detalle={
+              <>
+                El índice es una copia de las notas que Mycelium usa para buscar, dibujar el
+                grafo y resolver enlaces. Reconstruirlo lo borra y lo vuelve a armar desde los
+                archivos: no se pierde ninguna nota, y los snippets, la apariencia y la
+                papelera, que viven en <code>.mycelium/</code>, no se tocan.
+              </>
+            }
+          >
+            Si la búsqueda o el grafo no coinciden con los archivos, se puede armar de nuevo.
+          </Explicacion>
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              disabled={reconstruyendo}
+              onClick={() => void handleReconstruirIndice()}
+            >
+              {!reconstruyendo
+                ? "Reconstruir el índice…"
+                : progresoIndice !== null
+                  ? `Reconstruyendo… ${progresoIndice.hechas}/${progresoIndice.total}`
+                  : "Reconstruyendo…"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {mensaje && (
         <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-primary)" }}>
