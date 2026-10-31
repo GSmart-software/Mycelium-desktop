@@ -156,7 +156,7 @@ async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise
     // Los dibujos y diagramas también se dibujan antes de imprimir: si no,
     // saldrían como un hueco en el PDF. `renderEmbedsIn` resuelve además los
     // `![[embeds]]` escritos sin extensión (`FUN-S-18`).
-    await renderEmbedsIn(container);
+    await renderEmbedsIn(container, { perezoso: false });
     // Y las imágenes (`DEF-126`), con la URL `asset:` que el iframe de
     // impresión —mismo webview, mismo origen— puede pedir.
     rellenarImagenesEn(container, carpetaDeNota(notaId));

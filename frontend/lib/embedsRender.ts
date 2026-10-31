@@ -14,6 +14,7 @@
  */
 
 import { embebidoDe, type TipoEmbebible } from "@/lib/embeds";
+import { renderCanvasIn } from "@/lib/canvasRender";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -22,6 +23,7 @@ import { useVaultStore } from "@/stores/vaultStore";
 const CLASE_MARCADOR: Record<TipoEmbebible, string> = {
   excalidraw: "mic-excalidraw",
   drawio: "mic-drawio",
+  canvas: "mic-canvas",
 };
 
 /**
@@ -56,10 +58,21 @@ export function resolverEmbedsEn(root: HTMLElement): void {
  * Dibuja todos los embeds de un contenedor: primero resuelve los que no traían
  * extensión, después cada tipo. Nunca lanza: cada renderizador deja su aviso
  * en el lugar del embed que no pudo dibujar.
+ *
+ * `perezoso` (por defecto): los lienzos se leen recién cuando se ven. La
+ * exportación a PDF lo apaga, porque dibuja fuera de pantalla y tiene que
+ * esperar a que esté todo.
  */
-export async function renderEmbedsIn(container: HTMLElement): Promise<void> {
+export async function renderEmbedsIn(
+  container: HTMLElement,
+  { perezoso = true }: { perezoso?: boolean } = {},
+): Promise<void> {
   resolverEmbedsEn(container);
-  await Promise.all([renderExcalidrawIn(container), renderDrawioIn(container)]);
+  await Promise.all([
+    renderExcalidrawIn(container),
+    renderDrawioIn(container),
+    renderCanvasIn(container, perezoso),
+  ]);
 }
 
 /** `embebidoDe` contra el vault abierto: lo usa la vista en vivo, línea por línea. */

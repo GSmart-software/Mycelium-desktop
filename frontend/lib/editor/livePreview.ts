@@ -54,6 +54,7 @@ import {
   tituloDeVideo,
 } from "@/lib/video";
 import { dibujarDrawioEn } from "@/lib/drawioRender";
+import { dibujarCanvasPerezoso } from "@/lib/canvasRender";
 import {
   embedMarkdownRe,
   embedWikiRe,
@@ -1044,6 +1045,61 @@ class DrawioWidget extends WidgetType {
 }
 
 /**
+ * Widget de bloque con la vista previa de un lienzo embebido
+ * (`![[lienzo.canvas]]` o `![[lienzo]]`, `FUN-S-19`) en la vista en vivo.
+ *
+ * Como el de draw.io, un clic en el dibujo muestra la fuente para poder editar
+ * el `![[…]]`; para abrir el lienzo en su pestaña —la decisión del usuario para
+ * este embed— lleva un botón «Abrir» en la esquina. En lectura, el clic en
+ * cualquier parte lo abre. El dibujo es el mismo de la lectura
+ * (`lib/canvasRender.ts`), y se carga recién cuando se ve.
+ */
+class CanvasWidget extends WidgetType {
+  constructor(
+    readonly ref: string,
+    readonly pos: number,
+    readonly gen: number,
+  ) {
+    super();
+  }
+
+  eq(other: CanvasWidget) {
+    return other.ref === this.ref && other.gen === this.gen;
+  }
+
+  toDOM(view: EditorView) {
+    const caja = document.createElement("div");
+    caja.className = "mic-live-canvas";
+    const abrir = document.createElement("button");
+    abrir.type = "button";
+    abrir.className = "mic-embed-abrir";
+    abrir.textContent = "Abrir";
+    abrir.title = "Abrir el lienzo en su pestaña";
+    const bloque = document.createElement("div");
+    caja.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      if ((event.target as HTMLElement).closest(".mic-embed-abrir")) {
+        view.state.facet(navegarPorTitulo)?.(this.ref);
+        return;
+      }
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    caja.append(abrir, bloque);
+    void dibujarCanvasPerezoso(bloque, this.ref).then(() => view.requestMeasure());
+    return caja;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+
+  get estimatedHeight() {
+    return 320;
+  }
+}
+
+/**
  * Widget de bloque que dibuja el reproductor de un vídeo embebido
  * (`![](https://youtu.be/ID)`) en la vista en vivo (`FUN-S-21`).
  *
@@ -1765,7 +1821,9 @@ function buildDecorations(
         const widget =
           embebido.tipo === "excalidraw"
             ? new ExcalidrawWidget(embebido.ref, line.from, liveGen)
-            : new DrawioWidget(embebido.ref, line.from, liveGen);
+            : embebido.tipo === "canvas"
+              ? new CanvasWidget(embebido.ref, line.from, liveGen)
+              : new DrawioWidget(embebido.ref, line.from, liveGen);
         decos.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget }) });
       }
 

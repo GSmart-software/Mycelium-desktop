@@ -613,3 +613,25 @@ export function referenciasDe(json: string): { titulos: string[]; rutas: string[
   }
   return { titulos, rutas };
 }
+
+// ── Las flechas que se pueden dibujar (`FUN-S-19`) ───────────────────────────
+
+/**
+ * Las aristas cuyos dos extremos existen, con su trazo ya calculado: los lados
+ * que fija el archivo o, si no, los automáticos. La usan el lienzo
+ * (`CanvasView`) y su vista previa embebida en una nota (`lib/canvasRender.ts`),
+ * para que las dos dibujen las mismas flechas.
+ */
+export function aristasDibujables(
+  canvas: Canvas,
+): { a: Arista; trazo: ReturnType<typeof trazoArista> }[] {
+  const porId = new Map(canvas.nodos.map((n) => [n.id, n]));
+  return canvas.aristas.flatMap((a) => {
+    const desde = porId.get(a.desdeNodo);
+    const hasta = porId.get(a.hastaNodo);
+    if (!desde || !hasta) return [];
+    const auto = ladosAutomaticos(desde, hasta);
+    const trazo = trazoArista(desde, a.desdeLado ?? auto.desde, hasta, a.hastaLado ?? auto.hasta);
+    return [{ a, trazo }];
+  });
+}

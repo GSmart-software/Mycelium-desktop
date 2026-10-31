@@ -766,6 +766,9 @@
      Excalidraw embebido           lectura: .mic-excalidraw-block  vivo: .mic-live-excalidraw
      draw.io embebido              lectura: .mic-drawio-block      vivo: .mic-live-drawio
                                    (la imagen: .mic-drawio-img)
+     Lienzo embebido               .mic-canvas-block (en vivo, dentro de .mic-live-canvas)
+                                   tarjetas: .mic-canvas-tarjeta  grupos: .mic-canvas-grupo
+                                   flechas: .mic-canvas-arista
      Fórmulas KaTeX ($...$)        lectura: .katex                 vivo: .mic-live-math
                                    (en bloque: .mic-live-math-bloque)
      Vídeo (![](youtube...))       lectura: .mic-video             vivo: .mic-live-video
@@ -798,6 +801,16 @@
 .mic-preview .mic-drawio-block {
   border: 1px solid var(--mic-border);
   padding: 0.5rem;
+}
+*/
+
+/*
+.mic-canvas-block {
+  background: transparent;
+  border-style: dashed;
+}
+.mic-canvas-arista {
+  stroke: var(--mic-accent);
 }
 */
 

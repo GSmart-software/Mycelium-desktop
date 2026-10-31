@@ -353,3 +353,19 @@ test("con la extensión escrita gana siempre lo que se escribió", () => {
 test("la pista de carpeta sigue eligiendo entre homónimos", () => {
   assert.equal(embebidoDe("B/Plano", HOMONIMOS, CARPETAS_H)?.nota.id, "A/B/Plano.drawio");
 });
+
+// ── Lienzos embebidos (`FUN-S-19`) ───────────────────────────────────────────
+
+test("embebidoDe: un lienzo se embebe, con o sin la extensión", () => {
+  for (const ref of ["Lienzo", "Lienzo.canvas", "lienzo.CANVAS"]) {
+    const e = embebidoDe(ref, NOTAS, CARPETAS);
+    assert.equal(e?.tipo, "canvas", ref);
+    assert.equal(e?.nota.id, "Lienzo.canvas", ref);
+    // La referencia conserva lo escrito y lleva la extensión del tipo.
+    assert.match(e?.ref ?? "", /^lienzo\.canvas$/i, ref);
+  }
+});
+
+test("![[x.canvas]] en lectura sale como enlace marcado, que el cliente cambia por el lienzo", () => {
+  assert.match(renderNota("![[Tablero.canvas]]"), /data-embed="true"/);
+});

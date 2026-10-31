@@ -1,7 +1,7 @@
 ---
 titulo: Imágenes y archivos embebidos
 tema: Escribir notas
-sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión]
+sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión, lienzo, canvas]
 ---
 
 **Embeber** es mostrar otro archivo dentro de la nota, en el lugar donde lo escribís: una
@@ -66,6 +66,20 @@ enlace, y lo muestra según lo que encuentre. Si varios archivos se llaman igual
 - Para elegir otro, escribe la extensión (`![[Boceto.drawio]]`) o la carpeta delante
   (`![[Diseño/Boceto]]`): lo escrito siempre gana.
 
+## Lienzos
+
+```md
+![[Tablero.canvas]]
+![[Tablero]]
+```
+
+Muestran el [lienzo](ayuda:tipos-de-archivo/lienzos) dentro de la nota: sus tarjetas, sus
+grupos y sus flechas, achicados para entrar en el ancho de la hoja. Es una **vista
+previa de solo lectura**: para cambiar el lienzo hay que abrirlo. En la vista de lectura,
+un clic en cualquier parte lo abre en su pestaña; en la vista en vivo, el clic muestra el
+`![[…]]` para editarlo, y el botón **Abrir** de la esquina abre el lienzo. Un lienzo se
+carga recién cuando llega a verse, así que una nota con muchos no tarda en abrir.
+
 ## Videos
 
 ```md
@@ -80,5 +94,5 @@ aviso de que no se pudo cargar.
 
 > [!warning] Embeber una nota todavía no muestra su contenido
 > `![[Otra nota]]` cuenta como enlace en el grafo, pero no dibuja la nota adentro: se ve
-> como un enlace común. Tampoco se dibujan los lienzos (`![[Tablero.canvas]]`). Para
-> enlazar notas, ver [Enlaces, alias y embeds](ayuda:enlazar-y-organizar/enlaces).
+> como un enlace común. Para enlazar notas, ver
+> [Enlaces, alias y embeds](ayuda:enlazar-y-organizar/enlaces).
