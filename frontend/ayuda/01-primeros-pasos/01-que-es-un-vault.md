@@ -1,7 +1,7 @@
 ---
 titulo: Qué es un vault
 tema: Primeros pasos
-sinonimos: [bóveda, carpeta, empezar, inicio, introducción]
+sinonimos: [bóveda, carpeta, empezar, inicio, introducción, índice, reconstruir el índice, reindexar]
 ---
 
 Un **vault** es una carpeta de tu computadora que Mycelium abre como tu red de notas. No
@@ -38,6 +38,21 @@ Hoy hablé con Ana sobre el [[Proyecto Faro]]. #reunión
 
 > [!warning] No toques `.mycelium/`
 > Es interno. Borrarlo no pierde tus notas, pero sí la papelera y los recordatorios.
+
+## Reconstruir el índice
+
+El índice es una copia de las notas que Mycelium arma para buscar, dibujar el grafo y
+resolver los enlaces. Si alguna vez la búsqueda o el grafo muestran algo que no coincide
+con los archivos, se puede armar de nuevo:
+
+1. Abre **Configuración → Vault** y, en «Índice del vault», pulsa **Reconstruir el
+   índice…**.
+2. Confirma el aviso. El botón muestra cuántas notas lleva leídas.
+
+No se pierde ninguna nota: el índice se arma a partir de los archivos. Los snippets, la
+apariencia, las preferencias y la papelera viven en `.mycelium/` y no se tocan. En un
+vault grande puede tardar varios minutos, y mientras tanto la búsqueda y el grafo pueden
+verse incompletos. Solo afecta al vault de esa ventana.
 
 ## Si un archivo cambia por fuera
 

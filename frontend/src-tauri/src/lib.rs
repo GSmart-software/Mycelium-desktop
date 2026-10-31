@@ -231,6 +231,7 @@ pub fn run() {
             dialogos::elegir_carpeta,
             dialogos::elegir_zip,
             indice::abrir_indice_vault,
+            indice::reconstruir_indice_vault,
             vault_config::desvincular_vault,
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
