@@ -26,6 +26,20 @@ Saber qué hay en cada zona te ahorra buscar: casi todo está a un clic o a una 
    de otro panel para dividir la vista, o usá el menú **⋯** de la barra de pestañas:
    **Dividir a la derecha** o **Dividir hacia abajo**.
 
+## Dividir la vista
+
+Arrastrar una pestaña al borde de un panel la **mueve** a un panel nuevo. **Dividir a la
+derecha** y **Dividir hacia abajo**, en cambio, muestran el **mismo archivo a los dos
+lados**: cada lado tiene su propia posición y su propia vista (en vivo, lectura…), y lo que
+se escribe en uno aparece al instante en el otro. Sirve para leer una parte de una nota
+larga mientras se edita otra.
+
+Las notas y las bases se muestran a los dos lados. Los lienzos, los dibujos de Excalidraw,
+los diagramas de draw.io, los archivos del visor, las consolas, el grafo, las referencias
+y el calendario se **mueven** al panel nuevo (salvo que sean la única pestaña del panel):
+dos copias abiertas a la vez no se enterarían de lo que guarda la otra, y una consola tiene
+una sola sesión.
+
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas

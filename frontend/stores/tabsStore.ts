@@ -192,9 +192,24 @@ type TabsState = {
   reopenLastClosed: () => void;
   reorderTab: (paneId: string, fromIndex: number, toIndex: number) => void;
   moveTabToPane: (srcPaneId: string, tabId: string, dstPaneId: string) => void;
-  splitWithTab: (srcPaneId: string, tabId: string, dstPaneId: string, edge: SplitEdge) => void;
-  /** Divide el pane abriendo la nota activa en un pane nuevo (menú "Dividir"). */
-  splitActivePane: (paneId: string, edge: SplitEdge) => void;
+  /**
+   * Divide `dstPaneId` llevando la pestaña a un pane nuevo. Arrastrar MUEVE la
+   * pestaña; con `duplicar`, el origen la conserva y el pane nuevo muestra una
+   * copia (`FUN-S-35`).
+   */
+  splitWithTab: (
+    srcPaneId: string,
+    tabId: string,
+    dstPaneId: string,
+    edge: SplitEdge,
+    duplicar?: boolean,
+  ) => void;
+  /**
+   * Divide el pane abriendo la pestaña activa en un pane nuevo (menú «Dividir»).
+   * Con `duplicar` (`FUN-S-35`, lo decide `seDuplicaAlDividir`) los dos lados
+   * muestran el mismo archivo, como Obsidian; sin él, la pestaña se mueve.
+   */
+  splitActivePane: (paneId: string, edge: SplitEdge, duplicar?: boolean) => void;
   setSizes: (splitId: string, sizes: number[]) => void;
   setActivePane: (paneId: string) => void;
   linkPane: (paneId: string, sourcePaneId: string | null) => void;
@@ -621,7 +636,7 @@ export const useTabsStore = create<TabsState>()(
     set({ root, activePaneId: dstPaneId });
   },
 
-  splitWithTab(srcPaneId, tabId, dstPaneId, edge) {
+  splitWithTab(srcPaneId, tabId, dstPaneId, edge, duplicar = false) {
     const src = findLeaf(get().root, srcPaneId);
     const tab = src?.tabs.find((t) => t.id === tabId);
     if (!tab) return;
@@ -632,7 +647,9 @@ export const useTabsStore = create<TabsState>()(
     // Al duplicar se copia la pestaña entera (incluidos `preview` y su línea de
     // historial): antes se creaba `{id, notaId}` y la copia perdía el flag de
     // preview, así que el pane nuevo arrancaba con una pestaña permanente.
-    const duplicate = srcPaneId === dstPaneId && src!.tabs.length === 1;
+    // Con `duplicar` (el menú «Dividir», `FUN-S-35`) se duplica siempre que se
+    // divida el propio pane: el origen conserva su pestaña.
+    const duplicate = srcPaneId === dstPaneId && (duplicar || src!.tabs.length === 1);
     const newTab: Tab = duplicate ? { ...tab, id: newId() } : tab;
     const newLeaf = makeLeaf([newTab], newTab.id);
     const direction: SplitPane["direction"] =
@@ -669,9 +686,9 @@ export const useTabsStore = create<TabsState>()(
     set({ root, activePaneId: newLeaf.id, dragging: null });
   },
 
-  splitActivePane(paneId, edge) {
+  splitActivePane(paneId, edge, duplicar = false) {
     const leaf = findLeaf(get().root, paneId);
-    if (leaf?.activeTabId) get().splitWithTab(paneId, leaf.activeTabId, paneId, edge);
+    if (leaf?.activeTabId) get().splitWithTab(paneId, leaf.activeTabId, paneId, edge, duplicar);
   },
 
   setSizes(splitId, sizes) {
