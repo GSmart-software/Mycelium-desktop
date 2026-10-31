@@ -1,7 +1,7 @@
 ---
 titulo: Imágenes y archivos embebidos
 tema: Escribir notas
-sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño]
+sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión]
 ---
 
 **Embeber** es mostrar otro archivo dentro de la nota, en el lugar donde lo escribís: una
@@ -55,8 +55,16 @@ Se embeben PNG, JPG, GIF, WebP, BMP, ICO, AVIF y SVG.
 ```
 
 Muestran el [dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw) o el diagrama de
-draw.io (en la versión de escritorio) dentro de la nota. Acá la extensión es obligatoria:
-sin ella, `![[Boceto]]` se ve como un enlace y no como el dibujo.
+draw.io (en la versión de escritorio) dentro de la nota.
+
+La extensión es opcional: `![[Boceto]]` busca el archivo **por su nombre**, igual que un
+enlace, y lo muestra según lo que encuentre. Si varios archivos se llaman igual:
+
+- **Una nota** (`.md`) gana siempre, y entonces el embed se ve como un enlace a ella.
+- Si no hay nota, el orden es fijo: dibujo (`.excalidraw`), diagrama (`.drawio`),
+  lienzo (`.canvas`) y tabla (`.base`).
+- Para elegir otro, escribe la extensión (`![[Boceto.drawio]]`) o la carpeta delante
+  (`![[Diseño/Boceto]]`): lo escrito siempre gana.
 
 ## Videos
 

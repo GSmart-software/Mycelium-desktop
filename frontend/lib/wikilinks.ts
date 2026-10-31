@@ -25,7 +25,12 @@
  * > Por eso el separador es `\|` **o** `|`: las dos formas son el mismo enlace.
  */
 
-import { sinExtensionDeNota, tipoDeExtension } from "@/lib/extensionesDeTipo";
+import {
+  PRIORIDAD_SIN_EXTENSION,
+  sinExtensionDeNota,
+  tipoDeExtension,
+} from "@/lib/extensionesDeTipo";
+import type { NotaTipo } from "@/stores/vaultStore";
 
 /**
  * El separador entre destino y alias. La barra invertida es opcional porque
@@ -187,7 +192,8 @@ export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Ma
  *    candidato—, para que `Otra/x` no lleve a la `x` de otra carpeta.
  * 4. **Sin extensión**, entre los que quedan se prefiere la nota markdown
  *    (convención de Obsidian: `[[Pedido]]` es `Pedido.md`, no `Pedido.excalidraw`).
- * 5. Empate: la ruta más corta, y a igual profundidad el id.
+ * 5. Empate: el tipo según `PRIORIDAD_SIN_EXTENSION` (dibujo, diagrama, lienzo,
+ *    tabla: `FUN-S-18`), después la ruta más corta, y a igual profundidad el id.
  * 6. **El ancla** (`DEF-141`): si la referencia entera no resuelve y su último
  *    segmento lleva `#` (`Nota#Encabezado`, `Nota#^bloque`), se prueba sin el
  *    ancla. Ver `resolverReferenciaEnIndice`.
@@ -226,7 +232,14 @@ function resolverExactoEnIndice<N extends NotaEnlazable>(
   // recibe las notas en el orden del store y el grafo en el de su consulta, y
   // con el orden de llegada dos homónimas a la misma altura podían resolver
   // distinto en cada punta.
+  //
+  // Antes que la profundidad, el tipo (`FUN-S-18`): entre homónimos de tipos
+  // distintos —sin extensión escrita y sin nota markdown, que la regla 4 ya
+  // eligió— gana el orden fijo de `PRIORIDAD_SIN_EXTENSION`. Con la extensión
+  // escrita todos los candidatos son del mismo tipo y esto no cambia nada.
+  const prioridad = (n: N) => PRIORIDAD_SIN_EXTENSION[n.tipo as NotaTipo] ?? 99;
   const byDepth = (a: N, b: N) =>
+    prioridad(a) - prioridad(b) ||
     folderSegments(a.carpetaId, carpetas).length - folderSegments(b.carpetaId, carpetas).length ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   return [...matches].sort(byDepth)[0];

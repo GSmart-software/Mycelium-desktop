@@ -128,17 +128,21 @@ function remarkMicelio() {
         // `data-sin-alias` —un título con `#`, «Q# y Quantum», no tiene ancla—.
         const sinAlias = desdeEtiqueta === 0;
         const label = sinAlias ? etiquetaDeDestino(target) : etiqueta;
+        const props: Record<string, string> = { className: "mic-wikilink" };
+        if (sinAlias) props.dataSinAlias = "true";
+        // `![[Algo]]` sin una extensión que diga qué es (`FUN-S-18`): acá no se
+        // conoce el vault, así que sale como el enlace de siempre —con su `!`
+        // delante, en el texto— y marcado. Quien lo muestra lo resuelve por
+        // título (`resolverEmbedsEn`, `lib/embeds.ts`) y, si el destino es un
+        // dibujo, un diagrama, un lienzo o una tabla, lo cambia por su embed.
+        if (match.index > 0 && value[match.index - 1] === "!") props.dataEmbed = "true";
         matches.push({
           start: match.index,
           end: match.index + match[0].length,
           node: {
             type: "link",
             url: `#wikilink:${encodeURIComponent(target)}`,
-            data: {
-              hProperties: sinAlias
-                ? { className: "mic-wikilink", dataSinAlias: "true" }
-                : { className: "mic-wikilink" },
-            },
+            data: { hProperties: props },
             children: [{ type: "text", value: label }],
           },
         });

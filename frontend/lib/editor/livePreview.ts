@@ -69,6 +69,7 @@ import {
 } from "@/lib/imagenesRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { resaltadosEnLinea } from "@/lib/resaltado";
+import { embebidoEnVault } from "@/lib/embedsRender";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
@@ -1746,6 +1747,26 @@ function buildDecorations(
             }),
           });
         }
+      }
+
+      // `![[Algo]]` sin una extensión que lo diga (`FUN-S-18`): se resuelve por
+      // título, con la misma regla que la vista de lectura (`lib/embeds.ts`), y
+      // se dibuja según el tipo del archivo encontrado. Lo que no resuelve, o
+      // resuelve a una nota, sigue al paso de wikilinks como siempre.
+      for (const match of line.text.matchAll(embedWikiRe())) {
+        const mFrom = line.from + match.index;
+        const mTo = mFrom + match[0].length;
+        if (exRanges.some(([f, t]) => mFrom < t && mTo > f)) continue;
+        if (enCodigoAbs(mFrom)) continue;
+        const embebido = embebidoEnVault(match[1]);
+        if (!embebido) continue;
+        exRanges.push([mFrom, mTo]);
+        if (isActive || text.trim() !== match[0]) continue;
+        const widget =
+          embebido.tipo === "excalidraw"
+            ? new ExcalidrawWidget(embebido.ref, line.from, liveGen)
+            : new DrawioWidget(embebido.ref, line.from, liveGen);
+        decos.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget }) });
       }
 
       for (const match of line.text.matchAll(WIKILINK_RE)) {

@@ -58,9 +58,9 @@ import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold
 import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
-import { renderDrawioIn } from "@/lib/drawioRender";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
-import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
+import { exportDiagram } from "@/lib/excalidraw";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import {
   olvidarGuardadoPendiente,
@@ -1323,8 +1323,7 @@ export function NoteEditor({
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
-      void renderExcalidrawIn(previewRef.current);
-      void renderDrawioIn(previewRef.current);
+      void renderEmbedsIn(previewRef.current); // con o sin extensión (`FUN-S-18`)
       rellenarImagenesEn(previewRef.current, carpetaDeNota(notaId)); // `DEF-126`
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
