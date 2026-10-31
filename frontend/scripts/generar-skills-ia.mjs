@@ -109,6 +109,16 @@ export function hookMvRm() {
   return scriptMjs("hook", HOOK_MV_RM, "hook del control de la IA");
 }
 
+/**
+ * El hook `PostToolUse` que avisa de las referencias sin enlazar (`FUN-S-10`).
+ * Este sí es del framework: lo instala `generarFramework` siempre.
+ */
+export const HOOK_REFERENCIAS = "scripts/hook-referencias.mjs";
+
+export function hookReferencias() {
+  return scriptMjs("hook", HOOK_REFERENCIAS, "hook de las referencias sin enlazar");
+}
+
 /** Los archivos que viajan al vault (ruta relativa → contenido con marcador). */
 export function archivosSkills() {
   const archivos = [];
@@ -147,8 +157,8 @@ export function generarModulo() {
   return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
 // Fuente: lib/ia/borradores/*.md y los scripts que viajan con su skill
 // (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs,
-// scripts/consultar-recordatorios-vault.mjs) y el hook del control de la IA
-// (scripts/hook-mv-rm.mjs).
+// scripts/consultar-recordatorios-vault.mjs) y los hooks
+// (scripts/hook-mv-rm.mjs, scripts/hook-referencias.mjs).
 // Para regenerar:
 //
 //   node scripts/generar-skills-ia.mjs
@@ -165,6 +175,9 @@ ${entradas}
 
 /** El hook \`PreToolUse\` que frena \`mv\`/\`rm\` sobre notas (lo instala \`lib/mcpControl.ts\`). */
 export const HOOK_MV_RM: string = ${JSON.stringify(hookMvRm())};
+
+/** El hook \`PostToolUse\` de las referencias sin enlazar (lo instala \`generarFramework\`). */
+export const HOOK_REFERENCIAS: string = ${JSON.stringify(hookReferencias())};
 `;
 }
 

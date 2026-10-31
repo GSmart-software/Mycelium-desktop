@@ -2,7 +2,7 @@
 titulo: Instrucciones de IA del vault
 tema: IA
 solo: desktop
-sinonimos: [claude, claude code, agente, memoria, asistente, CLAUDE.md, skills, comandos]
+sinonimos: [claude, claude code, agente, memoria, asistente, CLAUDE.md, skills, comandos, hook, enlace markdown, referencias sin enlazar]
 ---
 
 Las **instrucciones de IA** son un conjunto de archivos que Mycelium escribe en tu vault para
@@ -34,9 +34,23 @@ instrucciones, la IA ve una carpeta de archivos sueltos; con ellas, ve una red.
 | `CLAUDE.md` | Un **bloque corto** al principio, entre `<!-- mycelium:inicio … -->` y `<!-- mycelium:fin -->`: lo que la IA lee en cada sesión —que el vault es su memoria, las reglas y qué guía cargar para cada cosa—. |
 | `.claude/skills/mycelium-*` | Guías por tema, que la IA carga cuando las necesita: la sintaxis de las notas, buscar y anotar, cómo operar Mycelium y una por herramienta (lienzos, draw.io, Excalidraw, bases, Esporas, calendario), algunas con un validador. |
 | `.claude/commands/mycelium/` | Comandos que le podés pedir: `/vault-buscar`, `/vault-recordar`, `/vault-nota`, `/vault-vincular`, `/vault-mapa` y `/vault-huerfanas`. |
+| `.claude/hooks/mycelium-referencias.mjs` | El **aviso de referencias sin enlazar** (abajo), registrado en `.claude/settings.json`. |
 
 `.claude/` empieza con punto, así que no lo ves en el explorador. Si querés verlo, agregá
 `!.claude/` al final de los [archivos ignorados](ayuda:configuracion/mycignore).
+
+## El aviso de referencias sin enlazar
+
+Mycelium solo cuenta como enlace lo que va entre corchetes dobles, `[[así]]`. Un enlace de
+Markdown común, `[texto](otra.md)`, no cuenta: no aparece en el
+[grafo](ayuda:enlazar-y-organizar/grafo) ni en el panel de enlaces. Lo mismo pasa con un
+nombre que la auditoría de referencias (**Configuración → Vault → Auditar las referencias**) ya registró
+—como `HU-009`— escrito sin corchetes.
+
+Cada vez que la IA escribe o edita una nota, un hook revisa lo nuevo y, si encuentra una de
+esas referencias, le avisa con la forma `[[…]]` que corresponde para que la convierta. No
+bloquea nada ni cambia el texto por su cuenta. Ignora el código, los enlaces a páginas web y
+lo que ya está entre corchetes dobles.
 
 ## Lo tuyo no se toca
 
@@ -46,7 +60,9 @@ actualizás:
 
 - Si ya tenías un `CLAUDE.md`, el bloque se agrega **al principio** y lo tuyo queda debajo,
   sin cambios. Al actualizar, se reemplaza solo el bloque.
-- Tus propios agentes, comandos, hooks y ajustes de `.claude/` no se tocan.
+- Tus propios agentes, comandos, hooks y ajustes de `.claude/` no se tocan. En
+  `.claude/settings.json`, Mycelium solo agrega la entrada de su hook y deja lo demás como
+  estaba; si el archivo no es JSON válido, no lo toca y lo avisa.
 
 > [!warning] Lo de Mycelium se reescribe al regenerar
 > El bloque y los archivos con `mycelium` en el nombre vuelven a escribirse enteros cada
