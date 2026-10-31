@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
+import { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
+import { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } from "./hookMvRm";
+import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
 
 /**
  * Framework IA del vault (FUN-L-08, solo-desktop). Genera en el vault un conjunto
@@ -146,8 +148,20 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *     `mycelium`». Los comandos viejos sin tocar se borran al regenerar.
  *   - `.mycignore` admite negaciones `!` (`FUN-S-30`).
  *   **Major**: cambia dónde se instala y qué es de quién.
+ * - 2.1.0 — enlaces a encabezados, el aviso de cambios externos y el nombre de
+ *   la nota que sale de una Espora (`DEF-138`, `DEF-140`, `DEF-141`).
+ * - 2.2.0 — **el aviso de referencias sin enlazar** (`FUN-S-10`): un hook
+ *   `PostToolUse` (`.claude/hooks/mycelium-referencias.mjs`, registrado en
+ *   `.claude/settings.json` con la misma fusión que el de `mv`/`rm`) que,
+ *   cuando la IA escribe o edita una nota y deja un `[texto](otra.md)` o una
+ *   forma del léxico de `FUN-M-17` sin corchetes, le avisa con la forma `[[…]]`
+ *   que Mycelium cuenta. A diferencia del de `mv`/`rm`, lo instala
+ *   `generarFramework` siempre: no depende del MCP. La tabla de sintaxis de
+ *   `mycelium-vault` suma el enlace Markdown —que no cuenta— y la lista de
+ *   `.claude/` dice que Mycelium agrega sus hooks a `settings.json`.
+ *   **Minor**: la IA gana un aviso nuevo.
  */
-export const FRAMEWORK_IA_VERSION = "2.1.0";
+export const FRAMEWORK_IA_VERSION = "2.2.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -220,6 +234,7 @@ skill \`mycelium-memoria\`; para operar la app, \`mycelium-operar\`.
 |---|---|---|
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
+| Enlace Markdown | \`[texto](otra.md)\` | **No cuenta** como enlace: ni grafo ni backlinks. Para relacionar notas, \`[[otra]]\` (o \`[[otra\\|texto]]\`). Si queda uno escrito —o una forma del léxico de referencias sin corchetes—, un hook avisa con la forma que corresponde |
 | Enlace a un encabezado | \`[[Título#Encabezado]]\` / \`[[#Encabezado]]\` | Cuenta como enlace a la nota (grafo, backlinks); el clic lleva al encabezado. Se ve «Título › Encabezado». \`[[Título#^bloque]]\` va a la línea que termina en \`^bloque\` |
 | Embed de nota | \`![[Título]]\` | **No se dibuja**: se ve como \`!\` y un enlace común. Para relacionar notas, enlazá con \`[[Título]]\` |
 | Embed de diagrama | \`![[Título.excalidraw]]\` / \`![[Título.drawio]]\` | Renderiza el dibujo o el diagrama |
@@ -302,7 +317,8 @@ Además, fuera de las notas:
 - **\`.claude/\`**: lo que lleva prefijo \`mycelium\` —\`skills/mycelium-*\`,
   \`commands/mycelium/\`, \`hooks/mycelium-*\`, \`mycelium-ia.json\`— es de Mycelium y se pisa
   al regenerar: **no lo edites**. Lo demás (agentes, comandos, hooks, \`settings.json\`)
-  es del usuario y Mycelium no lo toca.
+  es del usuario y Mycelium no lo toca, salvo sus propias entradas en \`settings.json\`:
+  las que corren \`hooks/mycelium-*\`.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium (abajo).
 
 ## Recorrer el vault (comandos útiles)
@@ -962,6 +978,8 @@ export type ResultadoIa = {
   borrados: string[];
   /** Comandos de la 1.x que el usuario editó: quedan donde estaban, como suyos. */
   conservados: string[];
+  /** Por qué no se instaló el hook de referencias sin enlazar (`FUN-S-10`), o `null`. */
+  avisoHook: string | null;
 };
 
 /**
@@ -998,8 +1016,36 @@ export async function generarFramework(vaultRuta: string): Promise<ResultadoIa> 
     }
   }
 
+  const avisoHook = await instalarHookReferencias(vaultRuta, escribir);
+
   // El marcador de versión va último: si algo falló antes, la app sigue
   // ofreciendo actualizar.
   await escribir(RUTA_VERSION, versionJson());
-  return { claudeMd: plan.accion, borrados, conservados };
+  return { claudeMd: plan.accion, borrados, conservados, avisoHook };
+}
+
+/**
+ * El hook de las referencias sin enlazar (`FUN-S-10`): el script en
+ * `.claude/hooks/` y su entrada en `.claude/settings.json`, fusionada con lo
+ * que el usuario tenga. Devuelve por qué no se instaló, o `null`: un fallo acá
+ * no impide el resto del framework. Un archivo del usuario con el nombre del
+ * script no se pisa, y un `settings.json` que no es JSON no se toca.
+ */
+async function instalarHookReferencias(
+  vaultRuta: string,
+  escribir: (rutaRel: string, contenido: string) => Promise<unknown>,
+): Promise<string | null> {
+  const actual = await leerTexto(vaultRuta, RUTA_HOOK_REFERENCIAS);
+  if (!scriptLibre(actual)) {
+    return `${RUTA_HOOK_REFERENCIAS} es un archivo tuyo: no se pisa, y el aviso de referencias sin enlazar no se instaló.`;
+  }
+  const script = HOOK_REFERENCIAS.split(MARCADOR_VERSION_IA).join(FRAMEWORK_IA_VERSION);
+  if (actual !== script) await escribir(RUTA_HOOK_REFERENCIAS, script);
+  try {
+    const { texto, cambia } = fusionarSettings(await leerTexto(vaultRuta, ARCHIVO_SETTINGS), HOOK_REFERENCIAS_DEF);
+    if (cambia) await escribir(ARCHIVO_SETTINGS, texto);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }

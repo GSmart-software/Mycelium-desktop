@@ -174,6 +174,9 @@ export function VaultSection() {
           `habías editado (${resultado.conservados.join(" · ")}); los de Mycelium están ahora en ` +
           `.claude/commands/mycelium/.`;
       }
+      // El aviso de referencias sin enlazar (`FUN-S-10`) no impide lo demás:
+      // si no se pudo instalar, se dice por qué.
+      if (resultado.avisoHook) texto += ` ${resultado.avisoHook}`;
       informar(texto);
     } catch (e) {
       fallar((e as Error).message ?? String(e));
