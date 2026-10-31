@@ -40,6 +40,23 @@ y el calendario se **mueven** al panel nuevo (salvo que sean la única pestaña 
 dos copias abiertas a la vez no se enterarían de lo que guarda la otra, y una consola tiene
 una sola sesión.
 
+## El menú del explorador
+
+El clic derecho sobre una nota (o un lienzo, una base, un dibujo, un diagrama) ofrece:
+
+| Opción | Qué hace |
+|---|---|
+| **Abrir al lado** | Abre el archivo en un panel nuevo a la derecha del activo. |
+| **Renombrar** · **Duplicar** | Cambia el nombre, o crea una copia en la misma carpeta. |
+| **Mover a…** | Abre un buscador de carpetas: se escribe parte del nombre, se elige con **↑**/**↓** y **Enter**. Los enlaces que llegaban a la nota se actualizan solos. |
+| **Copiar enlace** | Copia el `[[enlace]]` a la nota, listo para pegar en otra. Si hay otra nota con el mismo nombre, lleva la carpeta (`[[Proyectos/Plan]]`); un lienzo, una base, un dibujo o un diagrama llevan su extensión (`[[Mapa.canvas]]`). |
+| **Exportar como .md** · **Exportar como PDF…** | Guarda una copia fuera del vault. |
+| **Mostrar en el explorador** | Abre la carpeta del archivo en el explorador del sistema. |
+| **Eliminar** | Manda el archivo a la papelera de Mycelium, con **Deshacer** en el aviso. |
+
+Sobre una carpeta, el menú también tiene **Mover a…**, que la lleva con todo lo que
+contiene y actualiza los enlaces. Arrastrar en el árbol hace lo mismo.
+
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas

@@ -33,7 +33,8 @@ Si al traer algo ya hay un archivo con ese nombre, Mycelium pregunta qué hacer:
 
 ## El menú de un archivo
 
-Con clic derecho: **Abrir**, **Abrir con la aplicación predeterminada**, **Renombrar**,
+Con clic derecho: **Abrir**, **Abrir al lado** (en un panel nuevo a la derecha), **Abrir
+con la aplicación predeterminada**, **Renombrar**,
 **Duplicar**, **Guardar una copia…** (fuera del vault), **Mostrar en el explorador** y
 **Eliminar**.
 
