@@ -30,7 +30,8 @@ el foco en un lugar —el texto de una nota, el explorador, una consola—: cada
 | **←** / **→**, **Inicio** / **Fin** | Con el foco en la barra de pestañas, recorren las pestañas. **Supr** cierra la enfocada. |
 
 Los botones laterales del mouse (atrás y adelante) también recorren el historial de la
-pestaña.
+pestaña. **Ctrl+clic** en un enlace lo abre en una pestaña nueva que conserva ese
+historial, así que **Atrás** vuelve a la nota de origen.
 
 ## Escribir en una nota
 

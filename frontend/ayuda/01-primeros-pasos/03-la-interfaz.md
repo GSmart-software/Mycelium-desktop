@@ -40,6 +40,12 @@ queda fija. Si preferís que cada archivo abra su propia pestaña, apagá **Pest
 previsualización** en **Configuración → Editor**. Las flechas **Atrás** y **Adelante** de
 la barra de pestañas recorren lo que se abrió en esa pestaña.
 
+Una pestaña abierta desde un enlace (**Ctrl+clic** o clic con la rueda sobre el enlace)
+conserva el historial de la pestaña de origen: **Atrás** en la pestaña nueva vuelve a la
+nota desde la que se siguió el enlace. Lo mismo vale para el clic con la rueda sobre las
+flechas **Atrás** y **Adelante**: el documento de ese paso se abre en una pestaña nueva que
+puede seguir yendo atrás y adelante.
+
 Al abrir una nota —desde un enlace, la búsqueda, **Ctrl+O** o el explorador—, el
 explorador despliega las carpetas que llevan a ella y la muestra. Volver a una pestaña que
 ya estaba abierta no despliega nada: si plegaste una carpeta, queda plegada.

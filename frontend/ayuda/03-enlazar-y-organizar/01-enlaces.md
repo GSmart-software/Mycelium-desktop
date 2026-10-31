@@ -20,7 +20,9 @@ pendiente hasta que la crees.
 1. Escribí `[[` y empezá a tipear el título: Mycelium sugiere las notas del vault. Elegí
    una con **Enter** y cierra los corchetes por vos.
 2. Si querés que se lea otro texto, agregá un **alias** después de una barra vertical.
-3. **Clic** en el enlace para abrir la nota.
+3. **Clic** en el enlace para abrir la nota. **Ctrl+clic** la abre en una pestaña nueva y
+   el clic con la rueda, en una pestaña nueva en segundo plano. En las dos, **Atrás**
+   vuelve a la nota de la que salió el enlace.
 
 ```ejemplo
 Lo hablamos en la [[Reunión de lanzamiento]].

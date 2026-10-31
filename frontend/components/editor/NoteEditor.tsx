@@ -59,7 +59,7 @@ import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
 import { renderDrawioIn } from "@/lib/drawioRender";
-import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
+import { atenderClicEnEnlace, type DondeAbrir } from "@/lib/enlacesExternos";
 import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import {
@@ -430,7 +430,7 @@ export function NoteEditor({
   }, []);
 
   const openByTitle = useCallback(
-    (title: string) => {
+    (title: string, donde: DondeAbrir = "aqui") => {
       // `[[#Encabezado]]`: un salto dentro de esta misma nota (`DEF-141`).
       if (esAnclaPropia(title)) {
         if (viewRef.current) saltar(viewRef.current, { ancla: title.trim().slice(1) });
@@ -445,11 +445,23 @@ export function NoteEditor({
         if (viewRef.current) saltar(viewRef.current, { ancla });
         return;
       }
+      if (donde !== "aqui") {
+        // Ctrl+clic o rueda: pestaña nueva que hereda el historial de esta, así
+        // «Atrás» en ella vuelve acá (`FUN-S-34`). En segundo plano no se toca
+        // la URL: la pestaña visible sigue siendo esta.
+        const foco = donde === "pestana";
+        useTabsStore
+          .getState()
+          .abrirEnPestanaNueva(target.id, { foco, origen: { paneId, tabId: instanceId } });
+        if (foco) router.replace(`/workspace?note=${target.id}`);
+        if (ancla) pedirSaltoAAncla(target.id, ancla);
+        return;
+      }
       useTabsStore.getState().openNote(target.id);
       router.replace(`/workspace?note=${target.id}`);
       if (ancla) pedirSaltoAAncla(target.id, ancla);
     },
-    [router, saltar],
+    [router, saltar, paneId, instanceId],
   );
 
   // ¿Existe el archivo referenciado por un wikilink? (feedback de inexistencia).
@@ -1759,6 +1771,15 @@ export function NoteEditor({
             ref={previewRef}
             className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
             onClick={onPreviewClick}
+            // Rueda sobre un enlace: el `click` no llega con el botón del medio,
+            // así que va por `auxclick`, y el `mousedown` se corta para que no
+            // arranque el desplazamiento automático (`FUN-S-34`).
+            onMouseDown={(e) => {
+              if (e.button === 1 && (e.target as HTMLElement).closest("a")) e.preventDefault();
+            }}
+            onAuxClick={(e) => {
+              if (e.button === 1) atenderClicEnEnlace(e, { abrirNota: openByTitle });
+            }}
             onContextMenu={onPreviewContextMenu}
           >
             {/* Título dentro del documento, al inicio (se desplaza con el

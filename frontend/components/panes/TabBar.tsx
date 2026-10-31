@@ -120,11 +120,13 @@ export function TabBar({ pane }: { pane: LeafPane }) {
    * Clic con la rueda en una flecha (`FUN-S-13`): el documento anterior o
    * siguiente se abre en una pestaña nueva en segundo plano, y la actual no se
    * mueve. Es la misma convención que la rueda sobre un archivo del explorador.
+   * La pestaña nueva se lleva la línea entera, parada en ese paso (`FUN-S-34`):
+   * desde ella se puede seguir yendo atrás y adelante.
    */
-  function abrirDestinoAparte(e: MouseEvent, destino: string | null) {
+  function abrirDestinoAparte(e: MouseEvent, delta: -1 | 1, destino: string | null) {
     if (e.button !== 1 || destino === null) return;
     e.preventDefault();
-    store.openNoteBackground(destino, pane.id);
+    store.abrirPasoAparte(pane.id, delta);
     pushUrl();
   }
 
@@ -171,7 +173,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           onClick={() => navegar(-1)}
           // Evita el auto-scroll del navegador al pulsar la rueda.
           onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-          onAuxClick={(e) => abrirDestinoAparte(e, atras)}
+          onAuxClick={(e) => abrirDestinoAparte(e, -1, atras)}
         >
           <ArrowLeft size={14} aria-hidden />
         </button>
@@ -184,7 +186,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           onClick={() => navegar(1)}
           // Evita el auto-scroll del navegador al pulsar la rueda.
           onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-          onAuxClick={(e) => abrirDestinoAparte(e, adelante)}
+          onAuxClick={(e) => abrirDestinoAparte(e, 1, adelante)}
         >
           <ArrowRight size={14} aria-hidden />
         </button>
