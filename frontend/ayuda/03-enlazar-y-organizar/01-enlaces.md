@@ -13,7 +13,7 @@ notas.
 
 Para llegar de una idea a la relacionada con un clic, y para que la nota de destino sepa
 quién la cita. No hace falta que la nota exista todavía: el enlace queda marcado como
-pendiente hasta que la crees.
+pendiente, y un clic sobre él la crea.
 
 ## Cómo se usa
 
@@ -75,10 +75,24 @@ raíz.
 
 ## Enlaces rotos
 
-Un enlace a una nota que no existe se ve en un tono más oscuro que los demás y no lleva
-a ningún lado. Cuando creás la nota con ese título, el enlace se conecta solo. Y si renombrás una
-nota desde Mycelium, los enlaces que la apuntaban se actualizan: [el título renombra el
-archivo](ayuda:escribir-notas/el-titulo-renombra).
+Un enlace a una nota que no existe se ve en un tono más oscuro que los demás. Un **clic**
+sobre él **crea la nota** con ese título y la abre, en la vista en vivo y en la de lectura
+(con **Ctrl+clic** o la rueda, en una pestaña nueva):
+
+| Enlace | Dónde se crea |
+|---|---|
+| `[[Idea nueva]]` | En la raíz del vault. |
+| `[[Proyectos/Idea nueva]]` | En la carpeta `Proyectos`. Si no existe, se crea. |
+| `[[Idea nueva#Sección]]` | La nota «Idea nueva», en la raíz, sin la sección. |
+| `[[Mapa.canvas]]` | Un lienzo llamado «Mapa» (la extensión decide el tipo). |
+
+Los caracteres que un nombre de archivo no admite (`? : * | " < > \`) se reemplazan por
+`-`, como en cualquier nota nueva. Un enlace a una imagen o a un PDF que no existe no crea
+nada.
+
+Si la nota se crea por otro camino con ese título, el enlace se conecta solo. Y si se
+renombra una nota desde Mycelium, los enlaces que la apuntaban se actualizan: [el título
+renombra el archivo](ayuda:escribir-notas/el-titulo-renombra).
 
 ## Embeds
 
