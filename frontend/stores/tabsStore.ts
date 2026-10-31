@@ -170,7 +170,7 @@ type TabsState = {
    * Lo común de abrir en segundo plano: `openNoteBackground` y las flechas del
    * historial. `linea` es la línea con la que nace la pestaña (por defecto, una
    * propia). Si el pane está vacío abre con foco; si la nota ya está abierta en
-   * él, no hace nada.
+   * él y no hay `linea`, no hace nada.
    */
   abrirAparte: (notaId: string, paneId?: string, linea?: Linea) => void;
   /** Fija una pestaña de preview como permanente (al editar o doble-clic). */
@@ -461,8 +461,10 @@ export const useTabsStore = create<TabsState>()(
       get().openNote(notaId);
       return;
     }
-    // Si ya está abierta, no robar el foco ni duplicar.
-    if (targetLeaf.tabs.some((t) => t.notaId === notaId)) return;
+    // Si ya está abierta, no robar el foco ni duplicar. Salvo con `linea` (la
+    // rueda en una flecha, `FUN-S-34`): esa pestaña lleva un historial que la
+    // otra no tiene, y no hacer nada parecería un clic perdido.
+    if (!linea && targetLeaf.tabs.some((t) => t.notaId === notaId)) return;
 
     // Pestaña permanente en segundo plano: se conserva el foco actual. Con
     // `linea` (las flechas del historial, `FUN-S-34`) se lleva esa línea; si no,
