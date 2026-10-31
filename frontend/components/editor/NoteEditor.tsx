@@ -75,6 +75,7 @@ import {
   resolverReferencia,
 } from "@/lib/wikilinks";
 import { avisar, avisarFallo } from "@/stores/avisosStore";
+import { crearNotaDeEnlaceRoto } from "@/lib/crearDesdeEnlace";
 import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -439,27 +440,39 @@ export function NoteEditor({
       const { notas, carpetas } = useVaultStore.getState();
       // Acepta `título` o `Carpeta/título` para desambiguar homónimos, y el
       // ancla (`Nota#Encabezado`) no participa en encontrar la nota (`DEF-141`).
-      const { nota: target, ancla } = resolverReferencia(title, notas, carpetas);
-      if (!target) return;
+      const { nota: target, ancla, base } = resolverReferencia(title, notas, carpetas);
+      const abrir = (id: string, ancla: string | null) => {
+        if (donde !== "aqui") {
+          // Ctrl+clic o rueda: pestaña nueva que hereda el historial de esta,
+          // así «Atrás» en ella vuelve acá (`FUN-S-34`). En segundo plano no se
+          // toca la URL: la pestaña visible sigue siendo esta.
+          const foco = donde === "pestana";
+          useTabsStore
+            .getState()
+            .abrirEnPestanaNueva(id, { foco, origen: { paneId, tabId: instanceId } });
+          if (foco) router.replace(`/workspace?note=${id}`);
+        } else {
+          useTabsStore.getState().openNote(id);
+          router.replace(`/workspace?note=${id}`);
+        }
+        if (ancla) pedirSaltoAAncla(id, ancla);
+      };
+      if (!target) {
+        // Enlace roto: se crea la nota y se abre, como en Obsidian (`FUN-S-31`).
+        // Sin el ancla: `[[Nota#Sección]]` crea «Nota», que todavía no tiene
+        // ninguna sección a la que saltar.
+        void crearNotaDeEnlaceRoto(base)
+          .then((id) => {
+            if (id !== null) abrir(id, null);
+          })
+          .catch(avisarFallo(`crear la nota «${base}»`));
+        return;
+      }
       if (target.id === notaIdRef.current && ancla) {
         if (viewRef.current) saltar(viewRef.current, { ancla });
         return;
       }
-      if (donde !== "aqui") {
-        // Ctrl+clic o rueda: pestaña nueva que hereda el historial de esta, así
-        // «Atrás» en ella vuelve acá (`FUN-S-34`). En segundo plano no se toca
-        // la URL: la pestaña visible sigue siendo esta.
-        const foco = donde === "pestana";
-        useTabsStore
-          .getState()
-          .abrirEnPestanaNueva(target.id, { foco, origen: { paneId, tabId: instanceId } });
-        if (foco) router.replace(`/workspace?note=${target.id}`);
-        if (ancla) pedirSaltoAAncla(target.id, ancla);
-        return;
-      }
-      useTabsStore.getState().openNote(target.id);
-      router.replace(`/workspace?note=${target.id}`);
-      if (ancla) pedirSaltoAAncla(target.id, ancla);
+      abrir(target.id, ancla);
     },
     [router, saltar, paneId, instanceId],
   );
