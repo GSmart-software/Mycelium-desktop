@@ -77,6 +77,33 @@ export const PESTANA_SENTINELA: Record<
 };
 
 /**
+ * ¿«Dividir a la derecha/abajo» muestra este archivo en los dos lados?
+ * (`FUN-S-35`) Si no, la pestaña se mueve al pane nuevo, como antes.
+ *
+ * Se duplica lo que dos pestañas pueden mostrar a la vez sin pisarse:
+ * - **Notas**: las instancias de una misma nota se reflejan en vivo
+ *   (`lib/editor/docBroker`) y solo guarda la que se editó.
+ * - **Bases**: cada pestaña tiene su propia vista elegida (`DEF-085`) y la
+ *   fuente sin guardar no se pisa al refrescar.
+ *
+ * No se duplica:
+ * - **Lienzos, dibujos y diagramas**: cada pestaña carga el archivo una vez y lo
+ *   guarda entero. El watcher descarta lo que la propia app escribe
+ *   (`FUN-M-38`), así que la otra copia no se enteraría de un guardado y el
+ *   suyo siguiente lo pisaría.
+ * - **El visor de archivos** (también edita código): el mismo motivo.
+ * - **Consolas**: su sesión es única; dos pestañas no pueden mostrarla.
+ * - **Grafo, referencias y calendario**: son una vista global por id y no ganan
+ *   nada mostrándose dos veces.
+ *
+ * Sin el tipo (el índice todavía no llegó) se asume nota, como `iconoDePestana`.
+ */
+export function seDuplicaAlDividir(notaId: string, tipoNota: NotaTipo = "markdown"): boolean {
+  if (tipoDePestana(notaId) !== "nota") return false;
+  return tipoNota === "markdown" || tipoNota === "base";
+}
+
+/**
  * Título de una pestaña. Los sentinela se resuelven **antes** de mirar `notas`
  * porque ninguno tiene fila ahí: la consola toma el título de su sesión, el
  * archivo no indexado el nombre de su ruta (`FUN-L-11`), el resto el de la tabla.

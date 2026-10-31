@@ -7,7 +7,7 @@ import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { iconoDePestana, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
+import { iconoDePestana, seDuplicaAlDividir, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -159,6 +159,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const activeNota = activeNotaId
     ? notas.find((n) => n.id === activeNotaId) ?? null
     : null;
+  // «Dividir» muestra el mismo archivo en los dos lados si se puede (`FUN-S-35`).
+  const duplicarAlDividir =
+    activeNotaId !== undefined && seDuplicaAlDividir(activeNotaId, activeNota?.tipo);
 
   return (
     <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
@@ -380,7 +383,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
-                    store.splitActivePane(pane.id, "right");
+                    store.splitActivePane(pane.id, "right", duplicarAlDividir);
                     pushUrl();
                     setMenuOpen(false);
                   }}
@@ -392,7 +395,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
-                    store.splitActivePane(pane.id, "bottom");
+                    store.splitActivePane(pane.id, "bottom", duplicarAlDividir);
                     pushUrl();
                     setMenuOpen(false);
                   }}
