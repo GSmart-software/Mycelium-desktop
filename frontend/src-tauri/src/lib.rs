@@ -4,6 +4,7 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod bienvenida;
 mod config_local;
 mod control;
 mod devtools;

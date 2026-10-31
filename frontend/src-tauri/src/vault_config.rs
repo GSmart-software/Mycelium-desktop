@@ -121,8 +121,12 @@ pub fn listar_vaults(app: tauri::AppHandle) -> Result<Vec<VaultRef>, String> {
 /// la webview era dejarle a un XSS elegir qué carpeta del disco leer y escribir.
 /// Ahora la única forma de que una carpeta entre a `vaults.json` es que el
 /// usuario la elija en un diálogo que la webview no controla.
+///
+/// Si la carpeta es un vault **nuevo** —no estaba en el registro y no tenía
+/// nada—, siembra la nota de bienvenida (`FUN-S-05`) y devuelve su id en
+/// `notaBienvenida`, para que el frontend la abra al entrar.
 #[tauri::command]
-pub async fn elegir_vault(ventana: tauri::Window) -> Result<Option<VaultRef>, String> {
+pub async fn elegir_vault(ventana: tauri::Window) -> Result<Option<VaultElegido>, String> {
     let titulo = "Elegí la carpeta que querés abrir como vault";
     let Some(ruta) = crate::dialogos::elegir_carpeta_nativa(&ventana, titulo).await? else {
         return Ok(None);
@@ -130,17 +134,36 @@ pub async fn elegir_vault(ventana: tauri::Window) -> Result<Option<VaultRef>, St
     vincular(ventana.app_handle(), ruta.to_string_lossy().to_string()).map(Some)
 }
 
+/// Lo que devuelve [`elegir_vault`]: el vault vinculado y, si era nuevo, el id
+/// de la nota de bienvenida que se le sembró (`FUN-S-05`). Va aparte de
+/// [`VaultRef`] porque eso se persiste en `vaults.json` y esto no.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultElegido {
+    #[serde(flatten)]
+    pub vault: VaultRef,
+    pub nota_bienvenida: Option<String>,
+}
+
 /// Vincula una carpeta (debe existir y ser un directorio). La añade al registro.
 /// Ya **no** es un comando: solo la llama [`elegir_vault`].
-fn vincular(app: &tauri::AppHandle, ruta: String) -> Result<VaultRef, String> {
+fn vincular(app: &tauri::AppHandle, ruta: String) -> Result<VaultElegido, String> {
     if !Path::new(&ruta).is_dir() {
         return Err(format!("La carpeta no existe o no es un directorio: {ruta}"));
     }
     let config = ruta_config(app)?;
     let mut reg = leer_registro(&config);
-    let ref_ = aplicar_vincular(&mut reg, &ruta);
+    // Revincular una carpeta que ya estaba en la lista no siembra nada, aunque
+    // el usuario la haya vaciado: la bienvenida es solo para un vault nuevo.
+    let era_conocido = reg.vaults.iter().any(|v| v.ruta == ruta);
+    let vault = aplicar_vincular(&mut reg, &ruta);
     escribir_registro(&config, &reg)?;
-    Ok(ref_)
+    let nota_bienvenida = if era_conocido {
+        None
+    } else {
+        crate::bienvenida::sembrar_si_vacia(Path::new(&ruta))
+    };
+    Ok(VaultElegido { vault, nota_bienvenida })
 }
 
 /// Olvida un vault del registro (no toca los archivos en disco).

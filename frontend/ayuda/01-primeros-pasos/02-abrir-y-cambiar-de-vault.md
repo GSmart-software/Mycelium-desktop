@@ -1,7 +1,7 @@
 ---
 titulo: Abrir y cambiar de vault
 tema: Primeros pasos
-sinonimos: [selector de vaults, vincular carpeta, ventana nueva, salir del vault, varios vaults]
+sinonimos: [selector de vaults, vincular carpeta, ventana nueva, salir del vault, varios vaults, crear vault, vault nuevo, nota de bienvenida]
 solo: desktop
 ---
 
@@ -27,6 +27,16 @@ a otro sin cerrar lo que tenías abierto.
 
 Si el vault que elegís ya está abierto en otra ventana, Mycelium trae esa ventana al
 frente en lugar de abrirlo dos veces.
+
+## Crear un vault nuevo
+
+Un vault nuevo es una carpeta vacía: créala en el mismo selector del sistema que abre
+**Vincular carpeta…** y elígela. Si la carpeta no tenía nada, Mycelium escribe en ella
+una nota, **Bienvenida a Mycelium**, que se abre al entrar: una guía breve con ejemplos
+de formato, tareas, callouts, enlaces y etiquetas. Es una nota más, y se puede editar o
+borrar.
+
+Una carpeta que ya tenía archivos se abre tal como está: Mycelium no le agrega nada.
 
 ## Abrir el último vault al iniciar
 
