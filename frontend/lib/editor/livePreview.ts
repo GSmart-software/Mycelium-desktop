@@ -68,6 +68,7 @@ import {
   type ImagenResuelta,
 } from "@/lib/imagenesRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
+import { resaltadosEnLinea } from "@/lib/resaltado";
 import { getAllViews } from "@/lib/editor/viewRegistry";
 import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
@@ -1802,6 +1803,28 @@ function buildDecorations(
           to: start + match[2].length + 1,
           deco: Decoration.mark({ class: "mic-tag-cm" }),
         });
+      }
+
+      // `==resaltado==` (`FUN-S-33`): el fondo se pinta siempre —también en la
+      // línea activa, como el tachado—; los `==` se ocultan fuera de ella. Las
+      // reglas (qué es un `==`, que no entre en código) son las de la vista de
+      // lectura, en `lib/resaltado.ts`.
+      {
+        const enCodigo = (i: number) => enCodigoAbs(line.from + i);
+        for (const r of resaltadosEnLinea(line.text, enCodigo)) {
+          const rFrom = line.from + r.desde;
+          const rTo = line.from + r.hasta;
+          if (exRanges.some(([f, t]) => rFrom < t && rTo > f)) continue;
+          decos.push({
+            from: rFrom + 2,
+            to: rTo - 2,
+            deco: Decoration.mark({ class: "mic-resaltado" }),
+          });
+          if (!isActive) {
+            decos.push({ from: rFrom, to: rFrom + 2, deco: hide });
+            decos.push({ from: rTo - 2, to: rTo, deco: hide });
+          }
+        }
       }
 
       // Fórmulas en línea (`DEF-103`): `$…$` se dibuja con KaTeX fuera de la

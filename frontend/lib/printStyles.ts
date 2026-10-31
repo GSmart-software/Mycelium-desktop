@@ -118,6 +118,7 @@ html, body { margin: 0; padding: 0; background: var(--mic-bg-canvas); color: var
 .mic-preview .mic-excalidraw-block, .mic-preview .mermaid { page-break-inside: avoid; text-align: center; }
 .mic-preview .mic-wikilink { color: var(--mic-accent); text-decoration: none; }
 .mic-preview .mic-tag { color: var(--mic-glow); }
+.mic-preview mark.mic-resaltado { background: color-mix(in srgb, var(--mic-amber-icon, #C9821E) 38%, transparent); color: inherit; border-radius: 0.2em; }
 /* Tarjeta de propiedades del frontmatter (FUN-M-04): antes el bloque salía como
    línea horizontal + título fantasma; ahora se imprime como tabla de metadatos. */
 .mic-preview .mic-props {
@@ -186,6 +187,7 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
 .mic-preview .mic-prop-clave { flex: 0 0 30%; color: #555; font-weight: 600; }
 .mic-preview .mic-prop-icono { display: inline-block; width: 1.2em; opacity: 0.7; }
 .mic-preview .mic-props-aviso { color: #555; font-style: italic; margin: 0 0 0.4em; }
+.mic-preview mark.mic-resaltado { background: #fff1a8; color: inherit; }
 `;
 
 /**
