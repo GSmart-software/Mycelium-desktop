@@ -26,6 +26,7 @@ import {
   ponerTituloDeVentana,
   registrarVaultDeVentana,
   soltarVaultDeVentana,
+  tomarBienvenidaPendiente,
 } from "@/lib/vaultMode";
 import { useCssStore } from "@/stores/cssStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -204,6 +205,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // existen. En modo carpeta el id interno es común a todos los vaults, así
       // que las distingue la ruta.
       await useTabsStore.getState().usarAlmacenDeVault(ruta);
+      // Un vault nuevo trae una nota de bienvenida (`FUN-S-05`): la primera vez
+      // que se entra, se abre. Si no llegó a indexarse, el workspace descarta la
+      // pestaña al reconciliar, como cualquier nota que ya no existe.
+      const bienvenida = tomarBienvenidaPendiente(ruta);
+      if (bienvenida && indexado.rutas.includes(bienvenida)) {
+        useTabsStore.getState().openNote(bienvenida);
+      }
       // Y las consolas, por lo mismo (`DEF-099`): la lista es de ESTE vault, no
       // de la instalación. Con una clave por vault, dos ventanas dejan de
       // compartirlas (`DEF-100`), porque no pueden tener el mismo vault abierto.
