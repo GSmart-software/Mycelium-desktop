@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
+  Columns2,
   Copy,
   Eye,
   ExternalLink,
@@ -26,8 +27,10 @@ import {
   FileOutput,
   FilePlus,
   Folder,
+  FolderInput,
   FolderOpen,
   FolderPlus,
+  Link2,
   Pencil,
   RefreshCw,
   Trash2,
@@ -55,6 +58,7 @@ import { diagramaInicial } from "@/lib/drawio";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { carpetaEsporas, crearNotaDesdeEspora, listarEsporas } from "@/lib/esporasVault";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { enlaceANota } from "@/lib/menuNota";
 import { abrirConSistema, listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
 import { useShallow } from "zustand/react/shallow";
 import { collectFromDataTransfer, collectFromFileList } from "@/lib/import";
@@ -71,6 +75,7 @@ import {
   type TreeNota,
 } from "@/stores/vaultStore";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { DialogoMoverA } from "./DialogoMoverA";
 import { MenuNuevo, type ItemNuevo } from "./MenuNuevo";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
@@ -173,6 +178,14 @@ export function ExplorerPanel() {
   const otros = useVaultStore((s) => s.otros);
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<RenameState>(null);
+  /** Lo que «Mover a…» está por mover (`FUN-S-32`), o nada. */
+  const [moverA, setMoverA] = useState<{
+    tipo: "nota" | "carpeta";
+    id: string;
+    nombre: string;
+    actual: string | null;
+    excluir?: ReadonlySet<string>;
+  } | null>(null);
   // «Refrescar» en curso (`FUN-M-42`): el ícono gira y otro clic no encola otra.
   const [refrescando, setRefrescando] = useState(false);
   // Destino de un arrastre de archivos DESDE el SO (DEF-036/036b): id de la
@@ -499,24 +512,50 @@ export function ExplorerPanel() {
 
     const destinoId = over === "root" ? null : over.replace("folder:", "");
 
-    if (dragged.startsWith("nota:")) {
-      const notaId = dragged.replace("nota:", "");
-      const nota = store.notas.find((n) => n.id === notaId);
-      if (nota && nota.carpetaId !== destinoId) {
-        void store
-          .moveNota(notaId, destinoId)
-          .then(avisarSiFallo(`mover «${nota.titulo}»`), avisarFallo(`mover «${nota.titulo}»`));
-      }
-    } else if (dragged.startsWith("carpeta:")) {
-      const carpetaId = dragged.replace("carpeta:", "");
-      const carpeta = store.carpetas.find((c) => c.id === carpetaId);
-      if (!carpeta || carpeta.padreId === destinoId) return;
-      // No mover dentro de sí misma ni de sus hijos (HU-24 CA6)
-      if (destinoId !== null && store.subtreeIds(carpetaId).has(destinoId)) return;
-      void store
-        .moveCarpeta(carpetaId, destinoId)
-        .then(avisarSiFallo(`mover «${carpeta.nombre}»`), avisarFallo(`mover «${carpeta.nombre}»`));
-    }
+    if (dragged.startsWith("nota:")) moverNota(dragged.replace("nota:", ""), destinoId);
+    else if (dragged.startsWith("carpeta:")) moverCarpeta(dragged.replace("carpeta:", ""), destinoId);
+  }
+
+  /**
+   * Mueve una nota a otra carpeta reparando los enlaces que llegaban a ella. Lo
+   * usan el arrastre y «Mover a…» (`FUN-S-32`): el mismo `moveNota` que el MCP
+   * `mycelium_mover`.
+   */
+  function moverNota(notaId: string, destinoId: string | null) {
+    const nota = store.notas.find((n) => n.id === notaId);
+    if (!nota || nota.carpetaId === destinoId) return;
+    void store
+      .moveNota(notaId, destinoId)
+      .then(avisarSiFallo(`mover «${nota.titulo}»`), avisarFallo(`mover «${nota.titulo}»`));
+  }
+
+  /** Lo mismo para una carpeta (y todo su subárbol). */
+  function moverCarpeta(carpetaId: string, destinoId: string | null) {
+    const carpeta = store.carpetas.find((c) => c.id === carpetaId);
+    if (!carpeta || carpeta.padreId === destinoId) return;
+    // No mover dentro de sí misma ni de sus hijos (HU-24 CA6)
+    if (destinoId !== null && store.subtreeIds(carpetaId).has(destinoId)) return;
+    void store
+      .moveCarpeta(carpetaId, destinoId)
+      .then(avisarSiFallo(`mover «${carpeta.nombre}»`), avisarFallo(`mover «${carpeta.nombre}»`));
+  }
+
+  /**
+   * «Abrir al lado» (`FUN-S-32`): en un pane nuevo a la derecha del activo, como
+   * soltar la nota en el borde derecho de un pane.
+   */
+  function abrirAlLado(id: string) {
+    const tabs = useTabsStore.getState();
+    tabs.splitPaneWithNota(id, tabs.activePaneId, "right");
+    router.replace(`/workspace?note=${encodeURIComponent(id)}`);
+  }
+
+  /** «Copiar enlace» (`FUN-S-32`): el `[[enlace]]` que lleva a la nota. */
+  function copiarEnlace(nota: TreeNota) {
+    const enlace = enlaceANota(nota, store.notas, store.carpetas);
+    void navigator.clipboard
+      .writeText(enlace)
+      .then(() => avisar(`Enlace copiado: ${enlace}`), avisarFallo("copiar el enlace"));
   }
 
   /**
@@ -667,6 +706,18 @@ export function ExplorerPanel() {
         onClick: () =>
           setRenaming({ type: "carpeta", id: carpeta.id, valor: carpeta.nombre }),
       },
+      {
+        label: "Mover a…",
+        icono: ico(FolderInput),
+        onClick: () =>
+          setMoverA({
+            tipo: "carpeta",
+            id: carpeta.id,
+            nombre: carpeta.nombre,
+            actual: carpeta.padreId,
+            excluir: store.subtreeIds(carpeta.id),
+          }),
+      },
       ...(rutaVault
         ? [
             {
@@ -700,10 +751,18 @@ export function ExplorerPanel() {
   }
 
   function notaMenu(nota: TreeNota): MenuItem[] {
+    // Grupos (`FUN-S-28`, `FUN-S-32`): abrir · organizar · copiar y exportar ·
+    // mostrar · eliminar.
     return [
+      {
+        label: "Abrir al lado",
+        icono: ico(Columns2),
+        onClick: () => abrirAlLado(nota.id),
+      },
       {
         label: "Renombrar",
         icono: ico(Pencil),
+        separadorAntes: true,
         onClick: () => setRenaming({ type: "nota", id: nota.id, valor: nota.titulo }),
       },
       {
@@ -712,9 +771,21 @@ export function ExplorerPanel() {
         onClick: () => void store.duplicateNota(nota.id).catch(avisarFallo(`duplicar «${nota.titulo}»`)),
       },
       {
+        label: "Mover a…",
+        icono: ico(FolderInput),
+        onClick: () =>
+          setMoverA({ tipo: "nota", id: nota.id, nombre: nota.titulo, actual: nota.carpetaId }),
+      },
+      {
+        label: "Copiar enlace",
+        icono: ico(Link2),
+        separadorAntes: true,
+        title: "Copia el [[enlace]] a esta nota para pegarlo en otra",
+        onClick: () => copiarEnlace(nota),
+      },
+      {
         label: "Exportar como .md",
         icono: ico(FileDown),
-        separadorAntes: true,
         onClick: () => void exportNoteMd(nota.id, nota.titulo).catch(avisarFallo(`exportar «${nota.titulo}»`)),
       },
       {
@@ -776,6 +847,11 @@ export function ExplorerPanel() {
         label: "Abrir",
         icono: ico(Eye),
         onClick: () => abrirOtro(otro),
+      },
+      {
+        label: "Abrir al lado",
+        icono: ico(Columns2),
+        onClick: () => abrirAlLado(tabIdDeArchivo(otro.ruta)),
       },
       {
         label: "Abrir con la aplicación predeterminada",
@@ -1179,6 +1255,21 @@ export function ExplorerPanel() {
       </DndContext>
 
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      {moverA && (
+        <DialogoMoverA
+          nombre={moverA.nombre}
+          carpetas={store.carpetas}
+          actual={moverA.actual}
+          excluir={moverA.excluir}
+          onCerrar={() => setMoverA(null)}
+          onElegir={(destino) => {
+            const { tipo, id } = moverA;
+            setMoverA(null);
+            if (tipo === "nota") moverNota(id, destino);
+            else moverCarpeta(id, destino);
+          }}
+        />
+      )}
     </div>
   );
 }
