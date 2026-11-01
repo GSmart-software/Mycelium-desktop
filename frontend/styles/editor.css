@@ -1512,13 +1512,140 @@
   font-size: 0.78rem;
 }
 
-/* El widget de la vista en vivo: el bloque y el botón «Abrir» en la esquina. */
-.mic-live-canvas {
+/* Bases embebidas (`FUN-S-29`): la tabla de una vista, de solo lectura y con
+   un tope de filas. En lectura el clic abre la base; en vivo, el botón
+   «Abrir». Mismo lenguaje que la tabla de BaseView. */
+.mic-base-block {
+  margin-bottom: 0.85rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-base);
+  cursor: pointer;
+  overflow: hidden;
+  font-size: 0.86rem;
+  transition: border-color 120ms ease;
+}
+
+.mic-base-block:hover {
+  border-color: color-mix(in srgb, var(--mic-glow) 50%, var(--mic-border));
+}
+
+.mic-base-block.mic-base-cargando {
+  padding: 1.25rem;
+  color: var(--mic-text-muted);
+  border-style: dashed;
+}
+
+.mic-base-block.mic-base-error {
+  color: var(--mic-callout-caution-border);
+  font-size: 0.8125rem;
+  background: color-mix(in srgb, var(--mic-callout-caution-border) 8%, transparent);
+  padding: 0.4rem 0.6rem;
+  cursor: default;
+}
+
+.mic-base-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-bottom: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+}
+
+.mic-base-titulo {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.mic-base-vista {
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+}
+
+.mic-base-vista::before {
+  content: "› ";
+}
+
+.mic-base-marco {
+  overflow-x: auto;
+}
+
+.mic-preview .mic-base-tabla,
+.mic-base-tabla {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: inherit;
+}
+
+.mic-base-tabla th {
+  text-align: left;
+  padding: 0.4rem 0.9rem;
+  background: var(--mic-bg-surface);
+  border: none;
+  border-bottom: 1px solid var(--mic-border);
+  color: var(--mic-text-muted);
+  font-weight: 600;
+}
+
+.mic-base-tabla td {
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-border) 55%, transparent);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.mic-base-tabla tbody td:first-child {
+  color: var(--mic-accent);
+  font-weight: 500;
+}
+
+.mic-base-vacia,
+.mic-base-fecha {
+  color: var(--mic-text-muted);
+}
+
+.mic-base-fecha {
+  white-space: nowrap;
+}
+
+.mic-base-numero {
+  font-variant-numeric: tabular-nums;
+}
+
+.mic-base-pildoras {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.mic-base-pildora {
+  padding: 0.05em 0.45em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-glow-texto);
+  font-size: 0.78rem;
+}
+
+.mic-base-block .mic-base-aviso,
+.mic-base-block .mic-base-pie {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  color: var(--mic-text-muted);
+  font-size: 0.8rem;
+}
+
+/* El widget de la vista en vivo (lienzo o base): el bloque y el botón «Abrir»
+   en la esquina. */
+.mic-live-vista-previa {
   position: relative;
   padding: 0.4rem 0;
 }
 
-.mic-live-canvas .mic-canvas-block {
+.mic-live-vista-previa .mic-canvas-block,
+.mic-live-vista-previa .mic-base-block {
   margin-bottom: 0;
 }
 
@@ -1538,7 +1665,7 @@
   transition: opacity 120ms ease;
 }
 
-.mic-live-canvas:hover .mic-embed-abrir,
+.mic-live-vista-previa:hover .mic-embed-abrir,
 .mic-embed-abrir:focus-visible {
   opacity: 1;
 }

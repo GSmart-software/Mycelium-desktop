@@ -1611,9 +1611,11 @@ export function NoteEditor({
       // Un diagrama de draw.io embebido es una vista previa, no un editor: el
       // clic abre su pestaña (`FUN-L-20` § 8). Un editor por embed sería la
       // webapp entera cargada una vez por diagrama de la nota.
-      // Un lienzo embebido (`FUN-S-19`) también es una vista previa de solo
-      // lectura: el clic en cualquier parte abre su pestaña.
-      const diagramaDrawio = (event.target as HTMLElement).closest(".mic-drawio-block, .mic-canvas-block");
+      // Un lienzo (`FUN-S-19`) o una base (`FUN-S-29`) embebidos también son
+      // vistas previas de solo lectura: el clic en cualquier parte abre su pestaña.
+      const diagramaDrawio = (event.target as HTMLElement).closest(
+        ".mic-drawio-block, .mic-canvas-block, .mic-base-block",
+      );
       if (diagramaDrawio) {
         const targetNota = diagramaDrawio.getAttribute("data-nota");
         if (targetNota) {

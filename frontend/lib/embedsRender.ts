@@ -14,6 +14,7 @@
  */
 
 import { embebidoDe, type TipoEmbebible } from "@/lib/embeds";
+import { renderBaseIn } from "@/lib/baseRender";
 import { renderCanvasIn } from "@/lib/canvasRender";
 import { renderDrawioIn } from "@/lib/drawioRender";
 import { renderExcalidrawIn } from "@/lib/excalidraw";
@@ -24,6 +25,7 @@ const CLASE_MARCADOR: Record<TipoEmbebible, string> = {
   excalidraw: "mic-excalidraw",
   drawio: "mic-drawio",
   canvas: "mic-canvas",
+  base: "mic-base",
 };
 
 /**
@@ -59,7 +61,7 @@ export function resolverEmbedsEn(root: HTMLElement): void {
  * extensión, después cada tipo. Nunca lanza: cada renderizador deja su aviso
  * en el lugar del embed que no pudo dibujar.
  *
- * `perezoso` (por defecto): los lienzos se leen recién cuando se ven. La
+ * `perezoso` (por defecto): los lienzos y las tablas se leen recién cuando se ven. La
  * exportación a PDF lo apaga, porque dibuja fuera de pantalla y tiene que
  * esperar a que esté todo.
  */
@@ -72,6 +74,7 @@ export async function renderEmbedsIn(
     renderExcalidrawIn(container),
     renderDrawioIn(container),
     renderCanvasIn(container, perezoso),
+    renderBaseIn(container, perezoso),
   ]);
 }
 

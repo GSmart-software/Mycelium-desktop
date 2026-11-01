@@ -1,7 +1,7 @@
 ---
 titulo: Imágenes y archivos embebidos
 tema: Escribir notas
-sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión, lienzo, canvas]
+sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión, lienzo, canvas, base, tabla]
 ---
 
 **Embeber** es mostrar otro archivo dentro de la nota, en el lugar donde lo escribís: una
@@ -79,6 +79,17 @@ previa de solo lectura**: para cambiar el lienzo hay que abrirlo. En la vista de
 un clic en cualquier parte lo abre en su pestaña; en la vista en vivo, el clic muestra el
 `![[…]]` para editarlo, y el botón **Abrir** de la esquina abre el lienzo. Un lienzo se
 carga recién cuando llega a verse, así que una nota con muchos no tarda en abrir.
+
+## Tablas
+
+```md
+![[Fichas.base]]
+![[Fichas.base#Pendientes]]
+```
+
+Muestran la tabla de una [base](ayuda:tipos-de-archivo/bases): la vista que va después
+del `#`, o la primera. Como el lienzo, es una vista previa de solo lectura —con las
+primeras 15 filas— y un clic abre la base.
 
 ## Videos
 
