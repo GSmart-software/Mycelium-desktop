@@ -78,7 +78,8 @@ títulos, con la nota a la que llevan (`→ HU-009 Gestión de usuarios`).
 - El alias se escribe solo, sin carpeta: `[[Carpeta/HU-009]]` no lo busca.
 - También vale la clave `alias` (la forma vieja de Obsidian).
 
-Es útil para siglas, sinónimos y nombres viejos.
+Es útil para siglas, sinónimos y nombres viejos: al renombrar una nota se puede
+[conservar el nombre anterior como alias](ayuda:escribir-notas/el-titulo-renombra).
 No hay que confundirlo con el texto que se muestra en un enlace (`[[Nota|texto]]`): ese
 cambia cómo se lee un enlace, no a qué nota lleva.
 

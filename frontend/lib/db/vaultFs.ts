@@ -93,9 +93,30 @@ export async function revelarEnSistema(vault: string, rutaRel: string): Promise<
   await invoke("revelar_en_sistema", { vaultRuta: vault, rutaRel });
 }
 
+/**
+ * Rutas que la propia app movió hace poco (`FUN-M-47`): el origen y el destino
+ * de cada `moverRuta`, con el momento. La detección de renombres hechos por
+ * fuera (`lib/renombresExternos.ts`) las descarta: un renombre de la app ya
+ * reparó sus enlaces. Es una segunda red: el índice ya está rekeyeado cuando
+ * llega el aviso del watcher, así que la ruta vieja no figura como nota.
+ */
+const movimientosPropios = new Map<string, number>();
+
+/** ¿Esta ruta la movió la propia app (como origen o destino) en el último minuto? */
+export function esMovimientoPropio(rutaRel: string): boolean {
+  const en = movimientosPropios.get(rutaRel);
+  return en !== undefined && Date.now() - en <= VIGENCIA_ESCRITURA_MS;
+}
+
 /** Renombra/mueve un archivo o carpeta dentro del vault. */
 export async function moverRuta(vault: string, origenRel: string, destinoRel: string): Promise<void> {
   const invoke = await getInvoke();
+  const ahora = Date.now();
+  if (movimientosPropios.size >= 256) {
+    for (const [ruta, en] of movimientosPropios) if (ahora - en > VIGENCIA_ESCRITURA_MS) movimientosPropios.delete(ruta);
+  }
+  movimientosPropios.set(origenRel, ahora);
+  movimientosPropios.set(destinoRel, ahora);
   await invoke("mover_ruta", { vaultRuta: vault, origenRel, destinoRel });
 }
 

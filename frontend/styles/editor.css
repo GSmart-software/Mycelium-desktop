@@ -688,6 +688,15 @@
   color: var(--mic-callout-error-border, #d9534f);
 }
 
+/* La pista de Mayús+Enter mientras se renombra (`FUN-M-47`): conservar el
+   nombre anterior como alias. Discreta, fuera del degradado como el error. */
+.mic-doc-title-pista {
+  margin: 0.15rem 0 0;
+  font-family: var(--mic-font-sans);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
 /* Enlaces internos en el editor (HU-01 CA8) */
 .mic-wikilink-cm {
   color: var(--mic-enlace);

@@ -12,12 +12,25 @@ export type Aviso = {
   id: number;
   texto: string;
   /** Lo que se puede hacer al respecto, normalmente deshacer. */
-  accion?: { etiqueta: string; hacer: () => void | Promise<void> };
+  accion?: AccionAviso;
+  /** Una segunda acción, junto a la primera (`FUN-M-47`: «reparar y conservar el alias»). */
+  secundaria?: AccionAviso;
+  /**
+   * Cuánto queda a la vista, en ms. Sin él, lo de siempre. Un aviso que
+   * pregunta algo (reparar un renombre hecho por fuera) necesita más tiempo
+   * que uno que solo cuenta.
+   */
+  duracionMs?: number;
 };
+
+export type AccionAviso = { etiqueta: string; hacer: () => void | Promise<void> };
+
+/** Lo opcional de un aviso, además del texto. */
+export type OpcionesAviso = Pick<Aviso, "secundaria" | "duracionMs">;
 
 type AvisosState = {
   avisos: Aviso[];
-  avisar: (texto: string, accion?: Aviso["accion"]) => number;
+  avisar: (texto: string, accion?: Aviso["accion"], opciones?: OpcionesAviso) => number;
   cerrar: (id: number) => void;
 };
 
@@ -25,18 +38,18 @@ let siguiente = 1;
 
 export const useAvisosStore = create<AvisosState>((set) => ({
   avisos: [],
-  avisar(texto, accion) {
+  avisar(texto, accion, opciones) {
     const id = siguiente++;
     // Como mucho tres a la vez: más se vuelven una pila que tapa la nota.
-    set((s) => ({ avisos: [...s.avisos, { id, texto, accion }].slice(-3) }));
+    set((s) => ({ avisos: [...s.avisos, { id, texto, accion, ...opciones }].slice(-3) }));
     return id;
   },
   cerrar: (id) => set((s) => ({ avisos: s.avisos.filter((a) => a.id !== id) })),
 }));
 
 /** Atajo para no tener que sacar el store en cada sitio. */
-export function avisar(texto: string, accion?: Aviso["accion"]): number {
-  return useAvisosStore.getState().avisar(texto, accion);
+export function avisar(texto: string, accion?: Aviso["accion"], opciones?: OpcionesAviso): number {
+  return useAvisosStore.getState().avisar(texto, accion, opciones);
 }
 
 /**

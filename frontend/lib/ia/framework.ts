@@ -590,7 +590,8 @@ Cómo redactar para tu vos futuro:
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
   reenlazá.
 - **Al renombrar o mover**: con \`mycelium_renombrar\` / \`mycelium_mover\` Mycelium
-  repara los \`[[enlaces]]\` que la apuntaban; con \`mv\` (solo si no tenés las
+  repara los \`[[enlaces]]\` que la apuntaban (y con \`conservarAlias: true\` deja el
+  nombre anterior en \`aliases\`); con \`mv\` (solo si no tenés las
   herramientas), actualizalos vos.
 
 ## Antipatrones

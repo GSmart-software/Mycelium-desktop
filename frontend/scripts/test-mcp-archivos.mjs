@@ -56,8 +56,11 @@ const otros = [{ ruta: "docs/informe.pdf" }];
 test("renombrar: el nombre pasa por las reglas del título editable", () => {
   assert.deepEqual(arch.validarRenombrar({ objetivo: " Plan ", nombre: " Plan 2026 " }), {
     ok: true,
-    valor: { objetivo: "Plan", nombre: "Plan 2026" },
+    valor: { objetivo: "Plan", nombre: "Plan 2026", conservarAlias: false },
   });
+  // `FUN-M-47`: el nombre anterior como alias, solo si se pide y con un booleano.
+  assert.equal(arch.validarRenombrar({ objetivo: "Plan", nombre: "X", conservarAlias: true }).valor.conservarAlias, true);
+  assert.equal(arch.validarRenombrar({ objetivo: "Plan", nombre: "X", conservarAlias: "sí" }).error.datos.campo, "conservarAlias");
   for (const malo of ["a:b", "a/b", 'dijo "hola"', "x?", "CON", "termina.", ""]) {
     const v = arch.validarRenombrar({ objetivo: "Plan", nombre: malo });
     assert.equal(v.ok, false, malo);

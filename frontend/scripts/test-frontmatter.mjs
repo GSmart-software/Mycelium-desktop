@@ -563,3 +563,15 @@ test("mismosAliases: sin distinguir orden ni mayúsculas", () => {
   assert.equal(mod.mismosAliases(["A"], ["A", "B"]), false);
   assert.equal(mod.mismosAliases([], []), true);
 });
+
+test("quitarAlias: lo contrario de agregarAlias (el Deshacer de FUN-M-47)", () => {
+  assert.equal(mod.quitarAlias("---\naliases: [Uno, Viejo]\n---\n", "viejo"), "---\naliases: [Uno]\n---\n");
+  assert.equal(mod.quitarAlias("---\ntags: [a]\naliases: [Viejo]\n---\nC", "Viejo"), "---\ntags: [a]\n---\nC");
+  const sin = "---\naliases: [Uno]\n---\n";
+  assert.equal(mod.quitarAlias(sin, "Otro"), sin);
+  assert.equal(mod.quitarAlias("Sin frontmatter", "X"), "Sin frontmatter");
+  assert.equal(mod.quitarAlias("---\nx:\n  a: b\n---\n", "X"), null);
+  // Ida y vuelta.
+  const base = "---\naliases: [Uno]\n---\nCuerpo.";
+  assert.equal(mod.quitarAlias(mod.agregarAlias(base, "Viejo"), "Viejo"), base);
+});

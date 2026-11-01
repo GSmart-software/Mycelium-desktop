@@ -43,16 +43,19 @@ import {
 } from "@/lib/mcpArchivosLogica";
 import {
   cambioRenombrar,
+  alternarAliasDeNota,
   carpetaDeRuta,
   extensionDeRuta,
   leerPrevia,
   movidosPorCarpeta,
+  repararEntrantes,
   repararTrasOperacion,
   tituloDeRuta,
   type Movido,
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import { motivoNombreInvalido } from "@/lib/tituloEditable";
+import { EVENTO_RECARGA } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { avisar } from "@/stores/avisosStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -206,7 +209,7 @@ async function conAlcance(
 // ── renombrar ───────────────────────────────────────────────────────────────
 
 export async function renombrar(args: Record<string, unknown>, confirmado = false): Promise<Atendible> {
-  const { objetivo, nombre } = exigir(validarRenombrar(args));
+  const { objetivo, nombre, conservarAlias } = exigir(validarRenombrar(args));
   const { notas, carpetas, otros } = useVaultStore.getState();
   const a = exigir(resolverAfectado(objetivo, notas, carpetas, otros));
 
@@ -256,15 +259,32 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     () => renombrar(args, true),
     async () => {
       const vs = useVaultStore.getState();
-      let r: Reparacion & { id: string };
+      let r: Reparacion & { id: string; aliasConservado?: boolean };
       try {
-        r = plan.clase === "nota" ? await vs.renameNota(plan.id, nombreNuevo) : await vs.renameCarpeta(plan.id, nombreNuevo);
+        r =
+          plan.clase === "nota"
+            ? await vs.renameNota(plan.id, nombreNuevo, { conservarAlias })
+            : await vs.renameCarpeta(plan.id, nombreNuevo);
       } catch (e) {
         throw comoFallo(e);
       }
       const extra = plan.clase === "carpeta" && plan.afectadas.length > 0 ? ` Sus ${plan.afectadas.length} notas cambiaron de ruta.` : "";
-      const efecto = `Renombré ${que} a «${nombreNuevo}» (${r.id}).${extra} ${efectoEnlaces(r.reescritas, r.fallidas)}`;
-      const deshacer: DeshacerArchivos = { tipo: "archivo_renombrar", clase: plan.clase, ruta: r.id, rutaAntes: plan.id, nombre: nombreAntes };
+      // `FUN-M-47`: si se pidió, qué pasó con el nombre anterior como alias.
+      const alias =
+        !conservarAlias || plan.clase !== "nota"
+          ? ""
+          : r.aliasConservado
+            ? ` «${nombreAntes}» quedó como alias en su propiedad \`aliases\`: los [[${nombreAntes}]] siguen llegando.`
+            : ` «${nombreAntes}» NO quedó como alias (solo notas .md con un frontmatter que Mycelium interpreta).`;
+      const efecto = `Renombré ${que} a «${nombreNuevo}» (${r.id}).${extra} ${efectoEnlaces(r.reescritas, r.fallidas)}${alias}`;
+      const deshacer: DeshacerArchivos = {
+        tipo: "archivo_renombrar",
+        clase: plan.clase,
+        ruta: r.id,
+        rutaAntes: plan.id,
+        nombre: nombreAntes,
+        ...(r.aliasConservado ? { alias: nombreAntes } : {}),
+      };
       return {
         resultado: { efecto, clase: plan.clase, ruta_anterior: plan.id, ruta: r.id, ...enlacesParaIa(r) },
         actividad: { efecto, objetivo: objetivoDe(plan.clase, r.id), deshacer },
@@ -513,6 +533,8 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
   switch (d.tipo) {
     case "archivo_renombrar": {
       const r = d.clase === "nota" ? await vs.renameNota(d.ruta, d.nombre) : await vs.renameCarpeta(d.ruta, d.nombre);
+      // El alias que agregó el renombre (`FUN-M-47`) se va con él.
+      if (d.alias) await alternarAliasDeNota(r.id, d.alias, token(), true).catch(() => false);
       return `Volvió a llamarse «${d.nombre}» (${r.id}). ${efectoEnlaces(r.reescritas, r.fallidas)}`;
     }
     case "archivo_mover": {
@@ -524,6 +546,8 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
       const hechas = await restaurarNotas(d.notas);
       return d.clase === "nota" ? `«${tituloVisible(d.ruta)}» volvió de la papelera.` : `La carpeta «${d.ruta}» volvió con ${hechas.length} notas.`;
     }
+    case "archivo_reparar_renombre":
+      return deshacerReparacionRenombre(d);
     case "archivo_borrar": {
       cerrarPestanas([d.ruta]);
       await vs.deleteNota(d.ruta);
@@ -531,6 +555,29 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
       return `«${tituloVisible(d.ruta)}» volvió a la papelera.`;
     }
   }
+}
+
+/**
+ * Deshace la reparación de un renombre hecho por fuera (`FUN-M-47`): en las
+ * notas que se reescribieron, los enlaces vuelven a nombrar al archivo de
+ * antes (con el mismo `reescribirEnlacesMovidos` de siempre, al revés), y se
+ * quita el alias si se había agregado. El archivo no se toca.
+ */
+async function deshacerReparacionRenombre(
+  d: Extract<DeshacerArchivos, { tipo: "archivo_reparar_renombre" }>,
+): Promise<string> {
+  const cambio = {
+    tituloViejo: tituloDeRuta(d.ruta),
+    tituloNuevo: tituloDeRuta(d.rutaAntes),
+    carpetaVieja: carpetaDeRuta(d.ruta),
+    carpetaNueva: carpetaDeRuta(d.rutaAntes),
+    extension: extensionDeRuta(d.ruta),
+  };
+  const r = await repararEntrantes(new Map(d.notas.map((n) => [n, new Set([d.ruta])])), [{ id: d.ruta, idNuevo: d.ruta, cambio }], token());
+  if (d.alias) await alternarAliasDeNota(d.ruta, d.alias, token(), true).catch(() => false);
+  if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+  await useVaultStore.getState().loadTree(useVaultStore.getState().vaultId!);
+  return `Los enlaces volvieron a nombrar a «${tituloDeRuta(d.rutaAntes)}». ${efectoEnlaces(r.reescritas, r.fallidas)}`;
 }
 
 export { mensajeRechazo };

@@ -212,7 +212,11 @@ pub fn definiciones() -> Vec<Value> {
                         "type": "string",
                         "description": "La nota (ruta `docs/Plan.md` o título `Plan`) o la carpeta (`Área/Proyectos`, o con `/` al final para que sea la carpeta)."
                     },
-                    "nombre": { "type": "string", "description": "El nombre nuevo, sin carpeta (la extensión de una nota se puede omitir)." }
+                    "nombre": { "type": "string", "description": "El nombre nuevo, sin carpeta (la extensión de una nota se puede omitir)." },
+                    "conservarAlias": {
+                        "type": "boolean",
+                        "description": "Solo notas .md: agrega el nombre anterior a la propiedad `aliases` de la nota, para que los [[enlaces]] que no se reescriben (texto citado, otros vaults, los que se escriban después) sigan llegando. Los enlaces se reparan igual. Por defecto, false."
+                    }
                 },
                 "required": ["objetivo", "nombre"],
                 "additionalProperties": false

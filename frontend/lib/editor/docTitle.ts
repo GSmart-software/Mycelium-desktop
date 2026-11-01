@@ -44,11 +44,17 @@ export const setDocTitle = StateEffect.define<{ title: string; show: boolean }>(
  * desde él el estado.
  */
 export const renombrarPorTitulo = Facet.define<
-  (titulo: string) => Promise<void>,
-  ((titulo: string) => Promise<void>) | null
+  RenombrarPorTitulo,
+  RenombrarPorTitulo | null
 >({
   combine: (valores) => valores[0] ?? null,
 });
+
+/**
+ * Renombra la nota. `conservarAlias` (`FUN-M-47`): se confirmó con Mayús+Enter
+ * y el nombre anterior queda en su propiedad `aliases`.
+ */
+export type RenombrarPorTitulo = (titulo: string, opciones?: { conservarAlias?: boolean }) => Promise<void>;
 
 /** Adónde va el foco al salir del título (`DEF-139`). */
 export type DestinoTrasTitulo =
@@ -149,6 +155,21 @@ function pintarEdicion(
   campo.setAttribute("aria-label", "Nombre del archivo");
   caja.appendChild(campo);
   if (rechazo !== null) cont.appendChild(cartelError(rechazo.motivo));
+  // La pista de Mayús+Enter (`FUN-M-47`): conservar el nombre anterior como
+  // alias es opcional y está apagado; la pista lo hace visible mientras el
+  // nombre escrito es otro.
+  const pista = document.createElement("p");
+  pista.className = "mic-doc-title-pista";
+  pista.textContent = `Mayús+Enter: conservar «${titulo}» como alias`;
+  const actualizarPista = () => {
+    const distinto = campo.value.trim() !== "" && campo.value.trim() !== titulo.trim();
+    if (distinto && !pista.isConnected) cont.appendChild(pista);
+    else if (!distinto && pista.isConnected) pista.remove();
+    else return;
+    view.requestMeasure();
+  };
+  campo.addEventListener("input", actualizarPista);
+  actualizarPista();
   if (enfocar) {
     campo.focus();
     campo.select();
@@ -174,7 +195,7 @@ function pintarEdicion(
 
   // Descartar con Esc devuelve el foco al editor, donde estaba el cursor; con un
   // clic en otro lado no se toca: el foco ya se fue adonde el usuario hizo clic.
-  const terminar = async (propuesto: string | null, enfocar = true) => {
+  const terminar = async (propuesto: string | null, enfocar = true, conservarAlias = false) => {
     if (cerrado) return;
     cerrado = true;
     if (propuesto === null) {
@@ -188,7 +209,7 @@ function pintarEdicion(
       devolverFoco(view, "cuerpo");
       return;
     }
-    const r = await aplicarTitulo(titulo, propuesto, renombrar);
+    const r = await aplicarTitulo(titulo, propuesto, (t) => renombrar(t, { conservarAlias }));
     if (r.estado === "error") {
       pintarEdicion(cont, titulo, view, { propuesto, motivo: r.motivo }, focoNuestro());
       return;
@@ -211,7 +232,7 @@ function pintarEdicion(
     // siguiente es el cuerpo (como en Obsidian). Shift+Tab no se toca.
     if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
       e.preventDefault();
-      void terminar(campo.value);
+      void terminar(campo.value, true, e.key === "Enter" && e.shiftKey);
     } else if (e.key === "Escape") {
       e.preventDefault();
       void terminar(null);

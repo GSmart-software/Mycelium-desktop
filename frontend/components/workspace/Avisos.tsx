@@ -31,9 +31,9 @@ function Tarjeta({ aviso }: { aviso: Aviso }) {
   // no en cada render, así que pasar el puntero por encima no lo alarga: es
   // información, no un menú.
   useEffect(() => {
-    const id = window.setTimeout(() => cerrar(aviso.id), DURACION_MS);
+    const id = window.setTimeout(() => cerrar(aviso.id), aviso.duracionMs ?? DURACION_MS);
     return () => window.clearTimeout(id);
-  }, [aviso.id, cerrar]);
+  }, [aviso.id, aviso.duracionMs, cerrar]);
 
   return (
     <div className={styles.aviso}>
@@ -48,6 +48,18 @@ function Tarjeta({ aviso }: { aviso: Aviso }) {
           }}
         >
           {aviso.accion.etiqueta}
+        </button>
+      )}
+      {aviso.secundaria && (
+        <button
+          type="button"
+          className={styles.accion}
+          onClick={() => {
+            cerrar(aviso.id);
+            void aviso.secundaria?.hacer();
+          }}
+        >
+          {aviso.secundaria.etiqueta}
         </button>
       )}
       <button

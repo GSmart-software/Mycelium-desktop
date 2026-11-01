@@ -56,6 +56,7 @@ import { refreshAllLiveViews } from "@/lib/editor/livePreview";
 import { otrosDesdeMeta } from "@/lib/otrosArchivos";
 import { indexarRutas, indexarVault } from "@/lib/db/indexer";
 import { esEscrituraPropia } from "@/lib/db/vaultFs";
+import { ofrecerRenombres, prepararRenombres } from "@/lib/renombresExternos";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -233,10 +234,18 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
         if (cambios.every((c) => esEscrituraPropia(c.ruta, c.mtime))) {
           quitarPendientes(cambios);
         } else {
+          // Un renombre hecho por fuera (`FUN-M-47`): se mira ANTES de indexar,
+          // que es cuando el índice todavía sabe quién enlazaba a la nota que
+          // se fue. Si falla, se indexa igual: es una oferta, no un requisito.
+          const renombres = await prepararRenombres(ruta, cambios).catch((e) => {
+            console.warn("[Mycelium] watcher · no se pudo mirar si hubo un renombre externo", e);
+            return [];
+          });
           await indexarRutas(ruta, cambios);
           quitarPendientes(cambios);
           await recargarArbol();
           avisarIndexado(cambios.map((c) => c.ruta));
+          if (renombres.length > 0) ofrecerRenombres(renombres);
         }
       }
     } catch (e) {

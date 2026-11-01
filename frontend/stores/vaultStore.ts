@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { EVENTO_ALIAS, EVENTO_RECARGA } from "@/lib/eventos";
 import {
   SIN_REPARACION,
+  alternarAliasDeNota,
   carpetaDeRuta,
   cambioRenombrar,
   extensionDeRuta,
@@ -85,6 +86,23 @@ type LastMove =
 /** Lo que devuelve renombrar: el id (ruta) nuevo y qué pasó con los enlaces entrantes. */
 export type ResultadoRenombrar = Reparacion & { id: string };
 
+/** Opciones de renombrar una nota (`FUN-M-47`). */
+export type OpcionesRenombrar = {
+  /**
+   * Agregar el título anterior a la propiedad `aliases` de la nota, para que
+   * los `[[enlaces]]` que no se reescriben —texto citado, otros vaults, los que
+   * se escriban después— sigan llegando. Los entrantes se reparan igual.
+   */
+  conservarAlias?: boolean;
+};
+
+/**
+ * Lo que devuelve renombrar una nota: el título que obtuvo y, si se pidió
+ * conservar el anterior como alias, si quedó (`false`: no es una nota `.md`, o
+ * su frontmatter no se puede editar; `undefined`: no se pidió o no cambió).
+ */
+export type ResultadoRenombrarNota = ResultadoRenombrar & { titulo: string; aliasConservado?: boolean };
+
 /**
  * Lo que devuelve mover. No lanza —el explorador lo llama sin esperar, al
  * soltar— pero dice si falló y por qué, para quien sí espera (el MCP).
@@ -126,7 +144,7 @@ type VaultState = {
   /** `titulo` solo lo usan las Esporas (`FUN-M-03`): la nota nueva se llama como
    *  la plantilla. Sin él, el nombre por defecto de siempre. */
   createNota: (carpetaId: string | null, tipo?: NotaTipo, titulo?: string) => Promise<string>;
-  renameNota: (id: string, titulo: string) => Promise<ResultadoRenombrar & { titulo: string }>;
+  renameNota: (id: string, titulo: string, opciones?: OpcionesRenombrar) => Promise<ResultadoRenombrarNota>;
   deleteNota: (id: string) => Promise<void>;
   duplicateNota: (id: string) => Promise<void>;
   moveNota: (id: string, destinoId: string | null) => Promise<ResultadoMover>;
@@ -467,7 +485,7 @@ export const useVaultStore = create<VaultState>()(
         return result.id;
       },
 
-      async renameNota(id, titulo) {
+      async renameNota(id, titulo, opciones) {
         // FUN-M-08: los `[[enlaces]]` resuelven por titulo, asi que renombrar
         // los rompe todos. Se leen los retroenlaces ANTES de renombrar —despues
         // ya no apuntan a nada y el indice no los encuentra— y se reescriben
@@ -523,7 +541,26 @@ export const useVaultStore = create<VaultState>()(
         // antes en silencio, ahora se le dice al usuario cómo quedó el nombre.
         const reemplazo = avisoCaracteresReemplazados(titulo, efectivo);
         if (reemplazo) avisar(reemplazo);
-        return { id: res.id, titulo: efectivo, ...reparacion };
+        // `FUN-M-47`: el nombre anterior como alias, DESPUÉS de reparar (los
+        // entrantes ya apuntan al nombre nuevo; el alias es para lo que no se
+        // reescribe). Si falla, el renombre ya está hecho: se avisa y listo.
+        let aliasConservado: boolean | undefined;
+        if (opciones?.conservarAlias && anterior !== null && anterior !== efectivo) {
+          try {
+            aliasConservado = await alternarAliasDeNota(res.id, anterior, token());
+          } catch (e) {
+            aliasConservado = false;
+            console.error("[Mycelium] no se pudo conservar el nombre anterior como alias", e);
+          }
+          if (!aliasConservado) {
+            avisar(
+              extensionDeRuta(res.id).toLowerCase() === ".md"
+                ? `No se pudo guardar «${anterior}» como alias: el frontmatter de la nota no se puede editar sin romperlo.`
+                : `«${anterior}» no se guardó como alias: solo las notas .md tienen propiedades.`,
+            );
+          }
+        }
+        return { id: res.id, titulo: efectivo, ...reparacion, ...(aliasConservado === undefined ? {} : { aliasConservado }) };
       },
 
       async deleteNota(id) {

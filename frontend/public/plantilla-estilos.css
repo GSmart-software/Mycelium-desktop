@@ -317,6 +317,14 @@
 }
 */
 
+/* Mientras se renombra desde el título, la pista de debajo del campo
+   («Mayús+Enter: conservar … como alias»). */
+/*
+.mic-doc-title-pista {
+  font-style: italic;
+}
+*/
+
 /* Con la atmósfera Aurora, el título de la nota y el H1 de lectura van en
    degradado y con resplandor, con un selector más fuerte: para dejarlos lisos
    hay que apuntar con el suyo. */

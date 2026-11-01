@@ -155,6 +155,8 @@ function esDeshacer(x: unknown): x is DeshacerIa {
       return clase && s("ruta") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
     case "archivo_borrar":
       return s("ruta");
+    case "archivo_reparar_renombre":
+      return s("ruta") && s("rutaAntes") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
     // Parte 4: el diccionario del vault.
     case "diccionario_quitar":
     case "diccionario_agregar":
@@ -222,6 +224,7 @@ export const NOMBRE_OP: Record<string, string> = {
   borrar: "Mandar a la papelera",
   papelera: "Papelera",
   diccionario: "Diccionario del vault",
+  reparar_renombre: "Reparar un renombre externo",
 };
 
 /**
