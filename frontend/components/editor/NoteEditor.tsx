@@ -38,11 +38,13 @@ import {
   type Salto,
 } from "@/lib/editor/pendingMatch";
 import {
+  avisosPropiedades,
   carpetaDeLaNota,
   liveExtensions,
   refreshAllLiveViews,
 } from "@/lib/editor/livePreview";
 import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
+import { avisosDeNota } from "@/lib/esquemasVault";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import {
   type DestinoTrasTitulo,
@@ -745,6 +747,9 @@ export function NoteEditor({
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
             carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
+            // Los avisos de la tarjeta de propiedades (`FUN-M-46`): esquemas de
+            // `esquemas.yml` y el `#` sin comillas. Por referencia, como arriba.
+            avisosPropiedades.of((texto) => avisosDeNota(notaIdRef.current, texto)),
             // Adónde va el foco al confirmar o descartar el título (`DEF-139`).
             // A la vista VIVA (`viewRef`), no a la del widget: si se renombró, esa
             // ya está destruida y otra ocupa su lugar. Un frame de margen para que

@@ -20,6 +20,7 @@ import {
   sePuedeEditar,
   type ArchivoVisor,
 } from "@/lib/otrosArchivos";
+import { EVENTO_ARCHIVO_GUARDADO } from "@/lib/eventos";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./VisorArchivo.module.css";
 
@@ -188,6 +189,7 @@ function VisorTexto({
       setDatos({ ...datos, contenido: borrador, mtime: res.mtime });
       setSucio(false);
       setConflicto(null);
+      window.dispatchEvent(new CustomEvent(EVENTO_ARCHIVO_GUARDADO, { detail: { ruta } }));
     } catch (e) {
       setAviso(typeof e === "string" ? e : "No se pudo guardar el archivo.");
     }

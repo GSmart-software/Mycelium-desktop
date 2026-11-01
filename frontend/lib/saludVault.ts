@@ -8,10 +8,30 @@
  *
  * Costo: tres consultas sin contenido (notas, carpetas, enlaces) y una de
  * contenido acotada a las notas con problemas. No relee archivos.
+ *
+ * Las propiedades (`FUN-M-46`): sin `esquemas.yml` solo se leen las notas cuyo
+ * índice tiene un valor que empieza con `#` (candidatas al aviso del `#`); con
+ * esquemas, el contenido de las notas markdown del alcance, en una consulta.
  */
-import { carpetasDelIndice, contenidosDe, filasDelIndice, notasDelIndice } from "@/lib/db/indiceIa";
+import {
+  carpetasDelIndice,
+  contenidosDe,
+  filasDelIndice,
+  notasConValorAlmohadilla,
+  notasDelIndice,
+} from "@/lib/db/indiceIa";
+import { notasQueNoCumplen } from "@/lib/esquemas";
+import { asegurarEsquemas } from "@/lib/esquemasVault";
 import { carpetaEsporas } from "@/lib/esporasVault";
-import { calcularSalud, notasConProblemas, ponerLineas, type Alcance, type InformeSalud } from "@/lib/salud";
+import {
+  calcularSalud,
+  enAlcance,
+  excluida,
+  notasConProblemas,
+  ponerLineas,
+  type Alcance,
+  type InformeSalud,
+} from "@/lib/salud";
 import { useVaultStore } from "@/stores/vaultStore";
 
 export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Promise<InformeSalud> {
@@ -28,6 +48,20 @@ export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Prom
   if (ids.length > 0) {
     const contenidos = await contenidosDe(ids);
     ponerLineas(informe, contenidos, new Map(notas.map((n) => [n.id, n.tipo])));
+  }
+
+  // Propiedades (`FUN-M-46`).
+  const { esquemas, avisos } = await asegurarEsquemas();
+  informe.avisosEsquemas = avisos;
+  const esporas = carpetaEsporas();
+  const candidatas = notas
+    .filter((n) => n.tipo === "markdown" && enAlcance(n.id, alcance))
+    .map((n) => ({ ...n, excluida: excluida(n, esporas) }));
+  const enJuego = new Set(candidatas.map((n) => n.id));
+  const aLeer = esquemas.length > 0 ? [...enJuego] : (await notasConValorAlmohadilla()).filter((id) => enJuego.has(id));
+  if (aLeer.length > 0) {
+    const contenidos = await contenidosDe(aLeer);
+    informe.propiedades = notasQueNoCumplen(candidatas, contenidos, esquemas);
   }
   return informe;
 }

@@ -95,3 +95,18 @@ export async function contenidosDe(ids: readonly string[]): Promise<Map<string, 
   for (const f of filas) if (f.contenido !== null) mapa.set(f.nota_id, f.contenido);
   return mapa;
 }
+
+/**
+ * Notas con alguna propiedad cuyo valor indexado empieza con `#` (fuera de
+ * `tags`): las candidatas al aviso del `#` sin comillas (`FUN-M-46`). El índice
+ * no distingue `"#24"` de `#24` —las comillas no se guardan—, así que esto solo
+ * acota qué contenidos leer; el aviso lo decide el texto crudo.
+ */
+export async function notasConValorAlmohadilla(): Promise<string[]> {
+  const filas = await select<{ nota_id: string }>(
+    `SELECT DISTINCT nota_id FROM propiedades
+     WHERE substr(valor, 1, 1) = '#' AND lower(clave) <> 'tags'
+       AND nota_id NOT IN (SELECT nota_id FROM papelera)`,
+  );
+  return filas.map((f) => f.nota_id);
+}

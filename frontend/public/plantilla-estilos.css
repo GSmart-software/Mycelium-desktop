@@ -758,7 +758,17 @@
      .mic-prop-pill    cada elemento de una lista o etiqueta
      .mic-prop-check   una casilla (verdadero/falso)
      .mic-live-props   el envoltorio de la tarjeta en vivo
+     .mic-prop-con-aviso  una fila con un aviso (esquema o # sin comillas)
+     .mic-props-avisos    la lista de avisos debajo de las filas
+     .mic-props-aviso-item  cada aviso
+     --mic-aviso-propiedad  el color de los avisos (ámbar por defecto)
    ========================================================================== */
+
+/*
+:root {
+  --mic-aviso-propiedad: #e07a3a;
+}
+*/
 
 /*
 .mic-props {

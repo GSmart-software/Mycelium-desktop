@@ -97,7 +97,7 @@ function quitarComillas(s: string): string {
 }
 
 /** Nodo del árbol YAML: escalar, lista o mapa. */
-type Nodo = string | Nodo[] | { [clave: string]: Nodo };
+export type Nodo = string | Nodo[] | { [clave: string]: Nodo };
 
 /**
  * Parser YAML mínimo pero *estructural*: mapas, listas y escalares anidados por
@@ -109,7 +109,7 @@ type Nodo = string | Nodo[] | { [clave: string]: Nodo };
  * `.base` es un árbol. Reusarlo habría significado desplanarlo, que es
  * justamente lo que lo mantiene simple y seguro para editar notas.
  */
-function parsearYaml(texto: string): Record<string, Nodo> {
+export function parsearYaml(texto: string): Record<string, Nodo> {
   const lineas = texto
     .split("\n")
     .map(sinCr)

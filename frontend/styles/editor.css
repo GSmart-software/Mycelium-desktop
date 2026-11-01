@@ -2145,6 +2145,38 @@
   font-size: 0.8125rem;
 }
 
+/* Avisos de propiedades (`FUN-M-46`): esquemas y el `#` sin comillas. Solo
+   padding, nunca margin: CodeMirror mide el bloque con `offsetHeight`. */
+.mic-prop.mic-prop-con-aviso {
+  box-shadow: inset 2px 0 0 var(--mic-aviso-propiedad);
+  padding-left: 0.5rem;
+}
+
+.mic-props-avisos {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.mic-props-aviso-item {
+  padding: 0 0 0 1.1rem;
+  position: relative;
+  color: var(--mic-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.mic-props-aviso-item::before {
+  content: "!";
+  position: absolute;
+  left: 0.25rem;
+  font-weight: 700;
+  color: var(--mic-aviso-propiedad);
+}
+
 .mic-props-edit .mic-props-nosop {
   padding: 0 0 0.35rem;
 }

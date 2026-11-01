@@ -382,7 +382,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Lo que degrada la memoria del vault, calculado con el criterio del índice de Mycelium (el mismo \
                 del panel de salud de la app): ENLACES y EMBEDS ROTOS (nota y línea), TÍTULOS DUPLICADOS (con los enlaces \
                 que quedan ambiguos entre ellos), notas HUÉRFANAS (ninguna nota las enlaza; un lienzo que las tiene como \
-                tarjeta sí cuenta) y notas SIN ENLACES SALIENTES. Un [[enlace]] dentro de un bloque de código no cuenta, \
+                tarjeta sí cuenta), notas SIN ENLACES SALIENTES y PROPIEDADES que no cumplen los esquemas de \
+                `esquemas.yml` (o con un valor que empieza con # sin comillas, que YAML lee como comentario). Un [[enlace]] dentro de un bloque de código no cuenta, \
                 y un enlace a un archivo que existe pero no es nota (imagen, PDF) no está roto. Las Esporas (plantillas) y \
                 las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Alcance: el vault entero, \
                 una carpeta o una nota. Hasta 100 ítems por clase, con los totales.",
@@ -403,7 +404,9 @@ pub fn definiciones() -> Vec<Value> {
             "title": "Validar una nota",
             "description": "Chequeo de cierre de una nota recién escrita o editada, con el criterio del índice: que su título \
                 sea único (si no, sus homónimas), que todos sus enlaces y embeds resuelvan (los rotos y los ambiguos, con su \
-                línea) y que alguna nota la enlace (si no, está huérfana: hay que enlazarla desde su mapa o nota madre). \
+                línea), que alguna nota la enlace (si no, está huérfana: hay que enlazarla desde su mapa o nota madre) y \
+                que sus PROPIEDADES sean válidas (claves obligatorias, tipos y valores permitidos de los esquemas de \
+                `esquemas.yml`, y ningún valor con # sin comillas). \
                 Úsala antes de dar por terminado un cambio en la memoria. Mycelium indexa al guardar: si se acaba de \
                 escribir el archivo, conviene esperar un instante antes de validarla.",
             "inputSchema": {
@@ -1291,6 +1294,21 @@ pub fn redactar_salud(r: &Value) -> String {
     let nota = |x: &Value| format!("{} — {}", s(x, "titulo"), s(x, "ruta"));
     seccion("Huérfanas (ninguna nota las enlaza)", "huerfanas", "huerfanas", &nota);
     seccion("Sin enlaces salientes", "sinSalientes", "sin_salientes", &nota);
+    // `FUN-M-46`: propiedades que no cumplen los esquemas de `esquemas.yml` o con un `#` sin comillas.
+    seccion("Propiedades que no cumplen (esquemas.yml o # sin comillas)", "propiedades", "propiedades", &|x: &Value| {
+        let mut l = format!("{} — {}", s(x, "titulo"), s(x, "ruta"));
+        for a in x.get("avisos").and_then(Value::as_array).into_iter().flatten() {
+            l.push_str(&format!("\n      línea {} · {}", n(a, "linea"), s(a, "mensaje")));
+        }
+        l
+    });
+    let avisos_esquemas = r.get("esquemas_avisos").and_then(Value::as_array).cloned().unwrap_or_default();
+    if !avisos_esquemas.is_empty() {
+        t.push_str("\nesquemas.yml tiene problemas (lo que no se entiende se ignora):");
+        for a in &avisos_esquemas {
+            t.push_str(&format!("\n  - {}", s(a, "mensaje")));
+        }
+    }
     if recortado {
         t.push_str(&format!(
             "\n(Cada lista muestra hasta {tope}. Para ver el resto, pide un alcance más chico: una carpeta o una nota.)"
@@ -1348,6 +1366,12 @@ mod tests_salud {
         assert!(t.contains("«Plan» [markdown]: Plan.md, p/Plan.md · 1 enlace ambiguo:\n      Mapa.md · línea 8 · [[Plan]]"), "{t}");
         assert!(t.contains("Huérfanas (ninguna nota las enlaza): 1\n  - Suelta — Suelta.md"), "{t}");
         assert!(t.ends_with("una carpeta o una nota.)"), "recortó los rotos: {t}");
+        let props = redactar_salud(&json!({"alcance": {"tipo": "vault"}, "notas": 3, "tope": 100,
+            "conteos": {"propiedades": 1, "total": 1},
+            "propiedades": [{"ruta": "P/a.md", "titulo": "a", "avisos": [{"linea": 1, "mensaje": "Falta la propiedad obligatoria «estado»."}]}],
+            "esquemas_avisos": [{"mensaje": "Esquema «X»: el tipo «raro» no existe."}]}));
+        assert!(props.contains("Propiedades que no cumplen (esquemas.yml o # sin comillas): 1\n  - a — P/a.md\n      línea 1 · Falta"), "{props}");
+        assert!(props.contains("esquemas.yml tiene problemas"), "{props}");
         let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
             "conteos": {"total": 0}}));
         assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");

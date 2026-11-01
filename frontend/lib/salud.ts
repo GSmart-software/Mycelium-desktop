@@ -71,6 +71,12 @@ export type NotaRef = { ruta: string; titulo: string };
 /** Notas homónimas y los enlaces que no saben a cuál ir. */
 export type Duplicado = { titulo: string; tipo: string; rutas: string[]; ambiguos: Problema[] };
 
+/** Un aviso de propiedades de una nota (`FUN-M-46`): ver `lib/esquemas.ts`. */
+export type AvisoDeNota = { clase: string; clave: string | null; linea: number; mensaje: string };
+
+/** Una nota cuyas propiedades no cumplen sus esquemas (o tienen un `#` sin comillas). */
+export type NotaConAvisos = NotaRef & { avisos: AvisoDeNota[] };
+
 export type InformeSalud = {
   alcance: Alcance;
   /** Notas consideradas (sin Esporas ni instrucciones). */
@@ -80,6 +86,13 @@ export type InformeSalud = {
   duplicados: Duplicado[];
   huerfanas: NotaRef[];
   sinSalientes: NotaRef[];
+  /**
+   * Notas con propiedades que no cumplen (`FUN-M-46`). `calcularSalud` la deja
+   * vacía: la llena `lib/saludVault.ts`, que es quien lee los contenidos.
+   */
+  propiedades: NotaConAvisos[];
+  /** Problemas del propio `esquemas.yml` (vacía si no hay o está bien). */
+  avisosEsquemas: { mensaje: string; linea?: number }[];
 };
 
 export type EntradaSalud = {
@@ -228,6 +241,8 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
     duplicados: duplicadosEnAlcance,
     huerfanas: markdown.filter((n) => !entrantes.has(n.id)).map(ref).sort(porRuta),
     sinSalientes: markdown.filter((n) => !salientes.has(n.id)).map(ref).sort(porRuta),
+    propiedades: [],
+    avisosEsquemas: [],
   };
 }
 
@@ -271,6 +286,7 @@ export function conteos(informe: InformeSalud): {
   duplicados: number;
   huerfanas: number;
   sinSalientes: number;
+  propiedades: number;
   total: number;
 } {
   const c = {
@@ -279,8 +295,9 @@ export function conteos(informe: InformeSalud): {
     duplicados: informe.duplicados.length,
     huerfanas: informe.huerfanas.length,
     sinSalientes: informe.sinSalientes.length,
+    propiedades: informe.propiedades?.length ?? 0,
   };
-  return { ...c, total: c.rotos + c.embedsRotos + c.duplicados + c.huerfanas + c.sinSalientes };
+  return { ...c, total: c.rotos + c.embedsRotos + c.duplicados + c.huerfanas + c.sinSalientes + c.propiedades };
 }
 
 // ── Validar una nota ─────────────────────────────────────────────────────────
@@ -417,5 +434,8 @@ export function informeParaIa(informe: InformeSalud, tope = TOPE_SALUD) {
     duplicados: corte(informe.duplicados).map((d) => ({ ...d, ambiguos: corte(d.ambiguos) })),
     huerfanas: corte(informe.huerfanas),
     sin_salientes: corte(informe.sinSalientes),
+    // `FUN-M-46`: notas con propiedades que no cumplen sus esquemas o con un `#` sin comillas.
+    propiedades: corte(informe.propiedades ?? []).map((n) => ({ ...n, avisos: corte(n.avisos) })),
+    ...((informe.avisosEsquemas?.length ?? 0) > 0 ? { esquemas_avisos: informe.avisosEsquemas } : {}),
   };
 }
