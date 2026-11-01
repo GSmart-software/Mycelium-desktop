@@ -48,5 +48,11 @@ en cualquier campo. Se recuerdan los últimos 100 pasos.
 > No es una copia: muestra el contenido real del archivo, y su botón **Abrir** la abre en
 > una pestaña. Si la nota se borra, la tarjeta lo dice en vez de romper el lienzo.
 
+## Mostrarlo dentro de una nota
+
+Escribe `![[Tablero.canvas]]` (o solo `![[Tablero]]`) en una nota para ver el lienzo ahí,
+como una vista previa de solo lectura. Un clic lo abre en su pestaña. Detalles en
+[Imágenes y archivos embebidos](ayuda:escribir-notas/imagenes-y-embebidos).
+
 Las flechas son disposición visual: no crean conexiones en el
 [grafo](ayuda:enlazar-y-organizar/grafo). Una conexión se hace siempre con un `[[enlace]]`.
