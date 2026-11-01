@@ -237,6 +237,6 @@ test("informeParaIa: recorta cada lista con tope y deja los conteos completos", 
   const r = S.informeParaIa(i, 1);
   assert.equal(r.huerfanas.length, 1);
   assert.equal(r.conteos.huerfanas, 2);
-  assert.equal(r.conteos.total, r.conteos.rotos + r.conteos.embedsRotos + r.conteos.duplicados + r.conteos.huerfanas + r.conteos.sinSalientes);
+  assert.equal(r.conteos.total, r.conteos.rotos + r.conteos.embedsRotos + r.conteos.duplicados + r.conteos.huerfanas + r.conteos.sinSalientes + r.conteos.propiedades);
   assert.equal(r.tope, 1);
 });

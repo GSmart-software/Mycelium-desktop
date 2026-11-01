@@ -57,3 +57,11 @@ export function avisarAliasCambiados(aliases: Record<string, string[]>): void {
   if (typeof window === "undefined" || Object.keys(aliases).length === 0) return;
   window.dispatchEvent(new CustomEvent(EVENTO_ALIAS, { detail: { aliases } }));
 }
+
+/**
+ * Un archivo que no es nota se acaba de guardar desde el visor de la app
+ * (`FUN-M-46`): `detail.ruta` dice cuál. El watcher descarta lo que la propia
+ * app escribe, así que sin esto nadie se enteraría. Lo escucha
+ * `lib/esquemasVault.ts` para releer `esquemas.yml` al guardarlo.
+ */
+export const EVENTO_ARCHIVO_GUARDADO = "micelio:archivo-guardado";

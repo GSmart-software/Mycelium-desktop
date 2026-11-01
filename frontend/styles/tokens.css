@@ -573,6 +573,13 @@
   --mic-tarea-pregunta:   color-mix(in srgb, var(--mic-callout-question-border) var(--mic-callout-tinta), var(--mic-text-primary));
 }
 
+/* Avisos de las propiedades de una nota (`FUN-M-46`): una clave obligatoria que
+   falta, un valor de otro tipo o no permitido, un `#` sin comillas. Ámbar de
+   aviso, no rojo de error: no bloquean nada. */
+:root {
+  --mic-aviso-propiedad: var(--mic-callout-warning-border);
+}
+
 /* ── Corrector ortográfico (FUN-L-12) ─────────────────────────── */
 /* El subrayado ondulado de una palabra mal escrita. Es propio —el del sistema
    está apagado—, así que el color lo pone el tema: el rojo de los callouts de

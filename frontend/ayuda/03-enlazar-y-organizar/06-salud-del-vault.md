@@ -2,7 +2,7 @@
 titulo: Salud del vault
 tema: Enlazar y organizar
 solo: desktop
-sinonimos: [enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault]
+sinonimos: [enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
 ---
 
 La **salud del vault** muestra lo que va degradando la red de notas sin que se note: enlaces
@@ -36,7 +36,11 @@ tecla). El botón de las flechas vuelve a revisar al momento.
 | Embeds rotos | Un `![[…]]` de algo que no está, por ejemplo un dibujo que se borró |
 | Títulos duplicados | Dos notas del mismo tipo con el mismo nombre en carpetas distintas. Muestra los enlaces **ambiguos**: los que no dicen la carpeta y por eso van a la más cercana a la raíz |
 | Huérfanas | Notas que ninguna otra enlaza. Si un [lienzo](ayuda:tipos-de-archivo/lienzos) la tiene como tarjeta, ya no es huérfana |
+| Propiedades | Notas cuyas [propiedades](ayuda:escribir-notas/propiedades) no cumplen los [esquemas](ayuda:escribir-notas/esquemas-de-propiedades) de `esquemas.yml` (una obligatoria que falta, un tipo o un valor que no corresponde) o tienen un valor que empieza con `#` sin comillas. Cada aviso lleva a su línea |
 | Sin enlaces salientes | Notas que no enlazan a ninguna otra. Está plegada: suele ser normal en notas cortas |
+
+Si `esquemas.yml` tiene algo que no se entiende, arriba del panel aparece qué y en qué línea:
+esa parte se ignora y lo demás se aplica.
 
 > [!info] Lo que no se revisa
 > Las [Esporas](ayuda:enlazar-y-organizar/esporas) son plantillas: sus `[[{{titulo}}]]` no son
@@ -49,4 +53,4 @@ tecla). El botón de las flechas vuelve a revisar al momento.
 Con el [control de la IA](ayuda:ia/control-de-la-ia) encendido, Claude Code puede pedir este
 mismo informe —del vault, de una carpeta o de una nota— y validar una nota que acaba de
 escribir antes de darla por terminada: que su título sea único, que sus enlaces lleguen a
-algún lado y que alguna nota la enlace.
+algún lado, que alguna nota la enlace y que sus propiedades cumplan los esquemas.

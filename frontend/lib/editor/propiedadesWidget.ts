@@ -40,6 +40,7 @@ import {
   type ValorPropiedad,
 } from "@/lib/frontmatter";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { avisosDeClave, textoDeAviso, type AvisoPropiedad } from "@/lib/esquemas";
 import { ICONO_TIPO, valorPropiedadHtml } from "@/lib/markdown";
 import { mensajeDeError } from "@/lib/mensajeError";
 
@@ -55,6 +56,11 @@ export type AccionesPropiedades = {
   navegar(titulo: string): void;
   /** Avisa que el alto del bloque cambió (`view.requestMeasure()`). */
   medir(): void;
+  /**
+   * Los avisos de propiedades de este frontmatter (`FUN-M-46`: esquemas y el
+   * `#` sin comillas). Opcional: sin ella la tarjeta no avisa nada.
+   */
+  avisos?(texto: string): AvisoPropiedad[];
 };
 
 /** Propiedad de la que cuelga el controlador en el DOM del widget. */
@@ -221,6 +227,24 @@ class Fila {
     this.claveEl.setAttribute("aria-label", `Nombre de la propiedad ${p.clave}`);
     if (document.activeElement !== this.claveEl) this.claveEl.value = p.clave;
     this.pintarValor();
+  }
+
+  /**
+   * Marca la fila si sus propiedades tienen avisos (`FUN-M-46`): un borde y el
+   * texto al pasar el mouse. El detalle completo va en la lista de la tarjeta.
+   */
+  marcarAvisos(avisos: AvisoPropiedad[]) {
+    const texto = avisos.map(textoDeAviso).join("\n");
+    if (texto === (this.el.dataset.avisos ?? "")) return;
+    if (texto === "") {
+      delete this.el.dataset.avisos;
+      this.el.classList.remove("mic-prop-con-aviso");
+      this.el.removeAttribute("title");
+    } else {
+      this.el.dataset.avisos = texto;
+      this.el.classList.add("mic-prop-con-aviso");
+      this.el.title = texto;
+    }
   }
 
   /** Ejecuta una acción que puede lanzar y deja el motivo a la vista si lanza. */
@@ -420,6 +444,9 @@ export class TarjetaPropiedades {
   private readonly avisoEl: HTMLElement;
   private readonly filasEl: HTMLElement;
   private readonly errorEl: HTMLElement;
+  /** Lista de avisos de propiedades (`FUN-M-46`). */
+  private readonly avisosEl: HTMLElement;
+  private avisosPintados = "";
   private readonly agregarEl: HTMLElement;
   private readonly nuevaEl: HTMLInputElement;
   private readonly tipoEl: HTMLSelectElement;
@@ -447,6 +474,11 @@ export class TarjetaPropiedades {
     this.errorEl = document.createElement("p");
     this.errorEl.className = "mic-props-error";
     this.errorEl.hidden = true;
+
+    this.avisosEl = document.createElement("ul");
+    this.avisosEl.className = "mic-props-avisos";
+    this.avisosEl.hidden = true;
+    this.avisosEl.setAttribute("aria-label", "Avisos de las propiedades");
 
     // Pie: agregar una propiedad + la salida a editar el bloque como texto.
     const pie = document.createElement("div");
@@ -489,7 +521,7 @@ export class TarjetaPropiedades {
     btnTexto.addEventListener("click", () => this.acciones.verComoTexto());
 
     pie.append(this.agregarEl, btnTexto);
-    this.tarjetaEl.append(this.avisoEl, this.filasEl, this.errorEl, pie);
+    this.tarjetaEl.append(this.avisoEl, this.filasEl, this.avisosEl, this.errorEl, pie);
     this.dom.append(this.tarjetaEl);
 
     // Un `[[wikilink]]` de un valor navega igual que en el cuerpo de la nota
@@ -550,6 +582,26 @@ export class TarjetaPropiedades {
     this.agregarEl.hidden = noSoportado;
 
     this.reconciliar(fm.hay && fm.soportado ? fm.props : []);
+    this.pintarAvisos(this.acciones.avisos?.(texto) ?? []);
+  }
+
+  /** Los avisos de esquemas y del `#` (`FUN-M-46`): en la fila y en una lista. Nunca bloquean. */
+  private pintarAvisos(avisos: AvisoPropiedad[]) {
+    for (const fila of this.filas) fila.marcarAvisos(avisosDeClave(avisos, fila.clave));
+    const huella = avisos.map((a) => `${a.linea}:${textoDeAviso(a)}`).join("\n");
+    if (huella === this.avisosPintados) return;
+    this.avisosPintados = huella;
+    this.avisosEl.hidden = avisos.length === 0;
+    this.avisosEl.replaceChildren(
+      ...avisos.map((a) => {
+        const li = document.createElement("li");
+        li.className = "mic-props-aviso-item";
+        li.dataset.clase = a.clase;
+        li.textContent = textoDeAviso(a);
+        return li;
+      }),
+    );
+    this.acciones.medir();
   }
 
   private mostrarError(mensaje: string | null) {

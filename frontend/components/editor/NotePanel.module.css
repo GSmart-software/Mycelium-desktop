@@ -448,3 +448,35 @@
   color: var(--mic-callout-error-border);
   line-height: 1.4;
 }
+
+/* Avisos de propiedades (`FUN-M-46`): esquemas y el `#` sin comillas. */
+.propConAviso {
+  box-shadow: inset 2px 0 0 var(--mic-aviso-propiedad);
+}
+
+.propsAvisos {
+  list-style: none;
+  margin: 0;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--mic-aviso-propiedad) 10%, transparent);
+}
+
+.propsAvisoItem {
+  position: relative;
+  padding-left: 0.9rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mic-text-primary);
+}
+
+.propsAvisoItem::before {
+  content: "!";
+  position: absolute;
+  left: 0.1rem;
+  font-weight: 700;
+  color: var(--mic-aviso-propiedad);
+}

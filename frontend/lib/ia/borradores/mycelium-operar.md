@@ -36,11 +36,14 @@ con el **mismo criterio que la app**, y conviene preferirlas a `grep` cuando est
   a mano.
 
 - `mycelium_salud`: lo que degrada la memoria —enlaces y embeds rotos, títulos duplicados
-  (con los enlaces que quedan ambiguos), huérfanas y notas sin enlaces salientes—, con nota
+  (con los enlaces que quedan ambiguos), huérfanas, notas sin enlaces salientes y
+  propiedades que no cumplen los esquemas de `esquemas.yml` (o con un `#` sin comillas)—, con nota
   y línea, para el vault, una carpeta o una nota. Es lo mismo que ve el usuario en el panel
   **Salud del vault** de la app.
 - `mycelium_validar_nota`: el **chequeo de cierre** de una nota que acabas de escribir o
-  editar: título único, enlaces que resuelven, alguien que la enlace. Pásala antes de dar
+  editar: título único, enlaces que resuelven, alguien que la enlace y propiedades válidas
+  según `esquemas.yml` (claves obligatorias, tipos, valores permitidos; ver la sección de
+  propiedades de `mycelium-vault`). Pásala antes de dar
   por terminado un cambio en la memoria; si falla, corrígelo (enlázala desde su mapa,
   cambia el título, arregla el enlace). Mycelium indexa al guardar: si acabas de escribir
   el archivo, espera un instante antes de validarla.

@@ -45,6 +45,7 @@ import {
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
+import type { AvisoPropiedad } from "@/lib/esquemas";
 import { destinoDeUrlSuelta, esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { dondeAbrirClic, type DondeAbrir } from "@/lib/enlacesExternos";
 import {
@@ -180,6 +181,16 @@ const navegarPorTitulo = Facet.define<(titulo: string) => void, ((titulo: string
  */
 export const carpetaDeLaNota = Facet.define<() => string | null, () => string | null>({
   combine: (valores) => valores[0] ?? (() => null),
+});
+
+/**
+ * Los avisos de propiedades de la nota (`FUN-M-46`: esquemas y el `#` sin
+ * comillas) para un texto de frontmatter. Va por un `Facet` por lo mismo que
+ * `navegarPorTitulo`: la tarjeta la arma un `StateField`. Lo pone el editor de
+ * notas (`lib/esquemasVault.ts` → `avisosDeNota`); sin él, la tarjeta no avisa.
+ */
+export const avisosPropiedades = Facet.define<(texto: string) => AvisoPropiedad[], ((texto: string) => AvisoPropiedad[]) | null>({
+  combine: (valores) => valores[0] ?? null,
 });
 
 const crudoTablaEffect = StateEffect.define<number | null>();
@@ -445,6 +456,11 @@ const crudoFrontmatterEffect = StateEffect.define<boolean>();
 class FrontmatterWidget extends WidgetType {
   /** Filas de la tarjeta, para estimar el alto del bloque (ver abajo). */
   private readonly filas: number;
+  /**
+   * Generación del live preview: cambia con `refreshAllLiveViews`, que es como
+   * se avisa que cambiaron los esquemas (`FUN-M-46`) y hay que revalidar.
+   */
+  private readonly gen = liveGen;
 
   constructor(readonly texto: string) {
     super();
@@ -457,7 +473,7 @@ class FrontmatterWidget extends WidgetType {
   }
 
   eq(other: FrontmatterWidget) {
-    return other.texto === this.texto;
+    return other.texto === this.texto && other.gen === this.gen;
   }
 
   toDOM(view: EditorView) {
@@ -512,6 +528,7 @@ function accionesPropiedades(view: EditorView): AccionesPropiedades {
     quitar: (clave) => editar((t) => quitarPropiedad(t, clave)),
     renombrar: (clave, nueva) => editar((t) => renombrarPropiedad(t, clave, nueva)),
     navegar: (titulo) => view.state.facet(navegarPorTitulo)?.(titulo),
+    avisos: (texto) => view.state.facet(avisosPropiedades)?.(texto) ?? [],
     verComoTexto: () => {
       const lim = limitesFrontmatter(view.state);
       view.dispatch({

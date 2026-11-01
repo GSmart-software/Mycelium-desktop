@@ -4,8 +4,9 @@ import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
-import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
-import { conteos, type Duplicado, type NotaRef, type Problema } from "@/lib/salud";
+import { EVENTO_ARCHIVO_GUARDADO, EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
+import { RUTA_ESQUEMAS } from "@/lib/esquemas";
+import { conteos, type Duplicado, type NotaConAvisos, type NotaRef, type Problema } from "@/lib/salud";
 import { avisar } from "@/stores/avisosStore";
 import { useSaludStore } from "@/stores/saludStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -44,6 +45,8 @@ export function SaludPanel() {
     const pedir = () => useSaludStore.getState().pedir();
     window.addEventListener(EVENTO_NOTA_GUARDADA, pedir);
     window.addEventListener(EVENTO_RECARGA, pedir);
+    // Guardar `esquemas.yml` desde el visor cambia qué notas cumplen (`FUN-M-46`).
+    window.addEventListener(EVENTO_ARCHIVO_GUARDADO, pedir);
     // El árbol: crear, renombrar, mover o borrar cambian destinos y backlinks.
     const desuscribir = useVaultStore.subscribe((s, previo) => {
       if (s.notas !== previo.notas || s.carpetas !== previo.carpetas) pedir();
@@ -51,6 +54,7 @@ export function SaludPanel() {
     return () => {
       window.removeEventListener(EVENTO_NOTA_GUARDADA, pedir);
       window.removeEventListener(EVENTO_RECARGA, pedir);
+      window.removeEventListener(EVENTO_ARCHIVO_GUARDADO, pedir);
       desuscribir();
     };
   }, [vaultId]);
@@ -104,6 +108,23 @@ export function SaludPanel() {
 
       {error && <p className={styles.error}>No se pudo revisar el vault: {error}</p>}
 
+      {informe && informe.avisosEsquemas.length > 0 && (
+        <div className={styles.error} role="status">
+          <p>
+            {RUTA_ESQUEMAS} tiene {informe.avisosEsquemas.length === 1 ? "un problema" : `${informe.avisosEsquemas.length} problemas`}; lo que
+            no se entiende se ignora:
+          </p>
+          <ul className={styles.lista}>
+            {informe.avisosEsquemas.map((a, i) => (
+              <li key={i}>
+                {a.linea !== undefined && `Línea ${a.linea}: `}
+                {a.mensaje}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {informe && c && (
         <>
           <Seccion
@@ -132,6 +153,15 @@ export function SaludPanel() {
           <Seccion titulo="Huérfanas" cuenta={c.huerfanas} ayuda="Notas que ninguna otra enlaza: nada lleva hasta ellas.">
             {informe.huerfanas.slice(0, TOPE_VISIBLE).map((n) => (
               <ItemNota key={n.ruta} n={n} ir={ir} />
+            ))}
+          </Seccion>
+          <Seccion
+            titulo="Propiedades"
+            cuenta={c.propiedades}
+            ayuda={`Notas cuyas propiedades no cumplen los esquemas de ${RUTA_ESQUEMAS} o tienen un valor que empieza con # sin comillas.`}
+          >
+            {informe.propiedades.slice(0, TOPE_VISIBLE).map((n) => (
+              <ItemPropiedades key={n.ruta} n={n} ir={ir} />
             ))}
           </Seccion>
           <Seccion
@@ -219,6 +249,27 @@ function ItemDuplicado({ d, titulo, ir }: { d: Duplicado; titulo: (id: string) =
         ))}
         {d.ambiguos.map((p, i) => (
           <ItemProblema key={`${p.desde}-${p.texto}-${i}`} p={p} tituloDesde={`Ambiguo en ${titulo(p.desde)}`} ir={ir} />
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+function ItemPropiedades({ n, ir }: { n: NotaConAvisos; ir: Ir }) {
+  return (
+    <li className={styles.grupo}>
+      <p className={styles.grupoTitulo}>
+        {n.titulo} · {n.avisos.length} {n.avisos.length === 1 ? "aviso" : "avisos"}
+      </p>
+      <ul className={styles.lista}>
+        {n.avisos.map((a, i) => (
+          <li key={`${a.linea}-${i}`}>
+            <button type="button" className={styles.item} onClick={() => ir(n.ruta, a.linea)} title={`Abrir ${n.ruta}`}>
+              <span className={styles.itemDetalle}>
+                Línea {a.linea} · {a.mensaje}
+              </span>
+            </button>
+          </li>
         ))}
       </ul>
     </li>

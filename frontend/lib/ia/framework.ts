@@ -169,8 +169,14 @@ import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
  *   el mantenimiento de `mycelium-memoria`, y como primer paso de
  *   `/vault-huerfanas`.
  *   **Minor**: la IA gana herramientas nuevas.
+ * - 2.4.0 — **esquemas de propiedades** (`FUN-M-46`): `esquemas.yml` en la
+ *   raíz del vault (claves obligatorias, tipos, valores permitidos, por carpeta
+ *   o por `tipo`), el aviso del `#` sin comillas, y el chequeo «Propiedades
+ *   válidas» de `mycelium_validar_nota` / la sección de `mycelium_salud`, en
+ *   la sección de propiedades de `mycelium-vault` y en `mycelium-operar`.
+ *   **Minor**: la IA gana una validación nueva.
  */
-export const FRAMEWORK_IA_VERSION = "2.3.0";
+export const FRAMEWORK_IA_VERSION = "2.4.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -200,7 +206,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 3. **Nada huérfano**: toda nota nueva enlaza a algo y la enlaza su mapa o nota madre.
 4. **No dupliques**: buscá antes de crear; ampliá antes que fragmentar.
 5. **Estructura**: usá las carpetas que ya existen.
-6. **Propiedades**: frontmatter plano; reusá las claves del vault.
+6. **Propiedades**: frontmatter plano; reusá las claves del vault y cumple \`esquemas.yml\` si existe.
 7. **Idioma**: el del vault.
 8. **Solo los \`.md\` son memoria**: un \`.py\` o un \`.csv\` no se cita con \`[[ ]]\`.
 9. **\`.mycelium/\`**: no se escribe nunca; calendario y diccionario, solo por MCP.
@@ -392,6 +398,40 @@ Subconjunto soportado — un **mapa plano** cuyos valores sean:
   \`grep -rh "^[a-zA-Z_-]*:" --include="*.md" . | sort -u\`.
 - En la búsqueda de Mycelium, \`clave:valor\` filtra por propiedad y \`tag:x\` por
   etiqueta.
+- **Un valor que empieza con \`#\` va entre comillas**: \`Issue: "#24"\`. Sin comillas,
+  YAML lo lee como comentario y la propiedad queda **nula** para cualquier otro
+  programa (Mycelium la muestra igual, así que el error pasa en silencio; la app lo
+  avisa). No aplica a \`tags\`, que se aceptan con o sin \`#\`.
+
+### Esquemas (\`esquemas.yml\`)
+
+Si en la raíz del vault hay un **\`esquemas.yml\`**, declara qué propiedades tienen que
+tener ciertas notas. **Léelo antes de crear o editar una nota** de una carpeta o un
+\`tipo\` que figure ahí, y cúmplelo:
+
+\`\`\`yaml
+Proyecto:                         # nombre del esquema
+  carpeta: Proyectos              # la carpeta y sus subcarpetas (o una lista); / = todo
+  obligatorias: [estado, inicio]
+  propiedades:
+    estado:
+      tipo: texto                 # texto, numero, casilla, fecha, fecha_hora, lista
+      valores: [activo, pausado, cerrado]
+    inicio: fecha                 # forma corta: solo el tipo
+Reunión:
+  tipo_de_nota: reunion           # las notas con la propiedad \`tipo: reunion\`
+  propiedades:
+    fecha: { … }                  # NO: los mapas en línea no se entienden
+\`\`\`
+
+- Con \`carpeta\` y \`tipo_de_nota\` juntas valen las dos; sin ninguna, aplica a todas.
+- **Varios esquemas que aplican se combinan**: la nota tiene que cumplirlos todos.
+- No se validan las Esporas ni \`CLAUDE.md\`/\`AGENTS.md\` de la raíz.
+- Los avisos (obligatoria que falta o vacía, tipo incorrecto, valor no permitido) se
+  ven en la tarjeta de propiedades, en el panel de salud y en \`mycelium_validar_nota\`
+  (chequeo «Propiedades válidas», con la línea). **No bloquean el guardado**: que no te
+  frene la app no significa que la nota esté bien; valídala.
+- Si el archivo tiene un error, esa parte se ignora y \`mycelium_salud\` lo informa.
 
 \`\`\`md
 ---
@@ -600,8 +640,9 @@ Cómo redactar para tu vos futuro:
 - **Huérfanas**: notas sin enlaces en ninguna dirección. Integralas (o proponé
   integrarlas) — usá \`/vault-huerfanas\`.
 - **Cierre de una nota**: con el MCP de control, \`mycelium_validar_nota\` comprueba que
-  la nota que acabas de escribir tenga título único, enlaces que resuelven y alguien que
-  la enlace; \`mycelium_salud\` da el panorama del vault o de una carpeta.
+  la nota que acabas de escribir tenga título único, enlaces que resuelven, alguien que
+  la enlace y propiedades válidas (\`esquemas.yml\`, \`#\` sin comillas);
+  \`mycelium_salud\` da el panorama del vault o de una carpeta.
 - **Enlaces rotos**: apuntan a notas que no existen; corregí el título o creá la
   nota faltante.
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
