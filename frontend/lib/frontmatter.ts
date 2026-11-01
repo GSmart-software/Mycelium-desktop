@@ -637,3 +637,40 @@ export function renombrarPropiedad(texto: string, clave: string, nueva: string):
   lineas[p.desdeLinea] = textoYaml(limpia) + sin.slice(m[1].length) + cr;
   return lineas.join("\n");
 }
+
+// ── `cssclasses`: clases CSS de la nota (`FUN-S-08`) ─────────────────────────
+
+/** Cuántas clases se aplican como mucho: más es un error, no un estilo. */
+const MAX_CLASES_CSS = 20;
+
+/**
+ * Un nombre de clase que se puede poner en un `class` sin escaparlo: letras
+ * ASCII, dígitos, `_` y `-`, sin empezar por dígito ni por `-` + dígito (eso no
+ * es un identificador de CSS válido y el selector no lo alcanzaría).
+ */
+const CLASE_CSS_VALIDA = /^(?!-?\d)[A-Za-z0-9_-]+$/;
+
+/**
+ * Las clases que pide la propiedad `cssclasses` de una nota, ya saneadas: se
+ * aplican al contenedor de la nota (edición y lectura) para que un snippet del
+ * usuario la pueda estilar, como en Obsidian.
+ *
+ * Acepta una lista (`[ficha, portada]` o con `- `) o un texto, separado por
+ * espacios o comas. Lo que no es un nombre de clase válido se descarta en
+ * silencio (`CLASE_CSS_VALIDA`); sin repetidos y con un tope. Sin la propiedad,
+ * o con un frontmatter que Mycelium no interpreta, ninguna.
+ */
+export function clasesCssDe(texto: string): string[] {
+  const p = propiedadDe(texto, "cssclasses");
+  if (p === undefined) return [];
+  const crudos = Array.isArray(p.valor) ? p.valor : [String(p.valor)];
+  const salida: string[] = [];
+  for (const crudo of crudos) {
+    for (const nombre of String(crudo).split(/[\s,]+/)) {
+      if (nombre === "" || !CLASE_CSS_VALIDA.test(nombre) || salida.includes(nombre)) continue;
+      salida.push(nombre);
+      if (salida.length >= MAX_CLASES_CSS) return salida;
+    }
+  }
+  return salida;
+}

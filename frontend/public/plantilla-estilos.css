@@ -344,7 +344,22 @@
    ----------------------------------------------------------------------------
    .mic-preview es el contenedor de la vista de lectura. En vivo el texto está
    en .mic-editor-host .cm-content.
+
+   Estilo para UNA nota (cssclasses): si la nota declara en sus propiedades
+     cssclasses: [ficha]
+   la clase «ficha» se agrega a .mic-preview y a .mic-editor-host mientras esa
+   nota está abierta (también en el PDF). Solo valen letras, dígitos, «_» y
+   «-», sin empezar por dígito; lo demás se descarta. El ejemplo de abajo
+   centra y agranda los títulos solo en las notas con «ficha».
    ========================================================================== */
+
+/*
+.mic-preview.ficha h1,
+.mic-editor-host.ficha .mic-live-h1 {
+  text-align: center;
+  font-size: 2.4rem;
+}
+*/
 
 /*
 .mic-preview {

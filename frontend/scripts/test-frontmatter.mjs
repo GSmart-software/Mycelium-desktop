@@ -481,3 +481,39 @@ test("inicioDelCuerpo: sin cuerpo después del cierre, el final del texto", () =
   const conSalto = sinSalto + NL;
   assert.equal(inicioDelCuerpo(conSalto), conSalto.length);
 });
+
+// ── `cssclasses` (`FUN-S-08`) ────────────────────────────────────────────────
+
+test("clasesCssDe: lista, en línea o en bloque", () => {
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: [ficha, portada]\n---\ntexto"), ["ficha", "portada"]);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses:\n  - ficha\n  - ancha\n---\n"), ["ficha", "ancha"]);
+});
+
+test("clasesCssDe: un texto, separado por espacios o comas", () => {
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: ficha portada\n---\n"), ["ficha", "portada"]);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: ficha, portada\n---\n"), ["ficha", "portada"]);
+});
+
+test("clasesCssDe: descarta lo que no es un nombre de clase válido", () => {
+  const texto = [
+    "---",
+    'cssclasses: ["ok", "1numero", "-2", "con espacio", "<img>", "é", "bien_hecho", "-guion", "--var", "ok"]',
+    "---",
+  ].join("\n");
+  // `con espacio` se parte en dos nombres válidos; el resto inválido se va, y
+  // `ok` no se repite.
+  assert.deepEqual(mod.clasesCssDe(texto), ["ok", "con", "espacio", "bien_hecho", "-guion", "--var"]);
+});
+
+test("clasesCssDe: sin la propiedad, con un frontmatter no soportado o sin frontmatter, nada", () => {
+  assert.deepEqual(mod.clasesCssDe("sin frontmatter"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ntitulo: x\n---\n"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses:\n  a: b\n---\n"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: 42\n---\n"), []);
+});
+
+test("clasesCssDe: la clave no distingue mayúsculas y hay un tope", () => {
+  assert.deepEqual(mod.clasesCssDe("---\nCSSClasses: ficha\n---\n"), ["ficha"]);
+  const muchas = Array.from({ length: 30 }, (_, i) => `c${i}`).join(" ");
+  assert.equal(mod.clasesCssDe(`---\ncssclasses: ${muchas}\n---\n`).length, 20);
+});

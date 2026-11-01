@@ -334,6 +334,12 @@ export function armarDocumentoImpresion(p: {
   css: string;
   atributos: Record<string, string>;
   html: string;
+  /**
+   * Clases de `cssclasses` de la nota (`FUN-S-08`), ya saneadas con
+   * `clasesCssDe`: van en el contenedor, como en la vista de lectura. Se
+   * vuelven a filtrar acá porque terminan dentro de un atributo.
+   */
+  clases?: readonly string[];
   titulo: string;
   pageSize: "A4" | "Letter";
   opts: PdfPrintOpts;
@@ -348,6 +354,6 @@ export function armarDocumentoImpresion(p: {
     `<title>${escaparAtributo(p.titulo)}</title>` +
     (p.css ? `<style>${cssParaHtml(p.css)}</style>` : "") +
     `<style>@page { size: ${p.pageSize}; margin: 16mm; } ${buildPrintCss(p.opts, p.css !== "")}</style></head>` +
-    `<body><div class="mic-preview">${p.html}</div></body></html>`
+    `<body><div class="${["mic-preview", ...(p.clases ?? []).filter((c) => /^[A-Za-z0-9_-]+$/.test(c))].join(" ")}">${p.html}</div></body></html>`
   );
 }

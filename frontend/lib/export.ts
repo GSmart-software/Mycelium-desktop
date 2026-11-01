@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { renderNota } from "@/lib/markdown";
+import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn, type TemaMermaid } from "@/lib/mermaid";
 import { renderEmbedsIn } from "@/lib/embedsRender";
 import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
@@ -141,10 +142,16 @@ export async function exportVaultACarpeta(
  * fijo de impresión (grises sobre blanco, legibles también en blanco y negro).
  * Sin «Fondo blanco» el PDF conserva el tema de la ventana, y Mermaid también.
  */
-async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise<string> {
+async function renderNoteHtml(
+  notaId: string,
+  temaMermaid: TemaMermaid,
+): Promise<{ html: string; clases: string[] }> {
   const content = await fetchNoteContent(notaId);
+  // Las clases de `cssclasses` (`FUN-S-08`): también en el PDF, para que el
+  // snippet que estila la nota en la app la estile en el papel.
+  const clases = clasesCssDe(content);
   const container = document.createElement("div");
-  container.className = "mic-preview";
+  container.className = ["mic-preview", ...clases].join(" ");
   container.style.position = "fixed";
   container.style.left = "-99999px";
   container.style.top = "0";
@@ -160,7 +167,7 @@ async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise
     // Y las imágenes (`DEF-126`), con la URL `asset:` que el iframe de
     // impresión —mismo webview, mismo origen— puede pedir.
     rellenarImagenesEn(container, carpetaDeNota(notaId));
-    return container.innerHTML;
+    return { html: container.innerHTML, clases };
   } finally {
     container.remove();
   }
@@ -205,7 +212,7 @@ export async function exportNotePdf(
   pageSize: "A4" | "Letter",
   opts: PdfPrintOpts,
 ): Promise<void> {
-  const html = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
+  const { html, clases } = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -237,6 +244,7 @@ export async function exportNotePdf(
       css: cssDeLaVentana(),
       atributos: atributosDeLaVentana(),
       html,
+      clases,
       titulo: safeName(titulo),
       pageSize,
       opts,
