@@ -59,9 +59,14 @@ Los cambios se ven al instante en las consolas abiertas.
 > de IA con su tema propio— se ve con el suyo. El brillo, el fondo y todo lo demás valen para
 > cualquier programa.
 
+> [!info] Solo se mueve mientras usas Mycelium
+> Cuando la ventana pierde el foco o se minimiza, la consola estilada se queda quieta y deja de
+> gastar procesador; al volver a la ventana, sigue desde donde estaba.
+
 > [!tip] Si la PC va lenta
-> El fondo que se mueve, las partículas y el borde animado usan la placa de video. Apagá esas
-> partes, o la consola estilada entera, y la consola vuelve a su aspecto de siempre.
+> Las partes que se mueven —pulso del fondo, partículas, borde animado, marca y pantalla de
+> tubo— hacen que la ventana se redibuje sin parar. Apaga esas partes, o la consola estilada
+> entera: el fondo quieto, el brillo y los colores del tema no tienen costo.
 
 > [!info] Las consolas son del vault
 > Al cambiar de vault, sus consolas se terminan y desaparecen del panel; al volver, están

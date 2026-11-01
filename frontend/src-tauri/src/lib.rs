@@ -16,6 +16,7 @@ mod mycignore;
 mod navegacion;
 mod prefs_vault;
 mod recordatorios;
+mod reposo;
 mod terminal;
 mod vault_config;
 mod vault_fs;
@@ -174,6 +175,8 @@ pub fn run() {
         // quedaría marcado como abierto para siempre —no se podría reabrir en
         // ninguna ventana— y sus shells seguirían vivas sin nadie que las lea.
         .on_window_event(|ventana, evento| {
+            // Minimizada, el WebView2 deja de dibujar (`DEF-174`).
+            reposo::al_evento(ventana, evento);
             if matches!(evento, tauri::WindowEvent::Destroyed) {
                 ventanas::al_cerrar(ventana.app_handle(), ventana.label());
             }
