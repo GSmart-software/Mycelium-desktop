@@ -1,7 +1,7 @@
 ---
 titulo: CSS y snippets
 tema: Configuración
-sinonimos: [estilos, tema, personalizar, css personalizado, colores, plantilla, variables]
+sinonimos: [estilos, tema, personalizar, css personalizado, colores, plantilla, variables, cssclasses, clase, estilo por nota]
 ---
 
 Un **snippet** es un pedazo de CSS tuyo que Mycelium aplica encima de su propio estilo. Con
@@ -66,3 +66,28 @@ lectura) o `.mic-editor-host` (el editor).
 > [!info] Cerrar el editor
 > Escape no cierra el editor, para no perder lo que escribiste. La X sí: si hay cambios sin
 > guardar, te pregunta antes de descartarlos.
+
+## Estilo para una sola nota
+
+Un snippet se aplica a todas las notas. Para que alcance solo a algunas —una ficha, una
+portada, el diario—, se le pone a cada una la propiedad `cssclasses` y el snippet apunta a
+esa clase:
+
+```text
+---
+cssclasses: [ficha]
+---
+```
+
+```text
+.mic-preview.ficha h1,
+.mic-editor-host.ficha .mic-live-h1 {
+  text-align: center;
+}
+```
+
+La clase se agrega al contenedor de la nota al editarla (`.mic-editor-host`), al leerla
+(`.mic-preview`) y al exportarla a PDF, y se quita en cuanto se borra de la propiedad o se
+cambia de nota. Puede ser una lista o un texto con varias separadas por espacios o comas.
+Solo valen letras sin tilde, dígitos, `_` y `-`, y no puede empezar con un dígito: un
+nombre que no cumple se descarta sin aviso.

@@ -96,3 +96,17 @@ test("con el CSS de la app, el documento de impresión suelta el alto con y sin 
     assert.match(html, /html, body \{ height: auto !important;[^}]*overflow: visible !important/, `estilosMycelium: ${estilosMycelium}`);
   }
 });
+
+test("las clases de cssclasses van en el contenedor del PDF, filtradas (FUN-S-08)", () => {
+  const html = armarDocumentoImpresion({
+    css: "",
+    atributos: {},
+    html: "<p>hola</p>",
+    clases: ["ficha", 'x"><script>alert(1)</script>', "portada"],
+    titulo: "Nota",
+    pageSize: "A4",
+    opts: OPTS,
+  });
+  assert.match(html, /<div class="mic-preview ficha portada">/);
+  assert.doesNotMatch(html, /<script>/);
+});

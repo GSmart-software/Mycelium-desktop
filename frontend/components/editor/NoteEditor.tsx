@@ -77,6 +77,7 @@ import {
 import { avisar, avisarFallo } from "@/stores/avisosStore";
 import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
 import { renderNota } from "@/lib/markdown";
+import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { itemsEstadosTarea } from "@/components/editor/MenuEstadosTarea";
@@ -364,6 +365,13 @@ export function NoteEditor({
     [notaId],
   );
   const [previewHtml, setPreviewHtml] = useState("");
+  // Las clases de la propiedad `cssclasses` (`FUN-S-08`), ya saneadas y unidas
+  // por espacios: van al contenedor de la edición y al de la lectura, para que
+  // un snippet pueda estilar esta nota. Se recalculan con cada cambio del
+  // documento —texto, no array, para que el `setState` sin cambios no
+  // re-renderice—, así que al quitar la propiedad o cambiar de nota no quedan
+  // pegadas: React reescribe el `className` entero.
+  const [clasesNota, setClasesNota] = useState("");
   // Archivo .excalidraw del vault que se edita en el modal embebido (HU-16).
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
@@ -731,6 +739,7 @@ export function NoteEditor({
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
+              setClasesNota(clasesCssDe(doc).join(" ")); // `FUN-S-08`
               // Palabras para la barra de estado: también cuando el cambio vino
               // de otra instancia o de disco (carga inicial incluida).
               if (palabrasTimer.current) clearTimeout(palabrasTimer.current);
@@ -819,6 +828,7 @@ export function NoteEditor({
       }
 
       setPreviewHtml(renderNota(content, true));
+      setClasesNota(clasesCssDe(content).join(" ")); // `FUN-S-08`
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendiente = takePendingMatch(notaId);
@@ -1741,7 +1751,7 @@ export function NoteEditor({
           // `mic-con-numeros` le cede al margen el relleno izquierdo del
           // scroller, para que un rango como `34-40` entre sin que el margen
           // cambie de ancho al hacer scroll (`FUN-M-28`).
-          className={`mic-editor-host ${numerosDeLinea ? "mic-con-numeros" : ""} ${styles.editorPane}`}
+          className={`mic-editor-host ${numerosDeLinea ? "mic-con-numeros" : ""} ${styles.editorPane} ${clasesNota}`}
           onDragOver={(e) => {
             if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
               e.preventDefault();
@@ -1760,7 +1770,7 @@ export function NoteEditor({
         {(mode === "split" || mode === "read") && (
           <div
             ref={previewRef}
-            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
+            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane} ${clasesNota}`}
             onClick={onPreviewClick}
             onContextMenu={onPreviewContextMenu}
           >
