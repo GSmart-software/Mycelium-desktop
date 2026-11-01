@@ -70,6 +70,13 @@ export type Entrada = {
   deshacer?: DeshacerIa;
   /** Solo en `deshacer`: la entrada que deshace. */
   ref?: string;
+  /**
+   * La sesión de IA que la pidió (`FUN-L-31`): el id de su servidor MCP. Las
+   * entradas viejas no lo traen; tampoco los `deshacer` (los hace el usuario).
+   */
+  sesion?: string;
+  /** La tarea que tenía declarada esa sesión en ese momento, si tenía. */
+  tarea?: string;
 };
 
 /** Una entrada como se muestra: con lo que se sabe de su deshacer. */
@@ -105,6 +112,8 @@ export function leerRenglon(renglon: string): Entrada | null {
   };
   if (typeof e.codigo === "string") entrada.codigo = e.codigo;
   if (typeof e.ref === "string") entrada.ref = e.ref;
+  if (typeof e.sesion === "string" && e.sesion !== "") entrada.sesion = e.sesion;
+  if (typeof e.tarea === "string" && e.tarea !== "") entrada.tarea = e.tarea;
   if (esObjetivo(e.objetivo)) entrada.objetivo = e.objetivo;
   if (esDeshacer(e.deshacer)) entrada.deshacer = e.deshacer;
   return entrada;
@@ -230,6 +239,8 @@ export const NOMBRE_OP: Record<string, string> = {
   salud: "Salud del vault",
   validar_nota: "Validar una nota",
   reparar_renombre: "Reparar un renombre externo",
+  sesion: "Declarar la tarea",
+  reservar: "Reservar",
 };
 
 /**
@@ -269,16 +280,19 @@ export const VENTANA_CONECTADO_MS = 10 * 60 * 1000;
 
 /**
  * El servidor MCP abre una conexión por pedido, así que «conectado» no es un
- * estado del pipe: es que **Claude Code habló hace poco**.
+ * estado del pipe: es que **Claude Code habló hace poco**, o (desde `FUN-L-31`)
+ * que hay alguna sesión sosteniendo su conexión de presencia.
  */
 export function estadoCanal(
   encendido: boolean,
   error: string | null,
   ultimoPedido: number | null,
   ahora: number,
+  sesiones = 0,
 ): EstadoCanal {
   if (!encendido) return "apagado";
   if (error !== null) return "error";
+  if (sesiones > 0) return "conectado";
   if (ultimoPedido !== null && ahora - ultimoPedido <= VENTANA_CONECTADO_MS) return "conectado";
   return "encendido";
 }
