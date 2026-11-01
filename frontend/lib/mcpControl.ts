@@ -27,6 +27,8 @@
  *    evaluar una vista `.base`, de solo lectura (`lib/mcpIndice.ts`).
  * 8. **La salud del vault** (`FUN-L-30`): el informe y el chequeo de cierre de
  *    una nota, de solo lectura (`lib/mcpSalud.ts`).
+ * 9. **Los diagnósticos del editor** (`FUN-M-44`): lo marcado en las notas
+ *    abiertas, de solo lectura (`lib/mcpSalud.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -233,6 +235,8 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return saludIa.salud(args);
     case "validar_nota":
       return saludIa.validarNota(args);
+    case "diagnosticos":
+      return saludIa.diagnosticos(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":

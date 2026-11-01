@@ -229,11 +229,12 @@ export const NOMBRE_OP: Record<string, string> = {
   base: "Leer una base",
   salud: "Salud del vault",
   validar_nota: "Validar una nota",
+  diagnosticos: "Avisos del editor",
   reparar_renombre: "Reparar un renombre externo",
 };
 
 /**
- * Las consultas que solo leen (`FUN-M-45`, `FUN-L-30`): como leer el
+ * Las consultas que solo leen (`FUN-M-45`, `FUN-L-30`, `FUN-M-44`): como leer el
  * calendario, no se registran cuando salen bien; sus fallos sí.
  */
 export const SOLO_LECTURA: ReadonlySet<string> = new Set([
@@ -243,6 +244,7 @@ export const SOLO_LECTURA: ReadonlySet<string> = new Set([
   "base",
   "salud",
   "validar_nota",
+  "diagnosticos",
 ]);
 
 /**

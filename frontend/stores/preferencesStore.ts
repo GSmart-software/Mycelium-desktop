@@ -87,6 +87,12 @@ export type Preferencias = {
    */
   correctorOrtografico: boolean;
   /**
+   * Diagnósticos del editor (`FUN-M-44`): marcar en la nota, como un linter, los
+   * enlaces rotos o ambiguos, el título duplicado y los avisos de propiedades.
+   * Se calculan al abrir y al guardar. Activado por defecto.
+   */
+  diagnosticosEditor: boolean;
+  /**
    * Mostrar el nombre del archivo como título centrado en la parte superior de
    * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
    */
@@ -190,6 +196,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphContinuousSim: false,
   autoCloseBrackets: true,
   correctorOrtografico: true,
+  diagnosticosEditor: true,
   showFileTitle: true,
   iconosEnPestanas: true,
   busquedaCampo: "ambos",

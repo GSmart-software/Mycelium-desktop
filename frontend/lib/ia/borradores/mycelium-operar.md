@@ -47,6 +47,11 @@ con el **mismo criterio que la app**, y conviene preferirlas a `grep` cuando est
   por terminado un cambio en la memoria; si falla, corrígelo (enlázala desde su mapa,
   cambia el título, arregla el enlace). Mycelium indexa al guardar: si acabas de escribir
   el archivo, espera un instante antes de validarla.
+- `mycelium_diagnosticos`: lo que el **editor de la app tiene subrayado** en las notas
+  abiertas (o en una): enlaces rotos o ambiguos, título duplicado y propiedades que no
+  cumplen, con línea y columna. Es lo que ve el usuario mientras escribe; la app lo
+  calcula al abrir y al guardar la nota, y la herramienta no recalcula. Úsala después de
+  editar una nota que el usuario tiene abierta.
 
 No se registran en la actividad de la IA (no cambian nada). Si contestan `APP_CERRADA`,
 vuelve a `grep`, sabiendo que no aplica el criterio del índice.

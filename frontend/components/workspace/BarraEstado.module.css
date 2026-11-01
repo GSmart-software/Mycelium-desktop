@@ -63,3 +63,8 @@ button.item[aria-pressed="true"] {
 .alerta {
   color: var(--mic-sync-warn);
 }
+
+/* Los avisos de la nota (`FUN-M-44`): en el color de los diagnósticos. */
+.avisos {
+  color: var(--mic-diagnostico);
+}
