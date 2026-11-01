@@ -18,10 +18,10 @@
 //! `SIZE_MINIMIZED`) y restaurar, como otro. Solo se actúa en el **cambio** de
 //! estado: `Resized` llega muchas veces seguidas al redimensionar.
 //!
-//! Lo que no es minimizar —la ventana sin foco, tapada por otras— lo resuelve
-//! el frontend pausando las animaciones (`components/ventana/ReposoVentana.tsx`):
-//! ahí la ventana puede estar a la vista en otro monitor, y la página tiene que
-//! seguir mostrándose.
+//! La ventana sin foco o tapada por otras NO se pausa (decisión del usuario,
+//! 2026-11-01): puede estar a la vista en otra pantalla, y la consola congelada
+//! se veía mal. El frontend marca además `<html data-reposo>` al minimizar
+//! (`components/ventana/ReposoVentana.tsx`), por si este aviso no llega.
 
 use std::collections::HashSet;
 use std::sync::Mutex;

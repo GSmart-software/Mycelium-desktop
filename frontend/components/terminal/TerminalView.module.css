@@ -29,7 +29,7 @@
    recalcular la capa en cada cuadro. Medido con la ventana maximizada y la
    consola en reposo: el borde que giraba su degradado gastaba el 22 % de la
    CPU y girando la capa, el 4 %; el pulso con desenfoque, el 12 % y sin él, el
-   3,8 %; la consola entera, del 16 % a menos del 6 %. Y con la ventana sin foco no se
+   3,8 %; la consola entera, del 16 % a menos del 6 %. Y con la ventana minimizada no se
    mueve nada (`components/ventana/ReposoVentana.tsx`). */
 
 .escena {

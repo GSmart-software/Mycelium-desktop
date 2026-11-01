@@ -4,37 +4,37 @@ import { useEffect } from "react";
 import { enTauri } from "@/lib/ventana";
 
 /**
- * Congela las animaciones cuando la ventana **no se está usando**: sin el foco
- * del sistema, minimizada u oculta (`DEF-174`).
+ * Congela las animaciones cuando la ventana **no se ve**: minimizada u oculta
+ * (`DEF-174`).
  *
  * Una animación CSS que nunca termina obliga al WebView2 a componer un cuadro
- * tras otro, aunque nada más cambie: la consola estilada sola, a la vista y en
- * reposo, ocupaba entre el 10 % y el 15 % de la CPU. Con la ventana detrás de
- * otras —el caso de uso normal de una app que queda abierta todo el día— ese
- * gasto no le sirve a nadie.
+ * tras otro, aunque nada más cambie: la consola estilada a la vista y en
+ * reposo ocupaba entre el 10 % y el 15 % de la CPU, y seguía igual minimizada.
  *
  * Marca `<html data-reposo>` y `globals.css` pone en pausa **toda** animación
  * mientras dure (`animation-play-state: paused`). Pausar, no quitar: al volver
- * el foco cada animación sigue desde donde quedó, sin saltos. Una animación en
- * pausa no genera cuadros.
+ * cada animación sigue desde donde quedó, sin saltos. Una animación en pausa no
+ * genera cuadros.
+ *
+ * > [!warning] Perder el foco NO pausa (decisión del usuario, 2026-11-01)
+ * > La primera versión pausaba también sin el foco del sistema. Con dos
+ * > pantallas eso se veía mal: el foco en un programa y Mycelium a la vista en
+ * > la otra, con la consola congelada. Sin foco la ventana puede estar a la
+ * > vista, así que sigue animando; solo se detiene la que no se ve.
  *
  * Minimizar, además, lo resuelve Rust (`src-tauri/src/reposo.rs`): oculta el
  * WebView2, que entonces deja de dibujar del todo y frena también
- * `requestAnimationFrame` y los temporizadores. Acá solo cuenta para la marca.
- *
- * El foco es el **de la ventana** (el del sistema), no el del documento: un
- * clic dentro de un iframe —un diagrama de draw.io— le quita el foco al
- * documento pero la ventana sigue siendo la que se usa.
+ * `requestAnimationFrame` y los temporizadores. La marca de acá es la red de
+ * seguridad por si el aviso al WebView2 no llega.
  */
 export function ReposoVentana() {
   useEffect(() => {
     const raiz = document.documentElement;
     let vivo = true;
-    let enfocada = document.hasFocus();
     let minimizada = false;
 
     const aplicar = () => {
-      const reposo = !enfocada || minimizada || document.visibilityState === "hidden";
+      const reposo = minimizada || document.visibilityState === "hidden";
       if (reposo) raiz.dataset.reposo = "";
       else delete raiz.dataset.reposo;
     };
@@ -47,43 +47,22 @@ export function ReposoVentana() {
         try {
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
           const ventana = getCurrentWindow();
-          const refrescarMinimizada = async () => {
+          const refrescar = async () => {
             minimizada = await ventana.isMinimized();
             aplicar();
           };
-          [enfocada, minimizada] = await Promise.all([ventana.isFocused(), ventana.isMinimized()]);
-          if (!vivo) return;
-          aplicar();
-          const sinFoco = await ventana.onFocusChanged(({ payload }) => {
-            enfocada = payload;
-            aplicar();
-          });
-          const sinTamano = await ventana.onResized(() => void refrescarMinimizada());
+          await refrescar();
+          // Minimizar y restaurar llegan como un cambio de tamaño.
+          const sinTamano = await ventana.onResized(() => void refrescar());
           if (!vivo) {
-            sinFoco();
             sinTamano();
             return;
           }
-          quitar.push(sinFoco, sinTamano);
+          quitar.push(sinTamano);
         } catch {
           // Sin permiso o fuera de Tauri: queda la visibilidad del documento.
         }
       })();
-    } else {
-      const alFoco = () => {
-        enfocada = true;
-        aplicar();
-      };
-      const alPerder = () => {
-        enfocada = false;
-        aplicar();
-      };
-      window.addEventListener("focus", alFoco);
-      window.addEventListener("blur", alPerder);
-      quitar.push(
-        () => window.removeEventListener("focus", alFoco),
-        () => window.removeEventListener("blur", alPerder),
-      );
     }
     aplicar();
 
