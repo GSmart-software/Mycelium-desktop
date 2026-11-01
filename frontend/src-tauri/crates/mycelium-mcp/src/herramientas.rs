@@ -11,15 +11,20 @@
 //! Parte 4: `mycelium_diccionario`, el diccionario del vault del corrector,
 //! igual de fina: qué es una palabra y el tope por llamada los decide la app
 //! con la regla del corrector (`lib/mcpDiccionarioLogica.ts`).
+//! `FUN-M-45`: las consultas al índice (`mycelium_buscar`, `mycelium_enlaces`,
+//! `mycelium_base`), de solo lectura: la búsqueda, los enlaces y las bases los
+//! resuelve la app con lo que ya usa (`lib/mcpIndice.ts`), porque el índice
+//! vive en su ventana; acá solo se redacta.
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
 //! se valida lo evidente, se habla por el canal y se **redacta la respuesta**:
 //! texto corto que dice el efecto, no el eco (spec § 3).
 //!
-//! Las búsquedas de la fase de memoria (`vault_buscar`, `vault_leer`) se
-//! evaluaron y no entraron (`docs/arquitectura/MCP de Mycelium - tesina,
-//! protocolo.md` § 9); su código quedó en la historia de `feat/mcp-desktop`.
+//! Las búsquedas de la fase de memoria (`vault_buscar`, `vault_leer`), con un
+//! índice PROPIO del servidor, se evaluaron y no entraron (`docs/arquitectura/
+//! MCP de Mycelium - tesina, protocolo.md` § 9). `mycelium_buscar` no es
+//! aquello: no indexa nada, le pregunta a la app por SU búsqueda.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -34,7 +39,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 12] = [
+const NOMBRES: [&str; 15] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -47,6 +52,9 @@ const NOMBRES: [&str; 12] = [
     "mycelium_borrar",
     "mycelium_papelera",
     "mycelium_diccionario",
+    "mycelium_buscar",
+    "mycelium_enlaces",
+    "mycelium_base",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -297,6 +305,68 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_buscar",
+            "title": "Buscar en el vault",
+            "description": "La búsqueda de Mycelium, la misma del panel de búsqueda, solo en las NOTAS INDEXADAS (lo que el \
+                vault considera memoria: lo ignorado por .mycignore, los PDF, las imágenes o el código suelto no están). \
+                Busca por nombre, por contenido o por los dos, sin distinguir tildes ni mayúsculas; acepta \"una frase\" \
+                entre comillas, filtros de propiedad `clave:valor` (o `clave:\"valor completo\"`) y de etiqueta `tag:x` \
+                (incluye las anidadas `x/…`), combinables entre sí y con texto. Devuelve ruta, título, tipo y un fragmento \
+                con la coincidencia entre «», en el orden de la app (primero los títulos que empiezan con lo buscado). \
+                Pagina con `limite` y `desde`. Es preferible a grep para saber qué dice la memoria: lo que no devuelve no \
+                está en ella.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "consulta": { "type": "string", "description": "Lo que se busca: palabras, \"frase exacta\", clave:valor, tag:x." },
+                    "campo": { "type": "string", "enum": ["ambos", "nombre", "contenido"], "description": "Dónde buscar. Por defecto ambos." },
+                    "exacto": { "type": "boolean", "description": "Palabra completa en vez de prefijo (`plan` no trae `planta`). Por defecto false." },
+                    "limite": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Resultados por página. Por defecto 20." },
+                    "desde": { "type": "integer", "minimum": 0, "description": "Cuántos resultados saltar (para la página siguiente, el `desde` que indica la respuesta)." }
+                },
+                "required": ["consulta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_enlaces",
+            "title": "Enlaces de una nota",
+            "description": "Los enlaces de una nota según el índice de Mycelium, con el mismo criterio que el grafo y el \
+                panel de conexiones: los SALIENTES (cada [[enlace]] o ![[embed]] tal como está escrito, a qué nota \
+                resuelve, si está roto y en qué líneas) y los BACKLINKS (qué notas la enlazan y en qué líneas). Un \
+                [[enlace]] dentro de un bloque de código no cuenta; [[X|alias]] y [[X#Encabezado]] cuentan como enlaces a X; \
+                un lienzo que la tiene como tarjeta la enlaza. Más fiable que grep para recorrer la memoria por asociación.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "nota": { "type": "string", "description": "Ruta (`docs/Plan.md`) o título (`Plan`, o `Carpeta/Plan` para desambiguar)." }
+                },
+                "required": ["nota"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_base",
+            "title": "Leer una tabla .base",
+            "description": "Evalúa una vista de una tabla `.base` con el MISMO motor que Mycelium (filtros, columnas, orden \
+                y límite de la vista) y devuelve sus columnas y sus filas en texto plano, cada una con la ruta de su nota. \
+                Sirve para leer lo que la tabla deriva en vez de mantener una copia a mano. Tope de 200 filas (lo dice si \
+                recorta). Si la vista no existe, NO_ENCONTRADO con los nombres de las que hay; si un filtro está fuera de lo \
+                que Mycelium entiende, INVALIDO con el motivo (skill mycelium-base).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ruta": { "type": "string", "description": "La base: ruta (`Tablas/Proyectos.base`) o título (`Proyectos`)." },
+                    "vista": { "type": "string", "description": "Nombre de la vista. Por defecto, la primera." }
+                },
+                "required": ["ruta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
     ]
 }
 
@@ -328,6 +398,9 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_borrar" => herramienta_archivos(estado, vault, "borrar", args, redactar_archivo),
         "mycelium_papelera" => herramienta_archivos(estado, vault, "papelera", args, redactar_papelera),
         "mycelium_diccionario" => herramienta_diccionario(estado, vault, args),
+        "mycelium_buscar" => herramienta_consulta(estado, vault, "buscar", args, redactar_buscar),
+        "mycelium_enlaces" => herramienta_consulta(estado, vault, "enlaces", args, redactar_enlaces),
+        "mycelium_base" => herramienta_consulta(estado, vault, "base", args, redactar_base),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -842,6 +915,267 @@ pub fn redactar_diccionario(r: &Value) -> String {
         }
     }
     t
+}
+
+// ── Consultar el índice (`FUN-M-45`) ───────────────────────────────────────
+
+/// Buscar, los enlaces de una nota y leer una base: solo leen. Comprueban que
+/// los argumentos sean un objeto y los pasan a la app, que valida y consulta
+/// su índice (`lib/mcpIndice.ts`); acá se redacta.
+fn herramienta_consulta(
+    estado: &Estado,
+    vault: &VaultResuelto,
+    op: &str,
+    args: &Value,
+    redactar: fn(&Value) -> String,
+) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir(estado, vault, op, args) {
+        Ok(r) => texto(redactar(&r), false),
+        Err(SinResultado::NadieEscucha) => texto(sin_ventana_consulta(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Sin la app no hay índice que consultar: qué hacer entonces.
+fn sin_ventana_consulta(vault: &VaultResuelto) -> String {
+    let mut t = sin_ventana_base(vault);
+    t.push_str(
+        "\nEl índice vive en la ventana de Mycelium: sin ella, busca en los archivos (grep), sabiendo que no \
+         aplica su criterio (cuenta enlaces dentro de bloques de código, no ve .mycignore ni resuelve homónimas).",
+    );
+    t
+}
+
+fn s<'a>(v: &'a Value, k: &str) -> &'a str {
+    v.get(k).and_then(Value::as_str).unwrap_or_default()
+}
+
+fn n(v: &Value, k: &str) -> u64 {
+    v.get(k).and_then(Value::as_u64).unwrap_or(0)
+}
+
+/// `línea 3` / `líneas 3, 7`, o nada.
+fn lineas(v: &Value) -> String {
+    let l: Vec<String> = v
+        .get("lineas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_u64).map(|x| x.to_string()).collect())
+        .unwrap_or_default();
+    match l.len() {
+        0 => String::new(),
+        1 => format!(" · línea {}", l[0]),
+        _ => format!(" · líneas {}", l.join(", ")),
+    }
+}
+
+/// Una página de resultados, con cómo pedir la siguiente.
+pub fn redactar_buscar(r: &Value) -> String {
+    let consulta = s(r, "consulta");
+    let desde = n(r, "desde");
+    let lista = r.get("resultados").and_then(Value::as_array).cloned().unwrap_or_default();
+    if lista.is_empty() {
+        return if desde > 0 {
+            format!("No hay más resultados para «{consulta}» después del {desde}.")
+        } else {
+            format!("Ningún resultado para «{consulta}» en las notas indexadas (campo: {}).", s(r, "campo"))
+        };
+    }
+    let mut t = format!(
+        "{} {} para «{consulta}» (campo: {}){}:",
+        lista.len(),
+        if lista.len() == 1 { "resultado" } else { "resultados" },
+        s(r, "campo"),
+        if desde > 0 { format!(", desde el {}", desde + 1) } else { String::new() }
+    );
+    for (i, x) in lista.iter().enumerate() {
+        let tipo = s(x, "tipo");
+        let tipo = if tipo.is_empty() || tipo == "markdown" { String::new() } else { format!(" [{tipo}]") };
+        t.push_str(&format!("\n{}. {} — {}{tipo}", desde + i as u64 + 1, s(x, "titulo"), s(x, "ruta")));
+        let f = s(x, "fragmento");
+        if !f.is_empty() {
+            t.push_str(&format!("\n   {f}"));
+        }
+    }
+    if r.get("hay_mas").and_then(Value::as_bool) == Some(true) {
+        t.push_str(&format!("\nHay más resultados: repite la llamada con `desde: {}`.", n(r, "siguiente")));
+    }
+    t
+}
+
+/// Los salientes y los backlinks de una nota, una línea por enlace.
+pub fn redactar_enlaces(r: &Value) -> String {
+    let nota = r.get("nota").unwrap_or(&Value::Null);
+    let mut t = format!("«{}» ({})", s(nota, "titulo"), s(nota, "ruta"));
+    let salientes = r.get("salientes").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total_sal = n(r, "total_salientes");
+    let rotos = n(r, "rotos");
+    t.push_str(&format!(
+        "\nSalientes: {total_sal}{}",
+        if rotos > 0 { format!(" ({rotos} {})", if rotos == 1 { "roto" } else { "rotos" }) } else { String::new() }
+    ));
+    if salientes.is_empty() {
+        t.push_str("\n  (ninguno)");
+    }
+    for x in &salientes {
+        let escrito = if s(x, "tipo") == "embed" { format!("![[{}]]", s(x, "texto")) } else { format!("[[{}]]", s(x, "texto")) };
+        let destino = x.get("destino").unwrap_or(&Value::Null);
+        let a = match s(x, "estado") {
+            "nota" => format!("{} — {}", s(destino, "titulo"), s(destino, "ruta")),
+            "propia" => "ella misma".to_string(),
+            "archivo" => format!("el archivo {} (no es nota)", s(destino, "ruta")),
+            _ => "ROTO: no resuelve a ninguna nota".to_string(),
+        };
+        let origen = match s(x, "tipo") {
+            "canvas" => " · en una tarjeta de texto",
+            "archivo" => " · tarjeta de nota",
+            _ => "",
+        };
+        t.push_str(&format!("\n  {escrito} → {a}{origen}{}", lineas(x)));
+    }
+    if (salientes.len() as u64) < total_sal {
+        t.push_str(&format!("\n  (se muestran {} de {total_sal})", salientes.len()));
+    }
+    let back = r.get("backlinks").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total_back = n(r, "total_backlinks");
+    t.push_str(&format!("\nBacklinks: {total_back}"));
+    if back.is_empty() {
+        t.push_str("\n  (ninguno: nadie la enlaza)");
+    }
+    for x in &back {
+        let textos: Vec<String> = x
+            .get("textos")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(|s| format!("[[{s}]]")).collect())
+            .unwrap_or_default();
+        let tipo = s(x, "tipo");
+        let tipo = if tipo.is_empty() || tipo == "markdown" { String::new() } else { format!(" [{tipo}]") };
+        t.push_str(&format!("\n  {} — {}{tipo}{} · como {}", s(x, "titulo"), s(x, "ruta"), lineas(x), textos.join(", ")));
+    }
+    if (back.len() as u64) < total_back {
+        t.push_str(&format!("\n  (se muestran {} de {total_back})", back.len()));
+    }
+    t
+}
+
+/// Una celda para una tabla Markdown: sin saltos de línea ni barras sueltas.
+fn celda(v: &str) -> String {
+    v.replace(['\r', '\n'], " ").replace('|', "\\|")
+}
+
+/// La vista de una base como tabla Markdown, con la ruta de cada fila.
+pub fn redactar_base(r: &Value) -> String {
+    let base = r.get("base").unwrap_or(&Value::Null);
+    let vistas: Vec<String> = r
+        .get("vistas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(|v| format!("«{v}»")).collect())
+        .unwrap_or_default();
+    let filas = r.get("filas").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total = n(r, "total");
+    let por_vista = n(r, "recortadas_por_vista");
+    let por_tope = n(r, "recortadas_por_tope");
+    let mut t = format!(
+        "Base «{}» ({}) · vista «{}»{}",
+        s(base, "titulo"),
+        s(base, "ruta"),
+        s(r, "vista"),
+        if vistas.len() > 1 { format!(" (vistas: {})", vistas.join(", ")) } else { String::new() }
+    );
+    t.push_str(&format!("\n{total} {} los filtros", if total == 1 { "nota cumple" } else { "notas cumplen" }));
+    if por_vista > 0 {
+        t.push_str(&format!("; el límite de la vista deja fuera {por_vista}"));
+    }
+    if por_tope > 0 {
+        t.push_str(&format!("; se muestran {} (tope de esta herramienta)", filas.len()));
+    }
+    t.push('.');
+    for a in r.get("avisos").and_then(Value::as_array).into_iter().flatten() {
+        if let Some(a) = a.as_str() {
+            t.push_str(&format!("\nAviso: {a}"));
+        }
+    }
+    if filas.is_empty() {
+        t.push_str("\nNinguna nota cumple los filtros de esta vista.");
+        return t;
+    }
+    let mut columnas: Vec<String> = r
+        .get("columnas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(celda).collect())
+        .unwrap_or_default();
+    columnas.push("(archivo)".to_string());
+    t.push_str(&format!("\n\n| {} |\n|{}|", columnas.join(" | "), vec!["---"; columnas.len()].join("|")));
+    for f in &filas {
+        let mut celdas: Vec<String> = f
+            .get("celdas")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().map(|c| celda(c.as_str().unwrap_or_default())).collect())
+            .unwrap_or_default();
+        celdas.push(celda(s(f, "ruta")));
+        t.push_str(&format!("\n| {} |", celdas.join(" | ")));
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_consultas {
+    use super::*;
+
+    #[test]
+    fn la_busqueda_numera_y_dice_como_seguir() {
+        let t = redactar_buscar(&json!({
+            "consulta": "plan", "campo": "ambos", "desde": 20, "hay_mas": true, "siguiente": 22,
+            "resultados": [
+                {"ruta": "Plan.md", "titulo": "Plan", "tipo": "markdown", "fragmento": "el «plan» de"},
+                {"ruta": "T.base", "titulo": "T", "tipo": "base", "fragmento": ""}
+            ]
+        }));
+        assert!(t.starts_with("2 resultados para «plan» (campo: ambos), desde el 21:"), "{t}");
+        assert!(t.contains("\n21. Plan — Plan.md\n   el «plan» de"), "{t}");
+        assert!(t.contains("\n22. T — T.base [base]"), "{t}");
+        assert!(t.ends_with("repite la llamada con `desde: 22`."), "{t}");
+        let vacio = redactar_buscar(&json!({"consulta": "x", "campo": "nombre", "desde": 0, "resultados": []}));
+        assert!(vacio.starts_with("Ningún resultado para «x»"), "{vacio}");
+    }
+
+    #[test]
+    fn los_enlaces_dicen_a_donde_van_y_en_que_linea() {
+        let t = redactar_enlaces(&json!({
+            "nota": {"ruta": "A.md", "titulo": "A"},
+            "total_salientes": 3, "rotos": 1,
+            "salientes": [
+                {"texto": "B#Sec", "tipo": "enlace", "estado": "nota", "destino": {"ruta": "x/B.md", "titulo": "B"}, "lineas": [3, 7]},
+                {"texto": "foto.png", "tipo": "embed", "estado": "archivo", "destino": {"ruta": "img/foto.png"}, "lineas": [9]},
+                {"texto": "Nada", "tipo": "enlace", "estado": "roto", "destino": null, "lineas": [12]}
+            ],
+            "total_backlinks": 1,
+            "backlinks": [{"ruta": "C.md", "titulo": "C", "tipo": "markdown", "textos": ["A"], "lineas": [2]}]
+        }));
+        assert!(t.contains("Salientes: 3 (1 roto)"), "{t}");
+        assert!(t.contains("[[B#Sec]] → B — x/B.md · líneas 3, 7"), "{t}");
+        assert!(t.contains("![[foto.png]] → el archivo img/foto.png (no es nota) · línea 9"), "{t}");
+        assert!(t.contains("[[Nada]] → ROTO"), "{t}");
+        assert!(t.contains("C — C.md · línea 2 · como [[A]]"), "{t}");
+    }
+
+    #[test]
+    fn la_base_sale_como_tabla_y_avisa_el_recorte() {
+        let t = redactar_base(&json!({
+            "base": {"ruta": "P.base", "titulo": "P"}, "vista": "Activos", "vistas": ["Activos", "Todos"],
+            "columnas": ["Nombre", "Estado"], "total": 250, "recortadas_por_vista": 0, "recortadas_por_tope": 249,
+            "avisos": ["Mycelium ignora: groupBy."],
+            "filas": [{"ruta": "a/X.md", "celdas": ["X", "en curso | casi"]}]
+        }));
+        assert!(t.starts_with("Base «P» (P.base) · vista «Activos» (vistas: «Activos», «Todos»)"), "{t}");
+        assert!(t.contains("250 notas cumplen los filtros; se muestran 1 (tope de esta herramienta)."), "{t}");
+        assert!(t.contains("Aviso: Mycelium ignora: groupBy."), "{t}");
+        assert!(t.contains("| Nombre | Estado | (archivo) |\n|---|---|---|\n| X | en curso \\| casi | a/X.md |"), "{t}");
+    }
 }
 
 #[cfg(test)]

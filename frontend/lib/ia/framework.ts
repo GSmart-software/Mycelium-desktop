@@ -160,8 +160,14 @@ import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
  *   `mycelium-vault` suma el enlace Markdown —que no cuenta— y la lista de
  *   `.claude/` dice que Mycelium agrega sus hooks a `settings.json`.
  *   **Minor**: la IA gana un aviso nuevo.
+ * - 2.3.0 — **consultar el índice** (`FUN-M-45`): `mycelium_buscar`,
+ *   `mycelium_enlaces` y `mycelium_base` en la skill `mycelium-operar`
+ *   («Consultar el índice»), y como primera opción en la recuperación de
+ *   `mycelium-memoria`, en `/vault-buscar` y en la verificación de
+ *   `mycelium-base`.
+ *   **Minor**: la IA gana herramientas nuevas.
  */
-export const FRAMEWORK_IA_VERSION = "2.2.0";
+export const FRAMEWORK_IA_VERSION = "2.3.0";
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -204,7 +210,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 
 - \`mycelium-memoria\`: buscar y registrar a fondo.
 - \`mycelium-vault\`: sintaxis, propiedades, tipos de archivo, qué ve el usuario.
-- \`mycelium-operar\`: las herramientas \`mycelium_*\`, y qué hacer sin ellas.
+- \`mycelium-operar\`: las herramientas \`mycelium_*\` (operar la app y consultar su índice), y qué hacer sin ellas.
 - \`mycelium-base\`: tablas \`.base\`.
 - \`mycelium-canvas\`: lienzos \`.canvas\`.
 - \`mycelium-drawio\`: diagramas \`.drawio\`.
@@ -521,6 +527,9 @@ un \`.csv\`) se cita como archivo, no con \`[[enlace]]\` (ver \`mycelium-vault\`
 2. **Léxico** — buscá los términos de la consulta y sus sinónimos en todo el vault:
    \`grep -ril "término" --include="*.md" .\`. Revisá también los **nombres de
    archivo**: un título que coincide es, casi siempre, la nota canónica del tema.
+   Con el MCP de control, \`mycelium_buscar\` hace lo mismo **solo sobre las notas
+   indexadas** (con \`clave:valor\` y \`tag:x\`): lo que devuelve es memoria; lo que solo
+   encuentra \`grep\`, no.
 3. **Lectura** — leé las candidatas enteras antes de concluir. Los fragmentos de
    \`grep\` mienten por falta de contexto (negaciones, "esto se descartó", condiciones).
 4. **Expansión asociativa** — desde cada nota relevante, seguí:
@@ -528,6 +537,8 @@ un \`.csv\`) se cita como archivo, no con \`[[enlace]]\` (ver \`mycelium-vault\`
    - sus **backlinks** (\`grep -rl "\\[\\[Título" --include="*.md" .\`) — quién la
      usa y para qué; aquí aparecen las decisiones que la afectan: la que revirtió a
      otra, el detalle en la nota vecina.
+   Con el MCP de control, \`mycelium_enlaces\` da las dos listas con el criterio del
+   índice (sin los \`[[x]]\` de los bloques de código, con alias y anclas), y en qué línea.
    Uno o dos saltos suelen bastar; frená cuando deja de aportar.
 5. **Facetas** — si el tema es transversal, buscá el \`#tag\` correspondiente
    (\`grep -rl "#tema" --include="*.md" .\`, o \`tags:\` en las propiedades).
@@ -604,10 +615,12 @@ Aplicá el protocolo de recuperación de la skill \`mycelium-memoria\`:
 
 1. Buscá notas mapa/índice del área para orientarte.
 2. Buscá los términos de la pregunta y sus sinónimos en contenido **y** en nombres
-   de archivo (\`grep -ril\`), ignorando \`.mycelium/\` y \`.claude/\`.
+   de archivo (\`grep -ril\`), ignorando \`.mycelium/\` y \`.claude/\`. Si está la
+   herramienta \`mycelium_buscar\`, úsala primero: busca solo en las notas indexadas.
 3. Leé completas las notas candidatas (no concluyas desde fragmentos de grep).
 4. Expandí 1–2 saltos por \`[[enlaces]]\` salientes y por **backlinks** de esas
-   notas, para capturar decisiones o matices que las afecten.
+   notas (\`mycelium_enlaces\`, si está), para capturar decisiones o matices que las
+   afecten.
 5. Respondé de forma directa y **citá la procedencia** de cada afirmación con
    \`[[enlaces]]\`. Si hay contradicciones entre notas, mostralas en vez de
    promediarlas.

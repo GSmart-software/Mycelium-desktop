@@ -43,6 +43,18 @@ herramienta: generalas, o actualizalas si Configuración te ofrece una versión 
   Nunca borra para siempre.
 - **Diccionario**: agregar o quitar palabras del diccionario del vault del
   [corrector](ayuda:herramientas/corrector).
+- **Consultar la memoria**, sin cambiar nada:
+  - **buscar** con la misma [búsqueda](ayuda:enlazar-y-organizar/busqueda) de la app
+    (nombre, contenido, frases, `clave:valor` y `tag:x`), solo en las notas que Mycelium
+    indexa;
+  - ver los **enlaces** de una nota: a qué apunta cada uno, cuáles están rotos y quién la
+    enlaza, con la línea de cada uno;
+  - leer las filas de una vista de una [base](ayuda:tipos-de-archivo/bases), calculadas
+    igual que en su pestaña.
+
+  Así la IA ve la memoria con el mismo criterio que la app: un `[[enlace]]` escrito dentro
+  de un bloque de código no cuenta, y lo que oculta `.mycignore` no aparece. Estas
+  consultas no se anotan en la actividad de la IA, salvo que fallen.
 
 ## Actividad de la IA
 

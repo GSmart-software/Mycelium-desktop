@@ -447,6 +447,10 @@ views:
 5. ¿La plantilla de `Esporas/` se cuela? Excluí la carpeta.
 6. Pedile al usuario que la abra: si Mycelium no entiende un filtro, **no muestra la
    tabla** — muestra el motivo y la expresión exacta. Arreglá eso y nada más.
+7. **Con el MCP de control** (`mycelium_base`, skill `mycelium-operar`), evalúa la vista
+   tú mismo con el motor de Mycelium: devuelve las filas que el usuario va a ver o, si un
+   filtro no se entiende, `INVALIDO` con el motivo. Es también la forma de **leer** lo que
+   una base deriva, en vez de copiar sus filas a mano en una nota.
 
 ## Relacionadas
 
