@@ -13,9 +13,17 @@
  * Todo excluye la papelera, como el grafo (`lib/db/grafo.ts`).
  */
 import { select } from "./client";
+import { aliasesPorNota } from "./propiedades";
 
 /** Una nota del índice, lo mínimo para resolver y agrupar. */
-export type NotaIndice = { id: string; titulo: string; carpetaId: string | null; tipo: string };
+export type NotaIndice = {
+  id: string;
+  titulo: string;
+  carpetaId: string | null;
+  tipo: string;
+  /** Sus otros nombres (`FUN-M-15`): con ellos la salud ve también los alias repetidos. */
+  aliases?: string[];
+};
 /** Una carpeta, con la forma de `CarpetaEnlazable`. */
 export type CarpetaIndice = { id: string; nombre: string; padreId: string | null };
 /** Una fila de `enlaces`: qué se escribió, en qué nota, y a qué resolvió. */
@@ -26,7 +34,14 @@ export async function notasDelIndice(): Promise<NotaIndice[]> {
   const filas = await select<{ id: string; titulo: string; carpeta_id: string | null; tipo: string }>(
     "SELECT id, titulo, carpeta_id, tipo FROM notas WHERE id NOT IN (SELECT nota_id FROM papelera) ORDER BY id",
   );
-  return filas.map((n) => ({ id: n.id, titulo: n.titulo, carpetaId: n.carpeta_id, tipo: n.tipo }));
+  const aliases = await aliasesPorNota(null);
+  return filas.map((n) => ({
+    id: n.id,
+    titulo: n.titulo,
+    carpetaId: n.carpeta_id,
+    tipo: n.tipo,
+    aliases: aliases.get(n.id),
+  }));
 }
 
 export async function carpetasDelIndice(): Promise<CarpetaIndice[]> {

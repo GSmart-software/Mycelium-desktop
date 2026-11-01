@@ -47,7 +47,16 @@ const UTIL = await fuente("../lib/db/util.ts");
 const CONTEXTO = await fuente("../lib/db/vaultContext.ts", { "./errors": ERRORS });
 const FTS = await fuente("../lib/db/fts.ts");
 const FTS_INDICE = await fuente("../lib/db/ftsIndice.ts", { "./client": CLIENT });
+const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
+  "@/lib/frontmatter": FRONTMATTER,
+  "./client": CLIENT,
+  "./fts": FTS,
+  "./ftsIndice": FTS_INDICE,
+  "./util": UTIL,
+});
 const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
@@ -55,14 +64,10 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./ftsIndice": FTS_INDICE,
   "./util": UTIL,
 });
-const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
-  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
-  "@/lib/frontmatter": FRONTMATTER,
-  "./client": CLIENT,
-  "./fts": FTS,
-  "./util": UTIL,
-});
+const EVENTOS = await fuente("../lib/eventos.ts");
 const INDEXER = await fuente("../lib/db/indexer.ts", {
+  "@/lib/eventos": EVENTOS,
+  "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
     "@tauri-apps/api/core": TAURI,
@@ -77,7 +82,7 @@ const INDEXER = await fuente("../lib/db/indexer.ts", {
   "./vaultContext": CONTEXTO,
 });
 const BUSCAR = await fuente("../lib/db/buscar.ts", { "./client": CLIENT, "./fts": FTS });
-const INDICE_IA = await fuente("../lib/db/indiceIa.ts", { "./client": CLIENT });
+const INDICE_IA = await fuente("../lib/db/indiceIa.ts", { "./client": CLIENT, "./propiedades": PROPIEDADES });
 
 let Database = null;
 try {
