@@ -207,10 +207,30 @@
   filter: drop-shadow(0 0 4px var(--mic-glow)) drop-shadow(0 0 10px var(--mic-glow));
 }
 
-/* Barra de desplazamiento: una hifa fina. */
-.conEfectos .terminal :global(.xterm-viewport)::-webkit-scrollbar-thumb {
-  background: linear-gradient(var(--mic-glow), var(--mic-accent));
+/* La barra de desplazamiento (`DEF-173`). La hoja de xterm le deja a
+   `.xterm-viewport` un `overflow-y: scroll`, pero en xterm 6 ese elemento ya
+   no desplaza nada (su contenido mide lo mismo que él): con la barra global de
+   la app se veía una barra muerta, con flechas, que no movía la consola. La
+   que desplaza es la de xterm (`.xterm-scrollable-element > .scrollbar`), que
+   toma sus colores del tema (`barraDeDesplazamiento` en `lib/terminal.ts`). */
+.terminal :global(.xterm-viewport) {
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.terminal :global(.xterm-scrollable-element > .scrollbar > .slider) {
   border-radius: 99px;
+}
+
+/* Con efectos, el deslizador es una hifa de luz. */
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider) {
+  background: linear-gradient(var(--mic-glow), var(--mic-accent));
+  opacity: 0.55;
+}
+
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider:hover),
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider.active) {
+  opacity: 0.9;
 }
 
 /* ---- CRT: delante del texto, sin tocar el mouse ---- */

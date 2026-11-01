@@ -71,6 +71,23 @@ function resolverColor(css: string, respaldo: string): string {
   return getComputedStyle(sonda).color || respaldo;
 }
 
+/**
+ * Los colores del deslizador de la barra de desplazamiento de xterm
+ * (`DEF-173`). Por defecto xterm lo pinta casi invisible (blanco al 20 %), y
+ * la barra que se veía era otra: la nativa de `.xterm-viewport`, que en xterm
+ * 6 ya no desplaza nada (se oculta en `TerminalView.module.css`). Sale del
+ * color dado, más presente al pasar el mouse y al arrastrarlo.
+ */
+function barraDeDesplazamiento(color: string) {
+  const al = (pct: number, respaldo: string) =>
+    resolverColor(`color-mix(in srgb, ${color} ${pct}%, transparent)`, respaldo);
+  return {
+    scrollbarSliderBackground: al(28, "rgba(127, 127, 127, 0.3)"),
+    scrollbarSliderHoverBackground: al(45, "rgba(127, 127, 127, 0.45)"),
+    scrollbarSliderActiveBackground: al(62, "rgba(127, 127, 127, 0.6)"),
+  };
+}
+
 /** ¿Está encendida la consola estilada (`FUN-M-57`)? */
 const conEfectos = () => useTerminalStore.getState().prefs.efectos;
 
@@ -99,6 +116,7 @@ function temaSobrio() {
     foreground: v("--mic-text-primary", "#f6e8c8"),
     cursor: v("--mic-accent", "#c77f2e"),
     selectionBackground: "rgba(127, 127, 127, 0.35)",
+    ...barraDeDesplazamiento("var(--mic-text-primary)"),
   };
 }
 
@@ -130,6 +148,7 @@ function temaConEfectos() {
     cursorAccent: resolverColor("var(--mic-bg-canvas)", "#000"),
     selectionBackground: resolverColor(`color-mix(in srgb, ${glow} 38%, transparent)`, "rgba(127,127,127,.35)"),
     selectionForeground: resolverColor(tinta, "#fff"),
+    ...barraDeDesplazamiento(glow),
     black: mezcla("#14121c", glow, 10),
     red: mezcla("#ff4f6d", glow, 18),
     green: mezcla("#3ff2a3", glow, 18),
