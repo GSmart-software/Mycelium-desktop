@@ -427,8 +427,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Le dice a Mycelium en qué está trabajando esta sesión, en una línea («Reorganizar docs/arquitectura», \
                 «Bug DEF-173»). Varias sesiones de IA pueden trabajar a la vez sobre el mismo vault: con la tarea declarada, \
                 las demás la ven en su mycelium_estado y el usuario la ve en el panel «Actividad de la IA», que agrupa lo que \
-                hizo cada sesión bajo su tarea. Declarala al empezar un trabajo que no sea una consulta suelta, y de nuevo si \
-                cambiás de tarea. Devuelve las otras sesiones conectadas y lo que tienen reservado.",
+                hizo cada sesión bajo su tarea. Declárala al empezar un trabajo que no sea una consulta suelta, y de nuevo si \
+                cambias de tarea. Devuelve las otras sesiones conectadas y lo que tienen reservado.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -443,12 +443,12 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_reservar",
             "title": "Reservar una nota o carpeta",
             "description": "Avisa a las otras sesiones de IA que vas a trabajar sobre una nota o una carpeta del vault, con un \
-                motivo y un vencimiento (30 minutos si no decís otro; hasta 240). Es un AVISO, no un bloqueo: nada impide \
+                motivo y un vencimiento (30 minutos si no se indica otro; hasta 240). Es un AVISO, no un bloqueo: nada impide \
                 escribir. Si otra sesión ya tenía reservado eso (o una carpeta que lo contiene, o algo dentro de la carpeta), \
-                la reserva se concede igual y la respuesta dice quién lo tiene y por qué: coordiná con el usuario antes de \
+                la reserva se concede igual y la respuesta dice quién lo tiene y por qué: coordina con el usuario antes de \
                 tocarlo. Reservar de nuevo lo mismo renueva el vencimiento. Con `liberar: true` se suelta (sin `objetivo`, \
-                todas las de esta sesión). Las reservas mueren con la sesión y si se cierra Mycelium. Reservá antes de un \
-                trabajo largo sobre algo que otra sesión podría tocar; liberá al terminar.",
+                todas las de esta sesión). Las reservas mueren con la sesión y si se cierra Mycelium. Reserva antes de un \
+                trabajo largo sobre algo que otra sesión podría tocar; libera al terminar.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -711,7 +711,7 @@ fn herramienta_coordinacion(estado: &Estado, vault: &VaultResuelto, op: &str, ar
             let mut t = sin_ventana_base(vault);
             t.push_str(
                 "\nLas sesiones y las reservas viven en la ventana de Mycelium: sin ella no hay coordinación. \
-                 Si sabés que otra sesión trabaja en este vault, preguntale al usuario antes de tocar lo mismo.",
+                 Si sabes que otra sesión trabaja en este vault, pregúntale al usuario antes de tocar lo mismo.",
             );
             texto(t, true)
         }

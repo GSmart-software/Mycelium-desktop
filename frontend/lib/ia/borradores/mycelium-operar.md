@@ -1,6 +1,6 @@
 ---
 name: mycelium-operar
-description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
+description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, coordinarse con otras sesiones de IA del mismo vault (declarar la tarea, reservar notas o carpetas), renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar al empezar a trabajar en el vault, antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # Operar Mycelium (herramientas `mycelium_*`)
@@ -55,6 +55,29 @@ vuelve a `grep`, sabiendo que no aplica el criterio del índice.
   que guarde después pisa lo tuyo.
 - `mycelium_abrir` **no le roba el foco** salvo que pidas `foco: true`: pedilo solo
   cuando tengas algo que mostrarle ahora («mirá esta nota»), no cada vez que abrís algo.
+
+## Varias sesiones a la vez
+
+Puede haber **otras sesiones de IA** trabajando en este mismo vault ahora mismo (otras
+terminales de Claude Code, cada una con su servidor `mycelium`). No se ven entre sí salvo
+por Mycelium:
+
+- **Al empezar**, llama a `mycelium_estado`: además de lo que tiene abierto el usuario,
+  dice qué otras sesiones están conectadas y en qué tarea, qué tienen **reservado**, qué
+  cambiaron recién a través de Mycelium y qué notas cambiaron en disco por fuera (sin
+  saber quién: otra sesión, el usuario en otro editor o git).
+- **Antes de un trabajo que no sea una consulta suelta**, declara tu tarea con
+  `mycelium_sesion` («Reorganizar docs/arquitectura»): las demás la ven, y el usuario ve
+  lo que hiciste agrupado bajo ella en el panel «Actividad de la IA».
+- **Antes de un trabajo largo sobre algo que otra sesión podría tocar**, resérvalo con
+  `mycelium_reservar` (nota o carpeta, motivo, minutos; 30 por defecto). Se puede
+  reservar una nota que todavía no existe, por su ruta, para crearla sin que otra cree la
+  misma. **Libéralo al terminar** (`liberar: true`).
+- Una reserva es un **aviso, no un bloqueo**: nada impide escribir. Si la respuesta dice
+  que otra sesión ya lo tiene, no lo toques sin hablarlo con el usuario.
+- Las sesiones y las reservas viven en la app: mueren con la sesión y si se cierra
+  Mycelium. Sin la app no hay coordinación; si sabes que hay otra sesión, pregúntale al
+  usuario antes de tocar lo mismo.
 
 ## Renombrar, mover, borrar
 
