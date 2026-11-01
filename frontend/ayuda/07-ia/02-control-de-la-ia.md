@@ -53,8 +53,9 @@ herramienta: generalas, o actualizalas si Configuración te ofrece una versión 
     igual que en su pestaña.
 
   - revisar la [salud del vault](ayuda:enlazar-y-organizar/salud-del-vault) —enlaces rotos,
-    huérfanas, títulos duplicados— y **validar una nota** que acaba de escribir: título
-    único, enlaces que resuelven y alguien que la enlace.
+    huérfanas, títulos duplicados, propiedades que no cumplen— y **validar una nota** que
+    acaba de escribir: título único, enlaces que resuelven, alguien que la enlace y
+    propiedades válidas según los [esquemas](ayuda:escribir-notas/esquemas-de-propiedades).
 
   Así la IA ve la memoria con el mismo criterio que la app: un `[[enlace]]` escrito dentro
   de un bloque de código no cuenta, y lo que oculta `.mycignore` no aparece. Estas
