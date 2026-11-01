@@ -23,6 +23,8 @@
  *    es grande (abajo, «Confirmaciones»).
  * 6. **El diccionario del vault** (Parte 4): listar, agregar y quitar palabras
  *    por el mismo camino que el corrector (`lib/mcpDiccionario.ts`).
+ * 7. **Consultar el índice** (`FUN-M-45`): buscar, los enlaces de una nota y
+ *    evaluar una vista `.base`, de solo lectura (`lib/mcpIndice.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -32,6 +34,8 @@ import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos
 import * as calendario from "@/lib/mcpCalendario";
 import { FalloCalendario } from "@/lib/mcpCalendario";
 import { diccionario, FalloDiccionario } from "@/lib/mcpDiccionario";
+import * as indice from "@/lib/mcpIndice";
+import { FalloIndice } from "@/lib/mcpIndice";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
@@ -129,7 +133,11 @@ async function contestar(pedido: Pedido): Promise<void> {
     respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos || e instanceof FalloDiccionario
+      e instanceof FalloMcp ||
+      e instanceof FalloCalendario ||
+      e instanceof FalloArchivos ||
+      e instanceof FalloDiccionario ||
+      e instanceof FalloIndice
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
@@ -212,6 +220,12 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return conPermiso(pedido.op, await archivos.papelera(args));
     case "diccionario":
       return diccionario(args);
+    case "buscar":
+      return indice.buscar(args);
+    case "enlaces":
+      return indice.enlaces(args);
+    case "base":
+      return indice.base(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":

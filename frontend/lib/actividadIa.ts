@@ -222,7 +222,16 @@ export const NOMBRE_OP: Record<string, string> = {
   borrar: "Mandar a la papelera",
   papelera: "Papelera",
   diccionario: "Diccionario del vault",
+  buscar: "Buscar en el vault",
+  enlaces: "Enlaces de una nota",
+  base: "Leer una base",
 };
+
+/**
+ * Las consultas que solo leen (`FUN-M-45`, `FUN-L-30`): como leer el
+ * calendario, no se registran cuando salen bien; sus fallos sí.
+ */
+export const SOLO_LECTURA: ReadonlySet<string> = new Set(["recordatorios", "buscar", "enlaces", "base"]);
 
 /**
  * Qué operaciones se registran. `estado` no: es la primera llamada de casi
@@ -236,7 +245,7 @@ export function seRegistra(op: string, resultado: Resultado): boolean {
   // Consultar o retirar una confirmación pendiente no es una operación: la
   // operación confirmada se registra sola, cuando el usuario contesta.
   if (op === "confirmacion" || op === "confirmacion_retirar") return false;
-  if (op === "recordatorios") return resultado !== "hecho";
+  if (SOLO_LECTURA.has(op)) return resultado !== "hecho";
   return true;
 }
 

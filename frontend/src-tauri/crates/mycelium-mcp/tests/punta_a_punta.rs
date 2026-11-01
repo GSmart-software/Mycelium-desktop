@@ -105,7 +105,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 12);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 15);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -485,6 +485,70 @@ fn el_diccionario_de_punta_a_punta() {
     // Con el control apagado: MCP_DESACTIVADO.
     control(&vault, false);
     let (t, err) = mcp.herramienta("mycelium_diccionario", json!({}));
+    assert!(err && t.starts_with("MCP_DESACTIVADO"), "{t}");
+
+    drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// Las consultas al índice (`FUN-M-45`): el servidor pasa los argumentos tal
+/// cual a la app (que es quien tiene el índice) y redacta lo que vuelve. Una
+/// vista que no existe vuelve como `NO_ENCONTRADO` con las vistas; sin la app,
+/// `APP_CERRADA` dice que el índice vive en su ventana.
+#[test]
+fn las_consultas_de_punta_a_punta() {
+    let (base, dir_app, vault) = preparar("consultas");
+    control(&vault, true);
+    let ruta_registrada = vault.to_string_lossy().to_string();
+    let canal = mycelium_vault::canal::nombre_canal(&ruta_registrada, &dir_app);
+    let mut mcp = Mcp::lanzar(&dir_app, &vault);
+    mcp.pedir("initialize", json!({}));
+
+    let app = falso::levantar(canal, move |p| {
+        let id = p["id"].clone();
+        let a = p["args"].clone();
+        let ok = |r: Value| json!({"id": id, "ok": true, "resultado": r});
+        Some(match p["op"].as_str().unwrap_or_default() {
+            "buscar" => ok(json!({
+                "consulta": a["consulta"], "campo": a["campo"].as_str().unwrap_or("ambos"),
+                "desde": a["desde"].as_u64().unwrap_or(0), "hay_mas": true, "siguiente": 1,
+                "resultados": [{"ruta": "docs/Plan.md", "titulo": "Plan", "tipo": "markdown", "fragmento": "el «plan»"}]
+            })),
+            "enlaces" => ok(json!({
+                "nota": {"ruta": "docs/Plan.md", "titulo": "Plan", "tipo": "markdown"},
+                "total_salientes": 1, "rotos": 1,
+                "salientes": [{"texto": "Nada", "tipo": "enlace", "n": 1, "estado": "roto", "destino": null, "lineas": [4]}],
+                "total_backlinks": 0, "backlinks": []
+            })),
+            "base" if a["vista"] == "Otra" => json!({"id": id, "ok": false, "error": {"codigo": "NO_ENCONTRADO",
+                "mensaje": "La base no tiene una vista «Otra». Sus vistas: «Tabla».", "datos": {"vistas": ["Tabla"]}}}),
+            "base" => ok(json!({
+                "base": {"ruta": "P.base", "titulo": "P"}, "vista": "Tabla", "vistas": ["Tabla"],
+                "columnas": ["Nombre"], "total": 1, "recortadas_por_vista": 0, "recortadas_por_tope": 0, "avisos": [],
+                "filas": [{"ruta": "docs/Plan.md", "celdas": ["Plan"]}]
+            })),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    });
+
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!({"consulta": "plan tag:proyecto", "limite": 1}));
+    assert!(!err && t.starts_with("1 resultado para «plan tag:proyecto»"), "{t}");
+    assert!(t.contains("1. Plan — docs/Plan.md\n   el «plan»") && t.ends_with("`desde: 1`."), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_enlaces", json!({"nota": "Plan"}));
+    assert!(!err && t.contains("Salientes: 1 (1 roto)") && t.contains("[[Nada]] → ROTO") && t.contains("línea 4"), "{t}");
+    assert!(t.contains("(ninguno: nadie la enlaza)"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_base", json!({"ruta": "P"}));
+    assert!(!err && t.contains("| Nombre | (archivo) |\n|---|---|\n| Plan | docs/Plan.md |"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_base", json!({"ruta": "P", "vista": "Otra"}));
+    assert!(err && t.starts_with("NO_ENCONTRADO: La base no tiene una vista «Otra»"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!("no es un objeto"));
+    assert!(err && t.starts_with("INVALIDO"), "{t}");
+
+    drop(app);
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!({"consulta": "plan"}));
+    assert!(err && t.starts_with("APP_CERRADA") && t.contains("El índice vive en la ventana de Mycelium"), "{t}");
+    control(&vault, false);
+    let (t, err) = mcp.herramienta("mycelium_enlaces", json!({"nota": "Plan"}));
     assert!(err && t.starts_with("MCP_DESACTIVADO"), "{t}");
 
     drop(mcp);

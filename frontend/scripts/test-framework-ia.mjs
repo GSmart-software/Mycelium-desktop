@@ -668,3 +668,18 @@ test("mycelium-operar enseña mycelium_diccionario y para qué sirve", () => {
 test("el diccionario del vault no se escribe a mano", () => {
   assert.match(SKILL("mycelium-vault"), /el diccionario solo con\s+`mycelium_diccionario`/);
 });
+
+// ── Consultar el índice por MCP (`FUN-M-45`) ────────────────────────────────
+
+test("mycelium-operar enseña las consultas al índice, y la memoria las prefiere a grep", () => {
+  const operar = SKILL("mycelium-operar");
+  for (const h of ["mycelium_buscar", "mycelium_enlaces", "mycelium_base"]) {
+    assert.ok(operar.includes(`\`${h}\``), `operar no menciona ${h}`);
+  }
+  assert.match(operar, /solo en las notas indexadas/);
+  assert.match(operar, /^description: .*consultar su índice/m);
+  const memoria = SKILL("mycelium-memoria");
+  assert.ok(memoria.indexOf("mycelium_buscar") > memoria.indexOf("grep -ril"), "la búsqueda por MCP va en el movimiento 2");
+  assert.match(memoria, /`mycelium_enlaces` da las dos listas/);
+  assert.match(SKILL("mycelium-base"), /`mycelium_base`/);
+});

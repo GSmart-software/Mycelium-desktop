@@ -136,12 +136,24 @@ export function condicionEtiquetas(etiquetas: string[]): { sql: string; params: 
   return { sql, params };
 }
 
+/**
+ * Qué página de resultados se pide. La app pide siempre la primera de 50 (el
+ * panel de búsqueda); el MCP (`mycelium_buscar`, `FUN-M-45`) pagina con la
+ * misma consulta y el mismo orden, así que la página dos es la continuación
+ * exacta de la uno.
+ */
+export type Pagina = { limite: number; desde: number };
+const PAGINA_APP: Pagina = { limite: 50, desde: 0 };
+
 export async function buscar(
   vaultId: string,
   q: string,
   exacto = false,
   campo: CampoBusqueda = "ambos",
+  pagina: Pagina = PAGINA_APP,
 ): Promise<SearchResponse> {
+  const limite = Math.max(1, Math.floor(pagina.limite));
+  const desde = Math.max(0, Math.floor(pagina.desde));
   const { filtros, etiquetas, resto } = separarFiltrosPropiedad(q ?? "");
   const match = buildFtsQuery(resto, !exacto, campo);
   if (match.length === 0 && filtros.length === 0 && etiquetas.length === 0) return { resultados: [] };
@@ -172,8 +184,8 @@ export async function buscar(
         WHERE n.vault_id = ?
           AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
         ORDER BY n.titulo
-        LIMIT 50`,
-      [...(primero?.params ?? []), vaultId, ...filtroParams],
+        LIMIT ? OFFSET ?`,
+      [...(primero?.params ?? []), vaultId, ...filtroParams, limite, desde],
     );
     if (!primero) await fragmentosDeEtiqueta(resultados, etiquetas[0]);
     return { resultados };
@@ -202,8 +214,8 @@ export async function buscar(
        AND n.vault_id = ?
        AND n.id NOT IN (SELECT nota_id FROM papelera)${filtroSql}
      ORDER BY ${ordenSql}
-     LIMIT 50`,
-    [match, vaultId, ...filtroParams, ...ordenParams],
+     LIMIT ? OFFSET ?`,
+    [match, vaultId, ...filtroParams, ...ordenParams, limite, desde],
   );
   if (campo !== "nombre") await completarFragmentos(resultados, resto, match, exacto);
   return { resultados };
