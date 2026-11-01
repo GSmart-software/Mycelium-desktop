@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -74,8 +73,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   useEffect(() => {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
-      void renderExcalidrawIn(containerRef.current);
-      void renderDrawioIn(containerRef.current);
+      void renderEmbedsIn(containerRef.current); // con o sin extensión (`FUN-S-18`)
       rellenarImagenesEn(containerRef.current, carpeta);
     }
   }, [html, sourceNotaId, otros, carpeta]);

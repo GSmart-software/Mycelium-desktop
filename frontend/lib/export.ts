@@ -2,8 +2,7 @@ import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { renderNota } from "@/lib/markdown";
 import { renderMermaidIn, type TemaMermaid } from "@/lib/mermaid";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { armarDocumentoImpresion, type PdfPrintOpts } from "@/lib/printStyles";
@@ -154,10 +153,10 @@ async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise
   document.body.appendChild(container);
   try {
     await renderMermaidIn(container, temaMermaid);
-    await renderExcalidrawIn(container);
-    // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
-    // saldrian como un hueco en el PDF.
-    await renderDrawioIn(container);
+    // Los dibujos y diagramas también se dibujan antes de imprimir: si no,
+    // saldrían como un hueco en el PDF. `renderEmbedsIn` resuelve además los
+    // `![[embeds]]` escritos sin extensión (`FUN-S-18`).
+    await renderEmbedsIn(container);
     // Y las imágenes (`DEF-126`), con la URL `asset:` que el iframe de
     // impresión —mismo webview, mismo origen— puede pedir.
     rellenarImagenesEn(container, carpetaDeNota(notaId));

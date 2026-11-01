@@ -249,10 +249,14 @@ test("con extensión de un tipo que nadie tiene con ese título, no resuelve", (
   assert.equal(idH("Boceto.canvas"), undefined);
 });
 
-test("sin markdown entre los homónimos, el desempate de siempre", () => {
-  // `Pedido` sin la nota: gana el de id menor a la misma altura.
+test("sin markdown entre los homónimos, gana el orden fijo de tipos (FUN-S-18)", () => {
+  // `Pedido` sin la nota: antes ganaba el de id menor a la misma altura
+  // (`Pedido.base`); desde `FUN-S-18` el tipo va primero —dibujo, diagrama,
+  // lienzo, tabla—, para que `![[Pedido]]` dibuje siempre lo mismo.
   const sinNota = NOTAS_H.filter((n) => n.id !== "Pedidos/Pedido.md");
-  assert.equal(resolveWikilink("Pedido", sinNota, CARPETAS_H)?.id, "Pedidos/Pedido.base");
+  assert.equal(resolveWikilink("Pedido", sinNota, CARPETAS_H)?.id, "Pedidos/Pedido.excalidraw");
+  const soloLienzoYTabla = sinNota.filter((n) => n.tipo === "canvas" || n.tipo === "base");
+  assert.equal(resolveWikilink("Pedido", soloLienzoYTabla, CARPETAS_H)?.id, "Pedidos/Pedido.canvas");
 });
 
 test("la variante indexada da lo mismo con homónimos de distinto tipo", () => {

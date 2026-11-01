@@ -35,6 +35,7 @@ const MODULOS = [
   "lib/imagenes.ts",
   "lib/enlacesExternos.ts",
   "lib/resaltado.ts",
+  "lib/embeds.ts",
   "lib/estadosTarea.ts",
 ];
 
@@ -64,6 +65,7 @@ for (const rel of MODULOS) {
 
 const { renderNota } = await import(pathToFileURL(join(TMP, "markdown.mjs")).href);
 const { resolveWikilink } = await import(pathToFileURL(join(TMP, "wikilink.mjs")).href);
+const { embebidoDe } = await import(pathToFileURL(join(TMP, "embeds.mjs")).href);
 
 after(async () => {
   await rm(TMP, { recursive: true, force: true });
@@ -280,4 +282,74 @@ test("![[Nota]] y ![[x.excalidraw]] no se toman por imágenes", () => {
 
 test("dentro de código, ![[foto.png]] es solo texto", () => {
   assert.doesNotMatch(renderNota("`![[foto.png]]`"), /data-mic-img/);
+});
+
+// ── Embeds sin extensión (`FUN-S-18`) ────────────────────────────────────────
+//
+// El reconocedor ya no decide por la extensión escrita: resuelve el destino por
+// título —la misma regla que los `[[enlaces]]` y el grafo— y mira su tipo.
+
+test("![[Algo]] sin extensión sale como enlace marcado con data-embed, con su !", () => {
+  const html = renderNota("![[Mi diagrama]]");
+  // La lectura no conoce el vault: deja el enlace de siempre y lo marca, y
+  // `resolverEmbedsEn` lo cambia en el cliente si el destino se dibuja.
+  assert.match(html, /!<a href="#wikilink:Mi%20diagrama" class="mic-wikilink" data-sin-alias="true" data-embed="true">/);
+});
+
+test("un [[enlace]] sin ! no lleva data-embed", () => {
+  assert.doesNotMatch(renderNota("Ver [[Mi diagrama]]"), /data-embed/);
+});
+
+test("embebidoDe: sin extensión resuelve por título y mira el tipo", () => {
+  const e = embebidoDe("Arquitectura", NOTAS, CARPETAS);
+  assert.equal(e?.tipo, "drawio");
+  assert.equal(e?.nota.id, "Arquitectura.drawio");
+  // Con la extensión pegada: los que dibujan vuelven a resolver exigiendo el tipo.
+  assert.equal(e?.ref, "Arquitectura.drawio");
+  assert.equal(embebidoDe("Bocetos/Idea", NOTAS, CARPETAS)?.ref, "Bocetos/Idea.excalidraw");
+});
+
+test("embebidoDe: el alias no participa", () => {
+  assert.equal(embebidoDe("Arquitectura|un alias", NOTAS, CARPETAS)?.tipo, "drawio");
+});
+
+test("embebidoDe: una nota markdown no se embebe (queda como enlace)", () => {
+  assert.equal(embebidoDe("Otra nota", NOTAS, CARPETAS), null);
+  assert.equal(embebidoDe("No existe", NOTAS, CARPETAS), null);
+});
+
+/** Un mismo título con varias extensiones, a distintas profundidades. */
+const HOMONIMOS = [
+  { id: "Plano.base", titulo: "Plano", tipo: "base", carpetaId: null },
+  { id: "A/Plano.canvas", titulo: "Plano", tipo: "canvas", carpetaId: "A" },
+  { id: "A/B/Plano.drawio", titulo: "Plano", tipo: "drawio", carpetaId: "B" },
+  { id: "A/B/C/Plano.excalidraw", titulo: "Plano", tipo: "excalidraw", carpetaId: "C" },
+];
+const CARPETAS_H = [
+  { id: "A", nombre: "A", padreId: null },
+  { id: "B", nombre: "B", padreId: "A" },
+  { id: "C", nombre: "C", padreId: "B" },
+];
+
+test("desempate sin extensión: excalidraw, drawio, canvas, base (no la ruta más corta)", () => {
+  assert.equal(embebidoDe("Plano", HOMONIMOS, CARPETAS_H)?.nota.id, "A/B/C/Plano.excalidraw");
+  assert.equal(embebidoDe("Plano", HOMONIMOS.slice(0, 3), CARPETAS_H)?.nota.id, "A/B/Plano.drawio");
+  // El grafo usa el mismo resolutor: el enlace apunta a lo mismo que se dibuja.
+  assert.equal(resolveWikilink("Plano", HOMONIMOS, CARPETAS_H)?.id, "A/B/C/Plano.excalidraw");
+});
+
+test("desempate: la nota markdown gana y el embed queda como enlace", () => {
+  const conNota = [...HOMONIMOS, { id: "A/B/C/D/Plano.md", titulo: "Plano", tipo: "markdown", carpetaId: "D" }];
+  const carpetas = [...CARPETAS_H, { id: "D", nombre: "D", padreId: "C" }];
+  assert.equal(embebidoDe("Plano", conNota, carpetas), null);
+  assert.equal(resolveWikilink("Plano", conNota, carpetas)?.tipo, "markdown");
+});
+
+test("con la extensión escrita gana siempre lo que se escribió", () => {
+  assert.equal(embebidoDe("Plano.drawio", HOMONIMOS, CARPETAS_H)?.nota.id, "A/B/Plano.drawio");
+  assert.equal(embebidoDe("Plano.excalidraw", HOMONIMOS, CARPETAS_H)?.nota.id, "A/B/C/Plano.excalidraw");
+});
+
+test("la pista de carpeta sigue eligiendo entre homónimos", () => {
+  assert.equal(embebidoDe("B/Plano", HOMONIMOS, CARPETAS_H)?.nota.id, "A/B/Plano.drawio");
 });
