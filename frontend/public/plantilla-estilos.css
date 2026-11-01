@@ -433,6 +433,7 @@
      _x_      cursiva + brillo     lectura: em.mic-em-us        vivo: .mic-em-cm-us
      __x__    negrita + acento     lectura: strong.mic-strong-us vivo: .mic-strong-cm-us
      ___x___  negrita en degradado lectura: strong.mic-em-us-tri vivo: .mic-em-cm-tri
+     ==x==    resaltado            lectura: mark.mic-resaltado  vivo: .mic-resaltado
    En vivo el color tiene que ir también a los descendientes (el «*» del
    selector), porque el resaltado de sintaxis mete su propio span adentro.
    ========================================================================== */
@@ -450,6 +451,25 @@
 .cm-editor .mic-strong-cm-us,
 .cm-editor .mic-strong-cm-us * {
   color: #ffd27a;
+}
+*/
+
+/* Resaltado: ==texto== es mark.mic-resaltado en lectura y .mic-resaltado en
+   vivo. El fondo sale de --mic-resaltado (por defecto, el ámbar de los avisos
+   del tema, diluido). Para cambiar solo el color, basta con la variable: */
+/*
+:root {
+  --mic-resaltado: rgba(255, 230, 0, 0.45);
+}
+*/
+
+/* O para darle otra forma, por ejemplo un subrayado grueso en lugar de fondo: */
+/*
+.mic-preview mark.mic-resaltado,
+.cm-editor .mic-resaltado {
+  background: none;
+  border-bottom: 3px solid #f5c400;
+  border-radius: 0;
 }
 */
 

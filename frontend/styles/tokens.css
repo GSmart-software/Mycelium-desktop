@@ -160,6 +160,20 @@
   --mic-callout-tinta:  50%;
 }
 
+/* ── Resaltado del texto (`FUN-S-33`) ─────────────────────────────
+   El fondo de `==texto==`, en lectura (mark.mic-resaltado) y en vivo
+   (.mic-resaltado). Sale del ámbar de los avisos de cada tema —el «marcador
+   amarillo» de siempre— y no del brillo, que ya es el color del buscador: un
+   resaltado escrito no tiene que confundirse con una coincidencia de búsqueda.
+   El texto sigue en la tinta, así que el contraste lo da ella: en claro, el
+   ámbar diluido queda casi crema; en oscuro, más bajo para no encandilar. */
+:root {
+  --mic-resaltado: color-mix(in srgb, var(--mic-amber-icon) 30%, transparent);
+}
+:root:not([data-dark='true']) {
+  --mic-resaltado: color-mix(in srgb, var(--mic-amber-icon) 38%, transparent);
+}
+
 /* ── Fondo del código en modo claro (`DEF-091`) ──────────────────────
    En claro el código es un fragmento CLARO: un tinte de la tinta sobre el
    lienzo. Antes usaba Esporo profundo, que es oscuro también en claro, y

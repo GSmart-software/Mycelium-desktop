@@ -1,7 +1,7 @@
 ---
 titulo: Énfasis
 tema: Escribir notas
-sinonimos: [negrita, cursiva, guion bajo, asterisco, resaltar, degradado, tachado]
+sinonimos: [negrita, cursiva, guion bajo, asterisco, resaltar, resaltado, marcador, subrayar, degradado, tachado]
 ---
 
 El **énfasis** destaca una palabra o una frase: cursiva, negrita o las dos. En Markdown se
@@ -31,6 +31,7 @@ no se pierde nada.
 | `***texto***` | negrita y cursiva |
 | `___texto___` | negrita **sin** cursiva, con un degradado del brillo al acento |
 | `~~texto~~` | tachado |
+| `==texto==` | resaltado, como con un marcador |
 
 ```ejemplo
 *cursiva* y _cursiva con brillo_
@@ -40,6 +41,8 @@ no se pierde nada.
 ***negrita y cursiva*** y ___negrita con degradado___
 
 ~~tachado~~
+
+==resaltado==
 ```
 
 > [!info] En medio de una palabra, el guion bajo no estiliza
@@ -52,3 +55,22 @@ nombre_de_archivo y super*cali*fragilístico
 
 En la vista en vivo los símbolos se esconden cuando el cursor no está en la línea, y
 reaparecen al volver a ella para que los puedas editar.
+
+## Resaltar
+
+Dos signos igual a cada lado (`==texto==`) pintan el fondo del texto, como un marcador:
+es la misma sintaxis de Obsidian. El resaltado puede envolver otros estilos y enlaces
+(`==una **idea** clave==`) y se ve igual en la vista en vivo, en la de lectura y en el PDF.
+
+- Tiene que abrir y cerrar en la misma línea.
+- Los signos van pegados al texto: `a == b` no resalta nada, y tres o más (`===`) tampoco.
+- Dentro de código (`` `==x==` ``) se muestra tal cual.
+
+```ejemplo
+Lo ==más importante== de la reunión fue ==la **fecha** de entrega==.
+
+Una comparación como a == b no se resalta.
+```
+
+El color sale del tema. Para cambiarlo con un snippet, la variable es `--mic-resaltado`
+(ver [CSS y snippets](ayuda:configuracion/css-y-snippets)).

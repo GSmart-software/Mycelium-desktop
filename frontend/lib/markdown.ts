@@ -28,6 +28,7 @@ import { cuerpoDe, separarFrontmatter, type Propiedad, type TipoPropiedad } from
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { MARCADOR_TAREA_RE, estaMarcada, estadoDeSimbolo } from "@/lib/estadosTarea";
 import { sanearUrlsHast, type NodoHast } from "@/lib/enlacesExternos";
+import { delimitadoresResaltado, emparejarResaltados } from "@/lib/resaltado";
 
 type MdNode = {
   type: string;
@@ -172,6 +173,91 @@ function remarkMicelio() {
       return index + pieces.length;
     });
   };
+}
+
+/** Nodos cuyo texto NO se mira para `==resaltado==`: el código se muestra tal cual. */
+const SIN_RESALTADO = new Set(["code", "inlineCode", "math", "inlineMath", "html", "yaml"]);
+
+type DelimNodo = { hijo: number; pos: number; abre: boolean; cierra: boolean };
+
+const SALTO = "\n";
+
+/**
+ * Plugin remark: `==texto==` → `<mark class="mic-resaltado">` (`FUN-S-33`).
+ *
+ * remark no conoce la sintaxis, así que el texto llega con los `==` adentro. Se
+ * buscan en los nodos de texto HERMANOS de cada padre y se emparejan entre ellos:
+ * así `==una **negrita** y [[enlace]]==` resalta todo, como en Obsidian, aunque
+ * el contenido sean varios nodos. El código (`inlineCode`, `code`) es otro tipo
+ * de nodo y nunca se mira. Las reglas —qué es un `==`, cuándo abre o cierra, que
+ * no cruce líneas— viven en `lib/resaltado.ts`, que usa también la vista en vivo.
+ *
+ * Va DESPUÉS de `remarkMicelio`: un `[[enlace]]` ya es un nodo, y su texto
+ * (`a==b` en un título) no se confunde con un delimitador del párrafo.
+ */
+function remarkResaltado() {
+  const procesar = (padre: MdNode) => {
+    const hijos = padre.children;
+    if (!hijos || SIN_RESALTADO.has(padre.type)) return;
+    const ds: DelimNodo[] = [];
+    hijos.forEach((h, i) => {
+      if (h.type !== "text" || !h.value?.includes("==")) return;
+      // El carácter vecino cuando el `==` está en el borde del nodo: si hay otro
+      // nodo al lado (una negrita, un enlace), cuenta como «no espacio».
+      const vecino = (n: MdNode | undefined, ultimo: boolean): string | undefined => {
+        if (!n) return undefined;
+        if (n.type === "text") return ultimo ? n.value?.slice(-1) : n.value?.[0];
+        return n.type === "break" ? SALTO : "x";
+      };
+      for (const d of delimitadoresResaltado(h.value, vecino(hijos[i - 1], true), vecino(hijos[i + 1], false))) {
+        ds.push({ hijo: i, ...d });
+      }
+    });
+    if (ds.length >= 2) {
+      const invalido = (a: DelimNodo, b: DelimNodo): boolean => {
+        if (a.hijo === b.hijo) {
+          return b.pos <= a.pos + 2 || hijos[a.hijo].value!.slice(a.pos, b.pos).includes(SALTO);
+        }
+        // Entre dos nodos: ni un salto de línea en los textos del medio ni un
+        // `<br>` (dos espacios al final del renglón).
+        if (hijos[a.hijo].value!.slice(a.pos).includes(SALTO)) return true;
+        if (hijos[b.hijo].value!.slice(0, b.pos).includes(SALTO)) return true;
+        for (let k = a.hijo + 1; k < b.hijo; k++) {
+          const n = hijos[k];
+          if (n.type === "break" || (n.type === "text" && n.value?.includes(SALTO))) return true;
+        }
+        return false;
+      };
+      const pares = emparejarResaltados(ds, invalido);
+      // De atrás para adelante: partir un nodo deja intactos los índices y las
+      // posiciones de lo que está antes.
+      for (let p = pares.length - 1; p >= 0; p--) {
+        const a = ds[pares[p][0]];
+        const b = ds[pares[p][1]];
+        const texto = (v: string): MdNode[] => (v ? [{ type: "text", value: v }] : []);
+        const va = hijos[a.hijo].value!;
+        const vb = hijos[b.hijo].value!;
+        const contenido: MdNode[] =
+          a.hijo === b.hijo
+            ? texto(va.slice(a.pos + 2, b.pos))
+            : [...texto(va.slice(a.pos + 2)), ...hijos.slice(a.hijo + 1, b.hijo), ...texto(vb.slice(0, b.pos))];
+        const marca: MdNode = {
+          type: "resaltado",
+          data: { hName: "mark", hProperties: { className: "mic-resaltado" } },
+          children: contenido,
+        };
+        hijos.splice(
+          a.hijo,
+          b.hijo - a.hijo + 1,
+          ...texto(va.slice(0, a.pos)),
+          marca,
+          ...texto(vb.slice(b.pos + 2)),
+        );
+      }
+    }
+    for (const h of hijos) procesar(h);
+  };
+  return (tree: Parent) => procesar(tree as unknown as MdNode);
 }
 
 /**
@@ -649,6 +735,7 @@ function crearProcesador(conLineas: boolean) {
     .use(remarkVideo)
     .use(remarkImagenes)
     .use(remarkMicelio)
+    .use(remarkResaltado)
     .use(remarkCallouts)
     .use(remarkEmphasisStyle)
     .use(remarkRehype)

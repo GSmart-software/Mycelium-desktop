@@ -966,6 +966,19 @@
   -webkit-text-fill-color: transparent;
 }
 
+/* `==resaltado==` (`FUN-S-33`): <mark> en lectura, una marca de CodeMirror en
+   vivo. El color de la letra no cambia (el del navegador para <mark> es negro);
+   solo el fondo, que sale de --mic-resaltado. */
+.mic-preview mark.mic-resaltado,
+.cm-editor .mic-resaltado {
+  background-color: var(--mic-resaltado);
+  color: inherit;
+  border-radius: 0.2em;
+  padding: 0 0.1em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
 .mic-preview code {
   font-family: var(--mic-font-mono);
   font-size: 0.9em;
