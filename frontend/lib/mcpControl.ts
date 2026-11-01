@@ -31,6 +31,8 @@
  *    (`pedido.sesion`); Rust avisa cuáles están conectadas (`mcp-sesiones`).
  *    La tarea y las reservas (`lib/mcpSesiones.ts`), y el registro de
  *    actividad anota de qué sesión es cada entrada.
+ * 10. **Los diagnósticos del editor** (`FUN-M-44`): lo marcado en las notas
+ *     abiertas, de solo lectura (`lib/mcpSalud.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -263,6 +265,8 @@ async function atender(pedido: Pedido, sesionId: string | null): Promise<Atendid
       return saludIa.salud(args);
     case "validar_nota":
       return saludIa.validarNota(args);
+    case "diagnosticos":
+      return saludIa.diagnosticos(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":

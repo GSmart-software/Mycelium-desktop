@@ -76,6 +76,7 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_validar_nota",
             "mycelium_sesion",
             "mycelium_reservar",
+            "mycelium_diagnosticos",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {

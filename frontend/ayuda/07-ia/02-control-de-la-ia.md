@@ -56,6 +56,8 @@ herramienta: generalas, o actualizalas si Configuración te ofrece una versión 
     huérfanas, títulos duplicados, propiedades que no cumplen— y **validar una nota** que
     acaba de escribir: título único, enlaces que resuelven, alguien que la enlace y
     propiedades válidas según los [esquemas](ayuda:escribir-notas/esquemas-de-propiedades).
+  - leer los [avisos](ayuda:escribir-notas/avisos-en-la-nota) que el editor tiene marcados
+    en las notas abiertas: enlaces rotos o ambiguos, título repetido y propiedades.
 
   Así la IA ve la memoria con el mismo criterio que la app: un `[[enlace]]` escrito dentro
   de un bloque de código no cuenta, y lo que oculta `.mycignore` no aparece. Estas

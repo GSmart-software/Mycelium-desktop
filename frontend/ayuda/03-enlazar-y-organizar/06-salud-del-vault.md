@@ -24,6 +24,9 @@ código no cuenta, y `[[Nota|alias]]` o `[[Nota#Encabezado]]` son enlaces a `Not
 2. Arriba está el total de problemas. Debajo, cada clase en su sección, con su cantidad.
 3. Haz clic en un problema para abrir la nota en esa línea, y corrígelo ahí.
 
+En la nota abierta, los mismos problemas se ven además subrayados: ver
+[Avisos en la nota](ayuda:escribir-notas/avisos-en-la-nota).
+
 El panel se actualiza solo cuando guardas, cuando algo cambia en el vault por fuera de la app
 o cuando creas, renombras, mueves o borras una nota (unos instantes después, no a cada
 tecla). El botón de las flechas vuelve a revisar al momento.

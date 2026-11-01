@@ -578,6 +578,9 @@
    aviso, no rojo de error: no bloquean nada. */
 :root {
   --mic-aviso-propiedad: var(--mic-callout-warning-border);
+  /* Diagnósticos del editor (`FUN-M-44`): el subrayado de un enlace roto, un
+     título repetido o una propiedad que no cumple, y su cuenta en la barra. */
+  --mic-diagnostico: var(--mic-callout-warning-border);
 }
 
 /* ── Corrector ortográfico (FUN-L-12) ─────────────────────────── */

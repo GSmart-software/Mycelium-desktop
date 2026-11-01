@@ -19,6 +19,7 @@ export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
   const correctorOrtografico = usePreferencesStore((s) => s.prefs.correctorOrtografico);
+  const diagnosticosEditor = usePreferencesStore((s) => s.prefs.diagnosticosEditor);
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
@@ -121,6 +122,14 @@ export function EditorSection() {
         detalle="También revisa lo que ya estaba escrito al abrir la nota. Desde el clic derecho podés agregar la palabra al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las fórmulas y el frontmatter no se corrigen."
       />
       <DiccionariosCorrector />
+
+      <Interruptor
+        etiqueta="Avisos en la nota"
+        valor={diagnosticosEditor}
+        onChange={(v) => setPref("diagnosticosEditor", v)}
+        ayuda="Subraya los enlaces rotos o ambiguos, el título repetido y las propiedades que no cumplen sus esquemas."
+        detalle="Se revisa al abrir la nota y al guardarla, no en cada tecla. Pasa el mouse sobre lo subrayado para leer el aviso; la barra de estado dice cuántos hay. Nada de esto impide guardar."
+      />
 
       <Interruptor
         etiqueta="Números de línea"

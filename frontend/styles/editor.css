@@ -155,6 +155,35 @@
   box-shadow: 0 6px 20px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
 }
 
+/* Diagnósticos de la nota (`FUN-M-44`, `@codemirror/lint`): el subrayado
+   ondulado en el color de `--mic-diagnostico` (el de la librería es un SVG con
+   el naranja fijo) y el mensaje en el tooltip con los tokens de Mycelium. */
+.cm-editor .cm-lintRange.mic-diagnostico {
+  background-image: none;
+  text-decoration: underline wavy var(--mic-diagnostico);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+.cm-editor .cm-tooltip.cm-tooltip-lint {
+  padding: 0;
+}
+
+.cm-editor .cm-tooltip-lint .cm-diagnostic {
+  padding: 0.35rem 0.6rem 0.35rem 0.55rem;
+  border-left: 3px solid var(--mic-diagnostico);
+  font-family: var(--mic-font-sans);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  max-width: 32rem;
+  white-space: normal;
+}
+
+.cm-editor .cm-tooltip-lint .cm-diagnosticSource {
+  opacity: 0.6;
+  font-size: 0.75rem;
+}
+
 .cm-tooltip.cm-tooltip-autocomplete > ul {
   font-family: var(--mic-font-mono);
   max-height: 16em;

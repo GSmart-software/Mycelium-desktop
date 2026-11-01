@@ -173,8 +173,10 @@ import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
  *   raíz del vault (claves obligatorias, tipos, valores permitidos, por carpeta
  *   o por `tipo`), el aviso del `#` sin comillas, y el chequeo «Propiedades
  *   válidas» de `mycelium_validar_nota` / la sección de `mycelium_salud`, en
- *   la sección de propiedades de `mycelium-vault` y en `mycelium-operar`.
- *   **Minor**: la IA gana una validación nueva.
+ *   la sección de propiedades de `mycelium-vault` y en `mycelium-operar`. Y
+ *   los **diagnósticos del editor** (`FUN-M-44`): `mycelium_diagnosticos` en
+ *   `mycelium-operar`.
+ *   **Minor**: la IA gana una validación y una herramienta nuevas.
  */
 export const FRAMEWORK_IA_VERSION = "2.4.0";
 

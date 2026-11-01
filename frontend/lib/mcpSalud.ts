@@ -3,6 +3,9 @@
  * `mycelium_validar_nota`. Solo desktop y de solo lectura: el mismo informe que
  * el panel de salud (`lib/saludVault.ts`), recortado para el agente.
  *
+ * `mycelium_diagnosticos` (`FUN-M-44`) devuelve lo que el editor tiene marcado
+ * en las notas abiertas (o en una), sin recalcular lo ya calculado.
+ *
  * `mycelium_validar_nota` es el **chequeo de cierre** de una nota que el agente
  * acaba de escribir: título único, enlaces que resuelven, alguien la enlaza, y
  * lo que se registre con `registrarValidadorNota` (`lib/salud.ts`) —ahí se
@@ -21,6 +24,15 @@ import {
   type Chequeo,
 } from "@/lib/salud";
 import { informeDeSalud } from "@/lib/saludVault";
+import { diagnosticoParaIa, diagnosticosDeNota } from "@/lib/diagnosticos";
+import {
+  consultarParaDiagnosticos,
+  diagnosticosAbiertos,
+  diagnosticosDe,
+  diagnosticosEncendidos,
+  type DiagnosticosDeNota,
+} from "@/lib/diagnosticosVault";
+import { avisosDeNota } from "@/lib/esquemasVault";
 import { useVaultStore } from "@/stores/vaultStore";
 
 function soloClaves(args: Record<string, unknown>, conocidas: string[]): void {
@@ -110,4 +122,62 @@ export async function validarNota(args: Record<string, unknown>): Promise<Atendi
     },
     sinRegistro: true,
   };
+}
+
+// ── mycelium_diagnosticos (`FUN-M-44`) ──────────────────────────────────────
+
+/** Cuántos diagnósticos por nota devuelve como mucho. */
+const TOPE_DIAGNOSTICOS = 200;
+
+function notaConDiagnosticos(
+  ruta: string,
+  origen: "editor" | "calculado_ahora" | "pendiente",
+  calculado: DiagnosticosDeNota | undefined,
+) {
+  const nota = useVaultStore.getState().notas.find((n) => n.id === ruta);
+  const lista = calculado?.diagnosticos ?? [];
+  return {
+    ruta,
+    titulo: nota?.titulo ?? ruta.slice(ruta.lastIndexOf("/") + 1).replace(/\.md$/i, ""),
+    origen,
+    calculado_en: calculado ? new Date(calculado.calculadoEn).toISOString() : null,
+    total: lista.length,
+    diagnosticos: lista.slice(0, TOPE_DIAGNOSTICOS).map(diagnosticoParaIa),
+  };
+}
+
+/**
+ * Lo que la app tiene marcado en el editor. Con `nota`: esa nota —lo que ya
+ * calculó el editor si está abierta; si no, se calcula ahora sobre el índice,
+ * sin guardarlo—. Sin `nota`: las notas abiertas en algún editor, sin
+ * recalcular nada (una recién abierta puede figurar `pendiente`).
+ */
+export async function diagnosticos(args: Record<string, unknown>): Promise<Atendido> {
+  soloClaves(args, ["nota"]);
+  const pedido = textoOpcional(args, "nota");
+  const encendidos = diagnosticosEncendidos();
+  if (pedido !== "") {
+    const nota = notaDelIndice(pedido);
+    const ya = diagnosticosDe(nota.id);
+    if (ya) return { resultado: { encendidos, notas: [notaConDiagnosticos(nota.id, "editor", ya)] }, sinRegistro: true };
+    if (nota.tipo !== "markdown") {
+      return { resultado: { encendidos, notas: [notaConDiagnosticos(nota.id, "calculado_ahora", { diagnosticos: [], calculadoEn: Date.now() })] }, sinRegistro: true };
+    }
+    const [informe, contenidos] = await Promise.all([consultarParaDiagnosticos(nota.id), contenidosDe([nota.id])]);
+    const texto = contenidos.get(nota.id) ?? "";
+    const calculado: DiagnosticosDeNota = {
+      diagnosticos: diagnosticosDeNota({
+        notaId: nota.id,
+        texto,
+        rotos: informe.rotos,
+        embedsRotos: informe.embedsRotos,
+        duplicados: informe.duplicados,
+        propiedades: avisosDeNota(nota.id, texto),
+      }),
+      calculadoEn: Date.now(),
+    };
+    return { resultado: { encendidos, notas: [notaConDiagnosticos(nota.id, "calculado_ahora", calculado)] }, sinRegistro: true };
+  }
+  const notas = diagnosticosAbiertos().map((a) => notaConDiagnosticos(a.notaId, a.calculado ? "editor" : "pendiente", a.calculado));
+  return { resultado: { encendidos, notas }, sinRegistro: true };
 }

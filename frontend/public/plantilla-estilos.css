@@ -24,7 +24,7 @@
     13. Tablas
     14. Propiedades (la tarjeta del frontmatter)
     15. Diagramas, fórmulas y vídeos dentro de una nota
-    16. Búsqueda y corrector ortográfico
+    16. Búsqueda, corrector ortográfico y avisos de la nota
     17. Calendario y consolas
     18. Lo que se estila solo con colores: bases, lienzos, draw.io, explorador,
         pestañas, grafo y la ayuda
@@ -859,13 +859,16 @@
 
 
 /* ============================================================================
-   16) BÚSQUEDA Y CORRECTOR ORTOGRÁFICO
+   16) BÚSQUEDA, CORRECTOR ORTOGRÁFICO Y AVISOS DE LA NOTA
    ----------------------------------------------------------------------------
    Coincidencias de la búsqueda en la nota: en vivo, .cm-searchMatch (y la
    actual, .cm-searchMatch-selected); en lectura se pintan con
    ::highlight(mic-buscar) y ::highlight(mic-buscar-actual).
    La palabra mal escrita es .mic-error-ortografico, subrayada con el color
    --mic-error-ortografico.
+   Los avisos de la nota (un enlace roto o ambiguo, un título repetido, una
+   propiedad que no cumple su esquema) son .mic-diagnostico, subrayados con el
+   color --mic-diagnostico, que también usa su cuenta en la barra de estado.
    ========================================================================== */
 
 /*
@@ -878,6 +881,18 @@
 /*
 :root[data-theme] {
   --mic-error-ortografico: #ff6b6b;
+}
+*/
+
+/*
+:root[data-theme] {
+  --mic-diagnostico: #e07a3a;
+}
+*/
+
+/*
+.mic-diagnostico {
+  text-decoration-style: dotted;
 }
 */
 

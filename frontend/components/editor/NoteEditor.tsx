@@ -45,6 +45,7 @@ import {
 } from "@/lib/editor/livePreview";
 import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { avisosDeNota } from "@/lib/esquemasVault";
+import { diagnosticosEditor } from "@/lib/editor/diagnosticosEditor";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import {
   type DestinoTrasTitulo,
@@ -750,6 +751,9 @@ export function NoteEditor({
             // Los avisos de la tarjeta de propiedades (`FUN-M-46`): esquemas de
             // `esquemas.yml` y el `#` sin comillas. Por referencia, como arriba.
             avisosPropiedades.of((texto) => avisosDeNota(notaIdRef.current, texto)),
+            // Los diagnósticos de la nota, como un linter (`FUN-M-44`): al abrir
+            // y al guardar, nunca en cada tecla. Por referencia, como arriba.
+            diagnosticosEditor(() => notaIdRef.current),
             // Adónde va el foco al confirmar o descartar el título (`DEF-139`).
             // A la vista VIVA (`viewRef`), no a la del widget: si se renombró, esa
             // ya está destruida y otra ocupa su lugar. Un frame de margen para que

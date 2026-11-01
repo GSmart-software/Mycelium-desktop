@@ -21,6 +21,8 @@
 //! `FUN-L-30`: la salud del vault (`mycelium_salud`, `mycelium_validar_nota`),
 //! también de solo lectura: el mismo informe que el panel de salud de la app
 //! (`lib/saludVault.ts`).
+//! `FUN-M-44`: `mycelium_diagnosticos`, lo que el editor de la app tiene marcado
+//! en las notas abiertas (o en una), sin recalcular lo ya calculado.
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
@@ -45,7 +47,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 19] = [
+const NOMBRES: [&str; 20] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -65,6 +67,7 @@ const NOMBRES: [&str; 19] = [
     "mycelium_validar_nota",
     "mycelium_sesion",
     "mycelium_reservar",
+    "mycelium_diagnosticos",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -464,7 +467,31 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
+        definicion_diagnosticos(),
     ]
+}
+
+/// La definición de `mycelium_diagnosticos` (`FUN-M-44`), aparte para no
+/// alargar la lista de arriba.
+fn definicion_diagnosticos() -> Value {
+    json!({
+        "name": "mycelium_diagnosticos",
+        "title": "Avisos del editor",
+        "description": "Lo que el editor de Mycelium tiene marcado en una nota, como un linter: ENLACES y EMBEDS ROTOS, \
+            ENLACES AMBIGUOS (entre notas homónimas), TÍTULO DUPLICADO y PROPIEDADES que no cumplen los esquemas de \
+            `esquemas.yml` (o con un # sin comillas), cada uno con línea y columna. Se calculan al abrir y al guardar la \
+            nota en la app; esta herramienta devuelve lo ya calculado, sin recalcular. Sin `nota`: las notas abiertas en \
+            algún editor. Con `nota`: esa nota (si no está abierta, se calcula en el momento sobre el índice). Úsala \
+            después de editar una nota que el usuario tiene abierta, para ver lo mismo que él.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nota": { "type": "string", "description": "Opcional: la nota, por ruta (`docs/Plan.md`) o título (`Plan`)." }
+            },
+            "additionalProperties": false
+        },
+        "annotations": { "readOnlyHint": true, "openWorldHint": false }
+    })
 }
 
 /// Atiende un `tools/call`. `None` si la herramienta no existe (error de
@@ -502,6 +529,7 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_validar_nota" => herramienta_consulta(estado, vault, "validar_nota", args, redactar_validar_nota),
         "mycelium_sesion" => herramienta_coordinacion(estado, vault, "sesion", args),
         "mycelium_reservar" => herramienta_coordinacion(estado, vault, "reservar", args),
+        "mycelium_diagnosticos" => herramienta_consulta(estado, vault, "diagnosticos", args, redactar_diagnosticos),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -1405,6 +1433,44 @@ pub fn redactar_salud(r: &Value) -> String {
     t
 }
 
+/// Los diagnósticos del editor: por nota, cada uno con su línea y columna.
+pub fn redactar_diagnosticos(r: &Value) -> String {
+    let notas = r.get("notas").and_then(Value::as_array).cloned().unwrap_or_default();
+    let mut t = String::new();
+    if r.get("encendidos").and_then(Value::as_bool) == Some(false) {
+        t.push_str("Los avisos del editor están apagados (Configuración → Editor → «Avisos en la nota»): el editor no marca nada.\n");
+    }
+    if notas.is_empty() {
+        t.push_str("No hay notas abiertas en ningún editor. Pide una con `nota` para calcularla en el momento.");
+        return t;
+    }
+    for (i, nota) in notas.iter().enumerate() {
+        if i > 0 {
+            t.push('\n');
+        }
+        let total = n(nota, "total");
+        let origen = s(nota, "origen");
+        t.push_str(&format!("«{}» ({}): ", s(nota, "titulo"), s(nota, "ruta")));
+        if origen == "pendiente" {
+            t.push_str("recién abierta, todavía sin calcular. Repite en un instante.");
+            continue;
+        }
+        t.push_str(&if total == 0 { "sin avisos".to_string() } else { format!("{total} {}", if total == 1 { "aviso" } else { "avisos" }) });
+        if origen == "calculado_ahora" {
+            t.push_str(" (no está abierta: calculado ahora sobre el índice)");
+        }
+        t.push('.');
+        let lista = nota.get("diagnosticos").and_then(Value::as_array).cloned().unwrap_or_default();
+        for d in &lista {
+            t.push_str(&format!("\n  - línea {}, col. {} · {}", n(d, "linea"), n(d, "columna"), s(d, "mensaje")));
+        }
+        if (lista.len() as u64) < total {
+            t.push_str(&format!("\n  (y {} más)", total - lista.len() as u64));
+        }
+    }
+    t
+}
+
 /// El chequeo de cierre de una nota: cada chequeo con ✓ o ✗ y su detalle.
 pub fn redactar_validar_nota(r: &Value) -> String {
     let nota = r.get("nota").unwrap_or(&Value::Null);
@@ -1463,6 +1529,21 @@ mod tests_salud {
         let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
             "conteos": {"total": 0}}));
         assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");
+    }
+
+    #[test]
+    fn diagnosticos_por_nota_con_linea_y_columna() {
+        let t = redactar_diagnosticos(&json!({"encendidos": true, "notas": [
+            {"ruta": "Mapa.md", "titulo": "Mapa", "origen": "editor", "total": 1,
+             "diagnosticos": [{"linea": 6, "columna": 5, "origen": "enlace_roto", "mensaje": "Enlace roto: no hay ninguna nota «Fantasma»."}]},
+            {"ruta": "Nueva.md", "titulo": "Nueva", "origen": "pendiente", "total": 0, "diagnosticos": []},
+            {"ruta": "Otra.md", "titulo": "Otra", "origen": "calculado_ahora", "total": 0, "diagnosticos": []}
+        ]}));
+        assert!(t.contains("«Mapa» (Mapa.md): 1 aviso.\n  - línea 6, col. 5 · Enlace roto"), "{t}");
+        assert!(t.contains("«Nueva» (Nueva.md): recién abierta"), "{t}");
+        assert!(t.contains("«Otra» (Otra.md): sin avisos (no está abierta"), "{t}");
+        let apagados = redactar_diagnosticos(&json!({"encendidos": false, "notas": []}));
+        assert!(apagados.starts_with("Los avisos del editor están apagados"), "{apagados}");
     }
 
     #[test]
