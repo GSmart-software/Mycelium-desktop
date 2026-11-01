@@ -65,11 +65,6 @@ pub fn id_para(pid: u32, nanos: u32) -> String {
     format!("{pid:x}-{:04x}", (nanos >> 8) & 0xffff)
 }
 
-/// El id de esta sesión.
-pub fn id() -> &'static str {
-    &sesion().id
-}
-
 fn cliente() -> &'static Mutex<Option<Value>> {
     static C: OnceLock<Mutex<Option<Value>>> = OnceLock::new();
     C.get_or_init(|| Mutex::new(None))
@@ -135,15 +130,15 @@ mod tests {
     #[test]
     fn el_id_es_corto_y_estable() {
         assert_eq!(id_para(0x4f28, 0x00a1_b300), "4f28-a1b3");
-        assert_eq!(id(), id(), "no cambia mientras vive el proceso");
-        assert!(id().starts_with(&format!("{:x}-", std::process::id())));
+        assert_eq!(datos()["id"], datos()["id"], "no cambia mientras vive el proceso");
+        assert!(datos()["id"].as_str().unwrap().starts_with(&format!("{:x}-", std::process::id())));
     }
 
     #[test]
     fn los_datos_llevan_el_cliente_si_vino() {
         fijar_cliente(&json!({"clientInfo": {"name": "claude-code", "version": "2.1.0"}}));
         let d = datos();
-        assert_eq!(d["id"], id());
+        assert_eq!(d["id"], sesion().id.as_str());
         assert_eq!(d["cliente"]["nombre"], "claude-code");
         assert_eq!(d["cliente"]["version"], "2.1.0");
         // Un `initialize` sin clientInfo no borra lo que había.

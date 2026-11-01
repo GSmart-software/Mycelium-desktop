@@ -17,6 +17,9 @@ use std::time::Duration;
 use serde_json::Value;
 
 type Responder = Arc<dyn Fn(Value) -> Option<Value> + Send + Sync>;
+/// Lo que se llama cuando una conexión se cierra, con su número (ver
+/// [`levantar_con_cierre`]).
+type AlCerrar = Arc<dyn Fn(u64) + Send + Sync>;
 
 pub struct Servidor {
     pub canal: PathBuf,
@@ -46,21 +49,48 @@ pub fn levantar<F>(canal: PathBuf, responder: F) -> Servidor
 where
     F: Fn(Value) -> Option<Value> + Send + Sync + 'static,
 {
+    levantar_interno(canal, Arc::new(responder), None)
+}
+
+/// Como [`levantar`], pero cada pedido llega con `_conexion` (el número de la
+/// conexión por la que vino) y `al_cerrar` se llama con ese número cuando la
+/// conexión se corta. Sirve para hacer de app con sesiones (`FUN-L-31`): la
+/// presencia de un servidor es una conexión que queda abierta mientras vive.
+pub fn levantar_con_cierre<F, C>(canal: PathBuf, responder: F, al_cerrar: C) -> Servidor
+where
+    F: Fn(Value) -> Option<Value> + Send + Sync + 'static,
+    C: Fn(u64) + Send + Sync + 'static,
+{
+    levantar_interno(canal, Arc::new(responder), Some(Arc::new(al_cerrar)))
+}
+
+fn levantar_interno(canal: PathBuf, responder: Responder, al_cerrar: Option<AlCerrar>) -> Servidor {
     let parar = Arc::new(AtomicBool::new(false));
-    let responder: Responder = Arc::new(responder);
     let (p, c) = (parar.clone(), canal.clone());
     let (listo_tx, listo_rx) = mpsc::channel();
-    std::thread::spawn(move || plataforma::bucle(c, p, responder, listo_tx));
+    std::thread::spawn(move || plataforma::bucle(c, p, responder, al_cerrar, listo_tx));
     listo_rx.recv_timeout(Duration::from_secs(5)).expect("el servidor falso no arrancó");
     Servidor { canal, parar }
 }
 
-fn atender<S: Read + Write>(s: S, responder: &Responder) {
+fn atender<S: Read + Write>(s: S, responder: &Responder, al_cerrar: Option<AlCerrar>) {
+    static CONEXIONES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    let conexion = CONEXIONES.fetch_add(1, Ordering::SeqCst);
+    atender_lineas(s, responder, al_cerrar.is_some().then_some(conexion));
+    if let Some(f) = al_cerrar {
+        f(conexion);
+    }
+}
+
+fn atender_lineas<S: Read + Write>(s: S, responder: &Responder, conexion: Option<u64>) {
     let mut lector = BufReader::new(s);
     let mut linea = String::new();
     while matches!(lector.read_line(&mut linea), Ok(n) if n > 0) {
-        let pedido: Value = serde_json::from_str(linea.trim()).unwrap_or(Value::Null);
+        let mut pedido: Value = serde_json::from_str(linea.trim()).unwrap_or(Value::Null);
         linea.clear();
+        if let (Some(n), Some(o)) = (conexion, pedido.as_object_mut()) {
+            o.insert("_conexion".into(), Value::from(n));
+        }
         let Some(r) = responder(pedido) else { continue };
         let mut texto = r.to_string();
         texto.push('\n');
@@ -85,7 +115,13 @@ mod plataforma {
         let _ = std::fs::OpenOptions::new().read(true).write(true).open(canal);
     }
 
-    pub fn bucle(canal: PathBuf, parar: Arc<AtomicBool>, responder: Responder, listo: mpsc::Sender<()>) {
+    pub fn bucle(
+        canal: PathBuf,
+        parar: Arc<AtomicBool>,
+        responder: Responder,
+        al_cerrar: Option<AlCerrar>,
+        listo: mpsc::Sender<()>,
+    ) {
         let nombre = HSTRING::from(canal.as_os_str());
         let mut avisado = false;
         while !parar.load(Ordering::SeqCst) {
@@ -116,8 +152,8 @@ mod plataforma {
             if parar.load(Ordering::SeqCst) {
                 break;
             }
-            let r = responder.clone();
-            std::thread::spawn(move || atender(archivo, &r));
+            let (r, c) = (responder.clone(), al_cerrar.clone());
+            std::thread::spawn(move || atender(archivo, &r, c));
         }
     }
 }
@@ -132,7 +168,13 @@ mod plataforma {
         let _ = std::fs::remove_file(canal);
     }
 
-    pub fn bucle(canal: PathBuf, parar: Arc<AtomicBool>, responder: Responder, listo: mpsc::Sender<()>) {
+    pub fn bucle(
+        canal: PathBuf,
+        parar: Arc<AtomicBool>,
+        responder: Responder,
+        al_cerrar: Option<AlCerrar>,
+        listo: mpsc::Sender<()>,
+    ) {
         let _ = std::fs::remove_file(&canal);
         let Ok(oyente) = UnixListener::bind(&canal) else { return };
         let _ = listo.send(());
@@ -141,8 +183,8 @@ mod plataforma {
                 break;
             }
             let Ok(s) = s else { continue };
-            let r = responder.clone();
-            std::thread::spawn(move || atender(s, &r));
+            let (r, c) = (responder.clone(), al_cerrar.clone());
+            std::thread::spawn(move || atender(s, &r, c));
         }
     }
 }

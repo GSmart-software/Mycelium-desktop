@@ -576,3 +576,136 @@ fn las_consultas_de_punta_a_punta() {
     drop(mcp);
     let _ = std::fs::remove_dir_all(base);
 }
+
+/// `FUN-L-31`: dos servidores (dos sesiones de Claude Code) contra la misma app
+/// falsa. Cada uno se anuncia por su conexión de presencia y manda su sesión en
+/// cada pedido; la app falsa lleva el registro como la de verdad (`control.rs`
+/// + `lib/sesionesIa.ts`, reducido a lo justo): cada uno ve al otro, con su
+/// tarea y su reserva, y al morir uno el otro deja de verlo.
+#[test]
+fn dos_sesiones_se_ven_entre_si() {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    #[derive(Default)]
+    struct App {
+        /// id de sesión → (conexión de presencia, tarea).
+        sesiones: HashMap<String, (u64, Option<String>)>,
+        /// (ruta, sesión, motivo).
+        reservas: Vec<(String, String, String)>,
+    }
+
+    let (base, dir_app, vault) = preparar("sesiones");
+    control(&vault, true);
+    let canal = mycelium_vault::canal::nombre_canal(&vault.to_string_lossy(), &dir_app);
+    let estado = Arc::new(Mutex::new(App::default()));
+
+    // Lo que la app le cuenta a `propia` de las demás.
+    fn texto(app: &App, propia: &str) -> String {
+        let mut t = format!("Sesiones: {}.", app.sesiones.len());
+        let mut otras: Vec<_> = app.sesiones.iter().filter(|(id, _)| id.as_str() != propia).collect();
+        otras.sort_by_key(|(id, _)| id.as_str());
+        for (id, (_, tarea)) in otras {
+            t.push_str(&format!("\nOtra: {id} «{}»", tarea.as_deref().unwrap_or("sin tarea")));
+        }
+        for (ruta, s, motivo) in app.reservas.iter().filter(|r| r.1 != propia) {
+            t.push_str(&format!("\nReservado: {ruta} por {s} («{motivo}»)"));
+        }
+        t
+    }
+
+    let (e1, e2) = (estado.clone(), estado.clone());
+    let _app = falso::levantar_con_cierre(
+        canal,
+        move |p| {
+            let id = p["id"].clone();
+            let sid = p["sesion"]["id"].as_str().unwrap_or("").to_string();
+            let mut app = e1.lock().unwrap();
+            let ok = |r: Value| Some(json!({"id": id, "ok": true, "resultado": r}));
+            match p["op"].as_str() {
+                Some("sesion_abrir") => {
+                    let conexion = p["_conexion"].as_u64().unwrap();
+                    app.sesiones.insert(sid.clone(), (conexion, None));
+                    ok(json!({"sesion": sid}))
+                }
+                Some("estado") => ok(json!({"etapa": "lista", "paneles": [], "coordinacion": {"texto": texto(&app, &sid)}})),
+                Some("sesion") => {
+                    let tarea = p["args"]["tarea"].as_str().unwrap().to_string();
+                    app.sesiones.get_mut(&sid).expect("la sesión se anunció antes de pedir").1 = Some(tarea.clone());
+                    ok(json!({"efecto": format!("Tarea declarada: «{tarea}»."), "coordinacion": {"texto": texto(&app, &sid)}}))
+                }
+                Some("reservar") => {
+                    let ruta = p["args"]["objetivo"].as_str().unwrap().to_string();
+                    let motivo = p["args"]["motivo"].as_str().unwrap().to_string();
+                    let ajena = app.reservas.iter().find(|r| r.0 == ruta && r.1 != sid).cloned();
+                    app.reservas.push((ruta.clone(), sid.clone(), motivo));
+                    let efecto = match ajena {
+                        Some((_, quien, por)) => format!("Reservé {ruta}. Ojo: ya lo tiene {quien} («{por}»)."),
+                        None => format!("Reservé {ruta}."),
+                    };
+                    ok(json!({"efecto": efecto, "coordinacion": {"texto": texto(&app, &sid)}}))
+                }
+                _ => Some(json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}})),
+            }
+        },
+        move |conexion| {
+            // Se cortó una conexión: si sostenía una sesión, murió (con sus reservas).
+            let mut app = e2.lock().unwrap();
+            let muertas: Vec<String> =
+                app.sesiones.iter().filter(|(_, (c, _))| *c == conexion).map(|(id, _)| id.clone()).collect();
+            for id in &muertas {
+                app.sesiones.remove(id);
+                app.reservas.retain(|r| &r.1 != id);
+            }
+        },
+    );
+
+    let mut uno = Mcp::lanzar(&dir_app, &vault);
+    let mut dos = Mcp::lanzar(&dir_app, &vault);
+    uno.pedir("initialize", json!({"protocolVersion": "2025-06-18", "clientInfo": {"name": "claude-code", "version": "2.1"}}));
+    dos.pedir("initialize", json!({"protocolVersion": "2025-06-18", "clientInfo": {"name": "claude-code", "version": "2.1"}}));
+
+    // Las presencias se abren en un hilo de cada servidor: un instante.
+    let limite = Instant::now() + Duration::from_secs(5);
+    while estado.lock().unwrap().sesiones.len() < 2 {
+        assert!(Instant::now() < limite, "las dos sesiones no se anunciaron");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let ids: Vec<String> = {
+        let app = estado.lock().unwrap();
+        let mut v: Vec<String> = app.sesiones.keys().cloned().collect();
+        v.sort();
+        v
+    };
+    assert_ne!(ids[0], ids[1], "cada proceso es una sesión distinta");
+
+    let (t, err) = uno.herramienta("mycelium_sesion", json!({"tarea": "Reorganizar docs"}));
+    assert!(!err && t.starts_with("Tarea declarada: «Reorganizar docs».") && t.contains("Sesiones: 2."), "{t}");
+    let (t, err) = uno.herramienta("mycelium_reservar", json!({"objetivo": "docs/Plan.md", "motivo": "reescribirla"}));
+    assert!(!err && t.starts_with("Reservé docs/Plan.md."), "{t}");
+
+    // La otra sesión ve a la primera, con su tarea y su reserva.
+    let (t, err) = dos.herramienta("mycelium_estado", json!({}));
+    assert!(!err && t.starts_with("app: abierta"), "{t}");
+    assert!(t.contains("«Reorganizar docs»") && t.contains("Reservado: docs/Plan.md") && t.contains("«reescribirla»"), "{t}");
+    // Y reservar lo mismo se concede, avisando quién lo tiene.
+    let (t, err) = dos.herramienta("mycelium_reservar", json!({"objetivo": "docs/Plan.md", "motivo": "corregir"}));
+    assert!(!err && t.contains("Ojo: ya lo tiene") && t.contains("«reescribirla»"), "{t}");
+    // La primera ve a la segunda (sin tarea) y su reserva.
+    let (t, _) = uno.herramienta("mycelium_estado", json!({}));
+    assert!(t.contains("«sin tarea»") && t.contains("«corregir»"), "{t}");
+
+    // Muere la primera: su presencia se corta y la otra deja de verla.
+    drop(uno);
+    let limite = Instant::now() + Duration::from_secs(5);
+    while estado.lock().unwrap().sesiones.len() > 1 {
+        assert!(Instant::now() < limite, "la sesión muerta no se dio de baja");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let (t, _) = dos.herramienta("mycelium_estado", json!({}));
+    assert!(t.contains("Sesiones: 1.") && !t.contains("Reorganizar docs") && !t.contains("reescribirla"), "{t}");
+
+    drop(dos);
+    let _ = std::fs::remove_dir_all(base);
+}
