@@ -10,7 +10,7 @@ import {
   esAnclaPropia,
   etiquetaDeReferencia,
   folderSegments,
-  notasPorTitulo,
+  opcionesWikilink,
   resolveWikilink,
   resolverReferencia,
 } from "@/lib/wikilinks";
@@ -62,8 +62,9 @@ export function markMissingWikilinks(
 
 /**
  * Fuente de autocompletado para CodeMirror: se dispara mientras se escribe
- * dentro de `[[…`. Sugiere los títulos del vault; si un título se repite,
- * inserta la ruta de carpeta (`Carpeta/Sub/título`) para referenciar el correcto.
+ * dentro de `[[…`. Sugiere los títulos del vault —si un título se repite,
+ * inserta la ruta de carpeta (`Carpeta/Sub/título`) para referenciar el
+ * correcto— y los alias de las notas (`FUN-M-15`), con la nota a la que llevan.
  */
 export function wikilinkCompletions(context: CompletionContext): CompletionResult | null {
   const before = context.matchBefore(/\[\[([^[\]\n]*)$/);
@@ -73,43 +74,25 @@ export function wikilinkCompletions(context: CompletionContext): CompletionResul
   if (typed.includes("|")) return null; // ya está escribiendo el alias
 
   const from = before.from + 2;
-  const query = typed.toLowerCase();
 
   const { notas, carpetas } = useVaultStore.getState();
 
-  // Títulos repetidos (ambiguos), del mismo índice que usa `resolveWikilink`.
-  const porTitulo = notasPorTitulo(notas);
-
-  const options = notas
-    .map((n) => {
-      const segs = folderSegments(n.carpetaId, carpetas);
-      const ambiguous = (porTitulo.get(n.titulo.toLowerCase())?.length ?? 0) > 1;
-      const path = segs.length > 0 ? `${segs.join("/")}/${n.titulo}` : n.titulo;
-      // Las ambiguas se insertan con ruta para que resuelvan de forma única.
-      const insert = ambiguous ? path : n.titulo;
-      return { titulo: n.titulo, segs, path, insert };
-    })
-    .filter((o) => {
-      if (!query) return true;
-      return (
-        o.titulo.toLowerCase().includes(query) || o.path.toLowerCase().includes(query)
-      );
-    })
-    .slice(0, 50)
-    .map((o) => ({
-      label: o.insert,
-      detail: o.segs.length > 0 ? o.segs.join("/") : undefined,
-      type: "text",
-      apply: (view: EditorView, _completion: Completion, applyFrom: number, applyTo: number) => {
-        const hasClose = view.state.sliceDoc(applyTo, applyTo + 2) === "]]";
-        const insert = hasClose ? o.insert : `${o.insert}]]`;
-        view.dispatch({
-          changes: { from: applyFrom, to: applyTo, insert },
-          // Cursor tras el `]]` de cierre.
-          selection: { anchor: applyFrom + o.insert.length + 2 },
-        });
-      },
-    }));
+  // Títulos y alias (`FUN-M-15`), con la misma regla que resuelve el enlace
+  // (`opcionesWikilink`, probada en `scripts/test-wikilinks.mjs`).
+  const options = opcionesWikilink(typed, notas, carpetas).map((o) => ({
+    label: o.label,
+    detail: o.detail,
+    type: o.alias !== undefined ? "keyword" : "text",
+    apply: (view: EditorView, _completion: Completion, applyFrom: number, applyTo: number) => {
+      const hasClose = view.state.sliceDoc(applyTo, applyTo + 2) === "]]";
+      const insert = hasClose ? o.insert : `${o.insert}]]`;
+      view.dispatch({
+        changes: { from: applyFrom, to: applyTo, insert },
+        // Cursor tras el `]]` de cierre.
+        selection: { anchor: applyFrom + o.insert.length + 2 },
+      });
+    },
+  }));
 
   if (options.length === 0) return null;
   return { from, to: before.to, options, filter: false };

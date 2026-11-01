@@ -9,12 +9,13 @@
  */
 import { tipoDeNotaPorRuta } from "@/lib/arbolVivo";
 import { decidirAlGuardar } from "@/lib/conflictoExterno";
-import { derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
+import { clavesDeAlias, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { execute, select } from "./client";
-import { crearResolutor, escribirEnlacesTanda, huellaEnlaces } from "./enlacesIndice";
+import { avisarAliasCambiados } from "@/lib/eventos";
+import { crearResolutor, escribirEnlacesTanda, huellaEnlaces, reResolverClaves } from "./enlacesIndice";
 import { ftsPoner } from "./ftsIndice";
 import { DbError } from "./errors";
-import { derivarIndice, reindexarPropiedadesTanda } from "./propiedades";
+import { aliasesDeFilas, aliasesPorNota, derivarIndice, mismosAliases, reindexarPropiedadesTanda } from "./propiedades";
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
 import { getVaultActual } from "./vaultContext";
@@ -156,8 +157,18 @@ export async function putContenido(
   // por cada guardado que no las tocaba—.
   const { contenido: buscable, extra, propiedades, huella } = derivarIndice(texto, notas[0].tipo);
   if (huella !== notas[0].hash_indexable || Number(notas[0].con_busqueda) !== 1) {
+    // Los alias de antes, para saber si cambiaron (`FUN-M-15`): solo cuando las
+    // propiedades se reescriben, que es la única vez que pueden cambiar.
+    const antes = (await aliasesPorNota([id])).get(id) ?? [];
     await ftsPoner(id, notas[0].titulo, buscable, extra);
     await reindexarPropiedadesTanda([{ id, propiedades }]);
+    const despues = aliasesDeFilas(propiedades);
+    if (!mismosAliases(antes, despues)) {
+      // Un `[[alias]]` que estaba roto pasa a resolver a esta nota, y uno que
+      // ya no lo es vuelve a roto (o a quien más lo declare), sin reindexar.
+      await reResolverClaves(clavesDeAlias([...antes, ...despues]));
+      avisarAliasCambiados({ [id]: despues });
+    }
   }
   // Los enlaces y las etiquetas (`FUN-L-25`), con su propia huella: casi todo
   // guardado cambia el texto indexable y casi ninguno los enlaces. Si cambiaron,

@@ -1,7 +1,7 @@
 ---
 titulo: Propiedades
 tema: Escribir notas
-sinonimos: [frontmatter, metadatos, yaml, campos, atributos, tags, cssclasses]
+sinonimos: [frontmatter, metadatos, yaml, campos, atributos, tags, cssclasses, aliases]
 ---
 
 Las **propiedades** son datos de la nota escritos como `clave: valor` en un bloque entre
@@ -54,6 +54,9 @@ Un valor entre comillas es siempre texto: `version: "1.0"` no es un número.
   cuerpo. Se pueden escribir con o sin `#`. Ver [Etiquetas](ayuda:enlazar-y-organizar/etiquetas).
 - Un `[[enlace]]` dentro de un valor funciona como cualquier enlace. Va entre comillas,
   como en el ejemplo.
+- **`aliases`** también es especial: sus valores son **otros nombres** de la nota, y un
+  `[[enlace]]` con cualquiera de ellos lleva a ella. Ver
+  [Otros nombres de una nota](ayuda:enlazar-y-organizar/enlaces).
 - **`cssclasses`** también es especial: sus valores son **clases CSS** que se le ponen a la
   nota mientras está abierta —al editarla, al leerla y en el PDF—, para que un snippet le dé
   un aspecto propio. Ver [CSS y snippets](ayuda:configuracion/css-y-snippets).

@@ -674,3 +674,90 @@ export function clasesCssDe(texto: string): string[] {
   }
   return salida;
 }
+
+// ── `aliases`: los otros nombres de la nota (`FUN-M-15`, `FUN-M-47`) ─────────
+
+/**
+ * Las claves que declaran alias, en minúsculas: `aliases` (la de Obsidian) y
+ * `alias`, la forma vieja que Obsidian todavía lee. Se escribe en `aliases`
+ * salvo que la nota ya use `alias`.
+ */
+export const CLAVES_ALIAS: readonly string[] = ["aliases", "alias"];
+
+/** ¿Esta clave declara alias? Sin distinguir mayúsculas, como `propiedadDe`. */
+export function esClaveAlias(clave: string): boolean {
+  return CLAVES_ALIAS.includes(clave.trim().toLowerCase());
+}
+
+/**
+ * Los alias que declaran estos valores de propiedad (los de las claves de
+ * alias): cada elemento de una lista, o el texto entero si es un escalar
+ * —`aliases: HU-009` es UN alias, aunque lleve comas—. Sin vacíos ni
+ * repetidos (sin distinguir mayúsculas), en el orden escrito.
+ */
+export function aliasesDeValores(valores: readonly (string | number | boolean)[]): string[] {
+  const salida: string[] = [];
+  const vistos = new Set<string>();
+  for (const v of valores) {
+    const a = String(v).trim();
+    const clave = a.toLowerCase();
+    if (a === "" || vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(a);
+  }
+  return salida;
+}
+
+/** Los alias de una nota ya parseada. Un frontmatter no interpretado no declara ninguno. */
+export function aliasesDeFrontmatter(fm: Frontmatter): string[] {
+  if (!fm.hay || !fm.soportado) return [];
+  const valores: (string | number | boolean)[] = [];
+  for (const p of fm.props) {
+    if (!esClaveAlias(p.clave)) continue;
+    if (Array.isArray(p.valor)) valores.push(...p.valor);
+    else valores.push(p.valor);
+  }
+  return aliasesDeValores(valores);
+}
+
+/** Los alias de una nota a partir de su texto. */
+export function aliasesDe(texto: string): string[] {
+  return aliasesDeFrontmatter(separarFrontmatter(texto));
+}
+
+/**
+ * Agrega `alias` a los alias de la nota (`FUN-M-47`: conservar el nombre
+ * anterior al renombrar), tocando solo esas líneas (`ponerPropiedad`):
+ *
+ * - sin frontmatter, o sin la propiedad: `aliases: [alias]`;
+ * - con una lista (en línea o en bloque): se le suma al final, en su estilo;
+ * - con un texto: pasa a ser una lista con el texto de antes y el nuevo
+ *   (vacío: solo el nuevo);
+ * - si ya estaba (sin distinguir mayúsculas), el texto no cambia.
+ *
+ * Devuelve el texto nuevo, o `null` si no se puede editar sin romperlo (un
+ * frontmatter que Mycelium no interpreta, `guardaEdicion`) o si el alias está
+ * vacío. Quien llama decide qué decir: el renombre no falla por esto.
+ */
+export function agregarAlias(texto: string, alias: string): string | null {
+  const limpio = alias.trim();
+  if (limpio === "") return null;
+  const fm = separarFrontmatter(texto);
+  if (fm.hay && !fm.soportado) return null;
+  if (aliasesDeFrontmatter(fm).some((a) => a.toLowerCase() === limpio.toLowerCase())) return texto;
+  const existente = fm.hay && fm.soportado ? fm.props.find((p) => esClaveAlias(p.clave)) : undefined;
+  if (!existente) return ponerPropiedad(texto, "aliases", [limpio], "lista");
+  const previos = Array.isArray(existente.valor)
+    ? existente.valor.map(String)
+    : String(existente.valor).trim() === ""
+      ? []
+      : [String(existente.valor)];
+  return ponerPropiedad(texto, existente.clave, [...previos, limpio], "lista");
+}
+
+/** ¿Dos listas de alias son la misma (sin distinguir mayúsculas ni orden)? */
+export function mismosAliases(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const norm = (l: readonly string[]) => l.map((s) => s.toLowerCase()).sort().join("\u0000");
+  return norm(a) === norm(b);
+}

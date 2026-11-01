@@ -221,3 +221,24 @@ test("involucradas: lo que se traslada y las que ya se llamaban como queda", () 
   const inv = H.involucradas(VAULT, ["Riego de verano.md"], ["tomate"]);
   assert.deepEqual(new Set(inv), new Set(["Riego de verano.md", "Cultivos/Tomate.md"]));
 });
+
+// ── Alias (`FUN-M-15`) ────────────────────────────────────────────────────────
+
+test("alias: renombrar una nota con el alias de otra no le quita sus [[alias]]", () => {
+  const vault = [{ ...md("Historias/HU-009 Gestion.md"), aliases: ["HU-009"] }, md("Borrador.md")];
+  const r = operar(vault, { traslados: [traslado("Borrador.md", "HU-009.md")] }, "Ver [[HU-009]] y [[Borrador]].");
+  // `[[HU-009]]` iba a la historia por su alias; ahora un título le ganaría, así
+  // que pasa a llevar la ruta de la historia. El de la renombrada, su título nuevo.
+  assert.equal(r.texto, "Ver [[Historias/HU-009 Gestion]] y [[HU-009]].");
+  assert.equal(H.resolutorDe(r.despues)("Historias/HU-009 Gestion"), "Historias/HU-009 Gestion.md");
+});
+
+test("alias: renombrar la nota que declara el alias no toca los [[alias]] (siguen resolviendo)", () => {
+  const vault = [{ ...md("Historias/HU-009 Gestion.md"), aliases: ["HU-009"] }, md("Diario.md")];
+  const r = operar(
+    vault,
+    { traslados: [traslado("Historias/HU-009 Gestion.md", "Historias/HU-009 Usuarios.md")] },
+    "[[HU-009]] y [[HU-009 Gestion]]",
+  );
+  assert.equal(r.texto, "[[HU-009]] y [[HU-009 Usuarios]]");
+});

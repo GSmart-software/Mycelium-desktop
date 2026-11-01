@@ -102,7 +102,31 @@ export const EXCALIDRAW_RE = /!\[\[([^[\]]+)\.excalidraw\]\]/g;
  * es el de `NotaTipo` (`markdown`, `excalidraw`…): con él, `![[x.excalidraw]]`
  * busca solo entre dibujos y `[[x]]` prefiere la nota `.md`.
  */
-export type NotaEnlazable = { id: string; titulo: string; carpetaId: string | null; tipo: string };
+export type NotaEnlazable = {
+  id: string;
+  titulo: string;
+  carpetaId: string | null;
+  tipo: string;
+  /**
+   * Los otros nombres de la nota: la propiedad `aliases` (o `alias`) de su
+   * frontmatter (`FUN-M-15`). Opcional: quien no los conoce —un vault simulado
+   * en una prueba, la reparación de homónimos sin índice— resuelve solo por
+   * título, como antes.
+   */
+  aliases?: readonly string[];
+};
+
+/**
+ * El índice por título, con el de los alias colgado (`FUN-M-15`). Es un `Map`
+ * por título como siempre —quien lo arma a mano o lo recorre no cambia—, y
+ * `porAlias` se consulta solo cuando ningún título calza.
+ */
+export type IndicePorTitulo<N> = Map<string, N[]> & { porAlias?: Map<string, N[]> };
+
+/** Cómo se compara un alias: como un título (minúsculas), sin espacios en los bordes. */
+export function claveDeAlias(alias: string): string {
+  return alias.trim().toLowerCase();
+}
 /** Lo mínimo de una carpeta para leer la ruta de una nota. */
 export type CarpetaEnlazable = { id: string; nombre: string; padreId: string | null };
 
@@ -141,14 +165,28 @@ export function folderSegments(
  * Quien resuelve muchos enlaces contra la misma lista —el grafo, una vez por
  * arista— lo arma una vez y llama a `resolveWikilinkEnIndice`.
  */
-export function indexarPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Map<string, N[]> {
-  const indice = new Map<string, N[]>();
+export function indexarPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): IndicePorTitulo<N> {
+  const indice: IndicePorTitulo<N> = new Map<string, N[]>();
+  // Los alias en un mapa aparte (`FUN-M-15`): resolver por alias es una
+  // búsqueda más, no un recorrido de las notas por cada enlace. Una nota que
+  // repite un alias (o lo declara igual a su propio título) cuenta una vez.
+  let porAlias: Map<string, N[]> | undefined;
   for (const n of notas) {
     const clave = n.titulo.toLowerCase();
     const lista = indice.get(clave);
     if (lista) lista.push(n);
     else indice.set(clave, [n]);
+    if (!n.aliases || n.aliases.length === 0) continue;
+    for (const alias of n.aliases) {
+      const a = claveDeAlias(alias);
+      if (a === "") continue;
+      porAlias ??= new Map();
+      const conEse = porAlias.get(a);
+      if (!conEse) porAlias.set(a, [n]);
+      else if (!conEse.includes(n)) conEse.push(n);
+    }
   }
+  if (porAlias) indice.porAlias = porAlias;
   return indice;
 }
 
@@ -161,10 +199,10 @@ export function indexarPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): 
  * en cada recarga y nunca la muta—, así que el índice se rehace solo cuando
  * cambian las notas y se libera con ellas (`WeakMap`).
  */
-const indicePorLista = new WeakMap<readonly NotaEnlazable[], Map<string, NotaEnlazable[]>>();
+const indicePorLista = new WeakMap<readonly NotaEnlazable[], IndicePorTitulo<NotaEnlazable>>();
 
-export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Map<string, N[]> {
-  let indice = indicePorLista.get(notas) as Map<string, N[]> | undefined;
+export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): IndicePorTitulo<N> {
+  let indice = indicePorLista.get(notas) as IndicePorTitulo<N> | undefined;
   if (!indice) {
     indice = indexarPorTitulo(notas);
     indicePorLista.set(notas, indice);
@@ -197,6 +235,12 @@ export function notasPorTitulo<N extends NotaEnlazable>(notas: readonly N[]): Ma
  * 6. **El ancla** (`DEF-141`): si la referencia entera no resuelve y su último
  *    segmento lleva `#` (`Nota#Encabezado`, `Nota#^bloque`), se prueba sin el
  *    ancla. Ver `resolverReferenciaEnIndice`.
+ * 7. **Los alias** (`FUN-M-15`): si ningún título calza, la nota que declara la
+ *    referencia en su propiedad `aliases`. Un título siempre gana; entre alias
+ *    repetidos, el desempate de la regla 5. Ver `candidatosPorAlias`.
+ *
+ * El orden con el ancla: la referencia entera por título, entera por alias, y
+ * después cada corte sin ancla, por título y por alias.
  *
  * > [!warning] Antes el tipo no participaba (`DEF-120`)
  * > Los candidatos eran **todos** los archivos con ese título, sin importar la
@@ -254,6 +298,45 @@ function resolverExactoEnIndice<N extends NotaEnlazable>(
  * ciegas: con dos o más, contesta `AMBIGUO` con las rutas.
  */
 export function candidatosWikilinkEnIndice<N extends NotaEnlazable>(
+  ref: string,
+  indice: IndicePorTitulo<N>,
+  carpetas: readonly CarpetaEnlazable[],
+): N[] {
+  const porTitulo = candidatosPorTitulo(ref, indice, carpetas);
+  if (porTitulo.length > 0) return porTitulo;
+  return candidatosPorAlias(ref, indice);
+}
+
+/**
+ * 7. **Los alias** (`FUN-M-15`): si NINGÚN título calza, la nota que declara
+ *    la referencia entera en su `aliases` (o `alias`), comparada como un
+ *    título —sin distinguir mayúsculas; las tildes cuentan—.
+ *
+ * - **Un título siempre gana a un alias**, aunque sea de otro tipo o esté más
+ *   lejos de la raíz: el alias es un nombre de repuesto, no puede quitarle
+ *   enlaces a una nota que se llama así.
+ * - **Entre alias homónimos, el mismo criterio que entre títulos**: la nota
+ *   markdown (regla 4), el tipo (`PRIORIDAD_SIN_EXTENSION`), la ruta más corta
+ *   y el id. Quien pregunta por los candidatos (el MCP) ve los dos y contesta
+ *   `AMBIGUO`.
+ * - La referencia se compara **entera**: un alias no admite pista de carpeta
+ *   (`[[Carpeta/alias]]` no resuelve por alias) ni extensión, como en Obsidian.
+ *   El ancla sí: `[[alias#Sección]]` corta el ancla y resuelve el alias, por la
+ *   regla 6.
+ */
+function candidatosPorAlias<N extends NotaEnlazable>(ref: string, indice: IndicePorTitulo<N>): N[] {
+  const porAlias = indice.porAlias;
+  if (!porAlias) return [];
+  const clave = claveDeAlias(ref);
+  if (clave === "") return [];
+  const matches = porAlias.get(clave) ?? [];
+  if (matches.length <= 1) return [...matches];
+  const notas = matches.filter((n) => n.tipo === "markdown");
+  return notas.length > 0 ? notas : [...matches];
+}
+
+/** Las reglas 1 a 4: los candidatos por título (sin mirar los alias). */
+function candidatosPorTitulo<N extends NotaEnlazable>(
   ref: string,
   porTitulo: Map<string, N[]>,
   carpetas: readonly CarpetaEnlazable[],
@@ -319,6 +402,78 @@ export function refUnivoca(
   const homonimas = notasPorTitulo(notas).get(nota.titulo.toLowerCase())?.length ?? 0;
   if (homonimas <= 1) return nota.titulo;
   return [...folderSegments(nota.carpetaId, carpetas), nota.titulo].join("/");
+}
+
+/** Una sugerencia del autocompletado de `[[`: qué se muestra y qué se inserta. */
+export type OpcionWikilink = {
+  /** Lo que se ve en la lista. */
+  label: string;
+  /** Lo que se escribe entre los corchetes. */
+  insert: string;
+  /** La carpeta, o a qué nota lleva un alias (`→ Título`). */
+  detail?: string;
+  /** El id de la nota a la que lleva. */
+  id: string;
+  /** El alias, si la sugerencia es por alias (`FUN-M-15`). */
+  alias?: string;
+};
+
+/** Cuántos alias se sugieren como mucho, además de los títulos. */
+const MAX_ALIAS_SUGERIDOS = 10;
+
+/**
+ * Las sugerencias del autocompletado de `[[` para lo escrito (`query`, en
+ * cualquier caja). Módulo puro para poder probarlo: lo consume
+ * `lib/editor/wikilink.ts`.
+ *
+ * - **Títulos**, como siempre: el que se repite se inserta con su ruta
+ *   (`Carpeta/Sub/título`) para que resuelva al correcto. Hasta `limite`.
+ * - **Alias** (`FUN-M-15`), después y hasta `MAX_ALIAS_SUGERIDOS`: se muestran
+ *   con la nota a la que llevan (`→ Título`) y se inserta el alias a secas
+ *   —`[[alias]]`— si resuelve a esa nota. Si no —otra nota declara el mismo
+ *   alias y gana el desempate—, se inserta `ruta|alias`: lleva a la nota
+ *   elegida y se lee igual. Un alias igual a un título no se sugiere: el título
+ *   le gana y el enlace iría a otra parte.
+ */
+export function opcionesWikilink(
+  query: string,
+  notas: readonly NotaEnlazable[],
+  carpetas: readonly CarpetaEnlazable[],
+  limite = 50,
+): OpcionWikilink[] {
+  const q = query.toLowerCase();
+  const indice = notasPorTitulo(notas);
+  const titulos: OpcionWikilink[] = [];
+  for (const n of notas) {
+    const segs = folderSegments(n.carpetaId, carpetas);
+    const path = segs.length > 0 ? `${segs.join("/")}/${n.titulo}` : n.titulo;
+    if (q && !n.titulo.toLowerCase().includes(q) && !path.toLowerCase().includes(q)) continue;
+    const ambigua = (indice.get(n.titulo.toLowerCase())?.length ?? 0) > 1;
+    const insert = ambigua ? path : n.titulo;
+    titulos.push({ label: insert, insert, detail: segs.length > 0 ? segs.join("/") : undefined, id: n.id });
+    if (titulos.length >= limite) break;
+  }
+
+  const alias: OpcionWikilink[] = [];
+  if (indice.porAlias) {
+    for (const n of notas) {
+      if (alias.length >= MAX_ALIAS_SUGERIDOS) break;
+      if (!n.aliases) continue;
+      const vistos = new Set<string>();
+      for (const a of n.aliases) {
+        const limpio = a.trim();
+        const clave = claveDeAlias(limpio);
+        if (clave === "" || vistos.has(clave) || indice.has(clave)) continue;
+        vistos.add(clave);
+        if (q && !clave.includes(q)) continue;
+        const llega = resolveWikilinkEnIndice(limpio, indice, carpetas);
+        const insert = llega?.id === n.id ? limpio : `${refUnivoca(n, notas, carpetas)}|${limpio}`;
+        alias.push({ label: limpio, insert, detail: `→ ${n.titulo}`, id: n.id, alias: limpio });
+        if (alias.length >= MAX_ALIAS_SUGERIDOS) break;
+      }
+    }
+  }
+  return [...titulos, ...alias];
 }
 
 /** `resolveWikilinkEnIndice` sobre una lista de notas (con su índice en caché). */

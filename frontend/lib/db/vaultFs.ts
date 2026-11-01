@@ -374,6 +374,13 @@ export async function rekeyIndice(
   // enlace entrante en el id nuevo, que es lo correcto si todavía resuelve ahí;
   // esto corrige los que no: `[[Viejo]]` tras renombrar a «Nuevo» pasa a su
   // homónima o a roto, y un `[[Nuevo]]` que estaba roto pasa a resolver.
-  if (notas.length > 0) await reResolverTitulos([...titulosViejos, ...notas.map((n) => n.newTitulo)]);
+  // Con los alias de las notas movidas (`FUN-M-15`): la profundidad desempata
+  // entre dos notas que declaran el mismo alias. Ya están en el id nuevo (paso 3).
+  if (notas.length > 0) {
+    await reResolverTitulos(
+      [...titulosViejos, ...notas.map((n) => n.newTitulo)],
+      notas.map((n) => n.newId),
+    );
+  }
 }
 

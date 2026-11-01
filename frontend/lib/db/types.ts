@@ -19,6 +19,8 @@ export type TreeResponse = {
     titulo: string;
     tipo: string;
     actualizado_en: string;
+    /** Los alias del frontmatter (`FUN-M-15`); ausente si no tiene. */
+    aliases?: string[];
   }[];
 };
 
