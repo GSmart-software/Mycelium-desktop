@@ -26,7 +26,7 @@ import {
 } from "@/lib/wikilinks";
 
 /** Los tipos que un embed sabe dibujar dentro de una nota. */
-export const TIPOS_EMBEBIBLES = ["excalidraw", "drawio", "canvas"] as const satisfies readonly NotaTipo[];
+export const TIPOS_EMBEBIBLES = ["excalidraw", "drawio", "canvas", "base"] as const satisfies readonly NotaTipo[];
 export type TipoEmbebible = (typeof TIPOS_EMBEBIBLES)[number];
 
 const esEmbebible = (tipo: string): tipo is TipoEmbebible =>

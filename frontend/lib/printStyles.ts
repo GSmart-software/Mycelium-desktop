@@ -209,7 +209,7 @@ const PRINT_SOBRE_APP = `
 .mic-preview h4, .mic-preview h5, .mic-preview h6 { break-after: avoid; page-break-after: avoid; }
 .mic-preview pre, .mic-preview table, .mic-preview blockquote, .mic-preview .mic-callout,
 .mic-preview .mic-props, .mic-preview .mermaid, .mic-preview .mic-excalidraw-block,
-.mic-preview .mic-drawio-block, .mic-preview .mic-canvas-block {
+.mic-preview .mic-drawio-block, .mic-preview .mic-canvas-block, .mic-preview .mic-base-block {
   break-inside: avoid; page-break-inside: avoid;
 }
 .mic-preview img, .mic-preview svg { max-width: 100%; height: auto; }

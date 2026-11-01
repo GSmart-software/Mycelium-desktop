@@ -55,6 +55,7 @@ import {
 } from "@/lib/video";
 import { dibujarDrawioEn } from "@/lib/drawioRender";
 import { dibujarCanvasPerezoso } from "@/lib/canvasRender";
+import { dibujarBasePerezoso } from "@/lib/baseRender";
 import {
   embedMarkdownRe,
   embedWikiRe,
@@ -1045,36 +1046,44 @@ class DrawioWidget extends WidgetType {
 }
 
 /**
- * Widget de bloque con la vista previa de un lienzo embebido
- * (`![[lienzo.canvas]]` o `![[lienzo]]`, `FUN-S-19`) en la vista en vivo.
+ * Widget de bloque con la vista previa de un lienzo (`![[lienzo.canvas]]`,
+ * `FUN-S-19`) o de una base (`![[tabla.base#Vista]]`, `FUN-S-29`) embebidos,
+ * en la vista en vivo. Con o sin extensión (`FUN-S-18`).
  *
  * Como el de draw.io, un clic en el dibujo muestra la fuente para poder editar
- * el `![[…]]`; para abrir el lienzo en su pestaña —la decisión del usuario para
- * este embed— lleva un botón «Abrir» en la esquina. En lectura, el clic en
- * cualquier parte lo abre. El dibujo es el mismo de la lectura
- * (`lib/canvasRender.ts`), y se carga recién cuando se ve.
+ * el `![[…]]`; para abrir el archivo en su pestaña —la decisión del usuario
+ * para estos embeds— lleva un botón «Abrir» en la esquina. En lectura, el clic
+ * en cualquier parte lo abre. El dibujo es el mismo de la lectura
+ * (`lib/canvasRender.ts`, `lib/baseRender.ts`), y se carga recién cuando se ve.
  */
-class CanvasWidget extends WidgetType {
+class VistaPreviaWidget extends WidgetType {
   constructor(
+    readonly tipo: "canvas" | "base",
     readonly ref: string,
+    readonly ancla: string | null,
     readonly pos: number,
     readonly gen: number,
   ) {
     super();
   }
 
-  eq(other: CanvasWidget) {
-    return other.ref === this.ref && other.gen === this.gen;
+  eq(other: VistaPreviaWidget) {
+    return (
+      other.tipo === this.tipo &&
+      other.ref === this.ref &&
+      other.ancla === this.ancla &&
+      other.gen === this.gen
+    );
   }
 
   toDOM(view: EditorView) {
     const caja = document.createElement("div");
-    caja.className = "mic-live-canvas";
+    caja.className = `mic-live-vista-previa mic-live-${this.tipo}`;
     const abrir = document.createElement("button");
     abrir.type = "button";
     abrir.className = "mic-embed-abrir";
     abrir.textContent = "Abrir";
-    abrir.title = "Abrir el lienzo en su pestaña";
+    abrir.title = this.tipo === "canvas" ? "Abrir el lienzo en su pestaña" : "Abrir la base en su pestaña";
     const bloque = document.createElement("div");
     caja.addEventListener("mousedown", (event) => {
       event.preventDefault();
@@ -1086,7 +1095,11 @@ class CanvasWidget extends WidgetType {
       view.focus();
     });
     caja.append(abrir, bloque);
-    void dibujarCanvasPerezoso(bloque, this.ref).then(() => view.requestMeasure());
+    const dibujo =
+      this.tipo === "canvas"
+        ? dibujarCanvasPerezoso(bloque, this.ref)
+        : dibujarBasePerezoso(bloque, this.ref, this.ancla);
+    void dibujo.then(() => view.requestMeasure());
     return caja;
   }
 
@@ -1821,9 +1834,9 @@ function buildDecorations(
         const widget =
           embebido.tipo === "excalidraw"
             ? new ExcalidrawWidget(embebido.ref, line.from, liveGen)
-            : embebido.tipo === "canvas"
-              ? new CanvasWidget(embebido.ref, line.from, liveGen)
-              : new DrawioWidget(embebido.ref, line.from, liveGen);
+            : embebido.tipo === "drawio"
+              ? new DrawioWidget(embebido.ref, line.from, liveGen)
+              : new VistaPreviaWidget(embebido.tipo, embebido.ref, embebido.ancla, line.from, liveGen);
         decos.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget }) });
       }
 

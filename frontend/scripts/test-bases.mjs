@@ -869,3 +869,29 @@ test("reemplazarOrdenEnTexto: con lo que escribe serializarBase también es mín
   const nuevo = reemplazarOrdenEnTexto(propio, 0, [{ propiedad: "familia", descendente: false }]);
   assert.equal(nuevo, propio.replace("property: file.name\n        direction: ASC", "property: familia\n        direction: ASC"));
 });
+
+// ── Vista previa embebida (`FUN-S-29`) ───────────────────────────────────────
+
+test("vistaDeEmbed: la vista por nombre, sin mayúsculas; la primera si no se pide", () => {
+  const base = mod.parsearBase(
+    ["views:", "  - type: table", "    name: Todas", "  - type: table", "    name: Pendientes"].join("\n"),
+  );
+  assert.equal(mod.vistaDeEmbed(base, "pendientes")?.vista.nombre, "Pendientes");
+  assert.equal(mod.vistaDeEmbed(base, "pendientes")?.encontrada, true);
+  assert.equal(mod.vistaDeEmbed(base, null)?.vista.nombre, "Todas");
+  assert.equal(mod.vistaDeEmbed(base, "  ")?.indice, 0);
+});
+
+test("vistaDeEmbed: una vista que no existe muestra la primera y lo dice", () => {
+  const base = mod.parsearBase(["views:", "  - type: table", "    name: Todas"].join("\n"));
+  const r = mod.vistaDeEmbed(base, "Otra");
+  assert.equal(r?.vista.nombre, "Todas");
+  assert.equal(r?.encontrada, false);
+});
+
+test("textoPlanoDeCelda: los enlaces por su alias o su destino, sin corchetes", () => {
+  assert.equal(mod.textoPlanoDeCelda("[[Tomate]]"), "Tomate");
+  assert.equal(mod.textoPlanoDeCelda("ver [[Tomate|el tomate]] y ![[foto.png]]"), "ver el tomate y foto.png");
+  assert.equal(mod.textoPlanoDeCelda("[[Tomate\\|alias]]"), "alias");
+  assert.equal(mod.textoPlanoDeCelda("sin enlaces"), "sin enlaces");
+});

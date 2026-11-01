@@ -369,3 +369,19 @@ test("embebidoDe: un lienzo se embebe, con o sin la extensión", () => {
 test("![[x.canvas]] en lectura sale como enlace marcado, que el cliente cambia por el lienzo", () => {
   assert.match(renderNota("![[Tablero.canvas]]"), /data-embed="true"/);
 });
+
+// ── Bases embebidas (`FUN-S-29`) ─────────────────────────────────────────────
+
+test("embebidoDe: una base se embebe y conserva la vista pedida", () => {
+  const e = embebidoDe("Tareas.base#Pendientes", NOTAS, CARPETAS);
+  assert.equal(e?.tipo, "base");
+  assert.equal(e?.nota.id, "Tareas.base");
+  assert.equal(e?.ref, "Tareas.base");
+  assert.equal(e?.ancla, "Pendientes");
+  assert.equal(embebidoDe("Tareas", NOTAS, CARPETAS)?.ancla, null);
+});
+
+test("![[tabla.base#Vista]] en lectura sale como enlace marcado", () => {
+  const html = renderNota("![[Tareas.base#Pendientes]]");
+  assert.match(html, /href="#wikilink:Tareas\.base%23Pendientes"[^>]*data-embed="true"/);
+});

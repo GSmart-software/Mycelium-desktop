@@ -2,7 +2,7 @@
 titulo: Bases
 tema: Tipos de archivo
 cubre: [base]
-sinonimos: [tabla, consulta, filtro, columnas, base de datos]
+sinonimos: [tabla, consulta, filtro, columnas, base de datos, embeber tabla, vista]
 ---
 
 Una **base** es un archivo `.base` que junta notas de tu vault en una **tabla**: elegís qué
@@ -66,3 +66,20 @@ comparadores (`==`, `!=`, `>`, `<`, `>=`, `<=`), `file.inFolder`, `file.hasTag` 
 > «Ver todas las notas, sin filtrar», avisando que el filtro no se aplicó. Y si el archivo
 > trae algo que los controles no saben representar (fórmulas, agrupaciones), **Filtros** y
 > **Columnas** se apagan para no borrarlo al guardar: se edita desde **Fuente**.
+
+## Mostrarla dentro de una nota
+
+Para que una nota índice muestre la tabla que la base ya arma —en vez de una copia escrita
+a mano que se queda vieja—, escribe su embed:
+
+```md
+![[Fichas.base]]
+![[Fichas.base#Pendientes]]
+![[Fichas#Pendientes]]
+```
+
+Después del `#` va el nombre de la vista; sin él se muestra la primera. Es una **vista
+previa de solo lectura** con las columnas de la vista y sus primeras 15 filas; si hay más,
+debajo dice cuántas faltan. En la vista de lectura, un clic la abre en su pestaña, donde se
+filtra, se ordena y se busca; en la vista en vivo, el botón **Abrir** de la esquina. La
+tabla se consulta recién cuando llega a verse.
