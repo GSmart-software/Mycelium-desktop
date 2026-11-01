@@ -17,6 +17,7 @@ import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore
 import { GRAPH_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { IconoGrafo } from "./IconoGrafo";
 import styles from "./Rail.module.css";
 
@@ -61,24 +62,43 @@ export function Rail() {
     router.replace(`/workspace?note=${GRAPH_TAB_ID}`);
   };
 
-  const renderButton = ({ section, icon: Icon, label }: (typeof TOP_ITEMS)[number]) => (
+  // Cuántas sesiones de IA están conectadas (`FUN-L-31`): un número discreto
+  // sobre el ícono de la actividad, y quiénes en el título.
+  const sesionesIa = useSesionesIaStore((s) => s.sesiones);
+  const conectadas = Object.values(sesionesIa);
+  const tituloActividad =
+    conectadas.length === 0
+      ? ACTIVIDAD.label
+      : `${ACTIVIDAD.label} · ${conectadas.length === 1 ? "1 sesión conectada" : `${conectadas.length} sesiones conectadas`}: ` +
+        conectadas.map((s) => s.tarea ?? `${s.id} (sin tarea declarada)`).join("; ");
+
+  const renderButton = (
+    { section, icon: Icon, label }: (typeof TOP_ITEMS)[number],
+    titulo = label,
+    insignia = 0,
+  ) => (
     <button
       key={section}
       type="button"
       className={styles.button}
       aria-pressed={activeSection === section}
-      aria-label={label}
-      title={label}
+      aria-label={titulo}
+      title={titulo}
       onClick={() => toggleSection(section)}
     >
       <Icon size={20} aria-hidden />
+      {insignia > 0 && (
+        <span className={styles.insignia} aria-hidden>
+          {insignia > 9 ? "9+" : insignia}
+        </span>
+      )}
     </button>
   );
 
   return (
     <nav className={styles.rail} aria-label="Navegación principal">
       <div className={styles.group}>
-        {TOP_ITEMS.map(renderButton)}
+        {TOP_ITEMS.map((item) => renderButton(item))}
         <button
           type="button"
           className={styles.button}
@@ -99,11 +119,11 @@ export function Rail() {
         >
           <Terminal size={20} aria-hidden />
         </button>
-        {renderButton(ACTIVIDAD)}
+        {renderButton(ACTIVIDAD, tituloActividad, conectadas.length)}
       </div>
       <div className={styles.spacer} />
       <div className={styles.group}>
-        {BOTTOM_ITEMS.map(renderButton)}
+        {BOTTOM_ITEMS.map((item) => renderButton(item))}
         <button
           type="button"
           className={styles.button}

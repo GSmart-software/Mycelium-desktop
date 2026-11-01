@@ -410,6 +410,11 @@ const DONDE_QUEDO = [
   ["mycelium-operar", /`CAMBIOS_SIN_GUARDAR`/],
   ["mycelium-operar", /MYCELIUM_SIN_MCP=1/],
   ["mycelium-operar", /el usuario agrega la palabra con el clic derecho/],
+  // Varias sesiones a la vez (`FUN-L-31`).
+  ["mycelium-operar", /\*\*Al empezar\*\*, llama a `mycelium_estado`/],
+  ["mycelium-operar", /declara tu tarea con\s+`mycelium_sesion`/],
+  ["mycelium-operar", /resérvalo con\s+`mycelium_reservar`/],
+  ["mycelium-operar", /\*\*aviso, no un bloqueo\*\*/],
   // Qué es Mycelium por fuera.
   ["mycelium-vault", /\*\*renombrar una nota escribiendo en su título\*\*/],
   ["mycelium-vault", /\*\*editor modal\*\* de un dibujo/],

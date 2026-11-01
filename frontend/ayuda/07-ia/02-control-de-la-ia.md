@@ -2,7 +2,7 @@
 titulo: Control de la IA (MCP)
 tema: IA
 solo: desktop
-sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app]
+sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones]
 ---
 
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
@@ -67,6 +67,36 @@ apagado» (con un botón para encenderlo), «Control encendido» (esperando a Cl
 «Conectado». Abajo, todo lo que hizo la IA, de lo más nuevo a lo más viejo, con lo que cambió:
 «Ir» te lleva a lo afectado y «Deshacer» lo revierte. Si después cambiaste eso mismo a mano,
 Deshacer se apaga y te dice por qué: deshacerlo pisaría tu cambio.
+
+Lo que hizo la IA se muestra **agrupado por sesión**: cada grupo lleva arriba la tarea que
+declaró esa sesión (o «Sin tarea declarada») y su identificador, con «conectada» si sigue
+abierta. Lo registrado antes de que existieran las sesiones aparece como «Sin sesión
+identificada». Deshacer funciona igual dentro de cada grupo.
+
+## Varias sesiones a la vez
+
+Es común tener más de una sesión de Claude Code trabajando en el mismo vault, cada una en su
+terminal. Mycelium las reconoce a todas:
+
+- Con alguna conectada, el ícono del robot muestra **cuántas sesiones hay**; al pasar el
+  mouse se ve la tarea de cada una. En el panel de actividad, debajo de «Conectado», aparece
+  la lista con su tarea, desde cuándo está conectada, cuándo pidió algo por última vez y lo
+  que tiene reservado.
+- Cada sesión puede **declarar su tarea** («Reorganizar la carpeta de arquitectura»), y
+  **reservar** una nota o una carpeta por un rato (media hora, si no pide otro tiempo), con un
+  motivo. Una reserva es un **aviso, no un bloqueo**: nada impide escribir, ni a ti ni a otra
+  sesión. Si una sesión quiere algo que otra ya reservó, se le concede igual pero se le avisa
+  quién lo tiene y para qué, y la IA te consulta antes de tocarlo.
+- Cuando la IA pregunta por el estado de Mycelium, además de tus pestañas ve las otras
+  sesiones, lo que tienen reservado, lo que cambiaron hace poco por Mycelium y las notas que
+  cambiaron en el disco por fuera de la app (en ese caso no se sabe quién las cambió: otra
+  sesión, tú en otro editor o git).
+
+> [!warning] Las sesiones y las reservas no se guardan
+> Viven mientras Mycelium está abierto. Al cerrar una sesión de Claude Code desaparece con
+> sus reservas. Si cierras Mycelium, apagas el control o cambias de vault, se pierden todas:
+> al volver, cada sesión que siga abierta se reconecta sola en unos segundos, pero sin su
+> tarea ni sus reservas, que tiene que declarar de nuevo.
 
 ## Lo que te pregunta antes
 

@@ -61,11 +61,25 @@ struct Escucha {
     parar: watch::Sender<bool>,
 }
 
+/// Una sesión de IA conectada (`FUN-L-31`): un proceso `mycelium-mcp` que
+/// sostiene su conexión de presencia con esta ventana.
+struct SesionViva {
+    ventana: String,
+    /// La conexión que la sostiene: al cortarse, solo ella la da de baja (si
+    /// el proceso ya se volvió a anunciar por otra, esa sigue valiendo).
+    conexion: u64,
+    /// Lo que mandó el servidor (`sesion.rs`: id, pid, inicio, cliente).
+    datos: Value,
+}
+
 #[derive(Default)]
 struct Interior {
     escuchas: Mutex<HashMap<String, Escucha>>,
     pendientes: Mutex<HashMap<String, Pendiente>>,
     contador: AtomicU64,
+    /// Las sesiones de IA conectadas, por id de sesión.
+    sesiones: Mutex<HashMap<String, SesionViva>>,
+    conexiones: AtomicU64,
 }
 
 /// Estado del control: las escuchas por ventana y los pedidos en vuelo.
@@ -179,6 +193,14 @@ pub fn mcp_responder(
     }
 }
 
+/// Las sesiones de IA conectadas a ESTA ventana (`FUN-L-31`): lo que mandó
+/// cada servidor al anunciarse. El frontend lo pide al abrir el canal; después
+/// se entera por el evento `mcp-sesiones`.
+#[tauri::command]
+pub fn mcp_sesiones(ventana: tauri::Window, state: tauri::State<'_, ControlState>) -> Vec<Value> {
+    sesiones_de(&state, ventana.label())
+}
+
 /// Dónde está el binario del servidor MCP, para escribirlo en `.mcp.json`.
 #[derive(serde::Serialize)]
 pub struct BinarioMcp {
@@ -242,6 +264,54 @@ pub fn detener_de(state: &ControlState, etiqueta: &str) {
     if let Ok(mut p) = state.0.pendientes.lock() {
         p.retain(|_, v| v.ventana != etiqueta);
     }
+    // Y sus sesiones se cortan con el canal: se volverán a anunciar si se
+    // reabre (los servidores reintentan solos).
+    if let Ok(mut s) = state.0.sesiones.lock() {
+        s.retain(|_, v| v.ventana != etiqueta);
+    }
+}
+
+// ── Sesiones de IA (`FUN-L-31`) ─────────────────────────────────────────────
+
+/// Evento con la lista de sesiones conectadas, cada vez que cambia.
+const EVENTO_SESIONES: &str = "mcp-sesiones";
+
+/// Las sesiones de una ventana, de la más vieja a la más nueva.
+fn sesiones_de(state: &ControlState, etiqueta: &str) -> Vec<Value> {
+    let Ok(s) = state.0.sesiones.lock() else { return Vec::new() };
+    let mut v: Vec<&SesionViva> = s.values().filter(|x| x.ventana == etiqueta).collect();
+    v.sort_by_key(|x| (x.datos.get("inicio").and_then(Value::as_u64).unwrap_or(0), x.conexion));
+    v.into_iter().map(|x| x.datos.clone()).collect()
+}
+
+fn avisar_sesiones(ctx: &Contexto) {
+    let lista = sesiones_de(&ctx.estado, &ctx.ventana);
+    let _ = ctx.app.emit_to(ctx.ventana.as_str(), EVENTO_SESIONES, json!({ "sesiones": lista }));
+}
+
+/// El id de sesión de un anuncio, si es usable: texto corto sin caracteres raros.
+fn id_de_sesion(datos: &Value) -> Option<String> {
+    let id = datos.get("id")?.as_str()?.trim();
+    let valido = !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    valido.then(|| id.to_string())
+}
+
+/// Registra la sesión que se anunció por `conexion` y devuelve su id.
+fn alta_sesion(state: &ControlState, ventana: &str, conexion: u64, datos: &Value) -> Option<String> {
+    let id = id_de_sesion(datos)?;
+    let mut s = state.0.sesiones.lock().ok()?;
+    s.insert(id.clone(), SesionViva { ventana: ventana.to_string(), conexion, datos: datos.clone() });
+    Some(id)
+}
+
+/// Da de baja la sesión `id` **si** la sostenía `conexion`. Devuelve si la quitó.
+fn baja_sesion(state: &ControlState, id: &str, conexion: u64) -> bool {
+    let Ok(mut s) = state.0.sesiones.lock() else { return false };
+    if s.get(id).is_some_and(|v| v.conexion == conexion) {
+        s.remove(id);
+        return true;
+    }
+    false
 }
 
 /// La cadena **registrada** del vault (`vaults.json`) que corresponde a
@@ -256,9 +326,29 @@ fn ruta_registrada(dir_app: &Path, ruta: &str) -> String {
 
 // ── Atender una conexión ────────────────────────────────────────────────────
 
-/// Lee pedidos de una conexión hasta que se cierra o se apaga el control.
-async fn atender<S>(flujo: S, ctx: Contexto, mut al_parar: watch::Receiver<bool>)
+/// Lee pedidos de una conexión hasta que se cierra o se apaga el control. Si
+/// por ella se anunció una sesión (`sesion_abrir`), al cortarse la da de baja.
+async fn atender<S>(flujo: S, ctx: Contexto, al_parar: watch::Receiver<bool>)
 where
+    S: tokio::io::AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let conexion = ctx.estado.0.conexiones.fetch_add(1, Ordering::Relaxed);
+    let mut propia: Option<String> = None;
+    atender_lineas(flujo, &ctx, al_parar, conexion, &mut propia).await;
+    if let Some(id) = propia {
+        if baja_sesion(&ctx.estado, &id, conexion) {
+            avisar_sesiones(&ctx);
+        }
+    }
+}
+
+async fn atender_lineas<S>(
+    flujo: S,
+    ctx: &Contexto,
+    mut al_parar: watch::Receiver<bool>,
+    conexion: u64,
+    propia: &mut Option<String>,
+) where
     S: tokio::io::AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     let (lectura, mut escritura) = tokio::io::split(flujo);
@@ -278,7 +368,7 @@ where
         if linea.trim().is_empty() {
             continue;
         }
-        let respuesta = procesar(&ctx, linea.trim()).await;
+        let respuesta = procesar(ctx, linea.trim(), conexion, propia).await;
         let mut texto = respuesta.to_string();
         texto.push('\n');
         if escritura.write_all(texto.as_bytes()).await.is_err() || escritura.flush().await.is_err() {
@@ -288,7 +378,7 @@ where
 }
 
 /// Un pedido → su respuesta, con el `id` del pedido.
-async fn procesar(ctx: &Contexto, linea: &str) -> Value {
+async fn procesar(ctx: &Contexto, linea: &str, conexion: u64, propia: &mut Option<String>) -> Value {
     let pedido: Value = match serde_json::from_str(linea) {
         Ok(v) => v,
         Err(e) => return canal::error(&Value::Null, codigo::INVALIDO, &format!("JSON inválido: {e}"), Value::Null),
@@ -313,6 +403,18 @@ async fn procesar(ctx: &Contexto, linea: &str) -> Value {
     if op == "ping" {
         return canal::ok(&id, json!({ "vault": ctx.vault }));
     }
+    let sesion = pedido.get("sesion").cloned().unwrap_or(Value::Null);
+    // La presencia de una sesión (`FUN-L-31`): la atiende Rust, sin turno y
+    // sin pasar por el frontend; la conexión queda abierta y su corte es el fin
+    // de la sesión (ver `atender`).
+    if op == "sesion_abrir" {
+        let Some(sid) = alta_sesion(&ctx.estado, &ctx.ventana, conexion, &sesion) else {
+            return canal::error(&id, codigo::INVALIDO, "Anuncio de sesión sin un `sesion.id` usable.", Value::Null);
+        };
+        *propia = Some(sid);
+        avisar_sesiones(ctx);
+        return canal::ok(&id, json!({ "sesion": propia }));
+    }
 
     let _turno = ctx.turno.lock().await;
     let interno = format!("{}-{}", ctx.ventana, ctx.estado.0.contador.fetch_add(1, Ordering::Relaxed));
@@ -323,7 +425,7 @@ async fn procesar(ctx: &Contexto, linea: &str) -> Value {
     let emitido = ctx.app.emit_to(
         ctx.ventana.as_str(),
         EVENTO_PEDIDO,
-        json!({ "id": interno, "op": op, "args": args, "vault": ctx.vault }),
+        json!({ "id": interno, "op": op, "args": args, "vault": ctx.vault, "sesion": sesion }),
     );
     let resultado = if emitido.is_err() {
         None
@@ -563,6 +665,44 @@ mod tests {
         // Lo que no existe no es un error (el `.mcp.json`, por defecto).
         mcp_config_borrar_en(v, None).unwrap();
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn una_sesion_solo_la_da_de_baja_la_conexion_que_la_sostiene() {
+        let st = ControlState::default();
+        let d = json!({"id": "4f28-a1b3", "pid": 20264, "inicio": 1});
+        assert_eq!(alta_sesion(&st, "main", 1, &d).as_deref(), Some("4f28-a1b3"));
+        assert_eq!(sesiones_de(&st, "main"), vec![d.clone()]);
+        assert!(sesiones_de(&st, "otra").is_empty(), "cada ventana ve las suyas");
+        // El proceso se volvió a anunciar por otra conexión antes de que la
+        // vieja terminara de cortarse: la vieja no se la lleva.
+        alta_sesion(&st, "main", 2, &d);
+        assert!(!baja_sesion(&st, "4f28-a1b3", 1));
+        assert_eq!(sesiones_de(&st, "main").len(), 1);
+        assert!(baja_sesion(&st, "4f28-a1b3", 2));
+        assert!(sesiones_de(&st, "main").is_empty());
+    }
+
+    #[test]
+    fn un_anuncio_sin_id_usable_no_registra_nada() {
+        let st = ControlState::default();
+        assert!(alta_sesion(&st, "main", 1, &json!({"pid": 1})).is_none());
+        assert!(alta_sesion(&st, "main", 1, &json!({"id": "a b"})).is_none());
+        assert!(alta_sesion(&st, "main", 1, &json!({"id": "x".repeat(65)})).is_none());
+        assert!(sesiones_de(&st, "main").is_empty());
+    }
+
+    #[test]
+    fn apagar_el_canal_corta_sus_sesiones() {
+        let st = ControlState::default();
+        alta_sesion(&st, "main", 1, &json!({"id": "a-1", "inicio": 2}));
+        alta_sesion(&st, "main", 2, &json!({"id": "b-2", "inicio": 1}));
+        alta_sesion(&st, "otra", 3, &json!({"id": "c-3"}));
+        // De la más vieja a la más nueva.
+        assert_eq!(sesiones_de(&st, "main")[0]["id"], "b-2");
+        detener_de(&st, "main");
+        assert!(sesiones_de(&st, "main").is_empty());
+        assert_eq!(sesiones_de(&st, "otra").len(), 1);
     }
 
     #[test]

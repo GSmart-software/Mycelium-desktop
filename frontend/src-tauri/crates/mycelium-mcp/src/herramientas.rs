@@ -15,6 +15,9 @@
 //! `mycelium_base`), de solo lectura: la búsqueda, los enlaces y las bases los
 //! resuelve la app con lo que ya usa (`lib/mcpIndice.ts`), porque el índice
 //! vive en su ventana; acá solo se redacta.
+//! `FUN-L-31`: la coordinación entre sesiones (`mycelium_sesion`,
+//! `mycelium_reservar`, y lo que suma `mycelium_estado`): las sesiones y las
+//! reservas viven en la app (`lib/sesionesIa.ts`), que también redacta.
 //! `FUN-L-30`: la salud del vault (`mycelium_salud`, `mycelium_validar_nota`),
 //! también de solo lectura: el mismo informe que el panel de salud de la app
 //! (`lib/saludVault.ts`).
@@ -42,7 +45,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 17] = [
+const NOMBRES: [&str; 19] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -60,6 +63,8 @@ const NOMBRES: [&str; 17] = [
     "mycelium_base",
     "mycelium_salud",
     "mycelium_validar_nota",
+    "mycelium_sesion",
+    "mycelium_reservar",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -416,6 +421,46 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_sesion",
+            "title": "Declarar la tarea de esta sesión",
+            "description": "Le dice a Mycelium en qué está trabajando esta sesión, en una línea («Reorganizar docs/arquitectura», \
+                «Bug DEF-173»). Varias sesiones de IA pueden trabajar a la vez sobre el mismo vault: con la tarea declarada, \
+                las demás la ven en su mycelium_estado y el usuario la ve en el panel «Actividad de la IA», que agrupa lo que \
+                hizo cada sesión bajo su tarea. Declárala al empezar un trabajo que no sea una consulta suelta, y de nuevo si \
+                cambias de tarea. Devuelve las otras sesiones conectadas y lo que tienen reservado.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "tarea": { "type": "string", "description": "La tarea, en una línea (hasta 200 caracteres)." }
+                },
+                "required": ["tarea"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_reservar",
+            "title": "Reservar una nota o carpeta",
+            "description": "Avisa a las otras sesiones de IA que vas a trabajar sobre una nota o una carpeta del vault, con un \
+                motivo y un vencimiento (30 minutos si no se indica otro; hasta 240). Es un AVISO, no un bloqueo: nada impide \
+                escribir. Si otra sesión ya tenía reservado eso (o una carpeta que lo contiene, o algo dentro de la carpeta), \
+                la reserva se concede igual y la respuesta dice quién lo tiene y por qué: coordina con el usuario antes de \
+                tocarlo. Reservar de nuevo lo mismo renueva el vencimiento. Con `liberar: true` se suelta (sin `objetivo`, \
+                todas las de esta sesión). Las reservas mueren con la sesión y si se cierra Mycelium. Reserva antes de un \
+                trabajo largo sobre algo que otra sesión podría tocar; libera al terminar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "objetivo": { "type": "string", "description": "Nota (ruta o título) o carpeta (ruta; con `/` al final para forzar carpeta). Una nota que todavía no existe, por su ruta (`docs/Nueva.md`)." },
+                    "motivo": { "type": "string", "description": "Para qué, en una línea. Obligatorio al reservar." },
+                    "minutos": { "type": "integer", "minimum": 1, "maximum": 240, "description": "Cuánto dura. Por defecto 30." },
+                    "liberar": { "type": "boolean", "description": "true para soltar la reserva de `objetivo` (o todas, sin objetivo)." }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+        }),
     ]
 }
 
@@ -452,6 +497,8 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_base" => herramienta_consulta(estado, vault, "base", args, redactar_base),
         "mycelium_salud" => herramienta_consulta(estado, vault, "salud", args, redactar_salud),
         "mycelium_validar_nota" => herramienta_consulta(estado, vault, "validar_nota", args, redactar_validar_nota),
+        "mycelium_sesion" => herramienta_coordinacion(estado, vault, "sesion", args),
+        "mycelium_reservar" => herramienta_coordinacion(estado, vault, "reservar", args),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -469,7 +516,9 @@ enum SinResultado {
 fn pedir(estado: &Estado, vault: &VaultResuelto, op: &str, args: Value) -> Result<Value, SinResultado> {
     static ID: AtomicU64 = AtomicU64::new(1);
     let id = json!(ID.fetch_add(1, Ordering::Relaxed));
-    let pedido = protocolo_canal::pedido(&id, op, args, &vault.registrado.ruta);
+    let mut pedido = protocolo_canal::pedido(&id, op, args, &vault.registrado.ruta);
+    // Quién pide (`FUN-L-31`): la app atribuye la operación a esta sesión.
+    pedido["sesion"] = crate::sesion::datos();
     match canal::pedir(&estado.canal, &pedido, estado.espera.unwrap_or(ESPERA_CLIENTE)) {
         Ok(r) if r.get("ok").and_then(Value::as_bool) == Some(true) => Ok(r.get("resultado").cloned().unwrap_or(Value::Null)),
         Ok(r) if r.get("ok").and_then(Value::as_bool) == Some(false) => {
@@ -610,6 +659,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             }
             t.push('\n');
             t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
+            t.push_str(&redactar_coordinacion(&r));
             texto(t, false)
         }
         Err(SinResultado::NadieEscucha) => {
@@ -626,6 +676,44 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
                 )
             };
             texto(t, false)
+        }
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+// ── Coordinación entre sesiones (`FUN-L-31`) ──────────────────────────────
+
+/// Lo que la app cuenta de las otras sesiones (y de esta), ya redactado por
+/// `lib/sesionesIa.ts`: va al final de `mycelium_estado`, `mycelium_sesion` y
+/// `mycelium_reservar`. Vacío si la app no lo mandó (una versión vieja).
+pub fn redactar_coordinacion(r: &Value) -> String {
+    match r.get("coordinacion").and_then(|c| c.get("texto")).and_then(Value::as_str) {
+        Some(t) if !t.trim().is_empty() => format!("\n\n{}", t.trim_end()),
+        _ => String::new(),
+    }
+}
+
+/// `mycelium_sesion` y `mycelium_reservar`: la app valida, resuelve el
+/// objetivo y redacta el efecto (con los conflictos); acá se agrega lo demás.
+fn herramienta_coordinacion(estado: &Estado, vault: &VaultResuelto, op: &str, args: &Value) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir(estado, vault, op, args) {
+        Ok(r) => {
+            let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
+            t.push_str(&redactar_coordinacion(&r));
+            texto(t, false)
+        }
+        Err(SinResultado::NadieEscucha) => {
+            let mut t = sin_ventana_base(vault);
+            t.push_str(
+                "\nLas sesiones y las reservas viven en la ventana de Mycelium: sin ella no hay coordinación. \
+                 Si sabes que otra sesión trabaja en este vault, pregúntale al usuario antes de tocar lo mismo.",
+            );
+            texto(t, true)
         }
         Err(SinResultado::Error(e)) => texto(e, true),
     }

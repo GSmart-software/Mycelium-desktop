@@ -210,6 +210,7 @@ pub fn run() {
             control::mcp_control_encender,
             control::mcp_control_apagar,
             control::mcp_responder,
+            control::mcp_sesiones,
             control::mcp_ruta_binario,
             control::mcp_config_borrar,
             prefs_vault::leer_estado_vault,

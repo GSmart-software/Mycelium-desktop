@@ -213,7 +213,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 
 - \`mycelium-memoria\`: buscar y registrar a fondo.
 - \`mycelium-vault\`: sintaxis, propiedades, tipos de archivo, qué ve el usuario.
-- \`mycelium-operar\`: las herramientas \`mycelium_*\` (operar la app y consultar su índice), y qué hacer sin ellas.
+- \`mycelium-operar\`: las herramientas \`mycelium_*\` (operar la app, consultar su índice, coordinarse con otras sesiones), y qué hacer sin ellas.
 - \`mycelium-base\`: tablas \`.base\`.
 - \`mycelium-canvas\`: lienzos \`.canvas\`.
 - \`mycelium-drawio\`: diagramas \`.drawio\`.

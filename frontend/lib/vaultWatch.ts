@@ -61,6 +61,17 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
+
+/** Las notas que cambiaron por fuera, para la coordinación entre sesiones de IA. */
+function anotarExternos(cambios: readonly CambioVault[]): void {
+  const momento = Date.now();
+  const notas = cambios
+    .filter((c) => !esEscrituraPropia(c.ruta, c.mtime))
+    .filter((c) => c.estado === "nota" || (c.estado === "ausente" && /\.md$/i.test(c.ruta)))
+    .map((c) => ({ ruta: c.ruta, momento, borrada: c.estado === "ausente" }));
+  useSesionesIaStore.getState().anotarExternos(notas);
+}
 
 /** Nombre del evento Tauri emitido por el watcher nativo. */
 const EVENTO_TAURI = "vault-cambios";
@@ -234,6 +245,10 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
         if (cambios.every((c) => esEscrituraPropia(c.ruta, c.mtime))) {
           quitarPendientes(cambios);
         } else {
+          // Lo que cambió en disco sin pasar por Mycelium (`FUN-L-31`): las
+          // sesiones de IA lo ven en `mycelium_estado`, sin atribuir (el
+          // watcher no sabe quién escribió).
+          anotarExternos(cambios);
           // Un renombre hecho por fuera (`FUN-M-47`): se mira ANTES de indexar,
           // que es cuando el índice todavía sabe quién enlazaba a la nota que
           // se fue. Si falla, se indexa igual: es una oferta, no un requisito.
