@@ -761,3 +761,22 @@ export function mismosAliases(a: readonly string[], b: readonly string[]): boole
   const norm = (l: readonly string[]) => l.map((s) => s.toLowerCase()).sort().join("\u0000");
   return norm(a) === norm(b);
 }
+
+/**
+ * Lo contrario de `agregarAlias` (`FUN-M-47`, para el Deshacer): saca `alias`
+ * (sin distinguir mayúsculas) de la propiedad de alias de la nota. Si era el
+ * único, se va la propiedad entera. Devuelve el texto sin cambios si no estaba,
+ * y `null` si el frontmatter no se puede editar.
+ */
+export function quitarAlias(texto: string, alias: string): string | null {
+  const limpio = alias.trim().toLowerCase();
+  const fm = separarFrontmatter(texto);
+  if (fm.hay && !fm.soportado) return null;
+  const existente = fm.hay && fm.soportado ? fm.props.find((p) => esClaveAlias(p.clave)) : undefined;
+  if (!existente) return texto;
+  const previos = Array.isArray(existente.valor) ? existente.valor.map(String) : [String(existente.valor)];
+  const quedan = previos.filter((a) => a.trim().toLowerCase() !== limpio);
+  if (quedan.length === previos.length) return texto;
+  if (quedan.filter((a) => a.trim() !== "").length === 0) return quitarPropiedad(texto, existente.clave);
+  return ponerPropiedad(texto, existente.clave, quedan, "lista");
+}

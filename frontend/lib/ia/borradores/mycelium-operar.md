@@ -63,6 +63,11 @@ vuelve a `grep`, sabiendo que no aplica el criterio del índice.
   título. `mycelium_borrar` manda a la **papelera de Mycelium**, de donde se restaura
   (`mycelium_papelera`).
 - El nombre no puede llevar `? : * | " < > \ /`.
+- `mycelium_renombrar` acepta `conservarAlias: true` (solo notas `.md`): además de
+  reparar, agrega el nombre anterior a la propiedad `aliases` de la nota, así los
+  `[[Nombre viejo]]` que no se reescriben —texto citado, otros vaults, los que se
+  escriban después— siguen llegando. Usarlo cuando el nombre viejo era una referencia
+  conocida (una sigla, un identificador); no por defecto.
 
 ## Lo que pregunta y lo que no
 

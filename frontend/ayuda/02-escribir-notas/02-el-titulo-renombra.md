@@ -1,7 +1,7 @@
 ---
 titulo: El título renombra el archivo
 tema: Escribir notas
-sinonimos: [renombrar, nombre del archivo, cambiar el nombre, título de la nota]
+sinonimos: [renombrar, nombre del archivo, cambiar el nombre, título de la nota, alias, nombre anterior, renombre externo]
 ---
 
 El **título** que se ve arriba de la nota no es un texto aparte: es el **nombre del
@@ -36,6 +36,22 @@ la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de not
 > en edición y el nombre seleccionado: lo primero que escribas lo reemplaza. **Enter** la
 > nombra y pasa al cuerpo, vacío y listo para escribir; **Esc** le deja el nombre con el que se creó («Sin título», o el de la Espora).
 
+## Conservar el nombre anterior como alias
+
+Al confirmar con **Mayús+Enter** en lugar de Enter —en el título o en el explorador—, la
+nota se renombra igual y además guarda su nombre anterior en la propiedad `aliases`.
+Mientras se escribe un nombre distinto, debajo del campo aparece el recordatorio
+«Mayús+Enter: conservar … como alias».
+
+Los enlaces se reparan de todos modos. El alias sirve para lo que no se reescribe: un
+nombre citado en un texto, otro vault que enlaza a esta nota, o un `[[Nombre viejo]]`
+escrito después por costumbre, que sigue llevando a la nota. Ver
+[Otros nombres de una nota](ayuda:enlazar-y-organizar/enlaces).
+
+Está apagado por defecto: la mayoría de los renombres corrigen un nombre, y un alias que
+nadie pidió es un nombre viejo que sigue funcionando sin que se note. Solo las notas
+Markdown tienen alias; en un dibujo, un lienzo o una tabla, Mayús+Enter es un Enter.
+
 ## Nombres que no se aceptan
 
 Si el nombre no sirve, Mycelium no lo corrige por su cuenta: te dice el motivo debajo del
@@ -58,9 +74,27 @@ nombre seleccionado, sin la extensión: lo que escribas lo reemplaza. Ahí, si e
 lleva alguno de esos caracteres, Mycelium no lo rechaza: lo cambia por `-` y te avisa
 cuáles reemplazó y cómo quedó el nombre.
 
-> [!warning] Fuera de Mycelium, los enlaces no se reparan
-> Si renombrás o movés el archivo desde el explorador del sistema o con la terminal,
-> Mycelium ve el cambio pero no reescribe los enlaces de las otras notas: quedan
-> apuntando al nombre viejo. Renombrá desde el título o desde el explorador de Mycelium.
+## Renombres hechos fuera de Mycelium
+
+Si el archivo se renombra o se mueve desde el explorador del sistema, con la terminal o
+con git, Mycelium no reescribe los enlaces por su cuenta: quedan apuntando al nombre
+viejo. Pero cuando en el mismo momento desaparece una nota y aparece otra con el mismo
+contenido (sin contar las propiedades, o con casi todas sus líneas iguales), muestra un
+aviso:
+
+> Parece que «Viejo» se renombró a «Nuevo» fuera de Mycelium. ¿Reparar 3 enlaces (en 2
+> notas) que apuntaban a «Viejo»?
+
+- **Reparar** reescribe esos enlaces igual que un renombre hecho desde Mycelium.
+- **Reparar y guardar alias** además deja «Viejo» como alias de la nota.
+- Cerrar el aviso, o dejar que se vaya, no cambia nada.
+
+Solo aparece si había enlaces que reparar, y nunca por los renombres hechos desde la
+propia app. La reparación queda en el registro de actividad, desde donde se puede
+deshacer.
+
+> [!warning] Lo más seguro sigue siendo renombrar desde Mycelium
+> El aviso depende de que el borrado y la creación lleguen juntos y de que el contenido
+> se parezca: un archivo renombrado y muy editado a la vez no se reconoce.
 
 Más sobre cómo se escriben los enlaces en [Enlaces, alias y embeds](ayuda:enlazar-y-organizar/enlaces).

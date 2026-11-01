@@ -12,6 +12,9 @@
  * por `api()`.
  */
 import { api } from "@/lib/api";
+import { EVENTO_RECARGA } from "@/lib/eventos";
+import { agregarAlias, quitarAlias } from "@/lib/frontmatter";
+import { vaciarGuardadosPendientes } from "@/lib/guardadoPendiente";
 import { reescribirEnlacesMovidos, type CambioDeRuta } from "@/lib/enlaces";
 import {
   involucradas,
@@ -226,4 +229,43 @@ export async function repararTrasOperacion(
   const despues = [...trasTraslados(previa.antes, traslados), ...nuevas];
   const plan = planHomonimos(previa.antes, despues, previa.involucradas, traslados);
   return repararEntrantes(previa.entrantes, movidos, token, simular, plan);
+}
+
+// ── El nombre anterior como alias (`FUN-M-47`) ──────────────────────────────
+
+/**
+ * Agrega (o quita, con `quitar`) `alias` en la propiedad `aliases` de la nota
+ * `id`, leyendo y escribiendo por `api()` como la reparación. Es lo que hace
+ * «conservar el nombre anterior como alias» al renombrar —desde el explorador,
+ * el título o `mycelium_renombrar`—, al aceptar la reparación de un renombre
+ * hecho por fuera, y su Deshacer.
+ *
+ * Antes de leer se fuerzan los guardados pendientes de los editores
+ * (`vaciarGuardadosPendientes`): la nota recién renombrada suele estar abierta,
+ * y escribir encima de un borrador sin guardar terminaría en un conflicto. Y
+ * después se avisa con `EVENTO_RECARGA` para que el editor la relea.
+ *
+ * Devuelve si la nota quedó con (o sin) el alias. `false` si no es una nota
+ * `.md` o su frontmatter no se puede editar sin romperlo (Mycelium no lo
+ * interpreta): el renombre no falla por eso. Lanza si no se pudo leer o escribir.
+ */
+export async function alternarAliasDeNota(
+  id: string,
+  alias: string,
+  token: string | null | undefined,
+  quitar = false,
+): Promise<boolean> {
+  if (extensionDeRuta(id).toLowerCase() !== ".md") return false;
+  await vaciarGuardadosPendientes();
+  const ruta = `/notas/${encodeURIComponent(id)}/contenido`;
+  const actual = (await api<{ contenido: string | null }>(ruta, { token })).contenido ?? "";
+  const nuevo = quitar ? quitarAlias(actual, alias) : agregarAlias(actual, alias);
+  if (nuevo === null) return false;
+  if (nuevo !== actual) {
+    await api(ruta, { method: "PUT", token, body: { contenido: nuevo } });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(EVENTO_RECARGA, { detail: { rutas: [id] } }));
+    }
+  }
+  return true;
 }

@@ -905,7 +905,11 @@ export function ExplorerPanel() {
     router.replace(`/workspace?note=${tabId}`);
   }
 
-  function commitRename() {
+  /**
+   * `conservarAlias` (`FUN-M-47`): con Mayús+Enter, el nombre anterior de la
+   * nota queda como alias. Solo para notas markdown (las únicas con propiedades).
+   */
+  function commitRename(conservarAlias = false) {
     if (!renaming) return;
     const valor = renaming.valor.trim();
     if (valor) {
@@ -919,7 +923,15 @@ export function ExplorerPanel() {
             avisar(`No se pudo renombrar «${otro.nombre}»: ${(e as Error)?.message ?? e}`),
           );
         }
-      } else void store.renameNota(renaming.id, valor).catch(avisarFallo("renombrar la nota"));
+      } else {
+        const anterior = store.notas.find((n) => n.id === renaming.id)?.titulo ?? "";
+        void store
+          .renameNota(renaming.id, valor, { conservarAlias })
+          .then((r) => {
+            if (r.aliasConservado) avisar(`«${anterior}» quedó como alias de «${r.titulo}».`);
+          })
+          .catch(avisarFallo("renombrar la nota"));
+      }
     }
     setRenaming(null);
   }
@@ -1028,6 +1040,7 @@ export function ExplorerPanel() {
         active={activeNoteId === nota.id}
         renaming={renaming?.type === "nota" && renaming.id === nota.id}
         renameValue={renaming?.valor ?? ""}
+        pistaAlias={nota.tipo === "markdown" ? nota.titulo : undefined}
         onRenameChange={(valor) => setRenaming((r) => (r ? { ...r, valor } : r))}
         onRenameCommit={commitRename}
         onRenameCancel={() => setRenaming(null)}
@@ -1302,8 +1315,15 @@ type RowRenameProps = {
   renaming: boolean;
   renameValue: string;
   onRenameChange: (valor: string) => void;
-  onRenameCommit: () => void;
+  /** `conservarAlias`: se confirmó con Mayús+Enter (`FUN-M-47`). */
+  onRenameCommit: (conservarAlias?: boolean) => void;
   onRenameCancel: () => void;
+  /**
+   * El nombre actual de una nota markdown (`FUN-M-47`): con él, el campo dice
+   * debajo que Mayús+Enter lo conserva como alias. Sin él (carpetas, otros
+   * tipos), Mayús+Enter es un Enter.
+   */
+  pistaAlias?: string;
 };
 
 function RenameInput({
@@ -1311,6 +1331,7 @@ function RenameInput({
   onRenameChange,
   onRenameCommit,
   onRenameCancel,
+  pistaAlias,
 }: Omit<RowRenameProps, "renaming">) {
   // Al entrar en renombrado, el nombre queda seleccionado entero, como en
   // Obsidian o en el explorador del sistema: escribir lo reemplaza y una flecha
@@ -1325,20 +1346,35 @@ function RenameInput({
     el.focus();
     el.select();
   }, []);
-  return (
+  // Mayús+Enter conserva el nombre anterior como alias (`FUN-M-47`). Apagado
+  // por defecto —la mayoría de los renombres corrige un nombre, y un alias de
+  // más es un nombre viejo que sigue resolviendo—, y visible: la pista aparece
+  // debajo del campo mientras se escribe un nombre distinto.
+  const conPista = pistaAlias !== undefined && renameValue.trim() !== "" && renameValue.trim() !== pistaAlias;
+  const campo = (
     <input
       ref={ref}
       className={styles.renameInput}
       value={renameValue}
       autoFocus
+      aria-describedby={conPista ? "mic-pista-alias" : undefined}
       onChange={(e) => onRenameChange(e.target.value)}
-      onBlur={onRenameCommit}
+      onBlur={() => onRenameCommit()}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onRenameCommit();
+        if (e.key === "Enter") onRenameCommit(e.shiftKey && pistaAlias !== undefined);
         if (e.key === "Escape") onRenameCancel();
       }}
       onClick={(e) => e.stopPropagation()}
     />
+  );
+  if (!conPista) return campo;
+  return (
+    <span className={styles.renameCaja}>
+      {campo}
+      <span id="mic-pista-alias" className={styles.renamePista}>
+        Mayús+Enter: conservar «{pistaAlias}» como alias
+      </span>
+    </span>
   );
 }
 

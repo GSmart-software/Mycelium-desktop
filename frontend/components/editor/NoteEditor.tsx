@@ -736,8 +736,11 @@ export function NoteEditor({
             // función estable que lee el id por referencia: la vista se crea una
             // vez y el facet no se reconfigura, así que no puede capturar el
             // `notaId` de este render — al renombrar, el id cambia.
-            renombrarPorTitulo.of((titulo) =>
-              useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
+            renombrarPorTitulo.of((titulo, opciones) =>
+              useVaultStore
+                .getState()
+                .renameNota(notaIdRef.current, titulo, opciones)
+                .then(() => {}),
             ),
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
