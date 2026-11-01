@@ -12,6 +12,7 @@ import {
 } from "next/font/google";
 import { AyudaGlobal } from "@/components/ayuda/AyudaGlobal";
 import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
+import { ReposoVentana } from "@/components/ventana/ReposoVentana";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 import "katex/dist/katex.min.css";
 import "@excalidraw/excalidraw/index.css";
@@ -102,6 +103,8 @@ export default function RootLayout({
         <DevToolsHotkey />
         {/* Sin barra del sistema, los bordes de la ventana los repone la app. */}
         <BordesRedimensionado />
+        {/* Sin foco o minimizada, la ventana deja de animar (`DEF-174`). */}
+        <ReposoVentana />
         {children}
         {/* La ayuda (F1), en toda la app: también en el selector de vaults. */}
         <AyudaGlobal />
