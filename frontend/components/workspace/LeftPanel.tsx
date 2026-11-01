@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CircleDot,
   Files,
+  HeartPulse,
   Search,
   Tag,
   Terminal,
@@ -18,6 +19,7 @@ import { SearchPanel } from "@/components/explorer/SearchPanel";
 import { TrashPanel } from "@/components/explorer/TrashPanel";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
 import { ActividadPanel } from "@/components/actividad/ActividadPanel";
+import { SaludPanel } from "@/components/salud/SaludPanel";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { SidebarDock } from "./SidebarDock";
@@ -37,6 +39,7 @@ const SECTION_TITLES: Record<RailSection, string> = {
   esporas: "Esporas",
   calendario: "Calendario",
   actividad: "Actividad de la IA",
+  salud: "Salud del vault",
   trash: "Papelera",
   terminal: "Consolas",
 };
@@ -48,6 +51,7 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
   esporas: CircleDot,
   calendario: CalendarDays,
   actividad: Bot,
+  salud: HeartPulse,
   trash: Trash2,
   terminal: Terminal,
 };
@@ -108,6 +112,8 @@ function SectionContent({ section }: { section: RailSection }) {
       return <CalendarioPanel />;
     case "actividad":
       return <ActividadPanel />;
+    case "salud":
+      return <SaludPanel />;
     case "trash":
       return <TrashPanel />;
     case "terminal":

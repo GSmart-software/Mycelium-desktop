@@ -132,7 +132,7 @@ pub fn instrucciones(estado: &Estado) -> String {
         Ok(v) => format!(
             "Control de Mycelium sobre el vault «{}» ({}). El contenido de las notas se lee y se \
              escribe en los archivos, como siempre; estas herramientas operan la app y consultan \
-             su índice (búsqueda, enlaces y tablas .base, con el criterio de Mycelium).",
+             su índice (búsqueda, enlaces, tablas .base y salud del vault, con el criterio de Mycelium).",
             v.registrado.nombre, v.registrado.ruta
         ),
         Err(msg) => format!("Control de Mycelium sin vault: {msg}"),

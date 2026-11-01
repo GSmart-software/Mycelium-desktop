@@ -52,6 +52,10 @@ herramienta: generalas, o actualizalas si Configuración te ofrece una versión 
   - leer las filas de una vista de una [base](ayuda:tipos-de-archivo/bases), calculadas
     igual que en su pestaña.
 
+  - revisar la [salud del vault](ayuda:enlazar-y-organizar/salud-del-vault) —enlaces rotos,
+    huérfanas, títulos duplicados— y **validar una nota** que acaba de escribir: título
+    único, enlaces que resuelven y alguien que la enlace.
+
   Así la IA ve la memoria con el mismo criterio que la app: un `[[enlace]]` escrito dentro
   de un bloque de código no cuenta, y lo que oculta `.mycignore` no aparece. Estas
   consultas no se anotan en la actividad de la IA, salvo que fallen.

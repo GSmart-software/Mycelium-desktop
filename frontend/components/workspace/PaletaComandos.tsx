@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarDays,
   FilePlus,
+  HeartPulse,
   Palette,
   PanelLeft,
   Search,
@@ -204,6 +205,14 @@ export function PaletaComandos() {
         titulo: "Abrir el calendario",
         icono: CalendarDays,
         ejecutar: () => abrirNota(CALENDAR_TAB_ID),
+      },
+      // Salud del vault (FUN-L-30): el mismo panel que el ícono del rail.
+      {
+        id: "cmd-salud",
+        titulo: "Revisar la salud del vault",
+        detalle: "Enlaces rotos, huérfanas y títulos duplicados",
+        icono: HeartPulse,
+        ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
       },
       {
         id: "cmd-recordatorio",

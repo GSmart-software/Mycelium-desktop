@@ -683,3 +683,14 @@ test("mycelium-operar enseña las consultas al índice, y la memoria las prefier
   assert.match(memoria, /`mycelium_enlaces` da las dos listas/);
   assert.match(SKILL("mycelium-base"), /`mycelium_base`/);
 });
+
+// ── La salud del vault por MCP (`FUN-L-30`) ─────────────────────────────────
+
+test("la salud del vault: operar la enseña, la memoria la usa al cerrar una nota y /vault-huerfanas empieza por ella", () => {
+  const operar = SKILL("mycelium-operar");
+  assert.ok(operar.includes("`mycelium_salud`") && operar.includes("`mycelium_validar_nota`"));
+  assert.match(operar, /\*\*chequeo de cierre\*\*/);
+  assert.match(SKILL("mycelium-memoria"), /`mycelium_validar_nota` comprueba/);
+  const huerfanas = archivosFramework().find((a) => a.ruta.endsWith("vault-huerfanas.md")).contenido;
+  assert.ok(huerfanas.indexOf("mycelium_salud") < huerfanas.indexOf("1. **Huérfanas**"), "primero la herramienta");
+});

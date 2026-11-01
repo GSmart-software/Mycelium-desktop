@@ -1,0 +1,206 @@
+/* Panel de salud del vault (FUN-L-30). Sigue los paneles del rail (Actividad,
+   Papelera): un resumen arriba con fondo apenas teñido, secciones plegables con
+   su conteo y filas que son botones que llevan a la nota. Solo tokens --mic-*:
+   no expone clases globales (no entra en la plantilla de snippets). */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── El resumen ───────────────────────────────────────────────────────── */
+
+.resumen {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.resumen[data-estado="sano"] {
+  border-color: color-mix(in srgb, var(--mic-callout-success-border) 35%, transparent);
+}
+
+.resumen[data-estado="problemas"] {
+  border-color: color-mix(in srgb, var(--mic-callout-warning-border) 40%, transparent);
+}
+
+.resumenTitulo {
+  grid-column: 1;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.resumenDetalle {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.actualizar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.actualizar:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.actualizar:disabled {
+  cursor: default;
+}
+
+.actualizar:focus-visible,
+.item:focus-visible,
+.seccionTitulo:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .girando {
+    animation: none;
+  }
+}
+
+.error {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-callout-error-border);
+}
+
+/* ── Las secciones ────────────────────────────────────────────────────── */
+
+.seccion {
+  display: flex;
+  flex-direction: column;
+}
+
+.seccionTitulo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.2rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.seccion[data-vacia] .seccionTitulo {
+  color: var(--mic-text-muted);
+}
+
+.cuenta {
+  margin-left: auto;
+  min-width: 1.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 22%, transparent);
+}
+
+.cuenta[data-cero] {
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-text-muted) 10%, transparent);
+}
+
+.ayuda,
+.nota {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+  padding: 0 0.2rem 0.3rem;
+}
+
+.nota {
+  padding-top: 0.3rem;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+.lista {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+.itemTitulo {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.itemDetalle {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.codigo {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.6875rem;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.35rem 0.25rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.grupoTitulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  padding: 0 0.1rem;
+}
