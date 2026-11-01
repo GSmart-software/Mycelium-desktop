@@ -40,3 +40,20 @@ export const EVENTO_RECARGA = "micelio:vault-recargar";
  * conexiones, para la nota que muestran.
  */
 export const EVENTO_NOTA_GUARDADA = "micelio:nota-guardada";
+
+/**
+ * El índice cambió los alias de unas notas (`FUN-M-15`): `detail.aliases` es
+ * `{ [id]: string[] }`, con la lista nueva de cada una (vacía si ya no tiene).
+ *
+ * Lo emite la capa de datos (desktop) al guardar una nota y al indexar lo que
+ * cambió por fuera, porque es la que lee el frontmatter. Lo escucha el árbol
+ * (`stores/vaultStore.ts`), que guarda los alias de cada nota para que el editor
+ * resuelva `[[alias]]` sin preguntarle al índice en cada tecla.
+ */
+export const EVENTO_ALIAS = "micelio:alias-cambiados";
+
+/** Emite `EVENTO_ALIAS` con estos cambios (nada, si no hay o si no hay ventana). */
+export function avisarAliasCambiados(aliases: Record<string, string[]>): void {
+  if (typeof window === "undefined" || Object.keys(aliases).length === 0) return;
+  window.dispatchEvent(new CustomEvent(EVENTO_ALIAS, { detail: { aliases } }));
+}

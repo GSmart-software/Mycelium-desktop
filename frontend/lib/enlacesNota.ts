@@ -171,6 +171,21 @@ export function clavesDeTitulo(titulo: string): string[] {
 }
 
 /**
+ * Las claves de las filas de `enlaces` que pueden resolver por estos alias
+ * (`FUN-M-15`): las mismas que las de un título, porque `[[alias]]` se guarda
+ * con la misma `clave` que `[[título]]`. Cuando una nota gana o pierde un alias
+ * —o aparece, se va o se mueve con alias puestos—, son las que se re-resuelven.
+ */
+export function clavesDeAlias(aliases: Iterable<string>): string[] {
+  const claves: string[] = [];
+  for (const a of aliases) {
+    const c = claveDeEnlace(a);
+    if (c !== "") claves.push(...clavesDeTitulo(c));
+  }
+  return claves;
+}
+
+/**
  * A qué nota apunta una fila, con el resolutor único (`FUN-M-40`, D8): el
  * texto entero y, si no resuelve y tiene ancla, el texto sin el ancla. Una
  * tarjeta de nota de un canvas guarda la ruta, que en desktop es el id: apunta a

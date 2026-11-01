@@ -20,6 +20,7 @@
 import {
   claveDeEnlace,
   claveSinAncla,
+  clavesDeAlias,
   clavesDeTitulo,
   resolverEnlace,
   type EnlaceDerivado,
@@ -28,6 +29,7 @@ import { indexarPorTitulo, type CarpetaEnlazable, type NotaEnlazable } from "@/l
 import { execute, select } from "./client";
 import { plegarEtiqueta } from "./fts";
 import { enTandas, marcadores } from "./ftsIndice";
+import { aliasesPorNota } from "./propiedades";
 import { huellaDe } from "./util";
 
 /** Lo que el índice guarda de los enlaces y etiquetas de una nota. */
@@ -54,7 +56,8 @@ export type Resolutor = (enlace: { tipo: string; texto: string }) => string | nu
  * Se leen TODAS las notas y no solo las del título buscado porque el `lower()`
  * de SQLite solo entiende ASCII (ver `claveDeEnlace`): filtrar en SQL perdería
  * los títulos con tildes. Son `id`, `titulo`, `carpeta_id` y `tipo` (`DEF-120`): en la Tesina
- * (1.306 notas) unos 150 KB.
+ * (1.306 notas) unos 150 KB. Y los alias (`FUN-M-15`): una consulta más, sobre
+ * las filas de `propiedades` con clave `aliases`, que son pocas.
  */
 export async function crearResolutor(): Promise<Resolutor> {
   const notas = await select<{ id: string; titulo: string; carpeta_id: string | null; tipo: string }>(
@@ -65,8 +68,15 @@ export async function crearResolutor(): Promise<Resolutor> {
       "SELECT id, nombre, padre_id FROM carpetas",
     )
   ).map((c) => ({ id: c.id, nombre: c.nombre, padreId: c.padre_id }));
+  const aliases = await aliasesPorNota(null);
   const porTitulo = indexarPorTitulo<NotaEnlazable>(
-    notas.map((n) => ({ id: n.id, titulo: n.titulo, carpetaId: n.carpeta_id, tipo: n.tipo })),
+    notas.map((n) => ({
+      id: n.id,
+      titulo: n.titulo,
+      carpetaId: n.carpeta_id,
+      tipo: n.tipo,
+      aliases: aliases.get(n.id),
+    })),
   );
   const ids = new Set(notas.map((n) => n.id));
   return (enlace) => resolverEnlace(enlace, porTitulo, carpetas, ids);
@@ -216,9 +226,25 @@ export async function reResolverClaves(claves: Iterable<string> | null): Promise
  * se movieron notas con estos títulos: crear, renombrar, mover, mandar a la
  * papelera o recuperar. Un enlace roto a `[[Idea]]` pasa a resolver cuando
  * aparece `Idea.md`, y uno a una nota que se fue pasa a su homónima o a NULL.
+ *
+ * `notaIds`: las notas que aparecen, se van o se mueven, para re-resolver
+ * también sus alias (`FUN-M-15`). Se leen del índice tal como está: quien llama
+ * los pasa cuando las filas de `propiedades` todavía existen (la papelera las
+ * conserva; mover las repunta al id nuevo).
  */
-export async function reResolverTitulos(titulos: Iterable<string>): Promise<void> {
+export async function reResolverTitulos(
+  titulos: Iterable<string>,
+  notaIds: Iterable<string> = [],
+): Promise<void> {
   const claves = new Set<string>();
   for (const t of titulos) for (const c of clavesDeTitulo(t)) claves.add(c);
+  for (const c of await clavesDeAliasDe([...notaIds])) claves.add(c);
   await reResolverClaves(claves);
+}
+
+/** `clavesDeAlias` de los alias que el índice tiene de estas notas. */
+export async function clavesDeAliasDe(notaIds: readonly string[]): Promise<string[]> {
+  if (notaIds.length === 0) return [];
+  const porNota = await aliasesPorNota(notaIds);
+  return clavesDeAlias([...porNota.values()].flat());
 }

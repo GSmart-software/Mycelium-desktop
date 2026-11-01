@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { EVENTO_ALIAS, EVENTO_RECARGA } from "@/lib/eventos";
 import {
   SIN_REPARACION,
   carpetaDeRuta,
@@ -48,6 +48,12 @@ export type TreeNota = {
   titulo: string;
   tipo: NotaTipo;
   actualizadoEn: string;
+  /**
+   * Los otros nombres de la nota: su propiedad `aliases` (`FUN-M-15`). Un
+   * `[[alias]]` resuelve a ella si ningún título se llama así. Ausente si no
+   * declara ninguno. Lo carga el árbol y lo mantiene al día `EVENTO_ALIAS`.
+   */
+  aliases?: string[];
 };
 export type PapeleraItem = {
   notaId: string;
@@ -63,6 +69,7 @@ type RawNota = {
   titulo: string;
   tipo?: string;
   actualizado_en: string;
+  aliases?: string[];
 };
 type RawPapeleraItem = {
   nota_id: string;
@@ -178,7 +185,7 @@ function despuesDe(antes: readonly NotaRuta[], movidos: readonly Movido[]): Nota
 
 /** Las notas del árbol como las ve la reparación de homónimos (`DEF-134`). */
 function comoRutas(notas: readonly TreeNota[]): NotaRuta[] {
-  return notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo }));
+  return notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo, aliases: n.aliases }));
 }
 
 /**
@@ -305,6 +312,7 @@ export const useVaultStore = create<VaultState>()(
               ? n.tipo
               : "markdown",
           actualizadoEn: n.actualizado_en,
+          ...(n.aliases && n.aliases.length > 0 ? { aliases: n.aliases } : {}),
         }));
 
         // Lo que el watcher ya puso en el árbol y el índice todavía no tiene
@@ -689,3 +697,34 @@ export const useVaultStore = create<VaultState>()(
     },
   ),
 );
+
+/**
+ * Los alias que cambió el índice (`FUN-M-15`): al guardar una nota o al indexar
+ * lo que cambió por fuera. Se aplican a las notas del árbol sin releerlo; la
+ * lista nueva invalida el índice por título y alias (`notasPorTitulo`), y las
+ * vistas en vivo vuelven a evaluar sus `[[enlaces]]` contra ella.
+ */
+export function aplicarAliases(cambios: Record<string, string[]>): void {
+  const { notas } = useVaultStore.getState();
+  let cambio = false;
+  const nuevas = notas.map((n) => {
+    if (!Object.prototype.hasOwnProperty.call(cambios, n.id)) return n;
+    const aliases = cambios[n.id];
+    const antes = n.aliases ?? [];
+    if (antes.length === aliases.length && antes.every((a, i) => a === aliases[i])) return n;
+    cambio = true;
+    const nueva: TreeNota = { ...n, aliases: [...aliases] };
+    if (aliases.length === 0) delete nueva.aliases;
+    return nueva;
+  });
+  if (!cambio) return;
+  useVaultStore.setState({ notas: nuevas });
+  markGraphStale();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener(EVENTO_ALIAS, (e) => {
+    const detalle = (e as CustomEvent<{ aliases?: Record<string, string[]> }>).detail;
+    if (detalle?.aliases) aplicarAliases(detalle.aliases);
+  });
+}

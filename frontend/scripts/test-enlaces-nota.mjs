@@ -62,7 +62,17 @@ const UTIL = await fuente("../lib/db/util.ts");
 const NOMBRES = await fuente("../lib/db/nombres.ts");
 const CONTEXTO = await fuente("../lib/db/vaultContext.ts", { "./errors": ERRORS });
 const FTS = await fuente("../lib/db/ftsIndice.ts", { "./client": CLIENT });
+const EVENTOS = await fuente("../lib/eventos.ts");
+const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
+  "@/lib/frontmatter": FRONTMATTER,
+  "./client": CLIENT,
+  "./ftsIndice": FTS,
+  "./fts": await fuente("../lib/db/fts.ts"),
+  "./util": UTIL,
+});
 const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
@@ -70,14 +80,9 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./ftsIndice": FTS,
   "./util": UTIL,
 });
-const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
-  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
-  "@/lib/frontmatter": FRONTMATTER,
-  "./client": CLIENT,
-  "./fts": await fuente("../lib/db/fts.ts"),
-  "./util": UTIL,
-});
 const INDEXER = await fuente("../lib/db/indexer.ts", {
+  "@/lib/eventos": EVENTOS,
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
     "@tauri-apps/api/core": TAURI,
@@ -102,6 +107,8 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
+  "@/lib/eventos": EVENTOS,
+  "./propiedades": PROPIEDADES,
   "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
   "@/lib/conflictoExterno": await fuente("../lib/conflictoExterno.ts"),
   "./indexer": INDEXER,
@@ -142,7 +149,7 @@ const PAPELERA = await fuente("../lib/db/papelera.ts", {
   "./vaultContext": CONTEXTO,
   "./vaultFs": VAULTFS,
 });
-const GRAFO = await fuente("../lib/db/grafo.ts", { "./client": CLIENT, "./errors": ERRORS });
+const GRAFO = await fuente("../lib/db/grafo.ts", { "./client": CLIENT, "./errors": ERRORS, "./propiedades": PROPIEDADES });
 
 const { derivarEnlaces, derivarEtiquetas, claveDeEnlace, claveSinAncla, clavesDeTitulo, resolverEnlace } =
   await import(ENLACES_NOTA);
@@ -678,5 +685,68 @@ test("papelera: los enlaces pasan a la homónima o a rotos, y vuelven al recuper
   await papeleraDb.recuperarNota("Plan.md");
   g = await comparar();
   assert.ok(aristasDesde(g, "Zeta/Idea.md").includes("Plan.md"));
+  client.setExecutor(null);
+});
+
+// ── Alias (`FUN-M-15`) ────────────────────────────────────────────────────────
+
+/** Un vault chico para los alias: una nota con alias en lista, otra en texto. */
+const VAULT_ALIAS = {
+  "Historias/HU-009 Gestion de usuarios.md": "---\naliases: [HU-009, Gestión]\n---\nLa historia.",
+  "Glosario.md": "---\nalias: Términos\n---\nPalabras.",
+  "Plan.md": "Ver [[HU-009]], [[hu-009#Criterios]], [[Términos]] y [[Plan B]].",
+  "Plan B.md": "Otra nota que se llama como un alias que todavía no existe.",
+  "Notas/Otra.md": "[[Gestión|la gestión]]",
+};
+
+const destinoDe = (db, desde, texto) =>
+  db.prepare("SELECT destino_id FROM enlaces WHERE desde_id = ? AND destino_texto = ?").get(desde, texto)?.destino_id ?? null;
+
+test("alias: el índice resuelve [[alias]] en lista y en texto, con ancla, y el grafo lo dibuja", { skip: sinSqlite }, async () => {
+  const { db } = await abrir(VAULT_ALIAS);
+  const hu = "Historias/HU-009 Gestion de usuarios.md";
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), hu);
+  assert.equal(destinoDe(db, "Plan.md", "hu-009#Criterios"), hu, "sin distinguir mayúsculas, con ancla");
+  assert.equal(destinoDe(db, "Plan.md", "Términos"), "Glosario.md", "la clave vieja `alias` con un texto");
+  assert.equal(destinoDe(db, "Notas/Otra.md", "Gestión"), hu);
+  const g = await grafoDb.grafo(contexto.LOCAL_VAULT_ID);
+  assert.deepEqual(aristasDesde(g, "Plan.md"), ["Glosario.md", hu, "Plan B.md"].sort());
+  // El retroenlace trae su fragmento aunque cite por alias.
+  const con = await grafoDb.conexiones(hu);
+  assert.ok(con.retro.find((r) => r.id === "Plan.md").fragmento.includes("[[HU-009]]"));
+  client.setExecutor(null);
+});
+
+test("alias: un título gana; cambiar los alias al guardar re-resuelve sin reindexar", { skip: sinSqlite }, async () => {
+  const { db } = await abrir(VAULT_ALIAS);
+  const hu = "Historias/HU-009 Gestion de usuarios.md";
+  // La HU declara «Plan B» como alias: la nota que se llama así sigue ganando.
+  await contenidoDb.putContenido(hu, "---\naliases: [HU-009, Gestión, Plan B]\n---\nLa historia.");
+  assert.equal(destinoDe(db, "Plan.md", "Plan B"), "Plan B.md");
+  // Quitar un alias: el enlace queda roto; volver a ponerlo, resuelve.
+  await contenidoDb.putContenido(hu, "---\naliases: [Gestión]\n---\nLa historia.");
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), null);
+  await contenidoDb.putContenido(hu, "---\naliases: HU-009\n---\nLa historia.");
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), hu);
+  assert.equal(destinoDe(db, "Notas/Otra.md", "Gestión"), null);
+  client.setExecutor(null);
+});
+
+test("alias: papelera, recuperar, borrar por fuera y un alias repetido", { skip: sinSqlite }, async () => {
+  const { db, archivos } = await abrir(VAULT_ALIAS);
+  const hu = "Historias/HU-009 Gestion de usuarios.md";
+  await papeleraDb.borrarNota(hu);
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), null);
+  await papeleraDb.recuperarNota(hu);
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), hu);
+  // Otra nota, en la raíz, declara el mismo alias: el desempate de los títulos
+  // (la ruta más corta) la elige.
+  archivos.set("Copia.md", "---\naliases: [HU-009]\n---\n");
+  await indexer.indexarRutas("C:/vault", [{ ruta: "Copia.md", mtime: 99, estado: "nota", tipo: "markdown" }]);
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), "Copia.md");
+  // Se va por fuera: vuelve a la HU.
+  archivos.delete("Copia.md");
+  await indexer.indexarRutas("C:/vault", [{ ruta: "Copia.md", mtime: 0, estado: "ausente", tipo: "" }]);
+  assert.equal(destinoDe(db, "Plan.md", "HU-009"), hu);
   client.setExecutor(null);
 });

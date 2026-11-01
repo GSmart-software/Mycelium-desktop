@@ -20,6 +20,7 @@
  */
 import { select } from "./client";
 import { DbError } from "./errors";
+import { aliasesPorNota } from "./propiedades";
 
 export type GraphNodeDto = {
   id: string;
@@ -49,9 +50,20 @@ function contarConexiones(aristas: GraphEdgeDto[]): Map<string, number> {
   return conteo;
 }
 
-/** Fragmento de contexto alrededor del [[enlace]] (HU-30 CA7). */
-function fragmentAround(contenido: string, titulo: string): string {
-  const index = contenido.toLowerCase().indexOf(`[[${titulo.toLowerCase()}`);
+/**
+ * Fragmento de contexto alrededor del [[enlace]] (HU-30 CA7). `nombres` son el
+ * título y los alias de la nota citada (`FUN-M-15`): un `[[alias]]` también la
+ * cita, y sin buscarlo el retroenlace salía sin contexto.
+ */
+function fragmentAround(contenido: string, nombres: readonly string[]): string {
+  const bajo = contenido.toLowerCase();
+  let index = -1;
+  let titulo = "";
+  for (const nombre of nombres) {
+    index = bajo.indexOf(`[[${nombre.toLowerCase()}`);
+    titulo = nombre;
+    if (index >= 0) break;
+  }
   if (index < 0) return "";
   const start = Math.max(0, index - 40);
   const end = Math.min(contenido.length, index + titulo.length + 44);
@@ -161,10 +173,11 @@ export async function conexiones(notaId: string): Promise<unknown> {
     );
     for (const f of filas) contenidos.set(f.nota_id, f.contenido);
   }
+  const nombres = [n.titulo, ...((await aliasesPorNota([notaId])).get(notaId) ?? [])];
   const retro = citantes.map((c) => ({
     id: c.id,
     titulo: c.titulo,
-    fragmento: fragmentAround(contenidos.get(c.id) ?? "", n.titulo),
+    fragmento: fragmentAround(contenidos.get(c.id) ?? "", nombres),
   }));
 
   // Mini-grafo: la nota y sus vecinos, cada uno con su grado en el grafo

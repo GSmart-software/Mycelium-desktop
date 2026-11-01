@@ -3,6 +3,7 @@
  * Portado de `VaultRepository.GetTreeAsync`.
  */
 import { select } from "./client";
+import { aliasesPorNota } from "./propiedades";
 import type { TreeResponse } from "./types";
 
 /** Carpetas + notas (excluyendo papelera) de un vault, para el explorer. */
@@ -23,5 +24,14 @@ export async function tree(vaultId: string): Promise<TreeResponse> {
      ORDER BY titulo COLLATE NOCASE`,
     [vaultId],
   );
-  return { carpetas, notas };
+  // Los alias de cada nota (`FUN-M-15`): con ellos el editor, la lectura y el
+  // autocompletado resuelven `[[alias]]` contra el árbol, como los títulos.
+  const aliases = await aliasesPorNota(null);
+  return {
+    carpetas,
+    notas: aliases.size === 0 ? notas : notas.map((n) => {
+      const a = aliases.get(n.id);
+      return a ? { ...n, aliases: a } : n;
+    }),
+  };
 }

@@ -185,7 +185,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 
 ## Reglas duras
 
-1. **Títulos únicos**: los enlaces resuelven por título, no por ruta.
+1. **Títulos únicos**: los enlaces resuelven por título (o por \`aliases\`), no por ruta.
 2. **Renombrar, mover, borrar**: con \`mycelium_renombrar\`, \`_mover\`, \`_borrar\`; \`mv\` o
    \`rm\` solo sin MCP, y los enlaces los arreglás vos.
 3. **Nada huérfano**: toda nota nueva enlaza a algo y la enlaza su mapa o nota madre.
@@ -233,6 +233,7 @@ skill \`mycelium-memoria\`; para operar la app, \`mycelium-operar\`.
 | Elemento | Sintaxis | Notas |
 |---|---|---|
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
+| Enlace por otro nombre | \`[[HU-009]]\` | Si ningún título calza, resuelve a la nota que lo declara en su propiedad \`aliases\` (ver abajo) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
 | Enlace Markdown | \`[texto](otra.md)\` | **No cuenta** como enlace: ni grafo ni backlinks. Para relacionar notas, \`[[otra]]\` (o \`[[otra\\|texto]]\`). Si queda uno escrito —o una forma del léxico de referencias sin corchetes—, un hook avisa con la forma que corresponde |
 | Enlace a un encabezado | \`[[Título#Encabezado]]\` / \`[[#Encabezado]]\` | Cuenta como enlace a la nota (grafo, backlinks); el clic lleva al encabezado. Se ve «Título › Encabezado». \`[[Título#^bloque]]\` va a la línea que termina en \`^bloque\` |
@@ -362,9 +363,16 @@ Subconjunto soportado — un **mapa plano** cuyos valores sean:
 | Fecha y hora | \`YYYY-MM-DDTHH:mm\` | \`reunion: 2026-08-30T15:00\` |
 | Lista | \`[a, b]\` o una línea \`- \` por elemento | \`tags: [proyecto, activo]\` |
 
-- **\`tags:\`** es la única clave con comportamiento: sus valores son **etiquetas
+- **\`tags:\`** tiene comportamiento: sus valores son **etiquetas
   de la nota**, se suman a los \`#tag\` del cuerpo y navegan igual. Se aceptan con
   y sin \`#\`.
+- **\`aliases:\`** (lista o texto; también la clave vieja \`alias\`) son **otros
+  nombres** de la nota: \`[[HU-009]]\` resuelve a la nota con \`aliases: [HU-009]\` en el
+  editor, el grafo y los backlinks, como con su título. Un **título siempre gana** a un
+  alias; entre dos notas con el mismo alias gana la más cercana a la raíz, como entre
+  homónimas. Sin distinguir mayúsculas, sin carpeta delante. Sirve para siglas,
+  sinónimos y nombres viejos: antes de crear una nota, buscar el término también en
+  los \`aliases\` (\`grep -rli "^aliases:.*término" --include="*.md" .\`).
 - Un escalar entrecomillado es siempre texto (\`version: "1.0"\` NO es número).
 - Un \`[[enlace]]\` dentro de un valor cuenta como enlace saliente y se ve en el grafo.
 - **No soportado**: mapas anidados, escalares multilínea (\`|\`, \`>\`), anclas y

@@ -1,7 +1,7 @@
 ---
 titulo: Enlaces, alias y embeds
 tema: Enlazar y organizar
-sinonimos: [wikilink, vínculo, enlace interno, corchetes, enlace roto, alias, embeber]
+sinonimos: [wikilink, vínculo, enlace interno, corchetes, enlace roto, alias, aliases, otro nombre, sinónimo, embeber]
 ---
 
 Un **enlace** une una nota con otra: escribís el título de la nota entre corchetes dobles,
@@ -35,6 +35,7 @@ El plan está en [[Plan 2026|el plan del año]].
 | `[[Nota]]` | Enlaza a la nota por su título, sin la extensión `.md`. |
 | `[[Nota\|texto]]` | Enlaza a la nota y muestra «texto». |
 | `[[Carpeta/Nota]]` | Elige entre dos notas con el mismo nombre en carpetas distintas. |
+| `[[Otro nombre]]` | Enlaza a la nota que declara «Otro nombre» en su propiedad `aliases`. |
 | `[[Nota#Encabezado]]` | Abre la nota y lleva al encabezado. Se lee «Nota › Encabezado». |
 | `[[#Encabezado]]` | Lleva a un encabezado de la misma nota. |
 | `[[Nota#^bloque]]` | Abre la nota y lleva a la línea que termina en `^bloque`. |
@@ -51,6 +52,35 @@ Cuenta como un enlace a la nota: en el grafo, en el panel de enlaces y al renomb
 conserva el `#Cuidados`. Si la nota existe pero ya no tiene ese encabezado, el enlace no se
 marca roto: abre la nota desde el principio. El autocompletado sugiere notas, no
 encabezados: el `#Encabezado` se escribe a mano.
+
+## Otros nombres de una nota
+
+Una nota puede tener **otros nombres** además de su título: se declaran en la propiedad
+`aliases` del frontmatter, como una lista o como un texto.
+
+```yaml
+---
+aliases: [HU-009, Gestión de usuarios]
+---
+```
+
+Con eso, `[[HU-009]]` lleva a esa nota aunque el archivo se llame de otra forma: el enlace
+no se marca roto, el clic la abre, y cuenta en el [grafo](ayuda:enlazar-y-organizar/grafo)
+y en el panel de enlaces como cualquier otro. También funciona con un encabezado
+(`[[HU-009#Criterios]]`). El autocompletado de `[[` sugiere los alias junto a los
+títulos, con la nota a la que llevan (`→ HU-009 Gestión de usuarios`).
+
+- **Un título siempre gana a un alias.** Si existe una nota que se llama `HU-009`,
+  `[[HU-009]]` lleva a ella y no a la que lo declara como alias.
+- **Dos notas con el mismo alias** se desempatan igual que dos con el mismo título: gana la
+  más cercana a la raíz del vault. El autocompletado inserta la otra con su ruta.
+- Las mayúsculas no importan (`[[hu-009]]` también sirve); las tildes sí.
+- El alias se escribe solo, sin carpeta: `[[Carpeta/HU-009]]` no lo busca.
+- También vale la clave `alias` (la forma vieja de Obsidian).
+
+Es útil para siglas, sinónimos y nombres viejos.
+No hay que confundirlo con el texto que se muestra en un enlace (`[[Nota|texto]]`): ese
+cambia cómo se lee un enlace, no a qué nota lleva.
 
 ## Notas con el mismo nombre
 

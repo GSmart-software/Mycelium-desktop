@@ -167,7 +167,7 @@ type Plan = {
 async function alcance(plan: Plan): Promise<string[]> {
   const { vaultId, notas } = useVaultStore.getState();
   if (vaultId === null) return [];
-  const antes = notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo }));
+  const antes = notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo, aliases: n.aliases }));
   const titulos = plan.movidos.map((m) => m.cambio.tituloNuevo);
   const previa = await leerPrevia(antes, plan.afectadas, titulos, vaultId, token());
   return (await repararTrasOperacion(previa, plan.movidos, [], token(), true)).reescritas;

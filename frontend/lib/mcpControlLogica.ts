@@ -70,7 +70,7 @@ export function resolverObjetivo<N extends NotaEnlazable>(
   const archivo = otros.find((a) => a.ruta.toLowerCase() === bajo);
   if (archivo) return { tipo: "archivo", ruta: archivo.ruta };
 
-  // 2) Título, con las reglas de los wikilinks.
+  // 2) Título, con las reglas de los wikilinks (y sus alias: `FUN-M-15`).
   const porTitulo = indexarPorTitulo(notas);
   const intentar = (ref: string, ancla: string | null): Resolucion<N> | null => {
     const cands = candidatosWikilinkEnIndice(ref, porTitulo, carpetas);

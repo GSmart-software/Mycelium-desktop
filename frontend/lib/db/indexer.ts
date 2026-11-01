@@ -17,11 +17,13 @@
  *     dentro de uno es una constante (la que las rutas `/vaults/:id/...` de
  *     `api()` reciben de `authStore`).
  */
-import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
+import { claveDeEnlace, clavesDeAlias, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
+import { avisarAliasCambiados } from "@/lib/eventos";
 import {
+  clavesDeAliasDe,
   escribirEnlacesTanda,
   huellaEnlaces,
   plegarEtiquetasPendientes,
@@ -30,7 +32,10 @@ import {
 } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import {
+  aliasesDeFilas,
+  aliasesPorNota,
   derivarIndice,
+  mismosAliases,
   plegarPropiedadesPendientes,
   reindexarPropiedadesTanda,
   type FilaPropiedad,
@@ -920,7 +925,20 @@ async function escribirNotas(
         [now, JSON.stringify(filasContenidos)],
       );
       await ftsPonerTanda(filasFts);
+      // Los alias que cambian (`FUN-M-15`): los de antes salen del índice antes
+      // de reescribir las propiedades; sus claves y las de los nuevos se
+      // re-resuelven al final con las demás, y el árbol se entera por evento.
+      const aliasAntes = await aliasesPorNota(entradasPropiedades.map((e) => e.id));
+      const aliasCambiados: Record<string, string[]> = {};
+      for (const e of entradasPropiedades) {
+        const antes = aliasAntes.get(e.id) ?? [];
+        const despues = aliasesDeFilas(e.propiedades);
+        if (mismosAliases(antes, despues)) continue;
+        aliasCambiados[e.id] = despues;
+        for (const c of clavesDeAlias([...antes, ...despues])) claves.add(c);
+      }
       await reindexarPropiedadesTanda(entradasPropiedades);
+      avisarAliasCambiados(aliasCambiados);
       await escribirEnlacesTanda(entradasEnlaces);
       // La tanda entera ya está escrita: recién ahora el `mtime` del disco y las
       // huellas (ver el aviso de arriba). `UPDATE … FROM` como en `enlacesIndice.ts`.
@@ -952,6 +970,8 @@ async function borrarNotas(ids: string[], claves: Set<string>): Promise<void> {
   if (ids.length === 0) return;
   await ftsBorrar(ids);
   for (const id of ids) for (const c of clavesDeTitulo(tituloDeRuta(id))) claves.add(c);
+  // Y sus alias (`FUN-M-15`), mientras las filas de `propiedades` existen.
+  for (const c of await clavesDeAliasDe(ids)) claves.add(c);
   for (const tanda of enTandas(ids)) {
     const q = marcadores(tanda.length);
     await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);
