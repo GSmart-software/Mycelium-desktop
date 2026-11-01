@@ -72,6 +72,8 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_buscar",
             "mycelium_enlaces",
             "mycelium_base",
+            "mycelium_salud",
+            "mycelium_validar_nota",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {

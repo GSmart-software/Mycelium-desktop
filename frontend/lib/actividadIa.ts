@@ -225,13 +225,22 @@ export const NOMBRE_OP: Record<string, string> = {
   buscar: "Buscar en el vault",
   enlaces: "Enlaces de una nota",
   base: "Leer una base",
+  salud: "Salud del vault",
+  validar_nota: "Validar una nota",
 };
 
 /**
  * Las consultas que solo leen (`FUN-M-45`, `FUN-L-30`): como leer el
  * calendario, no se registran cuando salen bien; sus fallos sí.
  */
-export const SOLO_LECTURA: ReadonlySet<string> = new Set(["recordatorios", "buscar", "enlaces", "base"]);
+export const SOLO_LECTURA: ReadonlySet<string> = new Set([
+  "recordatorios",
+  "buscar",
+  "enlaces",
+  "base",
+  "salud",
+  "validar_nota",
+]);
 
 /**
  * Qué operaciones se registran. `estado` no: es la primera llamada de casi

@@ -17,7 +17,7 @@ Saber qué hay en cada zona te ahorra buscar: casi todo está a un clic o a una 
 1. **Barra superior**: el nombre del vault (abre otro vault), el campo **Ir a una nota o
    comando…** (**Ctrl+O**) y, a la derecha, **Salir del vault**.
 2. **Rail**: cada ícono abre su panel lateral —**Explorador**, **Búsqueda global**,
-   **Esporas**, **Calendario**, **Consolas**, **Actividad de la IA** y, abajo,
+   **Esporas**, **Calendario**, **Salud del vault**, **Consolas**, **Actividad de la IA** y, abajo,
    **Papelera**—; un segundo clic en el mismo ícono lo cierra. **Grafo de conexiones**
    abre el grafo como pestaña y el engranaje abre **Configuración** (**Ctrl+,**). Al pie de
    Configuración están la versión que tenés y **Licencias de terceros**, los avisos de

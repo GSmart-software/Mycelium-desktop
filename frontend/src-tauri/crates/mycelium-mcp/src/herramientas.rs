@@ -15,6 +15,9 @@
 //! `mycelium_base`), de solo lectura: la búsqueda, los enlaces y las bases los
 //! resuelve la app con lo que ya usa (`lib/mcpIndice.ts`), porque el índice
 //! vive en su ventana; acá solo se redacta.
+//! `FUN-L-30`: la salud del vault (`mycelium_salud`, `mycelium_validar_nota`),
+//! también de solo lectura: el mismo informe que el panel de salud de la app
+//! (`lib/saludVault.ts`).
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
@@ -39,7 +42,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 15] = [
+const NOMBRES: [&str; 17] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -55,6 +58,8 @@ const NOMBRES: [&str; 15] = [
     "mycelium_buscar",
     "mycelium_enlaces",
     "mycelium_base",
+    "mycelium_salud",
+    "mycelium_validar_nota",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -367,6 +372,46 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_salud",
+            "title": "Salud del vault",
+            "description": "Lo que degrada la memoria del vault, calculado con el criterio del índice de Mycelium (el mismo \
+                del panel de salud de la app): ENLACES y EMBEDS ROTOS (nota y línea), TÍTULOS DUPLICADOS (con los enlaces \
+                que quedan ambiguos entre ellos), notas HUÉRFANAS (ninguna nota las enlaza; un lienzo que las tiene como \
+                tarjeta sí cuenta) y notas SIN ENLACES SALIENTES. Un [[enlace]] dentro de un bloque de código no cuenta, \
+                y un enlace a un archivo que existe pero no es nota (imagen, PDF) no está roto. Las Esporas (plantillas) y \
+                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Alcance: el vault entero, \
+                una carpeta o una nota. Hasta 100 ítems por clase, con los totales.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "alcance": {
+                        "type": "string",
+                        "description": "Vacío u omitido: el vault. Una carpeta (`Proyectos`, o `Proyectos/` para forzar carpeta) o una nota (ruta o título)."
+                    }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_validar_nota",
+            "title": "Validar una nota",
+            "description": "Chequeo de cierre de una nota recién escrita o editada, con el criterio del índice: que su título \
+                sea único (si no, sus homónimas), que todos sus enlaces y embeds resuelvan (los rotos y los ambiguos, con su \
+                línea) y que alguna nota la enlace (si no, está huérfana: hay que enlazarla desde su mapa o nota madre). \
+                Úsala antes de dar por terminado un cambio en la memoria. Mycelium indexa al guardar: si se acaba de \
+                escribir el archivo, conviene esperar un instante antes de validarla.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ruta": { "type": "string", "description": "La nota: ruta (`docs/Plan.md`) o título (`Plan`)." }
+                },
+                "required": ["ruta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
     ]
 }
 
@@ -401,6 +446,8 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_buscar" => herramienta_consulta(estado, vault, "buscar", args, redactar_buscar),
         "mycelium_enlaces" => herramienta_consulta(estado, vault, "enlaces", args, redactar_enlaces),
         "mycelium_base" => herramienta_consulta(estado, vault, "base", args, redactar_base),
+        "mycelium_salud" => herramienta_consulta(estado, vault, "salud", args, redactar_salud),
+        "mycelium_validar_nota" => herramienta_consulta(estado, vault, "validar_nota", args, redactar_validar_nota),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -1175,6 +1222,143 @@ mod tests_consultas {
         assert!(t.contains("250 notas cumplen los filtros; se muestran 1 (tope de esta herramienta)."), "{t}");
         assert!(t.contains("Aviso: Mycelium ignora: groupBy."), "{t}");
         assert!(t.contains("| Nombre | Estado | (archivo) |\n|---|---|---|\n| X | en curso \\| casi | a/X.md |"), "{t}");
+    }
+}
+
+// ── La salud del vault (`FUN-L-30`) ────────────────────────────────────────
+
+/// Un problema de enlace: la nota, la línea y cómo está escrito.
+fn problema_en_linea(p: &Value) -> String {
+    let escrito = if s(p, "tipo") == "embed" { format!("![[{}]]", s(p, "texto")) } else { format!("[[{}]]", s(p, "texto")) };
+    let veces = n(p, "n");
+    let extra = if veces > 1 && lineas(p).is_empty() { format!(" ×{veces}") } else { String::new() };
+    format!("{}{} · {escrito}{extra}", s(p, "desde"), lineas(p))
+}
+
+/// El informe de salud: cada clase con su conteo y sus ítems, y cómo seguir.
+pub fn redactar_salud(r: &Value) -> String {
+    let alcance = r.get("alcance").unwrap_or(&Value::Null);
+    let donde = match s(alcance, "tipo") {
+        "carpeta" => format!("de la carpeta {}/", s(alcance, "ruta")),
+        "nota" => format!("de la nota {}", s(alcance, "ruta")),
+        _ => "del vault".to_string(),
+    };
+    let c = r.get("conteos").unwrap_or(&Value::Null);
+    let total = n(c, "total");
+    let notas = n(r, "notas");
+    let mut t = format!(
+        "Salud {donde}: {notas} {} {}. Las Esporas y las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan.",
+        if notas == 1 { "nota" } else { "notas" },
+        if total == 0 { "y ningún problema".to_string() } else { format!("y {total} {}", if total == 1 { "problema" } else { "problemas" }) }
+    );
+    let tope = n(r, "tope");
+    let mut recortado = false;
+    let mut seccion = |titulo: &str, clave_conteo: &str, clave: &str, linea: &dyn Fn(&Value) -> String| {
+        let total = n(c, clave_conteo);
+        if total == 0 {
+            return;
+        }
+        t.push_str(&format!("\n{titulo}: {total}"));
+        let lista = r.get(clave).and_then(Value::as_array).cloned().unwrap_or_default();
+        for x in &lista {
+            t.push_str(&format!("\n  - {}", linea(x)));
+        }
+        if (lista.len() as u64) < total {
+            recortado = true;
+        }
+    };
+    seccion("Enlaces rotos", "rotos", "rotos", &problema_en_linea);
+    seccion("Embeds rotos", "embedsRotos", "embeds_rotos", &problema_en_linea);
+    seccion("Títulos duplicados (enlaces ambiguos)", "duplicados", "duplicados", &|d: &Value| {
+        let rutas: Vec<&str> =
+            d.get("rutas").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+        let ambiguos = d.get("ambiguos").and_then(Value::as_array).cloned().unwrap_or_default();
+        let mut l = format!("«{}» [{}]: {}", s(d, "titulo"), s(d, "tipo"), rutas.join(", "));
+        if ambiguos.is_empty() {
+            l.push_str(" · ningún enlace duda entre ellas (todos llevan carpeta)");
+        } else {
+            l.push_str(&format!(" · {} {}:", ambiguos.len(), if ambiguos.len() == 1 { "enlace ambiguo" } else { "enlaces ambiguos" }));
+            for a in &ambiguos {
+                l.push_str(&format!("\n      {}", problema_en_linea(a)));
+            }
+        }
+        l
+    });
+    let nota = |x: &Value| format!("{} — {}", s(x, "titulo"), s(x, "ruta"));
+    seccion("Huérfanas (ninguna nota las enlaza)", "huerfanas", "huerfanas", &nota);
+    seccion("Sin enlaces salientes", "sinSalientes", "sin_salientes", &nota);
+    if recortado {
+        t.push_str(&format!(
+            "\n(Cada lista muestra hasta {tope}. Para ver el resto, pide un alcance más chico: una carpeta o una nota.)"
+        ));
+    }
+    t
+}
+
+/// El chequeo de cierre de una nota: cada chequeo con ✓ o ✗ y su detalle.
+pub fn redactar_validar_nota(r: &Value) -> String {
+    let nota = r.get("nota").unwrap_or(&Value::Null);
+    let chequeos = r.get("chequeos").and_then(Value::as_array).cloned().unwrap_or_default();
+    let fallan = chequeos.iter().filter(|c| c.get("ok").and_then(Value::as_bool) != Some(true)).count();
+    let mut t = format!(
+        "«{}» ({}): {}",
+        s(nota, "titulo"),
+        s(nota, "ruta"),
+        if fallan == 0 {
+            "pasa todos los chequeos.".to_string()
+        } else {
+            format!("{fallan} de {} {} con problemas.", chequeos.len(), if chequeos.len() == 1 { "chequeo" } else { "chequeos" })
+        }
+    );
+    for c in &chequeos {
+        let ok = c.get("ok").and_then(Value::as_bool) == Some(true);
+        t.push_str(&format!("\n{} {}", if ok { "✓" } else { "✗" }, s(c, "titulo")));
+        for d in c.get("detalle").and_then(Value::as_array).into_iter().flatten() {
+            if let Some(d) = d.as_str() {
+                t.push_str(&format!("\n    {d}"));
+            }
+        }
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_salud {
+    use super::*;
+
+    #[test]
+    fn el_informe_dice_cada_clase_con_su_linea() {
+        let t = redactar_salud(&json!({
+            "alcance": {"tipo": "vault"}, "notas": 9, "tope": 1,
+            "conteos": {"rotos": 2, "embedsRotos": 0, "duplicados": 1, "huerfanas": 1, "sinSalientes": 0, "total": 4},
+            "rotos": [{"desde": "Mapa.md", "texto": "Fantasma", "tipo": "enlace", "n": 2, "lineas": [6, 9]}],
+            "embeds_rotos": [],
+            "duplicados": [{"titulo": "Plan", "tipo": "markdown", "rutas": ["Plan.md", "p/Plan.md"],
+                "ambiguos": [{"desde": "Mapa.md", "texto": "Plan", "tipo": "enlace", "n": 1, "lineas": [8]}]}],
+            "huerfanas": [{"ruta": "Suelta.md", "titulo": "Suelta"}],
+            "sin_salientes": []
+        }));
+        assert!(t.starts_with("Salud del vault: 9 notas y 4 problemas."), "{t}");
+        assert!(t.contains("\nEnlaces rotos: 2\n  - Mapa.md · líneas 6, 9 · [[Fantasma]]"), "{t}");
+        assert!(!t.contains("Embeds rotos"), "{t}");
+        assert!(t.contains("«Plan» [markdown]: Plan.md, p/Plan.md · 1 enlace ambiguo:\n      Mapa.md · línea 8 · [[Plan]]"), "{t}");
+        assert!(t.contains("Huérfanas (ninguna nota las enlaza): 1\n  - Suelta — Suelta.md"), "{t}");
+        assert!(t.ends_with("una carpeta o una nota.)"), "recortó los rotos: {t}");
+        let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
+            "conteos": {"total": 0}}));
+        assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");
+    }
+
+    #[test]
+    fn validar_nota_marca_cada_chequeo() {
+        let t = redactar_validar_nota(&json!({
+            "nota": {"ruta": "Mapa.md", "titulo": "Mapa"}, "ok": false,
+            "chequeos": [
+                {"id": "titulo_unico", "ok": true, "titulo": "Título único", "detalle": []},
+                {"id": "enlaces_resuelven", "ok": false, "titulo": "Sus enlaces resuelven", "detalle": ["Roto: [[Fantasma]] (línea 6)"]}
+            ]
+        }));
+        assert_eq!(t, "«Mapa» (Mapa.md): 1 de 2 chequeos con problemas.\n✓ Título único\n✗ Sus enlaces resuelven\n    Roto: [[Fantasma]] (línea 6)");
     }
 }
 

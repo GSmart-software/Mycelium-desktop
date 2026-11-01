@@ -1,6 +1,6 @@
 ---
 name: mycelium-operar
-description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base), mirar qué tiene abierto el usuario antes de escribir, renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
+description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # Operar Mycelium (herramientas `mycelium_*`)
@@ -34,6 +34,16 @@ con el **mismo criterio que la app**, y conviene preferirlas a `grep` cuando est
 - `mycelium_base`: evalúa una vista de una tabla `.base` con el motor de la app y
   devuelve sus filas. Úsala para leer lo que la tabla deriva en vez de mantener una copia
   a mano.
+
+- `mycelium_salud`: lo que degrada la memoria —enlaces y embeds rotos, títulos duplicados
+  (con los enlaces que quedan ambiguos), huérfanas y notas sin enlaces salientes—, con nota
+  y línea, para el vault, una carpeta o una nota. Es lo mismo que ve el usuario en el panel
+  **Salud del vault** de la app.
+- `mycelium_validar_nota`: el **chequeo de cierre** de una nota que acabas de escribir o
+  editar: título único, enlaces que resuelven, alguien que la enlace. Pásala antes de dar
+  por terminado un cambio en la memoria; si falla, corrígelo (enlázala desde su mapa,
+  cambia el título, arregla el enlace). Mycelium indexa al guardar: si acabas de escribir
+  el archivo, espera un instante antes de validarla.
 
 No se registran en la actividad de la IA (no cambian nada). Si contestan `APP_CERRADA`,
 vuelve a `grep`, sabiendo que no aplica el criterio del índice.

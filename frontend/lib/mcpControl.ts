@@ -25,6 +25,8 @@
  *    por el mismo camino que el corrector (`lib/mcpDiccionario.ts`).
  * 7. **Consultar el índice** (`FUN-M-45`): buscar, los enlaces de una nota y
  *    evaluar una vista `.base`, de solo lectura (`lib/mcpIndice.ts`).
+ * 8. **La salud del vault** (`FUN-L-30`): el informe y el chequeo de cierre de
+ *    una nota, de solo lectura (`lib/mcpSalud.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -36,6 +38,7 @@ import { FalloCalendario } from "@/lib/mcpCalendario";
 import { diccionario, FalloDiccionario } from "@/lib/mcpDiccionario";
 import * as indice from "@/lib/mcpIndice";
 import { FalloIndice } from "@/lib/mcpIndice";
+import * as saludIa from "@/lib/mcpSalud";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
@@ -226,6 +229,10 @@ async function atender(pedido: Pedido): Promise<Atendido> {
       return indice.enlaces(args);
     case "base":
       return indice.base(args);
+    case "salud":
+      return saludIa.salud(args);
+    case "validar_nota":
+      return saludIa.validarNota(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":

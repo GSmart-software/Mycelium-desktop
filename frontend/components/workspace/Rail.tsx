@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CircleDot,
   Files,
+  HeartPulse,
   Search,
   Settings,
   Terminal,
@@ -29,6 +30,10 @@ const TOP_ITEMS: { section: RailSection; icon: LucideIcon; label: string }[] = [
   // Calendario de recordatorios (FUN-L-22): el panel es la vista compacta; desde
   // ahí se abre como pestaña.
   { section: "calendario", icon: CalendarDays, label: "Calendario" },
+  // Salud del vault (FUN-L-30): enlaces rotos, huérfanas y títulos duplicados,
+  // cada uno con un clic a la nota y la línea. Junto a las herramientas de
+  // contenido, antes del grafo: es otra forma de mirar la red.
+  { section: "salud", icon: HeartPulse, label: "Salud del vault" },
 ];
 
 // Registro de actividad de la IA (FUN-L-09): lo que hizo Claude Code por el

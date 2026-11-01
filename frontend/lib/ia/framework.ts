@@ -164,7 +164,10 @@ import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
  *   `mycelium_enlaces` y `mycelium_base` en la skill `mycelium-operar`
  *   («Consultar el índice»), y como primera opción en la recuperación de
  *   `mycelium-memoria`, en `/vault-buscar` y en la verificación de
- *   `mycelium-base`.
+ *   `mycelium-base`. Y la **salud del vault** (`FUN-L-30`): `mycelium_salud`
+ *   y `mycelium_validar_nota` en `mycelium-operar`, como cierre de una nota en
+ *   el mantenimiento de `mycelium-memoria`, y como primer paso de
+ *   `/vault-huerfanas`.
  *   **Minor**: la IA gana herramientas nuevas.
  */
 export const FRAMEWORK_IA_VERSION = "2.3.0";
@@ -588,6 +591,9 @@ Cómo redactar para tu vos futuro:
 
 - **Huérfanas**: notas sin enlaces en ninguna dirección. Integralas (o proponé
   integrarlas) — usá \`/vault-huerfanas\`.
+- **Cierre de una nota**: con el MCP de control, \`mycelium_validar_nota\` comprueba que
+  la nota que acabas de escribir tenga título único, enlaces que resuelven y alguien que
+  la enlace; \`mycelium_salud\` da el panorama del vault o de una carpeta.
 - **Enlaces rotos**: apuntan a notas que no existen; corregí el título o creá la
   nota faltante.
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
@@ -696,6 +702,11 @@ description: Audita el grafo del vault — notas huérfanas y enlaces rotos — 
 <!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->
 Auditá la **salud de la memoria** (ignorando \`.mycelium/\` y \`.claude/\`): una nota
 desconectada es conocimiento que no se puede evocar.
+
+Si está la herramienta \`mycelium_salud\` (MCP de control), úsala para los pasos 1 y 2:
+calcula huérfanas, enlaces y embeds rotos y títulos duplicados con el criterio del
+índice de Mycelium (sin los \`[[x]]\` de los bloques de código, con nota y línea), y deja
+fuera las Esporas. Sin ella, a mano:
 
 1. **Huérfanas**: notas sin enlaces entrantes ni salientes. Listalas con su ruta.
    Excluí la carpeta de **Esporas** (las plantillas son moldes: que no tengan

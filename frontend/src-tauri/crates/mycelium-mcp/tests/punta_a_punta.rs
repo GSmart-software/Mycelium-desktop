@@ -12,6 +12,8 @@
 //! en memoria, y una confirmación que el «usuario» acepta y otra que rechaza.
 //! Desde la Parte 4, el diccionario del vault: una app falsa con las palabras en
 //! memoria a la que se le agrega, lista, quita y rechaza, y el ciclo sin app.
+//! Desde `FUN-M-45` y `FUN-L-30`, las consultas al índice y la salud del vault:
+//! el servidor pasa los argumentos y redacta lo que la app calcula.
 
 #[path = "../src/canal_falso.rs"]
 mod falso;
@@ -105,7 +107,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 15);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 17);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -527,9 +529,29 @@ fn las_consultas_de_punta_a_punta() {
                 "columnas": ["Nombre"], "total": 1, "recortadas_por_vista": 0, "recortadas_por_tope": 0, "avisos": [],
                 "filas": [{"ruta": "docs/Plan.md", "celdas": ["Plan"]}]
             })),
+            "salud" => ok(json!({
+                "alcance": if a["alcance"].is_string() { json!({"tipo": "carpeta", "ruta": a["alcance"]}) } else { json!({"tipo": "vault"}) },
+                "notas": 3, "tope": 100,
+                "conteos": {"rotos": 1, "embedsRotos": 0, "duplicados": 0, "huerfanas": 1, "sinSalientes": 0, "total": 2},
+                "rotos": [{"desde": "docs/Plan.md", "texto": "Nada", "tipo": "enlace", "n": 1, "lineas": [4]}],
+                "embeds_rotos": [], "duplicados": [], "sin_salientes": [],
+                "huerfanas": [{"ruta": "Suelta.md", "titulo": "Suelta"}]
+            })),
+            "validar_nota" => ok(json!({
+                "nota": {"ruta": "docs/Plan.md", "titulo": "Plan"}, "ok": true,
+                "chequeos": [{"id": "titulo_unico", "ok": true, "titulo": "Título único", "detalle": []}]
+            })),
             _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
         })
     });
+
+    let (t, err) = mcp.herramienta("mycelium_salud", json!({}));
+    assert!(!err && t.starts_with("Salud del vault: 3 notas y 2 problemas."), "{t}");
+    assert!(t.contains("docs/Plan.md · línea 4 · [[Nada]]") && t.contains("Suelta — Suelta.md"), "{t}");
+    let (t, _) = mcp.herramienta("mycelium_salud", json!({"alcance": "docs"}));
+    assert!(t.starts_with("Salud de la carpeta docs/"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_validar_nota", json!({"ruta": "Plan"}));
+    assert!(!err && t == "«Plan» (docs/Plan.md): pasa todos los chequeos.\n✓ Título único", "{t}");
 
     let (t, err) = mcp.herramienta("mycelium_buscar", json!({"consulta": "plan tag:proyecto", "limite": 1}));
     assert!(!err && t.starts_with("1 resultado para «plan tag:proyecto»"), "{t}");

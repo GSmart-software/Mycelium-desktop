@@ -184,3 +184,48 @@ test("buscar pagina: la página dos sigue exactamente a la uno", { skip: sinSqli
     (await buscar(LOCAL_VAULT_ID, "tag:t", false, "ambos", { limite: 2, desde })).resultados.map((r) => r.titulo);
   assert.deepEqual([...(await t(0)), ...(await t(2))], ["A", "B", "C"]);
 });
+
+// ── La salud del vault sobre el índice de verdad (`FUN-L-30`) ───────────────
+
+const SALUD = await import(
+  await fuente("../lib/salud.ts", {
+    "@/lib/enlacesNota": ENLACES_NOTA,
+    "@/lib/wikilinks": WIKILINKS,
+    "@/lib/mcpIndiceLogica": await fuente("../lib/mcpIndiceLogica.ts", {
+      "@/lib/bases": await fuente("../lib/bases.ts"),
+      "@/lib/enlacesNota": ENLACES_NOTA,
+    }),
+  })
+);
+
+const VAULT_SALUD = {
+  "Mapa.md": "Ver [[Idea|la idea]] y [[Idea#Origen]].\n```\n[[EnBloque]]\n```\n[[Fantasma]] ![[Falta.excalidraw]] [[Plan]]\n",
+  "Idea.md": "## Origen\n",
+  "Plan.md": "[[Mapa]]\n",
+  "proyectos/Plan.md": "Otro plan.\n",
+  "Esporas/Reunión.md": "[[{{fecha}}]]\n",
+  "Suelta.md": "Sola.\n",
+};
+
+test("la salud sobre las filas del índice es la misma que sobre derivarEnlaces + resolverEnlace", { skip: sinSqlite }, async () => {
+  await abrir(VAULT_SALUD);
+  const [notas, carpetas, filas] = await Promise.all([
+    indiceIa.notasDelIndice(),
+    indiceIa.carpetasDelIndice(),
+    indiceIa.filasDelIndice(),
+  ]);
+  const entrada = { notas, carpetas, otros: [], carpetaEsporas: "Esporas" };
+  const delIndice = SALUD.calcularSalud({ ...entrada, filas });
+  const conContenido = notas.map((n) => ({ ...n, contenido: VAULT_SALUD[n.id] }));
+  const aMano = SALUD.calcularSalud({ ...entrada, filas: SALUD.filasComoElIndice(conContenido, carpetas) });
+  assert.deepEqual(delIndice, aMano);
+  assert.deepEqual(delIndice.rotos.map((p) => p.texto), ["Fantasma"]);
+  assert.deepEqual(delIndice.embedsRotos.map((p) => p.texto), ["Falta.excalidraw"]);
+  assert.deepEqual(delIndice.huerfanas.map((n) => n.ruta), ["proyectos/Plan.md", "Suelta.md"].sort());
+  assert.deepEqual(delIndice.duplicados.map((d) => d.ambiguos.map((a) => a.texto)), [["Plan"]]);
+  // Y las líneas, con el contenido del índice.
+  const contenidos = await indiceIa.contenidosDe(SALUD.notasConProblemas(delIndice));
+  SALUD.ponerLineas(delIndice, contenidos, new Map(notas.map((n) => [n.id, n.tipo])));
+  assert.deepEqual(delIndice.rotos[0].lineas, [5]);
+  assert.deepEqual(delIndice.duplicados[0].ambiguos[0].lineas, [5]);
+});
