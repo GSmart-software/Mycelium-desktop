@@ -19,6 +19,7 @@ mod canal;
 mod herramientas;
 mod protocolo;
 mod servidor;
+mod sesion;
 mod vault;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

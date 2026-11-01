@@ -57,6 +57,11 @@ pub fn correr(arg_vault: Option<String>) {
     }
 
     let mut estado = Estado::nuevo(vault);
+    // La presencia de la sesión ante la app (`FUN-L-31`): arranca con el
+    // `initialize`, cuando ya se sabe quién es el cliente.
+    if let Ok(v) = &estado.vault {
+        crate::sesion::preparar_presencia(estado.canal.clone(), v.registrado.ruta.clone());
+    }
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     for linea in stdin.lock().lines() {
@@ -99,6 +104,8 @@ fn despachar(estado: &mut Estado, msg: &Value) -> Option<Value> {
 
     Some(match metodo {
         "initialize" => {
+            crate::sesion::fijar_cliente(&params);
+            crate::sesion::arrancar_presencia();
             let pedida = params.get("protocolVersion").and_then(Value::as_str);
             respuesta(
                 &id,
