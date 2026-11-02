@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "@/lib/atmosferas";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
+import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
 import { atmosferaEnUso, type Tema } from "@/lib/temas";
 import { sanearContraDefectos, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 
@@ -179,6 +180,12 @@ export type Preferencias = {
    */
   carpetaEsporas: string;
   /**
+   * Informe de salud (`FUN-L-32`): carpeta del vault donde se guardan los
+   * informes generados como nota. Ruta relativa POSIX; cambiarla no mueve los
+   * informes que ya existen.
+   */
+  carpetaInformes: string;
+  /**
    * Atmósfera de cada modo (lib/atmosferas.ts): cómo se reparten los colores del
    * tema en fondos, marco y títulos. Una por modo, porque de noche y de día
    * conviene otra cosa.
@@ -208,6 +215,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphColorGroups: [],
   graphExcludeRules: [],
   carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
+  carpetaInformes: CARPETA_INFORMES_DEFECTO,
   atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
   atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,
 };

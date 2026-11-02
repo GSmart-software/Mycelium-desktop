@@ -2,7 +2,7 @@
 titulo: Salud del vault
 tema: Enlazar y organizar
 solo: desktop
-sinonimos: [enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
+sinonimos: [informe de salud, informe como nota, enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
 ---
 
 La **salud del vault** muestra lo que va degradando la red de notas sin que se note: enlaces
@@ -50,6 +50,33 @@ esa parte se ignora y lo demás se aplica.
 > enlaces rotos ni ellas huérfanas. Tampoco se revisan `CLAUDE.md` ni `AGENTS.md` de la raíz,
 > que son instrucciones para agentes de IA y no notas del vault. Lo que oculta `.mycignore`
 > no está en el índice, así que tampoco aparece.
+
+## El informe como nota
+
+**Ctrl+P** → «Generar informe de salud del vault» revisa el vault y guarda el resultado como
+una nota común: `Informes/Salud del vault AAAA-MM-DD.md` (si el del día ya existe, se le
+agrega la hora). La nota se abre sola y un aviso dice dónde quedó.
+
+El informe es una foto de ese momento, no se actualiza solo. Lleva:
+
+- **Propiedades** con la fecha de la revisión, la cantidad de archivos y de notas, el peso en
+  MB y el total de problemas, más la etiqueta `#salud-del-vault`.
+- Los **problemas en callouts**: graves (enlaces y embeds rotos), avisos (títulos duplicados,
+  enlaces ambiguos, propiedades que no cumplen los esquemas) y para revisar (huérfanas y notas
+  sin enlaces salientes), con `[[enlaces]]` a las primeras notas afectadas.
+- **Qué hay en el vault**: una torta con el peso de cada grupo de archivos y una tabla con cada
+  tipo por separado, también los que tienen 0.
+- **Qué ocupa espacio** (peso por carpeta), **la red** (cuántas notas están conectadas y cuáles
+  conectan más), el **crecimiento** (notas nuevas por mes en el último año) y las
+  **etiquetas** más usadas.
+
+Las gráficas son bloques de [Mermaid](ayuda:escribir-notas/formulas-y-diagramas): Mycelium las
+dibuja al abrir la nota con los colores del tema que esté activo, y Obsidian también las lee.
+Si el vault se indexó de una vez, las fechas de creación no dicen cuándo se escribió cada nota:
+en ese caso el informe lo explica en vez de dibujar el crecimiento.
+
+La carpeta se cambia en **Configuración → Vault → Carpeta de los informes**. Si no existe, se
+crea; cambiarla no mueve los informes que ya están.
 
 ## Con la IA
 
