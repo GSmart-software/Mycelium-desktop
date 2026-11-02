@@ -1,3 +1,4 @@
+import { atarAPestanas } from "@/lib/cachePestanas";
 import { confirmar } from "@/lib/confirmar";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -19,7 +20,13 @@ import { useVaultStore } from "@/stores/vaultStore";
 
 type GuardarCopia = () => Promise<boolean>;
 
-const abiertos = new Map<string, { notaId: string; guardarCopia: GuardarCopia }>();
+/**
+ * Atado a la vida de las pestañas (`FUN-M-58`): una pestaña que se va sin pasar
+ * por `cerrarPestanaSinPerder` (navegar a otra nota en ella le cambia el id; el
+ * MCP cierra las de una nota borrada) ya no tiene a quién preguntarle, y su
+ * `guardarCopia` retenía el editor desmontado con todo su texto.
+ */
+const abiertos = atarAPestanas(new Map<string, { notaId: string; guardarCopia: GuardarCopia }>());
 
 /** El editor de la pestaña `instanceId` entró en conflicto. */
 export function registrarConflicto(instanceId: string, notaId: string, guardarCopia: GuardarCopia): void {

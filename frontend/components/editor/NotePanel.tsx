@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MiniGraph, type GraphEdge, type GraphNode } from "@/components/graph/MiniGraph";
 import { api } from "@/lib/api";
+import { CacheLru } from "@/lib/cacheLru";
 import { mismoGrafo } from "@/lib/grafoEquivalente";
 import { folderPath } from "@/lib/search";
 import { useAuthStore } from "@/stores/authStore";
@@ -32,7 +33,23 @@ type Tab = "propiedades" | "grafo" | "salientes" | "retro";
 
 // Cache en memoria por nota (stale-while-revalidate): al volver a una nota ya
 // vista, el panel aparece al instante mientras se refresca en segundo plano.
-const conexionesCache = new Map<string, Conexiones>();
+//
+// Con tope (`FUN-M-58`): antes crecía con cada nota visitada en la sesión, y
+// cada entrada lleva el vecindario del mini-grafo y los fragmentos de los
+// retroenlaces (en una nota muy citada, cientos de filas). 50 alcanza para ir y
+// volver entre las notas de un tema; la que se cae solo pierde el «al
+// instante»: se pide como la primera vez.
+const MAX_CONEXIONES_RECORDADAS = 50;
+const conexionesCache = new CacheLru<string, Conexiones>(MAX_CONEXIONES_RECORDADAS);
+
+// Al cambiar de vault, lo recordado es de otro vault: los ids son rutas, y una
+// misma ruta (`README.md`) en el vault nuevo mostraría por un momento las
+// conexiones del anterior.
+if (typeof window !== "undefined") {
+  useVaultStore.subscribe((s, previo) => {
+    if (s.vaultId !== previo.vaultId) conexionesCache.clear();
+  });
+}
 
 /**
  * Las conexiones nuevas, pero con el `grafo` de las anteriores si dibuja lo
