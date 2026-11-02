@@ -16,7 +16,7 @@ import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, leerContenidoEnDisco, putContenido } from "@/lib/db/contenido";
 import { DbError } from "@/lib/db/errors";
-import { conexiones, grafo, retroenlaces } from "@/lib/db/grafo";
+import { conexiones, conteoConexiones, grafo, retroenlaces } from "@/lib/db/grafo";
 import { crearNota, renombrarNota, moverNota, duplicarNota } from "@/lib/db/notas";
 import { borrarNota, borrarPermanente, listarPapelera, recuperarNota } from "@/lib/db/papelera";
 import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/propiedades";
@@ -139,6 +139,7 @@ async function dispatch(
       return { id: b };
     }
     if (c === "conexiones" && method === "GET") return conexiones(b);
+    if (c === "conteo-conexiones" && method === "GET") return conteoConexiones(b);
     if (c === "propiedades" && method === "GET") return propiedadesDeNota(b);
     // `?origen=disco` (`DEF-138`): el archivo tal como está AHORA, sin pasar por
     // el índice —que va detrás del watcher—. Lo usa el editor para decidir si

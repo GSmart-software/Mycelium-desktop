@@ -226,3 +226,33 @@ export async function conexiones(notaId: string): Promise<unknown> {
     grafo: { nodos, aristas: aristasVecinas },
   };
 }
+
+export type ConteoConexionesDto = { salientes: number; retro: number; actualizadoEn: string };
+
+/**
+ * `GET /notas/{id}/conteo-conexiones` — lo que muestra la barra de estado: los
+ * dos números y la hora de la última modificación (`FUN-M-58`). La barra pedía
+ * las `conexiones` enteras en cada guardado (cada 10 s mientras se escribe) y
+ * de todo eso usaba dos `.length`: seis sentencias y el texto de cada nota que
+ * cita, hasta 1,7 MB por guardado en la nota más citada de la Tesina. Esto es
+ * una sentencia que no lee contenido.
+ *
+ * Cuenta con el MISMO criterio que `conexiones`: el mismo `ES_ARISTA` y el mismo
+ * `JOIN notas` (una fila cuyo destino ya no está en `notas` no cuenta), y
+ * `COUNT(DISTINCT …)` sobre la columna por la que aquélla agrupa. Así el número
+ * de la barra es siempre el `length` de las listas del panel.
+ */
+export async function conteoConexiones(notaId: string): Promise<ConteoConexionesDto> {
+  const filas = await select<{ actualizado_en: string; salientes: number; retro: number }>(
+    `SELECT n.actualizado_en,
+       (SELECT COUNT(DISTINCT e.destino_id) FROM enlaces e JOIN notas d ON d.id = e.destino_id
+        WHERE e.desde_id = n.id AND ${ES_ARISTA}) AS salientes,
+       (SELECT COUNT(DISTINCT e.desde_id) FROM enlaces e JOIN notas o ON o.id = e.desde_id
+        WHERE e.destino_id = n.id AND ${ES_ARISTA}) AS retro
+     FROM notas n WHERE n.id = ?`,
+    [notaId],
+  );
+  if (filas.length === 0) throw new DbError(404, "La nota no existe.");
+  const f = filas[0];
+  return { salientes: Number(f.salientes), retro: Number(f.retro), actualizadoEn: f.actualizado_en };
+}

@@ -750,3 +750,69 @@ test("alias: papelera, recuperar, borrar por fuera y un alias repetido", { skip:
   assert.equal(destinoDe(db, "Plan.md", "HU-009"), hu);
   client.setExecutor(null);
 });
+
+// ── Lo que se refresca tras un guardado (`FUN-M-58`) ──────────────────────────
+
+/** Que el conteo de la barra sea el `length` de las listas del panel, nota por nota. */
+async function compararConteos(db) {
+  const ids = db.prepare("SELECT id FROM notas").all().map((r) => r.id);
+  for (const id of ids) {
+    const con = await grafoDb.conexiones(id);
+    const cuenta = await grafoDb.conteoConexiones(id);
+    assert.deepEqual(
+      cuenta,
+      { salientes: con.salientes.length, retro: con.retro.length, actualizadoEn: con.nota.actualizadoEn },
+      id,
+    );
+  }
+  return ids.length;
+}
+
+test("conteoConexiones: los mismos números que las listas de `conexiones`, y sin leer contenido", { skip: sinSqlite }, async () => {
+  // El vault de prueba ya trae duplicados (`[[Plan]]` dos veces), un lazo
+  // (`Proyectos/Plan` a sí misma), rotos (`[[Futura]]`), un canvas y una base.
+  const { db, ex } = await abrir();
+  assert.equal(await compararConteos(db), Object.keys(VAULT).length);
+  ex.sentencias.length = 0;
+  const plan = await grafoDb.conteoConexiones("Plan.md");
+  assert.equal(ex.sentencias.length, 1, "una sola sentencia");
+  assert.equal(ex.sentencias.filter((s) => /contenidos/.test(s)).length, 0);
+  assert.deepEqual([plan.salientes, plan.retro], [3, 3]);
+  // Con una nota en la papelera (sus aristas dejan de contar en las dos puntas)
+  // y una fila cuyo destino ya no está en `notas` (la que excluye el `JOIN`).
+  await papeleraDb.borrarNota("Árbol.md");
+  db.prepare("INSERT INTO enlaces (desde_id, destino_texto, clave, destino_id, tipo) VALUES (?, ?, ?, ?, 'enlace')")
+    .run("Plan.md", "Fantasma", "fantasma", "Fantasma.md");
+  await compararConteos(db);
+  await assert.rejects(grafoDb.conteoConexiones("No existe.md"), /no existe/);
+  client.setExecutor(null);
+});
+
+test("putContenido dice si cambiaron los enlaces: prosa no; enlace, etiqueta o alias sí", { skip: sinSqlite }, async () => {
+  const { db } = await abrir();
+  const base = VAULT["Árbol.md"];
+  let r = await contenidoDb.putContenido("Árbol.md", base + "\nSolo prosa.");
+  assert.equal(r.enlacesCambiaron, false, "prosa");
+  assert.equal(r.tamanoBytes, Buffer.byteLength(base + "\nSolo prosa."));
+  assert.equal(typeof r.actualizadoEn, "string");
+  r = await contenidoDb.putContenido("Árbol.md", base + "\nAhora con [[Plan]].");
+  assert.equal(r.enlacesCambiaron, true, "enlace nuevo");
+  r = await contenidoDb.putContenido("Árbol.md", base + "\nAhora con [[Plan]], y más prosa.");
+  assert.equal(r.enlacesCambiaron, false, "el mismo enlace, otra prosa");
+  r = await contenidoDb.putContenido("Árbol.md", base + "\nAhora con [[Plan]], y más prosa. #otra");
+  assert.equal(r.enlacesCambiaron, true, "etiqueta nueva (el grafo colorea por etiqueta)");
+  r = await contenidoDb.putContenido("Árbol.md", base + "\nAhora con [[Plan]], y más prosa. #otra");
+  assert.equal(r.enlacesCambiaron, false, "el mismo texto");
+  // Y la barra, tras cada guardado, cuenta lo mismo que el panel.
+  await compararConteos(db);
+  client.setExecutor(null);
+
+  // Un alias nuevo re-resuelve los enlaces de OTRA nota: también cuenta.
+  await abrir(VAULT_ALIAS);
+  const hu = "Historias/HU-009 Gestion de usuarios.md";
+  r = await contenidoDb.putContenido(hu, "---\naliases: [HU-009, Gestión]\n---\nLa historia, más larga.");
+  assert.equal(r.enlacesCambiaron, false, "mismos alias");
+  r = await contenidoDb.putContenido(hu, "---\naliases: [Gestión]\n---\nLa historia, más larga.");
+  assert.equal(r.enlacesCambiaron, true, "se quitó un alias");
+  client.setExecutor(null);
+});
