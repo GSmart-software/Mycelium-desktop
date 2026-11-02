@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarDays,
   FilePlus,
+  FileText,
   HeartPulse,
   Palette,
   PanelLeft,
@@ -213,6 +214,20 @@ export function PaletaComandos() {
         detalle: "Enlaces rotos, huérfanas y títulos duplicados",
         icono: HeartPulse,
         ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
+      },
+      // El informe como nota (FUN-L-32): revisa, lo guarda en la carpeta de
+      // informes y lo abre. Los fallos los avisa `generarInformeSalud`.
+      {
+        id: "cmd-informe-salud",
+        titulo: "Generar informe de salud del vault",
+        detalle: "Una nota con los problemas y las gráficas",
+        icono: FileText,
+        ejecutar: async () => {
+          const { generarInformeSalud } = await import("@/lib/informeSaludVault");
+          await generarInformeSalud({
+            navegar: (id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`),
+          }).catch(() => undefined);
+        },
       },
       {
         id: "cmd-recordatorio",

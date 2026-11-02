@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
+import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
   type AccionClaudeMd,
@@ -98,53 +99,9 @@ export function VaultSection() {
   // El vault lo traía encendido de otra máquina (`DEF-169`): acá arranca apagado.
   const controlIaDelVault = usePrefsVaultStore((s) => s.controlIaDelVault);
   const [cambiandoControl, setCambiandoControl] = useState(false);
-  // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
-  // de validación, que se confirma al salir del campo.
-  const carpetaEsporasPref = usePreferencesStore((s) => s.prefs.carpetaEsporas);
-  const [esporasBorrador, setEsporasBorrador] = useState(carpetaEsporasPref);
-  const [esporasError, setEsporasError] = useState<string | null>(null);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
 
   const ocupado = progreso !== null;
-
-  // La preferencia se hidrata en asíncrono al abrir el vault: el borrador se
-  // resetea DURANTE el render (no en un efecto) para no pintar el valor viejo.
-  const [esporasVisto, setEsporasVisto] = useState(carpetaEsporasPref);
-  if (esporasVisto !== carpetaEsporasPref) {
-    setEsporasVisto(carpetaEsporasPref);
-    setEsporasBorrador(carpetaEsporasPref);
-    setEsporasError(null);
-  }
-
-  /**
-   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
-   * del campo puede ser el mismo clic que cambia de categoría: la sección se
-   * desmontaba con el error recién puesto y el usuario nunca lo veía
-   * (crítica de Configuración, 2026-09-20).
-   */
-  const escribirCarpetaEsporas = (valor: string) => {
-    setEsporasBorrador(valor);
-    setEsporasError(
-      normalizarCarpetaEsporas(valor) === null
-        ? "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..»."
-        : null,
-    );
-  };
-
-  /** Confirma la carpeta de Esporas: si la ruta no es válida, no se guarda. */
-  const confirmarCarpetaEsporas = () => {
-    if (esporasBorrador === carpetaEsporasPref) return;
-    const limpia = normalizarCarpetaEsporas(esporasBorrador);
-    if (limpia === null) {
-      setEsporasError(
-        "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».",
-      );
-      return;
-    }
-    setEsporasError(null);
-    setEsporasBorrador(limpia);
-    usePreferencesStore.getState().setPref("carpetaEsporas", limpia);
-  };
 
   useEffect(() => {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
@@ -368,51 +325,40 @@ export function VaultSection() {
       </div>
 
       {/* Esporas (FUN-M-03): dónde viven las plantillas de notas. */}
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="mic-carpeta-esporas">
-          Carpeta de Esporas (plantillas)
-        </label>
-        <input
-          id="mic-carpeta-esporas"
-          className={styles.input}
-          value={esporasBorrador}
-          spellCheck={false}
-          placeholder={CARPETA_ESPORAS_DEFECTO}
-          onChange={(e) => escribirCarpetaEsporas(e.target.value)}
-          onBlur={confirmarCarpetaEsporas}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              // Escape acá deshace lo tecleado y NO cierra la ventana: sin
-              // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
-              e.stopPropagation();
-              setEsporasBorrador(carpetaEsporasPref);
-              setEsporasError(null);
-            }
-          }}
-        />
-        <Explicacion
-          detalle={
-            <>
-              Sirven para crear notas ya con su estructura o para insertarla en una que ya
-              existe. Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
-              <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
-              carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
-            </>
-          }
-        >
-          Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
-        </Explicacion>
-        {esporasError && (
-          <p
-            className={styles.cssPreviewNote}
-            style={{ color: "var(--mic-callout-error-border)" }}
-            role="alert"
-          >
-            {esporasError}
-          </p>
-        )}
-      </div>
+      <CampoCarpeta
+        id="mic-carpeta-esporas"
+        etiqueta="Carpeta de Esporas (plantillas)"
+        clave="carpetaEsporas"
+        defecto={CARPETA_ESPORAS_DEFECTO}
+        detalle={
+          <>
+            Sirven para crear notas ya con su estructura o para insertarla en una que ya
+            existe. Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
+            <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
+            carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
+          </>
+        }
+      >
+        Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
+      </CampoCarpeta>
+
+      {/* Informe de salud (FUN-L-32): dónde se guardan los informes como nota. */}
+      <CampoCarpeta
+        id="mic-carpeta-informes"
+        etiqueta="Carpeta de los informes"
+        clave="carpetaInformes"
+        defecto={CARPETA_INFORMES_DEFECTO}
+        detalle={
+          <>
+            «Generar informe como nota», en la salud del vault, crea ahí{" "}
+            <code>Salud del vault AAAA-MM-DD.md</code> (con la hora, si el del día ya existe).
+            Si la carpeta no existe, se crea. Cambiarla <strong>no mueve los informes</strong>{" "}
+            que ya se generaron.
+          </>
+        }
+      >
+        Donde se guardan los <strong>informes de salud</strong> del vault.
+      </CampoCarpeta>
 
       {/* Auditoría de referencias (FUN-L-17): el caso de entrada de Mycelium
           sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
@@ -665,6 +611,100 @@ export function VaultSection() {
           style={{ color: "var(--mic-callout-error-border)" }}
           role="alert"
         >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const ERROR_CARPETA = "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».";
+
+/**
+ * Un campo con una carpeta del vault guardada en las preferencias: la de
+ * Esporas (`FUN-M-03`) y la de los informes de salud (`FUN-L-32`). Borrador
+ * local (se teclea libre) + el error de validación; se confirma al salir del
+ * campo o con Enter, y Escape deshace lo tecleado.
+ */
+function CampoCarpeta({
+  id,
+  etiqueta,
+  clave,
+  defecto,
+  detalle,
+  children,
+}: {
+  id: string;
+  etiqueta: string;
+  clave: "carpetaEsporas" | "carpetaInformes";
+  defecto: string;
+  detalle: ReactNode;
+  children: ReactNode;
+}) {
+  const pref = usePreferencesStore((s) => s.prefs[clave]);
+  const [borrador, setBorrador] = useState(pref);
+  const [error, setError] = useState<string | null>(null);
+
+  // La preferencia se hidrata en asíncrono al abrir el vault: el borrador se
+  // resetea DURANTE el render (no en un efecto) para no pintar el valor viejo.
+  const [visto, setVisto] = useState(pref);
+  if (visto !== pref) {
+    setVisto(pref);
+    setBorrador(pref);
+    setError(null);
+  }
+
+  /**
+   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
+   * del campo puede ser el mismo clic que cambia de categoría: la sección se
+   * desmontaba con el error recién puesto y el usuario nunca lo veía
+   * (crítica de Configuración, 2026-09-20).
+   */
+  const escribir = (valor: string) => {
+    setBorrador(valor);
+    setError(normalizarCarpetaEsporas(valor) === null ? ERROR_CARPETA : null);
+  };
+
+  /** Confirma la carpeta: si la ruta no es válida, no se guarda. */
+  const confirmar = () => {
+    if (borrador === pref) return;
+    const limpia = normalizarCarpetaEsporas(borrador);
+    if (limpia === null) {
+      setError(ERROR_CARPETA);
+      return;
+    }
+    setError(null);
+    setBorrador(limpia);
+    usePreferencesStore.getState().setPref(clave, limpia);
+  };
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        className={styles.input}
+        value={borrador}
+        spellCheck={false}
+        placeholder={defecto}
+        onChange={(e) => escribir(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            // Escape acá deshace lo tecleado y NO cierra la ventana: sin
+            // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
+            e.stopPropagation();
+            setBorrador(pref);
+            setError(null);
+          }
+        }}
+      />
+      <Explicacion detalle={detalle}>{children}</Explicacion>
+      {error && (
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-callout-error-border)" }} role="alert">
           {error}
         </p>
       )}
