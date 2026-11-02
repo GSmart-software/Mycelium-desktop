@@ -11,7 +11,10 @@
 //! traversal, porque el frontend las arma a partir de títulos del usuario. La
 //! carpeta base es siempre `vault_ruta` (la carpeta del vault abierto).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::archivos::ruta_segura;
 
@@ -44,6 +47,18 @@ fn sufijo_timestamp() -> String {
         .unwrap_or_else(|_| "0".to_string())
 }
 
+/// Contador de temporales de esta ejecución (`FUN-M-58`): junto con el pid, hace
+/// único el nombre de cada temporal de `escribir_atomico`.
+static TEMPORALES: AtomicU64 = AtomicU64::new(0);
+
+/// Un candado por archivo destino de `escribir_atomico` (`FUN-M-58`). La entrada
+/// vive mientras alguien escribe o espera ese archivo; el último en salir la
+/// borra, así que el mapa no crece con cada nota que se guardó alguna vez.
+fn candados() -> &'static Mutex<HashMap<PathBuf, Arc<Mutex<()>>>> {
+    static CANDADOS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
+    CANDADOS.get_or_init(Default::default)
+}
+
 /// Escritura **atómica** sobre `destino`: escribe a un temporal hermano y hace
 /// `rename`, de modo que un corte a mitad de escritura nunca deja el archivo a
 /// medias — o está el contenido viejo entero, o el nuevo entero.
@@ -52,11 +67,25 @@ fn sufijo_timestamp() -> String {
 /// archivos que no son notas (`FUN-M-26`) escribe por el mismo camino, y ahí la
 /// garantía pesa **más** todavía —esos archivos no van a la papelera ni tienen
 /// historial, así que dejar uno truncado no se deshace desde la app—.
+///
+/// > [!important] Puede correr en paralelo (`FUN-M-58`)
+/// > Hasta `FUN-M-58` los comandos que la llaman corrían en el hilo de la
+/// > ventana, uno detrás de otro. Ahora corren en el pool de hilos de Tauri, y
+/// > dos guardados de la misma nota pueden cruzarse. Por eso: el temporal lleva
+/// > pid **y** un contador (`nota.md.tmp-<pid>-<n>`; antes solo el pid, y dos
+/// > escrituras simultáneas compartían el temporal: una podía renombrar el
+/// > contenido de la otra a medio escribir, y la segunda fallaba sin temporal
+/// > que renombrar), y las escrituras de un mismo destino se hacen de a una
+/// > (candado por ruta), para que un `rename` no choque con otro sobre el mismo
+/// > archivo —en Windows eso puede fallar con «acceso denegado»—. Gana la
+/// > última que toma el candado; el archivo queda entero con uno de los
+/// > contenidos y no sobra ningún temporal.
 pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), String> {
     // Temporal hermano del destino (mismo directorio → el rename es atómico y no
     // cruza sistemas de archivos). En Windows `rename` reemplaza el destino.
+    let n = TEMPORALES.fetch_add(1, Ordering::Relaxed);
     let tmp = destino.with_extension(format!(
-        "{}tmp-{}",
+        "{}tmp-{}-{n}",
         destino
             .extension()
             .and_then(|e| e.to_str())
@@ -64,10 +93,36 @@ pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), St
             .unwrap_or_default(),
         std::process::id()
     ));
-    std::fs::write(&tmp, contenido.as_bytes())
-        .map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, destino).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
+
+    let clave = destino.to_path_buf();
+    let candado = {
+        let mut mapa = candados().lock().unwrap_or_else(|e| e.into_inner());
+        mapa.entry(clave.clone()).or_default().clone()
+    };
+    let resultado = {
+        let _turno = candado.lock().unwrap_or_else(|e| e.into_inner());
+        escribir_y_renombrar(&tmp, destino, contenido)
+    };
+    {
+        let mut mapa = candados().lock().unwrap_or_else(|e| e.into_inner());
+        // 2 = la del mapa + la nuestra: nadie más espera este archivo. Los demás
+        // solo clonan el `Arc` con el mapa tomado, así que no hay carrera.
+        if Arc::strong_count(&candado) == 2 {
+            mapa.remove(&clave);
+        }
+    }
+    resultado
+}
+
+/// El cuerpo de `escribir_atomico`, ya con el turno del destino tomado. Si algo
+/// falla, el temporal no queda: tampoco uno escrito a medias.
+fn escribir_y_renombrar(tmp: &Path, destino: &Path, contenido: &str) -> Result<(), String> {
+    std::fs::write(tmp, contenido.as_bytes()).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
+        format!("No se pudo escribir {}: {e}", tmp.display())
+    })?;
+    std::fs::rename(tmp, destino).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
         format!("No se pudo renombrar a {}: {e}", destino.display())
     })?;
     Ok(())
@@ -458,40 +513,50 @@ pub(crate) fn revelar_en_sistema_en(vault_ruta: String, ruta_rel: String) -> Res
 // registrada. Hasta `DEF-161` se validaba solo la parte relativa: la base la
 // decidía JS, y con ella cualquier carpeta del disco era «el vault».
 
+//
+// Todos llevan `#[tauri::command(async)]` (`FUN-M-58`) salvo `abrir_con_sistema`,
+// que ya era `async fn`. Un comando sin `async` corre en el hilo de la ventana
+// —ahí atiende WebView2 el IPC—: mientras dura, la ventana no se mueve ni se
+// redimensiona y todo el IPC, también el SQL del índice, queda en cola detrás.
+// Con `(async)` la misma función corre en el pool de Tauri. El precio es que dos
+// llamadas pueden correr a la vez: el frontend espera cada una antes de la
+// siguiente que dependa de ella (`lib/db/vaultFs.ts`), y dos guardados de la
+// misma nota que se crucen los ordena el candado de `escribir_atomico`.
+
 use crate::ventanas::base_de_ventana as base;
 
 /// Ver `escribir_nota_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn escribir_nota(ventana: tauri::Window, vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
     escribir_nota_en(base(&ventana, &vault_ruta)?, ruta_rel, contenido)
 }
 
 /// Ver `mover_ruta_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn mover_ruta(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     mover_ruta_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
 }
 
 /// Ver `crear_directorio_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn crear_directorio(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     crear_directorio_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `copiar_archivo_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn copiar_archivo(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     copiar_archivo_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
 }
 
 /// Ver `borrar_a_papelera_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn borrar_a_papelera(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<String, String> {
     borrar_a_papelera_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `restaurar_de_papelera_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restaurar_de_papelera(
     ventana: tauri::Window,
     vault_ruta: String,
@@ -502,19 +567,19 @@ pub fn restaurar_de_papelera(
 }
 
 /// Ver `borrar_definitivo_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn borrar_definitivo(ventana: tauri::Window, vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
     borrar_definitivo_en(base(&ventana, &vault_ruta)?, ruta_papelera_rel)
 }
 
 /// Ver `leer_archivo_texto_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn leer_archivo_texto(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
     leer_archivo_texto_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `ia_borrar_anterior_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ia_borrar_anterior(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     ia_borrar_anterior_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
@@ -560,7 +625,7 @@ pub async fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_
 }
 
 /// Ver `revelar_en_sistema_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn revelar_en_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     revelar_en_sistema_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
@@ -738,6 +803,51 @@ mod tests {
         for nombre in ["informe.docx", "Cuentas.xlsx", "charla.pptx", "nota.md", "foto.png", "a.pdf"] {
             assert!(!pide_confirmacion(Path::new(nombre)), "{nombre}");
         }
+    }
+
+    /// `FUN-M-58`: con los comandos en el pool de hilos, dos guardados de la misma
+    /// nota pueden cruzarse. N hilos escriben a la vez, varias veces, contenidos
+    /// distintos y grandes (para que las ventanas se pisen): ninguna escritura
+    /// falla, el archivo final es exactamente uno de los contenidos —no una
+    /// mezcla— y no sobra ningún temporal.
+    #[test]
+    fn escrituras_concurrentes_de_la_misma_nota_dejan_una_entera_y_ningun_temporal() {
+        const HILOS: usize = 12;
+        const VUELTAS: usize = 15;
+        let base = tmp_vault("concurrentes");
+        let destino = base.join("nota.md");
+        let contenidos: Vec<String> = (0..HILOS)
+            .map(|i| format!("hilo {i}
+").repeat(20_000))
+            .collect();
+        let barrera = Arc::new(std::sync::Barrier::new(HILOS));
+        let hilos: Vec<_> = contenidos
+            .iter()
+            .cloned()
+            .map(|contenido| {
+                let destino = destino.clone();
+                let barrera = barrera.clone();
+                std::thread::spawn(move || {
+                    barrera.wait();
+                    for _ in 0..VUELTAS {
+                        escribir_atomico(&destino, &contenido).expect("ninguna escritura debe fallar");
+                    }
+                })
+            })
+            .collect();
+        for h in hilos {
+            h.join().unwrap();
+        }
+        let final_ = std::fs::read_to_string(&destino).unwrap();
+        assert!(contenidos.contains(&final_), "el archivo quedó con una mezcla o truncado");
+        let nombres: Vec<String> = std::fs::read_dir(&base)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(nombres, vec!["nota.md".to_string()], "sobraron temporales");
+        // Y el mapa de candados no se queda con la entrada.
+        assert!(!candados().lock().unwrap().contains_key(&destino));
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

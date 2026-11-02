@@ -516,7 +516,7 @@ pub fn diccionarios_borrar(app: tauri::AppHandle, id: String) -> Result<(), Stri
 /// Los bytes de un archivo de un diccionario descargado (`aff`, `dic` o
 /// `licencia`). Van **crudos** (`ipc::Response`), no como un arreglo JSON de
 /// números: el `.dic` del español pesa ~1 MB.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn diccionarios_leer(
     app: tauri::AppHandle,
     id: String,
