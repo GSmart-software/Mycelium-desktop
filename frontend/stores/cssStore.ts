@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { getVaultActual } from "@/lib/db/vaultContext";
+import { mantenerSnippetsAlFinal } from "@/lib/snippetsAlFinal";
 import { useConfigLocalStore, type ConfigLocalVault } from "@/stores/configLocalStore";
 
 import { snippetsDelArchivo, type CssSnippet } from "@/lib/snippetsArchivo";
@@ -79,6 +80,8 @@ function applySnippets(snippets: CssSnippet[]) {
     styleEl.id = "mic-custom-css";
     document.head.appendChild(styleEl);
   }
+  // Las hojas que llegan después (Excalidraw, KaTeX con la ayuda) no le ganan.
+  mantenerSnippetsAlFinal();
   styleEl.textContent = snippets
     .filter((s) => s.activo)
     .map((s) => `/* ${s.nombre} */\n${s.contenido}`)
