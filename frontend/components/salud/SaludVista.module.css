@@ -1,0 +1,468 @@
+/* La pestaña «Salud del vault» (FUN-L-32). Tablero sobre el lienzo con paneles
+   --mic-bg-surface + --mic-border + --mic-radius-md, títulos de panel de
+   0,875rem en 600, segmentos con el borde inferior de 2 px en el acento, y la
+   franja de resumen con el estilo del resumen del panel lateral. La grilla se
+   acomoda al ancho de la PESTAÑA (container queries), no al de la ventana: la
+   pestaña puede estar en un pane dividido. La clase global mic-salud-vista
+   está en la plantilla de snippets. */
+
+.vista {
+  container-type: inline-size;
+  height: 100%;
+  overflow: auto;
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+}
+
+.hoja {
+  display: grid;
+  gap: 16px;
+  max-width: 1280px;
+  padding: 22px 26px 40px;
+}
+
+/* ── Cabecera ─────────────────────────────────────────────────────────── */
+
+.cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.titulo {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.subtitulo {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.boton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.boton:disabled {
+  cursor: default;
+  color: var(--mic-text-muted);
+}
+
+.primario {
+  background: var(--mic-accent);
+  border-color: var(--mic-accent);
+  color: var(--mic-bg-canvas);
+  font-weight: 500;
+}
+
+.primario:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-accent) 85%, var(--mic-glow));
+}
+
+.primario:disabled {
+  color: var(--mic-bg-canvas);
+  background: color-mix(in srgb, var(--mic-accent) 70%, var(--mic-bg-canvas));
+}
+
+.boton:focus-visible,
+.segmento button:focus-visible,
+.ruta:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cargando,
+.error,
+.aviso {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--mic-text-muted);
+}
+
+.error {
+  color: var(--mic-callout-error-border);
+}
+
+.aviso {
+  padding: 10px 12px;
+  border-radius: var(--mic-radius-md);
+  border: 1px dashed var(--mic-border);
+}
+
+/* ── Franja de resumen ────────────────────────────────────────────────── */
+
+.franja {
+  display: grid;
+  grid-template-columns: auto repeat(5, minmax(0, 1fr));
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.franja[data-estado="sano"] {
+  border-color: color-mix(in srgb, var(--mic-callout-success-border) 35%, transparent);
+}
+
+.franja[data-estado="problemas"] {
+  border-color: color-mix(in srgb, var(--mic-callout-warning-border) 40%, transparent);
+}
+
+.franjaProblemas,
+.franjaCelda {
+  display: grid;
+  align-content: center;
+  padding: 10px 16px;
+  min-width: 0;
+}
+
+.franjaProblemas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 22px;
+}
+
+.franjaProblemas > div {
+  display: grid;
+}
+
+.franjaCelda {
+  border-left: 1px solid var(--mic-border);
+}
+
+.franjaIcono {
+  flex-shrink: 0;
+  color: var(--mic-callout-warning-border);
+}
+
+.franja[data-estado="sano"] .franjaIcono {
+  color: var(--mic-callout-success-border);
+}
+
+.cifra {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cifraRotulo {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Grilla de paneles ────────────────────────────────────────────────── */
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.ancho4 {
+  grid-column: span 4;
+}
+
+.ancho6 {
+  grid-column: span 6;
+}
+
+.ancho8 {
+  grid-column: span 8;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-surface);
+}
+
+.panelCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panelTitulo {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.panelNota {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.subtitulo3 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+  padding-top: 4px;
+}
+
+.controles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.segmento {
+  display: inline-flex;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+}
+
+.segmento button {
+  padding: 3px 10px;
+  font-size: 0.78125rem;
+  color: var(--mic-text-muted);
+  white-space: nowrap;
+}
+
+.segmento button:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.segmento button[aria-pressed="true"] {
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  box-shadow: inset 0 -2px 0 var(--mic-accent);
+}
+
+.cuenta {
+  --sev: var(--mic-callout-warning-border);
+  min-width: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--sev) 22%, transparent);
+}
+
+.cuenta[data-gravedad="grave"] {
+  --sev: var(--mic-callout-error-border);
+}
+
+.cuenta[data-gravedad="cero"] {
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-text-muted) 10%, transparent);
+}
+
+/* ── Qué hay en el vault ──────────────────────────────────────────────── */
+
+.composicion {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(230px, 0.7fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.composicionGrafica {
+  min-width: 0;
+}
+
+.pie {
+  padding-top: 6px;
+  border-top: 1px solid var(--mic-border);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Qué ocupa espacio ────────────────────────────────────────────────── */
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  table-layout: fixed;
+}
+
+.tabla th {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--mic-border);
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+}
+
+.tabla th:nth-child(2) {
+  width: 7.5rem;
+}
+
+.tabla th:nth-child(3) {
+  width: 5.5rem;
+}
+
+.tabla td {
+  padding: 4px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--mic-border) 60%, transparent);
+  vertical-align: middle;
+}
+
+.derecha {
+  text-align: right !important;
+}
+
+.mono {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+}
+
+.ruta {
+  display: block;
+  max-width: 100%;
+  padding: 1px 4px;
+  margin-left: -4px;
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.ruta:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.chip i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* ── La red ───────────────────────────────────────────────────────────── */
+
+.mini {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mini > div {
+  display: grid;
+  padding: 6px 10px;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  min-width: 0;
+}
+
+.mini b {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini span {
+  font-size: 0.71875rem;
+  color: var(--mic-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Anchos ───────────────────────────────────────────────────────────── */
+
+@container (max-width: 1100px) {
+  .ancho4,
+  .ancho6,
+  .ancho8 {
+    grid-column: span 12;
+  }
+
+  .franja {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .franjaCelda {
+    border-left: 0;
+  }
+}
+
+@container (max-width: 640px) {
+  .hoja {
+    padding: 16px 14px 32px;
+  }
+
+  .composicion {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .franja {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .franjaProblemas {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .girando {
+    animation: none;
+  }
+}

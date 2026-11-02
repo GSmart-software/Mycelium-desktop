@@ -8,6 +8,7 @@ import { CanvasView } from "@/components/canvas/CanvasView";
 import { DrawioView } from "@/components/drawio/DrawioView";
 import { RelinkView } from "@/components/enlaces/RelinkView";
 import { CalendarioVista } from "@/components/recordatorios/CalendarioVista";
+import { SaludVista } from "@/components/salud/SaludVista";
 import { ExcalidrawFileEditor } from "@/components/editor/ExcalidrawFileEditor";
 import { NoteEditor } from "@/components/editor/NoteEditor";
 import { GraphView } from "@/components/graph/GraphView";
@@ -68,6 +69,8 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <RelinkView key={activeTab.id} />
         ) : activeTab && pestana === "calendario" ? (
           <CalendarioVista key={activeTab.id} />
+        ) : activeTab && pestana === "salud" ? (
+          <SaludVista key={activeTab.id} />
         ) : activeTab && pestana === "terminal" ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
         ) : activeTab && pestana === "archivo" ? (

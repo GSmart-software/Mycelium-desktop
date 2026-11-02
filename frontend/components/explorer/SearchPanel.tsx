@@ -23,6 +23,7 @@ import {
   folderPath,
   type NodoResultados,
 } from "@/lib/search";
+import { EVENTO_BUSCAR, tomarBusquedaPendiente, verBusquedaPendiente } from "@/lib/busquedaPendiente";
 import { useAuthStore } from "@/stores/authStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -82,7 +83,8 @@ const siguienteCampo = (actual: CampoBusqueda): CampoBusqueda =>
 export function SearchPanel() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState("");
+  // Un texto pedido desde otra vista (una etiqueta de la salud del vault).
+  const [query, setQuery] = useState(() => verBusquedaPendiente() ?? "");
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [loading, setLoading] = useState(false);
   const [buscado, setBuscado] = useState(false);
@@ -115,6 +117,19 @@ export function SearchPanel() {
   // Foco automático al activar la búsqueda (CA2)
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+
+  // Con el panel ya abierto, el pedido llega por evento. Al montarse, el que
+  // ya tomó el estado inicial se consume.
+  useEffect(() => {
+    tomarBusquedaPendiente();
+    const alPedir = () => {
+      const t = tomarBusquedaPendiente();
+      if (t !== null) setQuery(t);
+      inputRef.current?.focus();
+    };
+    window.addEventListener(EVENTO_BUSCAR, alPedir);
+    return () => window.removeEventListener(EVENTO_BUSCAR, alPedir);
   }, []);
 
   // Búsqueda con debounce (CA3, CA6, CA7)

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
+import { ICONO_POR_TIPO, ICONO_SALUD } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -27,6 +27,7 @@ import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
+import { abrirPestanaSalud } from "@/lib/saludPestana";
 import { useTabsStore } from "@/stores/tabsStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -214,6 +215,15 @@ export function PaletaComandos() {
         detalle: "Enlaces rotos, huérfanas y títulos duplicados",
         icono: HeartPulse,
         ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
+      },
+      // La pestaña de salud (FUN-L-32): el tablero con las gráficas. Cierra el
+      // panel de salud si es el que está a la vista.
+      {
+        id: "cmd-salud-pestana",
+        titulo: "Abrir la salud del vault en una pestaña",
+        detalle: "El tablero: qué hay, qué pesa, la red y los problemas",
+        icono: ICONO_SALUD,
+        ejecutar: () => abrirPestanaSalud((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`)),
       },
       // El informe como nota (FUN-L-32): revisa, lo guarda en la carpeta de
       // informes y lo abre. Los fallos los avisa `generarInformeSalud`.

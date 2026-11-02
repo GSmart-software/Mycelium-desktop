@@ -31,7 +31,7 @@ const ZUSTAND = pathToFileURL(require.resolve("zustand")).href;
 const ZUSTAND_MW = pathToFileURL(require.resolve("zustand/middleware")).href;
 
 const ICONOS = aUrl(
-  ["ICONO_CALENDARIO", "ICONO_CONSOLA", "ICONO_GRAFO", "ICONO_OTRO_ARCHIVO", "ICONO_REFERENCIAS"]
+  ["ICONO_CALENDARIO", "ICONO_CONSOLA", "ICONO_GRAFO", "ICONO_OTRO_ARCHIVO", "ICONO_REFERENCIAS", "ICONO_SALUD"]
     .map((n) => `export const ${n} = {};`)
     .join("\n") + "\nexport const ICONO_POR_TIPO = {};",
 );
@@ -60,7 +60,7 @@ const STORE = await fuente("../stores/tabsStore.ts", {
   "@/stores/preferencesStore": PREFS,
 });
 
-const { seDuplicaAlDividir } = await import(PESTANAS);
+const { seDuplicaAlDividir, tipoDePestana, esSentinela, tituloDePestana, SALUD_TAB_ID } = await import(PESTANAS);
 const { useTabsStore, allLeaves } = await import(STORE);
 
 const estado = () => useTabsStore.getState();
@@ -86,6 +86,18 @@ test("seDuplicaAlDividir: notas y bases sí; lienzos, dibujos, diagramas y senti
   assert.equal(seDuplicaAlDividir("archivo:foto.png"), false);
   assert.equal(seDuplicaAlDividir("graph:global"), false);
   assert.equal(seDuplicaAlDividir("calendario:global"), false);
+  assert.equal(seDuplicaAlDividir("salud:global"), false);
+});
+
+test("la pestaña de salud del vault (FUN-L-32) es sentinela, con su título, y no se descarta al reconciliar", () => {
+  assert.equal(SALUD_TAB_ID, "salud:global");
+  assert.equal(tipoDePestana(SALUD_TAB_ID), "salud");
+  assert.equal(esSentinela(SALUD_TAB_ID), true);
+  assert.equal(tituloDePestana(SALUD_TAB_ID, [], {}), "Salud del vault");
+  const pane = conNotas("a.md", SALUD_TAB_ID);
+  assert.equal(activa(pane).preview, false, "no es pestaña de preview");
+  estado().reconcileNotes(new Set(["a.md"]));
+  assert.deepEqual(hojas()[0].tabs.map((t) => t.notaId), ["a.md", SALUD_TAB_ID]);
 });
 
 test("Dividir con duplicar deja la nota en los dos panes, aunque el pane tenga varias pestañas", () => {

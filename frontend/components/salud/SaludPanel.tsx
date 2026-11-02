@@ -1,20 +1,22 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
-import { setPendingMatch } from "@/lib/editor/pendingMatch";
+import { useEffect } from "react";
 import { EVENTO_ARCHIVO_GUARDADO, EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { RUTA_ESQUEMAS } from "@/lib/esquemas";
-import { conteos, type Duplicado, type NotaConAvisos, type NotaRef, type Problema } from "@/lib/salud";
-import { avisar } from "@/stores/avisosStore";
+import { conteos } from "@/lib/salud";
 import { useSaludStore } from "@/stores/saludStore";
-import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import {
+  ItemDuplicado,
+  ItemNota,
+  ItemProblema,
+  ItemPropiedades,
+  TOPE_VISIBLE,
+  useIrANota,
+  useTituloDeNota,
+} from "./problemas";
 import styles from "./SaludPanel.module.css";
-
-/** Cuántos ítems dibuja cada sección; el resto se cuenta. */
-const TOPE_VISIBLE = 200;
 
 /**
  * Panel de salud del vault (`FUN-L-30`), en el rail. Muestra lo mismo que
@@ -26,13 +28,13 @@ const TOPE_VISIBLE = 200;
  * árbol), con espera: ver `stores/saludStore.ts`.
  */
 export function SaludPanel() {
-  const router = useRouter();
   const informe = useSaludStore((s) => s.informe);
   const cargando = useSaludStore((s) => s.cargando);
   const error = useSaludStore((s) => s.error);
   const calculadoEn = useSaludStore((s) => s.calculadoEn);
   const vaultId = useVaultStore((s) => s.vaultId);
-  const notas = useVaultStore((s) => s.notas);
+  const ir = useIrANota();
+  const titulo = useTituloDeNota();
 
   // Al abrir el panel (o cambiar de vault): calcular. Mientras está abierto,
   // escuchar los cambios del índice.
@@ -59,23 +61,7 @@ export function SaludPanel() {
     };
   }, [vaultId]);
 
-  const titulos = useMemo(() => new Map(notas.map((n) => [n.id, n.titulo])), [notas]);
   const c = informe ? conteos(informe) : null;
-
-  const ir = (id: string, linea?: number) => {
-    if (!useVaultStore.getState().notas.some((n) => n.id === id)) {
-      avisar(`«${id}» ya no existe (puede haberse renombrado o borrado). Actualiza el panel.`);
-      return;
-    }
-    if (linea !== undefined) setPendingMatch(id, { linea });
-    useTabsStore.getState().openNote(id);
-    router.replace(`/workspace?note=${encodeURIComponent(id)}`);
-    if (linea !== undefined) {
-      window.dispatchEvent(new CustomEvent("micelio:goto-match", { detail: { notaId: id, linea } }));
-    }
-  };
-
-  const titulo = (id: string) => titulos.get(id) ?? id.slice(id.lastIndexOf("/") + 1);
 
   return (
     <div className={styles.panel}>
@@ -209,80 +195,5 @@ function Seccion({
       {cuenta > 0 && <ul className={styles.lista}>{children}</ul>}
       {cuenta > TOPE_VISIBLE && <p className={styles.ayuda}>Y {cuenta - TOPE_VISIBLE} más.</p>}
     </details>
-  );
-}
-
-type Ir = (id: string, linea?: number) => void;
-
-const escrito = (p: Problema) => `${p.tipo === "embed" ? "!" : ""}[[${p.texto}]]`;
-
-function ItemProblema({ p, tituloDesde, ir }: { p: Problema; tituloDesde: string; ir: Ir }) {
-  const linea = p.lineas[0];
-  return (
-    <li>
-      <button type="button" className={styles.item} onClick={() => ir(p.desde, linea)} title={`Abrir ${p.desde}`}>
-        <span className={styles.itemTitulo}>{tituloDesde}</span>
-        <span className={styles.itemDetalle}>
-          <code className={styles.codigo}>{escrito(p)}</code>
-          {p.lineas.length > 0 && ` · ${p.lineas.length === 1 ? "línea" : "líneas"} ${p.lineas.join(", ")}`}
-          {p.tipo === "canvas" && " · en una tarjeta del lienzo"}
-        </span>
-      </button>
-    </li>
-  );
-}
-
-function ItemDuplicado({ d, titulo, ir }: { d: Duplicado; titulo: (id: string) => string; ir: Ir }) {
-  return (
-    <li className={styles.grupo}>
-      <p className={styles.grupoTitulo}>
-        «{d.titulo}» · {d.rutas.length} notas
-        {d.ambiguos.length > 0 && ` · ${d.ambiguos.length} ${d.ambiguos.length === 1 ? "enlace ambiguo" : "enlaces ambiguos"}`}
-      </p>
-      <ul className={styles.lista}>
-        {d.rutas.map((r) => (
-          <li key={r}>
-            <button type="button" className={styles.item} onClick={() => ir(r)} title={`Abrir ${r}`}>
-              <span className={styles.itemDetalle}>{r}</span>
-            </button>
-          </li>
-        ))}
-        {d.ambiguos.map((p, i) => (
-          <ItemProblema key={`${p.desde}-${p.texto}-${i}`} p={p} tituloDesde={`Ambiguo en ${titulo(p.desde)}`} ir={ir} />
-        ))}
-      </ul>
-    </li>
-  );
-}
-
-function ItemPropiedades({ n, ir }: { n: NotaConAvisos; ir: Ir }) {
-  return (
-    <li className={styles.grupo}>
-      <p className={styles.grupoTitulo}>
-        {n.titulo} · {n.avisos.length} {n.avisos.length === 1 ? "aviso" : "avisos"}
-      </p>
-      <ul className={styles.lista}>
-        {n.avisos.map((a, i) => (
-          <li key={`${a.linea}-${i}`}>
-            <button type="button" className={styles.item} onClick={() => ir(n.ruta, a.linea)} title={`Abrir ${n.ruta}`}>
-              <span className={styles.itemDetalle}>
-                Línea {a.linea} · {a.mensaje}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </li>
-  );
-}
-
-function ItemNota({ n, ir }: { n: NotaRef; ir: Ir }) {
-  return (
-    <li>
-      <button type="button" className={styles.item} onClick={() => ir(n.ruta)} title={`Abrir ${n.ruta}`}>
-        <span className={styles.itemTitulo}>{n.titulo}</span>
-        {n.ruta.includes("/") && <span className={styles.itemDetalle}>{n.ruta}</span>}
-      </button>
-    </li>
   );
 }

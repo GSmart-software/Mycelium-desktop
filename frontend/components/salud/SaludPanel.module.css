@@ -68,7 +68,6 @@
 }
 
 .actualizar:focus-visible,
-.item:focus-visible,
 .seccionTitulo:focus-visible {
   outline: 2px solid var(--mic-glow);
   outline-offset: 2px;
@@ -157,50 +156,5 @@
   gap: 0.15rem;
 }
 
-.item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.05rem;
-  width: 100%;
-  padding: 0.3rem 0.45rem;
-  border-radius: var(--mic-radius-sm);
-  text-align: left;
-}
-
-.item:hover {
-  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
-}
-
-.itemTitulo {
-  font-size: 0.8125rem;
-  color: var(--mic-text-primary);
-  overflow-wrap: anywhere;
-}
-
-.itemDetalle {
-  font-size: 0.6875rem;
-  color: var(--mic-text-muted);
-  overflow-wrap: anywhere;
-}
-
-.codigo {
-  font-family: var(--mic-font-mono, monospace);
-  font-size: 0.6875rem;
-}
-
-.grupo {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.35rem 0.35rem 0.25rem;
-  border-radius: var(--mic-radius-md);
-  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
-}
-
-.grupoTitulo {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--mic-text-primary);
-  padding: 0 0.1rem;
-}
+/* Las filas de cada problema están en problemas.module.css (compartidas con la
+   pestaña «Salud del vault», FUN-L-32). */

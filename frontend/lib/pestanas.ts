@@ -6,6 +6,7 @@ import {
   ICONO_OTRO_ARCHIVO,
   ICONO_POR_TIPO,
   ICONO_REFERENCIAS,
+  ICONO_SALUD,
 } from "@/lib/iconosDeTipo";
 import { esTabArchivo, nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
@@ -41,13 +42,20 @@ export const ENLACES_TAB_ID = "enlaces:global";
  */
 export const CALENDAR_TAB_ID = "calendario:global";
 
-export type TipoDePestana = "nota" | "grafo" | "enlaces" | "calendario" | "terminal" | "archivo";
+/**
+ * Pestaña «Salud del vault» (`FUN-L-32`): el tablero con las gráficas. Como el
+ * calendario, una vista global por id.
+ */
+export const SALUD_TAB_ID = "salud:global";
+
+export type TipoDePestana = "nota" | "grafo" | "enlaces" | "calendario" | "salud" | "terminal" | "archivo";
 
 /** Qué es la pestaña con ese `notaId`. Lo que no es sentinela es una nota del vault. */
 export function tipoDePestana(notaId: string): TipoDePestana {
   if (notaId === GRAPH_TAB_ID) return "grafo";
   if (notaId === ENLACES_TAB_ID) return "enlaces";
   if (notaId === CALENDAR_TAB_ID) return "calendario";
+  if (notaId === SALUD_TAB_ID) return "salud";
   if (esTabTerminal(notaId)) return "terminal";
   if (esTabArchivo(notaId)) return "archivo";
   return "nota";
@@ -72,6 +80,7 @@ export const PESTANA_SENTINELA: Record<
   grafo: { titulo: "Grafo de conexiones", icono: ICONO_GRAFO },
   enlaces: { titulo: "Referencias del vault", icono: ICONO_REFERENCIAS },
   calendario: { titulo: "Calendario", icono: ICONO_CALENDARIO },
+  salud: { titulo: "Salud del vault", icono: ICONO_SALUD },
   terminal: { titulo: "Terminal", icono: ICONO_CONSOLA },
   archivo: { titulo: "Archivo", icono: ICONO_OTRO_ARCHIVO },
 };
@@ -93,7 +102,7 @@ export const PESTANA_SENTINELA: Record<
  *   suyo siguiente lo pisaría.
  * - **El visor de archivos** (también edita código): el mismo motivo.
  * - **Consolas**: su sesión es única; dos pestañas no pueden mostrarla.
- * - **Grafo, referencias y calendario**: son una vista global por id y no ganan
+ * - **Grafo, referencias, calendario y salud**: son una vista global por id y no ganan
  *   nada mostrándose dos veces.
  *
  * Sin el tipo (el índice todavía no llegó) se asume nota, como `iconoDePestana`.

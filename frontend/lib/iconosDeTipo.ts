@@ -1,4 +1,5 @@
 import {
+  Activity,
   CalendarDays,
   FileQuestion,
   FileText,
@@ -41,6 +42,12 @@ export const ICONO_GRAFO = Share2;
 
 /** El calendario de recordatorios (`FUN-L-22`). El mismo ícono que su ítem del rail. */
 export const ICONO_CALENDARIO = CalendarDays;
+
+/**
+ * La pestaña «Salud del vault» (`FUN-L-32`): un pulso. No es el corazón del
+ * rail (que abre el panel): la pestaña es el tablero, el panel lo de todos los días.
+ */
+export const ICONO_SALUD = Activity;
 
 /** La pantalla de referencias del vault (`FUN-L-17`). */
 export const ICONO_REFERENCIAS = Link2;

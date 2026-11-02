@@ -186,6 +186,11 @@ export type Preferencias = {
    */
   carpetaInformes: string;
   /**
+   * Pestaña «Salud del vault» (`FUN-L-32`): cómo se dibuja «Qué hay en el
+   * vault», en anillos o en barras. Va con el vault, como todo lo de acá.
+   */
+  formaComposicionSalud: "anillos" | "barras";
+  /**
    * Atmósfera de cada modo (lib/atmosferas.ts): cómo se reparten los colores del
    * tema en fondos, marco y títulos. Una por modo, porque de noche y de día
    * conviene otra cosa.
@@ -216,6 +221,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphExcludeRules: [],
   carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
   carpetaInformes: CARPETA_INFORMES_DEFECTO,
+  formaComposicionSalud: "anillos",
   atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
   atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,
 };

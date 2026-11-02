@@ -11,6 +11,7 @@ import { NoteEditor } from "@/components/editor/NoteEditor";
 import { RelinkView } from "@/components/enlaces/RelinkView";
 import { GraphView } from "@/components/graph/GraphView";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
+import { SaludVista } from "@/components/salud/SaludVista";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
 import { CLAVE_LATERAL_EDITOR } from "@/lib/cachePestanas";
 import { nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
@@ -133,6 +134,21 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
         </div>
         <div className={styles.viewerBody}>
           <CalendarioPanel />
+        </div>
+      </div>
+    );
+  }
+
+  // La salud del vault (`FUN-L-32`) anclada: el mismo tablero, que se acomoda
+  // al ancho (sus paneles pasan a una columna).
+  if (pestana === "salud") {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.salud.titulo}</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <SaludVista />
         </div>
       </div>
     );
