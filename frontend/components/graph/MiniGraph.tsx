@@ -75,6 +75,21 @@ const RESIDUAL_MIN_PX = 0.5;
  */
 const MARGEN_CAPA = 0.25;
 
+/**
+ * Flujo a pedido (`FUN-M-58` · 3b, mini-grafo del panel de la nota). Medido en
+ * la app el 2026-11-01: con el panel visible y el flujo animado (el valor por
+ * defecto), el bucle de un rAF por cuadro gastaba ~3,8 % de CPU sin que nadie
+ * hiciera nada. Decisión del usuario: «el flujo se anima mientras el puntero
+ * está sobre el mini-grafo y se detiene unos segundos después; el resto del
+ * tiempo se ve con flechas quietas».
+ *
+ * `FLUJO_PERMANENCIA_MS`: cuánto sigue animando tras salir el puntero.
+ * `FLUJO_RAMPA_MS`: lo que tarda el flujo en acelerar hasta su velocidad o en
+ * frenar hasta quedar quieto; así no arranca ni se corta de golpe.
+ */
+const FLUJO_PERMANENCIA_MS = 3000;
+const FLUJO_RAMPA_MS = 500;
+
 /** Zoom y desplazamiento con que se pintó una capa (o el de ahora). */
 type Vista = { scale: number; ox: number; oy: number };
 
@@ -146,6 +161,7 @@ export function MiniGraph({
   onView,
   nodeColors,
   revealCount,
+  animarSoloConPuntero = false,
 }: {
   nodes: GraphNode[];
   edges: GraphEdge[];
@@ -164,6 +180,13 @@ export function MiniGraph({
   getInitialView?: () => GraphView | undefined;
   /** Guarda la vista actual al desmontar/recalcular, para conservar el zoom. */
   onView?: (view: GraphView) => void;
+  /**
+   * El flujo animado de las aristas solo se mueve con el puntero encima (y
+   * `FLUJO_PERMANENCIA_MS` después); el resto del tiempo queda quieto y el
+   * bucle se detiene. Lo usa el mini-grafo del panel de la nota (`FUN-M-58` ·
+   * 3b); el grafo global anima siempre, como antes.
+   */
+  animarSoloConPuntero?: boolean;
 }) {
   // Si está activo, la simulación corre en cada frame de forma continua (sin
   // reposo). Por defecto false: el grafo se bloquea al asentarse (ahorra CPU).
@@ -193,6 +216,9 @@ export function MiniGraph({
   nodeColorsRef.current = nodeColors;
   const revealCountRef = useRef(revealCount);
   revealCountRef.current = revealCount;
+  // Por ref: cambiarla no tiene por qué reconstruir la simulación.
+  const animarSoloConPunteroRef = useRef(animarSoloConPuntero);
+  animarSoloConPunteroRef.current = animarSoloConPuntero;
   const wakeRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     wakeRef.current?.();
@@ -551,6 +577,58 @@ export function MiniGraph({
     });
     observador.observe(canvas);
 
+    // ── Flujo a pedido (`FUN-M-58` · 3b). El desplazamiento de los guiones ya
+    //    no sale del reloj sino de un recorrido acumulado, que avanza a una
+    //    velocidad de 0 a 1: sin puntero (y pasada la permanencia) la velocidad
+    //    baja a 0 en `FLUJO_RAMPA_MS`, los guiones quedan quietos donde estaban
+    //    —el último cuadro del flujo, sin saltar a otro dibujo— y el bucle se
+    //    detiene. Al volver el puntero, acelera desde ahí. Sin la opción la
+    //    velocidad es siempre 1: el mismo flujo de siempre. ──
+    /** Segundos de flujo recorridos (a velocidad 1 equivale al reloj). */
+    let recorridoFlujo = performance.now() / 1000;
+    /** Velocidad del flujo, de 0 (quieto) a 1. */
+    let velocidadFlujo = animarSoloConPunteroRef.current ? 0 : 1;
+    let ultimoAvanceFlujo = performance.now();
+    // Al abrir una nota con un clic en el mini-grafo, el lienzo se rearma con
+    // el puntero ya encima: `pointerenter` no llega, así que se pregunta.
+    let punteroDentro = canvas.matches(":hover");
+    /** Cuándo salió el puntero (`-Infinity`: nunca entró). */
+    let salidaPuntero = Number.NEGATIVE_INFINITY;
+    /** Velocidad a la que tiende el flujo ahora mismo. */
+    const objetivoFlujo = (ahora: number): number => {
+      if (!animarSoloConPunteroRef.current) return 1;
+      // Ventana minimizada u oculta (`DEF-174`): nada se anima.
+      if (document.documentElement.dataset.reposo !== undefined) return 0;
+      const cerca = punteroDentro || !!dragNode || panning;
+      return cerca || ahora - salidaPuntero < FLUJO_PERMANENCIA_MS ? 1 : 0;
+    };
+    /** Avanza el recorrido del flujo hasta `ahora` (una vez por cuadro). */
+    const avanzarFlujo = (ahora: number) => {
+      const dt = Math.min(Math.max(ahora - ultimoAvanceFlujo, 0), 100);
+      ultimoAvanceFlujo = ahora;
+      const objetivo = objetivoFlujo(ahora);
+      const paso = dt / FLUJO_RAMPA_MS;
+      velocidadFlujo =
+        objetivo > velocidadFlujo
+          ? Math.min(objetivo, velocidadFlujo + paso)
+          : Math.max(objetivo, velocidadFlujo - paso);
+      recorridoFlujo += (dt / 1000) * velocidadFlujo;
+    };
+    /** ¿El flujo está quieto y va a seguir así (no hace falta otro cuadro)? */
+    const flujoQuieto = () => velocidadFlujo === 0 && objetivoFlujo(performance.now()) === 0;
+    const alEntrarPuntero = () => {
+      punteroDentro = true;
+      ultimoAvanceFlujo = performance.now(); // la rampa arranca ahora, no antes
+      wake();
+    };
+    const alSalirPuntero = () => {
+      punteroDentro = false;
+      salidaPuntero = performance.now();
+      wake();
+    };
+    canvas.addEventListener("pointerenter", alEntrarPuntero);
+    canvas.addEventListener("pointerleave", alSalirPuntero);
+
     const resize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
@@ -657,6 +735,9 @@ export function MiniGraph({
         // en vez de cortarse.
         motor?.soltar();
       }
+      // Un arrastre que terminó fuera del lienzo: la permanencia del flujo
+      // cuenta desde que se suelta, no desde que el puntero salió.
+      if ((dragNode || panning) && !punteroDentro) salidaPuntero = performance.now();
       dragNode = null;
       if (panning) {
         // Fin del paneo: el próximo frame ve la cámara movida fuera de un
@@ -962,9 +1043,9 @@ export function MiniGraph({
 
     /** Pasada 2: el flujo animado a lo largo de cada arista visible (origen → destino). */
     const pintarFlujo = (c: CanvasRenderingContext2D) => {
-      // Los mismos guiones de siempre, con el desplazamiento del reloj.
+      // Los mismos guiones de siempre, desplazados según el recorrido del flujo.
       c.setLineDash([2 / scale, 9 / scale]);
-      c.lineDashOffset = -((performance.now() / 1000) * 30) / scale;
+      c.lineDashOffset = -(recorridoFlujo * 30) / scale;
       for (let i = 0; i < nVisibles; i++) {
         if (enVistaAristas[i] === 0) continue; // en el margen de la capa: no se ve
         const lit = litAristas[i] === 1;
@@ -1220,7 +1301,8 @@ export function MiniGraph({
       }
       copiarCapa(ctx, capaNodos, vistaPintada, ahora, W, H, margenX, margenY, dpr);
       lienzoVista = ahora;
-      lienzoAlDia = !flujo;
+      // Con el flujo quieto el lienzo también queda al día: otro cuadro igual.
+      lienzoAlDia = !flujo || flujoQuieto();
     };
 
     /**
@@ -1243,7 +1325,7 @@ export function MiniGraph({
         if (camaraMovida()) ensuciar();
         // Nada cambió y nada se anima (p. ej. el lote siguiente del worker
         // todavía no llegó): el lienzo ya muestra lo último.
-        if (!sucioEstatico && (modo === "rapido" || !conFlujo)) return;
+        if (!sucioEstatico && (modo === "rapido" || !conFlujo || flujoQuieto())) return;
         prepararLienzo(ctx, w, h);
         if (modo === "rapido") {
           pintarRapido(ctx);
@@ -1263,7 +1345,7 @@ export function MiniGraph({
       // El flujo solo se anima con el lienzo en la vista de las capas.
       const flujo = conFlujo && !gesto && !camaraMovida();
       if (
-        !flujo &&
+        (!flujo || flujoQuieto()) &&
         lienzoAlDia &&
         lienzoVista.scale === scale &&
         lienzoVista.ox === ox &&
@@ -1433,7 +1515,7 @@ export function MiniGraph({
         // pasos de su presupuesto.
         if (motor && !motor.enWorker) {
           motor.avanzar();
-          if (fase === "precalculo") frame = requestAnimationFrame(tick);
+          if (fase === "precalculo" && frame === 0) frame = requestAnimationFrame(tick);
           else wake();
         }
         return;
@@ -1452,7 +1534,7 @@ export function MiniGraph({
         const r = pasoRevelado();
         if (r === "espera") return;
         if (r === "sigue") {
-          frame = requestAnimationFrame(tick);
+          if (frame === 0) frame = requestAnimationFrame(tick);
           return;
         }
         lastEnergetic = performance.now();
@@ -1461,6 +1543,7 @@ export function MiniGraph({
       avanzarConstruccion(rc);
       prevRc = rc ?? null;
       const now = performance.now();
+      avanzarFlujo(now);
       const interacting = !!dragNode || panning;
       // El motor simula (worker o hilo principal) o se arrastra un nodo.
       const moviendo = !!dragNode || !!motor?.corriendo;
@@ -1511,10 +1594,16 @@ export function MiniGraph({
       // Flujo animado sobre la capa → mantener el redibujo aunque la simulación
       // esté en reposo (en ese caso solo se copia la capa y se mueve el flujo).
       // `conFlujo` lo decide la última capa pintada (opción, movimiento reducido).
-      const animating = visible && conFlujo;
+      // Con el flujo a pedido, solo mientras se mueva o vaya a moverse.
+      const animating = visible && conFlujo && !flujoQuieto();
       // Si no hay nada activo ni animándose, se detiene (sin rAF) hasta que algo
       // lo despierte con wake().
-      if (active || animating) frame = requestAnimationFrame(tick);
+      // `frame === 0`: algo de este mismo cuadro ya pudo pedir el siguiente
+      // (`wake()` desde el motor al recibir o al asentarse). Pedir otro dejaba
+      // dos bucles vivos, y con el flujo animado no se detenían nunca: en el
+      // banco de `FUN-M-58` · 3b el mini-grafo de `main` corría a 120–180 rAF/s
+      // tras unas interacciones, en vez de 60.
+      if ((active || animating) && frame === 0) frame = requestAnimationFrame(tick);
     };
     resize(); // dimensiona el canvas antes del primer frame
     wake();
@@ -1542,6 +1631,8 @@ export function MiniGraph({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
       canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerenter", alEntrarPuntero);
+      canvas.removeEventListener("pointerleave", alSalirPuntero);
       ro.disconnect();
     };
   }, [nodes, edges, centerId, continuousSim, tema, modoOscuro]);

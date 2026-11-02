@@ -247,6 +247,7 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
                 edges={grafo.aristas}
                 centerId={data.nota.id}
                 onOpen={open}
+                animarSoloConPuntero
               />
             </div>
           </>
