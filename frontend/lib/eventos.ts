@@ -42,6 +42,21 @@ export const EVENTO_RECARGA = "micelio:vault-recargar";
 export const EVENTO_NOTA_GUARDADA = "micelio:nota-guardada";
 
 /**
+ * El `detail` de `EVENTO_NOTA_GUARDADA`. Lo que va además de `notaId` es lo que
+ * devolvió el guardado (`FUN-M-58`): si cambiaron los enlaces, las etiquetas o
+ * los alias, y la fecha y el tamaño nuevos. Con eso el panel de conexiones
+ * actualiza «Modificada» y «Tamaño» sin volver a pedir las conexiones —que leen
+ * el texto de cada nota que cita— cuando los enlaces no cambiaron. Sin el dato
+ * (`undefined`), quien escucha supone que sí cambiaron.
+ */
+export type DetalleNotaGuardada = {
+  notaId: string;
+  enlacesCambiaron?: boolean;
+  actualizadoEn?: string;
+  tamanoBytes?: number;
+};
+
+/**
  * El índice cambió los alias de unas notas (`FUN-M-15`): `detail.aliases` es
  * `{ [id]: string[] }`, con la lista nueva de cada una (vacía si ya no tiene).
  *

@@ -40,8 +40,12 @@ export type CreatedResponse = { id: string };
 /** `GET /notas/{id}/contenido`. */
 export type ContenidoResponse = { contenido: string; actualizadoEn: string };
 
-/** `PUT /notas/{id}/contenido`. */
-export type PutContenidoResponse = { actualizadoEn: string };
+/**
+ * `PUT /notas/{id}/contenido`. `enlacesCambiaron` (`FUN-M-58`): si el guardado
+ * cambió los enlaces, las etiquetas o los alias de la nota —lo que dibujan el
+ * grafo y las conexiones—; si no, nadie necesita volver a pedirlos.
+ */
+export type PutContenidoResponse = { actualizadoEn: string; tamanoBytes: number; enlacesCambiaron: boolean };
 
 /** `GET /vaults/{id}/buscar`. */
 export type SearchResponse = {
