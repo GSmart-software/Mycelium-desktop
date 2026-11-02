@@ -43,6 +43,10 @@ El panel de enlaces de cada nota (**Ctrl+Shift+\\**) tiene su pestaña **GRAFO**
 el centro, con lo que enlaza y lo que la enlaza. Los botones **Referencia** y **Lo
 referencian** muestran u ocultan cada lado.
 
+Para ahorrar procesador, en este grafo el indicador **Animado** (o **Ambos**) solo se
+mueve mientras el puntero está encima y unos segundos después; el resto del tiempo las
+líneas quedan quietas.
+
 > [!tip] Si el grafo gasta mucho
 > Por defecto los puntos dejan de moverse cuando el grafo se acomoda, para ahorrar
 > procesador. **Configuración → Grafo → Simulación continua** los mantiene en movimiento,
