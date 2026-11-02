@@ -74,6 +74,47 @@ test("detectarRenombres: un empate no se adivina", () => {
   assert.deepEqual(dos.map((p) => `${p.de.id}>${p.a.id}`).sort(), ["A.md>B.md", "X.md>Y.md"]);
 });
 
+test("detectarRenombres: bordes (vacías, una línea, solo frontmatter, finales de línea)", () => {
+  // Vacías y solo frontmatter nunca emparejan, ni entre ellas.
+  assert.deepEqual(R.detectarRenombres([nota("A.md", "")], [nota("B.md", "")]), []);
+  assert.deepEqual(R.detectarRenombres([nota("A.md", "---\nx: 1\n---\n")], [nota("B.md", "---\ny: 2\n---")]), []);
+  // Una sola línea: solo si es idéntica (con CRLF y espacios al final, igual).
+  assert.equal(R.detectarRenombres([nota("A.md", "Hola")], [nota("B.md", "Hola  \r\n")]).length, 1);
+  assert.deepEqual(R.detectarRenombres([nota("A.md", "Hola")], [nota("B.md", "Chau")]), []);
+  // Misma id (se fue y volvió): no es un renombre.
+  assert.deepEqual(R.detectarRenombres([nota("A.md", LARGA)], [nota("A.md", LARGA)]), []);
+});
+
+test("detectarRenombres: el descarte por cantidad de líneas respeta el borde exacto del umbral", () => {
+  // 9 líneas contra 10 (9 en común): 9/10 = 0,9 justo, cuenta.
+  const nueve = "a\nb\nc\nd\ne\nf\ng\nh\ni";
+  const diez = `${nueve}\nj`;
+  const r = R.detectarRenombres([nota("A.md", nueve)], [nota("B.md", diez)]);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].similitud, 0.9);
+  // 8 contra 10: aunque las 8 estén en la otra, 0,8 no llega.
+  assert.deepEqual(R.detectarRenombres([nota("A.md", "a\nb\nc\nd\ne\nf\ng\nh")], [nota("B.md", diez)]), []);
+});
+
+test("detectarRenombres: varias candidatas para la misma ida, se queda la más parecida", () => {
+  const una = LARGA.replace("Quinta.", "Quinta, corregida.");
+  const r = R.detectarRenombres([nota("A.md", LARGA)], [nota("Editada.md", una), nota("Igual.md", LARGA)]);
+  assert.deepEqual(r.map((p) => `${p.de.id}>${p.a.id}`), ["A.md>Igual.md"]);
+  // Muchas idénticas: todo empata y no se ofrece nada (y no tarda).
+  const muchas = (pref) => Array.from({ length: 200 }, (_, i) => nota(`${pref}${i}.md`, "TODO"));
+  assert.deepEqual(R.detectarRenombres(muchas("i"), muchas("n")), []);
+});
+
+test("detectarRenombres: por encima de MAX_PARES no se mira", () => {
+  const lado = Math.floor(Math.sqrt(R.MAX_PARES)) + 1;
+  const idas = Array.from({ length: lado }, (_, i) => nota(`i${i}.md`, ""));
+  const nuevas = Array.from({ length: lado }, (_, i) => nota(`n${i}.md`, ""));
+  idas[0] = nota("Viejo.md", LARGA);
+  nuevas[0] = nota("Nuevo.md", LARGA);
+  assert.deepEqual(R.detectarRenombres(idas, nuevas), []);
+  assert.equal(R.detectarRenombres(idas.slice(0, 10), nuevas.slice(0, 10)).length, 1);
+});
+
 test("textoOferta: dice cuántos enlaces y en cuántas notas", () => {
   assert.equal(
     R.textoOferta("Viejo", "Nuevo", 3, 2),
