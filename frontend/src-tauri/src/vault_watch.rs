@@ -69,7 +69,47 @@ type VaultDebouncer = Debouncer<notify_debouncer_full::notify::RecommendedWatche
 /// Dropear un debouncer detiene su observación, así que quitar la entrada del
 /// mapa es todo lo que hace falta para parar.
 #[derive(Default)]
-pub struct WatcherState(pub Mutex<HashMap<String, VaultDebouncer>>);
+pub struct WatcherState(Mutex<Watchers>);
+
+/// El contenido de [`WatcherState`].
+///
+/// `turnos` existe desde `FUN-M-58`, cuando `iniciar_watcher` pasó al pool de
+/// hilos: armar el watcher tarda (~200 ms en un vault de 1.500 notas) y,
+/// mientras, la ventana puede salir del vault, cerrarse o pedir otro watcher.
+/// Antes eso no pasaba porque todo corría en el hilo de la ventana, de a uno.
+/// Cada arranque saca un turno único y lo anota para su ventana; `detener_de`
+/// borra la anotación. Al terminar, el watcher se instala solo si su turno sigue
+/// siendo el anotado: si no, llegó tarde y se descarta, en vez de dejar
+/// observando una carpeta que la ventana ya soltó.
+#[derive(Default)]
+struct Watchers {
+    activos: HashMap<String, VaultDebouncer>,
+    turnos: HashMap<String, u64>,
+    siguiente: u64,
+}
+
+impl WatcherState {
+    /// Saca un turno para `label` y lo deja como el vigente.
+    fn tomar_turno(&self, label: &str) -> Result<u64, String> {
+        let mut w = self.0.lock().map_err(|_| "Estado del watcher no disponible".to_string())?;
+        w.siguiente += 1;
+        let turno = w.siguiente;
+        w.turnos.insert(label.to_string(), turno);
+        Ok(turno)
+    }
+
+    /// Instala `debouncer` para `label` si `turno` sigue vigente. Si no, lo
+    /// devuelve para que se dropee fuera del candado.
+    fn instalar(&self, label: &str, turno: u64, debouncer: VaultDebouncer) -> Result<Option<VaultDebouncer>, String> {
+        let mut w = self.0.lock().map_err(|_| "Estado del watcher no disponible".to_string())?;
+        if w.turnos.get(label) != Some(&turno) {
+            return Ok(Some(debouncer));
+        }
+        // Reemplaza el anterior DE ESTA VENTANA: se devuelve para dropearlo
+        // fuera del candado (dropear para la observación del SO).
+        Ok(w.activos.insert(label.to_string(), debouncer))
+    }
+}
 
 // Qué pasa el filtro lo decide `es_relevante` (`DEF-127`). Antes se dejaban
 // pasar solo las notas (`archivos::es_importable`) y los borrados: una imagen,
@@ -220,7 +260,7 @@ fn describir(
 /// su `mtime` actual. El frontend decide si hay algo ajeno que reindexar; si lo
 /// hay, reindexa el vault entero de forma incremental. Reemplaza cualquier
 /// watcher previo (cambio de vault).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn iniciar_watcher(
     ventana: tauri::Window,
     state: tauri::State<WatcherState>,
@@ -229,6 +269,9 @@ pub fn iniciar_watcher(
     // Solo el vault de esta ventana (`DEF-161`): el watcher le cuenta al
     // frontend los nombres y fechas de todo lo que cambia en la carpeta.
     let vault_ruta = crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?;
+    // El turno, antes de cualquier trabajo: un `detener_watcher` o un cierre que
+    // llegue mientras se arma este watcher lo invalida (ver `Watchers`).
+    let turno = state.tomar_turno(ventana.label())?;
     let base = PathBuf::from(&vault_ruta);
     if !base.is_dir() {
         return Err(format!("La carpeta del vault no existe: {vault_ruta}"));
@@ -307,13 +350,11 @@ pub fn iniciar_watcher(
         debouncer.cache().add_path(&ruta);
     }
 
-    // Reemplaza el watcher anterior DE ESTA VENTANA: al insertar, el previo se
-    // dropea y deja de observar. Los de las demás ventanas no se tocan.
-    state
-        .0
-        .lock()
-        .map_err(|_| "Estado del watcher no disponible".to_string())?
-        .insert(ventana.label().to_string(), debouncer);
+    // Reemplaza el watcher anterior DE ESTA VENTANA: el previo se dropea y deja
+    // de observar. Los de las demás ventanas no se tocan. Si mientras tanto la
+    // ventana pidió detenerlo (o arrancó otro), este es el que sobra.
+    let sobrante = state.instalar(ventana.label(), turno, debouncer)?;
+    drop(sobrante);
     Ok(())
 }
 
@@ -331,9 +372,16 @@ pub fn detener_watcher(
 /// Detiene el watcher de una ventana por su etiqueta. Lo usa además el cierre de
 /// ventana, donde ya no hay un `Window` del que partir.
 pub fn detener_de(state: &WatcherState, label: &str) {
-    if let Ok(mut mapa) = state.0.lock() {
-        mapa.remove(label);
-    }
+    let quitado = match state.0.lock() {
+        Ok(mut w) => {
+            // Sin turno vigente, un `iniciar_watcher` en vuelo no se instala.
+            w.turnos.remove(label);
+            w.activos.remove(label)
+        }
+        Err(_) => None,
+    };
+    // Se dropea fuera del candado: parar la observación del SO puede tardar.
+    drop(quitado);
 }
 
 #[cfg(test)]
@@ -422,16 +470,55 @@ mod tests {
         assert!(!es_relevante(&EventKind::Access(AccessKind::Any), "a.md", false, &p));
     }
 
-    /// El temporal de la escritura atómica de la propia app (`nota.md.tmp-<pid>`)
-    /// no debe llegar: arruinaba el descarte de los guardados propios (`FUN-M-42`).
+    /// El temporal de la escritura atómica de la propia app (`nota.md.tmp-<pid>-<n>`
+    /// desde `FUN-M-58`; antes `nota.md.tmp-<pid>`) no debe llegar: arruinaba el
+    /// descarte de los guardados propios (`FUN-M-42`).
     #[test]
     fn descarta_el_temporal_de_la_escritura_atomica_propia() {
         let p = por_defecto();
+        assert!(!es_relevante(&crear(), "notas/plan.md.tmp-12345-0", false, &p));
+        assert!(!es_relevante(&borrar(), "dibujo.excalidraw.tmp-9-17", false, &p));
         assert!(!es_relevante(&crear(), "notas/plan.md.tmp-12345", false, &p));
         assert!(!es_relevante(&borrar(), "dibujo.excalidraw.tmp-9", false, &p));
         // Parecidos que NO lo son.
         assert!(es_relevante(&crear(), "informe.tmp-final.md", false, &p));
         assert!(es_relevante(&crear(), "x.tmp-", false, &p));
+        assert!(es_relevante(&crear(), "x.tmp-1-", false, &p));
+        assert!(es_relevante(&crear(), "x.tmp--1", false, &p));
+        assert!(es_relevante(&crear(), "x.tmp-1-2-3", false, &p));
+    }
+
+    fn debouncer_de_prueba() -> VaultDebouncer {
+        new_debouncer(Duration::from_millis(DEBOUNCE_MS), None, |_: DebounceEventResult| {}).unwrap()
+    }
+
+    /// `FUN-M-58`: con `iniciar_watcher` en el pool, un arranque que termina
+    /// después de un `detener_watcher` —o de otro arranque más nuevo— no se
+    /// instala. Sin el turno, quedaba un watcher observando una carpeta que la
+    /// ventana ya había soltado.
+    #[test]
+    fn un_arranque_que_llega_tarde_no_se_instala() {
+        let state = WatcherState::default();
+        let activos = |s: &WatcherState| s.0.lock().unwrap().activos.contains_key("v");
+
+        // Dos arranques cruzados: gana el más nuevo aunque termine primero.
+        let viejo = state.tomar_turno("v").unwrap();
+        let nuevo = state.tomar_turno("v").unwrap();
+        assert!(state.instalar("v", nuevo, debouncer_de_prueba()).unwrap().is_none());
+        assert!(state.instalar("v", viejo, debouncer_de_prueba()).unwrap().is_some(), "el viejo sobra");
+        assert!(activos(&state));
+
+        // Detener mientras se arma: el que estaba se va y el que llega, sobra.
+        let en_vuelo = state.tomar_turno("v").unwrap();
+        detener_de(&state, "v");
+        assert!(!activos(&state));
+        assert!(state.instalar("v", en_vuelo, debouncer_de_prueba()).unwrap().is_some());
+        assert!(!activos(&state), "no debía quedar observando");
+
+        // Otra ventana no se entera.
+        let otra = state.tomar_turno("w").unwrap();
+        detener_de(&state, "v");
+        assert!(state.instalar("w", otra, debouncer_de_prueba()).unwrap().is_none());
     }
 
     fn vault_temporal(nombre: &str) -> PathBuf {

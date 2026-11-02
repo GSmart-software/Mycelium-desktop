@@ -76,21 +76,11 @@ async function loadTauriExecutor(vaultRuta: string): Promise<SqlExecutor> {
  */
 export async function abrirIndiceDeVault(vaultRuta: string): Promise<SqlExecutor> {
   const executor = await loadTauriExecutor(vaultRuta);
-  // WAL en el índice (FUN-M-12): el indexado hace miles de statements sueltos,
-  // cada uno con su transacción implícita, y con `journal_mode=delete` eso es un
-  // fsync por statement sobre un caché que es reconstruible por definición.
-  // Va con `select` porque el pragma DEVUELVE una fila (con `execute` el driver
-  // se queja). Best-effort: si falla, el índice funciona igual.
-  try {
-    await executor.select("PRAGMA journal_mode=WAL");
-    // `synchronous` es POR CONEXIÓN y `tauri-plugin-sql` mantiene un pool de
-    // hasta 10, así que esto solo afecta a la conexión que lo ejecutó: ayuda
-    // poco y no se puede forzar en las demás. WAL, en cambio, se guarda en la
-    // cabecera del archivo y SÍ persiste para todas.
-    await executor.select("PRAGMA synchronous=NORMAL");
-  } catch {
-    // Sin WAL el índice sigue siendo correcto, solo más lento al escribir.
-  }
+  // WAL (FUN-M-12) y `synchronous=NORMAL` ya vienen puestos desde Rust, en
+  // TODAS las conexiones del pool (`src-tauri/src/indice.rs`, `abrir_pool`,
+  // `FUN-M-58`). Antes se pedían acá con dos `PRAGMA`, pero `synchronous` es
+  // por conexión y eso tocaba una sola de las 10: las otras 9 seguían con
+  // `FULL`, un fsync por commit (1,31 ms contra 0,045 ms por escritura).
   setExecutor(executor);
   return executor;
 }
