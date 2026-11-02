@@ -25,6 +25,12 @@ async function importarTs(texto) {
 // generadas se cargan aparte y se le pasan por `globalThis`.
 const rutaSkills = fileURLToPath(new URL("../lib/ia/skillsGeneradas.ts", import.meta.url));
 globalThis.__skillsGeneradas = await importarTs(await readFile(rutaSkills, "utf8"));
+// El hook de `mv`/`rm` y la versión del framework viven en módulos aparte
+// (`FUN-M-58`) para que `mcpControl` no cargue todo lo de arriba.
+const rutaHookGenerado = fileURLToPath(new URL("../lib/ia/hookMvRmGenerado.ts", import.meta.url));
+globalThis.__hookMvRmGenerado = await importarTs(await readFile(rutaHookGenerado, "utf8"));
+const rutaVersion = fileURLToPath(new URL("../lib/ia/versionFramework.ts", import.meta.url));
+globalThis.__versionFramework = await importarTs(await readFile(rutaVersion, "utf8"));
 
 // Y los hooks (`FUN-S-10`): la fusión con `settings.json` y la definición del
 // de referencias.
@@ -53,6 +59,11 @@ fuente = reemplazar(
   fuente,
   'import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";',
   "const { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } = globalThis.__hookReferencias;",
+);
+fuente = reemplazar(
+  fuente,
+  'import { FRAMEWORK_IA_VERSION } from "./versionFramework";',
+  "const { FRAMEWORK_IA_VERSION } = globalThis.__versionFramework;",
 );
 const mod = await importarTs(fuente);
 const { generarFramework, archivosFramework, bloqueGestionado, planificarClaudeMd, FRAMEWORK_IA_VERSION } = mod;
@@ -558,7 +569,8 @@ test("el motivo nombra la herramienta que corresponde y el escape", () => {
 });
 
 test("el hook generado viaja con la marca y sin dependencias", () => {
-  const { HOOK_MV_RM, MARCADOR_VERSION_IA } = globalThis.__skillsGeneradas;
+  const { HOOK_MV_RM, MARCADOR_VERSION_IA } = globalThis.__hookMvRmGenerado;
+  assert.equal(MARCADOR_VERSION_IA, globalThis.__skillsGeneradas.MARCADOR_VERSION_IA, "un solo marcador");
   assert.ok(HOOK_MV_RM.startsWith(`// <!-- mycelium-ia v${MARCADOR_VERSION_IA} -->`));
   assert.ok(HOOK_MV_RM.includes("export function decidir"));
   assert.ok(!/from\s+["'](?!node:)/.test(HOOK_MV_RM), "solo módulos node:");
@@ -604,7 +616,7 @@ test("settings.json: quitar deja lo del usuario; si no queda nada, se puede borr
   assert.deepEqual(settings.quitarDeSettings(settings.fusionarSettings(null).texto), { texto: null, cambia: true });
   assert.equal(settings.scriptLibre(null), true);
   assert.equal(settings.scriptLibre("// mi script"), false, "un archivo del usuario no se pisa");
-  assert.equal(settings.scriptLibre(globalThis.__skillsGeneradas.HOOK_MV_RM), true);
+  assert.equal(settings.scriptLibre(globalThis.__hookMvRmGenerado.HOOK_MV_RM), true);
 });
 
 // ── El aviso de referencias sin enlazar (`FUN-S-10`) ─────────────────────────

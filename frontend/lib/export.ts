@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { renderNota } from "@/lib/markdown";
 import { clasesCssDe } from "@/lib/frontmatter";
@@ -106,6 +105,10 @@ export async function exportVaultZip(
   const { vaultId } = useVaultStore.getState();
   const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
 
+  // `jszip` (95 KB) se carga recién acá: el resto de este módulo entra con el
+  // menú de exportar del workspace, y el zip del vault se pide muy de vez en
+  // cuando (`FUN-M-58`, C-H4).
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   for (const archivo of await recolectarArchivosVault(onProgress)) {
     zip.file(archivo.rutaRelativa, archivo.contenido);

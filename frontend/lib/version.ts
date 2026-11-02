@@ -168,7 +168,7 @@
  *   **Minor, y uno solo**: dos temas nuevos y un interruptor nuevo. Ver
  *   `docs/estado/Version 2.6.0.md`.
  *
- * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/framework.ts`) versiona las instrucciones
+ * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/versionFramework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
  * `.canvas`— se saldó con la **1.5.0 del framework**. Con la `2.1.0` el

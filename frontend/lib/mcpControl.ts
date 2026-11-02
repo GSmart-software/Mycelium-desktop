@@ -49,10 +49,13 @@ import * as sesionesIa from "@/lib/mcpSesiones";
 import { FalloSesiones } from "@/lib/mcpSesiones";
 import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
-import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
+// La versión y el hook, de sus módulos chicos: `framework.ts` y
+// `skillsGeneradas.ts` suman ~390 KB que el workspace cargaba de entrada solo
+// por estas tres constantes (`FUN-M-58`, C-H4).
+import { FRAMEWORK_IA_VERSION } from "@/lib/ia/versionFramework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
-import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/skillsGeneradas";
+import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/hookMvRmGenerado";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
 import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {

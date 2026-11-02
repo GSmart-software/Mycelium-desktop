@@ -1,4 +1,5 @@
-// Generador de `lib/ia/skillsGeneradas.ts` (`FUN-L-26`, parte D).
+// Generador de `lib/ia/skillsGeneradas.ts` (`FUN-L-26`, parte D) y de
+// `lib/ia/hookMvRmGenerado.ts` (`FUN-M-58`).
 //
 // Las skills de las herramientas del vault se escriben como Markdown en
 // `lib/ia/borradores/` (ahí las leen sus tests) y tres de ellas viajan con su
@@ -27,6 +28,14 @@ import { resolve } from "node:path";
 
 const RAIZ = fileURLToPath(new URL("..", import.meta.url));
 const SALIDA = "lib/ia/skillsGeneradas.ts";
+/**
+ * El hook de `mv`/`rm` va en su propio módulo (`FUN-M-58`, C-H4 de la
+ * auditoría de eficiencia del 2026-11-01): lo instala `lib/mcpControl.ts` cada
+ * vez que se abre un vault con el control encendido, y `mcpControl` carga con
+ * el workspace. Sacado de `skillsGeneradas.ts` (353 KB de texto), ese módulo
+ * entero deja de entrar en el arranque: el hook solo pesa ~6 KB.
+ */
+const SALIDA_HOOK = "lib/ia/hookMvRmGenerado.ts";
 export const MARCADOR_VERSION = "{{VERSION_IA}}";
 
 /**
@@ -157,8 +166,8 @@ export function generarModulo() {
   return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
 // Fuente: lib/ia/borradores/*.md y los scripts que viajan con su skill
 // (scripts/validar-{drawio,canvas,excalidraw}.mjs, scripts/dibujo-excalidraw.mjs,
-// scripts/consultar-recordatorios-vault.mjs) y los hooks
-// (scripts/hook-mv-rm.mjs, scripts/hook-referencias.mjs).
+// scripts/consultar-recordatorios-vault.mjs) y el hook de las referencias
+// (scripts/hook-referencias.mjs). El de mv/rm va aparte, en hookMvRmGenerado.ts.
 // Para regenerar:
 //
 //   node scripts/generar-skills-ia.mjs
@@ -173,31 +182,59 @@ export const SKILLS_GENERADAS: readonly { ruta: string; contenido: string }[] = 
 ${entradas}
 ];
 
-/** El hook \`PreToolUse\` que frena \`mv\`/\`rm\` sobre notas (lo instala \`lib/mcpControl.ts\`). */
-export const HOOK_MV_RM: string = ${JSON.stringify(hookMvRm())};
-
 /** El hook \`PostToolUse\` de las referencias sin enlazar (lo instala \`generarFramework\`). */
 export const HOOK_REFERENCIAS: string = ${JSON.stringify(hookReferencias())};
 `;
 }
 
-const rutaSalida = resolve(RAIZ, SALIDA);
+/** El texto de `lib/ia/hookMvRmGenerado.ts`. */
+export function generarModuloHook() {
+  return `// GENERADO por scripts/generar-skills-ia.mjs — NO EDITAR A MANO.
+// Fuente: scripts/hook-mv-rm.mjs. Para regenerar:
+//
+//   node scripts/generar-skills-ia.mjs
+//
+// Va aparte de skillsGeneradas.ts para que lib/mcpControl.ts lo instale sin
+// cargar todas las skills (FUN-M-58). \`${MARCADOR_VERSION}\` lo reemplaza
+// lib/mcpControl.ts por FRAMEWORK_IA_VERSION.
+
+/** Marcador de versión dentro del script (el mismo que en skillsGeneradas.ts). */
+export const MARCADOR_VERSION_IA = ${JSON.stringify(MARCADOR_VERSION)};
+
+/** El hook \`PreToolUse\` que frena \`mv\`/\`rm\` sobre notas (lo instala \`lib/mcpControl.ts\`). */
+export const HOOK_MV_RM: string = ${JSON.stringify(hookMvRm())};
+`;
+}
+
+/** Los módulos generados: ruta relativa → texto esperado. */
+export function modulosGenerados() {
+  return [
+    { ruta: SALIDA, texto: generarModulo() },
+    { ruta: SALIDA_HOOK, texto: generarModuloHook() },
+  ];
+}
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  const nuevo = generarModulo();
-  if (process.argv.includes("--comprobar")) {
-    let actual = "";
-    try {
-      actual = readFileSync(rutaSalida, "utf8").replace(/\r\n/g, "\n");
-    } catch {}
-    if (actual !== nuevo) {
-      console.error(`${SALIDA} está desactualizado: corré node scripts/generar-skills-ia.mjs`);
-      process.exit(1);
+  const comprobar = process.argv.includes("--comprobar");
+  let desactualizado = false;
+  for (const { ruta, texto } of modulosGenerados()) {
+    const rutaSalida = resolve(RAIZ, ruta);
+    if (comprobar) {
+      let actual = "";
+      try {
+        actual = readFileSync(rutaSalida, "utf8").replace(/\r\n/g, "\n");
+      } catch {}
+      if (actual !== texto) {
+        console.error(`${ruta} está desactualizado: corré node scripts/generar-skills-ia.mjs`);
+        desactualizado = true;
+      } else {
+        console.log(`${ruta} al día.`);
+      }
+    } else {
+      writeFileSync(rutaSalida, texto);
+      const n = ruta === SALIDA ? `${archivosSkills().length} archivos, ` : "";
+      console.log(`${ruta}: ${n}${Math.round(Buffer.byteLength(texto) / 1024)} KB.`);
     }
-    console.log(`${SALIDA} al día.`);
-  } else {
-    writeFileSync(rutaSalida, nuevo);
-    const n = archivosSkills().length;
-    console.log(`${SALIDA}: ${n} archivos, ${Math.round(Buffer.byteLength(nuevo) / 1024)} KB.`);
   }
+  if (desactualizado) process.exit(1);
 }
