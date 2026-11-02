@@ -52,7 +52,7 @@ import {
   type RecorridoVault,
 } from "@/lib/arbolVivo";
 import { EVENTO_RECARGA } from "@/lib/eventos";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { otrosDesdeMeta } from "@/lib/otrosArchivos";
 import { indexarRutas, indexarVault } from "@/lib/db/indexer";
 import { esEscrituraPropia } from "@/lib/db/vaultFs";

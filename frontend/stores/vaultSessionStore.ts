@@ -389,7 +389,7 @@ async function reconstruir(
     if (vaultId) await useVaultStore.getState().loadTree(vaultId);
     useGraphStore.getState().markStale();
     window.dispatchEvent(new Event(EVENTO_RECARGA));
-    void import("@/lib/editor/livePreview").then((m) => m.refreshAllLiveViews());
+    void import("@/lib/editor/refrescoVivo").then((m) => m.refreshAllLiveViews());
     return { borrado, notas: indexado.notas };
   } finally {
     try {
