@@ -8,7 +8,7 @@
  * tabla de contenido), igual que en el backend.
  */
 import { tipoDeNotaPorRuta } from "@/lib/arbolVivo";
-import { decidirAlGuardar } from "@/lib/conflictoExterno";
+import { huellaDeTexto } from "@/lib/conflictoExterno";
 import { clavesDeAlias, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { execute, select } from "./client";
 import { avisarAliasCambiados } from "@/lib/eventos";
@@ -19,7 +19,7 @@ import { aliasesDeFilas, aliasesPorNota, derivarIndice, mismosAliases, reindexar
 import type { ContenidoResponse, PutContenidoResponse } from "./types";
 import { ahoraIso, byteLen } from "./util";
 import { getVaultActual } from "./vaultContext";
-import { escribirNota, leerArchivoTexto } from "./vaultFs";
+import { escribirNota, guardarNota, leerArchivoTexto } from "./vaultFs";
 
 /** `GET /notas/{id}/contenido`. */
 export async function getContenido(id: string): Promise<ContenidoResponse> {
@@ -89,6 +89,19 @@ export async function leerContenidoEnDisco(id: string): Promise<{ contenido: str
   return { contenido: await leerArchivoTexto(getVaultActual(), id) };
 }
 
+/**
+ * La huella de lo último que se guardó (`FUN-M-58`, B9), que Rust devuelve al
+ * escribir. El autoguardado siguiente de esa nota manda como base justo ese
+ * texto —el mismo string—, así que su huella no se recalcula. Una sola entrada:
+ * con otra nota en medio se calcula, que es un par de ms en una de 450 KB.
+ */
+let ultimaHuella: { id: string; texto: string; huella: string } | null = null;
+
+async function huellaDe(id: string, texto: string): Promise<string> {
+  if (ultimaHuella !== null && ultimaHuella.id === id && ultimaHuella.texto === texto) return ultimaHuella.huella;
+  return huellaDeTexto(texto);
+}
+
 /** Mensaje del 409 de `putContenido` cuando el archivo cambió por fuera. */
 export const MENSAJE_CAMBIO_EXTERNO = "El archivo cambió fuera de Mycelium.";
 
@@ -99,8 +112,14 @@ export const MENSAJE_CAMBIO_EXTERNO = "El archivo cambió fuera de Mycelium.";
  * —lo último que el editor leyó o guardó—: si alguien cambió el archivo desde
  * entonces, **no se escribe** y se lanza un 409. Así un guardado no pisa en
  * silencio lo que escribió la IA u otro programa aunque el aviso del watcher
- * todavía no haya llegado. Queda una ventana mínima entre la lectura y la
- * escritura, que es la de cualquier editor que no bloquea el archivo.
+ * todavía no haya llegado.
+ *
+ * La comparación la hace Rust (`FUN-M-58`, B9): se le manda la **huella** de
+ * la base, no la base, y él lee el archivo, compara y escribe dentro del turno
+ * del archivo (`guardar_nota`). Antes el archivo entero venía al frontend para
+ * compararlo acá: en una nota de 450 KB, 450 KB más por el puente en cada
+ * guardado, y un viaje IPC de ventana entre la lectura y la escritura. El
+ * criterio es el mismo (`decidirAlGuardar`).
  */
 export async function putContenido(
   id: string,
@@ -127,21 +146,26 @@ export async function putContenido(
   if (notas.length === 0) throw new DbError(404, "La nota no existe.");
 
   const texto = contenido ?? "";
-  if (esperado !== undefined) {
-    const disco = await leerArchivoTexto(vault, id);
-    if (decidirAlGuardar({ disco, conocido: esperado, local: texto }) === "conflicto") {
-      throw new DbError(409, MENSAJE_CAMBIO_EXTERNO);
-    }
-  }
-  const bytes = byteLen(texto);
-  const now = ahoraIso();
 
   // Los archivos son la fuente de verdad. El editor ya llega con debounce de
   // 800 ms, así que se escribe en disco en cada guardado (id = ruta). El `mtime`
   // con que quedó el archivo va a `notas.mtime` (`FUN-M-38`): sin esto, el índice
   // seguía con el `mtime` de la última lectura, el reindexado incremental veía la
   // nota como cambiada y la volvía a leer y a indexar.
-  const mtime = await escribirNota(vault, id, texto);
+  let mtime: number;
+  if (esperado === undefined) {
+    mtime = await escribirNota(vault, id, texto);
+  } else {
+    // Sin base conocida (`null`: la carga falló) no hay contra qué comparar y se
+    // escribe, como decide `decidirAlGuardar`.
+    const huellaEsperada = esperado === null ? null : await huellaDe(id, esperado);
+    const r = await guardarNota(vault, id, texto, huellaEsperada);
+    if (r.conflicto) throw new DbError(409, MENSAJE_CAMBIO_EXTERNO);
+    mtime = r.mtime;
+    if (r.huella !== null) ultimaHuella = { id, texto, huella: r.huella };
+  }
+  const bytes = byteLen(texto);
+  const now = ahoraIso();
 
   await execute(
     `INSERT INTO contenidos (nota_id, contenido, actualizado_en) VALUES (?, ?, ?)
