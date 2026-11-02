@@ -575,3 +575,22 @@ test("quitarAlias: lo contrario de agregarAlias (el Deshacer de FUN-M-47)", () =
   const base = "---\naliases: [Uno]\n---\nCuerpo.";
   assert.equal(mod.quitarAlias(mod.agregarAlias(base, "Viejo"), "Viejo"), base);
 });
+
+test("bloqueFrontmatter: el recorte da lo mismo que el texto entero (FUN-M-58)", () => {
+  const casos = [
+    "", "---", "---\n", "---\n---", "---\n---\n", "---\r\n---\r\ncuerpo", "---\n...\ncuerpo",
+    "---\ncssclasses: [ficha, portada]\n---\ntexto\n---\notra: cosa\n",
+    "---\ncssclasses: ancha\nsin cierre\n", "texto\n---\ncssclasses: x\n---\n",
+    " ---\ncssclasses: x\n---\n", "---\r\ncssclasses:\r\n  - a\r\n  - b\r\n---\r\n# T",
+    "---\nx:\n  a: b\ncssclasses: c\n---\n", "---\ncssclasses: c\n--- \n", "---\ncssclasses: c\n---",
+  ];
+  for (const texto of casos) {
+    const bloque = mod.bloqueFrontmatter(texto);
+    assert.ok(texto.startsWith(bloque), JSON.stringify(texto));
+    assert.deepEqual(mod.separarFrontmatter(bloque).hay, mod.separarFrontmatter(texto).hay, JSON.stringify(texto));
+    assert.deepEqual(mod.clasesCssDe(bloque), mod.clasesCssDe(texto), JSON.stringify(texto));
+  }
+  assert.equal(mod.bloqueFrontmatter("---\na: 1\n---\ncuerpo"), "---\na: 1\n---");
+  assert.equal(mod.bloqueFrontmatter("---\na: 1\nsin cierre"), "");
+  assert.equal(mod.bloqueFrontmatter("cuerpo"), "");
+});

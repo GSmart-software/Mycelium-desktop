@@ -289,6 +289,26 @@ export function convertirValor(valor: ValorPropiedad, hacia: TipoPropiedad): Val
 const VERDADEROS = new Set(["true", "yes", "y", "sí", "si", "s", "1", "on", "verdadero"]);
 
 /**
+ * El bloque de frontmatter tal como está escrito —del `---` de apertura hasta
+ * el final de su renglón de cierre—, o `""` si no hay. Mismas reglas que
+ * `separarFrontmatter`, que da lo mismo sobre este recorte que sobre el texto
+ * entero; pero sin partir el texto entero en renglones: recorre solo hasta el
+ * cierre. Lo usa el editor para no volver a leer las propiedades en cada tecla
+ * (`FUN-M-58`, A-H9: partir una nota de 443 KB costaba hasta 1,2 ms por tecla).
+ */
+export function bloqueFrontmatter(texto: string): string {
+  let fin = texto.indexOf("\n");
+  if (fin === -1 || sinCr(texto.slice(0, fin)) !== "---") return "";
+  for (;;) {
+    const desde = fin + 1;
+    fin = texto.indexOf("\n", desde);
+    const linea = sinCr(texto.slice(desde, fin === -1 ? texto.length : fin));
+    if (linea === "---" || linea === "...") return texto.slice(0, fin === -1 ? texto.length : fin);
+    if (fin === -1) return "";
+  }
+}
+
+/**
  * Separa el frontmatter del cuerpo. Reglas de detección (spec § 1):
  * el archivo debe EMPEZAR con una línea que sea exactamente `---`; el bloque se
  * cierra en la primera línea posterior que sea `---` o `...`; sin cierre no hay
