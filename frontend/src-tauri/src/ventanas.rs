@@ -99,7 +99,7 @@ pub fn vault_conocido(config: &Path, ruta: &str) -> Result<String, String> {
     let reg = mycelium_vault::registro::leer_registro(config);
     let entrada = reg
         .entrada(ruta)
-        .ok_or_else(|| format!("«{ruta}» no es un vault vinculado: elegilo con «Abrir carpeta como vault»."))?;
+        .ok_or_else(|| format!("«{ruta}» no es un vault vinculado: elígelo con «Abrir carpeta como vault»."))?;
     if !Path::new(&entrada.ruta).is_dir() {
         return Err(format!("La carpeta del vault no existe: {}", entrada.ruta));
     }

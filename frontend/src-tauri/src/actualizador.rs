@@ -164,7 +164,7 @@ fn motivo_desactivado(clave: &str, endpoint: &str) -> Option<String> {
     if clave.is_empty() || clave == CLAVE_SIN_CONFIGURAR {
         return Some(
             "No hay clave pública de firma configurada, así que no se puede verificar \
-             ninguna actualización. Generala con «npx tauri signer generate» y pegá la \
+             ninguna actualización. Genérala con «npx tauri signer generate» y pega la \
              pública en tauri.conf.json (plugins.updater.pubkey). Ver «Publicar una \
              versión» en la documentación."
                 .into(),
@@ -173,7 +173,7 @@ fn motivo_desactivado(clave: &str, endpoint: &str) -> Option<String> {
     if endpoint.is_empty() || endpoint.contains(HOST_SIN_CONFIGURAR) {
         return Some(
             "No hay servidor de actualizaciones configurado (el endpoint sigue siendo el \
-             de ejemplo). Podés fijar uno acá abajo sin recompilar."
+             de ejemplo). Puedes fijar uno aquí abajo sin recompilar."
                 .into(),
         );
     }

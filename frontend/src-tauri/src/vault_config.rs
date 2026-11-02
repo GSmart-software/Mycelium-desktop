@@ -127,7 +127,7 @@ pub fn listar_vaults(app: tauri::AppHandle) -> Result<Vec<VaultRef>, String> {
 /// `notaBienvenida`, para que el frontend la abra al entrar.
 #[tauri::command]
 pub async fn elegir_vault(ventana: tauri::Window) -> Result<Option<VaultElegido>, String> {
-    let titulo = "Elegí la carpeta que querés abrir como vault";
+    let titulo = "Elige la carpeta que quieres abrir como vault";
     let Some(ruta) = crate::dialogos::elegir_carpeta_nativa(&ventana, titulo).await? else {
         return Ok(None);
     };

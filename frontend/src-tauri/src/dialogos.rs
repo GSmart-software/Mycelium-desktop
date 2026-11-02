@@ -73,7 +73,7 @@ pub async fn elegir_carpeta(
     ventana: tauri::Window,
     titulo: Option<String>,
 ) -> Result<Option<String>, String> {
-    let titulo = titulo.unwrap_or_else(|| "Elegí una carpeta".to_string());
+    let titulo = titulo.unwrap_or_else(|| "Elige una carpeta".to_string());
     let Some(ruta) = elegir_carpeta_nativa(&ventana, &titulo).await? else {
         return Ok(None);
     };
@@ -88,7 +88,7 @@ pub async fn elegir_carpeta(
 /// pasarle su marca de la web, y la webview no puede inventarle una ruta.
 #[tauri::command]
 pub async fn elegir_zip(ventana: tauri::Window, titulo: Option<String>) -> Result<Option<String>, String> {
-    let titulo = titulo.unwrap_or_else(|| "Elegí un .zip".to_string());
+    let titulo = titulo.unwrap_or_else(|| "Elige un .zip".to_string());
     let (tx, rx) = tokio::sync::oneshot::channel();
     ventana
         .app_handle()

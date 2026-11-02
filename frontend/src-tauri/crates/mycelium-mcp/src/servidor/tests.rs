@@ -257,7 +257,7 @@ fn ocupada_con_etapa_se_redacta_entera() {
     }));
     assert_eq!(
         t,
-        "OCUPADA: Mycelium está abriendo el vault.\nEtapa: Leyendo los archivos de la carpeta. Reintentá en 1.5 s."
+        "OCUPADA: Mycelium está abriendo el vault.\nEtapa: Leyendo los archivos de la carpeta. Reintenta en 1.5 s."
     );
 }
 

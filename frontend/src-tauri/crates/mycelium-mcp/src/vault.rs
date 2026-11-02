@@ -52,8 +52,8 @@ pub fn resolver_en(reg: &Registro, candidata: PathBuf, origen: &'static str) -> 
         let registrados: Vec<String> = reg.vaults.iter().map(|v| format!("  - {} ({})", v.nombre, v.ruta)).collect();
         return Err(format!(
             "VAULT_DESCONOCIDO: la carpeta {} (de {origen}) no pertenece a ningún vault registrado en \
-             Mycelium. El MCP sirve vaults de Mycelium, no carpetas sueltas: abrila una vez en la app \
-             para registrarla, o apuntá MYCELIUM_VAULT / --vault a uno de estos:\n{}",
+             Mycelium. El MCP sirve vaults de Mycelium, no carpetas sueltas: ábrela una vez en la app \
+             para registrarla, o apunta MYCELIUM_VAULT / --vault a uno de estos:\n{}",
             candidata.display(),
             if registrados.is_empty() { "  (no hay ninguno registrado)".to_string() } else { registrados.join("\n") }
         ));
