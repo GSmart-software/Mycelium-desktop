@@ -15,16 +15,30 @@ import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useWheelHScroll } from "@/lib/useWheelHScroll";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./panes.module.css";
 
 /** Tab bar de un pane (HU-25): pestañas con dot de sync, drag y menú "...". */
 export function TabBar({ pane }: { pane: LeafPane }) {
   const router = useRouter();
-  const store = useTabsStore();
+  // Selectores finos (`FUN-M-58`, A-H6). Con `useTabsStore()` y `byNota`
+  // enteros, la barra se volvía a dibujar con cualquier cambio de cualquier
+  // pestaña de cualquier pane: medido, 50 renders en 50 teclas, por pane.
+  // Las acciones del store son estables, así que se leen sin suscribirse; la
+  // barra sí depende del árbol de panes (el menú «Vincular como preview…») y
+  // de a dónde llevan atrás/adelante.
+  const store = useTabsStore.getState();
+  useTabsStore((s) => s.root);
+  const atras = useTabsStore((s) => s.destinoHistorial(pane.id, -1));
+  const adelante = useTabsStore((s) => s.destinoHistorial(pane.id, 1));
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const sesionesTerminal = useTerminalStore((s) => s.sesiones);
-  const syncByNota = useSyncStore((s) => s.byNota);
+  // Solo el estado de las notas de ESTE pane, comparado elemento a elemento:
+  // guardar o editar una nota que no está acá no dibuja esta barra.
+  const syncPorPestana = useSyncStore(
+    useShallow((s) => pane.tabs.map((t) => s.byNota[t.notaId] ?? "synced")),
+  );
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
@@ -107,9 +121,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     return activa ? color : `color-mix(in srgb, ${color} 60%, transparent)`;
   }
 
-  // Historial de la pestaña activa de ESTE pane (DEF-040).
-  const atras = store.destinoHistorial(pane.id, -1);
-  const adelante = store.destinoHistorial(pane.id, 1);
+  // Historial de la pestaña activa de ESTE pane (DEF-040): `atras` y
+  // `adelante` se leen arriba, con selector.
 
   function navegar(delta: -1 | 1) {
     store.navegarHistorial(pane.id, delta);
@@ -196,7 +209,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
       </div>
 
       {pane.tabs.map((tab, index) => {
-        const sync = syncByNota[tab.notaId] ?? "synced";
+        const sync = syncPorPestana[index] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;
         const Icono = iconoDeTab(tab.notaId);
         const color = colorDeTab(tab.notaId, isActiveTab);
