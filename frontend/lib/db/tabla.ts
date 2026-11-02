@@ -9,8 +9,6 @@
  * y mantenerlos sincronizados es exactamente lo que se quiso evitar — ya costó
  * caro con el frontmatter (ver `docs/estado/Version 1.1.0 de web.md`).
  */
-import { etiquetasDe } from "@/lib/frontmatter";
-import { sinCodigo } from "@/lib/sinCodigo";
 import type { NotaTabla, PropiedadFila } from "@/lib/bases";
 import { select } from "./client";
 import { extDe } from "./vaultFs";
@@ -22,8 +20,9 @@ type RowNota = {
   tamano_bytes: number;
   creado_en: string;
   actualizado_en: string;
-  contenido: string | null;
 };
+
+type RowTag = { nota_id: string; tag: string };
 
 type RowProp = { nota_id: string; clave: string; valor: string; tipo: string };
 
@@ -36,10 +35,8 @@ type RowProp = { nota_id: string; clave: string; valor: string; tipo: string };
  */
 export async function notasParaTabla(vaultId: string): Promise<{ notas: NotaTabla[] }> {
   const filas = await select<RowNota>(
-    `SELECT n.id, n.titulo, n.carpeta_id, n.tamano_bytes, n.creado_en, n.actualizado_en,
-            c.contenido AS contenido
+    `SELECT n.id, n.titulo, n.carpeta_id, n.tamano_bytes, n.creado_en, n.actualizado_en
        FROM notas n
-       LEFT JOIN contenidos c ON c.nota_id = n.id
       WHERE n.vault_id = ?
         AND n.tipo = 'markdown'
         AND n.id NOT IN (SELECT nota_id FROM papelera)`,
@@ -53,6 +50,31 @@ export async function notasParaTabla(vaultId: string): Promise<{ notas: NotaTabl
       ORDER BY p.rowid`,
     [vaultId],
   );
+
+  // Las etiquetas salen de la tabla `etiquetas` del índice (`FUN-M-58`), no del
+  // texto: antes se traía `contenidos.contenido` de TODAS las notas y se corría
+  // `etiquetasDe` sobre cada una, en cada guardado con una tabla visible, en
+  // cada recarga y en cada `mycelium_base`. En un vault de 1.525 notas eran
+  // 24 MB por el puente IPC y unos 2,5 s de hilo principal. La tabla la llena
+  // `derivarEtiquetas` (`lib/enlacesNota.ts`) al indexar y al guardar, que para
+  // markdown es exactamente `etiquetasDe(contenido, sinCodigo)`: el mismo
+  // resultado, y el mismo que ya lee el grafo. `ORDER BY rowid` conserva el
+  // orden en que `etiquetasDe` las devolvió (se insertan en ese orden, de una
+  // sola sentencia por nota, en `escribirEnlacesTanda`).
+  const tags = await select<RowTag>(
+    `SELECT e.nota_id, e.tag
+       FROM etiquetas e JOIN notas n ON n.id = e.nota_id
+      WHERE n.vault_id = ? AND n.tipo = 'markdown'
+      ORDER BY e.rowid`,
+    [vaultId],
+  );
+
+  const tagsPorNota = new Map<string, string[]>();
+  for (const t of tags) {
+    const lista = tagsPorNota.get(t.nota_id);
+    if (lista) lista.push(t.tag);
+    else tagsPorNota.set(t.nota_id, [t.tag]);
+  }
 
   const porNota = new Map<string, PropiedadFila[]>();
   for (const p of props) {
@@ -76,7 +98,7 @@ export async function notasParaTabla(vaultId: string): Promise<{ notas: NotaTabl
     size: f.tamano_bytes,
     // Las mismas etiquetas que ve el grafo: las de `tags:` del frontmatter más
     // los `#tag` del cuerpo, sin distinguir de dónde salieron.
-    tags: f.contenido ? etiquetasDe(f.contenido, sinCodigo) : [],
+    tags: tagsPorNota.get(f.id) ?? [],
     props: porNota.get(f.id) ?? [],
   }));
 
