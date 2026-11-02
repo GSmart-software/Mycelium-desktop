@@ -93,7 +93,7 @@ corchetes, ni en un comentario al final de un valor (`estado: activo # revisar`)
 > [!info] Un esquema mal escrito no rompe nada
 > Si `esquemas.yml` no se puede leer, o un esquema usa un tipo que no existe o una clave
 > desconocida, esa parte se ignora y el resto se aplica. El problema se avisa al guardar el
-> archivo y queda a la vista arriba del panel de salud.
+> archivo y queda a la vista en el panel de salud, arriba de los problemas.
 
 ## Con la IA
 

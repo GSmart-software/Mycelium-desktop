@@ -10,6 +10,7 @@ import { useAncho } from "./useAncho";
 
 const ALTO_CURVA = 44;
 const ARRIBA = 6;
+const LADO = 4;
 
 /**
  * La curva chica del panel lateral: notas nuevas por mes en los últimos 12
@@ -30,10 +31,13 @@ export function CurvaMeses({ meses }: { meses: readonly MesCrecimiento[] }) {
   }
 
   const max = Math.max(...meses.map((m) => m.notas));
-  const paso = ancho / (meses.length - 1);
+  // La curva se mete `LADO` px de cada costado para que el punto del último mes
+  // no quede cortado por el borde del panel.
+  const paso = Math.max(0, ancho - 2 * LADO) / (meses.length - 1);
   const base = ARRIBA + ALTO_CURVA;
-  const puntos = meses.map((m, i) => [Math.round(i * paso * 10) / 10, Math.round((base - (m.notas / max) * ALTO_CURVA) * 10) / 10]);
+  const puntos = meses.map((m, i) => [Math.round((LADO + i * paso) * 10) / 10, Math.round((base - (m.notas / max) * ALTO_CURVA) * 10) / 10]);
   const linea = "M" + puntos.map((p) => p.join(",")).join("L");
+  const [x0] = puntos[0];
   const ultimo = meses[meses.length - 1];
   const [ux, uy] = puntos[puntos.length - 1];
   const alto = base + 16;
@@ -43,16 +47,16 @@ export function CurvaMeses({ meses }: { meses: readonly MesCrecimiento[] }) {
     <div ref={ref} className={styles.contenedor}>
       {ancho > 0 && (
         <svg className={`mic-grafica ${styles.svg}`} width={ancho} height={alto} viewBox={`0 0 ${ancho} ${alto}`} role="img" aria-label={etiqueta}>
-          <path className={styles.area} d={`${linea}L${ancho},${base}L0,${base}Z`} />
+          <path className={styles.area} d={`${linea}L${ux},${base}L${x0},${base}Z`} />
           <path className={styles.linea} d={linea} />
           <circle className={styles.punto} cx={ux} cy={uy} r={3.5} />
           {meses.map((m, i) => (
             <rect
               key={m.mes}
               className={styles.marca}
-              x={Math.max(0, i * paso - paso / 2)}
+              x={i === 0 ? 0 : LADO + i * paso - paso / 2}
               y={0}
-              width={i === 0 || i === meses.length - 1 ? paso / 2 : paso}
+              width={i === 0 || i === meses.length - 1 ? paso / 2 + LADO : paso}
               height={base}
               fill="transparent"
               {...con({ titulo: mesLargo(m.mes), valor: plural(m.notas, "nota nueva", "notas nuevas") })}

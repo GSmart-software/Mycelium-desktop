@@ -25,6 +25,7 @@ import { useSaludStore } from "@/stores/saludStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useGenerarInforme } from "./acciones";
 import { ListaProblemas } from "./problemas";
 import styles from "./SaludVista.module.css";
 
@@ -82,26 +83,9 @@ export function SaludVista() {
 }
 
 function Cabecera({ revision, revisando }: { revision: RevisionVault | null; revisando: boolean }) {
-  const router = useRouter();
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const vault = rutaVault ? rutaVault.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : null;
-  const [generando, setGenerando] = useState(false);
-
-  const generar = async () => {
-    if (!revision || generando) return;
-    setGenerando(true);
-    try {
-      const { generarInformeSalud } = await import("@/lib/informeSaludVault");
-      await generarInformeSalud({
-        revision,
-        navegar: (id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`),
-      });
-    } catch {
-      // `generarInformeSalud` ya avisó.
-    } finally {
-      setGenerando(false);
-    }
-  };
+  const { generando, generar } = useGenerarInforme(revision);
 
   const partes = [
     vault,
