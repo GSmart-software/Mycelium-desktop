@@ -216,6 +216,17 @@ export async function plegarPropiedadesPendientes(): Promise<void> {
  *
  * El `lower()` de SQLite alcanza acá: las claves de alias son ASCII.
  *
+ * Con todas las notas, filtra primero por `clave_plegada` (`FUN-M-58`): usa
+ * `idx_propiedades_plegado` en vez de recorrer `propiedades` entera (Tesina,
+ * 7.579 filas: 2–4,5 ms → 0,02 ms, y corre en cada recarga del árbol y cada
+ * resolutor). Da lo
+ * mismo: `lower()` solo pliega ASCII, así que una clave con `lower(clave)` de
+ * alias es ASCII y su `plegar` (sin marcas y en minúsculas) es igual; y
+ * `clave_plegada` nunca queda en NULL (se escribe con la fila, y
+ * `plegarPropiedadesPendientes` completa las viejas al abrir el índice). El
+ * `lower(clave)` se queda para no sumar claves que solo `plegar` junta
+ * («Aliás»).
+ *
  * @param ids las notas a mirar, o `null` para todas las que no están en la
  *        papelera (el árbol, el resolutor).
  */
@@ -226,9 +237,10 @@ export async function aliasesPorNota(ids: readonly string[] | null): Promise<Map
     filas.push(
       ...(await select<{ nota_id: string; valor: string }>(
         `SELECT nota_id, valor FROM propiedades
-         WHERE lower(clave) IN (${claves}) AND nota_id NOT IN (SELECT nota_id FROM papelera)
+         WHERE clave_plegada IN (${claves}) AND lower(clave) IN (${claves})
+           AND nota_id NOT IN (SELECT nota_id FROM papelera)
          ORDER BY rowid`,
-        [...CLAVES_ALIAS],
+        [...CLAVES_ALIAS, ...CLAVES_ALIAS],
       )),
     );
   } else {

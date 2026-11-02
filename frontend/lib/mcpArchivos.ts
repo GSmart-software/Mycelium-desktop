@@ -576,7 +576,9 @@ async function deshacerReparacionRenombre(
   const r = await repararEntrantes(new Map(d.notas.map((n) => [n, new Set([d.ruta])])), [{ id: d.ruta, idNuevo: d.ruta, cambio }], token());
   if (d.alias) await alternarAliasDeNota(d.ruta, d.alias, token(), true).catch(() => false);
   if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
-  await useVaultStore.getState().loadTree(useVaultStore.getState().vaultId!);
+  // Con las vistas en vivo aunque el árbol no cambie (`FUN-M-58`): se
+  // reescribió el contenido de otras notas, que pueden estar embebidas.
+  await useVaultStore.getState().loadTree(useVaultStore.getState().vaultId!, { refrescarVistas: true });
   return `Los enlaces volvieron a nombrar a «${tituloDeRuta(d.rutaAntes)}». ${efectoEnlaces(r.reescritas, r.fallidas)}`;
 }
 
