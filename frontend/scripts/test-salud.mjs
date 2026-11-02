@@ -240,3 +240,60 @@ test("informeParaIa: recorta cada lista con tope y deja los conteos completos", 
   assert.equal(r.conteos.total, r.conteos.rotos + r.conteos.embedsRotos + r.conteos.duplicados + r.conteos.huerfanas + r.conteos.sinSalientes + r.conteos.propiedades);
   assert.equal(r.tope, 1);
 });
+
+// ── problemasDeNota (`FUN-M-58`): lo mismo que el informe, con las filas de UNA nota ──
+
+test("problemasDeNota da lo mismo que calcularSalud con alcance nota, para cada nota", () => {
+  // Un vault que junta los casos difíciles: alias, homónimas que difieren en
+  // mayúsculas, ambiguos con ancla y con alias, embeds, Esporas y archivos.
+  const conAlias = (n, aliases) => ({ ...n, aliases });
+  const notas = [
+    ...NOTAS,
+    nota("b/plan.md", "Otra «plan», en minúscula: [[Plan#Fase 1]] y [[Apodo]]."),
+    conAlias(nota("Ficha.md", "---\naliases: [Apodo]\n---\nVer [[plan|el plan]], [[Ficha]] y ![[Plan]]."), ["Apodo"]),
+    conAlias(nota("x/Doble.md", "[[Apodo]] y [[Nada#Sección]]"), ["Apodo"]),
+    nota("x/Ficha.md", "Homónima de Ficha: [[Ficha]] [[x/Ficha]] ![[Falta.png]] [[foto.png]]"),
+    nota("Esporas/Plan.md", "[[Plan]] desde una Espora"),
+  ];
+  const carpetas = carpetasDe(notas);
+  const filas = S.filasComoElIndice(notas, carpetas);
+  // El árbol llega ordenado por título, no por id: el resultado no puede depender de eso.
+  const delArbol = [...notas].sort((a, b) => a.titulo.localeCompare(b.titulo) || b.id.localeCompare(a.id));
+  const porIdSql = [...notas].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const sinLineas = (l) => l.map(({ lineas, ...p }) => p);
+  let conProblemas = 0;
+  for (const n of notas) {
+    const alcance = { tipo: "nota", ruta: n.id };
+    const viejo = S.calcularSalud({ notas: porIdSql, carpetas, filas, otros: OTROS, carpetaEsporas: "Esporas", alcance });
+    const nuevo = S.problemasDeNota({
+      notaId: n.id,
+      notas: delArbol,
+      carpetas,
+      filas: filas.filter((f) => f.desde === n.id),
+      otros: OTROS,
+      carpetaEsporas: "Esporas",
+    });
+    const esperado = {
+      rotos: sinLineas(viejo.rotos),
+      embedsRotos: sinLineas(viejo.embedsRotos),
+      duplicados: viejo.duplicados.map((d) => ({ ...d, ambiguos: sinLineas(d.ambiguos.filter((a) => a.desde === n.id)) })),
+    };
+    const obtenido = {
+      rotos: sinLineas(nuevo.rotos),
+      embedsRotos: sinLineas(nuevo.embedsRotos),
+      duplicados: nuevo.duplicados.map((d) => ({ ...d, ambiguos: sinLineas(d.ambiguos) })),
+    };
+    assert.deepEqual(obtenido, esperado, n.id);
+    if (obtenido.rotos.length + obtenido.embedsRotos.length + obtenido.duplicados.length > 0) conProblemas++;
+  }
+  assert.ok(conProblemas >= 6, `el caso tiene que ejercitar problemas (hubo ${conProblemas})`);
+  // El grupo «plan» se nombra con la primera por id, como en el índice («Plan.md» < «b/plan.md»).
+  const g = S.problemasDeNota({ notaId: "b/plan.md", notas: delArbol, carpetas, filas: [], otros: OTROS, carpetaEsporas: "Esporas" });
+  assert.equal(g.duplicados.find((d) => d.rutas.includes("b/plan.md"))?.titulo, "Plan");
+});
+
+test("problemasDeNota: una nota que no está en el árbol no tiene problemas", () => {
+  const filas = S.filasComoElIndice(NOTAS, CARPETAS).filter((f) => f.desde === "Mapa.md");
+  const p = S.problemasDeNota({ notaId: "Mapa.md", notas: NOTAS.filter((n) => n.id !== "Mapa.md"), carpetas: CARPETAS, filas, otros: OTROS, carpetaEsporas: "Esporas" });
+  assert.deepEqual(p, { rotos: [], embedsRotos: [], duplicados: [] });
+});

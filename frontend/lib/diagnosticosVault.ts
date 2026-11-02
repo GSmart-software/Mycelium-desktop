@@ -1,6 +1,7 @@
 /**
- * Los diagnósticos de las notas abiertas (`FUN-M-44`): los calcula con la
- * salud de la nota (`lib/saludVault.ts`, sobre el índice) y sus avisos de
+ * Los diagnósticos de las notas abiertas (`FUN-M-44`): los calcula con los
+ * problemas de enlaces de la nota (`problemasDeNota` de `lib/salud.ts`, sobre
+ * sus filas del índice) y sus avisos de
  * propiedades (`lib/esquemasVault.ts`, sobre el texto del editor), y los guarda
  * por nota para que los lean el editor, la barra de estado y
  * `mycelium_diagnosticos` **sin recalcular**. La lógica pura está en
@@ -12,10 +13,12 @@
  */
 import { useSyncExternalStore } from "react";
 import { diagnosticosDeNota, type Diagnostico } from "@/lib/diagnosticos";
+import { filasDelIndice } from "@/lib/db/indiceIa";
+import { carpetaEsporas } from "@/lib/esporasVault";
 import { asegurarEsquemas, avisosDeNota } from "@/lib/esquemasVault";
-import { informeDeSalud } from "@/lib/saludVault";
-import type { InformeSalud } from "@/lib/salud";
+import { problemasDeNota, type ProblemasDeNota } from "@/lib/salud";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { useVaultStore } from "@/stores/vaultStore";
 
 /** Lo calculado para una nota. */
 export type DiagnosticosDeNota = {
@@ -73,18 +76,38 @@ export function olvidarDiagnosticos(notaId: string): void {
 }
 
 /**
- * Lo que hace falta del índice para los diagnósticos de una nota: su informe de
- * salud (alcance = la nota) y los esquemas leídos. Va aparte de
+ * Lo que hace falta del índice para los diagnósticos de una nota: sus problemas
+ * de enlaces (`problemasDeNota`) y los esquemas leídos. Va aparte de
  * `componerDiagnosticos` para poder recomponer con el texto actual del editor
  * si el usuario escribió mientras se consultaba el índice.
+ *
+ * `FUN-M-58`: corre por cada editor visible al abrir, al guardar, en cada
+ * recarga y en cada cambio del árbol. Antes pedía el informe de salud entero
+ * con alcance `nota` (todas las notas, los alias, las carpetas y todas las
+ * filas de `enlaces`, más las candidatas a propiedades y sus contenidos) y tiraba
+ * casi todo: en un vault de 1.525 notas, 5–7 viajes y ~1,35 MB por disparo.
+ * Ahora es **un** viaje con las filas de esta nota; las notas y carpetas son las
+ * del árbol, que ya están en memoria con los mismos campos (alias incluidos).
+ * Las líneas y las propiedades del informe no hacían falta: el diagnóstico
+ * busca los enlaces en el texto del editor y las propiedades salen de
+ * `avisosDeNota`.
  */
-export async function consultarParaDiagnosticos(notaId: string): Promise<InformeSalud> {
+export async function consultarParaDiagnosticos(notaId: string): Promise<ProblemasDeNota> {
   await asegurarEsquemas();
-  return informeDeSalud({ tipo: "nota", ruta: notaId });
+  const filas = await filasDelIndice(notaId);
+  const { notas, carpetas, otros } = useVaultStore.getState();
+  return problemasDeNota({
+    notaId,
+    notas,
+    carpetas,
+    filas,
+    otros: otros.map((o) => o.ruta),
+    carpetaEsporas: carpetaEsporas(),
+  });
 }
 
 /** Los diagnósticos de una nota con este texto y este informe, y los guarda. */
-export function componerDiagnosticos(notaId: string, texto: string, informe: InformeSalud): Diagnostico[] {
+export function componerDiagnosticos(notaId: string, texto: string, informe: ProblemasDeNota): Diagnostico[] {
   const diagnosticos = diagnosticosDeNota({
     notaId,
     texto,

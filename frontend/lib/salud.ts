@@ -41,6 +41,7 @@ import { indexarOtros, resolverArchivo } from "@/lib/mcpIndiceLogica";
 import {
   candidatosWikilinkEnIndice,
   indexarPorTitulo,
+  notasPorTitulo,
   type CarpetaEnlazable,
   type NotaEnlazable,
 } from "@/lib/wikilinks";
@@ -244,6 +245,146 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
     propiedades: [],
     avisosEsquemas: [],
   };
+}
+
+// ── Los problemas de UNA nota (diagnósticos del editor) ──────────────────────
+
+/**
+ * Lo que los diagnósticos de una nota (`FUN-M-44`) leen del informe: sus
+ * enlaces y embeds rotos, y los grupos de homónimas en los que participa —por
+ * ser una de ellas o por tener un enlace ambiguo—. Sin líneas (el diagnóstico
+ * las busca en el texto del editor), sin huérfanas ni propiedades.
+ */
+export type ProblemasDeNota = Pick<InformeSalud, "rotos" | "embedsRotos" | "duplicados">;
+
+export type EntradaProblemasDeNota = {
+  notaId: string;
+  /** Todas las notas del vault (las del árbol: `useVaultStore().notas`). */
+  notas: readonly NotaEnlazable[];
+  carpetas: readonly CarpetaEnlazable[];
+  /** **Solo** las filas de `enlaces` de la nota (`filasDelIndice(notaId)`). */
+  filas: readonly FilaEnlace[];
+  otros: readonly string[];
+  carpetaEsporas: string | null;
+};
+
+/**
+ * El orden de `ORDER BY id` de SQLite (BINARY sobre UTF-8 = por punto de
+ * código). El de `<` en JS es por unidad UTF-16 y difiere solo entre un par
+ * sustituto (≥ U+10000) y un carácter U+E000–U+FFFF; se respeta igual para que
+ * el título que nombra un grupo de homónimas («Plan» o «plan») sea el mismo que
+ * elegía `calcularSalud` sobre las notas del índice.
+ */
+function comoOrdenSqlite(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const x = a.charCodeAt(i);
+    const y = b.charCodeAt(i);
+    if (x === y) continue;
+    const sx = x >= 0xd800 && x <= 0xdfff;
+    const sy = y >= 0xd800 && y <= 0xdfff;
+    if (sx !== sy) return sx ? 1 : -1;
+    return x - y;
+  }
+  return a.length - b.length;
+}
+
+type GrupoTitulo = { titulo: string; tipo: string; rutas: string[]; orden: number };
+type GruposDeNotas = { porId: Map<string, NotaEnlazable>; grupoDe: Map<string, GrupoTitulo> };
+
+/**
+ * Las notas por id y los grupos de títulos repetidos, calculados **una vez por
+ * lista de notas**: la del store no se muta (cada cambio del árbol es una lista
+ * nueva), así que sirve de clave, como `notasPorTitulo`. Con varios editores
+ * abiertos y un guardado cada pocos segundos, se arma una vez por cambio del
+ * árbol y no por diagnóstico.
+ */
+const gruposPorLista = new WeakMap<readonly NotaEnlazable[], GruposDeNotas>();
+
+function gruposDe(notas: readonly NotaEnlazable[]): GruposDeNotas {
+  let g = gruposPorLista.get(notas);
+  if (g) return g;
+  // El mismo recorrido de `calcularSalud`, en el orden en que el índice le
+  // daba las notas (por id): define el título del grupo y el orden de empate.
+  const ordenadas = [...notas].sort((a, b) => comoOrdenSqlite(a.id, b.id));
+  const porClave = new Map<string, NotaEnlazable[]>();
+  for (const n of ordenadas) {
+    const k = `${n.tipo}\u0000${n.titulo.toLowerCase()}`;
+    const lista = porClave.get(k);
+    if (lista) lista.push(n);
+    else porClave.set(k, [n]);
+  }
+  const grupoDe = new Map<string, GrupoTitulo>();
+  let orden = 0;
+  for (const lista of porClave.values()) {
+    if (lista.length < 2) continue;
+    const grupo: GrupoTitulo = { titulo: lista[0].titulo, tipo: lista[0].tipo, rutas: lista.map((n) => n.id).sort(), orden: orden++ };
+    for (const r of grupo.rutas) grupoDe.set(r, grupo);
+  }
+  g = { porId: new Map(notas.map((n) => [n.id, n])), grupoDe };
+  gruposPorLista.set(notas, g);
+  return g;
+}
+
+/**
+ * Los problemas de una nota, con **sus** filas y no las del vault entero
+ * (`FUN-M-58`). Da lo mismo que `calcularSalud` con alcance `nota` en las tres
+ * listas que leen los diagnósticos —mismos rotos, mismos grupos, mismo orden;
+ * en `ambiguos`, solo los de esta nota, que son los únicos que el diagnóstico
+ * mira—, pero sin traer del índice todas las notas, los alias, las carpetas y
+ * todas las filas de `enlaces` en cada guardado de cada editor abierto: en un
+ * vault de 1.525 notas eran 5–7 viajes y ~1,35 MB por disparo.
+ *
+ * > [!warning] Las notas vienen del árbol, no del índice
+ * > En el hueco de los pendientes (`FUN-M-42`) el árbol va **adelante** del
+ * > índice. Lo único que puede adelantarse así es un **título duplicado** (una
+ * > homónima recién creada por fuera se ve antes de indexarse); los destinos de
+ * > los enlaces no, porque vienen resueltos en las filas del índice. Y el editor
+ * > recalcula al cambiar el árbol, de modo que el aviso se adelanta, no se pierde.
+ */
+export function problemasDeNota(entrada: EntradaProblemasDeNota): ProblemasDeNota {
+  const { notaId, notas, carpetas, filas, carpetaEsporas } = entrada;
+  const { porId, grupoDe } = gruposDe(notas);
+  const nota = porId.get(notaId);
+  // Una nota que no está (en el índice, antes; en el árbol, ahora) no tiene problemas.
+  if (nota === undefined) return { rotos: [], embedsRotos: [], duplicados: [] };
+  const fuera = excluida(nota, carpetaEsporas);
+
+  const rotos: Problema[] = [];
+  const embedsRotos: Problema[] = [];
+  const ambiguosDe = new Map<GrupoTitulo, Problema[]>();
+  let otros: ReturnType<typeof indexarOtros> | null = null;
+  const vistas = new Map<string, number>();
+  for (const f of filas) {
+    if (f.desde !== notaId || fuera) continue;
+    if (f.destino === null) {
+      otros ??= indexarOtros(entrada.otros);
+      if (resolverArchivo(f, otros) !== null) continue;
+      (f.tipo === "embed" ? embedsRotos : rotos).push(problema(f));
+      continue;
+    }
+    const grupo = f.tipo === "archivo" ? undefined : grupoDe.get(f.destino);
+    if (grupo === undefined) continue;
+    let n = vistas.get(f.texto);
+    if (n === undefined) {
+      n = candidatosDeReferencia(f.texto, notasPorTitulo(notas), carpetas).length;
+      vistas.set(f.texto, n);
+    }
+    if (n < 2) continue;
+    const lista = ambiguosDe.get(grupo);
+    if (lista) lista.push(problema(f));
+    else ambiguosDe.set(grupo, [problema(f)]);
+  }
+
+  const propio = grupoDe.get(notaId);
+  const grupos = new Set(ambiguosDe.keys());
+  if (propio) grupos.add(propio);
+  const duplicados: Duplicado[] = [...grupos]
+    .sort((a, b) => a.orden - b.orden)
+    .map((g) => ({ titulo: g.titulo, tipo: g.tipo, rutas: [...g.rutas], ambiguos: ambiguosDe.get(g) ?? [] }))
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, "es") || a.tipo.localeCompare(b.tipo));
+
+  return { rotos: rotos.sort(porRuta), embedsRotos: embedsRotos.sort(porRuta), duplicados };
 }
 
 /** Las notas cuyo contenido hace falta para ponerle línea a los problemas. */
