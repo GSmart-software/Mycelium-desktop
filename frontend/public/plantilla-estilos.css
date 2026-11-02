@@ -27,7 +27,7 @@
     16. Búsqueda, corrector ortográfico y avisos de la nota
     17. Calendario y consolas
     18. Lo que se estila solo con colores: bases, lienzos, draw.io, explorador,
-        pestañas, grafo y la ayuda
+        pestañas, grafo, la ayuda y la salud del vault
 
    Dos vistas, dos familias de clases:
    - Lectura (y la vista dividida, la exportación a PDF y la ayuda integrada):
@@ -946,4 +946,18 @@
      formato JSON Canvas y no se cambian por CSS.
    - La ayuda integrada usa la vista de lectura (.mic-preview): lo que cambies
      ahí la alcanza también.
+   - La salud del vault (la pestaña con las gráficas): sus colores salen de
+     --mic-accent y --mic-glow en distintas tonalidades, y lo que no cuenta de
+     --mic-text-muted. Tres clases estables: .mic-salud-vista (la pestaña
+     entera), .mic-grafica (cada gráfica) y .mic-grafica-tooltip (el detalle
+     al pasar el puntero).
    ========================================================================== */
+
+/* La pestaña de salud del vault con un fondo propio y el detalle más grande:
+.mic-salud-vista {
+  background: var(--mic-bg-surface);
+}
+.mic-grafica-tooltip {
+  font-size: 0.875rem;
+}
+*/

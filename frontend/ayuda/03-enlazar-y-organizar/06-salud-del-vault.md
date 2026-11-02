@@ -2,7 +2,7 @@
 titulo: Salud del vault
 tema: Enlazar y organizar
 solo: desktop
-sinonimos: [informe de salud, informe como nota, enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
+sinonimos: [tablero, dashboard, gráficas, estadísticas, peso del vault, anillos, informe de salud, informe como nota, enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
 ---
 
 La **salud del vault** muestra lo que va degradando la red de notas sin que se note: enlaces
@@ -51,9 +51,43 @@ esa parte se ignora y lo demás se aplica.
 > que son instrucciones para agentes de IA y no notas del vault. Lo que oculta `.mycignore`
 > no está en el índice, así que tampoco aparece.
 
+## La pestaña con las gráficas
+
+**Ctrl+P** → «Abrir la salud del vault en una pestaña» abre un tablero con todo lo que sabe la
+revisión, en una pestaña con el ícono de un pulso. Al abrirla se cierra el panel de salud del
+costado, para dejarle lugar.
+
+- **Arriba**: cuándo se revisó, cuántos archivos y en cuánto tiempo, y dos botones: «Generar
+  informe como nota» (ver abajo) y «Volver a revisar».
+- **El resumen**: problemas (y cuántos son graves), archivos, notas, peso en disco, enlaces (con
+  el promedio por nota) y etiquetas.
+- **Qué hay en el vault**: los archivos agrupados en notas, imágenes, PDF, visuales (dibujos,
+  diagramas y lienzos) y otros. Con **Anillos**, los grupos van en el anillo de adentro y las
+  carpetas de primer nivel en el de afuera, teñidas con el grupo que más pesa en cada una; en el
+  centro está el total y el porcentaje de notas conectadas. Con **Barras**, una barra por tipo de
+  archivo, de mayor a menor. **Peso** y **Cantidad** cambian qué se mide. Al lado, la lista con
+  cada grupo, su valor y su porcentaje: pasar el puntero por la gráfica resalta su fila, y al
+  revés. La elección entre anillos y barras se recuerda en cada vault.
+- **Problemas**: los mismos del panel, por gravedad, con un ícono y su nombre. Cada clase se
+  despliega y cada fila lleva a la nota y a la línea.
+- **Qué ocupa espacio**: el peso de cada carpeta de primer nivel, partido por grupo, y los cinco
+  archivos más pesados (un clic los abre).
+- **La red**: cuántas notas están conectadas, la red principal y las islas sueltas, las
+  huérfanas, cuántas notas tienen 0, 1, 2… conexiones (las huérfanas en gris) y las cinco más
+  conectadas, que se abren con un clic.
+- **Crecimiento**: notas nuevas por mes en el último año. Si el vault se indexó de una vez, lo
+  dice en vez de dibujar un pico falso.
+- **Etiquetas**: las ocho más usadas. Un clic busca `tag:` con esa etiqueta.
+
+Pasa el puntero por cualquier barra o porción para ver su detalle. Los colores son tonos del
+tema activo y cambian con él.
+
+La pestaña revisa el vault al abrirse (si la última revisión tiene más de un minuto) y con
+«Volver a revisar». No se actualiza sola al guardar: así no gasta nada mientras escribes.
+
 ## El informe como nota
 
-**Ctrl+P** → «Generar informe de salud del vault» revisa el vault y guarda el resultado como
+**Ctrl+P** → «Generar informe de salud del vault» (o el botón de la pestaña) revisa el vault y guarda el resultado como
 una nota común: `Informes/Salud del vault AAAA-MM-DD.md` (si el del día ya existe, se le
 agrega la hora). La nota se abre sola y un aviso dice dónde quedó.
 

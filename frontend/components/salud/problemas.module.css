@@ -1,0 +1,196 @@
+/* Las filas de los problemas de salud (FUN-L-30 / FUN-L-32), compartidas por
+   el panel lateral y la pestaña. Gravedad con ícono y texto, y el color de su
+   callout: --mic-callout-*-border. Solo tokens --mic-*. */
+
+.problemas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.clase {
+  --sev: var(--mic-callout-info-border);
+  display: flex;
+  flex-direction: column;
+}
+
+.clase[data-gravedad="grave"] {
+  --sev: var(--mic-callout-error-border);
+}
+
+.clase[data-gravedad="importante"] {
+  --sev: var(--mic-callout-caution-border);
+}
+
+.clase[data-gravedad="aviso"] {
+  --sev: var(--mic-callout-warning-border);
+}
+
+.claseCabecera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+  color: var(--mic-text-primary);
+}
+
+.claseCabecera:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.claseCabecera:disabled {
+  cursor: default;
+}
+
+.icono {
+  flex-shrink: 0;
+  color: var(--sev);
+}
+
+.clase[data-vacia] .icono,
+.clase[data-vacia] .claseTitulo {
+  color: var(--mic-text-muted);
+}
+
+.claseTexto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.claseTitulo {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.claseDetalle {
+  font-size: 0.71875rem;
+  color: var(--mic-text-muted);
+}
+
+.cuenta {
+  margin-left: auto;
+  min-width: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--sev) 22%, transparent);
+}
+
+.cuenta[data-cero] {
+  color: var(--mic-text-muted);
+  background: color-mix(in srgb, var(--mic-text-muted) 10%, transparent);
+}
+
+.items {
+  padding: 2px 0 6px 33px;
+}
+
+.mas,
+.nota {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+  padding: 0 0.2rem 0.3rem 33px;
+}
+
+.nota {
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.2rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 15%, transparent);
+}
+
+.verTodos {
+  align-self: flex-start;
+  margin: 0 0 0.3rem 33px;
+  padding: 2px 6px;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.71875rem;
+  color: var(--mic-accent);
+}
+
+.verTodos:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.verTodos:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.error {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-callout-error-border);
+  padding: 0 0.2rem 0.4rem;
+}
+
+/* ── Las filas (las mismas del panel de FUN-L-30) ─────────────────────── */
+
+.lista {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  text-align: left;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+.claseCabecera:focus-visible,
+.item:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.itemTitulo {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.itemDetalle {
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.codigo {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.6875rem;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.35rem 0.25rem;
+  border-radius: var(--mic-radius-md);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.grupoTitulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  padding: 0 0.1rem;
+}
