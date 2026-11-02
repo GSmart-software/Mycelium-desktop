@@ -23,7 +23,7 @@ import { select } from "@/lib/db/client";
 import { enTandas, marcadores } from "@/lib/db/ftsIndice";
 import { esMovimientoPropio } from "@/lib/db/vaultFs";
 import type { CambioVault } from "@/lib/arbolVivo";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisarRecarga } from "@/lib/eventos";
 import type { NotaRuta } from "@/lib/homonimos";
 import { detectarRenombres, textoOferta, type NotaConTexto } from "@/lib/renombreExterno";
 import {
@@ -171,7 +171,7 @@ export async function repararRenombre(o: OfertaRenombre, conAlias: boolean): Pro
   if (conAlias) {
     alias = await alternarAliasDeNota(o.a.id, o.de.titulo, token()).catch(() => false);
   }
-  if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+  avisarRecarga(r.reescritas);
   useGraphStore.getState().markStale();
   const { vaultId } = useVaultStore.getState();
   // Con las vistas en vivo aunque el árbol no cambie (`FUN-M-58`): se

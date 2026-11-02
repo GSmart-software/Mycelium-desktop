@@ -55,7 +55,7 @@ import {
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import { motivoNombreInvalido } from "@/lib/tituloEditable";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisarRecarga } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { avisar } from "@/stores/avisosStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -575,7 +575,7 @@ async function deshacerReparacionRenombre(
   };
   const r = await repararEntrantes(new Map(d.notas.map((n) => [n, new Set([d.ruta])])), [{ id: d.ruta, idNuevo: d.ruta, cambio }], token());
   if (d.alias) await alternarAliasDeNota(d.ruta, d.alias, token(), true).catch(() => false);
-  if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+  avisarRecarga(r.reescritas);
   // Con las vistas en vivo aunque el árbol no cambie (`FUN-M-58`): se
   // reescribió el contenido de otras notas, que pueden estar embebidas.
   await useVaultStore.getState().loadTree(useVaultStore.getState().vaultId!, { refrescarVistas: true });

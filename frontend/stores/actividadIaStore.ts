@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import {
   ARCHIVO_ACTIVIDAD,
+  TOPE_ENTRADAS,
   agregarEntrada,
+  comoGuardar,
   leerActividad,
   nuevaEntrada,
+  renglonesEnDisco,
   serializar,
   type Entrada,
 } from "@/lib/actividadIa";
@@ -46,6 +49,12 @@ type Estado = {
 /** Las escrituras van en fila, como las del calendario: el orden en disco es el de los hechos. */
 let cola: Promise<void> = Promise.resolve();
 let cargaVigente = 0;
+/**
+ * Cuántos renglones tiene el archivo de cada vault, según lo último que se
+ * leyó o escribió (`FUN-M-58`). Con eso se decide entre agregar el renglón o
+ * reescribirlo recortado (`comoGuardar`).
+ */
+const renglones = new Map<string, number>();
 
 export const useActividadIaStore = create<Estado>((set, get) => ({
   ruta: null,
@@ -64,14 +73,28 @@ export const useActividadIaStore = create<Estado>((set, get) => ({
     }
     let entradas: Entrada[] = [];
     try {
-      entradas = leerActividad(await invocar<string | null>("leer_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD }));
+      const texto = await invocar<string | null>("leer_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD });
+      renglones.set(ruta, renglonesEnDisco(texto));
+      // El archivo puede tener hasta `MARGEN_COMPACTAR` renglones de más: en
+      // memoria (y en el panel) siguen siendo las últimas `TOPE_ENTRADAS`.
+      entradas = leerActividad(texto).slice(-TOPE_ENTRADAS);
     } catch (e) {
       // Sin registro el vault funciona igual: se arranca vacío.
       console.warn(`[Mycelium] actividad · no se pudo leer ${ARCHIVO_ACTIVIDAD}`, e);
     }
     if (carga !== cargaVigente) return;
     // Lo que se registró mientras se leía (un pedido muy temprano) no se pierde.
-    set((s) => ({ ruta, entradas: [...entradas, ...s.entradas] }));
+    // Antes llegaba al disco con la reescritura siguiente; ahora que se agrega
+    // renglón por renglón, se agrega acá.
+    const tempranas = get().entradas;
+    set({ ruta, entradas: [...entradas, ...tempranas].slice(-TOPE_ENTRADAS) });
+    if (tempranas.length > 0) {
+      renglones.set(ruta, (renglones.get(ruta) ?? 0) + tempranas.length);
+      const contenido = serializar(tempranas);
+      cola = cola
+        .then(() => invocar<void>("agregar_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD, contenido }))
+        .catch((e) => console.warn(`[Mycelium] actividad · no se pudo guardar ${ARCHIVO_ACTIVIDAD}`, e));
+    }
   },
 
   registrar(datos) {
@@ -80,12 +103,25 @@ export const useActividadIaStore = create<Estado>((set, get) => ({
     set({ entradas });
     const { ruta } = get();
     if (ruta !== null) {
-      // Se reescribe entero —ya recortado— con escritura atómica: el
-      // contenido es *append-only* (ninguna entrada cambia), el archivo no.
-      const contenido = serializar(entradas);
-      cola = cola
-        .then(() => invocar<void>("escribir_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD, contenido }))
-        .catch((e) => console.warn(`[Mycelium] actividad · no se pudo guardar ${ARCHIVO_ACTIVIDAD}`, e));
+      // Se agrega el renglón al final (`FUN-M-58`): antes se reescribía el
+      // archivo entero en cada operación, cientos de KB con el registro lleno.
+      // Cuando pasaría del margen, se reescribe entero —ya recortado, con
+      // escritura atómica— con lo que hay en memoria en este momento, que
+      // incluye todo lo anterior: la cola mantiene el orden.
+      const enDisco = renglones.get(ruta) ?? 0;
+      if (comoGuardar(enDisco) === "reescribir") {
+        renglones.set(ruta, entradas.length);
+        const contenido = serializar(entradas);
+        cola = cola
+          .then(() => invocar<void>("escribir_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD, contenido }))
+          .catch((e) => console.warn(`[Mycelium] actividad · no se pudo guardar ${ARCHIVO_ACTIVIDAD}`, e));
+      } else {
+        renglones.set(ruta, enDisco + 1);
+        const contenido = serializar([entrada]);
+        cola = cola
+          .then(() => invocar<void>("agregar_estado_vault", { ruta, nombre: ARCHIVO_ACTIVIDAD, contenido }))
+          .catch((e) => console.warn(`[Mycelium] actividad · no se pudo guardar ${ARCHIVO_ACTIVIDAD}`, e));
+      }
     }
     return entrada;
   },

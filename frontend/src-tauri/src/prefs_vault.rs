@@ -45,8 +45,10 @@ const DIR: &str = ".mycelium";
 ///   (`FUN-L-12`), una palabra por renglón. Es del vault y viaja con él:
 ///   «Agregar al diccionario» en un vault no afecta a los demás.
 /// - `actividad.jsonl`: el registro de lo que hizo la IA por el MCP de control
-///   (`FUN-L-09`, Parte 2), una entrada JSON por renglón y con tope. Lo recorta
-///   el frontend al escribir (`stores/actividadIaStore.ts`).
+///   (`FUN-L-09`, Parte 2), una entrada JSON por renglón y con tope. Cada
+///   entrada se **agrega** al final (`agregar_estado_vault`, `FUN-M-58`) y el
+///   frontend lo recorta reescribiéndolo entero de tanto en tanto
+///   (`stores/actividadIaStore.ts`).
 const ESTADOS: &[&str] = &[
     "preferencias.json",
     "snippets.json",
@@ -63,6 +65,11 @@ const ESTADOS: &[&str] = &[
 /// `preferencias.json` con `FUN-L-24`. La migración lo lee, copia sus claves y
 /// lo borra (`lib/db/legado.ts`).
 const LEGADOS: &[&str] = &["apariencia.json"];
+
+/// Los estados que se pueden escribir **agregando al final** (`FUN-M-58`): los
+/// que son un renglón por entrada. Reescribir el registro de actividad entero
+/// por cada operación de la IA movía ~300 KB (500 entradas) para sumar una.
+const AGREGABLES: &[&str] = &["actividad.jsonl"];
 
 fn ruta_en(vault: &Path, nombre: &str, permitidos: &[&[&str]]) -> Result<PathBuf, String> {
     if !permitidos.iter().any(|lista| lista.contains(&nombre)) {
@@ -96,6 +103,49 @@ pub(crate) fn escribir_estado_vault_en(ruta: String, nombre: String, contenido: 
     escribir_atomico(&destino, &contenido)
 }
 
+/// Agrega `contenido` al final de un estado de renglones (`AGREGABLES`),
+/// creando `.mycelium/` y el archivo si faltan.
+///
+/// No es atómico como `escribir_estado_vault_en`, y no hace falta: lo que una
+/// interrupción puede dejar es un último renglón a medias, que el frontend
+/// ignora al leer (un renglón ilegible se descarta, los demás valen). Para que
+/// ese renglón a medias no se pegue con el siguiente, si el archivo no termina
+/// en salto de línea se empieza por uno.
+pub(crate) fn agregar_estado_vault_en(ruta: String, nombre: String, contenido: String) -> Result<(), String> {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let destino = ruta_en(Path::new(&ruta), &nombre, &[AGREGABLES])?;
+    if let Some(dir) = destino.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+    }
+    let mut archivo = std::fs::OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open(&destino)
+        .map_err(|e| format!("No se pudo abrir {}: {e}", destino.display()))?;
+    let largo = archivo
+        .metadata()
+        .map_err(|e| format!("No se pudo leer {}: {e}", destino.display()))?
+        .len();
+    let mut texto = String::with_capacity(contenido.len() + 1);
+    if largo > 0 {
+        let mut ultimo = [0u8; 1];
+        archivo
+            .seek(SeekFrom::Start(largo - 1))
+            .and_then(|_| archivo.read_exact(&mut ultimo))
+            .map_err(|e| format!("No se pudo leer {}: {e}", destino.display()))?;
+        if ultimo[0] != b'\n' {
+            texto.push('\n');
+        }
+    }
+    texto.push_str(&contenido);
+    // En modo `append`, cada escritura va al final aunque se haya movido el cursor.
+    archivo
+        .write_all(texto.as_bytes())
+        .map_err(|e| format!("No se pudo escribir {}: {e}", destino.display()))
+}
+
 /// Borra un archivo **legado** ya migrado. Solo los de `LEGADOS`: los estados
 /// vigentes no se borran nunca desde la webview. Que no exista no es un error
 /// (la migración pudo correr antes, en otra ventana o en otra sesión).
@@ -124,6 +174,12 @@ pub fn leer_estado_vault(ventana: tauri::Window, ruta: String, nombre: String) -
 #[tauri::command]
 pub fn escribir_estado_vault(ventana: tauri::Window, ruta: String, nombre: String, contenido: String) -> Result<(), String> {
     escribir_estado_vault_en(crate::ventanas::base_de_ventana(&ventana, &ruta)?, nombre, contenido)
+}
+
+/// Ver `agregar_estado_vault_en`. Asíncrono: no corre en el hilo de la UI.
+#[tauri::command(async)]
+pub fn agregar_estado_vault(ventana: tauri::Window, ruta: String, nombre: String, contenido: String) -> Result<(), String> {
+    agregar_estado_vault_en(crate::ventanas::base_de_ventana(&ventana, &ruta)?, nombre, contenido)
 }
 
 /// Ver `borrar_estado_vault_en`.
@@ -220,6 +276,42 @@ mod tests {
         assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some(jsonl));
         // Y no se borra desde la webview: se recorta al escribir.
         assert!(borrar_estado_vault_en(v, "actividad.jsonl".into()).is_err());
+    }
+
+    fn agregar(v: &str, nombre: &str, contenido: &str) -> Result<(), String> {
+        agregar_estado_vault_en(v.to_string(), nombre.to_string(), contenido.to_string())
+    }
+
+    #[test]
+    fn el_registro_de_actividad_se_agrega_al_final() {
+        // `FUN-M-58`: una entrada nueva no reescribe las anteriores.
+        let v = vault_temporal("actividad-agregar");
+        agregar(&v, "actividad.jsonl", "{\"id\":\"a\"}\n").unwrap();
+        agregar(&v, "actividad.jsonl", "{\"id\":\"b\"}\n").unwrap();
+        assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some("{\"id\":\"a\"}\n{\"id\":\"b\"}\n"));
+        // Y recortarlo es reescribirlo entero, como siempre.
+        escribir(&v, "actividad.jsonl", "{\"id\":\"b\"}\n").unwrap();
+        agregar(&v, "actividad.jsonl", "{\"id\":\"c\"}\n").unwrap();
+        assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some("{\"id\":\"b\"}\n{\"id\":\"c\"}\n"));
+    }
+
+    #[test]
+    fn un_renglon_a_medias_no_se_pega_con_el_siguiente() {
+        // Un cierre a mitad de una escritura deja el último renglón sin salto:
+        // ese se pierde (el frontend lo ignora), el siguiente no.
+        let v = vault_temporal("actividad-a-medias");
+        escribir(&v, "actividad.jsonl", "{\"id\":\"a\"}\n{\"id\":").unwrap();
+        agregar(&v, "actividad.jsonl", "{\"id\":\"c\"}\n").unwrap();
+        assert_eq!(leer(&v, "actividad.jsonl").as_deref(), Some("{\"id\":\"a\"}\n{\"id\":\n{\"id\":\"c\"}\n"));
+    }
+
+    #[test]
+    fn solo_se_agrega_a_los_estados_de_renglones() {
+        let v = vault_temporal("agregar-fuera");
+        assert!(agregar(&v, "preferencias.json", "x").is_err());
+        assert!(agregar(&v, "diccionario.txt", "x").is_err());
+        assert!(agregar(&v, "../fuera.jsonl", "x").is_err());
+        assert!(!Path::new(&v).join(DIR).join("preferencias.json").exists());
     }
 
     #[test]

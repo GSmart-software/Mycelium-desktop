@@ -10,6 +10,7 @@ import { cssEditorExtensions } from "@/lib/editor/cssExtensions";
 import { renderMarkdown } from "@/lib/markdown";
 import { useCssStore, type CssSnippet } from "@/stores/cssStore";
 import { confirmar } from "@/lib/confirmar";
+import { mantenerSnippetsAlFinal } from "@/lib/snippetsAlFinal";
 import styles from "./CssEditorModal.module.css";
 
 const SAMPLE = `# Título de ejemplo
@@ -66,6 +67,7 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
       el = document.createElement("style");
       el.id = "mic-css-preview";
       document.head.appendChild(el);
+      mantenerSnippetsAlFinal();
     }
     el.textContent = cssText;
   };

@@ -10,7 +10,9 @@
  * **El archivo**: `.mycelium/actividad.jsonl`, una entrada JSON por renglón,
  * *append-only*: una entrada nunca se reescribe. Deshacer agrega una entrada
  * `deshacer` que apunta a la original (`ref`), y al leer se cruza. Con tope:
- * al escribir se conservan los últimos `TOPE_ENTRADAS` renglones. Un renglón
+ * en memoria se conservan las últimas `TOPE_ENTRADAS`; en disco cada entrada
+ * se agrega al final y el archivo se recorta reescribiéndolo entero cuando
+ * pasaría de `TOPE_ENTRADAS + MARGEN_COMPACTAR` renglones (`FUN-M-58`). Un renglón
  * que no se entiende se ignora, sin romper el resto: el registro es
  * descartable, perderlo no pierde nada del vault.
  */
@@ -28,6 +30,14 @@ export const ARCHIVO_ACTIVIDAD = "actividad.jsonl";
 
 /** Cuántos renglones se conservan. */
 export const TOPE_ENTRADAS = 500;
+
+/**
+ * Cuántos renglones de más puede tener el archivo antes de recortarlo
+ * (`FUN-M-58`). Antes se reescribía entero —ya recortado— en cada operación:
+ * cientos de KB para sumar un renglón con el registro lleno. Ahora se agrega
+ * el renglón, y una de cada `MARGEN_COMPACTAR` operaciones se reescribe.
+ */
+export const MARGEN_COMPACTAR = 100;
 
 /** Versión del formato de cada renglón. */
 const VERSION = 1;
@@ -192,6 +202,27 @@ export function agregarEntrada(entradas: readonly Entrada[], nueva: Entrada, top
 
 export function serializar(entradas: readonly Entrada[]): string {
   return entradas.map((e) => JSON.stringify(e)).join("\n") + (entradas.length ? "\n" : "");
+}
+
+/** Cuántos renglones ocupa el archivo, legibles o no (lo que pesa en disco). */
+export function renglonesEnDisco(texto: string | null): number {
+  if (!texto) return 0;
+  let n = 0;
+  for (const r of texto.split(/\r?\n/)) if (r.trim() !== "") n++;
+  return n;
+}
+
+/**
+ * Cómo guardar una entrada nueva (`FUN-M-58`), sabiendo cuántos renglones
+ * tiene ya el archivo: agregarla al final, o reescribirlo entero —con las
+ * últimas `tope`— cuando pasaría del margen.
+ */
+export function comoGuardar(
+  enDisco: number,
+  tope = TOPE_ENTRADAS,
+  margen = MARGEN_COMPACTAR,
+): "agregar" | "reescribir" {
+  return enDisco + 1 > tope + margen ? "reescribir" : "agregar";
 }
 
 /**

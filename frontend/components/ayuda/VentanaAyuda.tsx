@@ -20,6 +20,10 @@ import { renderMermaidIn } from "@/lib/mermaid";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { useUiStore } from "@/stores/uiStore";
 import styles from "./VentanaAyuda.module.css";
+// La ayuda tiene fórmulas y se abre también en el selector de vaults, que no
+// carga la hoja de KaTeX (`FUN-M-58`): viaja con la ventana, que se carga al
+// abrirla.
+import "katex/dist/katex.min.css";
 
 /**
  * La ayuda integrada (`FUN-L-27`): una «wiki» de Mycelium en una ventana sobre

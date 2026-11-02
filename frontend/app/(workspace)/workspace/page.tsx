@@ -30,6 +30,10 @@ import { registrarNavegadorMcp } from "@/lib/mcpControl";
 import { listarOtrosArchivos, RUTA_MYCIGNORE } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
+// Las fórmulas (`FUN-M-58`): el editor en vivo, la lectura, los embeds, las
+// tarjetas y la exportación a PDF —que copia las hojas de la ventana— viven
+// todos en el workspace. Antes iba en el layout raíz, en todas las rutas.
+import "katex/dist/katex.min.css";
 
 export default function WorkspacePage() {
   return (

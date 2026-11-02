@@ -12,7 +12,7 @@
  * por `api()`.
  */
 import { api } from "@/lib/api";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisarRecarga } from "@/lib/eventos";
 import { agregarAlias, quitarAlias } from "@/lib/frontmatter";
 import { vaciarGuardadosPendientes } from "@/lib/guardadoPendiente";
 import { reescribirEnlacesMovidos, type CambioDeRuta } from "@/lib/enlaces";
@@ -263,9 +263,7 @@ export async function alternarAliasDeNota(
   if (nuevo === null) return false;
   if (nuevo !== actual) {
     await api(ruta, { method: "PUT", token, body: { contenido: nuevo } });
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(EVENTO_RECARGA, { detail: { rutas: [id] } }));
-    }
+    avisarRecarga([id]);
   }
   return true;
 }
