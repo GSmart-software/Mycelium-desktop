@@ -18,6 +18,14 @@
 //! > del reproductor de vídeo (`FUN-S-21`), que cargan orígenes ajenos por
 //! > diseño.
 //! >
+//! > En macOS y Linux, en cambio, wry consulta esto **también por los marcos**.
+//! > Por eso `drawio://localhost` (el origen propio de draw.io en esos sistemas,
+//! > `DEF-168`, `drawio_origen.rs`) cuenta como de la app. En Windows su forma
+//! > es `http://drawio.localhost`, que acá NO pasa: solo el marco lo carga, y
+//! > el documento principal no tiene por qué ir ahí. Si alguna vez llegara a ir
+//! > (en cualquier sistema), draw.io no arranca fuera de un marco
+//! > (`drawio/guarda.js`).
+//! >
 //! > Si algún día wry engancha también los iframes, **el vídeo dejaría de
 //! > cargar** y habría que distinguir el marco acá. Queda dicho porque el
 //! > síntoma (un recuadro vacío) no apunta ni de lejos a este archivo.
@@ -61,6 +69,8 @@ fn es_la_app(url: &Url, en_desarrollo: bool) -> bool {
         // El esquema propio de Tauri, y el `asset:` con el que se sirven los
         // archivos del vault al visor (`FUN-L-11`).
         "tauri" | "asset" => true,
+        // draw.io en su origen propio, forma de macOS/Linux (ver arriba).
+        "drawio" => url.host_str() == Some("localhost"),
         "http" | "https" => match url.host_str() {
             Some("tauri.localhost") => true,
             Some("localhost") | Some("127.0.0.1") => en_desarrollo,
@@ -154,9 +164,18 @@ mod tests {
             assert!(es_la_app(&u("tauri://localhost/workspace"), dev));
             assert!(es_la_app(&u("http://tauri.localhost/workspace"), dev));
             assert!(es_la_app(&u("about:blank"), dev));
-            // El editor de draw.io se sirve del mismo origen (`FUN-L-20`).
-            assert!(es_la_app(&u("http://tauri.localhost/drawio/index.html?embed=1"), dev));
+            // draw.io en su origen propio en macOS/Linux (`DEF-168`).
+            assert!(es_la_app(&u("drawio://localhost/index.html?embed=1"), dev));
         }
+    }
+
+    #[test]
+    fn el_origen_de_drawio_en_windows_no_es_la_app() {
+        // En Windows el guardián solo ve el documento principal, que nunca
+        // tiene que ir a draw.io: va al sistema como cualquier http.
+        assert!(!es_la_app(&u("http://drawio.localhost/index.html"), false));
+        assert!(!es_la_app(&u("drawio://otro/index.html"), false));
+        assert_eq!(en_release("http://drawio.localhost/"), Decision::AbrirEnElSistema);
     }
 
     #[test]

@@ -2,9 +2,15 @@ import { api } from "@/lib/api";
 import { analizarXml, diagnosticarDrawio, motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import {
   accionCargar,
+  ALLOW_EDITOR,
+  baseDrawio,
   claveAPodar,
+  destinoDeMensajes,
   diagramaInicial,
+  esMensajeDeDrawio,
   leerEvento,
+  origenDeBase,
+  SANDBOX_EDITOR,
   urlDelEditor,
   type TemaDrawio,
 } from "@/lib/drawio";
@@ -72,6 +78,10 @@ type Instancia = {
   clave: string;
   notaId: string;
   iframe: HTMLIFrameElement;
+  /** De dónde se sirve draw.io (`DEF-168`): raíz, origen y destino de los mensajes. */
+  base: string;
+  origen: string;
+  destino: string;
   /** El último XML conocido: lo que se escribiría si hubiera que guardar ya. */
   xml: string | null;
   /**
@@ -137,13 +147,18 @@ function aplicarDisco(inst: Instancia, disco: string) {
   inst.xml = lectura.estado === "vacio" ? diagramaInicial() : disco;
   // Si el editor todavía no dijo `init`, el `init` ya le manda este XML.
   if (inst.cargado) {
-    inst.iframe.contentWindow?.postMessage(JSON.stringify(accionCargar(inst.xml)), "*");
+    enviar(inst, JSON.stringify(accionCargar(inst.xml)));
   }
   if (estabaIlegible) {
     inst.rect = null; // que `sincronizar` lo vuelva a posicionar y mostrar
     notificar(inst.clave);
     programarSincronizacion();
   }
+}
+
+/** Le manda un mensaje al editor, solo a su origen (`DEF-168`). */
+function enviar(inst: Instancia, mensaje: string) {
+  inst.iframe.contentWindow?.postMessage(mensaje, inst.destino);
 }
 
 function marcarIlegible(inst: Instancia, motivo: string) {
@@ -201,18 +216,29 @@ function volcar(inst: Instancia): Promise<void> | void {
 // ── El iframe ─────────────────────────────────────────────────────────────────
 
 function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
+  const base = baseDrawio();
+  const origen = origenDeBase(base);
   const iframe = document.createElement("iframe");
   iframe.title = "Editor de diagramas draw.io";
+  // draw.io vive en su propio origen y en un marco acotado (`DEF-168`): no
+  // puede navegar la ventana, y con la app solo habla por `postMessage`. Va
+  // antes de `src`: el `sandbox` rige desde la próxima carga.
+  iframe.setAttribute("sandbox", SANDBOX_EDITOR);
+  iframe.setAttribute("allow", ALLOW_EDITOR);
+  iframe.setAttribute("referrerpolicy", "no-referrer");
   // `position: fixed` sobre el rectángulo del pane. Ver el comentario de arriba:
   // es lo que permite cambiar de pestaña sin recargar la webapp.
   iframe.style.cssText =
     "position:fixed;border:0;display:none;z-index:10;background:var(--mic-bg-canvas)";
-  iframe.src = urlDelEditor(tema);
+  iframe.src = urlDelEditor(tema, "es", base);
 
   const inst: Instancia = {
     clave,
     notaId,
     iframe,
+    base,
+    origen,
+    destino: destinoDeMensajes(origen),
     xml: null,
     conocido: null,
     sucio: false,
@@ -228,20 +254,15 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
   inst.alRecibir = (ev: MessageEvent) => {
     // Solo lo que venga de ESTE iframe: por la ventana pasan mensajes de otras
     // cosas —y de los otros editores abiertos—, y confundir uno ajeno con un
-    // guardado escribiría el archivo equivocado.
-    if (ev.source !== inst.iframe.contentWindow) return;
+    // guardado escribiría el archivo equivocado. Y solo del origen de draw.io.
+    if (!esMensajeDeDrawio(ev, inst.iframe.contentWindow, inst.origen)) return;
     const msg = leerEvento(ev.data);
     if (msg === null) return;
 
     if (msg.event === "init") {
       inst.cargado = true;
       // Si el contenido todavía no llegó, `cargarXml` lo enviará al llegar.
-      if (inst.xml !== null) {
-        inst.iframe.contentWindow?.postMessage(
-          JSON.stringify(accionCargar(inst.xml)),
-          "*",
-        );
-      }
+      if (inst.xml !== null) enviar(inst, JSON.stringify(accionCargar(inst.xml)));
       return;
     }
     // Con el archivo ilegible no se acepta nada del editor (`DEF-119`): está
@@ -569,7 +590,7 @@ export function aplicarTema(clave: string, tema: TemaDrawio): void {
   if (!inst || inst.tema === tema) return;
   inst.tema = tema;
   inst.cargado = false;
-  inst.iframe.src = urlDelEditor(tema);
+  inst.iframe.src = urlDelEditor(tema, "es", inst.base);
 }
 
 /** Cuántos editores hay vivos. Para los tests. */

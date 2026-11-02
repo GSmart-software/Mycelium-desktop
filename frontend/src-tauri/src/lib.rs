@@ -10,6 +10,7 @@ mod control;
 mod devtools;
 mod dialogos;
 mod diccionarios;
+mod drawio_origen;
 mod indice;
 mod marco;
 mod mycignore;
@@ -133,6 +134,10 @@ pub fn run() {
             }
         }));
     }
+
+    // draw.io se sirve desde su propio origen (`drawio`), no desde el de la app;
+    // la app le habla solo por `postMessage` (`DEF-168`, `drawio_origen.rs`).
+    builder = drawio_origen::registrar(builder);
 
     builder
         // SQLite para el índice de cada vault (`index-<hash>.db` en el app-data).

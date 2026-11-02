@@ -8,9 +8,12 @@
  * del iframe, y entiende y construye los mensajes. El `iframe` en sí lo monta
  * `components/drawio/DrawioView.tsx`.
  *
- * La webapp se sirve desde `public/drawio/`, o sea desde el **mismo origen** que
- * la app: por eso no hay que abrir la CSP ni sumar rutas al protocolo de assets
- * de Tauri, y el `postMessage` es directo. La baja `npm run preparar-drawio`.
+ * La webapp (`public/drawio/`, la baja `npm run preparar-drawio`) vive en **su
+ * propio origen** (`DEF-168`): Rust la sirve por el esquema `drawio`
+ * (`src-tauri/src/drawio_origen.rs`), que en Windows queda en
+ * `http://drawio.localhost/` y en macOS/Linux en `drawio://localhost/`. La app le
+ * habla solo por `postMessage`, con el origen de destino fijado, y solo acepta
+ * los mensajes que vienen de su iframe y de ese origen (`esMensajeDeDrawio`).
  *
  * > OJO: este módulo es **puro y sin imports** a propósito — así
  * > `scripts/test-drawio.mjs` puede transpilarlo e importarlo sin build, igual
@@ -19,8 +22,83 @@
 
 export const EXTENSION_DRAWIO = ".drawio";
 
-/** Dónde vive la webapp empaquetada, dentro del export estático. */
-export const BASE_DRAWIO = "/drawio/index.html";
+/** El esquema del protocolo propio de draw.io (`drawio_origen.rs::ESQUEMA`). */
+export const ESQUEMA_DRAWIO = "drawio";
+
+type ConvertirRuta = (ruta: string, protocolo: string) => string;
+
+/**
+ * La raíz desde la que se sirve draw.io, terminada en `/`.
+ *
+ * La arma `convertFileSrc` de Tauri, que conoce la forma del esquema en cada
+ * sistema (y si la app usa `https`). Fuera de Tauri (tests, bancos de prueba) se
+ * usa la forma de Windows.
+ */
+export function baseDrawio(
+  convertir: ConvertirRuta | undefined = (
+    globalThis as { __TAURI_INTERNALS__?: { convertFileSrc?: ConvertirRuta } }
+  ).__TAURI_INTERNALS__?.convertFileSrc,
+): string {
+  const url = convertir ? convertir("", ESQUEMA_DRAWIO) : `http://${ESQUEMA_DRAWIO}.localhost/`;
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+/** El origen (`esquema://host`) de una raíz como la de `baseDrawio`. */
+export function origenDeBase(base: string): string {
+  const m = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(base);
+  return m ? m[1] : base.replace(/\/+$/, "");
+}
+
+/** ¿El origen es `http(s)`? Solo esos los entiende `postMessage` como destino. */
+function esOrigenWeb(origen: string): boolean {
+  return /^https?:\/\//i.test(origen);
+}
+
+/**
+ * Con qué `targetOrigin` se le habla al iframe.
+ *
+ * En Windows es el origen exacto (`http://drawio.localhost`): si el iframe
+ * mostrara otra cosa, el mensaje no se entrega. Con un esquema propio
+ * (`drawio://localhost`, macOS/Linux) el navegador no lo admite como destino,
+ * así que va `*`; lo que viaja es el XML del diagrama que se le está pasando.
+ */
+export function destinoDeMensajes(origen: string): string {
+  return esOrigenWeb(origen) ? origen : "*";
+}
+
+/**
+ * ¿Este mensaje es del iframe de draw.io que se espera?
+ *
+ * Tienen que coincidir la ventana (`source`: el `contentWindow` de ESE iframe,
+ * no de otro editor) y el origen. Con un esquema propio (macOS/Linux) el motor
+ * puede informar el origen como `"null"`; ahí se acepta eso también, y la
+ * ventana sigue siendo la que decide.
+ */
+export function esMensajeDeDrawio(
+  ev: { source: unknown; origin: string },
+  ventana: unknown,
+  origen: string,
+): boolean {
+  if (ventana == null || ev.source !== ventana) return false;
+  if (ev.origin === origen) return true;
+  return !esOrigenWeb(origen) && ev.origin === "null";
+}
+
+/**
+ * Lo que se le permite al iframe del editor (`sandbox`). Sin `allow-top-navigation`:
+ * no puede llevarse la ventana. `allow-same-origin` es para su propio
+ * almacenamiento (preferencias, bibliotecas): al ser otro origen, no le da nada
+ * de la app. Descargas, ventanas emergentes y diálogos, para exportar e imprimir
+ * como antes.
+ */
+export const SANDBOX_EDITOR =
+  "allow-scripts allow-same-origin allow-downloads allow-popups allow-modals";
+
+/** El renderizador de los embeds no tiene interfaz: solo scripts. */
+export const SANDBOX_RENDERIZADOR = "allow-scripts allow-same-origin";
+
+/** Permisos del editor: el portapapeles (copiar y pegar formas) y pantalla completa. */
+export const ALLOW_EDITOR = "clipboard-read; clipboard-write; fullscreen";
 
 /**
  * Parámetros del modo embebido.
@@ -50,13 +128,13 @@ export const PARAMS_DRAWIO: Record<string, string> = {
   // a dónde salir.
   saveAndExit: "0",
   // Sin el soporte del traductor del navegador (`FUN-M-58`). En Chrome/WebView2
-  // draw.io lo enciende solo y, para notar si la página se traduce, cuelga un
-  // `MutationObserver` de **su iframe** sobre el `<html>` de Mycelium (el
-  // padre, mismo origen). Ese registro sobrevive a quitar el iframe y retiene
-  // su reino JS entero: medido en Chromium, cada editor o renderizador soltado
-  // dejaba ~9–17 MB de heap y ~70–80 MB privados para siempre, así que soltar
-  // iframes no liberaba nada. Con `0` el heap vuelve a su nivel al soltarlo. En
-  // una app de escritorio no hay traductor del navegador que soportar.
+  // draw.io lo enciende solo y, para notar si la página se traduce, intenta
+  // colgar un `MutationObserver` de **su iframe** sobre el `<html>` del padre.
+  // Cuando draw.io compartía origen con la app, ese registro sobrevivía a
+  // quitar el iframe y retenía su reino JS entero (~9–17 MB de heap y ~70–80 MB
+  // privados por editor soltado). Desde `DEF-168` el padre es de otro origen y
+  // no lo alcanza, pero se sigue apagando: en una app de escritorio no hay
+  // traductor del navegador que soportar.
   "browser-translate": "0",
 };
 
@@ -69,7 +147,7 @@ export type TemaDrawio = "claro" | "oscuro";
  * `lang` va en la URL porque draw.io lee el idioma al arrancar; cambiarlo
  * después obliga a recargar.
  */
-export function urlDelEditor(tema: TemaDrawio, lang = "es"): string {
+export function urlDelEditor(tema: TemaDrawio, lang = "es", base = baseDrawio()): string {
   const params = new URLSearchParams({
     ...PARAMS_DRAWIO,
     lang,
@@ -78,7 +156,7 @@ export function urlDelEditor(tema: TemaDrawio, lang = "es"): string {
     ui: "kennedy",
     dark: tema === "oscuro" ? "1" : "0",
   });
-  return `${BASE_DRAWIO}?${params.toString()}`;
+  return `${base}index.html?${params.toString()}`;
 }
 
 /**
@@ -88,7 +166,7 @@ export function urlDelEditor(tema: TemaDrawio, lang = "es"): string {
  * no se edita nada ahí, solo se carga un XML y se pide el SVG. Un solo iframe
  * atiende a todos los embeds de la nota, uno por vez.
  */
-export function urlDelRenderizador(): string {
+export function urlDelRenderizador(base = baseDrawio()): string {
   const params = new URLSearchParams({
     ...PARAMS_DRAWIO,
     libraries: "0",
@@ -96,7 +174,7 @@ export function urlDelRenderizador(): string {
     chrome: "0",
     lang: "es",
   });
-  return `${BASE_DRAWIO}?${params.toString()}`;
+  return `${base}index.html?${params.toString()}`;
 }
 
 // ── El protocolo ──────────────────────────────────────────────────────────────

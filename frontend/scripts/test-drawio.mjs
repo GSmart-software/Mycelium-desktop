@@ -18,18 +18,25 @@ const {
   accionCargar,
   accionExportarSvg,
   accionGuardar,
+  ALLOW_EDITOR,
+  baseDrawio,
   CacheLru,
   claveAPodar,
   claveEsDePestana,
   clavesHuerfanas,
   contenidoParaCargar,
   destinoDeEmbed,
+  destinoDeMensajes,
   diagramaInicial,
   embedDrawioRe,
   esDiagramaDrawio,
+  esMensajeDeDrawio,
   EXTENSION_DRAWIO,
   huellaXml,
   leerEvento,
+  origenDeBase,
+  SANDBOX_EDITOR,
+  SANDBOX_RENDERIZADOR,
   urlDelEditor,
   urlDelRenderizador,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
@@ -73,7 +80,10 @@ test("un archivo vacío o ajeno se abre como diagrama nuevo, no como error", () 
 
 test("la URL del editor lleva los parámetros del modo embebido", () => {
   const url = urlDelEditor("claro");
-  assert.ok(url.startsWith("/drawio/index.html?"), "se sirve del mismo origen");
+  assert.ok(
+    url.startsWith("http://drawio.localhost/index.html?"),
+    "se sirve desde su propio origen, no desde el de la app (DEF-168)",
+  );
   const p = new URLSearchParams(url.split("?")[1]);
   assert.equal(p.get("embed"), "1");
   assert.equal(p.get("proto"), "json");
@@ -278,4 +288,48 @@ test("la caché LRU desaloja al menos usado y respeta los dos topes", () => {
   t.set("enorme", "x".repeat(11));
   assert.equal(t.get("enorme"), undefined, "lo que no entra no se guarda");
   assert.equal(t.get("z"), "123", "ni desaloja a los demás");
+});
+
+// ── Su propio origen (DEF-168) ───────────────────────────────────────────────
+
+test("la raíz de draw.io sale de convertFileSrc, con la forma de cada sistema", () => {
+  const windows = (r, p) => `http://${p}.localhost/${encodeURIComponent(r)}`;
+  const mac = (r, p) => `${p}://localhost/${encodeURIComponent(r)}`;
+  assert.equal(baseDrawio(windows), "http://drawio.localhost/");
+  assert.equal(baseDrawio(mac), "drawio://localhost/");
+  assert.equal(baseDrawio(undefined), "http://drawio.localhost/", "fuera de Tauri, la forma de Windows");
+  assert.equal(urlDelEditor("claro", "es", "drawio://localhost/").split("?")[0], "drawio://localhost/index.html");
+});
+
+test("el origen y el destino de los mensajes", () => {
+  assert.equal(origenDeBase("http://drawio.localhost/"), "http://drawio.localhost");
+  assert.equal(origenDeBase("https://drawio.localhost/x?y"), "https://drawio.localhost");
+  assert.equal(origenDeBase("drawio://localhost/"), "drawio://localhost");
+  assert.equal(destinoDeMensajes("http://drawio.localhost"), "http://drawio.localhost");
+  assert.equal(destinoDeMensajes("drawio://localhost"), "*", "un esquema propio no sirve de destino");
+});
+
+test("solo se aceptan los mensajes del iframe esperado y de su origen", () => {
+  const marco = {};
+  const otro = {};
+  const web = "http://drawio.localhost";
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: web }, marco, web), true);
+  assert.equal(esMensajeDeDrawio({ source: otro, origin: web }, marco, web), false, "otra ventana");
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "http://tauri.localhost" }, marco, web), false);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "null" }, marco, web), false);
+  assert.equal(esMensajeDeDrawio({ source: null, origin: web }, null, web), false, "sin iframe, nada");
+  const propio = "drawio://localhost";
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: propio }, marco, propio), true);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "null" }, marco, propio), true);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "https://x.com" }, marco, propio), false);
+});
+
+test("los marcos no pueden navegar la ventana", () => {
+  for (const s of [SANDBOX_EDITOR, SANDBOX_RENDERIZADOR]) {
+    assert.ok(s.split(" ").includes("allow-scripts"));
+    assert.ok(!/allow-top-navigation/.test(s), s);
+    assert.ok(!/allow-popups-to-escape-sandbox/.test(s), s);
+  }
+  assert.ok(!/allow-downloads|allow-popups|allow-modals/.test(SANDBOX_RENDERIZADOR));
+  assert.match(ALLOW_EDITOR, /clipboard-write/);
 });

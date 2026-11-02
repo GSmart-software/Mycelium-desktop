@@ -3,10 +3,15 @@ import { analizarXml, diagnosticarDrawio } from "@/lib/archivosIlegibles";
 import {
   accionCargar,
   accionExportarSvg,
+  baseDrawio,
   CacheLru,
   contenidoParaCargar,
+  destinoDeMensajes,
+  esMensajeDeDrawio,
   huellaXml,
   leerEvento,
+  origenDeBase,
+  SANDBOX_RENDERIZADOR,
   urlDelRenderizador,
 } from "@/lib/drawio";
 import { resolveWikilink } from "@/lib/editor/wikilink";
@@ -39,6 +44,8 @@ import { useVaultStore, type TreeNota } from "@/stores/vaultStore";
 const TIMEOUT_MS = 20000;
 
 let iframe: HTMLIFrameElement | null = null;
+/** El origen de draw.io (`DEF-168`): se fija al crear el iframe. */
+let origen = "";
 let listo: Promise<HTMLIFrameElement> | null = null;
 /** Los pedidos se encolan: el iframe tiene un solo diagrama cargado por vez. */
 let cola: Promise<unknown> = Promise.resolve();
@@ -92,14 +99,19 @@ function arrancar(): Promise<HTMLIFrameElement> {
       "position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;visibility:hidden";
     marco.setAttribute("aria-hidden", "true");
     marco.setAttribute("tabindex", "-1");
-    marco.src = urlDelRenderizador();
+    // Su propio origen, sin interfaz y sin poder navegar la ventana (`DEF-168`).
+    const base = baseDrawio();
+    origen = origenDeBase(base);
+    marco.setAttribute("sandbox", SANDBOX_RENDERIZADOR);
+    marco.setAttribute("referrerpolicy", "no-referrer");
+    marco.src = urlDelRenderizador(base);
 
     const limite = setTimeout(() => {
       rechazar(new Error("el renderizador de draw.io no arrancó"));
     }, TIMEOUT_MS);
 
     function alRecibir(ev: MessageEvent) {
-      if (ev.source !== marco.contentWindow) return;
+      if (!esMensajeDeDrawio(ev, marco.contentWindow, origen)) return;
       const msg = leerEvento(ev.data);
       if (msg?.event !== "init") return;
       clearTimeout(limite);
@@ -130,10 +142,10 @@ function pedirSvg(marco: HTMLIFrameElement, xml: string): Promise<string> {
     }, TIMEOUT_MS);
 
     const enviar = (accion: unknown) =>
-      marco.contentWindow?.postMessage(JSON.stringify(accion), "*");
+      marco.contentWindow?.postMessage(JSON.stringify(accion), destinoDeMensajes(origen));
 
     function alRecibir(ev: MessageEvent) {
-      if (ev.source !== marco.contentWindow) return;
+      if (!esMensajeDeDrawio(ev, marco.contentWindow, origen)) return;
       const msg = leerEvento(ev.data);
       if (msg === null) return;
       if (msg.event === "load") {
