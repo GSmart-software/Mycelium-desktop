@@ -103,7 +103,7 @@ const VAULT_STORE = await fuente("../stores/vaultStore.ts", {
   "@/stores/authStore": STUB.authStore,
   "@/stores/graphStore": STUB.graphStore,
   "@/stores/tabsStore": STUB.tabsStore,
-  "@/lib/editor/livePreview": STUB.livePreview,
+  "@/lib/editor/refrescoVivo": STUB.livePreview,
   "@/lib/extensionesDeTipo": STUB.vacio,
 });
 const { useVaultStore } = await import(VAULT_STORE);
@@ -111,7 +111,7 @@ const { escucharCambiosVault, refrescarVault } = await import(
   await fuente("../lib/vaultWatch.ts", {
     "@/lib/arbolVivo": ARBOL_VIVO,
     "@/lib/eventos": EVENTOS,
-    "@/lib/editor/livePreview": STUB.livePreview,
+    "@/lib/editor/refrescoVivo": STUB.livePreview,
     "@/lib/otrosArchivos": STUB.otros,
     "@/lib/db/indexer": STUB.indexer,
     "@/lib/db/vaultFs": STUB.vaultFs,

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
 import { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } from "./hookMvRm";
 import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
+import { FRAMEWORK_IA_VERSION } from "./versionFramework";
 
 /**
  * Framework IA del vault (FUN-L-08, solo-desktop). Genera en el vault un conjunto
@@ -178,7 +179,9 @@ import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
  *   `mycelium-operar`.
  *   **Minor**: la IA gana una validación y una herramienta nuevas.
  */
-export const FRAMEWORK_IA_VERSION = "2.4.0";
+// El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
+// cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.
+export { FRAMEWORK_IA_VERSION };
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";

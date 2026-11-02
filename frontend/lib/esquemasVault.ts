@@ -17,7 +17,7 @@
 import { useSyncExternalStore } from "react";
 import { leerArchivoTexto } from "@/lib/db/vaultFs";
 import { getVaultActual } from "@/lib/db/vaultContext";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import {
   RUTA_ESQUEMAS,

@@ -29,9 +29,14 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// Source Serif 4 era la letra de la vista de lectura hasta el 2026-10-09; desde
+// entonces el defecto es Geist en edición y en lectura, y ninguna regla usa
+// `--mic-font-serif`. Queda como opción de Tipografía, así que va sin precarga,
+// como las de abajo (`FUN-M-58`, C-H6).
 const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
   subsets: ["latin"],
+  preload: false,
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -39,13 +44,19 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
-// Fuentes adicionales seleccionables en Tipografía (HU-14)
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
-const lora = Lora({ variable: "--font-lora", subsets: ["latin"] });
-const firaCode = Fira_Code({ variable: "--font-fira-code", subsets: ["latin"] });
+// Fuentes adicionales seleccionables en Tipografía (HU-14). Sin precarga
+// (`FUN-M-58`, C-H6 de la auditoría de eficiencia del 2026-11-01): con ella,
+// cada ventana bajaba estas cuatro aunque el vault no eligiera ninguna. El
+// @font-face sigue declarado, y el navegador la baja cuando una regla la usa.
+// Precargadas quedan solo las que se ven siempre: Geist (interfaz y texto) y
+// JetBrains Mono (código).
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], preload: false });
+const lora = Lora({ variable: "--font-lora", subsets: ["latin"], preload: false });
+const firaCode = Fira_Code({ variable: "--font-fira-code", subsets: ["latin"], preload: false });
 const sourceCodePro = Source_Code_Pro({
   variable: "--font-source-code-pro",
   subsets: ["latin"],
+  preload: false,
 });
 
 // Las letras del tema GSmart (`FUN-M-52`): Manrope en la interfaz y Michroma en

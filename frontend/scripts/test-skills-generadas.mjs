@@ -1,4 +1,4 @@
-// `lib/ia/skillsGeneradas.ts` tiene que ser exactamente lo que genera
+// `lib/ia/skillsGeneradas.ts` y `lib/ia/hookMvRmGenerado.ts` tienen que ser exactamente lo que genera
 // `scripts/generar-skills-ia.mjs` a partir de los borradores y los validadores
 // (`FUN-L-26`). Si falla: `node scripts/generar-skills-ia.mjs`.
 //
@@ -7,16 +7,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { archivosSkills, generarModulo, MARCADOR_VERSION } from "./generar-skills-ia.mjs";
+import { archivosSkills, MARCADOR_VERSION, modulosGenerados } from "./generar-skills-ia.mjs";
 
-const rutaGenerado = fileURLToPath(new URL("../lib/ia/skillsGeneradas.ts", import.meta.url));
-
-test("skillsGeneradas.ts está al día con los borradores y los validadores", async () => {
-  const enDisco = (await readFile(rutaGenerado, "utf8")).replace(/\r\n/g, "\n");
-  assert.ok(
-    enDisco === generarModulo(),
-    "lib/ia/skillsGeneradas.ts está desactualizado: corré `node scripts/generar-skills-ia.mjs`",
+test("los módulos generados están al día con los borradores, los validadores y el hook", async () => {
+  const modulos = modulosGenerados();
+  // El hook de mv/rm va en su propio módulo (`FUN-M-58`): `mcpControl` lo
+  // instala sin cargar las skills.
+  assert.deepEqual(
+    modulos.map((m) => m.ruta),
+    ["lib/ia/skillsGeneradas.ts", "lib/ia/hookMvRmGenerado.ts"],
   );
+  for (const { ruta, texto } of modulos) {
+    const enDisco = (await readFile(fileURLToPath(new URL(`../${ruta}`, import.meta.url)), "utf8")).replace(/\r\n/g, "\n");
+    assert.ok(enDisco === texto, `${ruta} está desactualizado: corré \`node scripts/generar-skills-ia.mjs\``);
+  }
 });
 
 test("cada archivo lleva el marcador de versión y los scripts no importan nada del repo", () => {

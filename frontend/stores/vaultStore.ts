@@ -33,7 +33,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 
 /**

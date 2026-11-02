@@ -74,7 +74,11 @@ import {
 import { renderExcalidrawInto } from "@/lib/excalidraw";
 import { resaltadosEnLinea } from "@/lib/resaltado";
 import { embebidoEnVault } from "@/lib/embedsRender";
-import { getAllViews } from "@/lib/editor/viewRegistry";
+import {
+  generacionViva,
+  refreshAllLiveViews,
+  registrarEfectoRefresco,
+} from "@/lib/editor/refrescoVivo";
 import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
@@ -117,18 +121,11 @@ const micelioHighlight = HighlightStyle.define([
 
 /** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */
 export const refreshLiveEffect = StateEffect.define<null>();
-
-// Generación de los embeds excalidraw en vivo: aumenta en cada refresh para que
-// los widgets se vuelvan a renderizar (su eq() la incluye) tras guardar un dibujo.
-let liveGen = 0;
-
-/** Redispara el live preview en todos los editores abiertos. */
-export function refreshAllLiveViews() {
-  liveGen++;
-  for (const view of getAllViews()) {
-    view.dispatch({ effects: refreshLiveEffect.of(null) });
-  }
-}
+// `refreshAllLiveViews` y la generación viven en `refrescoVivo.ts` para que los
+// stores refresquen sin cargar este módulo (`FUN-M-58`, C-H3); el efecto se
+// registra allá al cargar este, y se reexporta acá para los importadores de siempre.
+registrarEfectoRefresco(refreshLiveEffect);
+export { refreshAllLiveViews };
 
 /**
  * Pide ver UNA tabla como texto: lleva la posición donde arranca, o `null` para
@@ -490,7 +487,7 @@ class FrontmatterWidget extends WidgetType {
    * Generación del live preview: cambia con `refreshAllLiveViews`, que es como
    * se avisa que cambiaron los esquemas (`FUN-M-46`) y hay que revalidar.
    */
-  private readonly gen = liveGen;
+  private readonly gen = generacionViva();
 
   constructor(readonly texto: string) {
     super();
@@ -1788,7 +1785,7 @@ function buildDecorations(
             from: line.from,
             to: line.to,
             deco: Decoration.replace({
-              widget: new ExcalidrawWidget(match[1], line.from, liveGen),
+              widget: new ExcalidrawWidget(match[1], line.from, generacionViva()),
             }),
           });
         }
@@ -1861,7 +1858,7 @@ function buildDecorations(
             from: line.from,
             to: line.to,
             deco: Decoration.replace({
-              widget: new DrawioWidget(match[1], line.from, liveGen),
+              widget: new DrawioWidget(match[1], line.from, generacionViva()),
             }),
           });
         }
@@ -1882,10 +1879,10 @@ function buildDecorations(
         if (isActive || text.trim() !== match[0]) continue;
         const widget =
           embebido.tipo === "excalidraw"
-            ? new ExcalidrawWidget(embebido.ref, line.from, liveGen)
+            ? new ExcalidrawWidget(embebido.ref, line.from, generacionViva())
             : embebido.tipo === "drawio"
-              ? new DrawioWidget(embebido.ref, line.from, liveGen)
-              : new VistaPreviaWidget(embebido.tipo, embebido.ref, embebido.ancla, line.from, liveGen);
+              ? new DrawioWidget(embebido.ref, line.from, generacionViva())
+              : new VistaPreviaWidget(embebido.tipo, embebido.ref, embebido.ancla, line.from, generacionViva());
         decos.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget }) });
       }
 

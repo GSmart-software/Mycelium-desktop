@@ -1,7 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
@@ -13,7 +14,6 @@ import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
-import { VentanaAjustes } from "@/components/settings/VentanaAjustes";
 import { UpdateDialog } from "@/components/workspace/UpdateDialog";
 import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
@@ -368,7 +368,7 @@ function WorkspaceShell() {
       <LeftPanel />
       <EditorArea />
       <BarraEstado />
-      <VentanaAjustes />
+      <AjustesPerezosos />
       <ImportDialogs />
       <UpdateDialog />
       <PaletaComandos />
@@ -385,6 +385,31 @@ function WorkspaceShell() {
  * vacío. Con varios panes, en el que tiene la pestaña activa; si no hay nota
  * abierta, en el `<main>` mismo.
  */
+/**
+ * Configuración se carga recién la primera vez que se abre (`FUN-M-58`, C-H4
+ * de la auditoría de eficiencia del 2026-11-01): con sus diez secciones, el
+ * editor de CSS y el framework de IA que importa `VaultSection`, eran cientos
+ * de KB que el workspace cargaba de entrada para una ventana que casi nunca
+ * está abierta. El fallback es nulo: el chunk sale del disco de la app y la
+ * ventana aparece en el mismo instante.
+ */
+const VentanaAjustes = dynamic(
+  () => import("@/components/settings/VentanaAjustes").then((m) => m.VentanaAjustes),
+  { ssr: false },
+);
+
+/**
+ * Monta la ventana en la primera apertura y la deja montada: así conserva,
+ * como antes, la categoría que el usuario dejó elegida entre una apertura y
+ * otra (cerrada, `VentanaAjustes` devuelve `null`).
+ */
+function AjustesPerezosos() {
+  const abierto = useUiStore((s) => s.settingsOpen);
+  const [usada, setUsada] = useState(false);
+  if (abierto && !usada) setUsada(true);
+  return usada || abierto ? <VentanaAjustes /> : null;
+}
+
 function saltarALaNota(e: React.MouseEvent<HTMLAnchorElement>) {
   e.preventDefault();
   const main = document.getElementById("contenido");

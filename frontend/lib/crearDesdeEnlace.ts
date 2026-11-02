@@ -1,4 +1,4 @@
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { planDeEnlaceRoto } from "@/lib/enlaceRoto";
 import { useVaultStore } from "@/stores/vaultStore";
 

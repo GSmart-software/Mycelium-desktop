@@ -14,7 +14,7 @@ import {
   sustituirVariables,
   tituloNotaDesdeEspora,
 } from "@/lib/esporas";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { cuerpoDe, ponerPropiedad, separarFrontmatter } from "@/lib/frontmatter";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";

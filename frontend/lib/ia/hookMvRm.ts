@@ -2,7 +2,7 @@
  * El hook `PreToolUse` del vault (`FUN-L-09`, Parte 3): cuando la IA corre
  * `mv` o `rm` sobre notas o carpetas con el control encendido, le recuerda
  * `mycelium_renombrar` / `_mover` / `_borrar` (el script, `scripts/hook-mv-rm.mjs`,
- * viaja en `lib/ia/skillsGeneradas.ts` como `HOOK_MV_RM`).
+ * viaja en `lib/ia/hookMvRmGenerado.ts` como `HOOK_MV_RM`).
  *
  * Se registra en `.claude/settings.json`, que **puede ser del usuario** (sus
  * permisos, sus propios hooks). Como con el `.mcp.json` (`lib/ia/mcpJson.ts`):
