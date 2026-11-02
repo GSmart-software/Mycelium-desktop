@@ -352,6 +352,14 @@ async function ipc(cmd, args) {
     case "escribir_nota":
       await writeFile(rutaEnVault(args.rutaRel), args.contenido);
       return Date.now();
+    case "guardar_nota":
+      // Sin la comparación de `guardar_nota_en`: el smoke no prueba conflictos.
+      await writeFile(rutaEnVault(args.rutaRel), args.contenido);
+      return {
+        mtime: Date.now(),
+        conflicto: false,
+        huella: createHash("sha256").update(Buffer.from(args.contenido, "utf8")).digest("hex"),
+      };
     case "leer_estado_vault":
     case "take_opened_files":
       return cmd === "take_opened_files" ? [] : null;

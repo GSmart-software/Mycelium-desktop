@@ -77,6 +77,18 @@ test("sin base o sin archivo, se escribe como siempre", () => {
   assert.equal(alGuardar(null, "A", "Y"), "escribir");
 });
 
+// ── Huella (`FUN-M-58`, B9) ────────────────────────────────────────────────
+
+test("la huella es la de Rust: SHA-256 hex de los bytes UTF-8, con BOM y CRLF tal cual", async () => {
+  // Los mismos vectores que `huella_es_sha256_hex_de_los_bytes` (`vault_fs.rs`).
+  assert.equal(await C.huellaDeTexto(""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  assert.equal(
+    await C.huellaDeTexto("﻿# Árbol\r\nñ"),
+    "f2640117246f20208901709f485d4aacd020fbecd70955d896a4da8452d7da2a",
+  );
+  assert.notEqual(await C.huellaDeTexto("a\r\nb"), await C.huellaDeTexto("a\nb"));
+});
+
 // ── Nombres de la copia ────────────────────────────────────────────────────
 
 test("título de la copia local", () => {

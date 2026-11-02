@@ -87,6 +87,35 @@ export async function escribirNota(vault: string, rutaRel: string, contenido: st
   return mtime;
 }
 
+/** Lo que devuelve `guardarNota`. */
+export type NotaGuardada = {
+  /** `mtime` con que quedó el archivo; 0 si no se escribió. */
+  mtime: number;
+  /** El disco ya no tenía la base: no se escribió nada (`DEF-138`). */
+  conflicto: boolean;
+  /** Huella de lo escrito (`huellaDeTexto`); `null` en conflicto. */
+  huella: string | null;
+};
+
+/**
+ * Guardado con base (`FUN-M-58`, B9): Rust compara el archivo con
+ * `huellaEsperada` y escribe solo si coincide (o si ya tiene `contenido`, o si
+ * no existe), todo dentro del turno del archivo. Con `null`, escribe siempre.
+ * El texto cruza el puente una sola vez: antes se leía el archivo entero para
+ * compararlo en JS.
+ */
+export async function guardarNota(
+  vault: string,
+  rutaRel: string,
+  contenido: string,
+  huellaEsperada: string | null,
+): Promise<NotaGuardada> {
+  const invoke = await getInvoke();
+  const r = await invoke<NotaGuardada>("guardar_nota", { vaultRuta: vault, rutaRel, contenido, huellaEsperada });
+  if (!r.conflicto) anotarEscrituraPropia(rutaRel, r.mtime);
+  return r;
+}
+
 /** Abre el explorador del SO mostrando el archivo/carpeta `rutaRel` del vault. */
 export async function revelarEnSistema(vault: string, rutaRel: string): Promise<void> {
   const invoke = await getInvoke();

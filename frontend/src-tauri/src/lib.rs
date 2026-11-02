@@ -242,6 +242,7 @@ pub fn run() {
             vault_config::set_abrir_ultimo,
             vault_config::marcar_acceso,
             vault_fs::escribir_nota,
+            vault_fs::guardar_nota,
             vault_fs::mover_ruta,
             vault_fs::crear_directorio,
             vault_fs::copiar_archivo,
