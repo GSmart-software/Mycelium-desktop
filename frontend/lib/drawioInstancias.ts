@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import { analizarXml, diagnosticarDrawio, motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import {
   accionCargar,
+  claveAPodar,
   diagramaInicial,
   leerEvento,
   urlDelEditor,
@@ -45,17 +46,24 @@ import { allLeaves, useTabsStore } from "@/stores/tabsStore";
 const GUARDADO_MS = 800;
 
 /**
- * Cuántos editores se mantienen vivos a la vez.
+ * Cuántos editores **ocultos** se mantienen vivos, además de los que se ven.
  *
- * Mucho más bajo que el tope de las tablas (`MAX_TABLAS_RECORDADAS = 8`) porque
- * lo que se guarda no es comparable: una tabla recuerda filas, y esto mantiene
- * **la webapp de draw.io entera** corriendo en un `iframe`, que son decenas de
- * MB de memoria cada uno. Tres cubre el ir y venir entre un par de diagramas,
- * que es el caso real; el cuarto recarga, como antes.
+ * Cada uno es **la webapp de draw.io entera** corriendo en un `iframe`: medido
+ * en Chromium con GPU, +158 MB privados por editor (auditoría de eficiencia del
+ * 2026-11-01, C-H2). Antes el tope era 3 editores en total, visibles incluidos,
+ * y con tres diagramas abiertos se iban ~480 MB.
  *
- * Nunca se suelta uno que se esté viendo: solo salen los ocultos.
+ * Decisión del usuario (2026-11-01, `FUN-M-58`): **solo 1 vivo** fuera de los
+ * que se están viendo. Se interpreta como «los visibles + 1 oculto»: los
+ * visibles no pueden soltarse (se recargarían delante del usuario) y uno oculto
+ * cubre el ir y venir entre dos diagramas sin recargar. Volver a un tercero
+ * recarga la webapp (1–2 s), aceptado a cambio de ~160 MB por diagrama.
+ *
+ * Nunca se suelta uno que se esté viendo ni uno con cambios sin guardar
+ * (`sucio`): ese se queda aunque se pase del tope, y se poda cuando su guardado
+ * sale. La regla vive en `claveAPodar` (`lib/drawio.ts`), donde se prueba.
  */
-const MAX_EDITORES_VIVOS = 3;
+const MAX_EDITORES_OCULTOS = 1;
 
 /** Prefijo de las claves que NO son pestañas (el panel lateral anclado). */
 const CLAVE_LATERAL = "sidebar:";
@@ -92,6 +100,8 @@ type Instancia = {
 
 const instancias = new Map<string, Instancia>();
 let sincronizando = 0;
+/** La poda que agenda `desadjuntar` (ver ahí por qué no es inmediata). */
+let podaDiferida: ReturnType<typeof setTimeout> | null = null;
 
 // ── Archivo ilegible (`DEF-119`) ──────────────────────────────────────────────
 //
@@ -132,6 +142,7 @@ function aplicarDisco(inst: Instancia, disco: string) {
   if (estabaIlegible) {
     inst.rect = null; // que `sincronizar` lo vuelva a posicionar y mostrar
     notificar(inst.clave);
+    programarSincronizacion();
   }
 }
 
@@ -170,7 +181,13 @@ function programarGuardado(inst: Instancia) {
   inst.sucio = true;
   useSyncStore.getState().setSyncState(inst.notaId, "local");
   if (inst.temporizador) clearTimeout(inst.temporizador);
-  inst.temporizador = setTimeout(() => void guardar(inst), GUARDADO_MS);
+  inst.temporizador = setTimeout(() => {
+    inst.temporizador = null;
+    void guardar(inst);
+    // Un oculto sucio se salvó de la poda; ya no lo está (`guardar` lo limpia
+    // antes de escribir), así que ahora sí puede salir si sobra.
+    podar();
+  }, GUARDADO_MS);
 }
 
 /** Escribe ya lo que esta instancia tenga pendiente. Idempotente. */
@@ -240,6 +257,7 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
       if (inst.temporizador) clearTimeout(inst.temporizador);
       inst.temporizador = null;
       void guardar(inst);
+      podar();
     }
   };
 
@@ -325,27 +343,93 @@ function soltar(clave: string) {
   inst.iframe.remove();
 }
 
-/** Deja como mucho `MAX_EDITORES_VIVOS`, soltando los ocultos más viejos. */
+/**
+ * Deja como mucho `MAX_EDITORES_OCULTOS` ocultos, soltando los más viejos que
+ * no tengan cambios sin guardar. Los que se están viendo no se tocan.
+ */
 function podar() {
-  while (instancias.size > MAX_EDITORES_VIVOS) {
-    // Un `Map` recuerda el orden de inserción, así que el primero oculto es el
-    // más viejo. Los que se están viendo no se tocan.
-    const victima = [...instancias.values()].find((i) => i.ancla === null);
-    if (!victima) return;
-    soltar(victima.clave);
+  for (;;) {
+    // Un `Map` recuerda el orden de inserción, y `adjuntar`/`desadjuntar` lo
+    // renuevan: el primero es el usado hace más tiempo.
+    const victima = claveAPodar(
+      [...instancias.values()].map((i) => ({
+        clave: i.clave,
+        visible: i.ancla !== null,
+        sucio: i.sucio,
+      })),
+      MAX_EDITORES_OCULTOS,
+    );
+    if (victima === null) return;
+    soltar(victima);
   }
 }
 
 // ── Posicionar sobre el pane ──────────────────────────────────────────────────
 
+/**
+ * Cuándo se re-mide (`FUN-M-58`, A-H10). Antes había un `requestAnimationFrame`
+ * permanente mientras hubiera un diagrama visible —un `getBoundingClientRect`
+ * por cuadro, 60 despertares por segundo con la app quieta—, elegido porque el
+ * pane se mueve por demasiadas razones (arrastrar un divisor, abrir el panel
+ * lateral, plegar el explorador, redimensionar la ventana) y enumerarlas era la
+ * lista que se queda corta. Ahora no se enumeran razones, se observan efectos:
+ *
+ * - `ResizeObserver` sobre cada ancla visible: casi todo lo que mueve un pane
+ *   en este layout de flex también le cambia el tamaño, y el observador avisa
+ *   **después del layout y antes de pintar**, en el mismo cuadro (con el rAF se
+ *   medía también en el mismo cuadro: no se pierde nada al arrastrar).
+ * - `resize` de la ventana.
+ * - Un vigía de `VIGIA_MS` para lo único que el observador no ve: un pane que
+ *   se **traslada** sin cambiar de tamaño. Son 4 lecturas por segundo en vez de
+ *   60, y en el peor caso el editor tarda un cuarto de segundo en alcanzarlo.
+ */
+const VIGIA_MS = 250;
+let observador: ResizeObserver | null = null;
+const observadas = new Set<HTMLElement>();
+let vigia: ReturnType<typeof setInterval> | null = null;
+
+function alCambiarTamano() {
+  if (sincronizando !== 0) cancelAnimationFrame(sincronizando);
+  sincronizar();
+}
+
+/** Observa exactamente las anclas visibles; sin ninguna, no queda nada vivo. */
+function vigilar(anclas: ReadonlySet<HTMLElement>) {
+  if (typeof ResizeObserver !== "undefined") {
+    if (observador === null && anclas.size > 0) {
+      observador = new ResizeObserver(alCambiarTamano);
+    }
+    for (const a of [...observadas]) {
+      if (!anclas.has(a)) {
+        observador?.unobserve(a);
+        observadas.delete(a);
+      }
+    }
+    for (const a of anclas) {
+      if (!observadas.has(a)) {
+        observador?.observe(a);
+        observadas.add(a);
+      }
+    }
+  }
+  if (anclas.size > 0 && vigia === null) {
+    vigia = setInterval(programarSincronizacion, VIGIA_MS);
+    window.addEventListener("resize", programarSincronizacion);
+  } else if (anclas.size === 0 && vigia !== null) {
+    clearInterval(vigia);
+    vigia = null;
+    window.removeEventListener("resize", programarSincronizacion);
+  }
+}
+
 function sincronizar() {
   sincronizando = 0;
-  let hayVisibles = false;
+  const visibles = new Set<HTMLElement>();
 
   for (const inst of instancias.values()) {
     const ancla = inst.ancla;
     if (ancla === null) continue;
-    hayVisibles = true;
+    visibles.add(ancla);
     // Ilegible (`DEF-119`): en el hueco va el aviso de la vista, no el editor.
     // El bucle sigue, para mostrarlo apenas el archivo se corrija.
     if (inst.ilegible !== null) {
@@ -378,15 +462,13 @@ function sincronizar() {
     if (inst.iframe.style.display !== "block") inst.iframe.style.display = "block";
   }
 
-  // El bucle solo corre mientras haya algo visible, y cada vuelta sale temprano
-  // si el rectángulo no cambió. Se sigue por cuadro en vez de escuchar eventos
-  // porque el pane se mueve por demasiadas razones —arrastrar un divisor,
-  // abrir el panel lateral, plegar el explorador, redimensionar la ventana— y
-  // enumerarlas todas es justo la lista que se queda corta.
-  if (hayVisibles) sincronizando = requestAnimationFrame(sincronizar);
+  // Ya no se re-agenda solo: lo despiertan el observador, la ventana o el vigía
+  // (ver `VIGIA_MS`). Cada vuelta sigue saliendo temprano si nada cambió.
+  vigilar(visibles);
 }
 
-function arrancarSincronizacion() {
+/** Una medición en el próximo cuadro (varias llamadas seguidas cuentan como una). */
+function programarSincronizacion() {
   if (sincronizando === 0) sincronizando = requestAnimationFrame(sincronizar);
 }
 
@@ -420,16 +502,35 @@ export function adjuntar(
   inst.rect = null;
   aplicarTema(clave, tema);
   podar();
-  arrancarSincronizacion();
+  programarSincronizacion();
 }
 
-/** Oculta el editor sin destruirlo: la pestaña sigue abierta, solo no se ve. */
+/**
+ * Oculta el editor sin destruirlo: la pestaña sigue abierta, solo no se ve.
+ *
+ * Pasa a ser el oculto más reciente —lo último que el usuario estaba mirando—,
+ * así que si sobran ocultos sale otro antes que este. La poda va acá también y
+ * no solo en `adjuntar`: pasar de un diagrama a una nota no adjunta nada.
+ */
 export function desadjuntar(clave: string): void {
   const inst = instancias.get(clave);
   if (!inst) return;
   inst.ancla = null;
   inst.rect = null;
   inst.iframe.style.display = "none";
+  instancias.delete(clave);
+  instancias.set(clave, inst);
+  // Diferida a la próxima tarea: un remontaje (mover la pestaña de pane, el
+  // doble efecto de React en desarrollo) desadjunta y vuelve a adjuntar en el
+  // mismo commit, y podar en el medio soltaría al OTRO oculto por un instante
+  // en que este figuró como oculto.
+  if (podaDiferida === null) {
+    podaDiferida = setTimeout(() => {
+      podaDiferida = null;
+      podar();
+    }, 0);
+  }
+  programarSincronizacion(); // deja de observar su ancla
 }
 
 /**

@@ -49,6 +49,15 @@ export const PARAMS_DRAWIO: Record<string, string> = {
   // Sin «guardar y salir»: la pestaña de Mycelium ya es el contenedor, no hay
   // a dónde salir.
   saveAndExit: "0",
+  // Sin el soporte del traductor del navegador (`FUN-M-58`). En Chrome/WebView2
+  // draw.io lo enciende solo y, para notar si la página se traduce, cuelga un
+  // `MutationObserver` de **su iframe** sobre el `<html>` de Mycelium (el
+  // padre, mismo origen). Ese registro sobrevive a quitar el iframe y retiene
+  // su reino JS entero: medido en Chromium, cada editor o renderizador soltado
+  // dejaba ~9–17 MB de heap y ~70–80 MB privados para siempre, así que soltar
+  // iframes no liberaba nada. Con `0` el heap vuelve a su nivel al soltarlo. En
+  // una app de escritorio no hay traductor del navegador que soportar.
+  "browser-translate": "0",
 };
 
 /** Tema del editor: sigue al claro/oscuro de Mycelium (CA6). */
@@ -223,19 +232,105 @@ export function clavesHuerfanas(
 }
 
 /**
- * Cuál se poda cuando hay más editores vivos que el tope.
+ * Cuál se poda cuando hay más editores **ocultos** vivos que el tope.
  *
- * `vivas` viene en orden de uso, del más viejo al más reciente. Se elige el más
- * viejo que **no se esté viendo**: podar uno visible lo recargaría delante del
- * usuario, que es exactamente lo que este módulo existe para evitar. Si todos
- * están visibles se devuelve `null` y se pasa del tope, a propósito.
+ * El tope cuenta solo los ocultos (`FUN-M-58`): los que se están viendo —una
+ * pestaña por pane, más el panel lateral— no entran en la cuenta y nunca se
+ * podan, porque soltar uno visible lo recargaría delante del usuario, que es
+ * exactamente lo que este módulo existe para evitar.
+ *
+ * `vivas` viene en orden de uso, del más viejo al más reciente. Se elige el
+ * oculto más viejo **sin cambios sin guardar** (`sucio`): uno sucio se queda
+ * aunque se pase del tope, y se vuelve a podar cuando su guardado sale. Si no
+ * hay a quién soltar se devuelve `null`.
  */
 export function claveAPodar(
-  vivas: readonly { clave: string; visible: boolean }[],
-  max: number,
+  vivas: readonly { clave: string; visible: boolean; sucio?: boolean }[],
+  maxOcultos: number,
 ): string | null {
-  if (vivas.length <= max) return null;
-  return vivas.find((v) => !v.visible)?.clave ?? null;
+  const ocultos = vivas.filter((v) => !v.visible);
+  if (ocultos.length <= maxOcultos) return null;
+  return ocultos.find((v) => !v.sucio)?.clave ?? null;
+}
+
+// ── Caché de las vistas previas (`FUN-M-58`) ──────────────────────────────────
+
+/**
+ * Huella de un XML para la caché de SVG: largo + hash de 53 bits (cyrb53).
+ *
+ * No se usa el XML como clave porque un diagrama grande pesa cientos de KB y la
+ * caché retendría dos copias (clave y SVG). Con 53 bits y el largo adelante,
+ * una colisión entre dos diagramas del mismo vault es despreciable (~1 en 10¹⁵
+ * por par); y el peor caso es ver la imagen de otro diagrama, no perder datos.
+ */
+export function huellaXml(xml: string): string {
+  let h1 = 0xdeadbeef ^ xml.length;
+  let h2 = 0x41c6ce57 ^ xml.length;
+  for (let i = 0; i < xml.length; i++) {
+    const c = xml.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const h = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  return `${xml.length}:${h.toString(36)}`;
+}
+
+/**
+ * Caché LRU acotada por cantidad y por tamaño total (en caracteres).
+ *
+ * Un `Map` recuerda el orden de inserción: leer una entrada la vuelve a meter al
+ * final, así que la primera es siempre la menos usada. Un valor más grande que
+ * el tope de tamaño no se guarda (desalojaría todo lo demás por una sola).
+ */
+export class CacheLru {
+  private readonly mapa = new Map<string, string>();
+  private total = 0;
+  private readonly maxEntradas: number;
+  private readonly maxCaracteres: number;
+
+  constructor(maxEntradas: number, maxCaracteres: number) {
+    this.maxEntradas = maxEntradas;
+    this.maxCaracteres = maxCaracteres;
+  }
+
+  get(clave: string): string | undefined {
+    const v = this.mapa.get(clave);
+    if (v === undefined) return undefined;
+    this.mapa.delete(clave);
+    this.mapa.set(clave, v);
+    return v;
+  }
+
+  set(clave: string, valor: string): void {
+    const previo = this.mapa.get(clave);
+    if (previo !== undefined) {
+      this.mapa.delete(clave);
+      this.total -= previo.length;
+    }
+    if (valor.length > this.maxCaracteres) return;
+    this.mapa.set(clave, valor);
+    this.total += valor.length;
+    while (this.mapa.size > this.maxEntradas || this.total > this.maxCaracteres) {
+      const [vieja, v] = this.mapa.entries().next().value as [string, string];
+      this.mapa.delete(vieja);
+      this.total -= v.length;
+    }
+  }
+
+  get tamano(): number {
+    return this.mapa.size;
+  }
+
+  get caracteres(): number {
+    return this.total;
+  }
+
+  vaciar(): void {
+    this.mapa.clear();
+    this.total = 0;
+  }
 }
 
 /**
