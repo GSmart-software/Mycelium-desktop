@@ -1812,7 +1812,7 @@ export function NoteEditor({
         // propios. El guardado está en pausa; nada se pierde sin que se elija.
         <div className={styles.conflictBar} role="alert">
           <span className={styles.conflictTexto}>
-            El archivo cambió fuera de Mycelium y tenés cambios sin guardar.
+            El archivo cambió fuera de Mycelium y tienes cambios sin guardar.
           </span>
           <button type="button" disabled={resolviendo} onClick={() => void verLoDeAfuera()}>
             Ver lo de afuera
