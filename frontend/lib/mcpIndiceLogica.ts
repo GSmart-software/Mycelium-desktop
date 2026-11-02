@@ -65,6 +65,17 @@ export const LIMITE_BUSCAR_MAX = 50;
 /** Hasta dónde se puede paginar (la búsqueda de la app ordena por título y relevancia). */
 export const DESDE_MAX = 1000;
 
+/**
+ * Con menos caracteres la consulta no se hace (`FUN-M-58`): el mismo mínimo
+ * que el panel de búsqueda (`MINIMO_CARACTERES` en `SearchPanel.tsx`,
+ * `FUN-M-38`). Una letra sola coincide con casi todas las notas y FTS5 arma el
+ * `snippet()` de todas antes del `LIMIT`: medido en un vault de 1.500 notas,
+ * `"e"*` tardaba 4,1 s por página y retenía el canal del MCP (las demás
+ * herramientas esperaban hasta responder `OCUPADA`). No se importa del panel:
+ * es un componente, y se comparte con web, que no tiene este módulo.
+ */
+export const MINIMO_CARACTERES_BUSCAR = 2;
+
 export type ArgsBuscar = {
   consulta: string;
   campo: "nombre" | "contenido" | "ambos";
@@ -78,6 +89,12 @@ export function validarBuscar(args: Record<string, unknown>): Validado<ArgsBusca
   if (!k.ok) return k;
   const consulta = textoObligatorio(args, "consulta");
   if (!consulta.ok) return consulta;
+  if (consulta.valor.length < MINIMO_CARACTERES_BUSCAR) {
+    return invalido(
+      "consulta",
+      `tiene al menos ${MINIMO_CARACTERES_BUSCAR} caracteres: uno solo coincide con casi todas las notas y la búsqueda tardaría segundos.`,
+    );
+  }
   const campo = args.campo ?? "ambos";
   if (campo !== "nombre" && campo !== "contenido" && campo !== "ambos") {
     return invalido("campo", "es `nombre`, `contenido` o `ambos`.");

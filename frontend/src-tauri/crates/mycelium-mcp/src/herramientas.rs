@@ -336,7 +336,7 @@ pub fn definiciones() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "consulta": { "type": "string", "description": "Lo que se busca: palabras, \"frase exacta\", clave:valor, tag:x." },
+                    "consulta": { "type": "string", "description": "Lo que se busca: palabras, \"frase exacta\", clave:valor, tag:x. Al menos 2 caracteres, como en el panel." },
                     "campo": { "type": "string", "enum": ["ambos", "nombre", "contenido"], "description": "Dónde buscar. Por defecto ambos." },
                     "exacto": { "type": "boolean", "description": "Palabra completa en vez de prefijo (`plan` no trae `planta`). Por defecto false." },
                     "limite": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Resultados por página. Por defecto 20." },
