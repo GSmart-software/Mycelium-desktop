@@ -68,9 +68,12 @@ una barra arriba de la nota, «El archivo cambió fuera de Mycelium», y elegís
 | **Quedarme con lo mío** | Guarda lo tuyo encima de lo de afuera. |
 | **Guardar lo mío como copia** | Lo tuyo va a una nota nueva, «Título (copia local)», y en esta queda lo de afuera. |
 
-Mientras no elijas podés seguir escribiendo, pero esa nota no se guarda: la barra de estado
-dice «Sin guardar: conflicto». Si cerrás la pestaña, te ofrece guardar lo tuyo como copia
-antes de cerrarla.
+Mientras no se elija, se puede seguir escribiendo, pero esa nota no se guarda: la barra de
+estado dice «Sin guardar: conflicto». Y lo escrito no se pierde sin preguntar: cerrar la
+pestaña, ir atrás o adelante en ella o salir del vault ofrece antes guardar lo tuyo como copia.
+Si la pestaña se va sin que se pueda preguntar —la IA borra la nota, o el archivo desaparece
+de afuera—, la copia se guarda sola y Mycelium avisa dónde quedó. Al cerrar la ventana, lo
+tuyo va a un archivo al lado de la nota, «Título (copia local fecha hora)».
 
 > [!tip] Un vault por tema de tu vida
 > Podés tener varios (trabajo, estudio, personal) y abrir cada uno en su propia ventana.

@@ -284,6 +284,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set, get) => ({
   },
 
   async salir() {
+    // Lo de las notas en conflicto con el disco, antes de soltar el vault: la
+    // copia se crea en ESTE vault (`DEF-177`). Quien sale por la barra ya
+    // preguntó; esto es la red para cualquier otro camino. Por `import()`, como
+    // `lib/mcpControl`: no suma un ciclo de imports entre stores.
+    await import("@/lib/conflictosAbiertos")
+      .then((m) => m.resguardarConflictos())
+      .catch(() => undefined);
     // Detener el watcher antes de soltar el vault (fase 5). Best-effort.
     try {
       const { invoke } = await import("@tauri-apps/api/core");

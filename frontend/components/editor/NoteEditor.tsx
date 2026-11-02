@@ -18,15 +18,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { confirmar } from "@/lib/confirmar";
-import {
-  decidirAnteCambioExterno,
-  rutaDeCopiaDeEmergencia,
-  tituloDeCopiaLocal,
-} from "@/lib/conflictoExterno";
+import { decidirAnteCambioExterno, tituloDeCopiaLocal } from "@/lib/conflictoExterno";
 import { atarAPestanas, pestanaAbierta } from "@/lib/cachePestanas";
 import { olvidarConflicto, registrarConflicto } from "@/lib/conflictosAbiertos";
-import { escribirNota } from "@/lib/db/vaultFs";
-import { getVaultActual } from "@/lib/db/vaultContext";
 import { avisoTocaA } from "@/lib/recargaExterna";
 import { wrapSelection } from "@/lib/editor/commands";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
@@ -550,7 +544,12 @@ export function NoteEditor({
     setConflicto(true);
     setSyncState("conflicto");
     // Para que cerrar la pestaña pregunte en vez de tirar lo del usuario.
-    registrarConflicto(instanceId, notaIdRef.current, () => guardarCopiaRef.current());
+    registrarConflicto(
+      instanceId,
+      notaIdRef.current,
+      () => guardarCopiaRef.current(),
+      () => contentRef.current,
+    );
   }, [setSyncState, instanceId]);
 
   const salirDeConflicto = useCallback(() => {
@@ -1332,17 +1331,10 @@ export function NoteEditor({
     const onBeforeUnload = () => {
       // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
       // dispatcher local (antes era un fetch al backend .NET).
-      if (conflictoRef.current) {
-        // En conflicto no se puede preguntar ni esperar: lo propio se escribe
-        // en un archivo aparte, con fecha y hora, y el de la nota queda como lo
-        // dejaron afuera (`DEF-138`). Una sola escritura, sin pasar por el índice
-        // —el próximo indexado lo encuentra—.
-        void escribirNota(
-          getVaultActual(),
-          rutaDeCopiaDeEmergencia(notaId, new Date()),
-          contentRef.current,
-        ).catch(() => {});
-      } else if (dirtyRef.current) {
+      // En conflicto no se guarda acá: la copia de emergencia la escribe
+      // `lib/conflictosAbiertos` para TODAS las pestañas en conflicto, también
+      // las que no se ven y ya no tienen editor montado (`DEF-177`).
+      if (dirtyRef.current && !conflictoRef.current) {
         void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
           method: "PUT",
           body: { contenido: contentRef.current, esperado: ultimoGuardadoRef.current },

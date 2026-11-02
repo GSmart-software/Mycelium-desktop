@@ -2,6 +2,7 @@
 
 import { LogOut, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { guardarConflictosSinPerder } from "@/lib/conflictosAbiertos";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { ControlesVentana } from "@/components/ventana/ControlesVentana";
@@ -29,6 +30,9 @@ export function AppTopbar() {
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
 
   async function salirDelVault() {
+    // Salir suelta todas las pestañas: lo de una nota en conflicto con el disco
+    // se guarda como copia, si el usuario quiere; si no, no se sale (`DEF-177`).
+    if (!(await guardarConflictosSinPerder("salir del vault", "Guardar copia y salir"))) return;
     await useVaultSessionStore.getState().salir();
     router.replace("/vaults");
   }
