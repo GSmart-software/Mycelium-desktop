@@ -51,7 +51,7 @@ import {
   type CambioVault,
   type RecorridoVault,
 } from "@/lib/arbolVivo";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { EVENTO_RECARGA, avisarRecarga } from "@/lib/eventos";
 import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { otrosDesdeMeta } from "@/lib/otrosArchivos";
 import { indexarRutas, indexarVault } from "@/lib/db/indexer";
@@ -156,11 +156,7 @@ function avisarIndexado(rutas: string[], refrescar = true): void {
   // (`FUN-L-26`): un lienzo o un diagrama abierto solo relee su archivo si está
   // entre ellas. Sin rutas (no debería pasar) va sin detalle, que significa
   // «pudo cambiar cualquier cosa».
-  window.dispatchEvent(
-    rutas.length > 0
-      ? new CustomEvent(EVENTO_RECARGA, { detail: { rutas } })
-      : new Event(EVENTO_RECARGA),
-  );
+  avisarRecarga(rutas.length > 0 ? rutas : "todas");
 }
 
 /**

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "@/lib/api";
-import { EVENTO_ALIAS, EVENTO_RECARGA } from "@/lib/eventos";
+import { EVENTO_ALIAS, avisarRecarga } from "@/lib/eventos";
 import {
   SIN_REPARACION,
   alternarAliasDeNota,
@@ -208,7 +208,9 @@ let treeSeq = 0;
  * contenido por el id viejo—.
  */
 function avisarReescritas(r: Reparacion): void {
-  if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
+  // Solo esas notas (`FUN-M-58`): sin rutas, todos los editores abiertos
+  // volvían a leer su archivo para comparar.
+  avisarRecarga(r.reescritas);
 }
 
 /** El vault después de que `movidos` cambien de ruta. */

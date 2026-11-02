@@ -17,7 +17,7 @@
  */
 import { create } from "zustand";
 import { abrirIndiceDeVault, execute, setExecutor } from "@/lib/db/client";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisarRecarga } from "@/lib/eventos";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { restaurarEstadoVault } from "@/lib/db/estadoVault";
 import { migrarDiagramasEmbebidos, migrarEstadoLegado } from "@/lib/db/legado";
@@ -395,7 +395,8 @@ async function reconstruir(
     const vaultId = useVaultStore.getState().vaultId;
     if (vaultId) await useVaultStore.getState().loadTree(vaultId);
     useGraphStore.getState().markStale();
-    window.dispatchEvent(new Event(EVENTO_RECARGA));
+    // Global de verdad: el índice entero se reconstruyó.
+    avisarRecarga("todas");
     void import("@/lib/editor/refrescoVivo").then((m) => m.refreshAllLiveViews());
     return { borrado, notas: indexado.notas };
   } finally {
