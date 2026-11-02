@@ -14,8 +14,10 @@ import { AyudaGlobal } from "@/components/ayuda/AyudaGlobal";
 import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
 import { ReposoVentana } from "@/components/ventana/ReposoVentana";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
-import "katex/dist/katex.min.css";
-import "@excalidraw/excalidraw/index.css";
+// KaTeX y Excalidraw no van acá (`FUN-M-58`): se cargaban en todas las rutas,
+// también en el selector de vaults. KaTeX va con el workspace
+// (`app/(workspace)/workspace/page.tsx`) y con la ayuda (`VentanaAyuda`);
+// Excalidraw, con el paquete (`lib/excalidrawEstilos.ts`).
 import "../styles/tokens.css";
 import "../styles/atmosferas.css";
 import "../styles/arrecife.css";

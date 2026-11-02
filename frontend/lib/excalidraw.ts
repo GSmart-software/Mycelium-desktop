@@ -115,7 +115,10 @@ export async function cargarExcalidraw(): Promise<typeof import("@excalidraw/exc
     window.EXCALIDRAW_ASSET_PATH = RUTA_RECURSOS_EXCALIDRAW;
     sinRespaldoRemoto();
   }
-  return import("@excalidraw/excalidraw");
+  // Con su hoja de estilos, que ya no va en el layout raíz (`FUN-M-58`). En
+  // paralelo: el paquete no espera a la hoja ni la hoja al paquete.
+  const [paquete] = await Promise.all([import("@excalidraw/excalidraw"), import("@/lib/excalidrawEstilos")]);
+  return paquete;
 }
 
 /** Escena .excalidraw mínima que persistimos (HU-16 CA4/CA5). */
