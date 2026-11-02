@@ -23,6 +23,7 @@ import {
   rutaDeCopiaDeEmergencia,
   tituloDeCopiaLocal,
 } from "@/lib/conflictoExterno";
+import { atarAPestanas, pestanaAbierta } from "@/lib/cachePestanas";
 import { olvidarConflicto, registrarConflicto } from "@/lib/conflictosAbiertos";
 import { escribirNota } from "@/lib/db/vaultFs";
 import { getVaultActual } from "@/lib/db/vaultContext";
@@ -160,8 +161,12 @@ const frasesEditor = EditorState.phrases.of({
  * 2. Al restaurar, CodeMirror reaplica el objetivo tras cada medición hasta que
  *    el height-map se estabiliza. Asignar `scrollTop` a mano no puede funcionar:
  *    al crear la vista solo está medido el viewport.
+ *
+ * Vive lo que la pestaña (`FUN-M-58`): `atarAPestanas` suelta la entrada al
+ * cerrarla o al navegar a otra nota (navegar le cambia el id), y al desmontar
+ * solo se guarda si la pestaña sigue abierta. Antes nunca se borraba nada.
  */
-const instanceCache = new Map<
+const instanceCache = atarAPestanas(new Map<
   string,
   {
     doc: string;
@@ -207,7 +212,7 @@ const instanceCache = new Map<
      */
     guardando: Promise<void> | null;
   }
->();
+>());
 
 /**
  * Traspaso de la posición de lectura entre modos (`DEF-055`), **por línea**.
@@ -1206,7 +1211,10 @@ export function NoteEditor({
         foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
           plegadosEdicion.push({ from, to });
         });
-        instanceCache.set(instanceId, {
+        // Desmontarse por CERRAR la pestaña (o por navegar a otra nota en ella)
+        // no deja nada: nadie va a volver a esta instancia (`FUN-M-58`). El
+        // guardado de salida de abajo no la necesita: escribe desde los refs.
+        if (pestanaAbierta(instanceId)) instanceCache.set(instanceId, {
           doc: contentRef.current,
           anchor,
           head,
@@ -1228,7 +1236,10 @@ export function NoteEditor({
       // En conflicto no se guarda (`DEF-138`): lo propio queda en la caché de
       // la pestaña y el conflicto sigue registrado para cuando vuelva o cierre.
       const entrada = instanceCache.get(instanceId);
-      if (dirtyRef.current && !conflictoRef.current && entrada) {
+      if (dirtyRef.current && !conflictoRef.current && !entrada) {
+        // Pestaña cerrada: lo escrito se guarda igual, sin caché que actualizar.
+        void syncNow();
+      } else if (dirtyRef.current && !conflictoRef.current && entrada) {
         entrada.guardando = syncNow().then((ok) => {
           if (ok) {
             entrada.sucio = false;

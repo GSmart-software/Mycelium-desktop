@@ -12,6 +12,7 @@ import { RelinkView } from "@/components/enlaces/RelinkView";
 import { GraphView } from "@/components/graph/GraphView";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
+import { CLAVE_LATERAL_EDITOR } from "@/lib/cachePestanas";
 import { nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { PESTANA_SENTINELA, tipoDePestana } from "@/lib/pestanas";
 import { termIdDe } from "@/lib/terminalBase";
@@ -170,7 +171,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
           <NoteEditor
             key={`edit-${notaId}`}
             notaId={notaId}
-            instanceId={`sidebar-${notaId}`}
+            instanceId={`${CLAVE_LATERAL_EDITOR}${notaId}`}
             paneId="sidebar"
           />
         ) : (
