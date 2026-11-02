@@ -100,13 +100,25 @@ test("validarBuscar: valores por defecto, topes y campos desconocidos", () => {
     valor: { consulta: "plan", campo: "ambos", exacto: false, limite: 20, desde: 0 },
   });
   assert.equal(L.validarBuscar({}).error.datos.campo, "consulta");
-  assert.equal(L.validarBuscar({ consulta: "x", campo: "titulo" }).error.datos.campo, "campo");
-  assert.equal(L.validarBuscar({ consulta: "x", limite: 51 }).error.datos.campo, "limite");
-  assert.equal(L.validarBuscar({ consulta: "x", desde: -1 }).error.datos.campo, "desde");
-  assert.equal(L.validarBuscar({ consulta: "x", exacto: "si" }).error.datos.campo, "exacto");
-  const r = L.validarBuscar({ consulta: "x", pagina: 2 });
+  assert.equal(L.validarBuscar({ consulta: "xy", campo: "titulo" }).error.datos.campo, "campo");
+  assert.equal(L.validarBuscar({ consulta: "xy", limite: 51 }).error.datos.campo, "limite");
+  assert.equal(L.validarBuscar({ consulta: "xy", desde: -1 }).error.datos.campo, "desde");
+  assert.equal(L.validarBuscar({ consulta: "xy", exacto: "si" }).error.datos.campo, "exacto");
+  const r = L.validarBuscar({ consulta: "xy", pagina: 2 });
   assert.equal(r.error.codigo, "INVALIDO");
   assert.match(r.error.mensaje, /`pagina`: no es un campo/);
+});
+
+test("validarBuscar: al menos 2 caracteres, como el panel (FUN-M-58)", () => {
+  const r = L.validarBuscar({ consulta: " e " });
+  assert.equal(r.ok, false);
+  assert.equal(r.error.codigo, "INVALIDO");
+  assert.equal(r.error.datos.campo, "consulta");
+  assert.match(r.error.mensaje, /^`consulta`: tiene al menos 2 caracteres/);
+  assert.equal(L.MINIMO_CARACTERES_BUSCAR, 2);
+  assert.equal(L.validarBuscar({ consulta: "pr" }).ok, true);
+  // Una tilde o una eñe cuentan como un carácter, igual que en el panel.
+  assert.equal(L.validarBuscar({ consulta: "ñ" }).ok, false);
 });
 
 test("paginaDeBusqueda: uno de más dice si hay otra página, y desde dónde", () => {
