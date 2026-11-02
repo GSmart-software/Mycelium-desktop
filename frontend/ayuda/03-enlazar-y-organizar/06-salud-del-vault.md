@@ -27,9 +27,29 @@ código no cuenta, y `[[Nota|alias]]` o `[[Nota#Encabezado]]` son enlaces a `Not
 En la nota abierta, los mismos problemas se ven además subrayados: ver
 [Avisos en la nota](ayuda:escribir-notas/avisos-en-la-nota).
 
-El panel se actualiza solo cuando guardas, cuando algo cambia en el vault por fuera de la app
-o cuando creas, renombras, mueves o borras una nota (unos instantes después, no a cada
-tecla). El botón de las flechas vuelve a revisar al momento.
+## El panel
+
+El panel se queda abierto al costado mientras escribes. De arriba abajo:
+
+- **El título y tres botones**: abrir la salud en una pestaña (ver abajo), generar el informe
+  como nota y volver a revisar. Pasa el puntero por cada uno para ver qué hace.
+- **El resumen**: cuántos problemas hay y cuántos son graves; debajo, cuántos archivos tiene el
+  vault, cuánto pesan y a qué hora se revisó.
+- **Tres cifras**: notas, enlaces y etiquetas.
+- **Composición**: dos barras, «Archivos» y «Peso», partidas en notas, imágenes, PDF, visuales
+  (dibujos, diagramas y lienzos) y otros, con su leyenda. Pasa el puntero por un tramo para ver
+  cuántos son y qué porcentaje representan.
+- **Problemas**: cada clase con un ícono, su gravedad y su cantidad. Se despliega con un clic;
+  muestra las primeras cinco filas y «Ver todo» trae el resto.
+- **Notas nuevas, 12 meses**: una curva chica con las notas creadas cada mes. Si el vault se
+  indexó de una vez, lo dice en vez de dibujar un pico falso.
+- **Dos botones**: «Abrir en una pestaña» y «Generar informe como nota».
+
+El panel revisa el vault al abrirse (si la última revisión tiene más de un minuto) y cuando
+pulsas **Volver a revisar** (el ícono de las flechas, que gira mientras revisa). **No se
+actualiza solo al guardar**: así no gasta nada mientras escribes. Después de corregir varias
+cosas, vuelve a revisar para ver la cuenta al día. El panel y la pestaña muestran la misma
+revisión.
 
 ## Qué revisa
 
@@ -40,9 +60,9 @@ tecla). El botón de las flechas vuelve a revisar al momento.
 | Títulos duplicados | Dos notas del mismo tipo con el mismo nombre en carpetas distintas. Muestra los enlaces **ambiguos**: los que no dicen la carpeta y por eso van a la más cercana a la raíz |
 | Huérfanas | Notas que ninguna otra enlaza. Si un [lienzo](ayuda:tipos-de-archivo/lienzos) la tiene como tarjeta, ya no es huérfana |
 | Propiedades | Notas cuyas [propiedades](ayuda:escribir-notas/propiedades) no cumplen los [esquemas](ayuda:escribir-notas/esquemas-de-propiedades) de `esquemas.yml` (una obligatoria que falta, un tipo o un valor que no corresponde) o tienen un valor que empieza con `#` sin comillas. Cada aviso lleva a su línea |
-| Sin enlaces salientes | Notas que no enlazan a ninguna otra. Está plegada: suele ser normal en notas cortas |
+| Sin enlaces salientes | Notas que no enlazan a ninguna otra. Suele ser normal en notas cortas |
 
-Si `esquemas.yml` tiene algo que no se entiende, arriba del panel aparece qué y en qué línea:
+Si `esquemas.yml` tiene algo que no se entiende, arriba de los problemas aparece qué y en qué línea:
 esa parte se ignora y lo demás se aplica.
 
 > [!info] Lo que no se revisa
@@ -53,7 +73,7 @@ esa parte se ignora y lo demás se aplica.
 
 ## La pestaña con las gráficas
 
-**Ctrl+P** → «Abrir la salud del vault en una pestaña» abre un tablero con todo lo que sabe la
+El botón **Abrir en una pestaña** del panel, o **Ctrl+P** → «Abrir la salud del vault en una pestaña», abre un tablero con todo lo que sabe la
 revisión, en una pestaña con el ícono de un pulso. Al abrirla se cierra el panel de salud del
 costado, para dejarle lugar.
 
@@ -87,7 +107,7 @@ La pestaña revisa el vault al abrirse (si la última revisión tiene más de un
 
 ## El informe como nota
 
-**Ctrl+P** → «Generar informe de salud del vault» (o el botón de la pestaña) revisa el vault y guarda el resultado como
+**Ctrl+P** → «Generar informe de salud del vault» (o el botón del panel o de la pestaña) revisa el vault y guarda el resultado como
 una nota común: `Informes/Salud del vault AAAA-MM-DD.md` (si el del día ya existe, se le
 agrega la hora). La nota se abre sola y un aviso dice dónde quedó.
 

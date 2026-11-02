@@ -946,16 +946,21 @@
      formato JSON Canvas y no se cambian por CSS.
    - La ayuda integrada usa la vista de lectura (.mic-preview): lo que cambies
      ahí la alcanza también.
-   - La salud del vault (la pestaña con las gráficas): sus colores salen de
-     --mic-accent y --mic-glow en distintas tonalidades, y lo que no cuenta de
-     --mic-text-muted. Tres clases estables: .mic-salud-vista (la pestaña
+   - La salud del vault (el panel del costado y la pestaña con las gráficas):
+     sus colores salen de --mic-accent y --mic-glow en distintas tonalidades, y
+     lo que no cuenta de --mic-text-muted. Cuatro clases estables:
+     .mic-salud-panel (el panel del costado), .mic-salud-vista (la pestaña
      entera), .mic-grafica (cada gráfica) y .mic-grafica-tooltip (el detalle
      al pasar el puntero).
    ========================================================================== */
 
-/* La pestaña de salud del vault con un fondo propio y el detalle más grande:
+/* La salud del vault con un fondo propio en la pestaña, el panel del costado
+   con algo más de aire y el detalle más grande:
 .mic-salud-vista {
   background: var(--mic-bg-surface);
+}
+.mic-salud-panel {
+  gap: 1rem;
 }
 .mic-grafica-tooltip {
   font-size: 0.875rem;

@@ -82,6 +82,9 @@ export function LeftPanel() {
               {activeSection === "explorer" ? (
                 // El explorador aporta su propia cabecera/toolbar, sin título.
                 <ExplorerPanel />
+              ) : activeSection === "salud" ? (
+                // La salud lleva su título con sus botones de ícono (FUN-L-32).
+                <SaludPanel />
               ) : (
                 <>
                   <h2 className={styles.panelTitle}>{SECTION_TITLES[activeSection]}</h2>
@@ -113,7 +116,7 @@ function SectionContent({ section }: { section: RailSection }) {
     case "actividad":
       return <ActividadPanel />;
     case "salud":
-      return <SaludPanel />;
+      return null; // se renderiza arriba, con su propia cabecera
     case "trash":
       return <TrashPanel />;
     case "terminal":
