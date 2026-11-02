@@ -95,6 +95,8 @@ deshacer.
 
 > [!warning] Lo más seguro sigue siendo renombrar desde Mycelium
 > El aviso depende de que el borrado y la creación lleguen juntos y de que el contenido
-> se parezca: un archivo renombrado y muy editado a la vez no se reconoce.
+> se parezca: un archivo renombrado y muy editado a la vez no se reconoce. Y en un cambio
+> masivo —más de mil notas que desaparecen y mil que aparecen a la vez, como un `git
+> checkout` grande— no se busca ningún renombre, para no trabar la app.
 
 Más sobre cómo se escriben los enlaces en [Enlaces, alias y embeds](ayuda:enlazar-y-organizar/enlaces).
