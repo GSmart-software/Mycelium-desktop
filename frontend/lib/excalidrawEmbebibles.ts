@@ -91,3 +91,77 @@ export function sinContenidoGenerado<T>(elementos: readonly T[]): readonly T[] {
   });
   return cambio ? salida : elementos;
 }
+
+/**
+ * Va como `onPaste` de `<Excalidraw>`: limpia (`sinContenidoGenerado`) los
+ * elementos que llegan por el portapapeles antes de que entren a la escena.
+ * Devuelve `true`: el pegado sigue su curso normal.
+ */
+export function pegadoSinContenidoGenerado(datos: { elements?: readonly unknown[] }): true {
+  if (datos.elements) datos.elements = sinContenidoGenerado(datos.elements);
+  return true;
+}
+
+/**
+ * La biblioteca de Excalidraw con `sinContenidoGenerado` aplicado a cada ítem,
+ * o `null` si no había nada que quitar (para no volver a escribirla).
+ */
+export function bibliotecaSinContenidoGenerado<T extends { elements: readonly unknown[] }>(
+  items: readonly T[],
+): T[] | null {
+  let cambio = false;
+  const salida = items.map((item) => {
+    const elementos = sinContenidoGenerado(item.elements);
+    if (elementos === item.elements) return item;
+    cambio = true;
+    return { ...item, elements: elementos };
+  });
+  return cambio ? salida : null;
+}
+
+/** Los únicos `src` que puede tener un iframe dentro de un dibujo. */
+const SRC_PERMITIDO = /^https:\/\/(?:www\.youtube\.com\/embed\/|player\.vimeo\.com\/video\/)[A-Za-z0-9_?=&.%-]+$/;
+
+/** Deja en blanco un iframe que no muestra un video de YouTube o Vimeo. */
+function vaciarSiNoPermitido(iframe: HTMLIFrameElement): void {
+  if (iframe.hasAttribute("srcdoc")) iframe.removeAttribute("srcdoc");
+  const src = iframe.getAttribute("src");
+  if (src !== null && src !== "about:blank" && !SRC_PERMITIDO.test(src)) {
+    iframe.setAttribute("src", "about:blank");
+  }
+}
+
+/**
+ * Vigila los iframes que Excalidraw crea dentro de `contenedor` y deja en blanco
+ * los que no muestran un video de YouTube o Vimeo, sin importar cómo llegó el
+ * elemento al dibujo (abrir un archivo, soltarlo sobre el lienzo, la biblioteca).
+ * El observador corre al terminar el cambio del DOM: un `srcdoc` no llega a
+ * mostrarse, y una dirección ajena se reemplaza por `about:blank` (la primera
+ * petición puede haber salido; para eso está antes `esEmbebiblePermitido`).
+ * Devuelve la función que deja de vigilar.
+ */
+export function vigilarIframes(contenedor: HTMLElement): () => void {
+  const revisar = (raiz: ParentNode) => {
+    raiz.querySelectorAll("iframe").forEach(vaciarSiNoPermitido);
+  };
+  const observador = new MutationObserver((cambios) => {
+    for (const c of cambios) {
+      if (c.type === "attributes") {
+        if (c.target instanceof HTMLIFrameElement) vaciarSiNoPermitido(c.target);
+        continue;
+      }
+      c.addedNodes.forEach((n) => {
+        if (n instanceof HTMLIFrameElement) vaciarSiNoPermitido(n);
+        else if (n instanceof Element) revisar(n);
+      });
+    }
+  });
+  observador.observe(contenedor, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["src", "srcdoc"],
+  });
+  revisar(contenedor);
+  return () => observador.disconnect();
+}

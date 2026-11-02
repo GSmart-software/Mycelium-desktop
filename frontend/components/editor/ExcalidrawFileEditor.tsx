@@ -10,8 +10,10 @@ import {
   encuadrarDibujo,
   hayAlgoDibujado,
   IDIOMA_EXCALIDRAW,
-  PROPS_EMBEBIBLES,
+  propsEmbebibles,
+  refVigilarIframes,
   leerEscena,
+  type ApiBiblioteca,
   type ApiEncuadre,
   type EscenaLeida,
 } from "@/lib/excalidraw";
@@ -35,7 +37,8 @@ type ExcalidrawApi = {
   getFiles: () => Record<string, unknown>;
   updateScene: (escena: { elements: readonly unknown[]; captureUpdate?: "NEVER" }) => void;
   addFiles: (archivos: unknown[]) => void;
-} & ApiEncuadre;
+} & ApiEncuadre &
+  ApiBiblioteca;
 
 /**
  * Qué muestra la vista. `ilegible` (`DEF-119`) NO monta Excalidraw: sin editor
@@ -282,7 +285,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
   }
 
   return (
-    <div className={styles.host}>
+    <div ref={refVigilarIframes} className={styles.host}>
       {estado.tipo === "lista" && (
         <Excalidraw
           key={montaje}
@@ -291,7 +294,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
           }}
           theme={dark ? "dark" : "light"}
           langCode={IDIOMA_EXCALIDRAW}
-          {...PROPS_EMBEBIBLES}
+          {...propsEmbebibles(() => apiRef.current)}
           initialData={{
             elements: estado.escena.elements as never,
             files: estado.escena.files as never,

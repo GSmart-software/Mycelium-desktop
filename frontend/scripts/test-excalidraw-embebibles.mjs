@@ -153,3 +153,30 @@ test("sin nada que quitar devuelve el mismo arreglo", () => {
   const elementos = [{ id: "a", type: "embeddable", link: "https://youtu.be/x" }, null];
   assert.equal(E.sinContenidoGenerado(elementos), elementos);
 });
+
+test("lo pegado entra sin el HTML guardado y el pegado sigue", () => {
+  const datos = {
+    elements: [{ id: "b", type: "iframe", customData: { generationData: { html: "x" } } }],
+    files: {},
+  };
+  assert.equal(E.pegadoSinContenidoGenerado(datos), true);
+  assert.deepEqual(datos.elements, [{ id: "b", type: "iframe", customData: {} }]);
+  const soloTexto = { text: "hola" };
+  assert.equal(E.pegadoSinContenidoGenerado(soloTexto), true);
+  assert.deepEqual(soloTexto, { text: "hola" });
+});
+
+test("la biblioteca se limpia ítem por ítem, y null si no hay nada que quitar", () => {
+  const limpio = { id: "1", status: "unpublished", created: 1, elements: [{ type: "rectangle" }] };
+  const sucio = {
+    id: "2",
+    status: "unpublished",
+    created: 2,
+    elements: [{ type: "iframe", customData: { generationData: { html: "x" } } }],
+  };
+  const salida = E.bibliotecaSinContenidoGenerado([limpio, sucio]);
+  assert.equal(salida[0], limpio);
+  assert.deepEqual(salida[1], { ...sucio, elements: [{ type: "iframe", customData: {} }] });
+  assert.equal(E.bibliotecaSinContenidoGenerado([limpio]), null);
+  assert.equal(E.bibliotecaSinContenidoGenerado([]), null);
+});

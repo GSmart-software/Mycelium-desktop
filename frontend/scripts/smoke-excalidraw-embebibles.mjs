@@ -4,18 +4,23 @@
 // `<Excalidraw>` real del paquete con un dibujo que tiene recuadros web de
 // YouTube, Vimeo, X, Reddit, un gist de GitHub, Figma y un elemento `iframe` con
 // HTML guardado, y la abre en Chromium headless **sin red** (toda petición
-// externa se aborta y se anota). Corre dos veces:
+// externa se aborta y se anota). Escenarios:
 //
-// - **control**: Excalidraw sin opciones. Tiene que montar el de X (si no, el
-//   banco no estaría probando nada).
+// - **control**: Excalidraw sin opciones. Tiene que montar el de X y el HTML
+//   guardado (si no, el banco no estaría probando nada).
 // - **solo renderEmbeddable**: la validación abierta a todo; la segunda barrera
 //   sola tiene que frenar a los demás.
-// - **Mycelium**: con `validateEmbeddable` / `renderEmbeddable` y la limpieza de
-//   `lib/excalidrawEmbebibles.ts`, como `PROPS_EMBEBIBLES` y `leerEscena`.
-//   Solo pueden quedar los iframes de www.youtube.com y player.vimeo.com, sin
-//   `srcdoc`, y ninguna petición a otro sitio.
+// - **solo vigilarIframes**: sin opciones ni limpieza; el vigilante del
+//   contenedor solo tiene que dejar en blanco todo lo que no sea YouTube o Vimeo.
+// - **Mycelium**: la misma configuración que `propsEmbebibles`,
+//   `refVigilarIframes` y `leerEscena`. Solo pueden quedar los iframes de
+//   www.youtube.com y player.vimeo.com, y ninguna petición a otro sitio.
+// - **pegar, soltar un `.excalidraw` y soltar un `.excalidrawlib`** sobre un
+//   dibujo vacío con la configuración de Mycelium: el HTML guardado no se muestra
+//   ni pide nada; lo pegado y la biblioteca quedan sin él.
 //
-// También comprueba que los dos componentes pasan `PROPS_EMBEBIBLES`.
+// También comprueba que los dos componentes usan `propsEmbebibles` y
+// `refVigilarIframes`.
 //
 //   node scripts/smoke-excalidraw-embebibles.mjs
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -40,13 +45,22 @@ function comprobar(ok, mensaje) {
 // 1. Los componentes pasan las opciones; la lectura limpia la escena.
 for (const archivo of ["ExcalidrawFileEditor.tsx", "ExcalidrawModal.tsx"]) {
   const fuente = readFileSync(join(FRONTEND, "components", "editor", archivo), "utf8");
-  comprobar(/\{\.\.\.PROPS_EMBEBIBLES\}/.test(fuente), `${archivo} pasa {...PROPS_EMBEBIBLES}`);
+  comprobar(
+    /\{\.\.\.propsEmbebibles\(\(\) => apiRef\.current\)\}/.test(fuente),
+    `${archivo} pasa {...propsEmbebibles(...)}`,
+  );
+  comprobar(/ref=\{refVigilarIframes\}/.test(fuente), `${archivo} vigila los iframes de su contenedor`);
 }
 const libExcalidraw = readFileSync(join(FRONTEND, "lib", "excalidraw.ts"), "utf8");
 comprobar(
   /validateEmbeddable: esEmbebiblePermitido/.test(libExcalidraw) &&
     /esEmbebiblePermitido\(el\.link\) \? null/.test(libExcalidraw),
-  "PROPS_EMBEBIBLES usa esEmbebiblePermitido en validateEmbeddable y renderEmbeddable",
+  "propsEmbebibles usa esEmbebiblePermitido en validateEmbeddable y renderEmbeddable",
+);
+comprobar(
+  /onPaste: pegadoSinContenidoGenerado/.test(libExcalidraw) &&
+    /bibliotecaSinContenidoGenerado\(items\)/.test(libExcalidraw),
+  "propsEmbebibles limpia lo pegado (onPaste) y la biblioteca (onLibraryChange)",
 );
 comprobar(
   /sinContenidoGenerado\(restoreElements\(/.test(libExcalidraw),
@@ -102,25 +116,46 @@ writeFileSync(
   `import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { Excalidraw } from "@excalidraw/excalidraw";
-import { esEmbebiblePermitido, sinContenidoGenerado } from "./embebibles.js";
+import {
+  bibliotecaSinContenidoGenerado,
+  esEmbebiblePermitido,
+  pegadoSinContenidoGenerado,
+  sinContenidoGenerado,
+  vigilarIframes,
+} from "./embebibles.js";
 const ELEMENTOS = ${JSON.stringify(elementos)};
-const control = new URLSearchParams(location.search).has("control");
-const soloRender = new URLSearchParams(location.search).has("solo-render");
-const props = control
-  ? { initialData: { elements: ELEMENTOS } }
-  : soloRender
-  ? {
-      // Validación abierta a todo: tiene que frenarlos renderEmbeddable solo.
-      initialData: { elements: ELEMENTOS },
-      validateEmbeddable: true,
-      renderEmbeddable: (el) => (esEmbebiblePermitido(el.link) ? null : createElement("div")),
-    }
-  : {
-      initialData: { elements: sinContenidoGenerado(ELEMENTOS) },
-      validateEmbeddable: esEmbebiblePermitido,
-      renderEmbeddable: (el) => (esEmbebiblePermitido(el.link) ? null : createElement("div")),
-    };
-createRoot(document.getElementById("raiz")).render(createElement(Excalidraw, props));
+const q = new URLSearchParams(location.search);
+const inicial = q.has("vacia") ? [] : ELEMENTOS;
+window.__bibliotecas = [];
+const renderEmbeddable = (el) => (esEmbebiblePermitido(el.link) ? null : createElement("div"));
+const api = { excalidrawAPI: (a) => (window.__api = a) };
+const mycelium = {
+  ...api,
+  initialData: { elements: sinContenidoGenerado(inicial) },
+  validateEmbeddable: esEmbebiblePermitido,
+  renderEmbeddable,
+  onPaste: pegadoSinContenidoGenerado,
+  onLibraryChange: (items) => {
+    window.__bibliotecas.push(items);
+    const limpios = bibliotecaSinContenidoGenerado(items);
+    if (limpios) void window.__api?.updateLibrary({ libraryItems: limpios, merge: false });
+  },
+};
+const props = q.has("control")
+  ? { ...api, initialData: { elements: inicial } }
+  : q.has("solo-render")
+  ? { ...api, initialData: { elements: inicial }, validateEmbeddable: true, renderEmbeddable }
+  : q.has("solo-guardia")
+  ? { ...api, initialData: { elements: inicial } }
+  : mycelium;
+const guardia = !q.has("control") && !q.has("solo-render") && !q.has("sin-guardia");
+createRoot(document.getElementById("raiz")).render(
+  createElement(
+    "div",
+    { ref: guardia ? (n) => (n ? vigilarIframes(n) : undefined) : undefined, style: { height: "100%" } },
+    createElement(Excalidraw, props),
+  ),
+);
 `,
 );
 const estadisticas = await new Promise((ok, mal) =>
@@ -169,8 +204,8 @@ const servidor = createServer((req, res) => {
 });
 await new Promise((ok) => servidor.listen(PUERTO, ok));
 
-/** Abre la página y devuelve los iframes montados y las peticiones externas. */
-async function abrir(navegador, consulta) {
+/** Abre la página, corre `accion` y devuelve los iframes y las peticiones externas. */
+async function abrir(navegador, consulta, accion) {
   const pagina = await navegador.newPage({ viewport: { width: 1280, height: 900 } });
   const externas = [];
   const errores = [];
@@ -183,17 +218,26 @@ async function abrir(navegador, consulta) {
   });
   await pagina.goto(`http://localhost:${PUERTO}/${consulta}`);
   await pagina.waitForSelector(".excalidraw", { timeout: 20000 });
-  await pagina.waitForTimeout(2500);
+  await pagina.waitForTimeout(1500);
+  if (accion) {
+    await accion(pagina);
+    await pagina.waitForTimeout(2000);
+  }
   const iframes = await pagina.evaluate(() =>
     Array.from(document.querySelectorAll("iframe")).map((f) => ({
       src: f.getAttribute("src") ?? "",
       srcdoc: f.getAttribute("srcdoc") ?? "",
     })),
   );
+  const escena = await pagina.evaluate(() =>
+    JSON.stringify(window.__api?.getSceneElementsIncludingDeleted?.() ?? []),
+  );
+  const bibliotecas = await pagina.evaluate(() => JSON.stringify(window.__bibliotecas ?? []));
   await pagina.close();
-  return { iframes, externas, errores };
+  return { iframes, externas, errores, escena, bibliotecas };
 }
 
+const DE_VIDEO = /^https:\/\/(www\.youtube\.com\/embed|player\.vimeo\.com\/video)\//;
 const navegador = await chromium.launch();
 try {
   // Control: sin las opciones, Excalidraw monta los de X y Reddit con su script.
@@ -213,6 +257,25 @@ try {
     !/twitter|reddit|gist\.github|figma/i.test(docsRender) &&
       r.iframes.every((f) => !f.src || /^https:\/\/(www\.youtube\.com\/embed|player\.vimeo\.com\/video)\//.test(f.src)),
     "con la validación abierta, renderEmbeddable solo deja YouTube y Vimeo",
+  );
+
+  // Tercera barrera sola: sin opciones ni limpieza, el vigilante deja en blanco
+  // lo que no sea YouTube o Vimeo. Un `srcdoc` no llega a cargar (no se pide
+  // ningún script de adentro); un `src` ajeno se corta, pero la primera petición
+  // ya salió (el de Figma): por eso la barrera principal es `validateEmbeddable`.
+  const g = await abrir(navegador, "?solo-guardia");
+  const desdeSrcdoc = g.externas.filter((u) =>
+    /twitter|reddit|gist\.github|ejemplo\.invalid/.test(u),
+  );
+  const sinVaciar = g.iframes.filter(
+    (f) => f.srcdoc !== "" || !(!f.src || f.src === "about:blank" || DE_VIDEO.test(f.src)),
+  );
+  comprobar(
+    sinVaciar.length === 0 && desdeSrcdoc.length === 0,
+    `solo con vigilarIframes: ningún srcdoc carga y todo iframe ajeno queda en blanco (${[
+      ...desdeSrcdoc,
+      ...sinVaciar.map((f) => f.src || f.srcdoc.slice(0, 80)),
+    ].join(", ") || "nada fuera de lugar"})`,
   );
 
   // Mycelium.
@@ -246,6 +309,95 @@ try {
   comprobar(
     externasAjenas.length === 0,
     `ninguna petición a otro sitio (${externasAjenas.join(", ") || "ninguna"})`,
+  );
+
+  // Pegar, soltar un dibujo y soltar una biblioteca sobre un dibujo vacío.
+  const generado = elementos.find((e) => e.id === "generado");
+  const portapapeles = JSON.stringify({ type: "excalidraw/clipboard", elements: [generado], files: {} });
+  const pegar = async (pagina) => {
+    await pagina.mouse.click(640, 450);
+    await pagina.evaluate((texto) => {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", texto);
+      document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true }));
+    }, portapapeles);
+  };
+  const soltar = (nombre, contenido) => async (pagina) => {
+    await pagina.mouse.move(640, 450);
+    await pagina.evaluate(
+      ([n, c]) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([c], n, { type: "application/json" }));
+        const destino = document.elementFromPoint(640, 450);
+        destino.dispatchEvent(
+          new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true, clientX: 640, clientY: 450 }),
+        );
+      },
+      [nombre, contenido],
+    );
+    // Al cargar un archivo soltado, Excalidraw (en headless) deja la cámara sin
+    // posición y no monta los recuadros hasta que se mueve: se encuadra el
+    // contenido, como haría el usuario al mover el lienzo.
+    await pagina.waitForTimeout(800);
+    await pagina.evaluate(() => window.__api.scrollToContent(undefined, { animate: false }));
+  };
+  const sinHtml = (r) =>
+    !r.iframes.some((f) => /html guardado/.test(f.srcdoc)) &&
+    !r.externas.some((u) => u.includes("ejemplo.invalid"));
+
+  const pegadoControl = await abrir(navegador, "?vacia&control", pegar);
+  comprobar(
+    /html guardado/.test(pegadoControl.iframes.map((f) => f.srcdoc).join("")),
+    "control: sin opciones, lo pegado muestra el HTML guardado",
+  );
+  const pegadoSinGuardia = await abrir(navegador, "?vacia&sin-guardia", pegar);
+  comprobar(
+    /"type":"iframe"/.test(pegadoSinGuardia.escena) &&
+      !/generationData/.test(pegadoSinGuardia.escena) &&
+      sinHtml(pegadoSinGuardia),
+    "pegar: onPaste solo ya deja el elemento sin el HTML guardado",
+  );
+  const pegado = await abrir(navegador, "?vacia", pegar);
+  comprobar(
+    /"type":"iframe"/.test(pegado.escena) && !/generationData/.test(pegado.escena) && sinHtml(pegado),
+    "pegar: el elemento entra sin el HTML guardado y no se pide nada",
+  );
+
+  const dibujo = JSON.stringify({ type: "excalidraw", version: 2, source: "smoke", elements: elementos, appState: {}, files: {} });
+  const soltadoControl = await abrir(navegador, "?vacia&control", soltar("otro.excalidraw", dibujo));
+  comprobar(
+    /html guardado/.test(soltadoControl.iframes.map((f) => f.srcdoc).join("")),
+    "control: sin opciones, soltar un .excalidraw muestra el HTML guardado",
+  );
+  const soltado = await abrir(navegador, "?vacia", soltar("otro.excalidraw", dibujo));
+  comprobar(
+    /"type":"iframe"/.test(soltado.escena) &&
+      sinHtml(soltado) &&
+      !soltado.iframes.some((f) => f.srcdoc) &&
+      soltado.iframes.some((f) => f.src.startsWith("https://www.youtube.com/embed/")) &&
+      !soltado.externas.some((u) => !DE_VIDEO.test(u)),
+    `soltar un .excalidraw: solo YouTube y Vimeo, sin HTML guardado (${soltado.externas.join(", ") || "sin peticiones"})`,
+  );
+
+  const libreria = JSON.stringify({
+    type: "excalidrawlib",
+    version: 2,
+    source: "smoke",
+    libraryItems: [{ id: "item", status: "unpublished", created: 1, elements: [generado] }],
+  });
+  const biblioteca = await abrir(navegador, "?vacia", soltar("biblioteca.excalidrawlib", libreria));
+  const llamadas = JSON.parse(biblioteca.bibliotecas);
+  const ultima = llamadas.at(-1) ?? [];
+  comprobar(
+    llamadas.some((items) => /generationData/.test(JSON.stringify(items))) &&
+      ultima.length === 1 &&
+      !/generationData/.test(JSON.stringify(ultima)) &&
+      sinHtml(biblioteca),
+    `soltar un .excalidrawlib: la biblioteca queda sin el HTML guardado (${llamadas.length} cambios)`,
+  );
+  comprobar(
+    [pegado, soltado, biblioteca].every((r) => r.errores.length === 0),
+    `pegar y soltar: sin errores de página (${[pegado, soltado, biblioteca].flatMap((r) => r.errores).join(" | ") || "ninguno"})`,
   );
 } finally {
   await navegador.close();
