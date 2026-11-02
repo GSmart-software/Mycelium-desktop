@@ -3,7 +3,7 @@
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
+import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
@@ -125,8 +125,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   // `adelante` se leen arriba, con selector.
 
   function navegar(delta: -1 | 1) {
-    store.navegarHistorial(pane.id, delta);
-    pushUrl();
+    // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
+    void navegarHistorialSinPerder(pane.id, delta).then((navego) => navego && pushUrl());
   }
 
   /**

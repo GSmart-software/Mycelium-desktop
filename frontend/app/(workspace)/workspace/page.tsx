@@ -20,7 +20,7 @@ import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
 import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
-import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
+import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -337,9 +337,9 @@ function WorkspaceShell() {
   }
 
   function navegarHistorialActivo(delta: -1 | 1) {
-    const { activePaneId, navegarHistorial } = useTabsStore.getState();
-    navegarHistorial(activePaneId, delta);
-    syncUrlWithTabs();
+    // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
+    const { activePaneId } = useTabsStore.getState();
+    void navegarHistorialSinPerder(activePaneId, delta).then((navego) => navego && syncUrlWithTabs());
   }
 
   // `replace` y no `push` (DEF-040): con historial propio por pestaña, la pila

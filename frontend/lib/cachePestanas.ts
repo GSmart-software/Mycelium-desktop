@@ -37,8 +37,14 @@ import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
  */
 export const CLAVE_LATERAL_EDITOR = "sidebar-";
 
-/** Los `Map` atados a la vida de las pestañas. */
-const atados = new Set<Map<string, unknown>>();
+/**
+ * Lo que se hace con una entrada que se suelta porque su pestaña ya no existe.
+ * Casi siempre nada: es estado que nadie va a volver a leer.
+ */
+type AlSoltar = (clave: string, valor: unknown) => void;
+
+/** Los `Map` atados a la vida de las pestañas, con lo que hacer al soltar. */
+const atados = new Map<Map<string, unknown>, AlSoltar | undefined>();
 
 /** ¿La clave es de algo que sigue abierto, dados los ids vivos? */
 export function claveViva(
@@ -73,9 +79,16 @@ export function pestanaAbierta(clave: string): boolean {
 /**
  * Ata un `Map` por id de pestaña a la vida de las pestañas: sus entradas se
  * sueltan cuando la pestaña se cierra. Devuelve el mismo `Map`.
+ *
+ * `alSoltar` recibe cada entrada que el barrido suelta, ya fuera del `Map`:
+ * es para lo que no puede irse sin más, como lo escrito en una nota en
+ * conflicto con el disco (`DEF-177`, `lib/conflictosAbiertos.ts`).
  */
-export function atarAPestanas<M extends Map<string, unknown>>(mapa: M): M {
-  atados.add(mapa);
+export function atarAPestanas<M extends Map<string, unknown>>(
+  mapa: M,
+  alSoltar?: (clave: string, valor: M extends Map<string, infer V> ? V : never) => void,
+): M {
+  atados.set(mapa, alSoltar as AlSoltar | undefined);
   return mapa;
 }
 
@@ -92,12 +105,20 @@ export function barrerPestanasCerradas(): void {
   ultimoRoot = root;
   ultimoLateral = lateral;
   let hayAlgo = false;
-  for (const m of atados) if (m.size > 0) hayAlgo = true;
+  for (const m of atados.keys()) if (m.size > 0) hayAlgo = true;
   if (!hayAlgo) return;
   const pestanas = idsDePestanas(root);
-  for (const m of atados) {
-    for (const clave of [...m.keys()]) {
-      if (!claveViva(clave, pestanas, lateral)) m.delete(clave);
+  for (const [m, alSoltar] of atados) {
+    for (const [clave, valor] of [...m.entries()]) {
+      if (claveViva(clave, pestanas, lateral)) continue;
+      m.delete(clave);
+      if (!alSoltar) continue;
+      try {
+        alSoltar(clave, valor);
+      } catch (e) {
+        // Lo de un `Map` no puede impedir soltar lo de los demás.
+        console.error("[Mycelium] al soltar una pestaña cerrada:", e);
+      }
     }
   }
 }
