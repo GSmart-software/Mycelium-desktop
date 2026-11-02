@@ -96,9 +96,61 @@ test("variables que Mermaid usa en flujo, secuencia y notas salen de los tokens"
   assert.equal(v.actorTextColor, v.textColor);
   assert.equal(v.fontFamily, "Inter, sans-serif");
   // Mermaid solo entiende hex: ningún valor de color puede ser un var() o un color-mix().
+  // (Salvo los que no son un color: el texto oculto de la torta, su opacidad y
+  // el objeto de las barras, que se prueban abajo.)
   for (const [k, valor] of Object.entries(v)) {
-    if (k === "darkMode" || k === "fontFamily") continue;
+    if (["darkMode", "fontFamily", "pieSectionTextColor", "pieOpacity", "xyChart"].includes(k)) continue;
     assert.match(String(valor), /^#[0-9a-f]{6}$/i, k);
+  }
+  for (const [k, valor] of Object.entries(v.xyChart)) assert.match(String(valor), /^#[0-9a-f]{6}$/i, `xyChart.${k}`);
+});
+
+// Tortas y barras con los tonos del tema (`FUN-L-32`, parte A).
+const GRAFICAS = {
+  torta: ["#1097a7", "#006470", "#01343c", "#41d0e1", "#59696c"],
+  tortaExtra: ["#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777"],
+  series: ["#0e7c8c", "#01343c", "#1097a7"],
+};
+
+test("pie1…pie12 salen de la paleta del tema, en orden", () => {
+  const v = variablesMermaid(tokens(TEMAS["bioluminiscencia claro"]), undefined, GRAFICAS);
+  const todos = [...GRAFICAS.torta, ...GRAFICAS.tortaExtra];
+  for (let i = 1; i <= 12; i++) assert.equal(v[`pie${i}`], todos[i - 1], `pie${i}`);
+  assert.equal(v.xyChart.plotColorPalette, "#0e7c8c,#01343c,#1097a7");
+});
+
+test("torta: porcentaje oculto, opacidad plena, separación del fondo y textos con la tinta", () => {
+  for (const [nombre, t] of Object.entries(TEMAS)) {
+    const c = tokens(t);
+    const v = variablesMermaid(c, undefined, GRAFICAS);
+    assert.equal(v.pieSectionTextColor, "transparent", nombre);
+    assert.equal(v.pieOpacity, "1", nombre);
+    assert.equal(v.pieStrokeColor, c.fondo, nombre);
+    assert.equal(v.pieTitleTextColor, v.textColor, nombre);
+    assert.equal(v.pieLegendTextColor, v.textColor, nombre);
+  }
+});
+
+test("barras: ejes y títulos con la tinta, marcas con la tinta tenue, sobre el fondo", () => {
+  const c = tokens(TEMAS["cantarela oscuro"]);
+  const { xyChart: x, textColor, lineColor } = variablesMermaid(c, undefined, GRAFICAS);
+  assert.equal(x.backgroundColor, c.fondo);
+  for (const k of ["titleColor", "dataLabelColor", "legendTextColor", "xAxisTitleColor", "xAxisLabelColor", "yAxisTitleColor", "yAxisLabelColor"])
+    assert.equal(x[k], textColor, k);
+  for (const k of ["xAxisTickColor", "xAxisLineColor", "yAxisTickColor", "yAxisLineColor"]) assert.equal(x[k], lineColor, k);
+});
+
+test("las variables de antes no cambian por pasar la paleta", () => {
+  for (const [nombre, t] of Object.entries(TEMAS)) {
+    const sin = variablesMermaid(tokens(t), "Inter");
+    const con = variablesMermaid(tokens(t), "Inter", GRAFICAS);
+    for (const [k, valor] of Object.entries(sin)) {
+      if (k === "xyChart") continue;
+      assert.deepEqual(con[k], valor, `${nombre}: ${k}`);
+    }
+    // Sin paleta, Mermaid deriva las porciones él: no se le pasan.
+    assert.equal(sin.pie1, undefined, nombre);
+    assert.equal(sin.xyChart.plotColorPalette, undefined, nombre);
   }
 });
 
