@@ -54,7 +54,7 @@ export function ActividadPanel() {
         <p className={styles.vacio}>
           Todavía no hay actividad. Lo que Claude Code haga en Mycelium —abrir notas, agendar o cambiar
           recordatorios, renombrar, mover o mandar a la papelera, agregar o quitar palabras del diccionario
-          del vault— aparece acá, con <strong>Deshacer</strong> donde se pueda.
+          del vault— aparece aquí, con <strong>Deshacer</strong> donde se pueda.
         </p>
       ) : (
         <div className={styles.grupos}>
@@ -138,7 +138,7 @@ function Sesiones({ ahora }: { ahora: number }) {
 const TEXTO_CANAL: Record<EstadoCanal, { titulo: string; detalle: string }> = {
   apagado: {
     titulo: "Control apagado",
-    detalle: "Claude Code no puede operar Mycelium en este vault. Leer y escribir sus archivos lo puede hacer igual.",
+    detalle: "Claude Code no puede operar Mycelium en este vault. Leer y escribir sus archivos lo puede hacer de todos modos.",
   },
   encendido: {
     titulo: "Control encendido",

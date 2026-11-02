@@ -806,7 +806,7 @@ export function NoteEditor({
               });
             }),
             EditorView.lineWrapping,
-            placeholder("Escribí tu nota…"),
+            placeholder("Escribe tu nota…"),
             liveCompartment.current.of(
               modeRef.current === "live" ? liveExtensions(openByTitle, noteExists, etiquetaDe) : [],
             ),
@@ -1056,7 +1056,7 @@ export function NoteEditor({
       useVaultStore.getState().notas.find((n) => n.id === notaIdRef.current)?.titulo ?? "la nota";
     const acepta = await confirmar(
       `Se descartan tus cambios sin guardar en «${titulo}» y se muestra lo que tiene el archivo ahora. ` +
-        "Si te arrepentís, Ctrl+Z en la nota los trae de vuelta.",
+        "Si te arrepientes, Ctrl+Z en la nota los trae de vuelta.",
       "Ver lo de afuera",
     );
     if (!acepta) return;

@@ -68,7 +68,7 @@ function errorDeArchivo(e: unknown): FalloDiccionario {
   return new FalloDiccionario(
     "INVALIDO",
     `No se pudo leer o escribir .mycelium/diccionario.txt: ${e instanceof Error ? e.message : String(e)}. ` +
-      "No se cambió nada; decíselo al usuario.",
+      "No se cambió nada; díselo al usuario.",
     { campo: "diccionario.txt" },
   );
 }

@@ -47,7 +47,7 @@ export function validarDiccionario(args: Record<string, unknown>): Validado<Pedi
     return invalido("palabras", `para ${accion} hace falta una lista de palabras (["Mycelium", "rizoma"]).`);
   }
   if (crudas.length > TOPE_POR_LLAMADA) {
-    return invalido("palabras", `son ${crudas.length}; el tope es ${TOPE_POR_LLAMADA} por llamada. Partilas en varias llamadas.`);
+    return invalido("palabras", `son ${crudas.length}; el tope es ${TOPE_POR_LLAMADA} por llamada. Pártelas en varias llamadas.`);
   }
   const vistas = new Set<string>();
   const palabras: string[] = [];

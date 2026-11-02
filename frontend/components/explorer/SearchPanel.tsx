@@ -263,7 +263,7 @@ export function SearchPanel() {
 
       {query.trim().length > 0 && query.trim().length < MINIMO_CARACTERES && (
         <p className={styles.status}>
-          Escribí al menos {MINIMO_CARACTERES} caracteres para buscar.
+          Escribe al menos {MINIMO_CARACTERES} caracteres para buscar.
         </p>
       )}
 
@@ -275,7 +275,7 @@ export function SearchPanel() {
         <p className={styles.status}>
           Sin resultados para «{query.trim()}».
           <br />
-          Probá con otros términos o una frase entre comillas.
+          Prueba con otros términos o una frase entre comillas.
         </p>
       )}
 

@@ -572,7 +572,7 @@ export function ExplorerPanel() {
       disabled: esporas.length === 0,
       title:
         esporas.length === 0
-          ? `No hay plantillas en «${carpetaEsporas()}». Creá la primera desde el panel de Esporas.`
+          ? `No hay plantillas en «${carpetaEsporas()}». Crea la primera desde el panel de Esporas.`
           : "Crear una nota a partir de una plantilla",
       submenu: esporas.map((espora) => ({
         label: espora.titulo,
@@ -1242,7 +1242,7 @@ export function ExplorerPanel() {
               ))}
               {store.carpetas.length === 0 && store.notas.length === 0 && (
                 <p className={styles.empty}>
-                  Vault vacío. Creá tu primera nota con el botón de arriba.
+                  Vault vacío. Crea tu primera nota con el botón de arriba.
                 </p>
               )}
             </RootDropZone>

@@ -233,7 +233,7 @@ async function abrirMenu(view: EditorView, desde: number, hasta: number, x: numb
       disabled: !hayVault,
       title: hayVault
         ? "Deja de marcarla en todas las notas de este vault"
-        : "Abrí un vault para tener un diccionario propio",
+        : "Abre un vault para tener un diccionario propio",
       onClick: () => agregar("vault", palabra),
     },
     {

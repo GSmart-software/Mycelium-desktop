@@ -252,13 +252,13 @@ export function GraphView() {
           ) : hasNotes ? (
             <>
               <p>Las reglas de exclusión ocultan todos los nodos.</p>
-              <p className={styles.hint}>Quitá alguna regla desde el menú de opciones.</p>
+              <p className={styles.hint}>Quita alguna regla desde el menú de opciones.</p>
             </>
           ) : (
             <>
               <p>Aún no hay notas en el grafo.</p>
               <p className={styles.hint}>
-                Enlazá notas con <code>[[nombre]]</code> para tejer tu red.
+                Enlaza notas con <code>[[nombre]]</code> para tejer tu red.
               </p>
             </>
           )}

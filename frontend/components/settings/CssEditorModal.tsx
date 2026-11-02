@@ -138,7 +138,7 @@ export function CssEditorModal({ snippet, onClose }: { snippet: CssSnippet; onCl
       return;
     }
     const descartar = await confirmar(
-      `Hay cambios sin guardar en «${snippet.nombre}». Si cerrás ahora, se pierden.`,
+      `Hay cambios sin guardar en «${snippet.nombre}». Si cierras ahora, se pierden.`,
       "Descartar cambios",
     );
     if (descartar) onClose();

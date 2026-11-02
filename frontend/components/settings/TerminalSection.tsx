@@ -45,7 +45,7 @@ export function TerminalSection() {
             <option key={s.id} value={s.id}>{s.nombre}</option>
           ))}
         </select>
-        <Explicacion detalle="Para una consola puntual, en el panel de Consolas hacé clic derecho en «Nueva terminal» y elegí otra shell.">
+        <Explicacion detalle="Para una consola puntual, en el panel de Consolas haz clic derecho en «Nueva terminal» y elige otra shell.">
           La shell que se inicia al crear una consola nueva.
         </Explicacion>
       </div>
@@ -72,7 +72,7 @@ export function TerminalSection() {
         valor={prefs.efectos}
         onChange={(v) => setPref("efectos", v)}
         ayuda="Una consola con fondo de luz, partículas, pantalla de tubo y texto que brilla. Cada parte se elige abajo."
-        detalle="Toma los colores del tema. Rige en el acto en todas las consolas. Usa más la placa de video: si la PC lo sufre, apagá las partes animadas o todo."
+        detalle="Toma los colores del tema. Rige en el acto en todas las consolas. Exige más a la tarjeta gráfica: si la PC lo resiente, apaga las partes animadas o todo."
       >
         {EFECTOS.map((e) => (
           <Interruptor

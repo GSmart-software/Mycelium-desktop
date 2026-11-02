@@ -263,7 +263,7 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
         <div className={styles.propsAviso}>
           <p>
             Mycelium no interpreta este frontmatter: {fm.motivo}. Se muestra tal cual y no se
-            edita desde acá, para no reformatear tus metadatos.
+            edita desde aquí, para no reformatear tus metadatos.
           </p>
           <pre className={styles.propsCrudo}>{fm.crudo}</pre>
         </div>

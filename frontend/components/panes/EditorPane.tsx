@@ -101,7 +101,7 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           />
         ) : (
           <div className={styles.emptyState}>
-            <p className={styles.emptyTitle}>Abrí una nota desde el explorador</p>
+            <p className={styles.emptyTitle}>Abre una nota desde el explorador</p>
             <p className={styles.emptyHint}>
               Tu red de conocimiento crece desde el panel izquierdo.
             </p>

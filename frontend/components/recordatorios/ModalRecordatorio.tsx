@@ -218,9 +218,9 @@ function Editar({ modal }: { modal: Extract<Modal, { tipo: "editar" }> }) {
   const [intentado, setIntentado] = useState(false);
 
   const errores = {
-    titulo: titulo.trim() === "" ? "Poné un título." : null,
-    fecha: !esFechaValida(fecha) ? "Elegí una fecha." : null,
-    hora: !todoElDia && !esHoraValida(hora) ? "Elegí una hora, o marcá «Todo el día»." : null,
+    titulo: titulo.trim() === "" ? "Pon un título." : null,
+    fecha: !esFechaValida(fecha) ? "Elige una fecha." : null,
+    hora: !todoElDia && !esHoraValida(hora) ? "Elige una hora, o marca «Todo el día»." : null,
   };
   const valido = !errores.titulo && !errores.fecha && !errores.hora;
 

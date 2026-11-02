@@ -80,7 +80,7 @@ export function UpdaterSection() {
     const actual = estado?.versionActual ?? "";
     const anterior = compararVersiones(v.version, actual) < 0;
     const texto1 = anterior
-      ? `Vas a instalar la ${v.version}, ANTERIOR a la ${actual} que tenés.\n\n` +
+      ? `Vas a instalar la ${v.version}, ANTERIOR a la ${actual} que tienes.\n\n` +
         "Tus notas no corren riesgo (son archivos de texto en disco), pero una versión " +
         "vieja descarta el estado guardado más nuevo: vas a perder las pestañas abiertas " +
         "y parte de las preferencias.\n\n¿Seguir?"
@@ -115,7 +115,7 @@ export function UpdaterSection() {
           <span className={styles.label}>Versión fijada</span>
           <p className={styles.hint}>
             Elegiste instalar la <strong>{estado.versionFijada}</strong> a mano, así que
-            Mycelium <strong>dejó de ofrecerte actualizaciones</strong>. Volvé a seguirlas
+            Mycelium <strong>dejó de ofrecerte actualizaciones</strong>. Vuelve a seguirlas
             cuando termines de investigar lo que fueras a investigar.
           </p>
           <div className={styles.btnRow}>
@@ -151,7 +151,7 @@ export function UpdaterSection() {
             <>
               En el primer arranque de la jornada y en segundo plano: la app abre igual aunque
               no haya conexión. Desactivado, Mycelium no hace <strong>ninguna</strong> petición
-              de red al arrancar; el botón de acá abajo sigue funcionando.
+              de red al arrancar; el botón de aquí abajo sigue funcionando.
             </>
           }
         >
