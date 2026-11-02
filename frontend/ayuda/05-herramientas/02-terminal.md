@@ -42,8 +42,9 @@ colores de tu tema. Viene apagada. Al encenderla, debajo elegís cada parte:
 
 | Parte | Qué agrega |
 |---|---|
-| **Fondo** | Una aurora con los colores del tema y una red de micelio detrás del texto |
-| **Pulso del fondo** | El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja |
+| **Aurora** | Manchas de luz con los colores del tema detrás del texto |
+| **Red de micelio** | Una red de hifas, como marca de agua, detrás del texto |
+| **Pulso del fondo** | El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja. Mueve el que esté encendido; con los dos apagados, no hace nada |
 | **Partículas** | Esporas de luz que suben despacio |
 | **Borde animado** | Un borde de luz que gira alrededor de la consola |
 | **Marca Mycelium** | El rótulo «MYCELIUM // TTY» en la esquina de abajo |
@@ -66,7 +67,7 @@ Los cambios se ven al instante en las consolas abiertas.
 > [!tip] Si la PC va lenta
 > Las partes que se mueven —pulso del fondo, partículas, borde animado, marca y pantalla de
 > tubo— hacen que la ventana se redibuje sin parar. Apaga esas partes, o la consola estilada
-> entera: el fondo quieto, el brillo y los colores del tema no tienen costo.
+> entera: la aurora y el micelio quietos, el brillo y los colores del tema no tienen costo.
 
 > [!info] Las consolas son del vault
 > Al cambiar de vault, sus consolas se terminan y desaparecen del panel; al volver, están

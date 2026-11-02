@@ -151,7 +151,8 @@ test("la numeración de las consolas es por vault", async () => {
 // para cuando se encienda.
 const EFECTOS_POR_DEFECTO = {
   efectos: false,
-  efectoFondo: true,
+  efectoAurora: true,
+  efectoMicelio: true,
   efectoPulso: true,
   efectoParticulas: true,
   efectoBorde: true,
@@ -231,4 +232,29 @@ test("un almacén roto no impide abrir una consola", async () => {
   });
   await store.getState().usarAlmacenDeVault("/vaults/A");
   assert.equal(store.getState().registrar("a1", { shellId: null, cwd: null }), "Terminal 1");
+});
+
+// `FUN-S-37`: el «Fondo» de antes era una sola opción para la aurora y el
+// micelio; ahora son dos, y lo guardado se respeta.
+test("la opción «Fondo» de antes se reparte en aurora y micelio", async () => {
+  const apagado = almacenFalso({
+    "mic-consolas-prefs": JSON.stringify({ efectos: true, efectoFondo: false, efectoPulso: true }),
+  });
+  let prefs = (await cargarStore(apagado)).getState().prefs;
+  assert.equal(prefs.efectoAurora, false, "con el fondo apagado, la aurora queda apagada");
+  assert.equal(prefs.efectoMicelio, false, "y el micelio también");
+  assert.equal("efectoFondo" in prefs, false, "la clave vieja no se arrastra");
+  assert.equal(prefs.efectos, true);
+
+  const encendido = almacenFalso({ "mic-consolas-prefs": JSON.stringify({ efectoFondo: true }) });
+  prefs = (await cargarStore(encendido)).getState().prefs;
+  assert.equal(prefs.efectoAurora, true);
+  assert.equal(prefs.efectoMicelio, true);
+
+  const nuevas = almacenFalso({
+    "mic-consolas-prefs": JSON.stringify({ efectoFondo: true, efectoAurora: false, efectoMicelio: true }),
+  });
+  prefs = (await cargarStore(nuevas)).getState().prefs;
+  assert.equal(prefs.efectoAurora, false, "si ya hay opciones nuevas, mandan ellas");
+  assert.equal(prefs.efectoMicelio, true);
 });
