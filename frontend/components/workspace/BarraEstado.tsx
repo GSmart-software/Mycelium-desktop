@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import type { ConteoConexionesDto } from "@/lib/db/grafo";
 import { nextDiagnostic } from "@codemirror/lint";
 import { resumenDiagnosticos } from "@/lib/diagnosticos";
 import { useDiagnosticos } from "@/lib/diagnosticosVault";
@@ -77,16 +78,19 @@ export function BarraEstado() {
       return;
     }
     let cancelado = false;
-    void api<{ nota: { actualizadoEn: string }; salientes: unknown[]; retro: unknown[] }>(
-      `/notas/${encodeURIComponent(notaId)}/conexiones`,
-      { token: useAuthStore.getState().accessToken },
-    )
+    // Solo los dos números y la fecha, en una consulta que no lee contenido
+    // (`FUN-M-58`). Antes se pedían las `conexiones` enteras —con el texto de
+    // cada nota que cita, para fragmentos que la barra no muestra— en cada
+    // guardado: hasta 1,7 MB cada 10 s en una nota muy citada.
+    void api<ConteoConexionesDto>(`/notas/${encodeURIComponent(notaId)}/conteo-conexiones`, {
+      token: useAuthStore.getState().accessToken,
+    })
       .then((c) => {
         if (cancelado) return;
-        const modificada = Date.parse(c.nota.actualizadoEn);
+        const modificada = Date.parse(c.actualizadoEn);
         setConteo({
-          salientes: c.salientes.length,
-          retro: c.retro.length,
+          salientes: c.salientes,
+          retro: c.retro,
           modificadaEn: Number.isNaN(modificada) ? null : modificada,
         });
       })

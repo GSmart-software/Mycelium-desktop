@@ -156,6 +156,9 @@ export async function putContenido(
   // `propiedades` se reescriben —en una nota de 500 KB, cientos de ms de FTS5
   // por cada guardado que no las tocaba—.
   const { contenido: buscable, extra, propiedades, huella } = derivarIndice(texto, notas[0].tipo);
+  // Si el guardado cambió algo que el grafo dibuja (`FUN-M-58`): sus enlaces o
+  // sus etiquetas, o sus alias —que re-resuelven los `[[alias]]` de otras notas—.
+  let aliasCambiaron = false;
   if (huella !== notas[0].hash_indexable || Number(notas[0].con_busqueda) !== 1) {
     // Los alias de antes, para saber si cambiaron (`FUN-M-15`): solo cuando las
     // propiedades se reescriben, que es la única vez que pueden cambiar.
@@ -164,6 +167,7 @@ export async function putContenido(
     await reindexarPropiedadesTanda([{ id, propiedades }]);
     const despues = aliasesDeFilas(propiedades);
     if (!mismosAliases(antes, despues)) {
+      aliasCambiaron = true;
       // Un `[[alias]]` que estaba roto pasa a resolver a esta nota, y uno que
       // ya no lo es vuelve a roto (o a quien más lo declare), sin reindexar.
       await reResolverClaves(clavesDeAlias([...antes, ...despues]));
@@ -189,5 +193,14 @@ export async function putContenido(
     [bytes, now, mtime, huella, huellaE, id],
   );
 
-  return { actualizadoEn: now };
+  // `enlacesCambiaron` le dice al editor si hace falta refrescar el grafo y las
+  // conexiones (`FUN-M-58`): casi ningún guardado cambia los enlaces, y cada uno
+  // hacía rehacer el grafo global abierto y el mini-grafo del panel (el lienzo
+  // se vaciaba y reaparecía cada 10 s mientras se escribía). La huella es la
+  // misma que decide si se reescriben las filas: si no cambió, el grafo tampoco.
+  return {
+    actualizadoEn: now,
+    tamanoBytes: bytes,
+    enlacesCambiaron: huellaE !== notas[0].hash_enlaces || aliasCambiaron,
+  };
 }

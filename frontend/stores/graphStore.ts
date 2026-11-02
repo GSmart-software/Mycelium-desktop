@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { GraphEdge, GraphNode } from "@/components/graph/MiniGraph";
 import { api } from "@/lib/api";
+import { mismoGrafo } from "@/lib/grafoEquivalente";
 import { useAuthStore } from "@/stores/authStore";
 
 export type GraphData = { nodos: GraphNode[]; aristas: GraphEdge[] };
@@ -62,9 +63,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         const res = await api<GraphData>(`/vaults/${vaultId}/grafo`, {
           token: useAuthStore.getState().accessToken,
         });
+        // Si dibuja lo mismo que lo que ya se ve —un refresco por un cambio de
+        // afuera que no tocó enlaces—, se conserva el objeto: `MiniGraph` no
+        // rehace el layout ni vacía el lienzo (`FUN-M-58`, `mismoGrafo`).
+        const previo = get();
         set({
           vaultId,
-          data: res,
+          data: previo.vaultId === vaultId && previo.data && mismoGrafo(previo.data, res) ? previo.data : res,
           status: "ready",
           stale: false,
           // Al cambiar de vault, el layout y la vista cacheados ya no aplican.

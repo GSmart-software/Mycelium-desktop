@@ -79,7 +79,8 @@ import {
 } from "@/lib/wikilinks";
 import { avisar, avisarFallo } from "@/stores/avisosStore";
 import { crearNotaDeEnlaceRoto } from "@/lib/crearDesdeEnlace";
-import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
+import { EVENTO_NOTA_GUARDADA, type DetalleNotaGuardada } from "@/lib/eventos";
+import type { PutContenidoResponse } from "@/lib/db/types";
 import { renderNota } from "@/lib/markdown";
 import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -549,7 +550,7 @@ export function NoteEditor({
     // viaja se puede seguir escribiendo, y eso nuevo todavía no está en disco.
     const enviado = contentRef.current;
     try {
-      await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
+      const guardado = await api<PutContenidoResponse>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
         method: "PUT",
         token: useAuthStore.getState().accessToken,
         body: forzar ? { contenido: enviado } : { contenido: enviado, esperado: ultimoGuardadoRef.current },
@@ -571,12 +572,23 @@ export function NoteEditor({
       }
       dirtyRef.current = false;
       setSyncState("synced");
-      // El contenido (y por ende los [[enlaces]]) cambió → refrescar el grafo.
-      useGraphStore.getState().markStale();
+      // El grafo se refresca solo si cambiaron los [[enlaces]], las etiquetas o
+      // los alias (`FUN-M-58`). Antes se marcaba en cada guardado —cada 10 s
+      // mientras se escribe—, y con el grafo abierto eso era pedirlo entero y
+      // rehacer el lienzo (vacío y vuelta a aparecer) aunque nada hubiera cambiado.
+      if (guardado.enlacesCambiaron) useGraphStore.getState().markStale();
       // Y lo que muestre propiedades de muchas notas a la vez —un archivo tabla
       // abierto en otro panel— tiene que enterarse (`DEF-086`). El `PUT` ya
-      // reindexó las propiedades, así que lo que se lea ahora es lo nuevo.
-      window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: { notaId } }));
+      // reindexó las propiedades, así que lo que se lea ahora es lo nuevo. El
+      // detalle lleva lo que el panel de conexiones necesita para no volver a
+      // pedirlas cuando los enlaces no cambiaron (`DetalleNotaGuardada`).
+      const detalle: DetalleNotaGuardada = {
+        notaId,
+        enlacesCambiaron: guardado.enlacesCambiaron,
+        actualizadoEn: guardado.actualizadoEn,
+        tamanoBytes: guardado.tamanoBytes,
+      };
+      window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: detalle }));
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
