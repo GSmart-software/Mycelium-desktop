@@ -355,3 +355,38 @@ test("indexar a demanda una nota que el árbol ya muestra y el índice no", { sk
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM notas WHERE id = 'No/existe.md'").get().n, 0);
   client.setExecutor(null);
 });
+
+test("`estructural` (FUN-M-58): solo si entró o salió del índice una nota o una carpeta", { skip: sinSqlite }, async () => {
+  const disco = vaultEnMemoria(VAULT);
+  await abrir(disco);
+  // Directo, sin comparar con el completo: acá importa qué dice, y la carpeta
+  // que queda vacía al borrar su única nota el disco de mentira no la conserva.
+  const r = (cambios) => indexer.indexarRutas("C:/vault", cambios);
+  // Contenido de una nota que ya estaba, incluidos sus alias y sus enlaces: el
+  // árbol no cambia (título y carpeta salen de la ruta; los alias, por evento).
+  assert.equal((await r([disco.escribir("Idea.md", "---\naliases: [Ocurrencia]\n---\nCon [[Plan]]")])).estructural, false);
+  // Un archivo que no es nota en una carpeta que ya existe.
+  assert.equal((await r([disco.escribir("Area/otra.png", "png")])).estructural, false);
+  // Una carpeta que ya existe.
+  assert.equal((await r([{ ruta: "Area", mtime: 0, estado: "carpeta", tipo: "" }])).estructural, false);
+  // Una nota nueva en una carpeta que existe.
+  assert.equal((await r([disco.escribir("Area/Notas/tres.md", "nueva")])).estructural, true);
+  // Un archivo que no es nota en una carpeta nueva.
+  assert.equal((await r([disco.escribir("Nueva/doc.pdf", "%PDF")])).estructural, true);
+  // Una carpeta vacía nueva.
+  disco.dirsVacios.add("Vacia");
+  assert.equal((await r([{ ruta: "Vacia", mtime: 0, estado: "carpeta", tipo: "" }])).estructural, true);
+  // Una nota borrada.
+  assert.equal((await r([disco.borrar("Otra/cuatro.md")])).estructural, true);
+  // Un renombre: el origen se va y el destino llega.
+  disco.borrar("Area/Notas/dos.md");
+  assert.equal(
+    (await r([{ ruta: "Area/Notas/dos.md", mtime: 0, estado: "ausente", tipo: "" }, disco.escribir("Area/Notas/Dos bis.md", "Ver [[uno]]")])).estructural,
+    true,
+  );
+  // Una carpeta borrada con su contenido.
+  assert.equal((await r([disco.borrar("Vacia")])).estructural, true);
+  // Algo que se fue y el índice no tenía (un archivo que no era nota).
+  assert.equal((await r([disco.borrar("Area/otra.png")])).estructural, false);
+  client.setExecutor(null);
+});

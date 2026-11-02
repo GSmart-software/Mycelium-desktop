@@ -22,6 +22,10 @@ import { avisar } from "@/stores/avisosStore";
 import type { OtroArchivo } from "@/lib/otrosArchivos";
 import {
   aplicarCambios as aplicarAlArbol,
+  conservarIdentidad,
+  mismaCarpeta,
+  mismaNota,
+  mismoOtro,
   pendientesActuales,
   vaciarPendientes,
   type CambioVault,
@@ -48,6 +52,12 @@ export type TreeNota = {
   carpetaId: string | null;
   titulo: string;
   tipo: NotaTipo;
+  /**
+   * Informativo: la fecha que tenía en el índice al cargarse. NO se mantiene al
+   * día con los cambios de contenido —ni los guardados de la app ni, desde
+   * `FUN-M-58`, los de afuera— y ningún componente lo lee de acá: quien necesite
+   * la fecha la pide a `/notas/{id}` (el panel de la nota, la barra de estado).
+   */
   actualizadoEn: string;
   /**
    * Los otros nombres de la nota: su propiedad `aliases` (`FUN-M-15`). Un
@@ -127,15 +137,23 @@ type VaultState = {
   /**
    * Aplica al árbol lo que avisó el watcher (`FUN-M-42`), sin esperar al índice.
    * No toca el estado si no cambia nada (el caso de cada guardado propio).
+   * Devuelve si el árbol cambió.
    */
-  aplicarCambios: (cambios: readonly CambioVault[]) => void;
+  aplicarCambios: (cambios: readonly CambioVault[]) => boolean;
   /** Estado expandido/colapsado por carpeta — persiste en localStorage (HU-22 CA5). */
   expanded: Record<string, boolean>;
   /** Carpeta activa: destino de "Nueva nota"/importaciones (HU-23 CA1). */
   activeFolderId: string | null;
   /** Último movimiento, para deshacer con Ctrl+Z (HU-24 CA7). */
   lastMove: LastMove | null;
-  loadTree: (vaultId: string) => Promise<void>;
+  /**
+   * Recarga el árbol desde el índice. Las listas que quedan iguales conservan su
+   * identidad (`FUN-M-58`). Devuelve si cambiaron las notas o las carpetas —y
+   * entonces ya refrescó las vistas en vivo—; `false` también si la descartó una
+   * recarga más nueva. `refrescarVistas` las refresca aunque el árbol no cambie:
+   * para quien reescribió contenido de otras notas (sus embeds en vivo).
+   */
+  loadTree: (vaultId: string, opciones?: { refrescarVistas?: boolean }) => Promise<boolean>;
   loadPapelera: () => Promise<void>;
   createCarpeta: (nombre: string, padreId: string | null) => Promise<void>;
   renameCarpeta: (id: string, nombre: string) => Promise<ResultadoRenombrar>;
@@ -301,17 +319,20 @@ export const useVaultStore = create<VaultState>()(
       lastMove: null,
 
       setOtros(otros) {
-        set({ otros });
+        // La reconciliación los vuelve a pasar enteros aunque no cambie nada.
+        const previos = get().otros;
+        const lista = conservarIdentidad(previos, otros, (o) => o.ruta, mismoOtro);
+        if (lista !== previos) set({ otros: lista });
       },
 
-      async loadTree(vaultId) {
+      async loadTree(vaultId, opciones) {
         const seq = ++treeSeq;
         const data = await api<{ carpetas: RawCarpeta[]; notas: RawNota[] }>(
           `/vaults/${vaultId}/tree`,
           { token: token() },
         );
         // Si ya se inició una recarga más nueva, descartar este resultado viejo.
-        if (seq !== treeSeq) return;
+        if (seq !== treeSeq) return false;
 
         const carpetas: TreeCarpeta[] = data.carpetas.map((c) => ({
           id: c.id,
@@ -337,26 +358,51 @@ export const useVaultStore = create<VaultState>()(
         // (`FUN-M-42`): se vuelve a aplicar encima de lo que se leyó, o esta
         // recarga —la de cualquier operación de la app— lo haría desaparecer
         // hasta que terminara el indexado.
-        const vivo = aplicarAlArbol({ carpetas, notas, otros: get().otros }, pendientesActuales());
-        if (vivo) {
-          set({ vaultId, carpetas: [...vivo.carpetas], notas: [...vivo.notas], otros: [...vivo.otros] });
-        } else {
-          set({ vaultId, carpetas, notas });
+        const previo = get();
+        const vivo = aplicarAlArbol({ carpetas, notas, otros: previo.otros }, pendientesActuales());
+        // Lo que no cambió conserva su identidad (`FUN-M-58`): antes cada recarga
+        // dejaba `notas` y `carpetas` nuevas aunque fueran iguales, y eso
+        // redisparaba todo lo suscrito a ellas —los diagnósticos de cada editor,
+        // el panel de salud, el explorador— tras CADA ciclo del watcher.
+        const mismoVault = previo.vaultId === vaultId;
+        const nuevasCarpetas = mismoVault
+          ? conservarIdentidad(previo.carpetas, vivo?.carpetas ?? carpetas, (c) => c.id, mismaCarpeta)
+          : [...(vivo?.carpetas ?? carpetas)];
+        const nuevasNotas = mismoVault
+          ? conservarIdentidad(previo.notas, vivo?.notas ?? notas, (n) => n.id, mismaNota)
+          : [...(vivo?.notas ?? notas)];
+        const nuevosOtros = vivo
+          ? conservarIdentidad(previo.otros, vivo.otros, (o) => o.ruta, mismoOtro)
+          : previo.otros;
+        const cambio = nuevasCarpetas !== previo.carpetas || nuevasNotas !== previo.notas;
+        if (!mismoVault || cambio || nuevosOtros !== previo.otros) {
+          set({ vaultId, carpetas: nuevasCarpetas, notas: nuevasNotas, otros: nuevosOtros });
         }
         // Un editor montado antes de que llegara el árbol —las pestañas que se
         // restauran al abrir la app— decoró sus [[enlaces]] contra una lista vacía
         // y los marcó todos como inexistentes; nada lo volvía a evaluar (`DEF-122`).
-        refreshAllLiveViews();
+        // Solo si cambió algo: con el árbol igual, los enlaces resuelven igual.
+        if (cambio || !mismoVault || opciones?.refrescarVistas) refreshAllLiveViews();
+        return cambio || !mismoVault;
       },
 
       aplicarCambios(cambios) {
         const { carpetas, notas, otros } = get();
         const vivo = aplicarAlArbol({ carpetas, notas, otros }, cambios);
-        if (!vivo) return;
-        set({ carpetas: [...vivo.carpetas], notas: [...vivo.notas], otros: [...vivo.otros] });
+        if (!vivo) return false;
+        // Sin copiar: `aplicarAlArbol` devuelve copias nuevas de las listas que
+        // cambió y LAS MISMAS de las que no (`FUN-M-58`). Antes se copiaban las
+        // tres, y un archivo que no es nota cambiaba también la identidad de
+        // `notas` y `carpetas`.
+        set({
+          carpetas: vivo.carpetas as TreeCarpeta[],
+          notas: vivo.notas as TreeNota[],
+          otros: vivo.otros as OtroArchivo[],
+        });
         // Una nota que aparece o se va cambia qué `[[enlaces]]` resuelven: las
         // vistas en vivo los vuelven a evaluar contra la lista nueva.
         if (vivo.notas !== notas) refreshAllLiveViews();
+        return true;
       },
 
       async loadPapelera() {

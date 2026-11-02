@@ -374,3 +374,69 @@ export function pendientesActuales(): CambioVault[] {
 export function vaciarPendientes(): void {
   pendientes.clear();
 }
+
+// ── Identidad: no cambiar lo que no cambió (`FUN-M-58`) ─────────────────────
+
+/** ¿Los mismos alias, en el mismo orden? (ausente = ninguno). */
+function mismosAlias(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
+  const x = a ?? [];
+  const y = b ?? [];
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
+/**
+ * ¿Dos notas del árbol se ven igual? Compara lo que el árbol MUESTRA o usa para
+ * resolver: ruta, carpeta, título, tipo y alias.
+ *
+ * `actualizadoEn` queda fuera A PROPÓSITO: ningún componente lo lee del árbol
+ * (el panel de la nota y la barra de estado piden la fecha a `/notas/{id}`), y
+ * cambia con cada cambio de contenido. Contarlo hacía que una nota editada por
+ * fuera rehiciera el arreglo entero de notas y, con él, todo lo suscrito a
+ * `vaultStore.notas`. Los guardados de la propia app tampoco lo actualizaban.
+ */
+export function mismaNota(a: TreeNota, b: TreeNota): boolean {
+  return (
+    a.id === b.id &&
+    a.carpetaId === b.carpetaId &&
+    a.titulo === b.titulo &&
+    a.tipo === b.tipo &&
+    mismosAlias(a.aliases, b.aliases)
+  );
+}
+
+export function mismaCarpeta(a: TreeCarpeta, b: TreeCarpeta): boolean {
+  return a.id === b.id && a.padreId === b.padreId && a.nombre === b.nombre;
+}
+
+export function mismoOtro(a: OtroArchivo, b: OtroArchivo): boolean {
+  return a.ruta === b.ruta && a.nombre === b.nombre && a.extension === b.extension && a.carpetaId === b.carpetaId;
+}
+
+/**
+ * La lista `nueva` conservando la identidad de `previa` donde se puede
+ * (`FUN-M-58`): cada elemento igual a uno de antes con su mismo id es el de
+ * antes (el mismo objeto), y si quedaron todos iguales y en el mismo orden,
+ * devuelve `previa` tal cual.
+ *
+ * Es lo que evita que recargar el árbol sin que haya cambiado nada redispare lo
+ * suscrito a la lista por identidad: los diagnósticos de cada editor (que
+ * vuelven a pedir sus datos al índice), el panel de salud, el explorador, la
+ * paleta…
+ */
+export function conservarIdentidad<T>(
+  previa: readonly T[],
+  nueva: readonly T[],
+  clave: (t: T) => string,
+  igual: (a: T, b: T) => boolean,
+): T[] {
+  const porClave = new Map<string, T>();
+  for (const p of previa) porClave.set(clave(p), p);
+  let todasIguales = previa.length === nueva.length;
+  const salida = nueva.map((n, i) => {
+    const p = porClave.get(clave(n));
+    const elegido = p !== undefined && igual(p, n) ? p : n;
+    if (todasIguales && elegido !== previa[i]) todasIguales = false;
+    return elegido;
+  });
+  return todasIguales ? (previa as T[]) : salida;
+}

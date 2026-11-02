@@ -174,7 +174,9 @@ export async function repararRenombre(o: OfertaRenombre, conAlias: boolean): Pro
   if (r.reescritas.length > 0) window.dispatchEvent(new Event(EVENTO_RECARGA));
   useGraphStore.getState().markStale();
   const { vaultId } = useVaultStore.getState();
-  if (vaultId) await useVaultStore.getState().loadTree(vaultId);
+  // Con las vistas en vivo aunque el árbol no cambie (`FUN-M-58`): se
+  // reescribió el contenido de otras notas, que pueden estar embebidas.
+  if (vaultId) await useVaultStore.getState().loadTree(vaultId, { refrescarVistas: true });
 
   const cuantas = r.reescritas.length === 1 ? "1 nota" : `${r.reescritas.length} notas`;
   const fallo = r.fallidas.length > 0 ? ` No se pudieron reescribir ${r.fallidas.length}: ${r.fallidas.join(", ")}.` : "";
