@@ -218,6 +218,7 @@ pub fn run() {
             control::mcp_config_borrar,
             prefs_vault::leer_estado_vault,
             prefs_vault::escribir_estado_vault,
+            prefs_vault::agregar_estado_vault,
             prefs_vault::borrar_estado_vault,
             diccionarios::diccionarios_manifiesto,
             diccionarios::diccionarios_listar,
