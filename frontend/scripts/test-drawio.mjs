@@ -18,6 +18,7 @@ const {
   accionCargar,
   accionExportarSvg,
   accionGuardar,
+  CacheLru,
   claveAPodar,
   claveEsDePestana,
   clavesHuerfanas,
@@ -27,8 +28,10 @@ const {
   embedDrawioRe,
   esDiagramaDrawio,
   EXTENSION_DRAWIO,
+  huellaXml,
   leerEvento,
   urlDelEditor,
+  urlDelRenderizador,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
 test("la extensión es .drawio", () => {
@@ -78,6 +81,14 @@ test("la URL del editor lleva los parámetros del modo embebido", () => {
   assert.equal(p.get("stealth"), "1", "sin salidas a la red (CA7)");
   assert.equal(p.get("pwa"), "0", "sin service worker: `offline=1` lo encendería");
   assert.equal(p.get("dark"), "0");
+});
+
+test("editor y renderizador apagan el soporte del traductor del navegador (FUN-M-58)", () => {
+  // Con él encendido, draw.io cuelga un MutationObserver sobre el <html> de
+  // Mycelium que retiene el iframe entero después de soltarlo.
+  for (const url of [urlDelEditor("claro"), urlDelEditor("oscuro"), urlDelRenderizador()]) {
+    assert.equal(new URLSearchParams(url.split("?")[1]).get("browser-translate"), "0", url);
+  }
 });
 
 test("el tema oscuro viaja en la URL", () => {
@@ -196,12 +207,23 @@ test("la poda elige el oculto más viejo y nunca uno que se está viendo", () =>
     { clave: "nuevo-oculto", visible: false },
     { clave: "nuevo-visible", visible: true },
   ];
-  assert.equal(claveAPodar(vivas, 3), "viejo-oculto");
+  assert.equal(claveAPodar(vivas, 1), "viejo-oculto");
+});
+
+test("el tope cuenta solo los ocultos (FUN-M-58): los visibles no entran", () => {
+  // Dos panes y el panel lateral mostrando diagramas, más un oculto: no sobra nada.
+  const vivas = [
+    { clave: "a", visible: true },
+    { clave: "oculto", visible: false },
+    { clave: "b", visible: true },
+    { clave: "sidebar:c", visible: true },
+  ];
+  assert.equal(claveAPodar(vivas, 1), null);
 });
 
 test("no se poda nada si no se pasa del tope", () => {
-  assert.equal(claveAPodar([{ clave: "a", visible: false }], 3), null);
-  assert.equal(claveAPodar([], 3), null);
+  assert.equal(claveAPodar([{ clave: "a", visible: false }], 1), null);
+  assert.equal(claveAPodar([], 1), null);
 });
 
 test("si TODOS están visibles no se poda: recargar delante del usuario es peor", () => {
@@ -211,5 +233,49 @@ test("si TODOS están visibles no se poda: recargar delante del usuario es peor"
     { clave: "c", visible: true },
     { clave: "d", visible: true },
   ];
-  assert.equal(claveAPodar(todosVisibles, 3), null);
+  assert.equal(claveAPodar(todosVisibles, 1), null);
+});
+
+test("un oculto con cambios sin guardar nunca se poda, aunque se pase del tope", () => {
+  const vivas = [
+    { clave: "sucio-viejo", visible: false, sucio: true },
+    { clave: "limpio", visible: false, sucio: false },
+    { clave: "visible", visible: true },
+  ];
+  assert.equal(claveAPodar(vivas, 1), "limpio", "sale el limpio aunque sea más nuevo");
+  const todosSucios = [
+    { clave: "x", visible: false, sucio: true },
+    { clave: "y", visible: false, sucio: true },
+  ];
+  assert.equal(claveAPodar(todosSucios, 1), null, "si todos están sucios se quedan");
+});
+
+// ── Caché de vistas previas (FUN-M-58) ───────────────────────────────────────
+
+test("la huella del XML es estable y distingue contenidos distintos", () => {
+  const a = diagramaInicial();
+  assert.equal(huellaXml(a), huellaXml(String(a)));
+  assert.notEqual(huellaXml(a), huellaXml(a + " "));
+  assert.notEqual(huellaXml("<mxfile>a</mxfile>"), huellaXml("<mxfile>b</mxfile>"));
+});
+
+test("la caché LRU desaloja al menos usado y respeta los dos topes", () => {
+  const c = new CacheLru(2, 100);
+  c.set("a", "1");
+  c.set("b", "2");
+  assert.equal(c.get("a"), "1"); // `a` pasa a ser el más reciente
+  c.set("c", "3");
+  assert.equal(c.get("b"), undefined, "sale el menos usado");
+  assert.equal(c.get("a"), "1");
+  assert.equal(c.tamano, 2);
+
+  const t = new CacheLru(10, 10);
+  t.set("x", "12345");
+  t.set("y", "12345");
+  t.set("z", "123");
+  assert.equal(t.get("x"), undefined, "el tope de tamaño también desaloja");
+  assert.ok(t.caracteres <= 10);
+  t.set("enorme", "x".repeat(11));
+  assert.equal(t.get("enorme"), undefined, "lo que no entra no se guarda");
+  assert.equal(t.get("z"), "123", "ni desaloja a los demás");
 });
