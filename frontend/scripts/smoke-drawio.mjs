@@ -1,86 +1,79 @@
-// Smoke test del editor de draw.io embebido (`FUN-L-20`).
+// Smoke test del editor de draw.io embebido (`FUN-L-20`, `DEF-168`).
 //
-// Comprueba lo que la spec (`docs/features/drawio.md`) pone como condición para
-// seguir: que la webapp **empaquetada** se sirva desde el mismo origen que la
-// app, que el modo embebido arranque, que el puente `postMessage` vaya y venga,
-// y que guardar devuelva el XML (CA2, CA3, CA4, CA7).
+// Levanta **dos orígenes**, como en la app: uno para la página anfitriona (el
+// papel de Mycelium) y otro para draw.io, servido como lo sirve Rust
+// (`src-tauri/src/drawio_origen.rs`): su CSP de `src-tauri/drawio/csp.json`, la
+// guarda de `src-tauri/drawio/guarda.js` al principio de cada HTML y los hashes
+// de los scripts en línea. Comprueba:
 //
-// No necesita `next dev`: sirve el export estático (`out/`) con un servidor
-// mínimo, así que basta con haber corrido `npx next build` antes.
+// - que el modo embebido arranque y el puente `postMessage` vaya y venga
+//   (`init`, `load`, `autosave`, `save` con el XML, `export` a SVG) con el
+//   origen de destino fijado y validando origen y ventana (CA2, CA3);
+// - que el renderizador de los embeds (sin cromado) devuelva el SVG;
+// - que desde el iframe NO se alcance la app: `parent.document` falla, no hay
+//   `__TAURI_INTERNALS__`, no puede navegar la ventana, y su CSP no le deja
+//   pedir nada a otro origen (el IPC de Tauri incluido);
+// - que draw.io abierto como página principal no arranque (la guarda);
+// - que no salga nada a la red ni falte nada del recorte (CA4, CA7), y que
+//   ocultar el iframe no lo recargue y mudarlo sí (`lib/drawioInstancias.ts`).
+//
+// No necesita `next build` ni `next dev`: sirve `public/drawio` directamente.
 //
 //   node scripts/smoke-drawio.mjs
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import ts from "typescript";
+import { responderDrawio } from "./lib-drawio-origen.mjs";
 
-// Los parámetros salen de `lib/drawio.ts`, no de una copia a mano: si no, el
-// smoke probaría una URL que la app no usa. `lib/drawio.ts` es puro, así que se
-// transpila al vuelo como en `test-drawio.mjs`.
+// Los parámetros y las reglas salen de `lib/drawio.ts`, no de una copia a mano.
 const rutaTs = fileURLToPath(new URL("../lib/drawio.ts", import.meta.url));
 const { outputText } = ts.transpileModule(await readFile(rutaTs, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 },
 });
-const { urlDelEditor } = await import(
-  `data:text/javascript,${encodeURIComponent(outputText)}`
-);
+const drawio = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
-const RAIZ = resolve(import.meta.dirname, "..", "out");
-const PUERTO = 3199;
+const FRONTEND = resolve(import.meta.dirname, "..");
+const RAIZ = join(FRONTEND, "public", "drawio");
+const PUERTO_APP = 3199;
+const PUERTO_DRAWIO = 3198;
 
-if (!existsSync(join(RAIZ, "drawio", "index.html"))) {
-  console.error(
-    "FALLO: falta out/drawio/index.html.\n" +
-      "Corré antes:  npm run preparar-drawio  &&  npx next build",
-  );
+if (!existsSync(join(RAIZ, "index.html"))) {
+  console.error("FALLO: falta public/drawio/index.html.\nCorré antes:  npm run preparar-drawio");
   process.exit(1);
 }
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".jpg": "image/jpeg",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".txt": "text/plain; charset=utf-8",
-  ".xml": "application/xml; charset=utf-8",
-};
+// ── draw.io, servido como lo sirve Rust (`lib-drawio-origen.mjs`) ─────────────
 
-/** Servidor estático mínimo sobre `out/`. */
-const servidor = createServer((req, res) => {
-  const pedido = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  let ruta = join(RAIZ, normalize(pedido).replace(/^(\.\.[/\\])+/, ""));
-  if (!ruta.startsWith(RAIZ)) {
-    res.writeHead(403).end("no");
-    return;
-  }
-  if (existsSync(ruta) && statSync(ruta).isDirectory()) ruta = join(ruta, "index.html");
-  if (!existsSync(ruta)) {
-    res.writeHead(404).end("no existe");
-    return;
-  }
-  res.writeHead(200, {
-    "Content-Type": MIME[extname(ruta).toLowerCase()] ?? "application/octet-stream",
-  });
-  createReadStream(ruta).pipe(res);
+const origenApp = `http://localhost:${PUERTO_APP}`;
+const origenDrawio = `http://127.0.0.1:${PUERTO_DRAWIO}`;
+const baseDrawio = `${origenDrawio}/`;
+
+const servidorDrawio = createServer(async (req, res) => {
+  const r = await responderDrawio(RAIZ, new URL(req.url, "http://x").pathname, [origenApp]);
+  res.writeHead(r.estado, r.cabeceras);
+  res.end(r.cuerpo);
 });
 
-await new Promise((ok) => servidor.listen(PUERTO, "127.0.0.1", ok));
-const base = `http://127.0.0.1:${PUERTO}`;
+// La anfitriona: una página vacía con un `__TAURI_INTERNALS__` de mentira, para
+// comprobar que el iframe no lo alcanza.
+const servidorApp = createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(
+    "<!doctype html><title>Mycelium</title><body>" +
+      "<script>window.__TAURI_INTERNALS__ = { invoke() { window.__invocado = true; } };</script>",
+  );
+});
+
+await new Promise((ok) => servidorDrawio.listen(PUERTO_DRAWIO, "127.0.0.1", ok));
+await new Promise((ok) => servidorApp.listen(PUERTO_APP, "localhost", ok));
 
 const XML_DE_PRUEBA =
   '<mxGraphModel dx="800" dy="600" grid="1" gridSize="10" page="1">' +
-  "<root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>" +
+  '<root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
   '<mxCell id="nodo1" value="Mycelium" style="rounded=1" vertex="1" parent="1">' +
   '<mxGeometry x="120" y="120" width="160" height="60" as="geometry"/></mxCell>' +
   "</root></mxGraphModel>";
@@ -88,53 +81,68 @@ const XML_DE_PRUEBA =
 const checks = {};
 const externas = [];
 const erroresConsola = [];
-/** Lo que el recorte se llevó y la webapp todavía pide: la señal de que una
- *  quita rompió algo que ningún check mira directamente. */
 const faltantes = [];
+const violaciones = [];
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+const contexto = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+await contexto.exposeFunction("__violacionCsp", (v) => violaciones.push(v));
+await contexto.addInitScript(() => {
+  document.addEventListener("securitypolicyviolation", (e) => {
+    window.__violacionCsp?.(`${location.origin} ${e.effectiveDirective} ${e.blockedURI}`);
+  });
+});
+const page = await contexto.newPage();
 
-// CA7: nada puede salir a la red. Se anota cualquier petición fuera del origen.
 page.on("request", (r) => {
   const u = r.url();
-  if (!u.startsWith(base) && !u.startsWith("data:") && !u.startsWith("blob:")) {
+  if (!u.startsWith(origenApp) && !u.startsWith(origenDrawio) && !/^(data|blob):/.test(u)) {
     externas.push(u);
   }
 });
 page.on("console", (m) => m.type() === "error" && erroresConsola.push(m.text()));
 page.on("response", (r) => {
-  if (r.status() === 404) faltantes.push(r.url().replace(base, ""));
+  if (r.status() === 404) faltantes.push(r.url());
 });
 
+/** El marco cuya URL empieza con `prefijo` (Playwright entra a marcos de otro origen). */
+const marcoCon = (prefijo) => page.frames().find((f) => f.url().startsWith(prefijo));
+
 try {
-  // Página de prueba: un iframe al editor y el puente `postMessage` del host.
-  // Es exactamente lo que hará `DrawioView`, reducido a lo mínimo.
-  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${origenApp}/`, { waitUntil: "domcontentloaded" });
 
-  const resultado = await page.evaluate(
-    async ({ xmlInicial, urlEditor }) => {
-      const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0";
-      iframe.src = urlEditor;
-      document.body.appendChild(iframe);
-
-      const eventos = [];
-      const esperar = (nombre, ms = 60000) =>
+  // Lo que hacen `lib/drawioInstancias.ts` y `lib/drawioRender.ts`, reducido.
+  await page.evaluate(
+    ({ urlEditor, urlRender, origen, destino, sandboxEditor, sandboxRender, allow, fuenteEsMensaje }) => {
+      const esMensajeDeDrawio = new Function(`return (${fuenteEsMensaje})`)();
+      const crear = (src, sandbox, estilo) => {
+        const f = document.createElement("iframe");
+        f.setAttribute("sandbox", sandbox);
+        if (allow) f.setAttribute("allow", allow);
+        f.style.cssText = estilo;
+        f.src = src;
+        document.body.appendChild(f);
+        return f;
+      };
+      const editor = crear(urlEditor, sandboxEditor, "position:fixed;inset:0;width:100%;height:100%;border:0");
+      const render = crear(urlRender, sandboxRender, "position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;visibility:hidden");
+      const ajenos = [];
+      window.__puente = { editor, render, eventos: { editor: [], render: [] }, ajenos };
+      window.__esperar = (cual, nombre, ms = 60000) =>
         new Promise((ok, mal) => {
+          const marco = window.__puente[cual];
           const t = setTimeout(
-            () => mal(new Error(`timeout esperando '${nombre}'; vistos: ${eventos.join(",")}`)),
+            () => mal(new Error(`timeout esperando '${nombre}' en ${cual}; vistos: ${window.__puente.eventos[cual].join(",")}`)),
             ms,
           );
           const h = (ev) => {
-            if (ev.source !== iframe.contentWindow) return;
-            let msg;
-            try {
-              msg = JSON.parse(ev.data);
-            } catch {
+            if (!esMensajeDeDrawio(ev, marco.contentWindow, origen)) {
+              if (ev.source === marco.contentWindow) ajenos.push(ev.origin);
               return;
             }
-            if (!eventos.includes(msg.event)) eventos.push(msg.event);
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch { return; }
+            if (!window.__puente.eventos[cual].includes(msg.event)) window.__puente.eventos[cual].push(msg.event);
             if (msg.event === nombre) {
               clearTimeout(t);
               window.removeEventListener("message", h);
@@ -143,156 +151,176 @@ try {
           };
           window.addEventListener("message", h);
         });
-
-      const enviar = (accion) =>
-        iframe.contentWindow.postMessage(JSON.stringify(accion), "*");
-
-      // 1. El editor avisa que está listo.
-      const init = await esperar("init");
-
-      // 2. Le pasamos el XML del archivo.
-      const cargado = esperar("load");
-      enviar({ action: "load", xml: xmlInicial, autosave: 1 });
-      const load = await cargado;
-
-      // 3. Autosave: un cambio real del modelo tiene que llegar solo. Es el
-      //    mecanismo con el que Mycelium marca la pestaña como «sin guardar».
-      //    `merge` no sirve para probarlo: entra con `ignoreChange`, justo para
-      //    que un cambio venido del host no rebote como autosave.
-      const autoguardado = esperar("autosave", 30000).catch(() => null);
-      enviar({ action: "invokeAction", actionName: "selectAll" });
-      enviar({ action: "invokeAction", actionName: "duplicate" });
-      const autosave = await autoguardado;
-
-      // 4. Guardar: no hay `action:'save'`; se invoca la acción del editor, que
-      //    en modo embebido devuelve el XML por `postMessage`.
-      const guardado = esperar("save");
-      enviar({ action: "invokeAction", actionName: "save" });
-      const save = await guardado;
-
-      // 5. Exportar (la spec pide comprobar que la exportación sigue viva).
-      const exportado = esperar("export");
-      enviar({ action: "export", format: "xmlsvg" });
-      const exp = await exportado;
-
-      // 6. Las bibliotecas de formas y las plantillas: es lo que hay que volver
-      //    a mirar después de CADA quita del recorte (spec § 3). Mismo origen,
-      //    así que se puede contar lo que hay dentro del iframe.
-      //    Las paletas son perezosas: se registran todas las bibliotecas (una
-      //    `.geTitle` por cada una) pero solo dibujan sus formas las que están
-      //    abiertas. Por eso se miran las dos cosas: cuántas bibliotecas hay y
-      //    cuántas formas llegaron a dibujarse.
-      const doc = iframe.contentDocument;
-      const formasEnLaBarra = doc.querySelectorAll(".geSidebarContainer .geItem").length;
-      const seccionesDeFormas = doc.querySelectorAll(".geSidebarContainer .geTitle").length;
-      // Los stencils se cargan a demanda; que el registro exista y las formas
-      // básicas estén resueltas es lo que dice que la maquinaria sigue entera.
-      const w = iframe.contentWindow;
-      const hayRegistroDeStencils =
-        typeof w.mxStencilRegistry === "object" && w.mxStencilRegistry !== null;
-      const hayFormasBasicas =
-        typeof w.mxCellRenderer === "function" || typeof w.mxCellRenderer === "object";
-
-      // Las plantillas salen de este índice: si el recorte se lo lleva, el
-      // diálogo de plantillas abre vacío y no falla nada visible.
-      let plantillas = 0;
-      try {
-        const r = await fetch("/drawio/templates/index.xml");
-        const txt = await r.text();
-        plantillas = (txt.match(/<template /g) ?? []).length;
-      } catch {
-        plantillas = -1;
-      }
-
-      // 7. La suposición sobre la que se apoya TODO el manejo de pestañas
-      //    (`lib/drawioInstancias.ts`): ocultar y reposicionar un iframe
-      //    conserva su documento, y MOVERLO en el DOM lo recarga.
-      //
-      //    Si esto no fuera cierto, el editor se recargaría igual al cambiar de
-      //    pestaña y el arreglo no serviría de nada, así que se comprueba
-      //    contra la webapp de verdad y no de memoria.
-      const marcaDeVida = () => {
-        try {
-          return iframe.contentWindow.__micVivo === true;
-        } catch {
-          return false;
-        }
-      };
-      // Se marca el documento actual: si el iframe recarga, la marca se va.
-      iframe.contentWindow.__micVivo = true;
-
-      // a) Ocultar, reposicionar y volver a mostrar: NO debe recargar.
-      iframe.style.display = "none";
-      iframe.style.left = "40px";
-      iframe.style.top = "60px";
-      iframe.style.width = "640px";
-      iframe.style.height = "480px";
-      void iframe.offsetHeight; // fuerza reflow, por si acaso
-      iframe.style.display = "block";
-      await new Promise((r) => setTimeout(r, 600));
-      const sobreviveAOcultar = marcaDeVida();
-
-      // b) Moverlo a otro padre: DEBE recargar (por eso no se re-parenta).
-      const otroPadre = document.createElement("div");
-      document.body.appendChild(otroPadre);
-      otroPadre.appendChild(iframe);
-      await new Promise((r) => setTimeout(r, 1200));
-      const sobreviveAMudarse = marcaDeVida();
-
-      return {
-        sobreviveAOcultar,
-        sobreviveAMudarse,
-        init: init.event === "init",
-        loadOk: load.event === "load",
-        autosaveXml: autosave?.xml ?? "",
-        xmlGuardado: save.xml ?? "",
-        exportTieneDatos: typeof exp.data === "string" && exp.data.length > 1000,
-        exportEsSvg: (exp.data ?? "").startsWith("data:image/svg+xml"),
-        formasEnLaBarra,
-        seccionesDeFormas,
-        hayRegistroDeStencils,
-        hayFormasBasicas,
-        plantillas,
-        eventos,
-      };
+      window.__enviar = (cual, accion) =>
+        window.__puente[cual].contentWindow.postMessage(JSON.stringify(accion), destino);
+      window.__inits = { editor: window.__esperar("editor", "init"), render: window.__esperar("render", "init") };
     },
-    { xmlInicial: XML_DE_PRUEBA, urlEditor: urlDelEditor("claro") },
+    {
+      urlEditor: drawio.urlDelEditor("claro", "es", baseDrawio),
+      urlRender: drawio.urlDelRenderizador(baseDrawio),
+      origen: origenDrawio,
+      destino: drawio.destinoDeMensajes(origenDrawio),
+      sandboxEditor: drawio.SANDBOX_EDITOR,
+      sandboxRender: drawio.SANDBOX_RENDERIZADOR,
+      allow: drawio.ALLOW_EDITOR,
+      fuenteEsMensaje: drawio.esMensajeDeDrawio.toString(),
+    },
   );
+
+  const resultado = await page.evaluate(async (xmlInicial) => {
+    const init = await window.__inits.editor;
+    const cargado = window.__esperar("editor", "load");
+    window.__enviar("editor", { action: "load", xml: xmlInicial, autosave: 1 });
+    const load = await cargado;
+    const autoguardado = window.__esperar("editor", "autosave", 30000).catch(() => null);
+    window.__enviar("editor", { action: "invokeAction", actionName: "selectAll" });
+    window.__enviar("editor", { action: "invokeAction", actionName: "duplicate" });
+    const autosave = await autoguardado;
+    const guardado = window.__esperar("editor", "save");
+    window.__enviar("editor", { action: "invokeAction", actionName: "save" });
+    const save = await guardado;
+    const exportado = window.__esperar("editor", "export");
+    window.__enviar("editor", { action: "export", format: "xmlsvg" });
+    const exp = await exportado;
+
+    // El renderizador de los embeds: `load` → `export` → SVG.
+    await window.__inits.render;
+    const renderCargado = window.__esperar("render", "load");
+    window.__enviar("render", { action: "load", xml: xmlInicial, autosave: 1 });
+    await renderCargado;
+    const renderExportado = window.__esperar("render", "export");
+    window.__enviar("render", { action: "export", format: "xmlsvg" });
+    const svgRender = await renderExportado;
+
+    // Desde la app tampoco se entra al iframe.
+    let appLeeIframe = true;
+    try { void window.__puente.editor.contentWindow.document.body; } catch { appLeeIframe = false; }
+
+    return {
+      init: init.event === "init",
+      loadOk: load.event === "load",
+      autosaveXml: autosave?.xml ?? "",
+      xmlGuardado: save.xml ?? "",
+      exportEsSvg: (exp.data ?? "").startsWith("data:image/svg+xml") && exp.data.length > 1000,
+      renderEsSvg: (svgRender.data ?? "").startsWith("data:image/svg+xml") && svgRender.data.length > 1000,
+      appLeeIframe,
+      ajenos: window.__puente.ajenos.length,
+    };
+  }, XML_DE_PRUEBA);
+
+  const editor = marcoCon(`${origenDrawio}/index.html?`);
+  if (!editor) throw new Error("no aparece el marco del editor");
+
+  // Bibliotecas de formas y plantillas, mirando adentro del marco (otro origen).
+  const adentro = await editor.evaluate(async () => {
+    let plantillas = -1;
+    try {
+      const txt = await (await fetch("templates/index.xml")).text();
+      plantillas = (txt.match(/<template /g) ?? []).length;
+    } catch {}
+    return {
+      formas: document.querySelectorAll(".geSidebarContainer .geItem").length,
+      secciones: document.querySelectorAll(".geSidebarContainer .geTitle").length,
+      stencils: typeof window.mxStencilRegistry === "object" && window.mxStencilRegistry !== null,
+      plantillas,
+    };
+  });
+
+  // Aislamiento: lo que el código de draw.io NO puede hacer.
+  const aislamiento = await editor.evaluate(async ({ origenApp }) => {
+    const r = {};
+    try { void window.parent.document.title; r.parentDocument = "accesible"; } catch { r.parentDocument = "bloqueado"; }
+    try { r.parentTauri = typeof window.parent.__TAURI_INTERNALS__ === "undefined" ? "no existe" : "accesible"; }
+    catch { r.parentTauri = "bloqueado"; }
+    try { r.parentTauriTop = typeof window.top.__TAURI_INTERNALS__ === "undefined" ? "no existe" : "accesible"; }
+    catch { r.parentTauriTop = "bloqueado"; }
+    r.tauriPropio = typeof window.__TAURI_INTERNALS__ === "undefined" && typeof window.__TAURI__ === "undefined";
+    try { window.top.location.href = `${origenApp}/robado`; r.navegarTop = "sin error"; } catch { r.navegarTop = "bloqueado"; }
+    // El IPC de Tauri (y cualquier otro origen): la CSP de draw.io lo corta.
+    for (const [clave, url] of [["ipc", "http://ipc.localhost/plugin%3Asql%7Cselect"], ["app", `${origenApp}/`]]) {
+      try { await fetch(url, { method: "POST", body: "{}" }); r[clave] = "llegó"; } catch { r[clave] = "bloqueado"; }
+    }
+    return r;
+  }, { origenApp });
+  await page.waitForTimeout(800);
+  const urlTrasNavegar = page.url();
+  const invocado = await page.evaluate(() => window.__invocado === true);
+
+  // Ocultar no recarga; mudar de padre sí.
+  await editor.evaluate(() => { window.__micVivo = true; });
+  await page.evaluate(() => {
+    const f = window.__puente.editor;
+    f.style.display = "none";
+    f.style.left = "40px";
+    f.style.width = "640px";
+    void f.offsetHeight;
+    f.style.display = "block";
+  });
+  await page.waitForTimeout(600);
+  const sobreviveAOcultar = await marcoCon(`${origenDrawio}/index.html?`)
+    .evaluate(() => window.__micVivo === true).catch(() => false);
+  await page.evaluate(() => {
+    const otro = document.createElement("div");
+    document.body.appendChild(otro);
+    otro.appendChild(window.__puente.editor);
+  });
+  await page.waitForTimeout(1500);
+  const sobreviveAMudarse = await marcoCon(`${origenDrawio}/index.html?`)
+    .evaluate(() => window.__micVivo === true).catch(() => false);
+
+  await page.screenshot({ path: "scripts/smoke-drawio.png" });
+
+  // La guarda: draw.io abierto como página principal no arranca.
+  const suelta = await contexto.newPage();
+  await suelta.goto(drawio.urlDelEditor("claro", "es", baseDrawio), { waitUntil: "load" });
+  await suelta.waitForTimeout(2500);
+  const arrancoSuelto = await suelta.evaluate(
+    () => typeof window.mxClient !== "undefined" || typeof window.EditorUi !== "undefined" ||
+      document.querySelector(".geDiagramContainer") !== null,
+  );
+  await suelta.close();
 
   checks.initRecibido = resultado.init;
   checks.loadAceptado = resultado.loadOk;
+  checks.autosaveLlegaSolo = /<mxGraphModel|<mxfile/.test(resultado.autosaveXml);
   checks.saveDevuelveXml = /<mxGraphModel|<mxfile/.test(resultado.xmlGuardado);
   checks.saveConservaElNodo = /Mycelium/.test(resultado.xmlGuardado);
-  checks.autosaveLlegaSolo = /<mxGraphModel|<mxfile/.test(resultado.autosaveXml);
-  checks.exportDevuelveSvg = resultado.exportEsSvg && resultado.exportTieneDatos;
+  checks.exportDevuelveSvg = resultado.exportEsSvg;
+  checks.renderizadorDevuelveSvg = resultado.renderEsSvg;
+  checks.sinMensajesDeOtroOrigen = resultado.ajenos === 0;
+  checks.bibliotecasDeFormas = adentro.formas >= 40;
+  checks.seccionesDeFormas = adentro.secciones >= 100;
+  checks.motorDeStencils = adentro.stencils;
+  checks.plantillas = adentro.plantillas > 20;
+  checks.laAppNoLeeElIframe = resultado.appLeeIframe === false;
+  checks.iframeNoLeeParentDocument = aislamiento.parentDocument === "bloqueado";
+  checks.iframeNoAlcanzaTauri = aislamiento.parentTauri === "bloqueado" && aislamiento.parentTauriTop === "bloqueado";
+  checks.iframeSinTauriPropio = aislamiento.tauriPropio;
+  checks.iframeNoNavegaLaVentana = aislamiento.navegarTop === "bloqueado" && urlTrasNavegar === `${origenApp}/`;
+  checks.iframeNoLlegaAlIpc = aislamiento.ipc === "bloqueado" && aislamiento.app === "bloqueado";
+  checks.nadieInvocoNada = invocado === false;
+  checks.drawioSueltoNoArranca = arrancoSuelto === false;
+  checks.ocultarNoRecarga = sobreviveAOcultar === true;
+  checks.mudarloSiRecarga = sobreviveAMudarse === false;
   checks.sinPeticionesExternas = externas.length === 0;
-  // Lo que hay que volver a mirar después de cada quita del recorte (spec § 3).
-  checks.bibliotecasDeFormas = resultado.formasEnLaBarra >= 40;
-  checks.seccionesDeFormas = resultado.seccionesDeFormas >= 100;
-  checks.motorDeStencils = resultado.hayRegistroDeStencils && resultado.hayFormasBasicas;
-  checks.plantillas = resultado.plantillas > 20;
   checks.nadaFaltante = faltantes.length === 0;
-  // Lo que sostiene que cambiar de pestaña no recargue el editor.
-  checks.ocultarNoRecarga = resultado.sobreviveAOcultar === true;
-  checks.mudarloSiRecarga = resultado.sobreviveAMudarse === false;
-
-  await page.screenshot({ path: "scripts/smoke-drawio.png" });
+  // Las únicas violaciones de CSP admitidas son las que provoca el propio
+  // smoke (el fetch al IPC y a la app desde el iframe).
+  const inesperadas = violaciones.filter((v) => !/connect-src (http:\/\/ipc\.localhost|http:\/\/localhost:3199)/.test(v));
+  checks.sinViolacionesDeCsp = inesperadas.length === 0;
 
   const todoBien = Object.values(checks).every(Boolean);
   console.log(
     JSON.stringify(
       {
         checks,
-        medidas: {
-          formasEnLaBarra: resultado.formasEnLaBarra,
-          seccionesDeFormas: resultado.seccionesDeFormas,
-          plantillas: resultado.plantillas,
-        },
-        eventos: resultado.eventos,
+        medidas: adentro,
+        aislamiento,
         peticionesExternas: externas.slice(0, 10),
         faltantes: faltantes.slice(0, 10),
+        violaciones: inesperadas.slice(0, 10),
         erroresConsola: erroresConsola.slice(0, 5),
-        muestraXmlGuardado: resultado.xmlGuardado.slice(0, 200),
+        muestraXmlGuardado: resultado.xmlGuardado.slice(0, 160),
       },
       null,
       2,
@@ -300,12 +328,14 @@ try {
   );
   if (!todoBien) process.exitCode = 1;
 } catch (error) {
-  await page.screenshot({ path: "scripts/smoke-drawio-error.png" });
+  await page.screenshot({ path: "scripts/smoke-drawio-error.png" }).catch(() => {});
   console.error("FALLO:", error.message);
   console.error("peticiones externas:", externas.slice(0, 10));
+  console.error("violaciones:", violaciones.slice(0, 10));
   console.error("errores de consola:", erroresConsola.slice(0, 10));
   process.exitCode = 1;
 } finally {
   await browser.close();
-  servidor.close();
+  servidorDrawio.close();
+  servidorApp.close();
 }

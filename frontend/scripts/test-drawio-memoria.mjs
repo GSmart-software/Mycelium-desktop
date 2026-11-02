@@ -56,10 +56,12 @@ const enDocumento = new Set();
 /** Mensajes que el host le mandó a cada iframe. */
 const recibidos = new Map();
 
-function mandarAlHost(marco, datos) {
+function mandarAlHost(marco, datos, origen = "http://drawio.localhost") {
   const ev = new Event("message");
   ev.data = JSON.stringify(datos);
   ev.source = marco.contentWindow;
+  // draw.io vive en su propio origen (DEF-168): el host lo comprueba.
+  ev.origin = origen;
   window.dispatchEvent(ev);
 }
 
@@ -283,6 +285,20 @@ test("si todos los ocultos están sucios se quedan, aunque se pase del tope", as
     assert.equal(G.puts.filter((p) => p.id === `${n}.drawio`).length, 1, `${n} se guardó`);
   }
   assert.equal(inst.vivos(), 1, "guardados todos, vuelve al tope");
+});
+
+test("un mensaje de otro origen, aunque venga de la ventana del iframe, se ignora (DEF-168)", async () => {
+  const hueco = ancla();
+  inst.adjuntar("tab-O", "O.drawio", hueco, "claro");
+  await espera(20);
+  const marco = marcoDe("O.drawio");
+  assert.equal(marco.attrs.sandbox?.includes("allow-top-navigation"), false);
+  assert.ok(marco._src.startsWith("http://drawio.localhost/index.html?"));
+  mandarAlHost(marco, { event: "save", xml: DIAG("O-ajeno") }, "http://tauri.localhost");
+  await espera(20);
+  assert.equal(G.puts.filter((p) => p.id === "O.drawio").length, 0, "no se escribió nada");
+  inst.desadjuntar("tab-O");
+  await espera(20);
 });
 
 // ── Renderizador de embeds ───────────────────────────────────────────────────
