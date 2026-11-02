@@ -12,17 +12,17 @@ una nota lo puede mostrar adentro.
 ## Para qué sirve
 
 Para pensar en voz alta: un boceto de una pantalla, un esquema rápido, un flujo que todavía
-no tiene forma. Si lo que querés es poner notas en el espacio y enlazarlas, te conviene un
+no tiene forma. Si lo que quieres es poner notas en el espacio y enlazarlas, te conviene un
 [lienzo](ayuda:tipos-de-archivo/lienzos).
 
 ## Cómo se usa
 
 1. En el explorador, **Nuevo dibujo Excalidraw**: con el botón de la barra o con clic
-   derecho en una carpeta. Se abre en su pestaña y se guarda solo mientras dibujás.
+   derecho en una carpeta. Se abre en su pestaña y se guarda solo mientras dibujas.
 2. Desde una nota, el botón **Insertar diagrama Excalidraw** de la barra del editor crea el
    dibujo en la carpeta de la nota, escribe su embed donde está el cursor y abre el editor
    encima de la nota.
-3. Para mostrar en una nota un dibujo que ya existe, escribí su embed:
+3. Para mostrar en una nota un dibujo que ya existe, escribe su embed:
 
 ```markdown
 ![[Diagrama de la idea.excalidraw]]
@@ -41,5 +41,5 @@ escrito, sin contenido. En la vista de lectura de la nota, el dibujo muestra eso
 como enlaces, no el video.
 
 > [!warning] El editor encima de la nota guarda al cerrar
-> Lo que dibujás ahí se escribe recién con **Guardar y cerrar**. El dibujo abierto en su
+> Lo que dibujas ahí no se escribe hasta que eliges **Guardar y cerrar**. El dibujo abierto en su
 > propia pestaña, en cambio, se guarda solo.

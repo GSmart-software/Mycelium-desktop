@@ -22,9 +22,9 @@ la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de not
 
 ## Cómo se usa
 
-1. Hacé **clic** en el título, en la vista en vivo, en la mitad izquierda del modo
+1. Haz **clic** en el título, en la vista en vivo, en la mitad izquierda del modo
    dividido o en el modo crudo. En lectura el título no se edita.
-2. Escribí el nombre nuevo.
+2. Escribe el nombre nuevo.
 3. **Enter** confirma y deja el cursor al **principio del cuerpo** de la nota (después de
    las propiedades, si las tiene), listo para seguir escribiendo. **Tab** hace lo mismo.
 4. **Esc** descarta y te devuelve al texto, donde estaba el cursor. Salir del campo con un
@@ -39,7 +39,7 @@ la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de not
 ## Conservar el nombre anterior como alias
 
 Al confirmar con **Mayús+Enter** en lugar de Enter —en el título o en el explorador—, la
-nota se renombra igual y además guarda su nombre anterior en la propiedad `aliases`.
+nota se renombra como siempre y además guarda su nombre anterior en la propiedad `aliases`.
 Mientras se escribe un nombre distinto, debajo del campo aparece el recordatorio
 «Mayús+Enter: conservar … como alias».
 
@@ -55,7 +55,7 @@ Markdown tienen alias; en un dibujo, un lienzo o una tabla, Mayús+Enter es un E
 ## Nombres que no se aceptan
 
 Si el nombre no sirve, Mycelium no lo corrige por su cuenta: te dice el motivo debajo del
-campo, que sigue abierto con lo que escribiste para que lo corrijas. Si lo descartás con
+campo, que sigue abierto con lo que escribiste para que lo corrijas. Si lo descartas con
 **Esc**, la nota conserva el nombre que tenía.
 
 | No puede… | Ejemplo |

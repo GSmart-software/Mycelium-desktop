@@ -41,7 +41,7 @@ El panel se queda abierto al costado mientras escribes. De arriba abajo:
   cuántos son y qué porcentaje representan.
 - **Problemas**: cada clase con un ícono, su gravedad y su cantidad. Se despliega con un clic;
   muestra las primeras cinco filas y «Ver todo» trae el resto.
-- **Notas nuevas, 12 meses**: una curva chica con las notas creadas cada mes. Si el vault se
+- **Notas nuevas, 12 meses**: una curva pequeña con las notas creadas cada mes. Si el vault se
   indexó de una vez, lo dice en vez de dibujar un pico falso.
 - **Dos botones**: «Abrir en una pestaña» y «Generar informe como nota».
 

@@ -16,14 +16,14 @@ falta.
 
 ## Cómo se usa
 
-1. Empezá una línea con `> [!tipo]` y, si querés, un título después.
-2. Seguí con más líneas que empiecen con `>`: son el cuerpo.
-3. Para que se pueda plegar, poné `-` (empieza cerrado) o `+` (empieza abierto) justo
+1. Empieza una línea con `> [!tipo]` y, si quieres, un título después.
+2. Sigue con más líneas que empiecen con `>`: son el cuerpo.
+3. Para que se pueda plegar, pon `-` (empieza cerrado) o `+` (empieza abierto) justo
    después del corchete.
 
 ```ejemplo
 > [!warning] Antes de borrar
-> Revisá que ninguna nota enlace a esta.
+> Revisa que ninguna nota enlace a esta.
 
 > [!tip]
 > Sin título, el callout usa el nombre de su tipo.
@@ -34,7 +34,7 @@ falta.
 Hay diez tipos con color e ícono propios. No importan las mayúsculas: `[!NOTE]` es lo
 mismo que `[!note]`.
 
-| Tipo | Título si no escribís uno |
+| Tipo | Título si no escribes uno |
 |---|---|
 | `note` | Nota |
 | `tip` | Consejo |
@@ -49,7 +49,7 @@ mismo que `[!note]`.
 
 Un tipo que no está en la lista también funciona: se ve con el color y el ícono de `note`
 y, sin título, muestra el nombre del tipo. Con un [snippet de CSS](ayuda:configuracion/css-y-snippets)
-le podés dar color e ícono propios.
+le puedes dar color e ícono propios.
 
 ## Plegables
 
