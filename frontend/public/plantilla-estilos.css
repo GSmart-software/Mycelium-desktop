@@ -820,6 +820,10 @@
      --mic-mermaid-borde    borde de las cajas
      --mic-mermaid-linea    flechas y conectores
      --mic-mermaid-texto    texto
+   Las tortas (pie) y las barras (xychart-beta) no tienen variables propias:
+   sus colores son tonos de --mic-accent y --mic-glow (de oscuro a claro), y
+   la última porción, «Otros», el gris de --mic-text-muted. Cambiando esas
+   dos o tres variables cambian también las gráficas.
    El PDF con «Fondo blanco» no las usa: imprime los diagramas en grises.
    ========================================================================== */
 

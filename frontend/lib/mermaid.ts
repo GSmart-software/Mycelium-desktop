@@ -12,7 +12,8 @@
  * diagrama de la ventana se vuelve a dibujar desde su fuente.
  */
 
-import { variablesMermaid, type ColoresMermaid } from "@/lib/mermaidTema";
+import { variablesMermaid, type ColoresGraficas, type ColoresMermaid } from "@/lib/mermaidTema";
+import { leerPaletaGraficas, tonosExtra } from "@/lib/paletaGraficas";
 
 let seq = 0;
 
@@ -98,14 +99,30 @@ function leerColores(dentro: HTMLElement): ColoresMermaid {
   }
 }
 
+/**
+ * Tortas y barras con los tonos del tema (`FUN-L-32`): las cinco porciones de
+ * los grupos en el orden de la torta, siete tonos más por si una torta escrita
+ * a mano tiene más, y para las barras el acento primero y después la rampa.
+ */
+function coloresGraficas(dentro: HTMLElement): ColoresGraficas {
+  const p = leerPaletaGraficas(dentro);
+  const rampa = [p.grupos.notas, p.grupos.imagenes, p.grupos.pdf, p.grupos.visuales];
+  return {
+    torta: p.torta,
+    tortaExtra: tonosExtra(p.acento, p.glow, p.modo, 7),
+    series: [p.acento, ...rampa.filter((c) => c !== p.acento)],
+  };
+}
+
 /** La configuración de Mermaid para un tema, y una clave que la identifica. */
 function configuracion(tema: TemaMermaid, dentro: HTMLElement) {
   if (tema === "imprimir") return { clave: "imprimir", config: { theme: "neutral" as const } };
   const colores = leerColores(dentro);
+  const graficas = coloresGraficas(dentro);
   const fuente = getComputedStyle(dentro).fontFamily || undefined;
   return {
-    clave: JSON.stringify([colores, fuente]),
-    config: { theme: "base" as const, themeVariables: variablesMermaid(colores, fuente) },
+    clave: JSON.stringify([colores, graficas, fuente]),
+    config: { theme: "base" as const, themeVariables: variablesMermaid(colores, fuente, graficas) },
   };
 }
 
