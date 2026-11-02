@@ -168,6 +168,17 @@
  *   **Minor, y uno solo**: dos temas nuevos y un interruptor nuevo. Ver
  *   `docs/estado/Version 2.6.0.md`.
  *
+ * - `2.7.0` — **la salud del vault como tablero y una app más liviana**: el
+ *   tablero de salud con su pestaña y el informe como nota (`FUN-L-32`), la
+ *   línea de IA sobre el vault (`FUN-L-30`, `FUN-L-31`, `FUN-M-44` a `FUN-M-47`,
+ *   `FUN-M-15`, `FUN-S-10`; framework de IA `2.4.0`), las `FUN-S` del
+ *   2026-10-31, la aurora y el micelio por separado (`FUN-S-37`), la auditoría
+ *   de eficiencia (`DEF-174`, `FUN-M-58`), `DEF-167`, `DEF-168`, `DEF-172`,
+ *   `DEF-173`, `DEF-177` y los textos en español neutro.
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
+ *   `docs/estado/Version 2.7.0.md`.
+ *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/versionFramework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
  * anotaba esta nota desde la 1.6.0 —la IA no conocía los `.base` ni los
@@ -176,4 +187,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.6.0";
+export const APP_VERSION = "2.7.0";
