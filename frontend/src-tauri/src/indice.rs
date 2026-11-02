@@ -25,7 +25,7 @@ use std::ffi::{c_char, c_int, c_void, CStr};
 use std::path::Path;
 use std::str::FromStr;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::{Pool, Sqlite};
 use tauri::Manager;
 use tauri_plugin_sql::{DbInstances, DbPool};
@@ -59,12 +59,25 @@ unsafe extern "C" fn autorizador(
 }
 
 /// Pool sobre `archivo` con el autorizador puesto en cada conexión. Mismas
-/// opciones que el `Pool::connect` del plugin (crear si falta, 10 conexiones).
+/// opciones que el `Pool::connect` del plugin (crear si falta, 10 conexiones),
+/// más WAL y `synchronous=NORMAL` en **todas** las conexiones (`FUN-M-58`).
+///
+/// > [!info] Por qué `synchronous=NORMAL` acá y no desde el frontend
+/// > `synchronous` es por conexión. El frontend lo pedía con un `PRAGMA` que
+/// > tocaba una sola de las 10 del pool; las otras 9 escribían con el valor de
+/// > sqlx, `FULL`: un fsync en cada commit. Medido con WAL: 1,31 ms contra
+/// > 0,045 ms por sentencia de escritura, y el indexado son miles. Con
+/// > `NORMAL` + WAL, un corte de luz puede perder los últimos commits, pero no
+/// > corrompe la base; y el índice es reconstruible: el indexado incremental
+/// > por `mtime` repone lo que falte. El resto de lo que pone sqlx por defecto
+/// > (`foreign_keys=ON`, `busy_timeout` de 5 s) no cambia.
 pub(crate) async fn abrir_pool(archivo: &Path) -> Result<Pool<Sqlite>, String> {
     let url = format!("sqlite:{}", archivo.to_string_lossy());
     let opciones = SqliteConnectOptions::from_str(&url)
         .map_err(|e| format!("Ruta del índice inválida: {e}"))?
-        .create_if_missing(true);
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal);
     SqlitePoolOptions::new()
         .after_connect(|conexion, _| {
             Box::pin(async move {
@@ -245,6 +258,33 @@ mod tests {
                 .await
                 .unwrap();
             assert!(tablas.is_empty(), "el índice reabierto tiene que estar vacío");
+            pool.close().await;
+        });
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// `FUN-M-58`: TODAS las conexiones del pool escriben con WAL y
+    /// `synchronous=NORMAL` (1), no solo la primera. Se toman las 10 a la vez
+    /// para que el pool no pueda devolver siempre la misma.
+    #[test]
+    fn todas_las_conexiones_del_pool_usan_wal_y_synchronous_normal() {
+        let dir = temporal("pragmas");
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let pool = abrir_pool(&dir.join("index-prueba.db")).await.unwrap();
+            let mut conexiones = Vec::new();
+            for _ in 0..10 {
+                conexiones.push(pool.acquire().await.unwrap());
+            }
+            for c in conexiones.iter_mut() {
+                let (sync,): (i64,) = sqlx::query_as("PRAGMA synchronous").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(sync, 1, "synchronous tiene que ser NORMAL (1)");
+                let (modo,): (String,) = sqlx::query_as("PRAGMA journal_mode").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(modo.to_ascii_lowercase(), "wal");
+                let (fk,): (i64,) = sqlx::query_as("PRAGMA foreign_keys").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(fk, 1, "foreign_keys sigue encendido");
+            }
+            drop(conexiones);
             pool.close().await;
         });
         let _ = std::fs::remove_dir_all(dir);
