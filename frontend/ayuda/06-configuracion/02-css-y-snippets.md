@@ -5,8 +5,8 @@ sinonimos: [estilos, tema, personalizar, css personalizado, colores, plantilla, 
 ---
 
 Un **snippet** es un pedazo de CSS tuyo que Mycelium aplica encima de su propio estilo. Con
-uno podés cambiar un color, la letra de los títulos o cómo se ve un callout, sin tocar nada
-más. Podés tener varios y prender o apagar cada uno con su interruptor.
+uno puedes cambiar un color, la letra de los títulos o cómo se ve un callout, sin tocar nada
+más. Puedes tener varios y encender o apagar cada uno con su interruptor.
 
 ## Para qué sirve
 
@@ -15,13 +15,13 @@ cambios se ven al instante, sin recargar, y apagar el snippet vuelve todo a como
 
 ## Cómo se usa
 
-1. Abrí **Configuración → Snippets CSS** y elegí cómo empezar: «Nuevo snippet» crea uno a
+1. Abre **Configuración → Snippets CSS** y elige cómo empezar: «Nuevo snippet» crea uno a
    partir de la plantilla y lo abre en el editor; «Importar .css» trae un archivo que ya
    tengas.
-2. En el editor, a la izquierda va el CSS; en el medio, un Markdown de ejemplo que podés
+2. En el editor, a la izquierda va el CSS; en el medio, un Markdown de ejemplo que puedes
    cambiar; a la derecha, cómo se ve con tu CSS. La vista previa se actualiza mientras
-   escribís. Tocá «Guardar».
-3. En la lista, el interruptor prende o apaga cada snippet. **Clic** en el nombre lo
+   escribes. Toca «Guardar».
+3. En la lista, el interruptor enciende o apaga cada snippet. **Clic** en el nombre lo
    renombra; los íconos lo editan, lo exportan a un `.css` o lo eliminan (con «Deshacer» en
    el aviso).
 
@@ -29,11 +29,11 @@ En la app de escritorio, los snippets se guardan **en el vault**: viajan con él
 otro vault ves los de ese.
 
 > [!warning] Los snippets de un vault que llega de otro lado arrancan apagados
-> Cuáles están activos lo decide **esta computadora**, no el vault. Si abrís un vault que te
-> pasaron —un zip, una carpeta compartida— o uno que nunca abriste acá, sus snippets se ven
-> en la lista pero no se aplican, y Configuración te avisa cuántos trae. Revisá el CSS de cada
+> Cuáles están activos lo decide **esta computadora**, no el vault. Si abres un vault que te
+> pasaron —un zip, una carpeta compartida— o uno que nunca abriste aquí, sus snippets se ven
+> en la lista pero no se aplican, y Configuración te avisa cuántos trae. Revisa el CSS de cada
 > uno antes de encenderlo: un snippet puede cambiar cualquier cosa de la pantalla. Los que
-> creás o importás vos arrancan encendidos.
+> creas o importas tú arrancan encendidos.
 
 ## La plantilla
 
@@ -41,7 +41,7 @@ otro vault ves los de ese.
 la paleta del tema, los colores de la interfaz, la tipografía, los títulos, el énfasis propio
 de Mycelium, los callouts, las tareas y sus estados, las tablas, la tarjeta de propiedades,
 los diagramas dentro de una nota, el calendario y las consolas. Viene entero desactivado:
-descomentás los ejemplos que quieras usar. Lo más simple es cambiar las **variables** del
+descomentas los ejemplos que quieras usar. Lo más simple es cambiar las **variables** del
 tema, que recolorean toda la app de una vez:
 
 ```text
@@ -61,7 +61,7 @@ lectura) o `.mic-editor-host` (el editor).
 
 > [!tip] La letra de la nota
 > La fuente y el tamaño de la nota se eligen en **Configuración → Tipografía**, y ese ajuste
-> le gana a un snippet. Si igual querés fijarlos desde CSS, la plantilla muestra cómo.
+> le gana a un snippet. Si aun así quieres fijarlos desde CSS, la plantilla muestra cómo.
 
 > [!info] Cerrar el editor
 > Escape no cierra el editor, para no perder lo que escribiste. La X sí: si hay cambios sin

@@ -5,15 +5,15 @@ cubre: [canvas]
 sinonimos: [canvas, tablero, mapa de ideas, tarjetas, pizarra]
 ---
 
-Un **lienzo** es un archivo `.canvas`: un espacio infinito donde ponés **tarjetas** y las
-unís con **flechas**. Una tarjeta puede ser texto en Markdown o una nota de tu vault. Usa el
+Un **lienzo** es un archivo `.canvas`: un espacio infinito donde pones **tarjetas** y las
+unes con **flechas**. Una tarjeta puede ser texto en Markdown o una nota de tu vault. Usa el
 formato JSON Canvas, el mismo de Obsidian, así que el archivo se abre en los dos programas.
 
 ## Para qué sirve
 
 Para pensar con las notas puestas en el espacio: un mapa de un proyecto, una línea de
 tiempo, un tablero de ideas. A diferencia de un
-[dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw), acá cada caja es **contenido**:
+[dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw), aquí cada caja es **contenido**:
 el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
 
 ## Cómo se usa
@@ -24,12 +24,12 @@ el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
    en una tarjeta de texto la vuelve a editar. **Tarjeta de nota** busca una nota por el
    principio de su nombre y la pone en el lienzo. La tarjeta nueva aparece en el centro de
    lo que estás viendo o, si ahí ya hay otra, en el lugar libre más cercano.
-3. Para conectar dos tarjetas, arrastrá desde el punto de uno de sus lados hasta la otra.
+3. Para conectar dos tarjetas, arrastra desde el punto de uno de sus lados hasta la otra.
 
 Las tarjetas se mueven arrastrando su barra de arriba (en una de nota lleva su título; en
 una de texto es una franja fina, sin rótulo) y cambian de tamaño desde la esquina de abajo
 a la derecha. El texto de una tarjeta se lee con la fuente del preview y se escribe con la
-del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te movés por el lienzo, y la rueda del mouse
+del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te mueves por el lienzo, y la rueda del mouse
 acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 
@@ -37,7 +37,7 @@ aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan 
 también están los botones de flecha de la barra. Se deshace todo lo que cambia el archivo:
 crear o borrar una tarjeta, moverla, cambiarle el tamaño o el color, crear una flecha y
 editar el texto. Un arrastre entero es un solo paso, y lo que escribiste en una tarjeta
-también, al salir de ella. Mientras escribís en una tarjeta, Ctrl+Z deshace el texto, como
+también, al salir de ella. Mientras escribes en una tarjeta, Ctrl+Z deshace el texto, como
 en cualquier campo. Se recuerdan los últimos 100 pasos.
 
 > [!warning] Si el lienzo cambia desde afuera, el historial empieza de nuevo

@@ -570,7 +570,7 @@ export class TarjetaPropiedades {
       if (noSoportado) {
         const aviso = document.createElement("p");
         aviso.className = "mic-props-aviso";
-        aviso.textContent = `Mycelium no interpreta este frontmatter: ${fm.motivo}. Se muestra tal cual; usá «Editar como texto» para tocarlo a mano.`;
+        aviso.textContent = `Mycelium no interpreta este frontmatter: ${fm.motivo}. Se muestra tal cual; usa «Editar como texto» para tocarlo a mano.`;
         const crudo = document.createElement("pre");
         crudo.className = "mic-props-crudo";
         const code = document.createElement("code");

@@ -48,7 +48,7 @@ const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
   "insertado-sobre-anterior":
     "⚠ tu CLAUDE.md tenía las instrucciones de la versión anterior, editadas: el bloque nuevo " +
     "quedó al principio y no se borró nada. Debajo siguen las viejas (empiezan en «# Este vault " +
-    "es tu memoria»): borralas y dejá solo lo tuyo.",
+    "es tu memoria»): bórralas y deja solo lo tuyo.",
 };
 
 /**
@@ -178,7 +178,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const destino = await elegirCarpeta("Elegí la carpeta donde exportar el vault");
+      const destino = await elegirCarpeta("Elige la carpeta donde exportar el vault");
       if (!destino) return;
 
       const { invoke } = await import("@tauri-apps/api/core");
@@ -275,7 +275,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const origen = await elegirCarpeta("Elegí la carpeta del vault a importar");
+      const origen = await elegirCarpeta("Elige la carpeta del vault a importar");
       if (!origen) return;
       // Se copia la carpeta entera —adjuntos incluidos— salvo lo oculto y las
       // dependencias (`FUN-M-40`, `DEF-165`); lo omitido se ve en el resumen.
@@ -293,7 +293,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const zip = await elegirZip("Elegí el .zip a importar");
+      const zip = await elegirZip("Elige el .zip a importar");
       if (!zip) return;
       await useImportStore.getState().run({ zip }, activeFolder(), "Vault de Obsidian");
     } catch (e) {
@@ -462,7 +462,7 @@ export function VaultSection() {
               la IA a navegar tus notas por sus <code>[[enlaces]]</code>, la estructura del
               vault y las funciones de Mycelium. Al regenerar, reescribe solo eso: lo demás de{" "}
               <code>CLAUDE.md</code> y de <code>.claude/</code> es tuyo y no lo toca. Solo se
-              crean si lo pedís acá.
+              crean si lo pides aquí.
             </>
           }
         >
@@ -511,7 +511,7 @@ export function VaultSection() {
                 Claude Code puede <strong>operar la app</strong>: mostrarte notas, usar el
                 calendario, renombrar y mover.
                 {controlIaDelVault && !controlIa && (
-                  <> Este vault lo traía encendido de otra computadora; acá queda apagado hasta que lo enciendas.</>
+                  <> Este vault lo traía encendido de otra computadora; aquí queda apagado hasta que lo enciendas.</>
                 )}
               </>
             }
@@ -537,7 +537,7 @@ export function VaultSection() {
               <p>
                 Por defecto se ignoran los directorios ocultos (<code>.*/</code>) y las carpetas
                 de dependencias y compilación (<code>node_modules/</code>, <code>target/</code>,{" "}
-                <code>dist/</code>, <code>out/</code>). Editalo para, por ejemplo, dejar de
+                <code>dist/</code>, <code>out/</code>). Edítalo para, por ejemplo, dejar de
                 ignorar <code>.claude/</code> y ver esa documentación en Mycelium.
               </p>
               <p>

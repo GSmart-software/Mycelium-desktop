@@ -17,7 +17,7 @@ es una nota: no aparece en el explorador, en la búsqueda ni en el grafo.
 
 ## Cómo se usa
 
-1. Abrí el calendario con el botón **Calendario** del rail: se abre como panel, con el mes
+1. Abre el calendario con el botón **Calendario** del rail: se abre como panel, con el mes
    arriba y la lista abajo. Su botón **Abrir como pestaña** lo muestra en grande, con la
    grilla del mes.
 2. **Nuevo** (en el panel) o **Nuevo recordatorio** (en la pestaña), o **doble clic** en
@@ -34,7 +34,7 @@ Tiene tres botones:
 
 | Botón | Qué hace |
 |---|---|
-| **Listo** | Descarta este aviso. Si se repite, el próximo avisa igual. |
+| **Listo** | Descarta este aviso. Si se repite, el próximo avisa de todos modos. |
 | **Posponer** | Vuelve a avisar en **10 minutos**, en **1 hora** o **mañana a esta hora**. |
 | **Abrir** | Abre el calendario en ese día. |
 

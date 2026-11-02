@@ -121,7 +121,7 @@ export const useRecordatoriosStore = create<Estado>((set, get) => {
         if (!avisadoBloqueo) {
           avisadoBloqueo = true;
           avisar(
-            "El calendario no se guarda: .mycelium/recordatorios.json está dañado. Arreglalo o borralo para volver a guardar.",
+            "El calendario no se guarda: .mycelium/recordatorios.json está dañado. Arréglalo o bórralo para volver a guardar.",
           );
         }
       } else {

@@ -16,8 +16,8 @@ redibujar cajas.
 
 ## Fórmulas
 
-1. **En línea**: encerrá la fórmula entre signos de pesos, `$…$`, dentro de una oración.
-2. **En bloque**: poné `$$` en una línea, la fórmula debajo y otro `$$` para cerrar. Se
+1. **En línea**: encierra la fórmula entre signos de pesos, `$…$`, dentro de una oración.
+2. **En bloque**: pon `$$` en una línea, la fórmula debajo y otro `$$` para cerrar. Se
    ve centrada y más grande.
 
 ```ejemplo
@@ -30,13 +30,13 @@ $$
 
 En la vista en vivo la fórmula se ve dibujada; un clic en ella, o el cursor encima, muestra
 su texto para editarlo. Si está mal escrita, se ve en rojo en vez de romper la nota. Para
-escribir un signo de pesos suelto, usá `\$`. Dentro de código, un `$` es solo un `$`.
+escribir un signo de pesos suelto, usa `\$`. Dentro de código, un `$` es solo un `$`.
 
 ## Diagramas Mermaid
 
-1. Abrí un bloque de código con tres comillas invertidas y la palabra `mermaid`.
-2. Escribí el diagrama en la sintaxis de Mermaid y cerrá el bloque.
-3. Pasá a lectura o a dividido para verlo dibujado.
+1. Abre un bloque de código con tres comillas invertidas y la palabra `mermaid`.
+2. Escribe el diagrama en la sintaxis de Mermaid y cierra el bloque.
+3. Pasa a lectura o a dividido para verlo dibujado.
 
 ````ejemplo
 ```mermaid
@@ -54,7 +54,7 @@ Los colores del diagrama son los de Mycelium: siguen al tema, al modo claro u os
 atmósfera, y cambian con ellos. Las tortas (`pie`) y las barras (`xychart-beta`) usan
 tonos del color del tema, de oscuro a claro. Una torta no escribe el porcentaje sobre cada
 porción, porque no se leería a la vez sobre los tonos oscuros y los claros: para ver los
-valores, agregá `showData` después de `pie` y aparecen en la leyenda.
+valores, agrega `showData` después de `pie` y aparecen en la leyenda.
 
 ````ejemplo
 ```mermaid
@@ -70,5 +70,5 @@ Al exportar a PDF con «Fondo blanco», el diagrama se imprime en grises sobre b
 que se lea también en una impresora en blanco y negro.
 
 > [!warning] En la vista en vivo, Mermaid se ve como código
-> El diagrama se dibuja en lectura, en dividido y al exportar a PDF. Mientras editás en
+> El diagrama se dibuja en lectura, en dividido y al exportar a PDF. Mientras editas en
 > vivo, el bloque queda como texto. Ver [Vista en vivo y lectura](ayuda:escribir-notas/vista-en-vivo-y-lectura).

@@ -3,9 +3,9 @@
    ----------------------------------------------------------------------------
    Es la base de un snippet nuevo (Configuración › Snippets CSS › «Nuevo
    snippet») y la que baja «Descargar plantilla». Tal como viene NO cambia
-   nada: todo está comentado. Para usar un ejemplo, borrá la línea con la barra
+   nada: todo está comentado. Para usar un ejemplo, borra la línea con la barra
    y el asterisco de apertura y la del asterisco y la barra de cierre que lo
-   rodean, y cambiá los valores a tu gusto.
+   rodean, y cambia los valores a tu gusto.
 
    Índice
      0. Cómo apuntar: temas, modo claro/oscuro y atmósferas
@@ -59,7 +59,7 @@
    Por qué importa el selector: los temas y las atmósferas definen las
    variables con selectores de DOS atributos, como
    [data-theme='cantarela'][data-dark='true']. Un :root a secas tiene menos
-   peso y pierde contra ellos, así que para cambiar variables usá
+   peso y pierde contra ellos, así que para cambiar variables usa
    :root[data-theme] (vale en cualquier tema y modo) o algo más específico.
    El snippet se carga después que el estilo de Mycelium, así que a igual
    peso gana el snippet.
@@ -105,11 +105,11 @@
      --mic-amber-icon      ámbar de los avisos (callout warning)
 
    Ojo con las atmósferas: Niebla, Bosque y Papel recalculan fondos, bordes y
-   títulos con sus propias mezclas (tomando de acá el acento, el brillo y la
-   tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si querés que un
+   títulos con sus propias mezclas (tomando de aquí el acento, el brillo y la
+   tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si quieres que un
    fondo sea exactamente el que elegiste, cambialo en la sección 2.
    Aurora tampoco toca los fondos: usa los de Abisal y pone encima degradados
-   y luces con --mic-glow y --mic-accent, así que si cambiás esos dos colores,
+   y luces con --mic-glow y --mic-accent, así que si cambias esos dos colores,
    sus degradados los siguen.
    ========================================================================== */
 
@@ -190,8 +190,8 @@
    ----------------------------------------------------------------------------
    El brillo y el acento se diseñaron para fondo oscuro; en claro, puestos tal
    cual, no se leen. Por eso cada uso tiene su variable, y Mycelium la ajusta
-   en modo claro para que llegue al contraste mínimo. Si cambiás un color acá,
-   comprobá que se lea en los dos modos.
+   en modo claro para que llegue al contraste mínimo. Si cambias un color aquí,
+   comprueba que se lea en los dos modos.
      --mic-glow-texto      texto e íconos en el color del brillo (etiquetas, _énfasis_)
      --mic-enlace          enlaces dentro de una nota
      --mic-focus           anillo de foco al navegar con el teclado
@@ -220,9 +220,9 @@
 
    La letra y el tamaño de la NOTA se eligen en Configuración › Tipografía, y
    Mycelium los escribe directamente en <html>: eso le gana a cualquier
-   snippet. Para forzarlos desde acá hace falta !important (y entonces el
+   snippet. Para forzarlos desde aquí hace falta !important (y entonces el
    ajuste de Configuración deja de tener efecto mientras el snippet esté
-   prendido):
+   encendido):
      --mic-editor-font-family   --mic-editor-font-size    (edición)
      --mic-preview-font-family  --mic-preview-font-size   (lectura)
    ========================================================================== */
@@ -245,7 +245,7 @@
 /* ============================================================================
    5) MEDIDAS
    ----------------------------------------------------------------------------
-     --mic-radius-sm / -md / -lg   redondeo de esquinas (chico, mediano, grande)
+     --mic-radius-sm / -md / -lg   redondeo de esquinas (pequeño, mediano, grande)
      --mic-ancho-lectura           ancho mínimo de la hoja de la nota (42rem)
      --mic-ancho-hoja-max          ancho máximo: la hoja crece con el panel
                                    entre los dos valores (72rem)
@@ -403,7 +403,7 @@
 */
 
 /* Viñetas: fuera de la línea activa, el - * + de una lista sin numerar se ve
-   como .mic-vineta (con el carácter •). Para otro carácter, cambiá el texto con
+   como .mic-vineta (con el carácter •). Para otro carácter, cambia el texto con
    font-size: 0 y un ::before. */
 /*
 .mic-vineta {
@@ -557,7 +557,7 @@
 */
 
 /* En vivo, con el cursor fuera del bloque, las cercas ``` se esconden y la de
-   apertura muestra el lenguaje en .mic-live-code-lang (chico, a la derecha). */
+   apertura muestra el lenguaje en .mic-live-code-lang (pequeño, a la derecha). */
 /*
 .mic-live-code-lang {
   text-align: left;
@@ -679,7 +679,7 @@
    La casilla es la misma en todos lados: .mic-live-check en vivo,
    input.mic-task-check en lectura y .mic-tarea-icono en el menú de estados.
    Lleva data-estado con el nombre del estado y data-task con el símbolo tal
-   cual (como en Obsidian: los snippets escritos para sus temas valen acá).
+   cual (como en Obsidian: los snippets escritos para sus temas valen aquí).
 
    Estado     símbolo  data-estado   color
    pendiente  [ ]      pendiente     (borde gris)
@@ -808,7 +808,7 @@
                                    (en bloque: .mic-live-math-bloque)
      Vídeo (![](youtube...))       lectura: .mic-video             vivo: .mic-live-video
    El contenido de un dibujo o un diagrama lo pinta su propio editor: desde
-   acá se le cambia el marco, no los trazos.
+   aquí se le cambia el marco, no los trazos.
    Mermaid es la excepción: sus colores salen de estas variables, que siguen
    al tema, al modo y a la atmósfera. Al cambiarlas, el diagrama se redibuja.
    Si un color no llega al contraste mínimo (texto 4.5:1, líneas y bordes

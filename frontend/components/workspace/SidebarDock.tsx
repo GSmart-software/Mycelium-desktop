@@ -231,7 +231,7 @@ export function SidebarDock({
         </div>
       )}
 
-      {dropActivo && <div className={styles.dropHint}>Soltá para abrir aquí</div>}
+      {dropActivo && <div className={styles.dropHint}>Suelta para abrir aquí</div>}
     </div>
   );
 }

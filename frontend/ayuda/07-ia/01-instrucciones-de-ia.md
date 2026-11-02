@@ -14,15 +14,15 @@ trabaja con lienzos, diagramas, bases o el calendario. Con eso, la IA usa el vau
 ## Para qué sirve
 
 Para pedirle a la IA cosas sobre tus notas sin explicarle cada vez cómo funciona Mycelium:
-«¿qué decidimos sobre tal tema?», «anotá esto», «hacé un lienzo con estas ideas». Sin las
+«¿qué decidimos sobre tal tema?», «anota esto», «haz un lienzo con estas ideas». Sin las
 instrucciones, la IA ve una carpeta de archivos sueltos; con ellas, ve una red.
 
 ## Cómo se usa
 
-1. Abrí **Configuración → Vault** y, en «Asistente IA (Claude Code)», tocá «Generar
-   instrucciones IA». Solo se crean si lo pedís ahí.
-2. Abrí una [terminal](ayuda:herramientas/terminal): arranca en la carpeta del vault.
-   Iniciá Claude Code y pedile lo que necesites.
+1. Abre **Configuración → Vault** y, en «Asistente IA (Claude Code)», toca «Generar
+   instrucciones IA». Solo se crean si lo pides ahí.
+2. Abre una [terminal](ayuda:herramientas/terminal): arranca en la carpeta del vault.
+   Inicia Claude Code y pídele lo que necesites.
 3. Cuando Mycelium trae instrucciones nuevas, el mismo bloque muestra la versión instalada
    y la disponible, y el botón pasa a «Actualizar a v…». Con todo al día, dice
    «Regenerar».
@@ -33,10 +33,10 @@ instrucciones, la IA ve una carpeta de archivos sueltos; con ellas, ve una red.
 |---|---|
 | `CLAUDE.md` | Un **bloque corto** al principio, entre `<!-- mycelium:inicio … -->` y `<!-- mycelium:fin -->`: lo que la IA lee en cada sesión —que el vault es su memoria, las reglas y qué guía cargar para cada cosa—. |
 | `.claude/skills/mycelium-*` | Guías por tema, que la IA carga cuando las necesita: la sintaxis de las notas, buscar y anotar, cómo operar Mycelium y una por herramienta (lienzos, draw.io, Excalidraw, bases, Esporas, calendario), algunas con un validador. |
-| `.claude/commands/mycelium/` | Comandos que le podés pedir: `/vault-buscar`, `/vault-recordar`, `/vault-nota`, `/vault-vincular`, `/vault-mapa` y `/vault-huerfanas`. |
+| `.claude/commands/mycelium/` | Comandos que le puedes pedir: `/vault-buscar`, `/vault-recordar`, `/vault-nota`, `/vault-vincular`, `/vault-mapa` y `/vault-huerfanas`. |
 | `.claude/hooks/mycelium-referencias.mjs` | El **aviso de referencias sin enlazar** (abajo), registrado en `.claude/settings.json`. |
 
-`.claude/` empieza con punto, así que no lo ves en el explorador. Si querés verlo, agregá
+`.claude/` empieza con punto, así que no lo ves en el explorador. Si quieres verlo, agrega
 `!.claude/` al final de los [archivos ignorados](ayuda:configuracion/mycignore).
 
 ## El aviso de referencias sin enlazar
@@ -55,8 +55,8 @@ lo que ya está entre corchetes dobles.
 ## Lo tuyo no se toca
 
 Mycelium escribe **solo** el bloque de `CLAUDE.md` y lo que lleva `mycelium` en el nombre
-dentro de `.claude/`. Todo lo demás es tuyo y queda como está, cada vez que generás o
-actualizás:
+dentro de `.claude/`. Todo lo demás es tuyo y queda como está, cada vez que generas o
+actualizas:
 
 - Si ya tenías un `CLAUDE.md`, el bloque se agrega **al principio** y lo tuyo queda debajo,
   sin cambios. Al actualizar, se reemplaza solo el bloque.
@@ -66,7 +66,7 @@ actualizás:
 
 > [!warning] Lo de Mycelium se reescribe al regenerar
 > El bloque y los archivos con `mycelium` en el nombre vuelven a escribirse enteros cada
-> vez. Si querés agregarle algo propio a la IA, ponelo en tu `CLAUDE.md`, **fuera** del
+> vez. Si quieres agregarle algo propio a la IA, ponlo en tu `CLAUDE.md`, **fuera** del
 > bloque, o en tus propios archivos de `.claude/`.
 
 ### Si venías de una versión anterior
@@ -76,10 +76,10 @@ actualizar:
 
 - Si no lo habías tocado, se reemplaza por el bloque solo.
 - Si lo habías editado, el bloque queda arriba y **no se borra nada**: debajo siguen las
-  instrucciones viejas, que empiezan en «# Este vault es tu memoria». Borralas y dejá solo
+  instrucciones viejas, que empiezan en «# Este vault es tu memoria». Bórralas y deja solo
   lo tuyo; Mycelium te lo avisa al generar.
 - Los comandos viejos que estaban sueltos en `.claude/commands/` se borran; si habías
   editado alguno, se queda donde estaba, como tuyo.
 
 Para que la IA además pueda **operar** la app —mostrarte una nota, agendar un recordatorio,
-renombrar sin romper enlaces—, mirá [Control de la IA](ayuda:ia/control-de-la-ia).
+renombrar sin romper enlaces—, mira [Control de la IA](ayuda:ia/control-de-la-ia).

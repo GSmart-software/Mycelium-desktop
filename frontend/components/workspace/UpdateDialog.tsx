@@ -85,7 +85,7 @@ export function UpdateDialog() {
         </header>
 
         <p className={styles.versions}>
-          Mycelium <strong>{oferta.version}</strong> · tenés la {oferta.versionActual}
+          Mycelium <strong>{oferta.version}</strong> · tienes la {oferta.versionActual}
           {fecha && ` · publicada el ${fecha}`}
         </p>
 
@@ -106,7 +106,7 @@ export function UpdateDialog() {
         {esBajada && (
           <p className={styles.warn}>
             <TriangleAlert size={13} aria-hidden style={{ verticalAlign: "-2px" }} /> Vas a
-            instalar una versión <strong>anterior</strong> a la que tenés.{" "}
+            instalar una versión <strong>anterior</strong> a la que tienes.{" "}
             <strong>Tus notas no corren riesgo</strong> —son archivos de texto en disco—,
             pero una versión vieja se encuentra un estado guardado más nuevo y lo descarta:
             vas a perder <strong>las pestañas abiertas</strong> y parte de las preferencias.

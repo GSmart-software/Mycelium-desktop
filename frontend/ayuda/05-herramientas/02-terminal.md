@@ -16,16 +16,16 @@ una herramienta de línea de comandos, como un asistente de IA que lee y escribe
 
 ## Cómo se usa
 
-1. Abrí el panel **Consolas** desde su botón en el rail y tocá **Nueva terminal**. Arranca
+1. Abre el panel **Consolas** desde su botón en el rail y toca **Nueva terminal**. Arranca
    con la shell por defecto en la carpeta del vault. Con la flecha de al lado (o con clic
-   derecho en el botón) elegís otra shell.
+   derecho en el botón) eliges otra shell.
 2. Para abrirla en una carpeta concreta, clic derecho en la carpeta del explorador →
    **Abrir terminal aquí**. También está **Nueva consola** en la paleta (**Ctrl+P**).
-3. La pestaña se mueve, se divide y se ancla como cualquier otra, y podés tener varias
+3. La pestaña se mueve, se divide y se ancla como cualquier otra, y puedes tener varias
    consolas a la vez.
 
 Cerrar la pestaña **no** termina la consola: sigue corriendo y vuelve a abrirse desde el
-panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombrás y le das un
+panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombras y le das un
 color, que marca su pestaña.
 
 ## Configuración
@@ -38,7 +38,7 @@ proceso nuevo) y **Restaurar el historial** (muestra el texto de la sesión ante
 
 En Configuración → **Consolas** → **Consola estilada** la consola cambia de aspecto: un fondo
 de luz con una red de micelio, partículas, pantalla de tubo y texto que brilla, con los
-colores de tu tema. Viene apagada. Al encenderla, debajo elegís cada parte:
+colores de tu tema. Viene apagada. Al encenderla, debajo eliges cada parte:
 
 | Parte | Qué agrega |
 |---|---|

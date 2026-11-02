@@ -95,7 +95,7 @@ export function parsearManifiesto(contenido: string, urlManifiesto: string): Man
   const raiz = objeto(crudo, "la raíz");
   if (raiz.version !== 1) {
     throw new Error(
-      `El manifiesto de diccionarios es de una versión que esta app no conoce (${String(raiz.version)}). Actualizá Mycelium.`,
+      `El manifiesto de diccionarios es de una versión que esta app no conoce (${String(raiz.version)}). Actualiza Mycelium.`,
     );
   }
   if (!Array.isArray(raiz.idiomas)) {

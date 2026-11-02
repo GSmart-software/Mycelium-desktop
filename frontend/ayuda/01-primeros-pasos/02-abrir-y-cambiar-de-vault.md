@@ -6,8 +6,8 @@ solo: desktop
 ---
 
 Mycelium recuerda las carpetas que abriste como vault. El **selector de vaults** («Tus
-vaults») las lista y es la puerta de entrada: desde ahí abrís una, sumás otra o la sacás
-de la lista. Cada vault puede tener su propia ventana, así que podés trabajar con dos a la
+vaults») las lista y es la puerta de entrada: desde ahí abres una, sumas otra o la sacas
+de la lista. Cada vault puede tener su propia ventana, así que puedes trabajar con dos a la
 vez.
 
 ## Para qué sirve
@@ -25,7 +25,7 @@ a otro sin cerrar lo que tenías abierto.
 3. El botón **Salir del vault**, a la derecha de la barra superior, cierra el vault y
    vuelve al selector.
 
-Si el vault que elegís ya está abierto en otra ventana, Mycelium trae esa ventana al
+Si el vault que eliges ya está abierto en otra ventana, Mycelium trae esa ventana al
 frente en lugar de abrirlo dos veces.
 
 ## Crear un vault nuevo
@@ -46,6 +46,6 @@ selector.
 
 > [!info] Sacar un vault de la lista no borra nada
 > La cruz de cada vault en el selector solo lo quita del registro de Mycelium. La carpeta
-> y tus notas quedan donde estaban, y podés volver a vincularla cuando quieras.
+> y tus notas quedan donde estaban, y puedes volver a vincularla cuando quieras.
 
 Qué guarda una carpeta de vault, en [Qué es un vault](ayuda:primeros-pasos/que-es-un-vault).

@@ -6,22 +6,22 @@ sinonimos: [bóveda, carpeta, empezar, inicio, introducción, índice, reconstru
 
 Un **vault** es una carpeta de tu computadora que Mycelium abre como tu red de notas. No
 hay una base de datos escondida ni un formato propio: cada nota es un archivo `.md`, texto
-plano en Markdown, que podés abrir con cualquier otro programa, copiar o respaldar como
+plano en Markdown, que puedes abrir con cualquier otro programa, copiar o respaldar como
 cualquier archivo.
 
 ## Para qué sirve
 
-Todo lo que escribís vive ahí: notas, dibujos, lienzos, diagramas e imágenes. Mycelium lee
+Todo lo que escribes vive ahí: notas, dibujos, lienzos, diagramas e imágenes. Mycelium lee
 la carpeta, arma un índice para buscar al instante y dibuja las conexiones entre tus notas.
-Si algún día dejás de usar Mycelium, tus notas siguen siendo tuyas y legibles.
+Si algún día dejas de usar Mycelium, tus notas siguen siendo tuyas y legibles.
 
 ## Cómo se usa
 
-1. Al abrir Mycelium, elegí una carpeta: una vacía para empezar de cero o una que ya tenga
+1. Al abrir Mycelium, elige una carpeta: una vacía para empezar de cero o una que ya tenga
    notas, como una que usabas con Obsidian.
-2. Creá una nota con **Ctrl+P** → «Nueva nota», o desde el explorador. El
+2. Crea una nota con **Ctrl+P** → «Nueva nota», o desde el explorador. El
    nombre del archivo es su título: [cambiar uno cambia el otro](ayuda:escribir-notas/el-titulo-renombra).
-3. Enlazá notas escribiendo `[[` y el título de otra. Esos enlaces son la red.
+3. Enlaza notas escribiendo `[[` y el título de otra. Esos enlaces son la red.
 
 ```ejemplo
 Hoy hablé con Ana sobre el [[Proyecto Faro]]. #reunión
@@ -56,11 +56,11 @@ verse incompletos. Solo afecta al vault de esa ventana.
 
 ## Si un archivo cambia por fuera
 
-Cuando otro programa —otro editor, la IA, una sincronización— cambia una nota que tenés
+Cuando otro programa —otro editor, la IA, una sincronización— cambia una nota que tienes
 abierta, Mycelium la recarga sola con lo nuevo.
 
 Si justo tenías **cambios sin guardar** en esa nota, no recarga ni guarda encima: aparece
-una barra arriba de la nota, «El archivo cambió fuera de Mycelium», y elegís vos:
+una barra arriba de la nota, «El archivo cambió fuera de Mycelium», y eliges tú:
 
 | Opción | Qué hace |
 |---|---|
@@ -76,4 +76,4 @@ de afuera—, la copia se guarda sola y Mycelium avisa dónde quedó. Al cerrar 
 tuyo va a un archivo al lado de la nota, «Título (copia local fecha hora)».
 
 > [!tip] Un vault por tema de tu vida
-> Podés tener varios (trabajo, estudio, personal) y abrir cada uno en su propia ventana.
+> Puedes tener varios (trabajo, estudio, personal) y abrir cada uno en su propia ventana.

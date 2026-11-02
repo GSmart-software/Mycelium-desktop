@@ -17,15 +17,15 @@ para ese modo.
 
 ## Cómo se usa
 
-1. Abrí **Configuración → Apariencia**.
+1. Abre **Configuración → Apariencia**.
 2. **Tema**: Bioluminiscencia (verde agua y cian), Cantarela (dorado y ámbar), Amethystina
    (lila y violeta) o Amanita (rojo, con el tono cálido de las motas en las etiquetas).
 3. **Modo oscuro**: el interruptor pasa de claro a oscuro y vuelve.
 4. **Atmósfera en modo oscuro** y **Atmósfera en modo claro**: cada muestra es una ventana en
-   miniatura pintada con esa combinación, aunque estés en el otro modo. Tocá la que quieras.
+   miniatura pintada con esa combinación, aunque estés en el otro modo. Toca la que quieras.
 
 Para cambiar la atmósfera del modo que estás usando sin abrir Configuración, **Ctrl+P** →
-«Atmósfera: …». Lo que elegís se guarda y sigue igual al volver a abrir Mycelium.
+«Atmósfera: …». Lo que eliges se guarda y sigue igual al volver a abrir Mycelium.
 
 ## Las atmósferas
 
@@ -47,5 +47,5 @@ Para cambiar la atmósfera del modo que estás usando sin abrir Configuración, 
 Las atmósferas solo reparten los colores: la nota, la letra y los atajos son los mismos en todas.
 Al exportar a PDF, la nota sale con su tema y sin brillos ni resplandores.
 
-Si querés ir más lejos —otro color de acento, otra letra para los títulos—, eso se hace con un
+Si quieres ir más lejos —otro color de acento, otra letra para los títulos—, eso se hace con un
 [snippet de CSS](ayuda:configuracion/css-y-snippets).

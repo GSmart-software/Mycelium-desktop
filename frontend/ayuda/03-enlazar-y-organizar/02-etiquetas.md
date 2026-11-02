@@ -15,8 +15,8 @@ pintarlas de un color en el [grafo](ayuda:enlazar-y-organizar/grafo).
 
 ## Cómo se usa
 
-1. Escribí `#` y la palabra, pegada, en cualquier parte del texto. Se ve como una píldora.
-2. Para buscar las notas que la llevan, escribí `tag:reunión` en la búsqueda global. Trae
+1. Escribe `#` y la palabra, pegada, en cualquier parte del texto. Se ve como una píldora.
+2. Para buscar las notas que la llevan, escribe `tag:reunión` en la búsqueda global. Trae
    solo las que tienen la etiqueta —no las que mencionan la palabra—, sin importar tildes ni
    mayúsculas, y con `tag:proyecto` también las anidadas, como `#proyecto/faro`.
 

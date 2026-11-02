@@ -155,7 +155,7 @@ export function resolverAfectado<N extends NotaEnlazable>(
       return invalido(
         "objetivo",
         `«${r.ruta}» no es una nota (Mycelium no lo indexa): estas herramientas operan notas y carpetas. ` +
-          "Ese archivo lo podés mover con la terminal; ningún [[enlace]] se repara.",
+          "Ese archivo lo puedes mover con la terminal; ningún [[enlace]] se repara.",
       );
     case "nota":
       if (carpeta && porRuta) {
@@ -204,7 +204,7 @@ export function resolverDestino(carpeta: string, carpetas: readonly CarpetaEnlaz
   if (c) return { ok: true, valor: c };
   return error(
     "NO_ENCONTRADO",
-    `No existe la carpeta «${carpeta}». Mover no crea carpetas: creala primero (con la terminal) o elegí una que exista.`,
+    `No existe la carpeta «${carpeta}». Mover no crea carpetas: créala primero (con la terminal) o elige una que exista.`,
     { campo: "carpeta", candidatas: carpetasParecidas(carpeta, carpetas) },
   );
 }
@@ -291,7 +291,7 @@ export function mensajeRechazo(pedido: string, sinRespuesta: boolean): string {
     : `El usuario dijo que no a ${pedido}: no se hizo nada.`;
   return (
     `${porque} Es una respuesta, no un error para reintentar: no lo vuelvas a pedir con otras palabras ni en partes, ` +
-    "y no lo hagas por otro camino (mv, rm). Contáselo y seguí."
+    "y no lo hagas por otro camino (mv, rm). Cuéntaselo y sigue."
   );
 }
 
@@ -306,7 +306,7 @@ export function efectoEnlaces(reescritas: readonly string[], fallidas: readonly 
     partes.push(
       `${fallidas.length === 1 ? "una nota quedó" : `${fallidas.length} notas quedaron`} con el enlace viejo porque no se pudo escribir (${enumerar(
         fallidas,
-      )}): arreglalas a mano`,
+      )}): arréglalas a mano`,
     );
   }
   return partes.join("; ") + ".";

@@ -11,18 +11,18 @@ color.
 
 ## Para qué sirve
 
-Con asteriscos tenés el énfasis de siempre. Con guiones bajos tenés una segunda capa para
-lo que querés que salte a la vista —un término clave, una advertencia— sin recurrir a
-otra sintaxis. Si abrís la nota en otro programa, se sigue viendo como cursiva o negrita:
+Con asteriscos tienes el énfasis de siempre. Con guiones bajos tienes una segunda capa para
+lo que quieres que salte a la vista —un término clave, una advertencia— sin recurrir a
+otra sintaxis. Si abres la nota en otro programa, se sigue viendo como cursiva o negrita:
 no se pierde nada.
 
 ## Cómo se usa
 
-1. Rodeá el texto con uno, dos o tres símbolos iguales, sin espacios entre el símbolo y el
+1. Rodea el texto con uno, dos o tres símbolos iguales, sin espacios entre el símbolo y el
    texto.
-2. Elegí `*` para el estilo clásico o `_` para la versión con color.
+2. Elige `*` para el estilo clásico o `_` para la versión con color.
 
-| Escribís | Se ve |
+| Escribes | Se ve |
 |---|---|
 | `*texto*` | cursiva |
 | `_texto_` | cursiva, con el color de brillo del tema |
@@ -46,8 +46,8 @@ no se pierde nada.
 ```
 
 > [!info] En medio de una palabra, el guion bajo no estiliza
-> `nombre_de_archivo` queda tal cual, como en cualquier Markdown. Si querés destacar una
-> parte de una palabra, usá asteriscos: `super*cali*fragilístico`.
+> `nombre_de_archivo` queda tal cual, como en cualquier Markdown. Si quieres destacar una
+> parte de una palabra, usa asteriscos: `super*cali*fragilístico`.
 
 ```ejemplo
 nombre_de_archivo y super*cali*fragilístico

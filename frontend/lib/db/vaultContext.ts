@@ -35,7 +35,7 @@ export function setVaultActual(ruta: string | null): void {
 /** Carpeta del vault activo. Lanza si no hay ninguno abierto. */
 export function getVaultActual(): string {
   if (vaultActual === null) {
-    throw new DbError(409, "No hay ningún vault abierto: elegí uno para continuar.");
+    throw new DbError(409, "No hay ningún vault abierto: elige uno para continuar.");
   }
   return vaultActual;
 }

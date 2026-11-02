@@ -6,7 +6,7 @@ sinonimos: [ortografía, diccionario, faltas, errores, idioma, sugerencias]
 
 El **corrector ortográfico** subraya con una línea ondulada las palabras mal escritas,
 también las que ya estaban en la nota al abrirla, y con el clic derecho sugiere cómo
-corregirlas. Revisa en español, inglés e italiano, con diccionarios que descargás vos.
+corregirlas. Revisa en español, inglés e italiano, con diccionarios que descargas tú.
 
 ## Para qué sirve
 
@@ -16,12 +16,12 @@ código, direcciones web, `[[enlaces]]`, etiquetas, fórmulas ni propiedades.
 
 ## Cómo se usa
 
-1. En Configuración → **Editor** → **Corrector ortográfico**, descargá los diccionarios que
-   quieras y dejalos **Activo**. Podés tener varios a la vez: una palabra vale si está bien
+1. En Configuración → **Editor** → **Corrector ortográfico**, descarga los diccionarios que
+   quieras y déjalos **Activo**. Puedes tener varios a la vez: una palabra vale si está bien
    en alguno.
-2. Clic derecho sobre una palabra subrayada: elegí una de las sugerencias para
+2. Clic derecho sobre una palabra subrayada: elige una de las sugerencias para
    reemplazarla.
-3. Si la palabra está bien, en el mismo menú elegí dónde agregarla.
+3. Si la palabra está bien, en el mismo menú elige dónde agregarla.
 
 | Opción | Qué hace |
 |---|---|

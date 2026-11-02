@@ -125,7 +125,7 @@ function exigirGuardado(ids: readonly string[]): void {
     "CAMBIOS_SIN_GUARDAR",
     `${sucias.length === 1 ? `«${tituloVisible(sucias[0])}» tiene` : `${sucias.length} notas tienen`} cambios sin guardar en su ` +
       `pestaña (${enumerar(sucias)}), y esta operación la${sucias.length === 1 ? "" : "s"} tocaría. Mycelium guarda solo en ` +
-      "unos segundos: esperá y repetí, o pedile al usuario que la guarde.",
+      "unos segundos: espera y repite, o pídele al usuario que la guarde.",
     { pestanas: sucias.map((ruta) => ({ titulo: tituloVisible(ruta), ruta })) },
   );
 }
@@ -226,7 +226,7 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     const idNuevo = unir(a.nota.carpetaId, nombreNuevo + ext);
     if (nombreNuevo === nombreAntes) throw fallo("INVALIDO", `«${nombreAntes}» ya se llama así: no hay nada que renombrar.`, { campo: "nombre" });
     if (rutaOcupada(idNuevo, ocupadas(), id)) {
-      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elegí otro nombre (renombrar no pisa ni numera).`, { campo: "nombre" });
+      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elige otro nombre (renombrar no pisa ni numera).`, { campo: "nombre" });
     }
     plan = {
       clase: "nota",
@@ -242,7 +242,7 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     const idNuevo = unir(carpetaDeRuta(id) || null, nombreNuevo);
     if (nombreNuevo === nombreAntes) throw fallo("INVALIDO", `La carpeta ya se llama «${nombreAntes}».`, { campo: "nombre" });
     if (rutaOcupada(idNuevo, ocupadas(), id)) {
-      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elegí otro nombre.`, { campo: "nombre" });
+      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elige otro nombre.`, { campo: "nombre" });
     }
     plan = { clase: "carpeta", id, idNuevo, afectadas: notasDeCarpeta(id), movidos: movidosPorCarpeta(notas, id, idNuevo) };
   }
@@ -482,7 +482,7 @@ export async function papelera(args: Record<string, unknown>): Promise<Atendible
     throw fallo(
       "INVALIDO",
       `No se puede restaurar en su lugar: ya hay otro archivo en ${enumerar(tapadas.map((t) => `«${t}»`))}. ` +
-        "Renombrá o mové ese archivo primero.",
+        "Renombra o mueve ese archivo primero.",
       { campo: "id" },
     );
   }

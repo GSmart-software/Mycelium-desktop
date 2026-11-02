@@ -68,7 +68,7 @@ export function normalizarPalabra(texto: string): string {
 export function motivoPalabraNoAceptada(texto: string): string | null {
   if (texto === "") return "está vacía";
   if (/\s/u.test(texto)) {
-    return "lleva espacios: cada entrada es una sola palabra (agregá cada una por separado)";
+    return "lleva espacios: cada entrada es una sola palabra (agrega cada una por separado)";
   }
   const tokens = [...texto.matchAll(TOKEN_RE)].map((m) => m[0]);
   if (tokens.length !== 1 || tokens[0] !== texto) {

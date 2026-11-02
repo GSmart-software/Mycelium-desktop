@@ -206,7 +206,7 @@ pub fn terminal_abrir(
     rows: u16,
 ) -> Result<(), String> {
     let vault = crate::ventanas::vault_de_ventana(&ventana)
-        .ok_or("Abrí un vault para usar la terminal: la consola arranca en su carpeta.")?;
+        .ok_or("Abre un vault para usar la terminal: la consola arranca en su carpeta.")?;
     let ejecutable = resolver_shell(&terminal_shells(), &shell)?;
     let dir = cwd_permitido(&vault, cwd.as_deref())?;
 

@@ -17,11 +17,11 @@ después encontrar o listar las notas por esos datos: en la búsqueda, o en una
 
 ## Cómo se usa
 
-1. Escribí el bloque en la primera línea del archivo, o tocá «Propiedades de la nota» en
+1. Escribe el bloque en la primera línea del archivo, o toca «Propiedades de la nota» en
    la barra de formato para que Mycelium lo cree.
 2. En la vista en vivo la tarjeta se edita en el lugar: clic en un valor para cambiarlo,
    clic en la clave para renombrarla, «+ Agregar propiedad» al pie y × para quitar una.
-3. También podés editarlas desde la pestaña **PROPIEDADES** del panel de la nota.
+3. También puedes editarlas desde la pestaña **PROPIEDADES** del panel de la nota.
 
 ```yaml
 ---
@@ -75,5 +75,5 @@ lista alcanza con que coincida un elemento. Se puede combinar con texto común:
 > Solo se interpreta un mapa plano. Un mapa anidado, un texto de varias líneas (`|` o
 > `>`), anclas y alias de YAML (`&`, `*`), un mapa en línea (`{…}`), una lista de mapas o
 > una clave repetida hacen que el bloque se muestre **crudo**, con un aviso que dice el
-> motivo, y la nota queda sin propiedades. Nada se borra ni se reescribe: corregilo con
+> motivo, y la nota queda sin propiedades. Nada se borra ni se reescribe: corrígelo con
 > «Editar como texto» o en el modo crudo.

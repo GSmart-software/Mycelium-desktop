@@ -101,7 +101,7 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "css",
     nombre: "Snippets CSS",
-    descripcion: "Tu propio CSS sobre Mycelium: se aplica al instante y podés apagarlo cuando quieras.",
+    descripcion: "Tu propio CSS sobre Mycelium: se aplica al instante y puedes apagarlo cuando quieras.",
     grupo: "Aspecto",
     ajustes: [
       { rotulo: "Snippets de CSS", alias: ["estilos propios", "personalizar", "css"] },
@@ -178,7 +178,7 @@ const CATEGORIAS: Categoria[] = [
   {
     id: "actualizaciones",
     nombre: "Actualizaciones",
-    descripcion: "Cuándo busca versiones nuevas y cuál tenés instalada.",
+    descripcion: "Cuándo busca versiones nuevas y cuál tienes instalada.",
     grupo: "Sistema",
     ajustes: [
       { rotulo: "Buscar actualizaciones automáticamente", alias: ["versión nueva", "actualizar"] },

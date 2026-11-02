@@ -6,16 +6,16 @@ sinonimos: [buscar, paleta, encontrar, filtrar, ir a una nota, comandos, reempla
 
 Mycelium tiene tres formas de buscar: la **paleta**, para saltar a una nota por su nombre
 o ejecutar un comando; la **búsqueda global**, que mira dentro de todas las notas; y la
-**búsqueda en la nota**, para lo que tenés abierto.
+**búsqueda en la nota**, para lo que tienes abierto.
 
 ## Para qué sirve
 
-Para llegar a lo que buscás sin recorrer carpetas: un título que recordás a medias, una
+Para llegar a lo que buscas sin recorrer carpetas: un título que recuerdas a medias, una
 frase que escribiste hace meses o todas las notas con una etiqueta o una propiedad.
 
 ## Cómo se usa
 
-1. **Ctrl+O** abre la paleta: escribí parte del nombre y **Enter** abre la nota. Si no
+1. **Ctrl+O** abre la paleta: escribe parte del nombre y **Enter** abre la nota. Si no
    existe, la última opción la crea con ese nombre. Sin escribir nada, lista las últimas
    notas que abriste.
 2. **Ctrl+P** abre la paleta en modo comandos, con un `>` adelante: nueva nota, grafo,
@@ -25,9 +25,9 @@ frase que escribiste hace meses o todas las notas con una etiqueta o una propied
 
 ## La búsqueda global
 
-Escribí al menos dos caracteres. Con varias palabras, aparecen las notas que tienen todas.
+Escribe al menos dos caracteres. Con varias palabras, aparecen las notas que tienen todas.
 
-| Escribís | Encuentra |
+| Escribes | Encuentra |
 |---|---|
 | `reunión cliente` | Las notas que tienen las dos palabras. |
 | `"plan de lanzamiento"` | La frase exacta, entre comillas. |

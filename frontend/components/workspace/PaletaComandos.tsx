@@ -438,7 +438,7 @@ export function PaletaComandos() {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={enComandos ? "Escribí un comando…" : "Ir a una nota…  (empezá con > para comandos)"}
+            placeholder={enComandos ? "Escribe un comando…" : "Ir a una nota…  (empieza con > para comandos)"}
             role="combobox"
             aria-expanded="true"
             aria-controls={idLista}
@@ -477,7 +477,7 @@ export function PaletaComandos() {
           })}
           {opciones.length === 0 && (
             <li className={styles.vacio} role="option" aria-selected="false" aria-disabled="true">
-              {enComandos ? "Ningún comando se llama así." : "Escribí el nombre de una nota."}
+              {enComandos ? "Ningún comando se llama así." : "Escribe el nombre de una nota."}
             </li>
           )}
         </ul>

@@ -86,8 +86,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Si Mycelium está abierto con este vault, si el control está encendido y qué está \
                 mirando el usuario: las pestañas de cada panel, cuál está activa y cuáles tienen cambios sin \
                 guardar. Funciona también con la app cerrada (lo dice). No devuelve el contenido de las notas: \
-                para eso leé los archivos. Miralo antes de escribir un archivo que el usuario podría estar \
-                editando: si su pestaña tiene cambios sin guardar, avisale, porque lo que guarde después pisa lo tuyo.",
+                para eso lee los archivos. Míralo antes de escribir un archivo que el usuario podría estar \
+                editando: si su pestaña tiene cambios sin guardar, avísale, porque lo que guarde después pisa lo tuyo.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
         }),
@@ -95,8 +95,8 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_abrir",
             "title": "Mostrar algo en Mycelium",
             "description": "Abre en Mycelium una nota o archivo del vault, el grafo o el calendario, en una \
-                pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pedí \
-                `foco: true` solo si tenés algo que mostrarle ahora. En una nota puede saltar a un encabezado, \
+                pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pide \
+                `foco: true` solo si tienes algo que mostrarle ahora. En una nota puede saltar a un encabezado, \
                 una línea o un texto. Devuelve en qué panel quedó y qué pestañas hay. No crea nada: si el \
                 objetivo no existe, contesta NO_ENCONTRADO con las candidatas más parecidas.",
             "inputSchema": {
@@ -225,7 +225,7 @@ pub fn definiciones() -> Vec<Value> {
         json!({
             "name": "mycelium_renombrar",
             "title": "Renombrar una nota o carpeta",
-            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Usala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
+            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Úsala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -249,7 +249,7 @@ pub fn definiciones() -> Vec<Value> {
             "title": "Mover una nota o carpeta",
             "description": "Mueve una nota o una carpeta a otra carpeta que ya exista (no crea carpetas), REPARANDO LOS \
                 ENLACES que la nombraban con su carpeta (`[[Carpeta/Nota]]`; los enlaces por título siguen andando solos). \
-                Usala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
+                Úsala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
                 notas. Se deshace desde el registro de actividad.",
             "inputSchema": {
                 "type": "object",
@@ -266,7 +266,7 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_borrar",
             "title": "Mandar a la papelera",
             "description": "Manda una nota o una carpeta (con todo lo que tiene) a la PAPELERA DE MYCELIUM: nunca borra \
-                para siempre. Usala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
+                para siempre. Úsala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
                 carpeta SIEMPRE le pregunta al usuario y esta llamada espera su respuesta. Devuelve con qué id se \
                 restaura (mycelium_papelera) y qué pestañas se cerraron. Una nota con cambios sin guardar no se borra: \
                 CAMBIOS_SIN_GUARDAR.",
@@ -451,7 +451,7 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Avisa a las otras sesiones de IA que vas a trabajar sobre una nota o una carpeta del vault, con un \
                 motivo y un vencimiento (30 minutos si no se indica otro; hasta 240). Es un AVISO, no un bloqueo: nada impide \
                 escribir. Si otra sesión ya tenía reservado eso (o una carpeta que lo contiene, o algo dentro de la carpeta), \
-                la reserva se concede igual y la respuesta dice quién lo tiene y por qué: coordina con el usuario antes de \
+                la reserva se concede de todos modos y la respuesta dice quién lo tiene y por qué: coordina con el usuario antes de \
                 tocarlo. Reservar de nuevo lo mismo renueva el vencimiento. Con `liberar: true` se suelta (sin `objetivo`, \
                 todas las de esta sesión). Las reservas mueren con la sesión y si se cierra Mycelium. Reserva antes de un \
                 trabajo largo sobre algo que otra sesión podría tocar; libera al terminar.",
@@ -559,14 +559,14 @@ fn pedir(estado: &Estado, vault: &VaultResuelto, op: &str, args: Value) -> Resul
         Err(Fallo::NadieEscucha) => Err(SinResultado::NadieEscucha),
         Err(Fallo::SinRespuesta) => Err(SinResultado::Error(format!(
             "{}: Mycelium no contestó a tiempo (quizás un diálogo abierto o la ventana trabada). \
-             Probá de nuevo en unos segundos; si se repite, preguntale al usuario.",
+             Prueba de nuevo en unos segundos; si se repite, pregúntale al usuario.",
             codigo::OCUPADA
         ))),
         // Un corte a mitad de la llamada (la ventana se cerró): la operación
         // puede haber ocurrido igual (spec de septiembre § 5.2).
         Err(Fallo::Roto(m)) => Err(SinResultado::Error(format!(
-            "{}: se cortó el canal con Mycelium ({m}). La operación pudo haber ocurrido igual: \
-             comprobalo con mycelium_estado antes de repetirla.",
+            "{}: se cortó el canal con Mycelium ({m}). La operación pudo haber ocurrido de todos modos: \
+             compruébalo con mycelium_estado antes de repetirla.",
             codigo::APP_CERRADA
         ))),
     }
@@ -586,7 +586,7 @@ fn sin_ventana_con(vault: &VaultResuelto, calendario: bool) -> String {
     if calendario {
         t.push_str(
             "\nEl calendario solo se modifica con estas herramientas: sin ellas, no escribas \
-             .mycelium/recordatorios.json (decíselo al usuario). Para leerlo, la skill mycelium-calendario trae un script.",
+             .mycelium/recordatorios.json (díselo al usuario). Para leerlo, la skill mycelium-calendario trae un script.",
         );
     }
     t
@@ -597,8 +597,8 @@ fn sin_ventana_base(vault: &VaultResuelto) -> String {
     if control_encendido(&vault.raiz) {
         format!(
             "{}: Mycelium no está abierto con el vault «{nombre}» (nadie escucha en su canal). Sin la app \
-             podés usar mycelium_estado, leer el calendario con la skill mycelium-calendario y leer o escribir \
-             los archivos del vault como siempre. Para mostrarle algo, pedile al usuario que abra Mycelium con \
+             puedes usar mycelium_estado, leer el calendario con la skill mycelium-calendario y leer o escribir \
+             los archivos del vault como siempre. Para mostrarle algo, pídele al usuario que abra Mycelium con \
              este vault.",
             codigo::APP_CERRADA
         )
@@ -627,7 +627,7 @@ pub fn redactar_error(error: &Value) -> String {
         }
     }
     if let Some(rutas) = datos.get("rutas").and_then(Value::as_array) {
-        t.push_str("\nRepetí la llamada con una de estas rutas:");
+        t.push_str("\nRepite la llamada con una de estas rutas:");
         for r in rutas {
             t.push_str(&format!("\n  - {}", r.as_str().unwrap_or_default()));
         }
@@ -636,7 +636,7 @@ pub fn redactar_error(error: &Value) -> String {
         t.push_str(&format!("\nEtapa: {etapa}."));
     }
     if let Some(ms) = datos.get("reintentar_en_ms").and_then(Value::as_u64) {
-        t.push_str(&format!(" Reintentá en {:.1} s.", ms as f64 / 1000.0));
+        t.push_str(&format!(" Reintenta en {:.1} s.", ms as f64 / 1000.0));
     }
     t
 }
@@ -698,7 +698,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             let t = if control_encendido(&vault.raiz) {
                 format!(
                     "app: cerrada · control: encendido · {cabecera}\nMycelium no está abierto con este vault: \
-                     no hay pestañas que mirar. Los archivos se leen y escriben igual."
+                     no hay pestañas que mirar. Los archivos se leen y escriben de todos modos."
                 )
             } else {
                 format!(
@@ -947,7 +947,7 @@ fn pedir_con_permiso(estado: &Estado, vault: &VaultResuelto, op: &str, args: Val
             Err(SinResultado::NadieEscucha) => {
                 return Err(SinResultado::Error(format!(
                     "{}: Mycelium se cerró mientras esperaba que el usuario contestara. Lo más probable es que \
-                     no se haya hecho nada: comprobalo (mycelium_estado, mycelium_papelera) antes de repetirlo.",
+                     no se haya hecho nada: compruébalo (mycelium_estado, mycelium_papelera) antes de repetirlo.",
                     codigo::APP_CERRADA
                 )))
             }
@@ -982,8 +982,8 @@ fn herramienta_archivos(
 fn sin_ventana_archivos(vault: &VaultResuelto) -> String {
     let mut t = sin_ventana_base(vault);
     t.push_str(
-        "\nSin estas herramientas, renombrar o mover con `mv` deja los [[enlaces]] rotos: si lo hacés igual, \
-         arreglalos vos (regla dura 2 del CLAUDE.md; el hook te deja pasar con MYCELIUM_SIN_MCP=1 delante del \
+        "\nSin estas herramientas, renombrar o mover con `mv` deja los [[enlaces]] rotos: si aun así lo haces, \
+         arréglalos tú (regla dura 2 del CLAUDE.md; el hook te deja pasar con MYCELIUM_SIN_MCP=1 delante del \
          comando). Para borrar, mejor esperar a que el usuario abra Mycelium: un `rm` no pasa por la papelera.",
     );
     t
@@ -1039,7 +1039,7 @@ fn sin_ventana_diccionario(vault: &VaultResuelto) -> String {
     let mut t = sin_ventana_base(vault);
     t.push_str(
         "\nEl diccionario del vault solo se modifica con esta herramienta: sin ella, no escribas \
-         .mycelium/diccionario.txt (decíselo al usuario; lo puede agregar él con el clic derecho sobre la palabra).",
+         .mycelium/diccionario.txt (díselo al usuario; lo puede agregar él con el clic derecho sobre la palabra).",
     );
     t
 }
@@ -1072,7 +1072,7 @@ pub fn redactar_diccionario(r: &Value) -> String {
     let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
     for n in r.get("no_estaban").and_then(Value::as_array).into_iter().flatten() {
         if let (Some(p), Some(par)) = (n.get("palabra").and_then(Value::as_str), n.get("parecida").and_then(Value::as_str)) {
-            t.push_str(&format!("\n«{p}» no estaba, pero sí «{par}»: para quitarla, pedila así."));
+            t.push_str(&format!("\n«{p}» no estaba, pero sí «{par}»: para quitarla, pídela así."));
         }
     }
     let rechazadas = r.get("rechazadas").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -1427,7 +1427,7 @@ pub fn redactar_salud(r: &Value) -> String {
     }
     if recortado {
         t.push_str(&format!(
-            "\n(Cada lista muestra hasta {tope}. Para ver el resto, pide un alcance más chico: una carpeta o una nota.)"
+            "\n(Cada lista muestra hasta {tope}. Para ver el resto, pide un alcance más pequeño: una carpeta o una nota.)"
         ));
     }
     t

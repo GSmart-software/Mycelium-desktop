@@ -16,12 +16,12 @@ programa la lee igual.
 
 ## Cómo se usa
 
-1. Escribí el encabezado y la fila de guiones; cuando el cursor sale de la tabla, se
+1. Escribe el encabezado y la fila de guiones; cuando el cursor sale de la tabla, se
    dibuja.
-2. Hacé **clic** en una celda para escribir en ella. **Enter** o salir de la celda
+2. Haz **clic** en una celda para escribir en ella. **Enter** o salir de la celda
    confirma; **Esc** descarta; **Tab** y **Shift+Tab** pasan a la celda siguiente o
    anterior.
-3. Para agregar, quitar o mover, usá los tiradores que aparecen al pasar el puntero por
+3. Para agregar, quitar o mover, usa los tiradores que aparecen al pasar el puntero por
    una fila (⋮) o una columna (⋯), o los botones «+ Fila» y «+ Columna» del pie.
 
 ```ejemplo
@@ -34,7 +34,7 @@ programa la lee igual.
 Los dos puntos de la fila de guiones alinean la columna: `:---` a la izquierda, `:---:`
 al centro, `---:` a la derecha.
 
-## Qué podés hacer sobre el dibujo
+## Qué puedes hacer sobre el dibujo
 
 | Desde | Qué |
 |---|---|
@@ -62,5 +62,5 @@ que dentro de una celda se escribe `\|`; también en el alias de un enlace:
 > Mientras todas sus líneas empiecen con el mismo `>`, la tabla de un
 > [callout](ayuda:escribir-notas/callouts) tiene los mismos controles.
 
-Si preferís escribir las tablas siempre a mano, se puede apagar su dibujo en la vista en
+Si prefieres escribir las tablas siempre a mano, se puede apagar su dibujo en la vista en
 vivo: ver [Vista en vivo y lectura](ayuda:escribir-notas/vista-en-vivo-y-lectura).

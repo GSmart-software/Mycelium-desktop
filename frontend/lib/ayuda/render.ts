@@ -16,7 +16,7 @@ const escapar = (s: string) => s.replace(/[&<>"]/g, (c) => ESCAPES[c]);
 function htmlDeEjemplo(fuente: string): string {
   return (
     '<figure class="mic-ayuda-ejemplo">' +
-    '<div class="mic-ayuda-ejemplo-rotulo">Escribís</div>' +
+    '<div class="mic-ayuda-ejemplo-rotulo">Escribes</div>' +
     `<pre class="mic-ayuda-ejemplo-fuente"><code>${escapar(fuente)}</code></pre>` +
     '<div class="mic-ayuda-ejemplo-rotulo">Se ve</div>' +
     `<div class="mic-ayuda-ejemplo-render">${renderMarkdown(fuente)}</div>` +

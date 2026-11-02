@@ -14,7 +14,7 @@ enlaces y las propiedades.
 
 Para ver el problema donde está, en el momento en que lo escribes, sin tener que abrir el
 [panel de salud](ayuda:enlazar-y-organizar/salud-del-vault). Es el mismo criterio: lo que
-el panel lista del vault entero, acá aparece marcado en la nota abierta.
+el panel lista del vault entero, aquí aparece marcado en la nota abierta.
 
 ## Cómo se usa
 

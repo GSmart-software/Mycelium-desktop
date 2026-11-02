@@ -502,7 +502,7 @@ pub(crate) fn abrir_con_sistema_en(vault_ruta: String, ruta_rel: String) -> Resu
     }
     if destino.is_file() && es_ejecutable(&destino) {
         return Err(format!(
-            "«{ruta_rel}» se ejecutaría al abrirlo: Mycelium no lo abre. Usá «Mostrar en el explorador»."
+            "«{ruta_rel}» se ejecutaría al abrirlo: Mycelium no lo abre. Usa «Mostrar en el explorador»."
         ));
     }
 
@@ -713,7 +713,7 @@ pub async fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_
             .dialog()
             .message(format!(
                 "«{nombre}» puede ejecutar código al abrirlo (macros, complementos o una imagen de disco). \
-                 Abrilo solo si sabés de dónde viene y confiás en quien lo hizo."
+                 Ábrelo solo si sabes de dónde viene y confías en quien lo hizo."
             ))
             .title("¿Abrir este archivo?")
             .kind(MessageDialogKind::Warning)

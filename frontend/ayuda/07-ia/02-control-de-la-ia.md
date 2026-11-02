@@ -6,10 +6,10 @@ sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, ope
 ---
 
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
-muestre una nota, sepa qué tenés abierto, agende un recordatorio o renombre una nota sin
+muestre una nota, sepa qué tienes abierto, agende un recordatorio o renombre una nota sin
 romper los enlaces que llegan a ella. Lo hace por un servidor MCP que viene con Mycelium. Está
-**apagado** por defecto, y se prende por vault **en cada computadora**: la decisión no viaja
-con la carpeta, así que un vault que te pasaron, o uno que nunca abriste acá, llega con el
+**apagado** por defecto, y se enciende por vault **en cada computadora**: la decisión no viaja
+con la carpeta, así que un vault que te pasaron, o uno que nunca abriste aquí, llega con el
 control apagado aunque en otra computadora estuviera encendido.
 
 ## Para qué sirve
@@ -17,25 +17,25 @@ control apagado aunque en otra computadora estuviera encendido.
 Leer y escribir notas la IA lo hace sola, con los archivos. Pero hay cosas que solo la app
 sabe hacer bien: renombrar y mover reparando enlaces, mandar a la papelera, el calendario, el
 diccionario del corrector. Con el control encendido, la IA las hace por Mycelium, igual que si
-las hicieras vos, y todo queda a la vista con su Deshacer.
+las hicieras tú, y todo queda a la vista con su Deshacer.
 
 ## Cómo se usa
 
-1. Abrí **Configuración → Vault** y, en «Asistente IA (Claude Code)», prendé «Dejar que la IA
+1. Abre **Configuración → Vault** y, en «Asistente IA (Claude Code)», enciende «Dejar que la IA
    controle Mycelium». Mycelium escribe un `.mcp.json` en la raíz del vault.
-2. Abrí una sesión **nueva** de Claude Code en el vault. La primera vez te pide aprobar el
+2. Abre una sesión **nueva** de Claude Code en el vault. La primera vez te pide aprobar el
    servidor «mycelium».
-3. Pedile cosas como «abrime la nota del proyecto», «recordame revisar esto el viernes a las
-   10» o «renombrá Plan a Plan 2026».
+3. Pídele cosas como «ábreme la nota del proyecto», «recuérdame revisar esto el viernes a las
+   10» o «renombra Plan a Plan 2026».
 
 Las [instrucciones de IA](ayuda:ia/instrucciones-de-ia) le enseñan a la IA cuándo usar cada
-herramienta: generalas, o actualizalas si Configuración te ofrece una versión nueva.
+herramienta: genéralas, o actualízalas si Configuración te ofrece una versión nueva.
 
 ## Qué puede hacer
 
 - **Mostrar**: abrir una nota u otro archivo —y llevarte a un encabezado o a una línea—, el
   grafo o el calendario. Sin sacarte de lo que estás escribiendo, salvo que haga falta.
-- **Saber qué tenés abierto**: tus pestañas y cuáles tienen cambios sin guardar.
+- **Saber qué tienes abierto**: tus pestañas y cuáles tienen cambios sin guardar.
 - **Calendario**: leer lo agendado, y crear, cambiar, completar o borrar
   [recordatorios](ayuda:herramientas/calendario).
 - **Renombrar y mover** notas y carpetas, reparando los enlaces que llegan a ellas.
@@ -88,7 +88,7 @@ terminal. Mycelium las reconoce a todas:
 - Cada sesión puede **declarar su tarea** («Reorganizar la carpeta de arquitectura»), y
   **reservar** una nota o una carpeta por un rato (media hora, si no pide otro tiempo), con un
   motivo. Una reserva es un **aviso, no un bloqueo**: nada impide escribir, ni a ti ni a otra
-  sesión. Si una sesión quiere algo que otra ya reservó, se le concede igual pero se le avisa
+  sesión. Si una sesión quiere algo que otra ya reservó, se le concede de todos modos, pero se le avisa
   quién lo tiene y para qué, y la IA te consulta antes de tocarlo.
 - Cuando la IA pregunta por el estado de Mycelium, además de tus pestañas ve las otras
   sesiones, lo que tienen reservado, lo que cambiaron hace poco por Mycelium y las notas que
@@ -109,7 +109,7 @@ Lo que se deshace fácil, lo hace sin preguntar. Te pide confirmación, con un a
 - renombrar o mover reescribiría enlaces en **más de 5 notas**;
 - va a mandar una **carpeta** a la papelera.
 
-Si decís que no, o no contestás en dos minutos, no se hace, y la IA no insiste.
+Si dices que no, o no contestas en dos minutos, no se hace, y la IA no insiste.
 
 > [!info] Apagarlo no le prohíbe los archivos
 > Con el control apagado, ningún programa puede pedirle nada a Mycelium. Pero la IA puede

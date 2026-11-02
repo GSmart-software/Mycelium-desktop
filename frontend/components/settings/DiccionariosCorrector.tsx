@@ -367,7 +367,7 @@ function DiccionariosPersonales() {
     <div className={styles.personales}>
       <span className={ajustes.label}>Diccionarios personales</span>
       <Explicacion detalle="Quitar una hace que se vuelva a marcar.">
-        Las que agregás con el clic derecho sobre una palabra marcada.
+        Las que agregas con el clic derecho sobre una palabra marcada.
       </Explicacion>
       {hayVault && <DiccionarioPersonal dic="vault" />}
       <DiccionarioPersonal dic="mycelium" />

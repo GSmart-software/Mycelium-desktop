@@ -132,8 +132,8 @@ export function TerminalPanel() {
 
       {ids.length === 0 ? (
         <p className={styles.vacio}>
-          No hay consolas iniciadas. Creá una con el botón de arriba; cerrar su
-          pestaña no la termina — podés reabrirla desde aquí.
+          No hay consolas iniciadas. Crea una con el botón de arriba; cerrar su
+          pestaña no la termina — puedes reabrirla desde aquí.
         </p>
       ) : (
         <ul className={styles.lista}>

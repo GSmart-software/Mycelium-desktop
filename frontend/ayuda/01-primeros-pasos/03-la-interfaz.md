@@ -20,10 +20,10 @@ Saber qué hay en cada zona te ahorra buscar: casi todo está a un clic o a una 
    **Esporas**, **Calendario**, **Salud del vault**, **Consolas**, **Actividad de la IA** y, abajo,
    **Papelera**—; un segundo clic en el mismo ícono lo cierra. **Grafo de conexiones**
    abre el grafo como pestaña y el engranaje abre **Configuración** (**Ctrl+,**). Al pie de
-   Configuración están la versión que tenés y **Licencias de terceros**, los avisos de
+   Configuración están la versión que tienes y **Licencias de terceros**, los avisos de
    licencia del software y las fuentes de otros autores que trae Mycelium.
-3. **Área de trabajo**: cada archivo se abre en una pestaña. Arrastrá una pestaña al borde
-   de otro panel para dividir la vista, o usá el menú **⋯** de la barra de pestañas:
+3. **Área de trabajo**: cada archivo se abre en una pestaña. Arrastra una pestaña al borde
+   de otro panel para dividir la vista, o usa el menú **⋯** de la barra de pestañas:
    **Dividir a la derecha** o **Dividir hacia abajo**.
 
 ## Dividir la vista
@@ -60,14 +60,14 @@ contiene y actualiza los enlaces. Arrastrar en el árbol hace lo mismo.
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas
-ancladas: arrastrá ahí una pestaña del área de trabajo para tenerla siempre a mano, al
+ancladas: arrastra ahí una pestaña del área de trabajo para tenerla siempre a mano, al
 lado de lo que estés editando. **Ctrl+\\** lo oculta y lo vuelve a mostrar.
 
 ## Pestañas
 
 Un archivo nuevo se abre en una pestaña de **vista previa**, con el nombre en cursiva: si
-abrís otro sin tocarla, lo reemplaza. Al editarla o con **doble clic** sobre la pestaña,
-queda fija. Si preferís que cada archivo abra su propia pestaña, apagá **Pestañas de
+abres otro sin tocarla, lo reemplaza. Al editarla o con **doble clic** sobre la pestaña,
+queda fija. Si prefieres que cada archivo abra su propia pestaña, apaga **Pestañas de
 previsualización** en **Configuración → Editor**. Las flechas **Atrás** y **Adelante** de
 la barra de pestañas recorren lo que se abrió en esa pestaña.
 
@@ -90,7 +90,7 @@ pestañas:
 | Pestaña | Qué muestra |
 |---|---|
 | **PROPIEDADES** | Las [propiedades](ayuda:escribir-notas/propiedades) de la nota, editables. |
-| **GRAFO** | Un grafo chico con la nota en el centro, lo que enlaza y lo que la enlaza. |
+| **GRAFO** | Un grafo pequeño con la nota en el centro, lo que enlaza y lo que la enlaza. |
 | **SALIENTES** | Las notas a las que esta enlaza. |
 | **RETRO** | Las notas que enlazan a esta, con el fragmento donde la citan. |
 

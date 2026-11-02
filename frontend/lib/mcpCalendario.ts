@@ -73,7 +73,7 @@ function calendario(escribe: boolean) {
     throw new FalloCalendario(
       "INVALIDO",
       "El calendario no se puede modificar: .mycelium/recordatorios.json está dañado y Mycelium no lo sobrescribe " +
-        "para no perder lo que se pueda recuperar. Decíselo al usuario: tiene que arreglarlo o borrarlo.",
+        "para no perder lo que se pueda recuperar. Díselo al usuario: tiene que arreglarlo o borrarlo.",
       { campo: "recordatorios.json" },
     );
   }

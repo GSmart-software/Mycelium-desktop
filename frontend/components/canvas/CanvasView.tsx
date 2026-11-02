@@ -880,7 +880,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
         {canvas.nodos.length === 0 && (
           <p className={styles.vacio} data-fondo="1">
-            Un lienzo vacío. Agregá una tarjeta de texto o de nota desde la barra de arriba.
+            Un lienzo vacío. Agrega una tarjeta de texto o de nota desde la barra de arriba.
           </p>
         )}
       </div>
@@ -1094,7 +1094,7 @@ function NodoVista({
         <span
           key={lado}
           className={`${styles.ancla} ${styles[`ancla_${lado}`]}`}
-          title="Arrastrá hasta otra tarjeta para conectarlas"
+          title="Arrastra hasta otra tarjeta para conectarlas"
           onPointerDown={(e) => {
             e.stopPropagation();
             onConectar(lado, e);

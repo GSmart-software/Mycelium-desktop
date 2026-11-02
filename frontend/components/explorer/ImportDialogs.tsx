@@ -151,7 +151,7 @@ export function ImportDialogs() {
             {summary.revisar.length > 0 && (
               <>
                 <p className={styles.modalText}>
-                  Revisalos antes de usar un asistente de IA en este vault: son instrucciones que
+                  Revísalos antes de usar un asistente de IA en este vault: son instrucciones que
                   el asistente sigue.
                 </p>
                 <ul className={styles.omitidos}>

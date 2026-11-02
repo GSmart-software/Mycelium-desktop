@@ -544,7 +544,7 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
     } else {
       avisos.push(
         `La nota ya está a la vista del usuario: no se movió su cursor a ${descripcionSalto}. ` +
-          "Para llevarlo ahí, repetí con foco: true.",
+          "Para llevarlo ahí, repite con foco: true.",
       );
     }
   }

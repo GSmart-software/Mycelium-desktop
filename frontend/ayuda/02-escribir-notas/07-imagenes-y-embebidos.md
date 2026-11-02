@@ -4,21 +4,21 @@ tema: Escribir notas
 sinonimos: [embed, embeber, insertar, imagen, foto, video, youtube, vimeo, tamaño, extensión, sin extensión, lienzo, canvas, base, tabla]
 ---
 
-**Embeber** es mostrar otro archivo dentro de la nota, en el lugar donde lo escribís: una
+**Embeber** es mostrar otro archivo dentro de la nota, en el lugar donde lo escribes: una
 imagen, un dibujo, un diagrama o un video. Se escribe con un `!` adelante; lo que cambia
 es la forma de nombrar el archivo.
 
 ## Para qué sirve
 
 Para que la nota tenga lo que explica a la vista: la captura, el boceto, el diagrama del
-proceso. El archivo sigue siendo uno solo: si lo cambiás, todas las notas que lo embeben
+proceso. El archivo sigue siendo uno solo: si lo cambias, todas las notas que lo embeben
 muestran la versión nueva.
 
 ## Cómo se usa
 
-1. Guardá la imagen dentro del vault, en la carpeta que quieras.
-2. Escribí `![[` y su nombre con la extensión: `![[foto.png]]`.
-3. Si la querés más chica, agregá el ancho en píxeles después de una barra:
+1. Guarda la imagen dentro del vault, en la carpeta que quieras.
+2. Escribe `![[` y su nombre con la extensión: `![[foto.png]]`.
+3. Si la quieres más pequeña, agrega el ancho en píxeles después de una barra:
    `![[foto.png|300]]`.
 
 ## Imágenes
@@ -37,11 +37,11 @@ Hay dos formas, las mismas que en Obsidian:
 ```
 
 - **`![[nombre]]`** busca la imagen **por nombre** en todo el vault. Si hay dos con el
-  mismo nombre, poné la carpeta adelante para elegir; si no, gana la de ruta más corta.
+  mismo nombre, pon la carpeta adelante para elegir; si no, gana la de ruta más corta.
 - **`![texto](ruta)`** busca la ruta primero **desde la carpeta de la nota** y, si no
   está ahí, **desde la raíz del vault**. Una ruta que empieza con `/` va directo a la
   raíz, y un nombre suelto se busca por nombre como en `![[…]]`. Si la ruta tiene
-  espacios, encerrala entre `< >`: `![](<Mis fotos/playa.png>)`.
+  espacios, enciérrala entre `< >`: `![](<Mis fotos/playa.png>)`.
 - El número después de la barra es el ancho; con `300x200`, ancho y alto.
 - Una dirección `https://` muestra la imagen de la web tal cual.
 
@@ -78,7 +78,7 @@ grupos y sus flechas, achicados para entrar en el ancho de la hoja. Es una **vis
 previa de solo lectura**: para cambiar el lienzo hay que abrirlo. En la vista de lectura,
 un clic en cualquier parte lo abre en su pestaña; en la vista en vivo, el clic muestra el
 `![[…]]` para editarlo, y el botón **Abrir** de la esquina abre el lienzo. Un lienzo se
-carga recién cuando llega a verse, así que una nota con muchos no tarda en abrir.
+carga solo cuando llega a verse, así que una nota con muchos no tarda en abrir.
 
 ## Tablas
 
