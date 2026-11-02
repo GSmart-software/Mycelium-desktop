@@ -10,6 +10,7 @@ import {
   encuadrarDibujo,
   hayAlgoDibujado,
   IDIOMA_EXCALIDRAW,
+  PROPS_EMBEBIBLES,
   leerEscena,
   type ApiEncuadre,
   type EscenaLeida,
@@ -290,6 +291,7 @@ export function ExcalidrawFileEditor({ notaId }: { notaId: string }) {
           }}
           theme={dark ? "dark" : "light"}
           langCode={IDIOMA_EXCALIDRAW}
+          {...PROPS_EMBEBIBLES}
           initialData={{
             elements: estado.escena.elements as never,
             files: estado.escena.files as never,

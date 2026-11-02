@@ -8,6 +8,7 @@ import {
   encuadrarDibujo,
   hayAlgoDibujado,
   IDIOMA_EXCALIDRAW,
+  PROPS_EMBEBIBLES,
   loadNotaScene,
   saveNotaScene,
   type ApiEncuadre,
@@ -120,6 +121,7 @@ export function ExcalidrawModal({
                   apiRef.current = api as unknown as ExcalidrawApi;
                 }}
                 langCode={IDIOMA_EXCALIDRAW}
+                {...PROPS_EMBEBIBLES}
                 initialData={{
                   elements: (initialScene?.elements ?? []) as never,
                   files: (initialScene?.files ?? null) as never,

@@ -32,6 +32,14 @@ En la vista de lectura, un clic sobre el dibujo lo abre para editarlo sin salir 
 y el clic derecho ofrece **Exportar como PNG** y **Exportar como SVG**. En la vista en vivo,
 el clic muestra la línea del embed para que la puedas editar.
 
+## Videos dentro del dibujo
+
+La herramienta **Incrustar Web** de Excalidraw acepta videos de **YouTube** y de **Vimeo**
+(por ejemplo `https://www.youtube.com/watch?v=…`, `https://youtu.be/…` o
+`https://vimeo.com/123456`). Cualquier otra dirección queda como un recuadro con el enlace
+escrito, sin contenido. En la vista de lectura de la nota, el dibujo muestra esos recuadros
+como enlaces, no el video.
+
 > [!warning] El editor encima de la nota guarda al cerrar
 > Lo que dibujás ahí se escribe recién con **Guardar y cerrar**. El dibujo abierto en su
 > propia pestaña, en cambio, se guarda solo.

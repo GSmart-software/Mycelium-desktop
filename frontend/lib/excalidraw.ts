@@ -4,6 +4,8 @@ import { useVaultStore } from "@/stores/vaultStore";
 import type { TreeNota } from "@/stores/vaultStore";
 import { diagnosticarExcalidraw, motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import { sinRespaldoRemoto } from "@/lib/excalidrawFuentes";
+import { esEmbebiblePermitido, sinContenidoGenerado } from "@/lib/excalidrawEmbebibles";
+import { createElement } from "react";
 
 /**
  * Dibujos de Excalidraw (HU-16/HU-17). Un dibujo es **un archivo del vault**
@@ -33,6 +35,22 @@ export const IDIOMA_EXCALIDRAW = "es-ES";
  * `dev`/`build`) copiando `dist/prod/fonts/` del paquete a `public/`.
  */
 export const RUTA_RECURSOS_EXCALIDRAW = "/excalidraw-assets/";
+
+/**
+ * Qué se puede embeber en un dibujo (`DEF-167`): solo videos de YouTube y Vimeo
+ * (`lib/excalidrawEmbebibles.ts`). Va en **toda** instancia de `<Excalidraw>`.
+ *
+ * - `validateEmbeddable` decide qué recuadros web se muestran; lo demás queda
+ *   como el recuadro con el enlace escrito, sin contenido.
+ * - `renderEmbeddable` repite la comprobación al dibujar cada recuadro: si la
+ *   dirección no es de la lista, pone un recuadro vacío en lugar del de
+ *   Excalidraw, sea cual sea el camino por el que llegó a validarse.
+ */
+export const PROPS_EMBEBIBLES = {
+  validateEmbeddable: esEmbebiblePermitido,
+  renderEmbeddable: (el: { link: string | null }) =>
+    esEmbebiblePermitido(el.link) ? null : createElement("div"),
+};
 
 declare global {
   interface Window {
@@ -115,7 +133,7 @@ export async function leerEscena(contenido: string): Promise<LecturaEscena> {
   const { restoreElements } = await cargarExcalidraw();
   let elementos: readonly unknown[];
   try {
-    elementos = restoreElements(crudo.elements as never, null);
+    elementos = sinContenidoGenerado(restoreElements(crudo.elements as never, null));
   } catch (e) {
     return { ilegible: `Excalidraw no pudo reconstruir el dibujo: ${motivoDeExcepcion(e)}` };
   }
@@ -240,6 +258,8 @@ async function sceneToSvg(scene: ExcalidrawScene): Promise<SVGSVGElement> {
       exportBackground: false,
     } as never,
     files: (scene.files ?? null) as never,
+    // Los recuadros web salen como enlace, nunca con su contenido (`DEF-167`).
+    renderEmbeddables: false,
   });
 }
 
