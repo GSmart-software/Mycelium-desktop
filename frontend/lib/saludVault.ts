@@ -19,6 +19,9 @@ import {
   filasDelIndice,
   notasConValorAlmohadilla,
   notasDelIndice,
+  type CarpetaIndice,
+  type FilaIndice,
+  type NotaIndice,
 } from "@/lib/db/indiceIa";
 import { notasQueNoCumplen } from "@/lib/esquemas";
 import { asegurarEsquemas } from "@/lib/esquemasVault";
@@ -34,8 +37,28 @@ import {
 } from "@/lib/salud";
 import { useVaultStore } from "@/stores/vaultStore";
 
-export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Promise<InformeSalud> {
+/** Lo que el informe lee del índice: notas, carpetas y filas de `enlaces`. */
+export type DatosDelIndice = { notas: NotaIndice[]; carpetas: CarpetaIndice[]; filas: FilaIndice[] };
+
+/** Las tres lecturas sin contenido del informe (las reusa la revisión de `FUN-L-32`). */
+export async function datosDelIndice(): Promise<DatosDelIndice> {
   const [notas, carpetas, filas] = await Promise.all([notasDelIndice(), carpetasDelIndice(), filasDelIndice()]);
+  return { notas, carpetas, filas };
+}
+
+export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Promise<InformeSalud> {
+  return informeConDatos(await datosDelIndice(), alcance);
+}
+
+/**
+ * El informe sobre datos ya leídos. La revisión del dashboard
+ * (`lib/estadisticasVault.ts`) lee una vez y arma con lo mismo el informe y las
+ * estadísticas: por eso sus huérfanas y rotos son los de `mycelium_salud`.
+ */
+export async function informeConDatos(
+  { notas, carpetas, filas }: DatosDelIndice,
+  alcance: Alcance = { tipo: "vault" },
+): Promise<InformeSalud> {
   const informe = calcularSalud({
     notas,
     carpetas,

@@ -46,6 +46,10 @@ pub struct ArchivoMeta {
     /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"canvas"` para
     /// `.canvas`, `"drawio"` para `.drawio`, `"markdown"` para el resto.
     pub tipo: String,
+    /// Tamaño en bytes (`FUN-L-32`): el peso de cada archivo en el dashboard de
+    /// salud. Sale del MISMO `metadata()` que ya se pedía para el `mtime`, así
+    /// que no agrega llamadas al disco; solo unos bytes de JSON por archivo.
+    pub bytes: u64,
 }
 
 /// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
@@ -253,11 +257,11 @@ pub(crate) fn recorrer_todo(
         if es_temporal(&entrada.file_name().to_string_lossy()) {
             continue;
         }
-        let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
+        let (mtime, bytes) = entrada.metadata().map(|m| (mtime_ms(&m), m.len())).unwrap_or((0, 0));
         if es_importable(&ruta) {
-            out.archivos_meta.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta) });
+            out.archivos_meta.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta), bytes });
         } else {
-            out.otros.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: extension_de(&ruta) });
+            out.otros.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: extension_de(&ruta), bytes });
         }
     }
     Ok(())

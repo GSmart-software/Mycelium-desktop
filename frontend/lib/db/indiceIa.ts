@@ -110,3 +110,59 @@ export async function notasConValorAlmohadilla(): Promise<string[]> {
   );
   return filas.map((f) => f.nota_id);
 }
+
+// ── Estadísticas del dashboard de salud (`FUN-L-32`) ────────────────────────
+
+/**
+ * `creado_en` de cada nota fuera de la papelera: el crecimiento por mes. Es la
+ * fecha en que el índice vio la nota por primera vez, no la del archivo (ver
+ * `Crecimiento.confiable` en `lib/estadisticas.ts`). Una sentencia, sin contenido.
+ */
+export async function fechasDeCreacion(): Promise<{ id: string; creadoEn: string }[]> {
+  const filas = await select<{ id: string; creado_en: string }>(
+    "SELECT id, creado_en FROM notas WHERE id NOT IN (SELECT nota_id FROM papelera)",
+  );
+  return filas.map((f) => ({ id: f.id, creadoEn: f.creado_en }));
+}
+
+/**
+ * Las etiquetas, agregadas en SQLite en una sola sentencia: cuántas distintas
+ * hay, cuántas notas tienen alguna y las `tope` más usadas. Distintas por
+ * `tag_plegado` —sin mayúsculas ni tildes, el criterio de la búsqueda `tag:`
+ * (`DEF-144`)—; se muestra la grafía más chica en orden binario de cada una.
+ * Cada etiqueta cuenta notas distintas (una nota con `#x` en el cuerpo y en
+ * `tags:` es una). `excluidas` son las notas fuera de la memoria (Esporas,
+ * instrucciones de agentes): sus etiquetas no cuentan.
+ *
+ * En la Tesina (4.131 filas, 815 etiquetas) devuelve 8 filas en vez de 4.131.
+ */
+export async function etiquetasDelIndice(
+  excluidas: readonly string[],
+  tope: number,
+): Promise<{ distintas: number; notasConEtiqueta: number; masUsadas: { etiqueta: string; notas: number }[] }> {
+  const filtro = `nota_id NOT IN (SELECT nota_id FROM papelera) AND nota_id NOT IN (SELECT value FROM json_each(?))`;
+  const filas = await select<{ etiqueta: string | null; notas: number | null; distintas: number; con_etiqueta: number }>(
+    `SELECT t.etiqueta, t.notas, t.distintas,
+            (SELECT COUNT(DISTINCT nota_id) FROM etiquetas WHERE ${filtro}) AS con_etiqueta
+       FROM (SELECT 1) AS uno
+       LEFT JOIN (
+         SELECT MIN(tag) AS etiqueta, COUNT(DISTINCT nota_id) AS notas, COUNT(*) OVER () AS distintas
+           FROM etiquetas WHERE ${filtro}
+          GROUP BY tag_plegado
+          ORDER BY notas DESC, etiqueta
+          LIMIT ?
+       ) AS t ON true`,
+    // `?` posicionales (ver `client.ts`): el filtro aparece dos veces.
+    [JSON.stringify(excluidas), JSON.stringify(excluidas), tope],
+  );
+  // El `LEFT JOIN` contra `(SELECT 1)` deja una fila aunque no haya etiquetas,
+  // para que `con_etiqueta` llegue igual en la misma sentencia.
+  const masUsadas = filas
+    .filter((f) => f.etiqueta !== null)
+    .map((f) => ({ etiqueta: f.etiqueta as string, notas: Number(f.notas) }));
+  return {
+    distintas: masUsadas.length > 0 ? Number(filas[0].distintas) : 0,
+    notasConEtiqueta: Number(filas[0]?.con_etiqueta ?? 0),
+    masUsadas,
+  };
+}
