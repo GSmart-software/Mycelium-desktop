@@ -110,7 +110,12 @@ function WorkspaceShell() {
   const searchParams = useSearchParams();
   const activeNoteId = searchParams.get("note");
 
-  const { activeSection, leftWidth, toggleLeft } = usePanelLayoutStore();
+  // Un selector por campo (`FUN-M-58`, A-H8): con el store entero, cada
+  // `setRightWidth` —uno por `pointermove` al redimensionar el panel de la
+  // nota— volvía a dibujar el shell y todo lo que cuelga de él.
+  const activeSection = usePanelLayoutStore((s) => s.activeSection);
+  const leftWidth = usePanelLayoutStore((s) => s.leftWidth);
+  const toggleLeft = usePanelLayoutStore((s) => s.toggleLeft);
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);

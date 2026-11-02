@@ -25,13 +25,21 @@ export const useSyncStore = create<SyncStoreState>((set) => ({
   byNota: {},
   guardadoEn: {},
   palabras: {},
+  // Sin cambio, sin estado nuevo (`FUN-M-58`, A-H6): el editor publica
+  // «local» en CADA tecla, y un `byNota` nuevo con el mismo valor hacía que
+  // todo suscriptor volviera a dibujarse —50 renders de la barra de pestañas en
+  // 50 teclas, por pane—. Devolver `s` hace que zustand no notifique a nadie.
   setSyncState: (notaId, state) =>
-    set((s) => ({
-      byNota: { ...s.byNota, [notaId]: state },
-      ...(state === "synced" && s.byNota[notaId] === "syncing"
-        ? { guardadoEn: { ...s.guardadoEn, [notaId]: Date.now() } }
-        : {}),
-    })),
+    set((s) =>
+      s.byNota[notaId] === state
+        ? s
+        : {
+            byNota: { ...s.byNota, [notaId]: state },
+            ...(state === "synced" && s.byNota[notaId] === "syncing"
+              ? { guardadoEn: { ...s.guardadoEn, [notaId]: Date.now() } }
+              : {}),
+          },
+    ),
   setPalabras: (notaId, n) =>
     set((s) => (s.palabras[notaId] === n ? s : { palabras: { ...s.palabras, [notaId]: n } })),
 }));

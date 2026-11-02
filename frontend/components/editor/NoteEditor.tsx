@@ -82,7 +82,7 @@ import { crearNotaDeEnlaceRoto } from "@/lib/crearDesdeEnlace";
 import { EVENTO_NOTA_GUARDADA, type DetalleNotaGuardada } from "@/lib/eventos";
 import type { PutContenidoResponse } from "@/lib/db/types";
 import { renderNota } from "@/lib/markdown";
-import { clasesCssDe } from "@/lib/frontmatter";
+import { bloqueFrontmatter, clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { itemsEstadosTarea } from "@/components/editor/MenuEstadosTarea";
@@ -108,6 +108,27 @@ const MODES: EditorMode[] = ["live", "split", "read", "raw"];
 const SYNC_INTERVAL_MS = 10_000; // guardado periódico al disco (HU-04 CA8)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
+/**
+ * Tope de la espera por un momento ocioso para contar las palabras. Contar
+ * cuesta 11–19 ms en una nota grande (`FUN-M-58`, A-H9): se hace cuando el
+ * navegador no tiene nada más que hacer, pero sin dejar la barra con un número
+ * viejo por mucho más que la pausa.
+ */
+const PALABRAS_IDLE_MAX_MS = 1000;
+
+/**
+ * Corre `fn` en el próximo momento ocioso (o a lo sumo en `maxMs`). WebKit
+ * —macOS y Linux— no tiene `requestIdleCallback`: ahí, un `setTimeout`. Devuelve
+ * con qué cancelarlo.
+ */
+function cuandoOcioso(fn: () => void, maxMs: number): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout: maxMs });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 0);
+  return () => clearTimeout(id);
+}
 
 /** Textos que CodeMirror genera por su cuenta —tooltips, anuncios para lectores
  *  de pantalla— y que salían en inglés en una interfaz en español. Son todas
@@ -382,6 +403,9 @@ export function NoteEditor({
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
   const palabrasTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelarPalabrasOcioso = useRef<(() => void) | null>(null);
+  // El frontmatter con el que se calcularon `clasesNota` (ver el updateListener).
+  const frontmatterClasesRef = useRef<string | null>(null);
 
   const modeRef = useRef(mode);
   // El id de la nota, por referencia. Renombrar en modo carpeta CAMBIA el id
@@ -788,14 +812,27 @@ export function NoteEditor({
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
-              setClasesNota(clasesCssDe(doc).join(" ")); // `FUN-S-08`
+              // `FUN-S-08`. Las clases salen solo del frontmatter: si su texto
+              // no cambió, tampoco ellas, y no se vuelven a leer (`FUN-M-58`,
+              // A-H9: leerlas partía la nota entera, hasta 1,2 ms por tecla).
+              const frontmatter = bloqueFrontmatter(doc);
+              if (frontmatter !== frontmatterClasesRef.current) {
+                frontmatterClasesRef.current = frontmatter;
+                setClasesNota(clasesCssDe(frontmatter).join(" "));
+              }
               // Palabras para la barra de estado: también cuando el cambio vino
-              // de otra instancia o de disco (carga inicial incluida).
+              // de otra instancia o de disco (carga inicial incluida). Tras la
+              // pausa y en un momento ocioso (ver `PALABRAS_IDLE_MAX_MS`), con el
+              // texto de ESE momento: una tecla nueva cancela el conteo viejo.
               if (palabrasTimer.current) clearTimeout(palabrasTimer.current);
-              palabrasTimer.current = setTimeout(
-                () => useSyncStore.getState().setPalabras(notaId, contarPalabras(doc)),
-                PALABRAS_DEBOUNCE_MS,
-              );
+              cancelarPalabrasOcioso.current?.();
+              cancelarPalabrasOcioso.current = null;
+              palabrasTimer.current = setTimeout(() => {
+                cancelarPalabrasOcioso.current = cuandoOcioso(() => {
+                  cancelarPalabrasOcioso.current = null;
+                  useSyncStore.getState().setPalabras(notaId, contarPalabras(doc));
+                }, PALABRAS_IDLE_MAX_MS);
+              }, PALABRAS_DEBOUNCE_MS);
               if (brokerApplyRef.current) {
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
@@ -877,7 +914,8 @@ export function NoteEditor({
       }
 
       setPreviewHtml(renderNota(content, true));
-      setClasesNota(clasesCssDe(content).join(" ")); // `FUN-S-08`
+      frontmatterClasesRef.current = bloqueFrontmatter(content);
+      setClasesNota(clasesCssDe(frontmatterClasesRef.current).join(" ")); // `FUN-S-08`
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendiente = takePendingMatch(notaId);

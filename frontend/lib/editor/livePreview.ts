@@ -304,6 +304,36 @@ function limitesTabla(state: EditorState, pos: number): [number, number] | null 
 }
 
 /**
+ * Los bloques de @lezer/markdown (+ GFM y nuestras tareas) que nunca contienen
+ * una tabla: son HOJAS —su contenido es texto en línea o código—. Una tabla es
+ * a su vez una hoja que cuelga del documento o de un contenedor (cita, lista,
+ * ítem; los callouts son citas). Recorrer el árbol entero para hallar tablas
+ * entraba en cada nodo en línea de cada párrafo (`FUN-M-58`, A-H4: 5,8 ms por
+ * tecla en una nota de 443 KB, 0,65 ms en una de 135 KB); sin bajar a estas
+ * hojas, 2,25 y 0,20 ms, con las mismas tablas. Es una lista de lo que se
+ * SALTA, no de lo que se recorre: un contenedor nuevo se sigue recorriendo.
+ */
+const HOJAS_SIN_TABLA = new Set([
+  "Paragraph",
+  "Task",
+  "ATXHeading1",
+  "ATXHeading2",
+  "ATXHeading3",
+  "ATXHeading4",
+  "ATXHeading5",
+  "ATXHeading6",
+  "SetextHeading1",
+  "SetextHeading2",
+  "FencedCode",
+  "CodeBlock",
+  "HTMLBlock",
+  "HorizontalRule",
+  "LinkReference",
+  "CommentBlock",
+  "ProcessingInstructionBlock",
+]);
+
+/**
  * Calcula las tablas a renderizar como bloque. Las decoraciones de bloque DEBEN
  * venir de un StateField (un ViewPlugin rompe el layout de CodeMirror).
  *
@@ -321,7 +351,7 @@ function computeTables(state: EditorState, crudo: number | null): TableState {
   const doc = state.doc;
   syntaxTree(state).iterate({
     enter(node) {
-      if (node.name !== "Table") return undefined;
+      if (node.name !== "Table") return HOJAS_SIN_TABLA.has(node.name) ? false : undefined;
       const startLine = doc.lineAt(node.from);
       const endLine = doc.lineAt(node.to);
       // La que se edita como texto no se decora NI se reserva: ahí el resto del
