@@ -17,28 +17,65 @@ Saber qué hay en cada zona te ahorra buscar: casi todo está a un clic o a una 
 1. **Barra superior**: el nombre del vault (abre otro vault), el campo **Ir a una nota o
    comando…** (**Ctrl+O**) y, a la derecha, **Salir del vault**.
 2. **Rail**: cada ícono abre su panel lateral —**Explorador**, **Búsqueda global**,
-   **Esporas**, **Calendario**, **Consolas**, **Actividad de la IA** y, abajo,
+   **Esporas**, **Calendario**, **Salud del vault**, **Consolas**, **Actividad de la IA** y, abajo,
    **Papelera**—; un segundo clic en el mismo ícono lo cierra. **Grafo de conexiones**
    abre el grafo como pestaña y el engranaje abre **Configuración** (**Ctrl+,**). Al pie de
-   Configuración están la versión que tenés y **Licencias de terceros**, los avisos de
+   Configuración están la versión que tienes y **Licencias de terceros**, los avisos de
    licencia del software y las fuentes de otros autores que trae Mycelium.
-3. **Área de trabajo**: cada archivo se abre en una pestaña. Arrastrá una pestaña al borde
-   de otro panel para dividir la vista, o usá el menú **⋯** de la barra de pestañas:
+3. **Área de trabajo**: cada archivo se abre en una pestaña. Arrastra una pestaña al borde
+   de otro panel para dividir la vista, o usa el menú **⋯** de la barra de pestañas:
    **Dividir a la derecha** o **Dividir hacia abajo**.
+
+## Dividir la vista
+
+Arrastrar una pestaña al borde de un panel la **mueve** a un panel nuevo. **Dividir a la
+derecha** y **Dividir hacia abajo**, en cambio, muestran el **mismo archivo a los dos
+lados**: cada lado tiene su propia posición y su propia vista (en vivo, lectura…), y lo que
+se escribe en uno aparece al instante en el otro. Sirve para leer una parte de una nota
+larga mientras se edita otra.
+
+Las notas y las bases se muestran a los dos lados. Los lienzos, los dibujos de Excalidraw,
+los diagramas de draw.io, los archivos del visor, las consolas, el grafo, las referencias
+y el calendario se **mueven** al panel nuevo (salvo que sean la única pestaña del panel):
+dos copias abiertas a la vez no se enterarían de lo que guarda la otra, y una consola tiene
+una sola sesión.
+
+## El menú del explorador
+
+El clic derecho sobre una nota (o un lienzo, una base, un dibujo, un diagrama) ofrece:
+
+| Opción | Qué hace |
+|---|---|
+| **Abrir al lado** | Abre el archivo en un panel nuevo a la derecha del activo. |
+| **Renombrar** · **Duplicar** | Cambia el nombre, o crea una copia en la misma carpeta. |
+| **Mover a…** | Abre un buscador de carpetas: se escribe parte del nombre, se elige con **↑**/**↓** y **Enter**. Los enlaces que llegaban a la nota se actualizan solos. |
+| **Copiar enlace** | Copia el `[[enlace]]` a la nota, listo para pegar en otra. Si hay otra nota con el mismo nombre, lleva la carpeta (`[[Proyectos/Plan]]`); un lienzo, una base, un dibujo o un diagrama llevan su extensión (`[[Mapa.canvas]]`). |
+| **Exportar como .md** · **Exportar como PDF…** | Guarda una copia fuera del vault. |
+| **Mostrar en el explorador** | Abre la carpeta del archivo en el explorador del sistema. |
+| **Eliminar** | Manda el archivo a la papelera de Mycelium, con **Deshacer** en el aviso. |
+
+Sobre una carpeta, el menú también tiene **Mover a…**, que la lleva con todo lo que
+contiene y actualiza los enlaces. Arrastrar en el árbol hace lo mismo.
 
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas
-ancladas: arrastrá ahí una pestaña del área de trabajo para tenerla siempre a mano, al
+ancladas: arrastra ahí una pestaña del área de trabajo para tenerla siempre a mano, al
 lado de lo que estés editando. **Ctrl+\\** lo oculta y lo vuelve a mostrar.
 
 ## Pestañas
 
 Un archivo nuevo se abre en una pestaña de **vista previa**, con el nombre en cursiva: si
-abrís otro sin tocarla, lo reemplaza. Al editarla o con **doble clic** sobre la pestaña,
-queda fija. Si preferís que cada archivo abra su propia pestaña, apagá **Pestañas de
+abres otro sin tocarla, lo reemplaza. Al editarla o con **doble clic** sobre la pestaña,
+queda fija. Si prefieres que cada archivo abra su propia pestaña, apaga **Pestañas de
 previsualización** en **Configuración → Editor**. Las flechas **Atrás** y **Adelante** de
 la barra de pestañas recorren lo que se abrió en esa pestaña.
+
+Una pestaña abierta desde un enlace (**Ctrl+clic** o clic con la rueda sobre el enlace)
+conserva el historial de la pestaña de origen: **Atrás** en la pestaña nueva vuelve a la
+nota desde la que se siguió el enlace. Lo mismo vale para el clic con la rueda sobre las
+flechas **Atrás** y **Adelante**: el documento de ese paso se abre en una pestaña nueva que
+puede seguir yendo atrás y adelante.
 
 Al abrir una nota —desde un enlace, la búsqueda, **Ctrl+O** o el explorador—, el
 explorador despliega las carpetas que llevan a ella y la muestra. Volver a una pestaña que
@@ -53,7 +90,7 @@ pestañas:
 | Pestaña | Qué muestra |
 |---|---|
 | **PROPIEDADES** | Las [propiedades](ayuda:escribir-notas/propiedades) de la nota, editables. |
-| **GRAFO** | Un grafo chico con la nota en el centro, lo que enlaza y lo que la enlaza. |
+| **GRAFO** | Un grafo pequeño con la nota en el centro, lo que enlaza y lo que la enlaza. |
 | **SALIENTES** | Las notas a las que esta enlaza. |
 | **RETRO** | Las notas que enlazan a esta, con el fragmento donde la citan. |
 

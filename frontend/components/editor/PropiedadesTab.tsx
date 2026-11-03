@@ -24,6 +24,8 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { mensajeDeError } from "@/lib/mensajeError";
+import { avisosDeClave, textoDeAviso, type AvisoPropiedad } from "@/lib/esquemas";
+import { avisosDeNota, useEsquemas } from "@/lib/esquemasVault";
 import styles from "./NotePanel.module.css";
 
 /**
@@ -168,6 +170,10 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
   }, [vaultId, notaId]);
 
   const fm = useMemo(() => separarFrontmatter(texto), [texto]);
+  // Avisos de esquemas y del `#` sin comillas (`FUN-M-46`): en vivo con el texto
+  // del editor; `esquemas` cambia cuando se relee `esquemas.yml`.
+  const esquemas = useEsquemas();
+  const avisos = useMemo(() => avisosDeNota(notaId, texto), [notaId, texto, esquemas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Aplica una transformación del texto como UNA transacción del editor. */
   const aplicar = useCallback(
@@ -257,13 +263,23 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
         <div className={styles.propsAviso}>
           <p>
             Mycelium no interpreta este frontmatter: {fm.motivo}. Se muestra tal cual y no se
-            edita desde acá, para no reformatear tus metadatos.
+            edita desde aquí, para no reformatear tus metadatos.
           </p>
           <pre className={styles.propsCrudo}>{fm.crudo}</pre>
         </div>
       )}
 
       {error && <p className={styles.propsError}>{error}</p>}
+
+      {avisos.length > 0 && (
+        <ul className={styles.propsAvisos} aria-label="Avisos de las propiedades">
+          {avisos.map((a, i) => (
+            <li key={`${a.linea}-${a.clase}-${i}`} className={styles.propsAvisoItem} data-clase={a.clase}>
+              {textoDeAviso(a)}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {!soloLectura && props.length === 0 && (
         <p className={styles.empty}>Esta nota todavía no tiene propiedades.</p>
@@ -274,6 +290,7 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
           <FilaPropiedad
             key={p.clave}
             p={p}
+            avisos={avisosDeClave(avisos, p.clave)}
             onCambiar={cambiar}
             onRenombrar={(clave, nueva) => aplicar((t) => renombrarPropiedad(t, clave, nueva))}
             onQuitar={(clave) => aplicar((t) => quitarPropiedad(t, clave))}
@@ -344,11 +361,14 @@ export function PropiedadesTab({ notaId, paneId }: { notaId: string; paneId: str
  */
 function FilaPropiedad({
   p,
+  avisos,
   onCambiar,
   onRenombrar,
   onQuitar,
 }: {
   p: Propiedad;
+  /** Los avisos de esta propiedad (`FUN-M-46`), para marcar la fila. */
+  avisos: AvisoPropiedad[];
   onCambiar: (clave: string, valor: ValorPropiedad, tipo: TipoPropiedad) => void;
   onRenombrar: (clave: string, nueva: string) => void;
   onQuitar: (clave: string) => void;
@@ -393,8 +413,12 @@ function FilaPropiedad({
     itemRef.current?.focus();
   };
 
+  const avisoTexto = avisos.map(textoDeAviso).join("\n");
   return (
-    <div className={styles.prop}>
+    <div
+      className={`${styles.prop} ${avisos.length > 0 ? styles.propConAviso : ""}`}
+      title={avisoTexto || undefined}
+    >
       <div className={styles.propCabecera}>
         {/* El tipo se CAMBIA acá (`DEF-070`). Era un ícono decorativo, y para
             pasar de texto a fecha había que borrar la propiedad y rehacerla,

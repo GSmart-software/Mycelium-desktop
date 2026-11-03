@@ -4,17 +4,20 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod bienvenida;
 mod config_local;
 mod control;
 mod devtools;
 mod dialogos;
 mod diccionarios;
+mod drawio_origen;
 mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
 mod prefs_vault;
 mod recordatorios;
+mod reposo;
 mod terminal;
 mod vault_config;
 mod vault_fs;
@@ -132,6 +135,10 @@ pub fn run() {
         }));
     }
 
+    // draw.io se sirve desde su propio origen (`drawio`), no desde el de la app;
+    // la app le habla solo por `postMessage` (`DEF-168`, `drawio_origen.rs`).
+    builder = drawio_origen::registrar(builder);
+
     builder
         // SQLite para el índice de cada vault (`index-<hash>.db` en el app-data).
         // Sin migraciones: el frontend crea el esquema con `CREATE TABLE IF NOT
@@ -173,6 +180,8 @@ pub fn run() {
         // quedaría marcado como abierto para siempre —no se podría reabrir en
         // ninguna ventana— y sus shells seguirían vivas sin nadie que las lea.
         .on_window_event(|ventana, evento| {
+            // Minimizada, el WebView2 deja de dibujar (`DEF-174`).
+            reposo::al_evento(ventana, evento);
             if matches!(evento, tauri::WindowEvent::Destroyed) {
                 ventanas::al_cerrar(ventana.app_handle(), ventana.label());
             }
@@ -209,10 +218,12 @@ pub fn run() {
             control::mcp_control_encender,
             control::mcp_control_apagar,
             control::mcp_responder,
+            control::mcp_sesiones,
             control::mcp_ruta_binario,
             control::mcp_config_borrar,
             prefs_vault::leer_estado_vault,
             prefs_vault::escribir_estado_vault,
+            prefs_vault::agregar_estado_vault,
             prefs_vault::borrar_estado_vault,
             diccionarios::diccionarios_manifiesto,
             diccionarios::diccionarios_listar,
@@ -230,11 +241,13 @@ pub fn run() {
             dialogos::elegir_carpeta,
             dialogos::elegir_zip,
             indice::abrir_indice_vault,
+            indice::reconstruir_indice_vault,
             vault_config::desvincular_vault,
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
             vault_config::marcar_acceso,
             vault_fs::escribir_nota,
+            vault_fs::guardar_nota,
             vault_fs::mover_ruta,
             vault_fs::crear_directorio,
             vault_fs::copiar_archivo,

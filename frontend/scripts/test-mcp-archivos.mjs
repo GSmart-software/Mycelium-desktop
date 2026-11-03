@@ -56,8 +56,11 @@ const otros = [{ ruta: "docs/informe.pdf" }];
 test("renombrar: el nombre pasa por las reglas del título editable", () => {
   assert.deepEqual(arch.validarRenombrar({ objetivo: " Plan ", nombre: " Plan 2026 " }), {
     ok: true,
-    valor: { objetivo: "Plan", nombre: "Plan 2026" },
+    valor: { objetivo: "Plan", nombre: "Plan 2026", conservarAlias: false },
   });
+  // `FUN-M-47`: el nombre anterior como alias, solo si se pide y con un booleano.
+  assert.equal(arch.validarRenombrar({ objetivo: "Plan", nombre: "X", conservarAlias: true }).valor.conservarAlias, true);
+  assert.equal(arch.validarRenombrar({ objetivo: "Plan", nombre: "X", conservarAlias: "sí" }).error.datos.campo, "conservarAlias");
   for (const malo of ["a:b", "a/b", 'dijo "hola"', "x?", "CON", "termina.", ""]) {
     const v = arch.validarRenombrar({ objetivo: "Plan", nombre: malo });
     assert.equal(v.ok, false, malo);
@@ -163,7 +166,7 @@ test("el efecto dice cuántas notas y cuáles (hasta 10), y las que quedaron sin
   assert.equal(arch.efectoEnlaces([], []), "No había enlaces que reparar.");
   const doce = Array.from({ length: 12 }, (_, i) => `n${i}.md`);
   assert.match(arch.efectoEnlaces(doce, []), /en 12 notas: n0, n1, .* n9 y 2 más\.$/);
-  assert.match(arch.efectoEnlaces(["a.md"], ["b.md"]), /en 1 nota: a; una nota quedó con el enlace viejo .*b\.md.*arreglalas a mano\./);
+  assert.match(arch.efectoEnlaces(["a.md"], ["b.md"]), /en 1 nota: a; una nota quedó con el enlace viejo .*b\.md.*arréglalas a mano\./);
 });
 
 // ── Deshacer con el estado cambiado ─────────────────────────────────────────

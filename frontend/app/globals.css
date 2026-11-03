@@ -21,6 +21,17 @@ body.mic-redimensionando * {
   user-select: none !important;
 }
 
+/* La ventana que no se ve —minimizada u oculta— no anima nada
+   (`DEF-174`, `components/ventana/ReposoVentana.tsx`). Una animación infinita
+   obliga a componer cuadros sin parar; en pausa, no genera ninguno, y al volver
+   la ventana sigue desde donde quedó. Sin foco sí anima: puede estar a la vista
+   en otra pantalla. */
+:root[data-reposo] *,
+:root[data-reposo] *::before,
+:root[data-reposo] *::after {
+  animation-play-state: paused !important;
+}
+
 body {
   font-family: var(--mic-font-sans);
   font-size: 0.875rem;

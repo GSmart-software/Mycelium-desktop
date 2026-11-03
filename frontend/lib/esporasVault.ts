@@ -14,7 +14,7 @@ import {
   sustituirVariables,
   tituloNotaDesdeEspora,
 } from "@/lib/esporas";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { cuerpoDe, ponerPropiedad, separarFrontmatter } from "@/lib/frontmatter";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
@@ -55,13 +55,14 @@ export async function leerEspora(id: string): Promise<string> {
 }
 
 /**
- * Crea la carpeta de Esporas (y los ancestros que falten) si no existe. Se
- * verifica que cada tramo aparezca de verdad en el árbol: `createCarpeta`
- * desambigua con sufijo si el nombre está ocupado por un archivo, y en ese caso
- * es mejor avisar que dejar la carpeta configurada apuntando a la nada.
+ * Crea una carpeta del vault (y los ancestros que falten) si no existe, con
+ * `createCarpeta` del store, que indexa y actualiza el árbol. Se verifica que
+ * cada tramo aparezca de verdad en el árbol: `createCarpeta` desambigua con
+ * sufijo si el nombre está ocupado por un archivo, y en ese caso es mejor
+ * avisar que dejar la configuración apuntando a la nada. La usan las Esporas
+ * y el informe de salud (`FUN-L-32`).
  */
-export async function asegurarCarpetaEsporas(): Promise<string> {
-  const ruta = carpetaEsporas();
+export async function asegurarCarpeta(ruta: string): Promise<string> {
   let acumulado: string | null = null;
   for (const segmento of ruta.split("/")) {
     const id: string = acumulado ? `${acumulado}/${segmento}` : segmento;
@@ -76,6 +77,11 @@ export async function asegurarCarpetaEsporas(): Promise<string> {
     acumulado = id;
   }
   return ruta;
+}
+
+/** Crea la carpeta de Esporas (y los ancestros que falten) si no existe. */
+export async function asegurarCarpetaEsporas(): Promise<string> {
+  return asegurarCarpeta(carpetaEsporas());
 }
 
 /** Título de una nota a partir de su id (=ruta), por si el árbol aún no la trae. */

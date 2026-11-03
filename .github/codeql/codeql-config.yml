@@ -11,3 +11,6 @@ name: Mycelium desktop
 paths-ignore:
   - eval
   - frontend/scripts/test-*.mjs
+  # Los smokes también son tests: abren un navegador sin interfaz sobre archivos
+  # del repo y buscan texto en lo que se dibujó (sus regex no validan URLs).
+  - frontend/scripts/smoke-*.mjs

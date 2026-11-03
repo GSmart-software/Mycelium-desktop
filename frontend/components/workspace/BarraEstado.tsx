@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import type { ConteoConexionesDto } from "@/lib/db/grafo";
+import { nextDiagnostic } from "@codemirror/lint";
+import { resumenDiagnosticos } from "@/lib/diagnosticos";
+import { useDiagnosticos } from "@/lib/diagnosticosVault";
+import { getView } from "@/lib/editor/viewRegistry";
 import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -44,6 +49,8 @@ export function BarraEstado() {
   const estado = useSyncStore((s) => (notaId ? s.byNota[notaId] : undefined));
   const guardadoEn = useSyncStore((s) => (notaId ? s.guardadoEn[notaId] : undefined));
   const palabras = useSyncStore((s) => (notaId ? s.palabras[notaId] : undefined));
+  // Diagnósticos de la nota (`FUN-M-44`): solo si hay alguno.
+  const diagnosticos = useDiagnosticos(esNota ? notaId : null)?.diagnosticos ?? [];
 
   const [conteo, setConteo] = useState<Conteo | null>(null);
   const [revision, setRevision] = useState(0);
@@ -71,16 +78,19 @@ export function BarraEstado() {
       return;
     }
     let cancelado = false;
-    void api<{ nota: { actualizadoEn: string }; salientes: unknown[]; retro: unknown[] }>(
-      `/notas/${encodeURIComponent(notaId)}/conexiones`,
-      { token: useAuthStore.getState().accessToken },
-    )
+    // Solo los dos números y la fecha, en una consulta que no lee contenido
+    // (`FUN-M-58`). Antes se pedían las `conexiones` enteras —con el texto de
+    // cada nota que cita, para fragmentos que la barra no muestra— en cada
+    // guardado: hasta 1,7 MB cada 10 s en una nota muy citada.
+    void api<ConteoConexionesDto>(`/notas/${encodeURIComponent(notaId)}/conteo-conexiones`, {
+      token: useAuthStore.getState().accessToken,
+    })
       .then((c) => {
         if (cancelado) return;
-        const modificada = Date.parse(c.nota.actualizadoEn);
+        const modificada = Date.parse(c.actualizadoEn);
         setConteo({
-          salientes: c.salientes.length,
-          retro: c.retro.length,
+          salientes: c.salientes,
+          retro: c.retro,
           modificadaEn: Number.isNaN(modificada) ? null : modificada,
         });
       })
@@ -125,6 +135,21 @@ export function BarraEstado() {
               <IconoGrafo size={12} />
               {plural(conteo.salientes, "enlace", "enlaces")} ·{" "}
               {conteo.retro === 1 ? "1 te cita" : `${conteo.retro} te citan`}
+            </button>
+          )}
+          {diagnosticos.length > 0 && (
+            <button
+              type="button"
+              className={`${styles.item} ${styles.avisos}`}
+              title="Ir al siguiente aviso de la nota"
+              onClick={() => {
+                const view = getView(paneId);
+                if (!view) return;
+                nextDiagnostic(view);
+                view.focus();
+              }}
+            >
+              {resumenDiagnosticos(diagnosticos.length)}
             </button>
           )}
           {palabras !== undefined && (

@@ -4,6 +4,14 @@ import { useVaultStore } from "@/stores/vaultStore";
 import type { TreeNota } from "@/stores/vaultStore";
 import { diagnosticarExcalidraw, motivoDeExcepcion } from "@/lib/archivosIlegibles";
 import { sinRespaldoRemoto } from "@/lib/excalidrawFuentes";
+import {
+  bibliotecaSinContenidoGenerado,
+  esEmbebiblePermitido,
+  pegadoSinContenidoGenerado,
+  sinContenidoGenerado,
+  vigilarIframes,
+} from "@/lib/excalidrawEmbebibles";
+import { createElement } from "react";
 
 /**
  * Dibujos de Excalidraw (HU-16/HU-17). Un dibujo es **un archivo del vault**
@@ -33,6 +41,48 @@ export const IDIOMA_EXCALIDRAW = "es-ES";
  * `dev`/`build`) copiando `dist/prod/fonts/` del paquete a `public/`.
  */
 export const RUTA_RECURSOS_EXCALIDRAW = "/excalidraw-assets/";
+
+/**
+ * Qué se puede embeber en un dibujo (`DEF-167`): solo videos de YouTube y Vimeo
+ * (`lib/excalidrawEmbebibles.ts`). Va en **toda** instancia de `<Excalidraw>`,
+ * junto con `vigilarIframes` sobre su contenedor.
+ *
+ * - `validateEmbeddable` decide qué recuadros web se muestran; lo demás queda
+ *   como el recuadro con el enlace escrito, sin contenido.
+ * - `renderEmbeddable` repite la comprobación al dibujar cada recuadro: si la
+ *   dirección no es de la lista, pone un recuadro vacío en lugar del de
+ *   Excalidraw, sea cual sea el camino por el que llegó a validarse.
+ * - `onPaste` y `onLibraryChange` quitan el HTML guardado de los elementos
+ *   `iframe` que llegan por el portapapeles o a la biblioteca (al soltar o
+ *   importar un `.excalidrawlib`), como `leerEscena` con los del archivo.
+ *
+ * `obtenerApi` da la API imperativa del editor (puede no estar todavía).
+ */
+export function propsEmbebibles(obtenerApi: () => ApiBiblioteca | null) {
+  return {
+    validateEmbeddable: esEmbebiblePermitido,
+    renderEmbeddable: (el: { link: string | null }) =>
+      esEmbebiblePermitido(el.link) ? null : createElement("div"),
+    onPaste: pegadoSinContenidoGenerado,
+    onLibraryChange: (items: readonly { elements: readonly unknown[] }[]) => {
+      const limpios = bibliotecaSinContenidoGenerado(items);
+      if (limpios) void obtenerApi()?.updateLibrary({ libraryItems: limpios as never, merge: false });
+    },
+  };
+}
+
+/**
+ * `ref` del contenedor de `<Excalidraw>`: vigila sus iframes (`vigilarIframes`)
+ * mientras está montado. Es estable (una sola función), así React no la vuelve
+ * a llamar en cada render.
+ */
+export const refVigilarIframes = (nodo: HTMLElement | null) =>
+  nodo ? vigilarIframes(nodo) : undefined;
+
+/** Lo que `propsEmbebibles` necesita de la API imperativa de Excalidraw. */
+export type ApiBiblioteca = {
+  updateLibrary: (opts: { libraryItems: never; merge?: boolean }) => unknown;
+};
 
 declare global {
   interface Window {
@@ -65,7 +115,10 @@ export async function cargarExcalidraw(): Promise<typeof import("@excalidraw/exc
     window.EXCALIDRAW_ASSET_PATH = RUTA_RECURSOS_EXCALIDRAW;
     sinRespaldoRemoto();
   }
-  return import("@excalidraw/excalidraw");
+  // Con su hoja de estilos, que ya no va en el layout raíz (`FUN-M-58`). En
+  // paralelo: el paquete no espera a la hoja ni la hoja al paquete.
+  const [paquete] = await Promise.all([import("@excalidraw/excalidraw"), import("@/lib/excalidrawEstilos")]);
+  return paquete;
 }
 
 /** Escena .excalidraw mínima que persistimos (HU-16 CA4/CA5). */
@@ -115,7 +168,7 @@ export async function leerEscena(contenido: string): Promise<LecturaEscena> {
   const { restoreElements } = await cargarExcalidraw();
   let elementos: readonly unknown[];
   try {
-    elementos = restoreElements(crudo.elements as never, null);
+    elementos = sinContenidoGenerado(restoreElements(crudo.elements as never, null));
   } catch (e) {
     return { ilegible: `Excalidraw no pudo reconstruir el dibujo: ${motivoDeExcepcion(e)}` };
   }
@@ -240,6 +293,8 @@ async function sceneToSvg(scene: ExcalidrawScene): Promise<SVGSVGElement> {
       exportBackground: false,
     } as never,
     files: (scene.files ?? null) as never,
+    // Los recuadros web salen como enlace, nunca con su contenido (`DEF-167`).
+    renderEmbeddables: false,
   });
 }
 

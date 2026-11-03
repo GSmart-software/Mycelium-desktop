@@ -56,13 +56,13 @@ export function ArchivoIlegible({
       </p>
       <p className={styles.detalle}>
         El archivo no es un {formato} válido, así que no se abre el editor: lo que se dibujara
-        acá reemplazaría el contenido original. <strong>El archivo en disco no se tocó.</strong>
+        aquí reemplazaría el contenido original. <strong>El archivo en disco no se tocó.</strong>
       </p>
       <p className={styles.motivo}>{motivo}</p>
       <p className={styles.detalle}>
         {compacto
-          ? "Corregilo desde fuera de la app (o abriéndolo como texto desde el explorador) y tocá «Reintentar»."
-          : "Corregilo como texto o desde fuera de la app: cuando se guarde corregido, esta vista se recarga sola."}
+          ? "Corrígelo desde fuera de la app (o abriéndolo como texto desde el explorador) y toca «Reintentar»."
+          : "Corrígelo como texto o desde fuera de la app: cuando se guarde corregido, esta vista se recarga sola."}
       </p>
       <div className={styles.acciones}>
         {!compacto && (

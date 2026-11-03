@@ -52,7 +52,17 @@ const CLIENT = await fuente("../lib/db/client.ts", { "./errors": ERRORS });
 const UTIL = await fuente("../lib/db/util.ts");
 const CONTEXTO = await fuente("../lib/db/vaultContext.ts", { "./errors": ERRORS });
 const FTS = await fuente("../lib/db/ftsIndice.ts", { "./client": CLIENT });
+const EVENTOS = await fuente("../lib/eventos.ts");
+const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
+  "@/lib/frontmatter": FRONTMATTER,
+  "./client": CLIENT,
+  "./ftsIndice": FTS,
+  "./fts": await fuente("../lib/db/fts.ts"),
+  "./util": UTIL,
+});
 const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
@@ -60,14 +70,9 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./ftsIndice": FTS,
   "./util": UTIL,
 });
-const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
-  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
-  "@/lib/frontmatter": FRONTMATTER,
-  "./client": CLIENT,
-  "./fts": await fuente("../lib/db/fts.ts"),
-  "./util": UTIL,
-});
 const INDEXER = await fuente("../lib/db/indexer.ts", {
+  "@/lib/eventos": EVENTOS,
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
     "@tauri-apps/api/core": TAURI,
@@ -348,5 +353,40 @@ test("indexar a demanda una nota que el árbol ya muestra y el índice no", { sk
   // Lo que no está en disco no se inventa.
   assert.equal(await indexer.indexarNotaADemanda("C:/vault", "No/existe.md", "markdown"), false);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM notas WHERE id = 'No/existe.md'").get().n, 0);
+  client.setExecutor(null);
+});
+
+test("`estructural` (FUN-M-58): solo si entró o salió del índice una nota o una carpeta", { skip: sinSqlite }, async () => {
+  const disco = vaultEnMemoria(VAULT);
+  await abrir(disco);
+  // Directo, sin comparar con el completo: acá importa qué dice, y la carpeta
+  // que queda vacía al borrar su única nota el disco de mentira no la conserva.
+  const r = (cambios) => indexer.indexarRutas("C:/vault", cambios);
+  // Contenido de una nota que ya estaba, incluidos sus alias y sus enlaces: el
+  // árbol no cambia (título y carpeta salen de la ruta; los alias, por evento).
+  assert.equal((await r([disco.escribir("Idea.md", "---\naliases: [Ocurrencia]\n---\nCon [[Plan]]")])).estructural, false);
+  // Un archivo que no es nota en una carpeta que ya existe.
+  assert.equal((await r([disco.escribir("Area/otra.png", "png")])).estructural, false);
+  // Una carpeta que ya existe.
+  assert.equal((await r([{ ruta: "Area", mtime: 0, estado: "carpeta", tipo: "" }])).estructural, false);
+  // Una nota nueva en una carpeta que existe.
+  assert.equal((await r([disco.escribir("Area/Notas/tres.md", "nueva")])).estructural, true);
+  // Un archivo que no es nota en una carpeta nueva.
+  assert.equal((await r([disco.escribir("Nueva/doc.pdf", "%PDF")])).estructural, true);
+  // Una carpeta vacía nueva.
+  disco.dirsVacios.add("Vacia");
+  assert.equal((await r([{ ruta: "Vacia", mtime: 0, estado: "carpeta", tipo: "" }])).estructural, true);
+  // Una nota borrada.
+  assert.equal((await r([disco.borrar("Otra/cuatro.md")])).estructural, true);
+  // Un renombre: el origen se va y el destino llega.
+  disco.borrar("Area/Notas/dos.md");
+  assert.equal(
+    (await r([{ ruta: "Area/Notas/dos.md", mtime: 0, estado: "ausente", tipo: "" }, disco.escribir("Area/Notas/Dos bis.md", "Ver [[uno]]")])).estructural,
+    true,
+  );
+  // Una carpeta borrada con su contenido.
+  assert.equal((await r([disco.borrar("Vacia")])).estructural, true);
+  // Algo que se fue y el índice no tenía (un archivo que no era nota).
+  assert.equal((await r([disco.borrar("Area/otra.png")])).estructural, false);
   client.setExecutor(null);
 });

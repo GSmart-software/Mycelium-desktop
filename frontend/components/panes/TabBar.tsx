@@ -3,11 +3,11 @@
 import { ArrowLeft, ArrowRight, MoreHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
+import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
-import { iconoDePestana, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
+import { iconoDePestana, seDuplicaAlDividir, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
 import { esTabTerminal, termIdDe } from "@/lib/terminalBase";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -15,16 +15,30 @@ import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import { allLeaves, useTabsStore, type LeafPane, type Tab } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useWheelHScroll } from "@/lib/useWheelHScroll";
+import { useShallow } from "zustand/react/shallow";
 import styles from "./panes.module.css";
 
 /** Tab bar de un pane (HU-25): pestañas con dot de sync, drag y menú "...". */
 export function TabBar({ pane }: { pane: LeafPane }) {
   const router = useRouter();
-  const store = useTabsStore();
+  // Selectores finos (`FUN-M-58`, A-H6). Con `useTabsStore()` y `byNota`
+  // enteros, la barra se volvía a dibujar con cualquier cambio de cualquier
+  // pestaña de cualquier pane: medido, 50 renders en 50 teclas, por pane.
+  // Las acciones del store son estables, así que se leen sin suscribirse; la
+  // barra sí depende del árbol de panes (el menú «Vincular como preview…») y
+  // de a dónde llevan atrás/adelante.
+  const store = useTabsStore.getState();
+  useTabsStore((s) => s.root);
+  const atras = useTabsStore((s) => s.destinoHistorial(pane.id, -1));
+  const adelante = useTabsStore((s) => s.destinoHistorial(pane.id, 1));
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const sesionesTerminal = useTerminalStore((s) => s.sesiones);
-  const syncByNota = useSyncStore((s) => s.byNota);
+  // Solo el estado de las notas de ESTE pane, comparado elemento a elemento:
+  // guardar o editar una nota que no está acá no dibuja esta barra.
+  const syncPorPestana = useSyncStore(
+    useShallow((s) => pane.tabs.map((t) => s.byNota[t.notaId] ?? "synced")),
+  );
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
@@ -107,24 +121,25 @@ export function TabBar({ pane }: { pane: LeafPane }) {
     return activa ? color : `color-mix(in srgb, ${color} 60%, transparent)`;
   }
 
-  // Historial de la pestaña activa de ESTE pane (DEF-040).
-  const atras = store.destinoHistorial(pane.id, -1);
-  const adelante = store.destinoHistorial(pane.id, 1);
+  // Historial de la pestaña activa de ESTE pane (DEF-040): `atras` y
+  // `adelante` se leen arriba, con selector.
 
   function navegar(delta: -1 | 1) {
-    store.navegarHistorial(pane.id, delta);
-    pushUrl();
+    // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
+    void navegarHistorialSinPerder(pane.id, delta).then((navego) => navego && pushUrl());
   }
 
   /**
    * Clic con la rueda en una flecha (`FUN-S-13`): el documento anterior o
    * siguiente se abre en una pestaña nueva en segundo plano, y la actual no se
    * mueve. Es la misma convención que la rueda sobre un archivo del explorador.
+   * La pestaña nueva se lleva la línea entera, parada en ese paso (`FUN-S-34`):
+   * desde ella se puede seguir yendo atrás y adelante.
    */
-  function abrirDestinoAparte(e: MouseEvent, destino: string | null) {
+  function abrirDestinoAparte(e: MouseEvent, delta: -1 | 1, destino: string | null) {
     if (e.button !== 1 || destino === null) return;
     e.preventDefault();
-    store.openNoteBackground(destino, pane.id);
+    store.abrirPasoAparte(pane.id, delta);
     pushUrl();
   }
 
@@ -157,6 +172,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const activeNota = activeNotaId
     ? notas.find((n) => n.id === activeNotaId) ?? null
     : null;
+  // «Dividir» muestra el mismo archivo en los dos lados si se puede (`FUN-S-35`).
+  const duplicarAlDividir =
+    activeNotaId !== undefined && seDuplicaAlDividir(activeNotaId, activeNota?.tipo);
 
   return (
     <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
@@ -171,7 +189,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           onClick={() => navegar(-1)}
           // Evita el auto-scroll del navegador al pulsar la rueda.
           onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-          onAuxClick={(e) => abrirDestinoAparte(e, atras)}
+          onAuxClick={(e) => abrirDestinoAparte(e, -1, atras)}
         >
           <ArrowLeft size={14} aria-hidden />
         </button>
@@ -184,14 +202,14 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           onClick={() => navegar(1)}
           // Evita el auto-scroll del navegador al pulsar la rueda.
           onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-          onAuxClick={(e) => abrirDestinoAparte(e, adelante)}
+          onAuxClick={(e) => abrirDestinoAparte(e, 1, adelante)}
         >
           <ArrowRight size={14} aria-hidden />
         </button>
       </div>
 
       {pane.tabs.map((tab, index) => {
-        const sync = syncByNota[tab.notaId] ?? "synced";
+        const sync = syncPorPestana[index] ?? "synced";
         const isActiveTab = tab.id === pane.activeTabId;
         const Icono = iconoDeTab(tab.notaId);
         const color = colorDeTab(tab.notaId, isActiveTab);
@@ -378,7 +396,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
-                    store.splitActivePane(pane.id, "right");
+                    store.splitActivePane(pane.id, "right", duplicarAlDividir);
                     pushUrl();
                     setMenuOpen(false);
                   }}
@@ -390,7 +408,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                   role="menuitem"
                   className={styles.tabMenuItem}
                   onClick={() => {
-                    store.splitActivePane(pane.id, "bottom");
+                    store.splitActivePane(pane.id, "bottom", duplicarAlDividir);
                     pushUrl();
                     setMenuOpen(false);
                   }}

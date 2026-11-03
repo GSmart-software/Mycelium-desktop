@@ -23,6 +23,7 @@
 //
 //   MYCELIUM_BETTER_SQLITE3=/ruta/a/node_modules/better-sqlite3 node --test scripts/test-indice-sin-contenido.mjs
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -66,7 +67,17 @@ const UTIL = await fuente("../lib/db/util.ts");
 const NOMBRES = await fuente("../lib/db/nombres.ts");
 const CONTEXTO = await fuente("../lib/db/vaultContext.ts", { "./errors": ERRORS });
 const FTS = await fuente("../lib/db/ftsIndice.ts", { "./client": CLIENT });
+const EVENTOS = await fuente("../lib/eventos.ts");
+const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
+  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
+  "@/lib/frontmatter": FRONTMATTER,
+  "./client": CLIENT,
+  "./ftsIndice": FTS,
+  "./fts": await fuente("../lib/db/fts.ts"),
+  "./util": UTIL,
+});
 const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/wikilinks": WIKILINKS,
   "./client": CLIENT,
@@ -74,14 +85,9 @@ const ENLACES_INDICE = await fuente("../lib/db/enlacesIndice.ts", {
   "./ftsIndice": FTS,
   "./util": UTIL,
 });
-const PROPIEDADES = await fuente("../lib/db/propiedades.ts", {
-  "@/lib/textoBuscable": await fuente("../lib/textoBuscable.ts", { "@/lib/canvas": await fuente("../lib/canvas.ts") }),
-  "@/lib/frontmatter": FRONTMATTER,
-  "./client": CLIENT,
-  "./fts": await fuente("../lib/db/fts.ts"),
-  "./util": UTIL,
-});
 const INDEXER = await fuente("../lib/db/indexer.ts", {
+  "@/lib/eventos": EVENTOS,
+  "./propiedades": PROPIEDADES,
   "@/lib/enlacesNota": ENLACES_NOTA,
   "@/lib/otrosArchivos": await fuente("../lib/otrosArchivos.ts", {
     "@tauri-apps/api/core": TAURI,
@@ -106,6 +112,8 @@ const VAULTFS = await fuente("../lib/db/vaultFs.ts", {
   "./util": UTIL,
 });
 const CONTENIDO = await fuente("../lib/db/contenido.ts", {
+  "@/lib/eventos": EVENTOS,
+  "./propiedades": PROPIEDADES,
   "@/lib/arbolVivo": await fuente("../lib/arbolVivo.ts"),
   "@/lib/conflictoExterno": await fuente("../lib/conflictoExterno.ts"),
   "./indexer": INDEXER,
@@ -157,6 +165,8 @@ function executorDe(db) {
   };
 }
 
+const sha256 = (texto) => createHash("sha256").update(Buffer.from(texto, "utf8")).digest("hex");
+
 const TIPO_POR_EXT = { md: "markdown", excalidraw: "excalidraw", base: "base", canvas: "canvas", drawio: "drawio" };
 
 /** Un vault en memoria detrás de los comandos Rust que usan los repos. */
@@ -192,6 +202,17 @@ function vaultEnMemoria(inicial) {
         archivos.set(a.rutaRel, a.contenido);
         mtimes.set(a.rutaRel, ++reloj);
         return reloj;
+      case "guardar_nota": {
+        // El criterio de `guardar_nota_en` (`vault_fs.rs`), con la misma huella.
+        const huella = sha256(a.contenido);
+        if (a.huellaEsperada !== null && archivos.has(a.rutaRel)) {
+          const disco = sha256(archivos.get(a.rutaRel));
+          if (disco !== a.huellaEsperada && disco !== huella) return { mtime: 0, conflicto: true, huella: null };
+        }
+        archivos.set(a.rutaRel, a.contenido);
+        mtimes.set(a.rutaRel, ++reloj);
+        return { mtime: reloj, conflicto: false, huella };
+      }
       default:
         throw new Error(`comando inesperado: ${cmd}`);
     }
@@ -368,5 +389,55 @@ test("abrir una nota que el explorador ya muestra y el índice todavía no la in
   // Lo que no está en disco sigue siendo «no existe».
   await assert.rejects(contenidoDb.getContenido("No/existe.md"), /no existe/);
   await assert.rejects(contenidoDb.getContenido("foto.png"), /no existe/);
+  client.setExecutor(null);
+});
+
+// `FUN-M-58`, B9: el guardado con base ya no trae el archivo al frontend para
+// compararlo (`leer_archivo_texto`): manda la huella y Rust decide. El
+// comportamiento es el de `DEF-138`: igual base → escribe; cambió afuera → 409
+// y no se escribe; ya tiene lo mismo → escribe; no existe → se recrea.
+test("guardar con base: el texto cruza una vez y el conflicto de DEF-138 se respeta (FUN-M-58, B9)", { skip: sinSqlite }, async () => {
+  const { db, disco } = await abrir();
+  const comandos = [];
+  const invocar = globalThis.__invoke;
+  globalThis.__invoke = (cmd, a) => (comandos.push(cmd), invocar(cmd, a));
+  const base = VAULT["Idea.md"];
+
+  // Nadie tocó el archivo: se escribe, sin leerlo antes.
+  await contenidoDb.putContenido("Idea.md", base + " Uno.", base);
+  assert.deepEqual(comandos, ["guardar_nota"], "un solo viaje con el texto, sin leer el archivo");
+  assert.equal(disco.archivos.get("Idea.md"), base + " Uno.");
+  assert.equal(contenidoEnIndice(db, "Idea.md"), base + " Uno.");
+
+  // El siguiente autoguardado parte de lo guardado (la huella sale de la memoria).
+  await contenidoDb.putContenido("Idea.md", base + " Uno. Dos.", base + " Uno.");
+  assert.equal(disco.archivos.get("Idea.md"), base + " Uno. Dos.");
+
+  // Cambió afuera: 409 y ni el archivo ni el índice cambian.
+  disco.tocar("Idea.md", "Lo escribió la IA.");
+  await assert.rejects(
+    contenidoDb.putContenido("Idea.md", base + " Uno. Dos. Tres.", base + " Uno. Dos."),
+    (e) => e.status === 409,
+  );
+  assert.equal(disco.archivos.get("Idea.md"), "Lo escribió la IA.");
+  assert.equal(contenidoEnIndice(db, "Idea.md"), base + " Uno. Dos.");
+
+  // El disco ya tiene lo que se iba a escribir: se escribe (no es conflicto).
+  await contenidoDb.putContenido("Idea.md", "Lo escribió la IA.", base + " Uno. Dos.");
+  // Forzado («Quedarme con lo mío»): sin base, escribe siempre.
+  disco.tocar("Idea.md", "Otra vez de afuera.");
+  await contenidoDb.putContenido("Idea.md", "Lo mío.");
+  assert.equal(disco.archivos.get("Idea.md"), "Lo mío.");
+  // Base desconocida (`null`): se escribe.
+  disco.tocar("Idea.md", "Y otra.");
+  await contenidoDb.putContenido("Idea.md", "Lo mío otra vez.", null);
+  assert.equal(disco.archivos.get("Idea.md"), "Lo mío otra vez.");
+  // El archivo ya no está: se recrea.
+  disco.archivos.delete("Idea.md");
+  await contenidoDb.putContenido("Idea.md", "Recreada.", "Lo mío otra vez.");
+  assert.equal(disco.archivos.get("Idea.md"), "Recreada.");
+
+  assert.ok(!comandos.includes("leer_archivo_texto"), "ningún guardado lee el archivo");
+  globalThis.__invoke = invocar;
   client.setExecutor(null);
 });

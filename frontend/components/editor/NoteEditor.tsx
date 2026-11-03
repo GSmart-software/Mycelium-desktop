@@ -18,14 +18,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { confirmar } from "@/lib/confirmar";
-import {
-  decidirAnteCambioExterno,
-  rutaDeCopiaDeEmergencia,
-  tituloDeCopiaLocal,
-} from "@/lib/conflictoExterno";
+import { decidirAnteCambioExterno, tituloDeCopiaLocal } from "@/lib/conflictoExterno";
+import { atarAPestanas, pestanaAbierta } from "@/lib/cachePestanas";
 import { olvidarConflicto, registrarConflicto } from "@/lib/conflictosAbiertos";
-import { escribirNota } from "@/lib/db/vaultFs";
-import { getVaultActual } from "@/lib/db/vaultContext";
 import { avisoTocaA } from "@/lib/recargaExterna";
 import { wrapSelection } from "@/lib/editor/commands";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
@@ -38,11 +33,14 @@ import {
   type Salto,
 } from "@/lib/editor/pendingMatch";
 import {
+  avisosPropiedades,
   carpetaDeLaNota,
   liveExtensions,
   refreshAllLiveViews,
 } from "@/lib/editor/livePreview";
 import { carpetaDeNota, rellenarImagenesEn } from "@/lib/imagenesRender";
+import { avisosDeNota } from "@/lib/esquemasVault";
+import { diagnosticosEditor } from "@/lib/editor/diagnosticosEditor";
 import { autoPairs } from "@/lib/editor/autoPairs";
 import {
   type DestinoTrasTitulo,
@@ -58,9 +56,9 @@ import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold
 import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
 import { extensionesTab } from "@/lib/editor/tabWidth";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
-import { exportDiagram, renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
+import { atenderClicEnEnlace, type DondeAbrir } from "@/lib/enlacesExternos";
+import { exportDiagram } from "@/lib/excalidraw";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
 import {
   olvidarGuardadoPendiente,
@@ -75,8 +73,11 @@ import {
   resolverReferencia,
 } from "@/lib/wikilinks";
 import { avisar, avisarFallo } from "@/stores/avisosStore";
-import { EVENTO_NOTA_GUARDADA } from "@/lib/eventos";
+import { crearNotaDeEnlaceRoto } from "@/lib/crearDesdeEnlace";
+import { EVENTO_NOTA_GUARDADA, type DetalleNotaGuardada } from "@/lib/eventos";
+import type { PutContenidoResponse } from "@/lib/db/types";
 import { renderNota } from "@/lib/markdown";
+import { bloqueFrontmatter, clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
 import { itemsEstadosTarea } from "@/components/editor/MenuEstadosTarea";
@@ -102,6 +103,27 @@ const MODES: EditorMode[] = ["live", "split", "read", "raw"];
 const SYNC_INTERVAL_MS = 10_000; // guardado periódico al disco (HU-04 CA8)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
+/**
+ * Tope de la espera por un momento ocioso para contar las palabras. Contar
+ * cuesta 11–19 ms en una nota grande (`FUN-M-58`, A-H9): se hace cuando el
+ * navegador no tiene nada más que hacer, pero sin dejar la barra con un número
+ * viejo por mucho más que la pausa.
+ */
+const PALABRAS_IDLE_MAX_MS = 1000;
+
+/**
+ * Corre `fn` en el próximo momento ocioso (o a lo sumo en `maxMs`). WebKit
+ * —macOS y Linux— no tiene `requestIdleCallback`: ahí, un `setTimeout`. Devuelve
+ * con qué cancelarlo.
+ */
+function cuandoOcioso(fn: () => void, maxMs: number): () => void {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(fn, { timeout: maxMs });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = setTimeout(fn, 0);
+  return () => clearTimeout(id);
+}
 
 /** Textos que CodeMirror genera por su cuenta —tooltips, anuncios para lectores
  *  de pantalla— y que salían en inglés en una interfaz en español. Son todas
@@ -133,8 +155,12 @@ const frasesEditor = EditorState.phrases.of({
  * 2. Al restaurar, CodeMirror reaplica el objetivo tras cada medición hasta que
  *    el height-map se estabiliza. Asignar `scrollTop` a mano no puede funcionar:
  *    al crear la vista solo está medido el viewport.
+ *
+ * Vive lo que la pestaña (`FUN-M-58`): `atarAPestanas` suelta la entrada al
+ * cerrarla o al navegar a otra nota (navegar le cambia el id), y al desmontar
+ * solo se guarda si la pestaña sigue abierta. Antes nunca se borraba nada.
  */
-const instanceCache = new Map<
+const instanceCache = atarAPestanas(new Map<
   string,
   {
     doc: string;
@@ -180,7 +206,7 @@ const instanceCache = new Map<
      */
     guardando: Promise<void> | null;
   }
->();
+>());
 
 /**
  * Traspaso de la posición de lectura entre modos (`DEF-055`), **por línea**.
@@ -364,11 +390,21 @@ export function NoteEditor({
     [notaId],
   );
   const [previewHtml, setPreviewHtml] = useState("");
+  // Las clases de la propiedad `cssclasses` (`FUN-S-08`), ya saneadas y unidas
+  // por espacios: van al contenedor de la edición y al de la lectura, para que
+  // un snippet pueda estilar esta nota. Se recalculan con cada cambio del
+  // documento —texto, no array, para que el `setState` sin cambios no
+  // re-renderice—, así que al quitar la propiedad o cambiar de nota no quedan
+  // pegadas: React reescribe el `className` entero.
+  const [clasesNota, setClasesNota] = useState("");
   // Archivo .excalidraw del vault que se edita en el modal embebido (HU-16).
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [diagMenu, setDiagMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
   const palabrasTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelarPalabrasOcioso = useRef<(() => void) | null>(null);
+  // El frontmatter con el que se calcularon `clasesNota` (ver el updateListener).
+  const frontmatterClasesRef = useRef<string | null>(null);
 
   const modeRef = useRef(mode);
   // El id de la nota, por referencia. Renombrar en modo carpeta CAMBIA el id
@@ -430,7 +466,7 @@ export function NoteEditor({
   }, []);
 
   const openByTitle = useCallback(
-    (title: string) => {
+    (title: string, donde: DondeAbrir = "aqui") => {
       // `[[#Encabezado]]`: un salto dentro de esta misma nota (`DEF-141`).
       if (esAnclaPropia(title)) {
         if (viewRef.current) saltar(viewRef.current, { ancla: title.trim().slice(1) });
@@ -439,17 +475,41 @@ export function NoteEditor({
       const { notas, carpetas } = useVaultStore.getState();
       // Acepta `título` o `Carpeta/título` para desambiguar homónimos, y el
       // ancla (`Nota#Encabezado`) no participa en encontrar la nota (`DEF-141`).
-      const { nota: target, ancla } = resolverReferencia(title, notas, carpetas);
-      if (!target) return;
+      const { nota: target, ancla, base } = resolverReferencia(title, notas, carpetas);
+      const abrir = (id: string, ancla: string | null) => {
+        if (donde !== "aqui") {
+          // Ctrl+clic o rueda: pestaña nueva que hereda el historial de esta,
+          // así «Atrás» en ella vuelve acá (`FUN-S-34`). En segundo plano no se
+          // toca la URL: la pestaña visible sigue siendo esta.
+          const foco = donde === "pestana";
+          useTabsStore
+            .getState()
+            .abrirEnPestanaNueva(id, { foco, origen: { paneId, tabId: instanceId } });
+          if (foco) router.replace(`/workspace?note=${id}`);
+        } else {
+          useTabsStore.getState().openNote(id);
+          router.replace(`/workspace?note=${id}`);
+        }
+        if (ancla) pedirSaltoAAncla(id, ancla);
+      };
+      if (!target) {
+        // Enlace roto: se crea la nota y se abre, como en Obsidian (`FUN-S-31`).
+        // Sin el ancla: `[[Nota#Sección]]` crea «Nota», que todavía no tiene
+        // ninguna sección a la que saltar.
+        void crearNotaDeEnlaceRoto(base)
+          .then((id) => {
+            if (id !== null) abrir(id, null);
+          })
+          .catch(avisarFallo(`crear la nota «${base}»`));
+        return;
+      }
       if (target.id === notaIdRef.current && ancla) {
         if (viewRef.current) saltar(viewRef.current, { ancla });
         return;
       }
-      useTabsStore.getState().openNote(target.id);
-      router.replace(`/workspace?note=${target.id}`);
-      if (ancla) pedirSaltoAAncla(target.id, ancla);
+      abrir(target.id, ancla);
     },
-    [router, saltar],
+    [router, saltar, paneId, instanceId],
   );
 
   // ¿Existe el archivo referenciado por un wikilink? (feedback de inexistencia).
@@ -484,7 +544,12 @@ export function NoteEditor({
     setConflicto(true);
     setSyncState("conflicto");
     // Para que cerrar la pestaña pregunte en vez de tirar lo del usuario.
-    registrarConflicto(instanceId, notaIdRef.current, () => guardarCopiaRef.current());
+    registrarConflicto(
+      instanceId,
+      notaIdRef.current,
+      () => guardarCopiaRef.current(),
+      () => contentRef.current,
+    );
   }, [setSyncState, instanceId]);
 
   const salirDeConflicto = useCallback(() => {
@@ -513,7 +578,7 @@ export function NoteEditor({
     // viaja se puede seguir escribiendo, y eso nuevo todavía no está en disco.
     const enviado = contentRef.current;
     try {
-      await api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
+      const guardado = await api<PutContenidoResponse>(`/notas/${encodeURIComponent(notaId)}/contenido`, {
         method: "PUT",
         token: useAuthStore.getState().accessToken,
         body: forzar ? { contenido: enviado } : { contenido: enviado, esperado: ultimoGuardadoRef.current },
@@ -535,12 +600,23 @@ export function NoteEditor({
       }
       dirtyRef.current = false;
       setSyncState("synced");
-      // El contenido (y por ende los [[enlaces]]) cambió → refrescar el grafo.
-      useGraphStore.getState().markStale();
+      // El grafo se refresca solo si cambiaron los [[enlaces]], las etiquetas o
+      // los alias (`FUN-M-58`). Antes se marcaba en cada guardado —cada 10 s
+      // mientras se escribe—, y con el grafo abierto eso era pedirlo entero y
+      // rehacer el lienzo (vacío y vuelta a aparecer) aunque nada hubiera cambiado.
+      if (guardado.enlacesCambiaron) useGraphStore.getState().markStale();
       // Y lo que muestre propiedades de muchas notas a la vez —un archivo tabla
       // abierto en otro panel— tiene que enterarse (`DEF-086`). El `PUT` ya
-      // reindexó las propiedades, así que lo que se lea ahora es lo nuevo.
-      window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: { notaId } }));
+      // reindexó las propiedades, así que lo que se lea ahora es lo nuevo. El
+      // detalle lleva lo que el panel de conexiones necesita para no volver a
+      // pedirlas cuando los enlaces no cambiaron (`DetalleNotaGuardada`).
+      const detalle: DetalleNotaGuardada = {
+        notaId,
+        enlacesCambiaron: guardado.enlacesCambiaron,
+        actualizadoEn: guardado.actualizadoEn,
+        tamanoBytes: guardado.tamanoBytes,
+      };
+      window.dispatchEvent(new CustomEvent(EVENTO_NOTA_GUARDADA, { detail: detalle }));
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -703,12 +779,21 @@ export function NoteEditor({
             // función estable que lee el id por referencia: la vista se crea una
             // vez y el facet no se reconfigura, así que no puede capturar el
             // `notaId` de este render — al renombrar, el id cambia.
-            renombrarPorTitulo.of((titulo) =>
-              useVaultStore.getState().renameNota(notaIdRef.current, titulo).then(() => {}),
+            renombrarPorTitulo.of((titulo, opciones) =>
+              useVaultStore
+                .getState()
+                .renameNota(notaIdRef.current, titulo, opciones)
+                .then(() => {}),
             ),
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
             carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
+            // Los avisos de la tarjeta de propiedades (`FUN-M-46`): esquemas de
+            // `esquemas.yml` y el `#` sin comillas. Por referencia, como arriba.
+            avisosPropiedades.of((texto) => avisosDeNota(notaIdRef.current, texto)),
+            // Los diagnósticos de la nota, como un linter (`FUN-M-44`): al abrir
+            // y al guardar, nunca en cada tecla. Por referencia, como arriba.
+            diagnosticosEditor(() => notaIdRef.current),
             // Adónde va el foco al confirmar o descartar el título (`DEF-139`).
             // A la vista VIVA (`viewRef`), no a la del widget: si se renombró, esa
             // ya está destruida y otra ocupa su lugar. Un frame de margen para que
@@ -721,7 +806,7 @@ export function NoteEditor({
               });
             }),
             EditorView.lineWrapping,
-            placeholder("Escribí tu nota…"),
+            placeholder("Escribe tu nota…"),
             liveCompartment.current.of(
               modeRef.current === "live" ? liveExtensions(openByTitle, noteExists, etiquetaDe) : [],
             ),
@@ -731,13 +816,27 @@ export function NoteEditor({
             EditorView.updateListener.of((update) => {
               if (!update.docChanged) return;
               const doc = update.state.doc.toString();
+              // `FUN-S-08`. Las clases salen solo del frontmatter: si su texto
+              // no cambió, tampoco ellas, y no se vuelven a leer (`FUN-M-58`,
+              // A-H9: leerlas partía la nota entera, hasta 1,2 ms por tecla).
+              const frontmatter = bloqueFrontmatter(doc);
+              if (frontmatter !== frontmatterClasesRef.current) {
+                frontmatterClasesRef.current = frontmatter;
+                setClasesNota(clasesCssDe(frontmatter).join(" "));
+              }
               // Palabras para la barra de estado: también cuando el cambio vino
-              // de otra instancia o de disco (carga inicial incluida).
+              // de otra instancia o de disco (carga inicial incluida). Tras la
+              // pausa y en un momento ocioso (ver `PALABRAS_IDLE_MAX_MS`), con el
+              // texto de ESE momento: una tecla nueva cancela el conteo viejo.
               if (palabrasTimer.current) clearTimeout(palabrasTimer.current);
-              palabrasTimer.current = setTimeout(
-                () => useSyncStore.getState().setPalabras(notaId, contarPalabras(doc)),
-                PALABRAS_DEBOUNCE_MS,
-              );
+              cancelarPalabrasOcioso.current?.();
+              cancelarPalabrasOcioso.current = null;
+              palabrasTimer.current = setTimeout(() => {
+                cancelarPalabrasOcioso.current = cuandoOcioso(() => {
+                  cancelarPalabrasOcioso.current = null;
+                  useSyncStore.getState().setPalabras(notaId, contarPalabras(doc));
+                }, PALABRAS_IDLE_MAX_MS);
+              }, PALABRAS_DEBOUNCE_MS);
               if (brokerApplyRef.current) {
                 // Cambio venido de otra instancia de la misma nota
                 contentRef.current = doc;
@@ -819,6 +918,8 @@ export function NoteEditor({
       }
 
       setPreviewHtml(renderNota(content, true));
+      frontmatterClasesRef.current = bloqueFrontmatter(content);
+      setClasesNota(clasesCssDe(frontmatterClasesRef.current).join(" ")); // `FUN-S-08`
 
       // Si se abrió desde la búsqueda global, saltar a la coincidencia (HU-21 CA8)
       const pendiente = takePendingMatch(notaId);
@@ -955,7 +1056,7 @@ export function NoteEditor({
       useVaultStore.getState().notas.find((n) => n.id === notaIdRef.current)?.titulo ?? "la nota";
     const acepta = await confirmar(
       `Se descartan tus cambios sin guardar en «${titulo}» y se muestra lo que tiene el archivo ahora. ` +
-        "Si te arrepentís, Ctrl+Z en la nota los trae de vuelta.",
+        "Si te arrepientes, Ctrl+Z en la nota los trae de vuelta.",
       "Ver lo de afuera",
     );
     if (!acepta) return;
@@ -1109,7 +1210,10 @@ export function NoteEditor({
         foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
           plegadosEdicion.push({ from, to });
         });
-        instanceCache.set(instanceId, {
+        // Desmontarse por CERRAR la pestaña (o por navegar a otra nota en ella)
+        // no deja nada: nadie va a volver a esta instancia (`FUN-M-58`). El
+        // guardado de salida de abajo no la necesita: escribe desde los refs.
+        if (pestanaAbierta(instanceId)) instanceCache.set(instanceId, {
           doc: contentRef.current,
           anchor,
           head,
@@ -1131,7 +1235,10 @@ export function NoteEditor({
       // En conflicto no se guarda (`DEF-138`): lo propio queda en la caché de
       // la pestaña y el conflicto sigue registrado para cuando vuelva o cierre.
       const entrada = instanceCache.get(instanceId);
-      if (dirtyRef.current && !conflictoRef.current && entrada) {
+      if (dirtyRef.current && !conflictoRef.current && !entrada) {
+        // Pestaña cerrada: lo escrito se guarda igual, sin caché que actualizar.
+        void syncNow();
+      } else if (dirtyRef.current && !conflictoRef.current && entrada) {
         entrada.guardando = syncNow().then((ok) => {
           if (ok) {
             entrada.sucio = false;
@@ -1224,17 +1331,10 @@ export function NoteEditor({
     const onBeforeUnload = () => {
       // Guardado best-effort al cerrar: en el escritorio va a SQLite vía el
       // dispatcher local (antes era un fetch al backend .NET).
-      if (conflictoRef.current) {
-        // En conflicto no se puede preguntar ni esperar: lo propio se escribe
-        // en un archivo aparte, con fecha y hora, y el de la nota queda como lo
-        // dejaron afuera (`DEF-138`). Una sola escritura, sin pasar por el índice
-        // —el próximo indexado lo encuentra—.
-        void escribirNota(
-          getVaultActual(),
-          rutaDeCopiaDeEmergencia(notaId, new Date()),
-          contentRef.current,
-        ).catch(() => {});
-      } else if (dirtyRef.current) {
+      // En conflicto no se guarda acá: la copia de emergencia la escribe
+      // `lib/conflictosAbiertos` para TODAS las pestañas en conflicto, también
+      // las que no se ven y ya no tienen editor montado (`DEF-177`).
+      if (dirtyRef.current && !conflictoRef.current) {
         void api(`/notas/${encodeURIComponent(notaId)}/contenido`, {
           method: "PUT",
           body: { contenido: contentRef.current, esperado: ultimoGuardadoRef.current },
@@ -1323,8 +1423,7 @@ export function NoteEditor({
   useEffect(() => {
     if ((mode === "split" || mode === "read") && previewRef.current) {
       void renderMermaidIn(previewRef.current);
-      void renderExcalidrawIn(previewRef.current);
-      void renderDrawioIn(previewRef.current);
+      void renderEmbedsIn(previewRef.current); // con o sin extensión (`FUN-S-18`)
       rellenarImagenesEn(previewRef.current, carpetaDeNota(notaId)); // `DEF-126`
       addCodeCopyButtons(previewRef.current); // botón copiar en bloques de código
     }
@@ -1587,7 +1686,11 @@ export function NoteEditor({
       // Un diagrama de draw.io embebido es una vista previa, no un editor: el
       // clic abre su pestaña (`FUN-L-20` § 8). Un editor por embed sería la
       // webapp entera cargada una vez por diagrama de la nota.
-      const diagramaDrawio = (event.target as HTMLElement).closest(".mic-drawio-block");
+      // Un lienzo (`FUN-S-19`) o una base (`FUN-S-29`) embebidos también son
+      // vistas previas de solo lectura: el clic en cualquier parte abre su pestaña.
+      const diagramaDrawio = (event.target as HTMLElement).closest(
+        ".mic-drawio-block, .mic-canvas-block, .mic-base-block",
+      );
       if (diagramaDrawio) {
         const targetNota = diagramaDrawio.getAttribute("data-nota");
         if (targetNota) {
@@ -1709,7 +1812,7 @@ export function NoteEditor({
         // propios. El guardado está en pausa; nada se pierde sin que se elija.
         <div className={styles.conflictBar} role="alert">
           <span className={styles.conflictTexto}>
-            El archivo cambió fuera de Mycelium y tenés cambios sin guardar.
+            El archivo cambió fuera de Mycelium y tienes cambios sin guardar.
           </span>
           <button type="button" disabled={resolviendo} onClick={() => void verLoDeAfuera()}>
             Ver lo de afuera
@@ -1738,7 +1841,7 @@ export function NoteEditor({
           // `mic-con-numeros` le cede al margen el relleno izquierdo del
           // scroller, para que un rango como `34-40` entre sin que el margen
           // cambie de ancho al hacer scroll (`FUN-M-28`).
-          className={`mic-editor-host ${numerosDeLinea ? "mic-con-numeros" : ""} ${styles.editorPane}`}
+          className={`mic-editor-host ${numerosDeLinea ? "mic-con-numeros" : ""} ${styles.editorPane} ${clasesNota}`}
           onDragOver={(e) => {
             if (Array.from(e.dataTransfer.items).some((i) => i.kind === "file")) {
               e.preventDefault();
@@ -1757,8 +1860,17 @@ export function NoteEditor({
         {(mode === "split" || mode === "read") && (
           <div
             ref={previewRef}
-            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane}`}
+            className={`mic-preview ${mode === "read" ? "mic-layout-read" : ""} ${styles.previewPane} ${clasesNota}`}
             onClick={onPreviewClick}
+            // Rueda sobre un enlace: el `click` no llega con el botón del medio,
+            // así que va por `auxclick`, y el `mousedown` se corta para que no
+            // arranque el desplazamiento automático (`FUN-S-34`).
+            onMouseDown={(e) => {
+              if (e.button === 1 && (e.target as HTMLElement).closest("a")) e.preventDefault();
+            }}
+            onAuxClick={(e) => {
+              if (e.button === 1) atenderClicEnEnlace(e, { abrirNota: openByTitle });
+            }}
             onContextMenu={onPreviewContextMenu}
           >
             {/* Título dentro del documento, al inicio (se desplaza con el

@@ -62,7 +62,7 @@ export function CustomCssSection() {
   const onPickFile = async (file: File) => {
     setAviso(null);
     if (file.size > WARN_BYTES) {
-      setAviso(`"${file.name}" supera 50 KB, pero se importó igual.`);
+      setAviso(`"${file.name}" supera 50 KB, pero se importó de todos modos.`);
     }
     const contenido = await file.text();
     await importSnippet(file.name, contenido);
@@ -141,22 +141,22 @@ export function CustomCssSection() {
       </div>
 
       <Explicacion detalle="El CSS viaja con la carpeta del vault: al abrir otro vault verás los suyos. Cuáles están activos se decide en esta computadora, así que los que llegan con un vault ajeno arrancan apagados. El estilo se actualiza al instante.">
-        Tus snippets se guardan en este vault; activá los que quieras.
+        Tus snippets se guardan en este vault; activa los que quieras.
       </Explicacion>
 
       {/* `DEF-164`: lo que vino con el vault no se aplica solo. */}
       {traidos > 0 && (
         <p className={styles.warn} role="status">
           {traidos === 1
-            ? "Este vault trae 1 snippet. Revisalo antes de activarlo."
-            : `Este vault trae ${traidos} snippets. Revisalos antes de activarlos.`}
+            ? "Este vault trae 1 snippet. Revísalo antes de activarlo."
+            : `Este vault trae ${traidos} snippets. Revísalos antes de activarlos.`}
         </p>
       )}
 
       <ul className={styles.snippetList}>
         {snippets.length === 0 && (
           <li className={styles.hint}>
-            Todavía no importaste ningún CSS. Usá «Importar .css» (podés empezar
+            Todavía no importaste ningún CSS. Usa «Importar .css» (puedes empezar
             por la plantilla descargable en /plantilla-estilos.css).
           </li>
         )}

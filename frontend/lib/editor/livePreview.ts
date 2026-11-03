@@ -45,7 +45,9 @@ import {
   esControlDeTabla,
 } from "@/lib/editor/tablaWidget";
 import { embedDrawioRe } from "@/lib/drawio";
+import type { AvisoPropiedad } from "@/lib/esquemas";
 import { destinoDeUrlSuelta, esEnlaceExterno, manejarClicDeEnlace } from "@/lib/enlacesExternos";
+import { dondeAbrirClic, type DondeAbrir } from "@/lib/enlacesExternos";
 import {
   ALLOW_VIDEO,
   esVideo,
@@ -54,6 +56,8 @@ import {
   tituloDeVideo,
 } from "@/lib/video";
 import { dibujarDrawioEn } from "@/lib/drawioRender";
+import { dibujarCanvasPerezoso } from "@/lib/canvasRender";
+import { dibujarBasePerezoso } from "@/lib/baseRender";
 import {
   embedMarkdownRe,
   embedWikiRe,
@@ -68,7 +72,13 @@ import {
   type ImagenResuelta,
 } from "@/lib/imagenesRender";
 import { renderExcalidrawInto } from "@/lib/excalidraw";
-import { getAllViews } from "@/lib/editor/viewRegistry";
+import { resaltadosEnLinea } from "@/lib/resaltado";
+import { embebidoEnVault } from "@/lib/embedsRender";
+import {
+  generacionViva,
+  refreshAllLiveViews,
+  registrarEfectoRefresco,
+} from "@/lib/editor/refrescoVivo";
 import { useUiStore } from "@/stores/uiStore";
 import { EXCALIDRAW_RE, etiquetaDeDestino, partirWikilink } from "@/lib/wikilinks";
 import { REGLAS_CODIGO } from "@/lib/editor/paletaSintaxis";
@@ -111,18 +121,11 @@ const micelioHighlight = HighlightStyle.define([
 
 /** Efecto para forzar recálculo del live preview (p. ej. al togglear tablas). */
 export const refreshLiveEffect = StateEffect.define<null>();
-
-// Generación de los embeds excalidraw en vivo: aumenta en cada refresh para que
-// los widgets se vuelvan a renderizar (su eq() la incluye) tras guardar un dibujo.
-let liveGen = 0;
-
-/** Redispara el live preview en todos los editores abiertos. */
-export function refreshAllLiveViews() {
-  liveGen++;
-  for (const view of getAllViews()) {
-    view.dispatch({ effects: refreshLiveEffect.of(null) });
-  }
-}
+// `refreshAllLiveViews` y la generación viven en `refrescoVivo.ts` para que los
+// stores refresquen sin cargar este módulo (`FUN-M-58`, C-H3); el efecto se
+// registra allá al cargar este, y se reexporta acá para los importadores de siempre.
+registrarEfectoRefresco(refreshLiveEffect);
+export { refreshAllLiveViews };
 
 /**
  * Pide ver UNA tabla como texto: lleva la posición donde arranca, o `null` para
@@ -175,6 +178,16 @@ const navegarPorTitulo = Facet.define<(titulo: string) => void, ((titulo: string
  */
 export const carpetaDeLaNota = Facet.define<() => string | null, () => string | null>({
   combine: (valores) => valores[0] ?? (() => null),
+});
+
+/**
+ * Los avisos de propiedades de la nota (`FUN-M-46`: esquemas y el `#` sin
+ * comillas) para un texto de frontmatter. Va por un `Facet` por lo mismo que
+ * `navegarPorTitulo`: la tarjeta la arma un `StateField`. Lo pone el editor de
+ * notas (`lib/esquemasVault.ts` → `avisosDeNota`); sin él, la tarjeta no avisa.
+ */
+export const avisosPropiedades = Facet.define<(texto: string) => AvisoPropiedad[], ((texto: string) => AvisoPropiedad[]) | null>({
+  combine: (valores) => valores[0] ?? null,
 });
 
 const crudoTablaEffect = StateEffect.define<number | null>();
@@ -288,6 +301,36 @@ function limitesTabla(state: EditorState, pos: number): [number, number] | null 
 }
 
 /**
+ * Los bloques de @lezer/markdown (+ GFM y nuestras tareas) que nunca contienen
+ * una tabla: son HOJAS —su contenido es texto en línea o código—. Una tabla es
+ * a su vez una hoja que cuelga del documento o de un contenedor (cita, lista,
+ * ítem; los callouts son citas). Recorrer el árbol entero para hallar tablas
+ * entraba en cada nodo en línea de cada párrafo (`FUN-M-58`, A-H4: 5,8 ms por
+ * tecla en una nota de 443 KB, 0,65 ms en una de 135 KB); sin bajar a estas
+ * hojas, 2,25 y 0,20 ms, con las mismas tablas. Es una lista de lo que se
+ * SALTA, no de lo que se recorre: un contenedor nuevo se sigue recorriendo.
+ */
+const HOJAS_SIN_TABLA = new Set([
+  "Paragraph",
+  "Task",
+  "ATXHeading1",
+  "ATXHeading2",
+  "ATXHeading3",
+  "ATXHeading4",
+  "ATXHeading5",
+  "ATXHeading6",
+  "SetextHeading1",
+  "SetextHeading2",
+  "FencedCode",
+  "CodeBlock",
+  "HTMLBlock",
+  "HorizontalRule",
+  "LinkReference",
+  "CommentBlock",
+  "ProcessingInstructionBlock",
+]);
+
+/**
  * Calcula las tablas a renderizar como bloque. Las decoraciones de bloque DEBEN
  * venir de un StateField (un ViewPlugin rompe el layout de CodeMirror).
  *
@@ -305,7 +348,7 @@ function computeTables(state: EditorState, crudo: number | null): TableState {
   const doc = state.doc;
   syntaxTree(state).iterate({
     enter(node) {
-      if (node.name !== "Table") return undefined;
+      if (node.name !== "Table") return HOJAS_SIN_TABLA.has(node.name) ? false : undefined;
       const startLine = doc.lineAt(node.from);
       const endLine = doc.lineAt(node.to);
       // La que se edita como texto no se decora NI se reserva: ahí el resto del
@@ -440,6 +483,11 @@ const crudoFrontmatterEffect = StateEffect.define<boolean>();
 class FrontmatterWidget extends WidgetType {
   /** Filas de la tarjeta, para estimar el alto del bloque (ver abajo). */
   private readonly filas: number;
+  /**
+   * Generación del live preview: cambia con `refreshAllLiveViews`, que es como
+   * se avisa que cambiaron los esquemas (`FUN-M-46`) y hay que revalidar.
+   */
+  private readonly gen = generacionViva();
 
   constructor(readonly texto: string) {
     super();
@@ -452,7 +500,7 @@ class FrontmatterWidget extends WidgetType {
   }
 
   eq(other: FrontmatterWidget) {
-    return other.texto === this.texto;
+    return other.texto === this.texto && other.gen === this.gen;
   }
 
   toDOM(view: EditorView) {
@@ -507,6 +555,7 @@ function accionesPropiedades(view: EditorView): AccionesPropiedades {
     quitar: (clave) => editar((t) => quitarPropiedad(t, clave)),
     renombrar: (clave, nueva) => editar((t) => renombrarPropiedad(t, clave, nueva)),
     navegar: (titulo) => view.state.facet(navegarPorTitulo)?.(titulo),
+    avisos: (texto) => view.state.facet(avisosPropiedades)?.(texto) ?? [],
     verComoTexto: () => {
       const lim = limitesFrontmatter(view.state);
       view.dispatch({
@@ -901,7 +950,7 @@ function toggleCalloutFold(view: EditorView, headFrom: number) {
  * texto (negrita, tamaño de heading, etc.) lo aplica syntaxHighlighting.
  */
 export function livePreview(
-  onWikilinkClick: (title: string) => void,
+  onWikilinkClick: (title: string, donde?: DondeAbrir) => void,
   noteExists: (target: string) => boolean,
   etiquetaDe: (target: string) => string = etiquetaDeDestino,
 ) {
@@ -945,7 +994,8 @@ export function livePreview(
           const link = (event.target as HTMLElement).closest(".mic-wikilink-cm");
           if (link) {
             event.preventDefault();
-            onWikilinkClick(link.getAttribute("data-title") ?? "");
+            // Ctrl+clic o rueda: en una pestaña nueva (`FUN-S-34`).
+            onWikilinkClick(link.getAttribute("data-title") ?? "", dondeAbrirClic(event));
             return true;
           }
           // Enlace a una página web (`FUN-S-20`). Acá NO hay un `<a>`: el live
@@ -1038,6 +1088,73 @@ class DrawioWidget extends WidgetType {
 
   ignoreEvent() {
     return true;
+  }
+}
+
+/**
+ * Widget de bloque con la vista previa de un lienzo (`![[lienzo.canvas]]`,
+ * `FUN-S-19`) o de una base (`![[tabla.base#Vista]]`, `FUN-S-29`) embebidos,
+ * en la vista en vivo. Con o sin extensión (`FUN-S-18`).
+ *
+ * Como el de draw.io, un clic en el dibujo muestra la fuente para poder editar
+ * el `![[…]]`; para abrir el archivo en su pestaña —la decisión del usuario
+ * para estos embeds— lleva un botón «Abrir» en la esquina. En lectura, el clic
+ * en cualquier parte lo abre. El dibujo es el mismo de la lectura
+ * (`lib/canvasRender.ts`, `lib/baseRender.ts`), y se carga recién cuando se ve.
+ */
+class VistaPreviaWidget extends WidgetType {
+  constructor(
+    readonly tipo: "canvas" | "base",
+    readonly ref: string,
+    readonly ancla: string | null,
+    readonly pos: number,
+    readonly gen: number,
+  ) {
+    super();
+  }
+
+  eq(other: VistaPreviaWidget) {
+    return (
+      other.tipo === this.tipo &&
+      other.ref === this.ref &&
+      other.ancla === this.ancla &&
+      other.gen === this.gen
+    );
+  }
+
+  toDOM(view: EditorView) {
+    const caja = document.createElement("div");
+    caja.className = `mic-live-vista-previa mic-live-${this.tipo}`;
+    const abrir = document.createElement("button");
+    abrir.type = "button";
+    abrir.className = "mic-embed-abrir";
+    abrir.textContent = "Abrir";
+    abrir.title = this.tipo === "canvas" ? "Abrir el lienzo en su pestaña" : "Abrir la base en su pestaña";
+    const bloque = document.createElement("div");
+    caja.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      if ((event.target as HTMLElement).closest(".mic-embed-abrir")) {
+        view.state.facet(navegarPorTitulo)?.(this.ref);
+        return;
+      }
+      view.dispatch({ selection: { anchor: this.pos } });
+      view.focus();
+    });
+    caja.append(abrir, bloque);
+    const dibujo =
+      this.tipo === "canvas"
+        ? dibujarCanvasPerezoso(bloque, this.ref)
+        : dibujarBasePerezoso(bloque, this.ref, this.ancla);
+    void dibujo.then(() => view.requestMeasure());
+    return caja;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+
+  get estimatedHeight() {
+    return 320;
   }
 }
 
@@ -1668,7 +1785,7 @@ function buildDecorations(
             from: line.from,
             to: line.to,
             deco: Decoration.replace({
-              widget: new ExcalidrawWidget(match[1], line.from, liveGen),
+              widget: new ExcalidrawWidget(match[1], line.from, generacionViva()),
             }),
           });
         }
@@ -1741,10 +1858,32 @@ function buildDecorations(
             from: line.from,
             to: line.to,
             deco: Decoration.replace({
-              widget: new DrawioWidget(match[1], line.from, liveGen),
+              widget: new DrawioWidget(match[1], line.from, generacionViva()),
             }),
           });
         }
+      }
+
+      // `![[Algo]]` sin una extensión que lo diga (`FUN-S-18`): se resuelve por
+      // título, con la misma regla que la vista de lectura (`lib/embeds.ts`), y
+      // se dibuja según el tipo del archivo encontrado. Lo que no resuelve, o
+      // resuelve a una nota, sigue al paso de wikilinks como siempre.
+      for (const match of line.text.matchAll(embedWikiRe())) {
+        const mFrom = line.from + match.index;
+        const mTo = mFrom + match[0].length;
+        if (exRanges.some(([f, t]) => mFrom < t && mTo > f)) continue;
+        if (enCodigoAbs(mFrom)) continue;
+        const embebido = embebidoEnVault(match[1]);
+        if (!embebido) continue;
+        exRanges.push([mFrom, mTo]);
+        if (isActive || text.trim() !== match[0]) continue;
+        const widget =
+          embebido.tipo === "excalidraw"
+            ? new ExcalidrawWidget(embebido.ref, line.from, generacionViva())
+            : embebido.tipo === "drawio"
+              ? new DrawioWidget(embebido.ref, line.from, generacionViva())
+              : new VistaPreviaWidget(embebido.tipo, embebido.ref, embebido.ancla, line.from, generacionViva());
+        decos.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget }) });
       }
 
       for (const match of line.text.matchAll(WIKILINK_RE)) {
@@ -1802,6 +1941,28 @@ function buildDecorations(
           to: start + match[2].length + 1,
           deco: Decoration.mark({ class: "mic-tag-cm" }),
         });
+      }
+
+      // `==resaltado==` (`FUN-S-33`): el fondo se pinta siempre —también en la
+      // línea activa, como el tachado—; los `==` se ocultan fuera de ella. Las
+      // reglas (qué es un `==`, que no entre en código) son las de la vista de
+      // lectura, en `lib/resaltado.ts`.
+      {
+        const enCodigo = (i: number) => enCodigoAbs(line.from + i);
+        for (const r of resaltadosEnLinea(line.text, enCodigo)) {
+          const rFrom = line.from + r.desde;
+          const rTo = line.from + r.hasta;
+          if (exRanges.some(([f, t]) => rFrom < t && rTo > f)) continue;
+          decos.push({
+            from: rFrom + 2,
+            to: rTo - 2,
+            deco: Decoration.mark({ class: "mic-resaltado" }),
+          });
+          if (!isActive) {
+            decos.push({ from: rFrom, to: rFrom + 2, deco: hide });
+            decos.push({ from: rTo - 2, to: rTo, deco: hide });
+          }
+        }
       }
 
       // Fórmulas en línea (`DEF-103`): `$…$` se dibuja con KaTeX fuera de la

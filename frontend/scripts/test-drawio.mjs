@@ -18,17 +18,28 @@ const {
   accionCargar,
   accionExportarSvg,
   accionGuardar,
+  ALLOW_EDITOR,
+  baseDrawio,
+  CacheLru,
   claveAPodar,
   claveEsDePestana,
   clavesHuerfanas,
   contenidoParaCargar,
   destinoDeEmbed,
+  destinoDeMensajes,
   diagramaInicial,
   embedDrawioRe,
   esDiagramaDrawio,
+  esMensajeDeDrawio,
   EXTENSION_DRAWIO,
+  huellaXml,
   leerEvento,
+  origenDeBase,
+  SANDBOX_EDITOR,
+  SANDBOX_RENDERIZADOR,
+  svgComoDataUri,
   urlDelEditor,
+  urlDelRenderizador,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
 
 test("la extensión es .drawio", () => {
@@ -70,7 +81,10 @@ test("un archivo vacío o ajeno se abre como diagrama nuevo, no como error", () 
 
 test("la URL del editor lleva los parámetros del modo embebido", () => {
   const url = urlDelEditor("claro");
-  assert.ok(url.startsWith("/drawio/index.html?"), "se sirve del mismo origen");
+  assert.ok(
+    url.startsWith("http://drawio.localhost/index.html?"),
+    "se sirve desde su propio origen, no desde el de la app (DEF-168)",
+  );
   const p = new URLSearchParams(url.split("?")[1]);
   assert.equal(p.get("embed"), "1");
   assert.equal(p.get("proto"), "json");
@@ -78,6 +92,14 @@ test("la URL del editor lleva los parámetros del modo embebido", () => {
   assert.equal(p.get("stealth"), "1", "sin salidas a la red (CA7)");
   assert.equal(p.get("pwa"), "0", "sin service worker: `offline=1` lo encendería");
   assert.equal(p.get("dark"), "0");
+});
+
+test("editor y renderizador apagan el soporte del traductor del navegador (FUN-M-58)", () => {
+  // Con él encendido, draw.io cuelga un MutationObserver sobre el <html> de
+  // Mycelium que retiene el iframe entero después de soltarlo.
+  for (const url of [urlDelEditor("claro"), urlDelEditor("oscuro"), urlDelRenderizador()]) {
+    assert.equal(new URLSearchParams(url.split("?")[1]).get("browser-translate"), "0", url);
+  }
 });
 
 test("el tema oscuro viaja en la URL", () => {
@@ -196,12 +218,23 @@ test("la poda elige el oculto más viejo y nunca uno que se está viendo", () =>
     { clave: "nuevo-oculto", visible: false },
     { clave: "nuevo-visible", visible: true },
   ];
-  assert.equal(claveAPodar(vivas, 3), "viejo-oculto");
+  assert.equal(claveAPodar(vivas, 1), "viejo-oculto");
+});
+
+test("el tope cuenta solo los ocultos (FUN-M-58): los visibles no entran", () => {
+  // Dos panes y el panel lateral mostrando diagramas, más un oculto: no sobra nada.
+  const vivas = [
+    { clave: "a", visible: true },
+    { clave: "oculto", visible: false },
+    { clave: "b", visible: true },
+    { clave: "sidebar:c", visible: true },
+  ];
+  assert.equal(claveAPodar(vivas, 1), null);
 });
 
 test("no se poda nada si no se pasa del tope", () => {
-  assert.equal(claveAPodar([{ clave: "a", visible: false }], 3), null);
-  assert.equal(claveAPodar([], 3), null);
+  assert.equal(claveAPodar([{ clave: "a", visible: false }], 1), null);
+  assert.equal(claveAPodar([], 1), null);
 });
 
 test("si TODOS están visibles no se poda: recargar delante del usuario es peor", () => {
@@ -211,5 +244,106 @@ test("si TODOS están visibles no se poda: recargar delante del usuario es peor"
     { clave: "c", visible: true },
     { clave: "d", visible: true },
   ];
-  assert.equal(claveAPodar(todosVisibles, 3), null);
+  assert.equal(claveAPodar(todosVisibles, 1), null);
+});
+
+test("un oculto con cambios sin guardar nunca se poda, aunque se pase del tope", () => {
+  const vivas = [
+    { clave: "sucio-viejo", visible: false, sucio: true },
+    { clave: "limpio", visible: false, sucio: false },
+    { clave: "visible", visible: true },
+  ];
+  assert.equal(claveAPodar(vivas, 1), "limpio", "sale el limpio aunque sea más nuevo");
+  const todosSucios = [
+    { clave: "x", visible: false, sucio: true },
+    { clave: "y", visible: false, sucio: true },
+  ];
+  assert.equal(claveAPodar(todosSucios, 1), null, "si todos están sucios se quedan");
+});
+
+// ── Caché de vistas previas (FUN-M-58) ───────────────────────────────────────
+
+test("la huella del XML es estable y distingue contenidos distintos", () => {
+  const a = diagramaInicial();
+  assert.equal(huellaXml(a), huellaXml(String(a)));
+  assert.notEqual(huellaXml(a), huellaXml(a + " "));
+  assert.notEqual(huellaXml("<mxfile>a</mxfile>"), huellaXml("<mxfile>b</mxfile>"));
+});
+
+test("la caché LRU desaloja al menos usado y respeta los dos topes", () => {
+  const c = new CacheLru(2, 100);
+  c.set("a", "1");
+  c.set("b", "2");
+  assert.equal(c.get("a"), "1"); // `a` pasa a ser el más reciente
+  c.set("c", "3");
+  assert.equal(c.get("b"), undefined, "sale el menos usado");
+  assert.equal(c.get("a"), "1");
+  assert.equal(c.tamano, 2);
+
+  const t = new CacheLru(10, 10);
+  t.set("x", "12345");
+  t.set("y", "12345");
+  t.set("z", "123");
+  assert.equal(t.get("x"), undefined, "el tope de tamaño también desaloja");
+  assert.ok(t.caracteres <= 10);
+  t.set("enorme", "x".repeat(11));
+  assert.equal(t.get("enorme"), undefined, "lo que no entra no se guarda");
+  assert.equal(t.get("z"), "123", "ni desaloja a los demás");
+});
+
+// ── Su propio origen (DEF-168) ───────────────────────────────────────────────
+
+test("la raíz de draw.io sale de convertFileSrc, con la forma de cada sistema", () => {
+  const windows = (r, p) => `http://${p}.localhost/${encodeURIComponent(r)}`;
+  const mac = (r, p) => `${p}://localhost/${encodeURIComponent(r)}`;
+  assert.equal(baseDrawio(windows), "http://drawio.localhost/");
+  assert.equal(baseDrawio(mac), "drawio://localhost/");
+  assert.equal(baseDrawio(undefined), "http://drawio.localhost/", "fuera de Tauri, la forma de Windows");
+  assert.equal(urlDelEditor("claro", "es", "drawio://localhost/").split("?")[0], "drawio://localhost/index.html");
+});
+
+test("el origen y el destino de los mensajes", () => {
+  assert.equal(origenDeBase("http://drawio.localhost/"), "http://drawio.localhost");
+  assert.equal(origenDeBase("https://drawio.localhost/x?y"), "https://drawio.localhost");
+  assert.equal(origenDeBase("drawio://localhost/"), "drawio://localhost");
+  assert.equal(destinoDeMensajes("http://drawio.localhost"), "http://drawio.localhost");
+  assert.equal(destinoDeMensajes("drawio://localhost"), "*", "un esquema propio no sirve de destino");
+});
+
+test("solo se aceptan los mensajes del iframe esperado y de su origen", () => {
+  const marco = {};
+  const otro = {};
+  const web = "http://drawio.localhost";
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: web }, marco, web), true);
+  assert.equal(esMensajeDeDrawio({ source: otro, origin: web }, marco, web), false, "otra ventana");
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "http://tauri.localhost" }, marco, web), false);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "null" }, marco, web), false);
+  assert.equal(esMensajeDeDrawio({ source: null, origin: web }, null, web), false, "sin iframe, nada");
+  const propio = "drawio://localhost";
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: propio }, marco, propio), true);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "null" }, marco, propio), true);
+  assert.equal(esMensajeDeDrawio({ source: marco, origin: "https://x.com" }, marco, propio), false);
+});
+
+test("los marcos no pueden navegar la ventana", () => {
+  for (const s of [SANDBOX_EDITOR, SANDBOX_RENDERIZADOR]) {
+    assert.ok(s.split(" ").includes("allow-scripts"));
+    assert.ok(!/allow-top-navigation/.test(s), s);
+    assert.ok(!/allow-popups-to-escape-sandbox/.test(s), s);
+  }
+  assert.ok(!/allow-downloads|allow-popups|allow-modals/.test(SANDBOX_RENDERIZADOR));
+  assert.match(ALLOW_EDITOR, /clipboard-write/);
+});
+
+test("la vista previa solo acepta un SVG y arma su propio data URI", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Año ✓</text></svg>';
+  const esperado = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  const enBase64 = "data:image/svg+xml;base64," + Buffer.from(svg, "utf8").toString("base64");
+  assert.equal(svgComoDataUri(enBase64), esperado);
+  assert.equal(svgComoDataUri("data:image/svg+xml," + encodeURIComponent(svg)), esperado);
+  assert.equal(svgComoDataUri("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)), esperado);
+  for (const malo of ["", "javascript:alert(1)", "data:text/html,<script>1</script>",
+    "data:image/png;base64,AAAA", "data:image/svg+xml,", "data:image/svg+xml,%E0%A4%A"]) {
+    assert.equal(svgComoDataUri(malo), null, malo);
+  }
 });

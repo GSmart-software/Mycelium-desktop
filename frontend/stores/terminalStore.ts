@@ -52,9 +52,14 @@ type TerminalPrefs = {
    * `efecto*` elige una parte y solo rige con él encendido.
    */
   efectos: boolean;
-  /** La aurora y la red de micelio detrás del texto. */
-  efectoFondo: boolean;
-  /** El fondo se mueve: la aurora deriva y el micelio respira. Necesita `efectoFondo`. */
+  /** Las manchas de luz con los colores del tema detrás del texto (`FUN-S-37`). */
+  efectoAurora: boolean;
+  /** La red de hifas como marca de agua detrás del texto (`FUN-S-37`). */
+  efectoMicelio: boolean;
+  /**
+   * El fondo se mueve: la aurora deriva y el micelio respira. Necesita
+   * `efectoAurora` o `efectoMicelio`; mueve el que esté encendido.
+   */
   efectoPulso: boolean;
   /** Las esporas que suben. */
   efectoParticulas: boolean;
@@ -72,7 +77,8 @@ type TerminalPrefs = {
 
 /** Las partes de la consola estilada, en el orden de Configuración. */
 export type EfectoConsola =
-  | "efectoFondo"
+  | "efectoAurora"
+  | "efectoMicelio"
   | "efectoPulso"
   | "efectoParticulas"
   | "efectoBorde"
@@ -87,7 +93,8 @@ const PREFS_POR_DEFECTO: TerminalPrefs = {
   restaurarScrollback: true,
   efectos: false,
   // Con el general encendido se ve la consola entera; cada parte se apaga sola.
-  efectoFondo: true,
+  efectoAurora: true,
+  efectoMicelio: true,
   efectoPulso: true,
   efectoParticulas: true,
   efectoBorde: true,
@@ -133,18 +140,34 @@ const CLAVE_HEREDADA = "mic-terminales";
  * es justamente el defecto— y sus procesos ya están muertos. Se descarta la
  * clave entera para no dejarla suelta.
  */
+/**
+ * Completa unas preferencias guardadas con los defectos y migra la opción
+ * «Fondo» de antes de `FUN-S-37`: era una sola (`efectoFondo`) para la aurora
+ * y el micelio, y ahora son dos. Quien la tenía apagada las tiene apagadas a
+ * las dos; la clave vieja no se arrastra.
+ */
+export function completarPrefs(guardadas: Partial<TerminalPrefs> & { efectoFondo?: unknown }): TerminalPrefs {
+  const { efectoFondo, ...resto } = guardadas;
+  const prefs = { ...PREFS_POR_DEFECTO, ...resto };
+  if (typeof efectoFondo === "boolean") {
+    if (resto.efectoAurora === undefined) prefs.efectoAurora = efectoFondo;
+    if (resto.efectoMicelio === undefined) prefs.efectoMicelio = efectoFondo;
+  }
+  return prefs;
+}
+
 function prefsGuardadas(): TerminalPrefs {
   if (typeof window === "undefined") return PREFS_POR_DEFECTO;
   try {
     const propio = window.localStorage.getItem(CLAVE_PREFS);
     if (propio !== null) {
-      return { ...PREFS_POR_DEFECTO, ...(JSON.parse(propio) as Partial<TerminalPrefs>) };
+      return completarPrefs(JSON.parse(propio) as Partial<TerminalPrefs>);
     }
     const heredado = window.localStorage.getItem(CLAVE_HEREDADA);
     if (heredado === null) return PREFS_POR_DEFECTO;
     const viejas = (JSON.parse(heredado) as { state?: { prefs?: Partial<TerminalPrefs> } })?.state
       ?.prefs;
-    const prefs = { ...PREFS_POR_DEFECTO, ...(viejas ?? {}) };
+    const prefs = completarPrefs(viejas ?? {});
     window.localStorage.setItem(CLAVE_PREFS, JSON.stringify(prefs));
     window.localStorage.removeItem(CLAVE_HEREDADA);
     return prefs;

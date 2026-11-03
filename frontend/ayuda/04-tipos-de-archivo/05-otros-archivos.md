@@ -16,14 +16,14 @@ que lo resume, mirar una imagen, consultar un archivo de configuración o retoca
 
 ## Cómo se usa
 
-1. Hacé clic en el archivo en el explorador. Se abre según su tipo:
+1. Haz clic en el archivo en el explorador. Se abre según su tipo:
    - **Texto y código**: con números de línea, colores según el lenguaje y un buscador.
    - **PDF**: el documento, paginado.
    - **Imágenes**: con zoom; **Ajustar al panel** vuelve a encajarla.
    - Lo que no es texto ni sabe dibujar, lo dice y ofrece **Abrir con el sistema**.
-2. Un archivo de texto se abre en solo lectura. Para cambiarlo, **Editar**; los cambios se
-   escriben recién con **Guardar** (o **Ctrl+S**), y **Salir de edición** vuelve a la lectura.
-3. Para traer archivos de afuera, arrastralos desde el explorador de tu sistema y soltalos
+2. Un archivo de texto se abre en solo lectura. Para cambiarlo, **Editar**; los cambios no se
+   escriben hasta **Guardar** (o **Ctrl+S**), y **Salir de edición** vuelve a la lectura.
+3. Para traer archivos de afuera, arrástralos desde el explorador de tu sistema y suéltalos
    sobre una carpeta del explorador de Mycelium (o sobre el espacio vacío, para la raíz). Se
    copian al vault, carpetas incluidas, y el original queda donde estaba. También está
    **Importar archivos…** en el botón de la barra y en el clic derecho de una carpeta.
@@ -33,18 +33,19 @@ Si al traer algo ya hay un archivo con ese nombre, Mycelium pregunta qué hacer:
 
 ## El menú de un archivo
 
-Con clic derecho: **Abrir**, **Abrir con la aplicación predeterminada**, **Renombrar**,
+Con clic derecho: **Abrir**, **Abrir al lado** (en un panel nuevo a la derecha), **Abrir
+con la aplicación predeterminada**, **Renombrar**,
 **Duplicar**, **Guardar una copia…** (fuera del vault), **Mostrar en el explorador** y
 **Eliminar**.
 
 **Abrir con la aplicación predeterminada** no abre programas ni scripts (`.exe`, `.bat`,
 `.cmd`, `.ps1`, `.lnk`, `.msi` y parecidos): abrirlos sería ejecutarlos. Para esos, **Mostrar
-en el explorador** y abrilo desde ahí si sabés qué es.
+en el explorador** y ábrelo desde ahí si sabes qué es.
 
 Los documentos que pueden ejecutar código sin ser programas —de Office con macros (`.docm`,
 `.xlsm`, `.pptm` y parecidos), complementos de Excel (`.xll`), ayuda compilada (`.chm`) e
 imágenes de disco (`.iso`, `.img`, `.vhd`)— se abren, pero antes Mycelium pregunta si
-querés hacerlo.
+quieres hacerlo.
 
 > [!warning] Estos archivos no tienen la red de las notas
 > Eliminar uno lo manda a la papelera **del sistema**, no a la de Mycelium: se recupera

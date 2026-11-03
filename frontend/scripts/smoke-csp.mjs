@@ -8,7 +8,11 @@
 // contenido delicado —Markdown, Mermaid, KaTeX, imágenes del vault, vídeo
 // embebido, Excalidraw, draw.io, lienzo, grafo— y falla si el navegador reporta
 // una sola violación de la CSP (`securitypolicyviolation`, también dentro de los
-// iframes del mismo origen) o un `eval` bloqueado en la consola.
+// iframes) o un `eval` bloqueado en la consola.
+//
+// draw.io va en su propio origen, `http://drawio.localhost` (`DEF-168`), servido
+// con su CSP como lo sirve Rust (`lib-drawio-origen.mjs`); el smoke comprueba
+// además que desde ese marco no se alcance la app.
 //
 // No lanza Tauri: el IPC es una imitación mínima (`__TAURI_INTERNALS__`) que
 // responde lo justo para abrir un vault. El índice SQLite lo atiende un proceso
@@ -29,6 +33,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { chromium } from "playwright";
+import { responderDrawio } from "./lib-drawio-origen.mjs";
 
 const FRONTEND = resolve(import.meta.dirname, "..");
 const RAIZ = join(FRONTEND, "out");
@@ -352,6 +357,14 @@ async function ipc(cmd, args) {
     case "escribir_nota":
       await writeFile(rutaEnVault(args.rutaRel), args.contenido);
       return Date.now();
+    case "guardar_nota":
+      // Sin la comparación de `guardar_nota_en`: el smoke no prueba conflictos.
+      await writeFile(rutaEnVault(args.rutaRel), args.contenido);
+      return {
+        mtime: Date.now(),
+        conflicto: false,
+        huella: createHash("sha256").update(Buffer.from(args.contenido, "utf8")).digest("hex"),
+      };
     case "leer_estado_vault":
     case "take_opened_files":
       return cmd === "take_opened_files" ? [] : null;
@@ -376,7 +389,17 @@ async function ipc(cmd, args) {
 // Corre ANTES que cualquier script de la página, y fuera de la CSP (como los
 // scripts de inicialización que inyecta el webview de Tauri).
 const SIMULACION_TAURI = `
+// Cada documento, también los iframes de otro origen (draw.io), reporta sus
+// violaciones: Playwright expone \`__violacionCsp\` en todos los marcos.
+document.addEventListener("securitypolicyviolation", (e) => {
+  const v = { directiva: e.effectiveDirective, bloqueado: e.blockedURI, muestra: e.sample,
+    origen: e.sourceFile, linea: e.lineNumber, columna: e.columnNumber,
+    documento: location.origin + location.pathname };
+  try { window.__violacionCsp(JSON.stringify(v)); } catch {}
+});
 (() => {
+  // Como Tauri: el IPC solo en el documento principal, nunca en los marcos.
+  if (window.top !== window) return;
   let siguiente = 1;
   const callbacks = new Map();
   window.__TAURI_INTERNALS__ = {
@@ -400,13 +423,8 @@ const SIMULACION_TAURI = `
     },
   };
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
-  // Cada iframe del mismo origen (draw.io) reporta sus violaciones al de arriba.
-  document.addEventListener("securitypolicyviolation", (e) => {
-    const v = { directiva: e.effectiveDirective, bloqueado: e.blockedURI, muestra: e.sample,
-      origen: e.sourceFile, linea: e.lineNumber, columna: e.columnNumber, documento: location.pathname };
-    try { window.top.__violacionCsp(JSON.stringify(v)); } catch {}
-  });
 })();
+
 `;
 
 // ── Recorrido ────────────────────────────────────────────────────────────────
@@ -434,6 +452,15 @@ try {
     } catch {
       await route.fulfill({ status: 404, body: "" });
     }
+  });
+  // draw.io en su propio origen, servido como lo sirve Rust (`DEF-168`).
+  await contexto.route(/^http:\/\/drawio\.localhost\//, async (route) => {
+    const r = await responderDrawio(
+      join(RAIZ, "drawio"),
+      new URL(route.request().url()).pathname,
+      [base],
+    );
+    await route.fulfill({ status: r.estado, headers: r.cabeceras, body: r.cuerpo });
   });
   // Sin red en el smoke: el reproductor de YouTube se reemplaza por una página
   // vacía. Lo que se prueba es que la CSP deje montar el iframe, no YouTube.
@@ -532,10 +559,17 @@ try {
     await pagina.waitForTimeout(4000); // embeds de Excalidraw y draw.io
   });
 
-  await paso("vista de lectura: Mermaid", async () => {
+  await paso("vista de lectura: Mermaid y el embed de draw.io", async () => {
     await pagina.getByRole("button", { name: /^Lectura/ }).first().click();
     // Mermaid marca su SVG con `aria-roledescription` (p. ej. `flowchart-v2`).
     await pagina.locator(".mic-preview svg[aria-roledescription]").first().waitFor({ timeout: 20000 });
+    // El embed de draw.io lo dibuja el renderizador, en el origen propio de
+    // draw.io (`DEF-168`), y vuelve como imagen.
+    const embed = pagina.locator(".mic-preview img.mic-drawio-img, .mic-preview .mic-drawio-error").first();
+    await embed.waitFor({ timeout: 60000 });
+    if (await embed.evaluate((e) => e.classList.contains("mic-drawio-error"))) {
+      throw new Error(`el embed de draw.io no se dibujó: ${await embed.textContent()}`);
+    }
     await pagina.waitForTimeout(2000);
     await captura("vista-de-lectura");
     await pagina.getByRole("button", { name: /^En vivo/ }).first().click();
@@ -549,9 +583,25 @@ try {
 
   await paso("draw.io", async () => {
     await abrirEnExplorador("Diagrama.drawio");
-    const marco = pagina.frameLocator("iframe[src*='/drawio/']").first();
+    const iframe = pagina.locator("iframe[src^='http://drawio.localhost/']").first();
+    const sandbox = await iframe.getAttribute("sandbox");
+    if (!sandbox || /allow-top-navigation/.test(sandbox)) throw new Error(`sandbox inesperado: ${sandbox}`);
+    const marco = pagina.frameLocator("iframe[src^='http://drawio.localhost/']").first();
     await marco.locator(".geDiagramContainer").first().waitFor({ timeout: 60000 });
     await pagina.waitForTimeout(3000);
+    // Desde draw.io no se alcanza la app (`DEF-168`).
+    const editor = pagina.frames().find((f) => f.url().startsWith("http://drawio.localhost/index.html"));
+    const aislado = await editor.evaluate(() => {
+      const falla = (f) => { try { f(); return false; } catch { return true; } };
+      return {
+        documento: falla(() => window.parent.document.title),
+        ipc: falla(() => window.parent.__TAURI_INTERNALS__.invoke),
+        propio: typeof window.__TAURI_INTERNALS__ === "undefined",
+      };
+    });
+    if (!aislado.documento || !aislado.ipc || !aislado.propio) {
+      throw new Error(`draw.io alcanza la app: ${JSON.stringify(aislado)}`);
+    }
   });
 
   await paso("lienzo", async () => {

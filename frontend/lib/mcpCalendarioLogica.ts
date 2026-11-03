@@ -81,7 +81,7 @@ function validarFecha(campo: string, v: unknown): Validado<string> {
 function validarHora(v: unknown): Validado<string | null> {
   if (v === undefined || v === null || v === "") return { ok: true, valor: null };
   if (typeof v !== "string" || !esHoraValida(v.trim())) {
-    return invalido("hora", `«${String(v)}» no es una hora HH:MM de 24 h (p. ej. 09:30); para todo el día, omitila o mandá null.`);
+    return invalido("hora", `«${String(v)}» no es una hora HH:MM de 24 h (p. ej. 09:30); para todo el día, omítela o manda null.`);
   }
   return { ok: true, valor: v.trim() };
 }
@@ -96,7 +96,7 @@ function validarRepeticion(v: unknown): Validado<Repeticion> {
   if (v === undefined || v === null || v === "") return { ok: true, valor: "ninguna" };
   const r = typeof v === "string" ? v.trim().toLowerCase() : "";
   if (!(VALORES_REPETICION as string[]).includes(r)) {
-    return invalido("repeticion", `«${String(v)}» no es una repetición; usá ${VALORES_REPETICION.join(", ")}.`);
+    return invalido("repeticion", `«${String(v)}» no es una repetición; usa ${VALORES_REPETICION.join(", ")}.`);
   }
   return { ok: true, valor: r as Repeticion };
 }
@@ -156,7 +156,7 @@ export function validarRango(args: Record<string, unknown>): Validado<{ desde: s
   const dias = diasEntre(desde.valor, hasta.valor);
   if (dias < 0) return invalido("hasta", "es anterior a `desde`.");
   if (dias + 1 > TOPE_RANGO_DIAS) {
-    return invalido("hasta", `el rango es de ${dias + 1} días y el tope es ${TOPE_RANGO_DIAS}: partilo en varias llamadas.`);
+    return invalido("hasta", `el rango es de ${dias + 1} días y el tope es ${TOPE_RANGO_DIAS}: pártelo en varias llamadas.`);
   }
   return { ok: true, valor: { desde: desde.valor, hasta: hasta.valor } };
 }
@@ -191,7 +191,7 @@ export function validarEditar(
     (cambios as Record<string, unknown>)[campo] = v.valor;
   }
   if (Object.keys(cambios).length === 0) {
-    return invalido("id", `no hay nada que cambiar: mandá al menos uno de ${CAMPOS.join(", ")}.`);
+    return invalido("id", `no hay nada que cambiar: manda al menos uno de ${CAMPOS.join(", ")}.`);
   }
   return { ok: true, valor: { id: id.valor, cambios } };
 }

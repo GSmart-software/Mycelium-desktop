@@ -149,6 +149,7 @@ const CSS = await fuente("../stores/cssStore.ts", {
   "@/lib/db/vaultContext": CONTEXTO,
   "@/stores/configLocalStore": CONFIG_LOCAL,
   "@/lib/snippetsArchivo": await fuente("../lib/snippetsArchivo.ts"),
+  "@/lib/snippetsAlFinal": await fuente("../lib/snippetsAlFinal.ts"),
 });
 
 const { DbError } = await import(ERRORS);

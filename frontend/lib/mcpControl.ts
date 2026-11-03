@@ -23,6 +23,16 @@
  *    es grande (abajo, «Confirmaciones»).
  * 6. **El diccionario del vault** (Parte 4): listar, agregar y quitar palabras
  *    por el mismo camino que el corrector (`lib/mcpDiccionario.ts`).
+ * 7. **Consultar el índice** (`FUN-M-45`): buscar, los enlaces de una nota y
+ *    evaluar una vista `.base`, de solo lectura (`lib/mcpIndice.ts`).
+ * 8. **La salud del vault** (`FUN-L-30`): el informe y el chequeo de cierre de
+ *    una nota, de solo lectura (`lib/mcpSalud.ts`).
+ * 9. **Las sesiones** (`FUN-L-31`): cada pedido trae la sesión que lo hizo
+ *    (`pedido.sesion`); Rust avisa cuáles están conectadas (`mcp-sesiones`).
+ *    La tarea y las reservas (`lib/mcpSesiones.ts`), y el registro de
+ *    actividad anota de qué sesión es cada entrada.
+ * 10. **Los diagnósticos del editor** (`FUN-M-44`): lo marcado en las notas
+ *     abiertas, de solo lectura (`lib/mcpSalud.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
@@ -32,11 +42,20 @@ import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos
 import * as calendario from "@/lib/mcpCalendario";
 import { FalloCalendario } from "@/lib/mcpCalendario";
 import { diccionario, FalloDiccionario } from "@/lib/mcpDiccionario";
+import * as indice from "@/lib/mcpIndice";
+import { FalloIndice } from "@/lib/mcpIndice";
+import * as saludIa from "@/lib/mcpSalud";
+import * as sesionesIa from "@/lib/mcpSesiones";
+import { FalloSesiones } from "@/lib/mcpSesiones";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
-import { FRAMEWORK_IA_VERSION } from "@/lib/ia/framework";
+// La versión y el hook, de sus módulos chicos: `framework.ts` y
+// `skillsGeneradas.ts` suman ~390 KB que el workspace cargaba de entrada solo
+// por estas tres constantes (`FUN-M-58`, C-H4).
+import { FRAMEWORK_IA_VERSION } from "@/lib/ia/versionFramework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
-import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/skillsGeneradas";
+import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/hookMvRmGenerado";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
 import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {
@@ -59,7 +78,14 @@ import { useVaultStore } from "@/stores/vaultStore";
 // ── El protocolo con Rust ───────────────────────────────────────────────────
 
 /** Un pedido tal como lo emite `control.rs`. */
-type Pedido = { id: string; op: string; args: Record<string, unknown>; vault: string };
+type Pedido = {
+  id: string;
+  op: string;
+  args: Record<string, unknown>;
+  vault: string;
+  /** La sesión que lo pidió (`FUN-L-31`), tal como la mandó su servidor; `null` en uno viejo. */
+  sesion?: unknown;
+};
 
 /** Error tipificado (spec § 3.1). */
 type ErrorMcp = { codigo: string; mensaje: string; datos: unknown };
@@ -109,6 +135,10 @@ function asegurarEscucha(): Promise<void> {
     await getCurrentWebviewWindow().listen<Pedido>("mcp-pedido", (evento) => {
       void contestar(evento.payload);
     });
+    // Las sesiones conectadas (`FUN-L-31`): la lista entera cada vez que cambia.
+    await getCurrentWebviewWindow().listen<{ sesiones: unknown[] }>("mcp-sesiones", (evento) => {
+      useSesionesIaStore.getState().fijarConectadas(evento.payload?.sesiones ?? []);
+    });
   })().catch((e) => {
     escuchando = null;
     throw e;
@@ -122,27 +152,37 @@ async function contestar(pedido: Pedido): Promise<void> {
   if (propia === null || !mismaRuta(pedido.vault, propia)) return;
   const actividad = useActividadIaStore.getState();
   actividad.pedidoRecibido();
+  // Quién lo pidió (`FUN-L-31`): la sesión queda registrada con su actividad.
+  const sesionId = useSesionesIaStore.getState().alPedido(pedido.sesion);
   let respuesta: Respuesta;
   let atendido: Atendido | null = null;
   try {
-    atendido = await atender(pedido);
+    atendido = await atender(pedido, sesionId);
     respuesta = { ok: true, resultado: atendido.resultado };
   } catch (e) {
     respuesta =
-      e instanceof FalloMcp || e instanceof FalloCalendario || e instanceof FalloArchivos || e instanceof FalloDiccionario
+      e instanceof FalloMcp ||
+      e instanceof FalloCalendario ||
+      e instanceof FalloArchivos ||
+      e instanceof FalloDiccionario ||
+      e instanceof FalloIndice ||
+      e instanceof FalloSesiones
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
-  if (!atendido?.sinRegistro) registrar(pedido.op, respuesta, atendido);
+  if (!atendido?.sinRegistro) registrar(pedido.op, respuesta, atendido, sesionId);
   await invoke("mcp_responder", { id: pedido.id, respuesta }).catch((e) =>
     console.warn("[mcp] no se pudo contestar el pedido", pedido.op, e),
   );
 }
 
 /** Deja la operación en el registro de actividad (spec § 2.3), si es de las que se registran. */
-function registrar(op: string, respuesta: Respuesta, atendido: Atendido | null): void {
+function registrar(op: string, respuesta: Respuesta, atendido: Atendido | null, sesionId: string | null): void {
   const resultado: Resultado = respuesta.ok ? "hecho" : respuesta.error.codigo === "RECHAZADO" ? "rechazado" : "fallo";
   if (!seRegistra(op, resultado)) return;
+  // De qué sesión es, con la tarea que tenía (`FUN-L-31`): el panel agrupa por eso.
+  const tarea = sesionId ? useSesionesIaStore.getState().sesiones[sesionId]?.tarea : null;
+  const deSesion = sesionId ? { sesion: sesionId, ...(tarea ? { tarea } : {}) } : {};
   try {
     if (respuesta.ok) {
       const a = atendido?.actividad;
@@ -152,6 +192,7 @@ function registrar(op: string, respuesta: Respuesta, atendido: Atendido | null):
         efecto: a?.efecto ?? "Hecho.",
         ...(a?.objetivo ? { objetivo: a.objetivo } : {}),
         ...(a?.deshacer ? { deshacer: a.deshacer } : {}),
+        ...deSesion,
       });
     } else {
       useActividadIaStore.getState().registrar({
@@ -159,6 +200,7 @@ function registrar(op: string, respuesta: Respuesta, atendido: Atendido | null):
         resultado,
         efecto: respuesta.error.mensaje,
         codigo: respuesta.error.codigo,
+        ...deSesion,
       });
     }
   } catch (e) {
@@ -184,12 +226,16 @@ function comprobarListo(): void {
   }
 }
 
-async function atender(pedido: Pedido): Promise<Atendido> {
+async function atender(pedido: Pedido, sesionId: string | null): Promise<Atendido> {
   comprobarListo();
   const args = pedido.args ?? {};
   switch (pedido.op) {
     case "estado":
-      return { resultado: estado() };
+      return { resultado: estado(sesionId) };
+    case "sesion":
+      return sesionesIa.sesion(args, sesionId);
+    case "reservar":
+      return sesionesIa.reservar(args, sesionId);
     case "abrir":
       return abrir(args);
     case "recordatorios":
@@ -203,15 +249,27 @@ async function atender(pedido: Pedido): Promise<Atendido> {
     case "recordatorio_borrar":
       return calendario.borrar(args);
     case "renombrar":
-      return conPermiso(pedido.op, await archivos.renombrar(args));
+      return conPermiso(pedido.op, await archivos.renombrar(args), sesionId);
     case "mover":
-      return conPermiso(pedido.op, await archivos.mover(args));
+      return conPermiso(pedido.op, await archivos.mover(args), sesionId);
     case "borrar":
-      return conPermiso(pedido.op, await archivos.borrar(args));
+      return conPermiso(pedido.op, await archivos.borrar(args), sesionId);
     case "papelera":
-      return conPermiso(pedido.op, await archivos.papelera(args));
+      return conPermiso(pedido.op, await archivos.papelera(args), sesionId);
     case "diccionario":
       return diccionario(args);
+    case "buscar":
+      return indice.buscar(args);
+    case "enlaces":
+      return indice.enlaces(args);
+    case "base":
+      return indice.base(args);
+    case "salud":
+      return saludIa.salud(args);
+    case "validar_nota":
+      return saludIa.validarNota(args);
+    case "diagnosticos":
+      return saludIa.diagnosticos(args);
     case "confirmacion":
       return consultarConfirmacion(args, false);
     case "confirmacion_retirar":
@@ -255,7 +313,7 @@ const confirmaciones = new Map<string, Confirmacion>();
 let siguienteConfirmacion = 1;
 
 /** Si la operación pide permiso, lo pide y contesta «esperando»; si no, pasa tal cual. */
-function conPermiso(op: string, r: Atendible): Atendido {
+function conPermiso(op: string, r: Atendible, sesionId: string | null): Atendido {
   if (!("confirmar" in r)) return r;
   const { mensaje, boton, pedido, ejecutar } = r.confirmar;
   const pregunta = confirmarIa(mensaje, boton);
@@ -287,7 +345,7 @@ function conPermiso(op: string, r: Atendible): Atendido {
       }
     }
     c.respuesta = respuesta;
-    registrar(op, respuesta, atendido);
+    registrar(op, respuesta, atendido, sesionId);
     terminar();
   });
   return {
@@ -349,9 +407,15 @@ function paneles(): PanelIa[] {
   }));
 }
 
-function estado() {
+function estado(sesionId: string | null) {
   const ruta = useVaultSessionStore.getState().rutaActual ?? "";
-  return { vault: { ruta, nombre: nombreDeVault(ruta) }, etapa: "lista", paneles: paneles() };
+  return {
+    vault: { ruta, nombre: nombreDeVault(ruta) },
+    etapa: "lista",
+    paneles: paneles(),
+    // Las otras sesiones, sus reservas y lo cambiado recién (`FUN-L-31`).
+    coordinacion: sesionesIa.coordinacionPara(sesionId),
+  };
 }
 
 // ── abrir ───────────────────────────────────────────────────────────────────
@@ -480,7 +544,7 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
     } else {
       avisos.push(
         `La nota ya está a la vista del usuario: no se movió su cursor a ${descripcionSalto}. ` +
-          "Para llevarlo ahí, repetí con foco: true.",
+          "Para llevarlo ahí, repite con foco: true.",
       );
     }
   }
@@ -627,6 +691,11 @@ async function abrirCanal(vault: string): Promise<void> {
     await asegurarEscucha();
     await invoke<string>("mcp_control_encender", { ruta: vault });
     actividad.fijarCanal(true);
+    // Reencender corta las sesiones del canal anterior; las que sigan vivas se
+    // vuelven a anunciar en segundos (`mcp-sesiones`). Se parte de lo que haya.
+    const sesiones = useSesionesIaStore.getState();
+    sesiones.vaciar();
+    sesiones.fijarConectadas(await invoke<unknown[]>("mcp_sesiones").catch(() => []));
   } catch (e) {
     actividad.fijarCanal(false, String((e as Error)?.message ?? e));
     throw e;
@@ -637,6 +706,7 @@ async function abrirCanal(vault: string): Promise<void> {
 async function cerrarCanal(): Promise<void> {
   await invoke("mcp_control_apagar");
   useActividadIaStore.getState().fijarCanal(false);
+  useSesionesIaStore.getState().vaciar();
 }
 
 /**

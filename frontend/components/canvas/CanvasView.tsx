@@ -7,14 +7,13 @@ import { api } from "@/lib/api";
 import {
   ALTO_TARJETA,
   ANCHO_TARJETA,
+  aristasDibujables,
   anclaDe,
   buscarPorPrefijo,
   cajaDeNodos,
   colorCss,
-  htmlTarjetaEnlace,
   COLORES,
   encuadrar,
-  ladosAutomaticos,
   lugarLibre,
   nodoArchivo,
   nodoTexto,
@@ -23,7 +22,6 @@ import {
   ordenDePintado,
   parsearCanvas,
   serializarCanvas,
-  trazoArista,
   type Canvas,
   type Lado,
   type Nodo,
@@ -44,9 +42,9 @@ import { markMissingWikilinks } from "@/lib/editor/wikilink";
 import { pedirSaltoAAncla } from "@/lib/editor/pendingMatch";
 import { resolverReferencia } from "@/lib/wikilinks";
 import { soltarFoco } from "@/lib/editor/tituloPendiente";
-import { atenderClicEnEnlace, destinoExterno } from "@/lib/enlacesExternos";
+import { atenderClicEnEnlace } from "@/lib/enlacesExternos";
 import { EVENTO_RECARGA } from "@/lib/eventos";
-import { renderNota } from "@/lib/markdown";
+import { htmlDeTarjeta } from "@/lib/canvasRender";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
 import { useAuthStore } from "@/stores/authStore";
@@ -596,23 +594,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
     [notas, busqueda],
   );
 
-  const aristas = useMemo(() => {
-    if (canvas === null) return [];
-    const porId = new Map(canvas.nodos.map((n) => [n.id, n]));
-    return canvas.aristas.flatMap((a) => {
-      const desde = porId.get(a.desdeNodo);
-      const hasta = porId.get(a.hastaNodo);
-      if (!desde || !hasta) return [];
-      const auto = ladosAutomaticos(desde, hasta);
-      const trazo = trazoArista(
-        desde,
-        a.desdeLado ?? auto.desde,
-        hasta,
-        a.hastaLado ?? auto.hasta,
-      );
-      return [{ a, trazo }];
-    });
-  }, [canvas]);
+  // Las mismas flechas que dibuja la vista previa embebida (`FUN-S-19`).
+  const aristas = useMemo(() => (canvas === null ? [] : aristasDibujables(canvas)), [canvas]);
 
   if (error !== null && canvas === null) {
     return <p className={styles.aviso}>No se pudo abrir el canvas: {error}</p>;
@@ -897,7 +880,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
         {canvas.nodos.length === 0 && (
           <p className={styles.vacio} data-fondo="1">
-            Un lienzo vacío. Agregá una tarjeta de texto o de nota desde la barra de arriba.
+            Un lienzo vacío. Agrega una tarjeta de texto o de nota desde la barra de arriba.
           </p>
         )}
       </div>
@@ -984,13 +967,13 @@ function NodoVista({
     };
   }, [nodo.tipo, nota]);
 
-  const html = useMemo(() => {
-    if (nodo.tipo === "text") return renderNota(nodo.texto ?? "");
-    if (nodo.tipo === "file") return renderNota(contenido ?? "");
-    // Escapado y validado: la URL viene cruda del archivo (`DEF-159`).
-    if (nodo.tipo === "link") return htmlTarjetaEnlace(nodo.url, destinoExterno);
-    return "";
-  }, [nodo.tipo, nodo.texto, nodo.url, contenido]);
+  // El mismo HTML que la vista previa embebida (`FUN-S-19`): el texto por el
+  // pipeline saneado de las notas y la URL escapada y validada (`DEF-159`).
+  const html = useMemo(
+    () => htmlDeTarjeta(nodo, contenido),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo lo que lee `htmlDeTarjeta`
+    [nodo.tipo, nodo.texto, nodo.url, contenido],
+  );
 
   // Los wikilinks rotos se marcan igual que en la vista de lectura.
   useEffect(() => {
@@ -1111,7 +1094,7 @@ function NodoVista({
         <span
           key={lado}
           className={`${styles.ancla} ${styles[`ancla_${lado}`]}`}
-          title="Arrastrá hasta otra tarjeta para conectarlas"
+          title="Arrastra hasta otra tarjeta para conectarlas"
           onPointerDown={(e) => {
             e.stopPropagation();
             onConectar(lado, e);

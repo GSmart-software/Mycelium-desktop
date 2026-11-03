@@ -97,7 +97,7 @@ function quitarComillas(s: string): string {
 }
 
 /** Nodo del árbol YAML: escalar, lista o mapa. */
-type Nodo = string | Nodo[] | { [clave: string]: Nodo };
+export type Nodo = string | Nodo[] | { [clave: string]: Nodo };
 
 /**
  * Parser YAML mínimo pero *estructural*: mapas, listas y escalares anidados por
@@ -109,7 +109,7 @@ type Nodo = string | Nodo[] | { [clave: string]: Nodo };
  * `.base` es un árbol. Reusarlo habría significado desplanarlo, que es
  * justamente lo que lo mantiene simple y seguro para editar notas.
  */
-function parsearYaml(texto: string): Record<string, Nodo> {
+export function parsearYaml(texto: string): Record<string, Nodo> {
   const lineas = texto
     .split("\n")
     .map(sinCr)
@@ -1234,4 +1234,40 @@ export function columnasDisponibles(notas: NotaTabla[]): { ref: string; grupo: s
     .map((ref) => ({ ref, grupo: "Propiedades" }));
 
   return [...archivo, ...propiedades];
+}
+
+// ── Vista previa embebida en una nota (`FUN-S-29`) ───────────────────────────
+
+/**
+ * La vista que pide un embed `![[tabla.base#Vista]]`: la de ese nombre (sin
+ * distinguir mayúsculas), o la primera si no se pidió ninguna o no existe.
+ * `encontrada` es `false` cuando se pidió un nombre que la base no tiene, para
+ * poder avisarlo en vez de mostrar otra vista en silencio.
+ */
+export function vistaDeEmbed(
+  base: Base,
+  nombre: string | null,
+): { vista: Vista; indice: number; encontrada: boolean } | null {
+  if (base.vistas.length === 0) return null;
+  if (nombre !== null && nombre.trim() !== "") {
+    const buscado = nombre.trim().toLowerCase();
+    const i = base.vistas.findIndex((v) => v.nombre.trim().toLowerCase() === buscado);
+    if (i >= 0) return { vista: base.vistas[i], indice: i, encontrada: true };
+    return { vista: base.vistas[0], indice: 0, encontrada: false };
+  }
+  return { vista: base.vistas[0], indice: 0, encontrada: true };
+}
+
+/**
+ * El texto de una celda para la vista previa embebida, que es de solo lectura:
+ * cada `[[enlace]]` (o `![[…]]`) se muestra por su alias o su destino, sin
+ * corchetes. La barra del alias puede venir escapada (`\|`, `DEF-045`).
+ */
+export function textoPlanoDeCelda(valor: string): string {
+  return valor.replace(/!?\[\[([^[\]]+)\]\]/g, (_, interior: string) => {
+    const sep = /\\?\|/.exec(interior);
+    if (sep === null) return interior.trim();
+    const alias = interior.slice(sep.index + sep[0].length).trim();
+    return alias !== "" ? alias : interior.slice(0, sep.index).trim();
+  });
 }

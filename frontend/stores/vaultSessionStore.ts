@@ -16,7 +16,8 @@
  * `rutaVaultPersistida()`). `salir()` suelta el índice y limpia la ruta.
  */
 import { create } from "zustand";
-import { abrirIndiceDeVault, setExecutor } from "@/lib/db/client";
+import { abrirIndiceDeVault, execute, setExecutor } from "@/lib/db/client";
+import { avisarRecarga } from "@/lib/eventos";
 import { crearEsquemaIndice, indexarVault } from "@/lib/db/indexer";
 import { restaurarEstadoVault } from "@/lib/db/estadoVault";
 import { migrarDiagramasEmbebidos, migrarEstadoLegado } from "@/lib/db/legado";
@@ -26,11 +27,13 @@ import {
   ponerTituloDeVentana,
   registrarVaultDeVentana,
   soltarVaultDeVentana,
+  tomarBienvenidaPendiente,
 } from "@/lib/vaultMode";
 import { useCssStore } from "@/stores/cssStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -108,9 +111,26 @@ type VaultSessionState = {
   abrir: (ruta: string) => Promise<boolean>;
   /** Cierra el vault: suelta su índice y limpia el estado. */
   salir: () => Promise<void>;
+  /**
+   * `true` mientras se reconstruye el índice (`FUN-S-23`). El avance va en
+   * `progreso`, el mismo campo que alimenta la pantalla de apertura.
+   */
+  reconstruyendo: boolean;
+  /**
+   * Borra el índice del vault abierto y lo vuelve a armar desde los archivos
+   * (`FUN-S-23`). Devuelve qué pasó, o lanza si no se pudo reindexar.
+   */
+  reconstruirIndice: () => Promise<ResultadoReconstruccion>;
 };
 
-export const useVaultSessionStore = create<VaultSessionState>((set) => ({
+/**
+ * Cómo terminó `reconstruirIndice`: `borrado` dice si el índice se borró y se
+ * armó de cero, o si quedó el de antes (Windows no dejó borrarlo) y se releyó
+ * entero encima; `notas`, cuántas quedaron indexadas.
+ */
+export type ResultadoReconstruccion = { borrado: boolean; notas: number };
+
+export const useVaultSessionStore = create<VaultSessionState>((set, get) => ({
   rutaActual: null,
   abriendo: false,
   rutaAbriendo: null,
@@ -118,6 +138,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
   avanceEn: 0,
   progreso: null,
   error: null,
+  reconstruyendo: false,
 
   async abrir(ruta) {
     /** Marca una etapa y sella el instante: lo que alimenta el aviso de atasco. */
@@ -146,6 +167,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     void useRecordatoriosStore.getState().cargar(null);
     // Y su registro de actividad de la IA (`FUN-L-09`): es de aquel vault.
     void useActividadIaStore.getState().cargar(null);
+    // Y sus sesiones de IA y reservas (`FUN-L-31`): eran de aquel canal.
+    useSesionesIaStore.getState().vaciar();
     // Y las consolas del vault anterior (`DEF-099`): sus procesos tienen el cwd
     // en la carpeta que se está dejando. Se sueltan ANTES de cambiar de almacén
     // para que el scrollback se guarde en la clave a la que pertenece.
@@ -204,6 +227,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
       // existen. En modo carpeta el id interno es común a todos los vaults, así
       // que las distingue la ruta.
       await useTabsStore.getState().usarAlmacenDeVault(ruta);
+      // Un vault nuevo trae una nota de bienvenida (`FUN-S-05`): la primera vez
+      // que se entra, se abre. Si no llegó a indexarse, el workspace descarta la
+      // pestaña al reconciliar, como cualquier nota que ya no existe.
+      const bienvenida = tomarBienvenidaPendiente(ruta);
+      if (bienvenida && indexado.rutas.includes(bienvenida)) {
+        useTabsStore.getState().openNote(bienvenida);
+      }
       // Y las consolas, por lo mismo (`DEF-099`): la lista es de ESTE vault, no
       // de la instalación. Con una clave por vault, dos ventanas dejan de
       // compartirlas (`DEF-100`), porque no pueden tener el mismo vault abierto.
@@ -254,6 +284,13 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
   },
 
   async salir() {
+    // Lo de las notas en conflicto con el disco, antes de soltar el vault: la
+    // copia se crea en ESTE vault (`DEF-177`). Quien sale por la barra ya
+    // preguntó; esto es la red para cualquier otro camino. Por `import()`, como
+    // `lib/mcpControl`: no suma un ciclo de imports entre stores.
+    await import("@/lib/conflictosAbiertos")
+      .then((m) => m.resguardarConflictos())
+      .catch(() => undefined);
     // Detener el watcher antes de soltar el vault (fase 5). Best-effort.
     try {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -289,9 +326,87 @@ export const useVaultSessionStore = create<VaultSessionState>((set) => ({
     // Vaciar el store detiene también el programador.
     void useRecordatoriosStore.getState().cargar(null);
     void useActividadIaStore.getState().cargar(null);
+    useSesionesIaStore.getState().vaciar();
     set({ rutaActual: null, rutaAbriendo: null, etapa: null, progreso: null, error: null });
   },
+
+  async reconstruirIndice() {
+    const ruta = get().rutaActual;
+    if (ruta === null) throw new Error("No hay ningún vault abierto.");
+    if (get().reconstruyendo || get().abriendo) throw new Error("El índice ya se está rearmando.");
+    set({ reconstruyendo: true, progreso: null, avanceEn: Date.now() });
+    try {
+      return await reconstruir(ruta, set);
+    } finally {
+      set({ reconstruyendo: false, progreso: null });
+    }
+  },
 }));
+
+/**
+ * Reconstruye el índice del vault abierto (`FUN-S-23`). Se separa de `abrir`
+ * a propósito: reabrir el vault entero mataría las consolas y vaciaría las
+ * pestañas, y acá no cambia de vault nada más que el caché.
+ *
+ *   1. Para el watcher nativo: mientras el índice está cerrado, un cambio en la
+ *      carpeta dispararía un reindexado contra nada.
+ *   2. Suelta el executor y le pide a Rust que cierre el índice y borre el
+ *      archivo (`reconstruir_indice_vault`). Si Rust falla del todo, se sigue
+ *      igual: lo que importa es no quedar sin índice.
+ *   3. Lo reabre —vacío si se borró—, crea el esquema y reindexa con progreso.
+ *      Si NO se pudo borrar, `PRAGMA user_version = 0` hace que `indexarVault`
+ *      relea todas las notas (`VERSION_DERIVADO`) en vez de solo las cambiadas.
+ *   4. Vuelca la papelera desde `.mycelium/papelera.json` (`DEF-107`): es lo
+ *      único del índice que no sale de los archivos. Los snippets, la
+ *      apariencia y las preferencias se leen directo de `.mycelium/`: no se
+ *      tocan.
+ *   5. Avisa a lo que depende del índice: árbol, grafo, editores y vistas.
+ *   6. Vuelve a encender el watcher, pase lo que pase.
+ */
+async function reconstruir(
+  ruta: string,
+  set: (parcial: Partial<VaultSessionState>) => void,
+): Promise<ResultadoReconstruccion> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  try {
+    await invoke("detener_watcher");
+  } catch {
+    // Sin watcher no hay nada que parar.
+  }
+  try {
+    setExecutor(null);
+    let borrado = false;
+    try {
+      borrado = await invoke<boolean>("reconstruir_indice_vault", { vaultRuta: ruta });
+    } catch (error) {
+      // No se pudo ni cerrar: el índice sigue como estaba. Se relee entero
+      // encima, que es lo más parecido a reconstruirlo sin perderlo.
+      console.error("[vault] no se pudo cerrar el índice para reconstruirlo:", error);
+    }
+    await abrirIndiceDeVault(ruta);
+    await crearEsquemaIndice();
+    if (!borrado) await execute("PRAGMA user_version = 0");
+    const indexado = await indexarVault(ruta, (hechas, total) =>
+      set({ progreso: { hechas, total }, avanceEn: Date.now() }),
+    );
+    useVaultStore.getState().setOtros(indexado.otros);
+    await restaurarEstadoVault(ruta);
+
+    const vaultId = useVaultStore.getState().vaultId;
+    if (vaultId) await useVaultStore.getState().loadTree(vaultId);
+    useGraphStore.getState().markStale();
+    // Global de verdad: el índice entero se reconstruyó.
+    avisarRecarga("todas");
+    void import("@/lib/editor/refrescoVivo").then((m) => m.refreshAllLiveViews());
+    return { borrado, notas: indexado.notas };
+  } finally {
+    try {
+      await invoke("iniciar_watcher", { vaultRuta: ruta });
+    } catch {
+      // Sin watcher el vault funciona igual; solo no se auto-refresca.
+    }
+  }
+}
 
 /** Ruta del vault abierto persistida en `sessionStorage`, o `null` (para el arranque). */
 export function rutaVaultPersistida(): string | null {

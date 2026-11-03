@@ -20,6 +20,7 @@ import {
   sePuedeEditar,
   type ArchivoVisor,
 } from "@/lib/otrosArchivos";
+import { EVENTO_ARCHIVO_GUARDADO } from "@/lib/eventos";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./VisorArchivo.module.css";
 
@@ -188,6 +189,7 @@ function VisorTexto({
       setDatos({ ...datos, contenido: borrador, mtime: res.mtime });
       setSucio(false);
       setConflicto(null);
+      window.dispatchEvent(new CustomEvent(EVENTO_ARCHIVO_GUARDADO, { detail: { ruta } }));
     } catch (e) {
       setAviso(typeof e === "string" ? e : "No se pudo guardar el archivo.");
     }
@@ -215,7 +217,7 @@ function VisorTexto({
     return (
       <Aviso
         titulo="Mycelium no puede mostrar este archivo"
-        detalle="Su contenido no es texto (o está en una codificación que Mycelium no entiende). Mostrarlo igual solo llenaría la pantalla de símbolos sin sentido."
+        detalle="Su contenido no es texto (o está en una codificación que Mycelium no entiende). Mostrarlo de todos modos solo llenaría la pantalla de símbolos sin sentido."
         onAbrirFuera={onAbrirFuera}
       />
     );
@@ -276,7 +278,7 @@ function VisorTexto({
         <p className={styles.fragmento}>
           El archivo cambió fuera de Mycelium desde que lo abriste. No se guardó nada.{" "}
           <button type="button" className={styles.enlace} onClick={() => void guardar(true)}>
-            sobrescribir igual
+            sobrescribir de todos modos
           </button>{" "}
           o{" "}
           <button
@@ -301,7 +303,7 @@ function VisorTexto({
           Se muestra el principio del archivo ({formatearBytes(datos.bytes)} en total). Para verlo
           entero,{" "}
           <button type="button" className={styles.enlace} onClick={onAbrirFuera}>
-            abrilo con la aplicación del sistema
+            ábrelo con la aplicación del sistema
           </button>
           .
         </p>

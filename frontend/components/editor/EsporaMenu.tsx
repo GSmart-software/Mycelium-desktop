@@ -56,7 +56,7 @@ export function EsporaMenu({
     <div ref={ref} className={styles.menu} style={{ position: "fixed", top, left }} role="menu">
       {esporas.length === 0 ? (
         <p className={styles.vacio}>
-          No hay Esporas en <code>{carpeta}</code>. Creá plantillas desde el panel de Esporas
+          No hay Esporas en <code>{carpeta}</code>. Crea plantillas desde el panel de Esporas
           del rail.
         </p>
       ) : (

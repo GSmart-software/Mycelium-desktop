@@ -249,10 +249,14 @@ test("con extensión de un tipo que nadie tiene con ese título, no resuelve", (
   assert.equal(idH("Boceto.canvas"), undefined);
 });
 
-test("sin markdown entre los homónimos, el desempate de siempre", () => {
-  // `Pedido` sin la nota: gana el de id menor a la misma altura.
+test("sin markdown entre los homónimos, gana el orden fijo de tipos (FUN-S-18)", () => {
+  // `Pedido` sin la nota: antes ganaba el de id menor a la misma altura
+  // (`Pedido.base`); desde `FUN-S-18` el tipo va primero —dibujo, diagrama,
+  // lienzo, tabla—, para que `![[Pedido]]` dibuje siempre lo mismo.
   const sinNota = NOTAS_H.filter((n) => n.id !== "Pedidos/Pedido.md");
-  assert.equal(resolveWikilink("Pedido", sinNota, CARPETAS_H)?.id, "Pedidos/Pedido.base");
+  assert.equal(resolveWikilink("Pedido", sinNota, CARPETAS_H)?.id, "Pedidos/Pedido.excalidraw");
+  const soloLienzoYTabla = sinNota.filter((n) => n.tipo === "canvas" || n.tipo === "base");
+  assert.equal(resolveWikilink("Pedido", soloLienzoYTabla, CARPETAS_H)?.id, "Pedidos/Pedido.canvas");
 });
 
 test("la variante indexada da lo mismo con homónimos de distinto tipo", () => {
@@ -442,4 +446,86 @@ test("el grafo y el editor coinciden con anclas", () => {
   assert.deepEqual(enlacesNota.derivarEnlaces("[[#Cuidados]] y [[Tomate#Cuidados|ver]]", "markdown"), [
     { texto: "Tomate#Cuidados", tipo: "enlace", n: 1 },
   ]);
+});
+
+// ── Alias (`FUN-M-15`) ────────────────────────────────────────────────────────
+
+const W = await import(WIKILINKS);
+const CARPETAS_AL = [
+  { id: "Historias", nombre: "Historias", padreId: null },
+  { id: "Historias/Viejas", nombre: "Viejas", padreId: "Historias" },
+];
+const NOTAS_AL = [
+  { id: "Historias/HU-009 Gestion.md", titulo: "HU-009 Gestion", carpetaId: "Historias", tipo: "markdown", aliases: ["HU-009", "Gestión"] },
+  { id: "Glosario.md", titulo: "Glosario", carpetaId: null, tipo: "markdown", aliases: ["Términos"] },
+  { id: "Plan.md", titulo: "Plan", carpetaId: null, tipo: "markdown" },
+  // Declara como alias el título de otra nota: no se lo puede quitar.
+  { id: "Historias/Otra.md", titulo: "Otra", carpetaId: "Historias", tipo: "markdown", aliases: ["Plan", "Compartido"] },
+  { id: "Historias/Viejas/Vieja.md", titulo: "Vieja", carpetaId: "Historias/Viejas", tipo: "markdown", aliases: ["compartido"] },
+  // Un dibujo que se llama como un alias: el título gana aunque no sea markdown.
+  { id: "Gestión.excalidraw", titulo: "Gestión", carpetaId: null, tipo: "excalidraw" },
+];
+const al = (ref, notas = NOTAS_AL) => W.resolveWikilink(ref, notas, CARPETAS_AL)?.id;
+
+test("alias: [[alias]] resuelve a la nota que lo declara, sin distinguir mayúsculas", () => {
+  assert.equal(al("HU-009"), "Historias/HU-009 Gestion.md");
+  assert.equal(al("hu-009"), "Historias/HU-009 Gestion.md");
+  assert.equal(al("  HU-009 "), "Historias/HU-009 Gestion.md");
+  assert.equal(al("Términos"), "Glosario.md");
+  assert.equal(al("terminos"), undefined, "las tildes cuentan, como en los títulos");
+  assert.equal(al("Nadie"), undefined);
+});
+
+test("alias: un título siempre gana, aunque sea de otro tipo", () => {
+  assert.equal(al("Plan"), "Plan.md");
+  assert.equal(al("Gestión"), "Gestión.excalidraw");
+});
+
+test("alias: entre alias repetidos, el desempate de los títulos (la ruta más corta) y el MCP ve los dos", () => {
+  assert.equal(al("Compartido"), "Historias/Otra.md");
+  const cands = W.candidatosWikilinkEnIndice("compartido", W.indexarPorTitulo(NOTAS_AL), CARPETAS_AL);
+  assert.deepEqual(cands.map((n) => n.id).sort(), ["Historias/Otra.md", "Historias/Viejas/Vieja.md"]);
+});
+
+test("alias: con ancla sí; con pista de carpeta o extensión, no", () => {
+  const r = W.resolverReferencia("HU-009#Criterios", NOTAS_AL, CARPETAS_AL);
+  assert.equal(r.nota?.id, "Historias/HU-009 Gestion.md");
+  assert.equal(r.ancla, "Criterios");
+  assert.equal(al("Historias/HU-009"), undefined);
+  assert.equal(al("HU-009.md"), undefined);
+});
+
+test("alias: sin la propiedad, nada cambia; el índice se rehace con la lista nueva", () => {
+  const sin = NOTAS_AL.map(({ aliases, ...n }) => n);
+  assert.equal(al("HU-009", sin), undefined);
+  // Cambiar los alias de una nota es una lista nueva: el índice en caché de la
+  // vieja no se usa.
+  const antes = [...NOTAS_AL];
+  assert.equal(al("Nuevo", antes), undefined);
+  const despues = antes.map((n) => (n.id === "Plan.md" ? { ...n, aliases: ["Nuevo"] } : n));
+  assert.equal(al("Nuevo", despues), "Plan.md");
+  assert.equal(al("Nuevo", antes), undefined);
+});
+
+test("alias: el resolutor del índice (enlacesNota) también los ve", () => {
+  const porTitulo = W.indexarPorTitulo(NOTAS_AL);
+  const ids = new Set(NOTAS_AL.map((n) => n.id));
+  assert.equal(enlacesNota.resolverEnlace({ tipo: "enlace", texto: "HU-009" }, porTitulo, CARPETAS_AL, ids), "Historias/HU-009 Gestion.md");
+  assert.deepEqual(enlacesNota.clavesDeAlias(["HU-009", "Carpeta/x"]).slice(0, 1), ["hu-009"]);
+  assert.ok(enlacesNota.clavesDeAlias(["Carpeta/x"]).includes("x"));
+});
+
+test("autocompletado: títulos como siempre, y los alias con la nota a la que llevan", () => {
+  const ops = W.opcionesWikilink("hu", NOTAS_AL, CARPETAS_AL);
+  const alias = ops.find((o) => o.alias === "HU-009");
+  assert.ok(ops.some((o) => o.insert === "HU-009 Gestion" && o.alias === undefined), "el título");
+  assert.deepEqual(alias, { label: "HU-009", insert: "HU-009", detail: "→ HU-009 Gestion", id: "Historias/HU-009 Gestion.md", alias: "HU-009" });
+  // Un alias igual a un título no se sugiere (el enlace iría al título).
+  assert.equal(W.opcionesWikilink("plan", NOTAS_AL, CARPETAS_AL).some((o) => o.alias !== undefined), false);
+  // El alias que pierde el desempate se inserta con la ruta de su nota.
+  const comp = W.opcionesWikilink("compartido", NOTAS_AL, CARPETAS_AL).filter((o) => o.alias);
+  assert.deepEqual(comp.map((o) => o.insert), ["Compartido", "Vieja|compartido"]);
+  for (const o of comp) assert.equal(al(o.insert.split("|")[0]), o.id);
+  // Sin consulta, todo; sin alias en el vault, solo títulos (lo de siempre).
+  assert.equal(W.opcionesWikilink("", NOTAS, CARPETAS).length, NOTAS.length);
 });

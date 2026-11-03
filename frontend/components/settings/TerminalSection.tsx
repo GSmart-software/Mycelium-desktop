@@ -9,8 +9,9 @@ import styles from "./Settings.module.css";
 
 /** Las partes de la consola estilada (`FUN-M-57`), cada una con su interruptor. */
 const EFECTOS: { clave: EfectoConsola; etiqueta: string; ayuda: string }[] = [
-  { clave: "efectoFondo", etiqueta: "Fondo", ayuda: "Una aurora con los colores del tema y una red de micelio detrás del texto." },
-  { clave: "efectoPulso", etiqueta: "Pulso del fondo", ayuda: "El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja." },
+  { clave: "efectoAurora", etiqueta: "Aurora", ayuda: "Manchas de luz con los colores del tema detrás del texto." },
+  { clave: "efectoMicelio", etiqueta: "Red de micelio", ayuda: "Una red de hifas, como marca de agua, detrás del texto." },
+  { clave: "efectoPulso", etiqueta: "Pulso del fondo", ayuda: "El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja. Necesita la aurora o la red de micelio." },
   { clave: "efectoParticulas", etiqueta: "Partículas", ayuda: "Esporas de luz que suben despacio." },
   { clave: "efectoBorde", etiqueta: "Borde animado", ayuda: "Un borde de luz que gira alrededor de la consola." },
   { clave: "efectoMarca", etiqueta: "Marca Mycelium", ayuda: "El rótulo «MYCELIUM // TTY» en la esquina de abajo." },
@@ -44,7 +45,7 @@ export function TerminalSection() {
             <option key={s.id} value={s.id}>{s.nombre}</option>
           ))}
         </select>
-        <Explicacion detalle="Para una consola puntual, en el panel de Consolas hacé clic derecho en «Nueva terminal» y elegí otra shell.">
+        <Explicacion detalle="Para una consola puntual, en el panel de Consolas haz clic derecho en «Nueva terminal» y elige otra shell.">
           La shell que se inicia al crear una consola nueva.
         </Explicacion>
       </div>
@@ -71,14 +72,14 @@ export function TerminalSection() {
         valor={prefs.efectos}
         onChange={(v) => setPref("efectos", v)}
         ayuda="Una consola con fondo de luz, partículas, pantalla de tubo y texto que brilla. Cada parte se elige abajo."
-        detalle="Toma los colores del tema. Rige en el acto en todas las consolas. Usa más la placa de video: si la PC lo sufre, apagá las partes animadas o todo."
+        detalle="Toma los colores del tema. Rige en el acto en todas las consolas. Exige más a la tarjeta gráfica: si la PC lo resiente, apaga las partes animadas o todo."
       >
         {EFECTOS.map((e) => (
           <Interruptor
             key={e.clave}
             etiqueta={e.etiqueta}
             valor={prefs[e.clave]}
-            disabled={!prefs.efectos || (e.clave === "efectoPulso" && !prefs.efectoFondo)}
+            disabled={!prefs.efectos || (e.clave === "efectoPulso" && !prefs.efectoAurora && !prefs.efectoMicelio)}
             onChange={(v) => setPref(e.clave, v)}
             ayuda={e.ayuda}
           />

@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.6.0"
+version = "2.7.0"
 description = "A Tauri App"
 authors = ["you"]
 license = "MIT"
@@ -83,6 +83,11 @@ zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
 # es el tipo que usa el plugin en `version_comparator`. Ya estaba en el árbol
 # (el updater): no se compila nada nuevo.
 semver = "1"
+# draw.io en su propio origen (`DEF-168`, src/drawio_origen.rs): decodificar la
+# ruta pedida y armar los hashes de la CSP. Las dos ya estaban en el árbol
+# (tauri, reqwest): no se compila nada nuevo.
+percent-encoding = "2"
+base64 = "0.22"
 trash = "5.2.3"
 # Recordatorios del calendario (`FUN-L-22`): la notificación del sistema cuando
 # la ventana está minimizada, sin foco o tapada. La tarjeta propia se ve adentro.

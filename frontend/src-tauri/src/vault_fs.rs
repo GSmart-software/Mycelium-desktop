@@ -11,7 +11,10 @@
 //! traversal, porque el frontend las arma a partir de títulos del usuario. La
 //! carpeta base es siempre `vault_ruta` (la carpeta del vault abierto).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::archivos::ruta_segura;
 
@@ -44,6 +47,18 @@ fn sufijo_timestamp() -> String {
         .unwrap_or_else(|_| "0".to_string())
 }
 
+/// Contador de temporales de esta ejecución (`FUN-M-58`): junto con el pid, hace
+/// único el nombre de cada temporal de `escribir_atomico`.
+static TEMPORALES: AtomicU64 = AtomicU64::new(0);
+
+/// Un candado por archivo destino de `escribir_atomico` (`FUN-M-58`). La entrada
+/// vive mientras alguien escribe o espera ese archivo; el último en salir la
+/// borra, así que el mapa no crece con cada nota que se guardó alguna vez.
+fn candados() -> &'static Mutex<HashMap<PathBuf, Arc<Mutex<()>>>> {
+    static CANDADOS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
+    CANDADOS.get_or_init(Default::default)
+}
+
 /// Escritura **atómica** sobre `destino`: escribe a un temporal hermano y hace
 /// `rename`, de modo que un corte a mitad de escritura nunca deja el archivo a
 /// medias — o está el contenido viejo entero, o el nuevo entero.
@@ -52,22 +67,72 @@ fn sufijo_timestamp() -> String {
 /// archivos que no son notas (`FUN-M-26`) escribe por el mismo camino, y ahí la
 /// garantía pesa **más** todavía —esos archivos no van a la papelera ni tienen
 /// historial, así que dejar uno truncado no se deshace desde la app—.
+///
+/// > [!important] Puede correr en paralelo (`FUN-M-58`)
+/// > Hasta `FUN-M-58` los comandos que la llaman corrían en el hilo de la
+/// > ventana, uno detrás de otro. Ahora corren en el pool de hilos de Tauri, y
+/// > dos guardados de la misma nota pueden cruzarse. Por eso: el temporal lleva
+/// > pid **y** un contador (`nota.md.tmp-<pid>-<n>`; antes solo el pid, y dos
+/// > escrituras simultáneas compartían el temporal: una podía renombrar el
+/// > contenido de la otra a medio escribir, y la segunda fallaba sin temporal
+/// > que renombrar), y las escrituras de un mismo destino se hacen de a una
+/// > (candado por ruta), para que un `rename` no choque con otro sobre el mismo
+/// > archivo —en Windows eso puede fallar con «acceso denegado»—. Gana la
+/// > última que toma el candado; el archivo queda entero con uno de los
+/// > contenidos y no sobra ningún temporal.
 pub(crate) fn escribir_atomico(destino: &Path, contenido: &str) -> Result<(), String> {
-    // Temporal hermano del destino (mismo directorio → el rename es atómico y no
-    // cruza sistemas de archivos). En Windows `rename` reemplaza el destino.
-    let tmp = destino.with_extension(format!(
-        "{}tmp-{}",
+    let tmp = temporal_de(destino);
+    con_turno(destino, || escribir_y_renombrar(&tmp, destino, contenido))
+}
+
+/// Temporal hermano del destino (mismo directorio → el rename es atómico y no
+/// cruza sistemas de archivos). En Windows `rename` reemplaza el destino.
+fn temporal_de(destino: &Path) -> PathBuf {
+    let n = TEMPORALES.fetch_add(1, Ordering::Relaxed);
+    destino.with_extension(format!(
+        "{}tmp-{}-{n}",
         destino
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| format!("{e}."))
             .unwrap_or_default(),
         std::process::id()
-    ));
-    std::fs::write(&tmp, contenido.as_bytes())
-        .map_err(|e| format!("No se pudo escribir {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, destino).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
+    ))
+}
+
+/// Corre `f` con el turno de `destino` tomado: las escrituras de un mismo
+/// archivo se hacen de a una (ver `escribir_atomico`). Lo usa también
+/// `guardar_nota_en`, que **compara y escribe** dentro del mismo turno.
+fn con_turno<T>(destino: &Path, f: impl FnOnce() -> T) -> T {
+    let clave = destino.to_path_buf();
+    let candado = {
+        let mut mapa = candados().lock().unwrap_or_else(|e| e.into_inner());
+        mapa.entry(clave.clone()).or_default().clone()
+    };
+    let resultado = {
+        let _turno = candado.lock().unwrap_or_else(|e| e.into_inner());
+        f()
+    };
+    {
+        let mut mapa = candados().lock().unwrap_or_else(|e| e.into_inner());
+        // 2 = la del mapa + la nuestra: nadie más espera este archivo. Los demás
+        // solo clonan el `Arc` con el mapa tomado, así que no hay carrera.
+        if Arc::strong_count(&candado) == 2 {
+            mapa.remove(&clave);
+        }
+    }
+    resultado
+}
+
+/// El cuerpo de `escribir_atomico`, ya con el turno del destino tomado. Si algo
+/// falla, el temporal no queda: tampoco uno escrito a medias.
+fn escribir_y_renombrar(tmp: &Path, destino: &Path, contenido: &str) -> Result<(), String> {
+    std::fs::write(tmp, contenido.as_bytes()).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
+        format!("No se pudo escribir {}: {e}", tmp.display())
+    })?;
+    std::fs::rename(tmp, destino).map_err(|e| {
+        let _ = std::fs::remove_file(tmp);
         format!("No se pudo renombrar a {}: {e}", destino.display())
     })?;
     Ok(())
@@ -90,6 +155,89 @@ pub(crate) fn escribir_nota_en(vault_ruta: String, ruta_rel: String, contenido: 
     Ok(std::fs::metadata(&destino)
         .map(|m| crate::archivos::mtime_ms(&m))
         .unwrap_or(0))
+}
+
+/// Huella de un contenido (`FUN-M-58`, B9): el SHA-256 de sus bytes, en hex.
+/// El frontend calcula la misma sobre el UTF-8 del texto (`huellaDeTexto` en
+/// `lib/conflictoExterno.ts`): un archivo leído y vuelto a escribir tal cual
+/// tiene la misma huella de los dos lados.
+pub(crate) fn huella_de(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+/// Lo que devuelve `guardar_nota`.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotaGuardada {
+    /// `mtime` con que quedó el archivo (como `escribir_nota`); 0 si no se escribió.
+    pub mtime: i64,
+    /// El disco cambió desde la base de quien guarda: **no se escribió nada**.
+    pub conflicto: bool,
+    /// Huella de lo escrito, para que el próximo guardado la mande como base sin
+    /// recalcularla. `None` en conflicto.
+    pub huella: Option<String>,
+}
+
+/// El disco ¿cambió desde la base? El mismo criterio que `decidirAlGuardar`
+/// (`lib/conflictoExterno.ts`, `DEF-138`), con huellas en vez de textos:
+/// archivo inexistente → se escribe (se recrea); el disco ya tiene lo que se va a
+/// escribir → se escribe («ya está»: el `mtime` y el eco del watcher quedan como
+/// siempre); el disco tiene la base → se escribe; cualquier otra cosa → conflicto.
+fn cambio_por_fuera(destino: &Path, esperada: &str, huella_nueva: &str) -> Result<bool, String> {
+    match std::fs::read(destino) {
+        Ok(bytes) => {
+            let disco = huella_de(&bytes);
+            Ok(disco != esperada && disco != huella_nueva)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(format!("No se pudo leer {}: {e}", destino.display())),
+    }
+}
+
+/// Guardado de una nota **con la comparación de `DEF-138` hecha acá**
+/// (`FUN-M-58`, B9).
+///
+/// Hasta B9 el guardado con base leía el archivo entero desde el frontend
+/// (`leer_archivo_texto`), lo comparaba en JS con la base y recién después
+/// mandaba el texto a `escribir_nota`: el texto cruzaba el puente dos veces
+/// (ida y vuelta) por guardado —en una nota de 450 KB, 900 KB de JSON cada
+/// 10 s— y entre la lectura y la escritura quedaba un viaje IPC entero de
+/// ventana. Ahora el frontend manda solo la **huella** de su base; la lectura,
+/// la comparación y la escritura se hacen acá, **dentro del turno del archivo**
+/// (`con_turno`): otro guardado de la app no puede colarse entre la
+/// comparación y la escritura. (Un programa de afuera sí, en los microsegundos
+/// que van de una a otra: es la ventana de cualquier editor que no bloquea el
+/// archivo.)
+///
+/// Sin `huella_esperada` escribe siempre, como `escribir_nota`.
+pub(crate) fn guardar_nota_en(
+    vault_ruta: String,
+    ruta_rel: String,
+    contenido: String,
+    huella_esperada: Option<String>,
+) -> Result<NotaGuardada, String> {
+    let base = base_vault(&vault_ruta)?;
+    let destino = ruta_segura(&base, &ruta_rel)?;
+    asegurar_padre(&destino)?;
+    let huella = huella_de(contenido.as_bytes());
+    let tmp = temporal_de(&destino);
+    let escrito = con_turno(&destino, || -> Result<bool, String> {
+        if let Some(esperada) = huella_esperada.as_deref() {
+            if cambio_por_fuera(&destino, esperada, &huella)? {
+                return Ok(false);
+            }
+        }
+        escribir_y_renombrar(&tmp, &destino, &contenido)?;
+        Ok(true)
+    })?;
+    if !escrito {
+        return Ok(NotaGuardada { mtime: 0, conflicto: true, huella: None });
+    }
+    let mtime = std::fs::metadata(&destino)
+        .map(|m| crate::archivos::mtime_ms(&m))
+        .unwrap_or(0);
+    Ok(NotaGuardada { mtime, conflicto: false, huella: Some(huella) })
 }
 
 /// Renombra o mueve un archivo O carpeta dentro del vault. Sirve tanto para
@@ -354,7 +502,7 @@ pub(crate) fn abrir_con_sistema_en(vault_ruta: String, ruta_rel: String) -> Resu
     }
     if destino.is_file() && es_ejecutable(&destino) {
         return Err(format!(
-            "«{ruta_rel}» se ejecutaría al abrirlo: Mycelium no lo abre. Usá «Mostrar en el explorador»."
+            "«{ruta_rel}» se ejecutaría al abrirlo: Mycelium no lo abre. Usa «Mostrar en el explorador»."
         ));
     }
 
@@ -458,40 +606,62 @@ pub(crate) fn revelar_en_sistema_en(vault_ruta: String, ruta_rel: String) -> Res
 // registrada. Hasta `DEF-161` se validaba solo la parte relativa: la base la
 // decidía JS, y con ella cualquier carpeta del disco era «el vault».
 
+//
+// Todos llevan `#[tauri::command(async)]` (`FUN-M-58`) salvo `abrir_con_sistema`,
+// que ya era `async fn`. Un comando sin `async` corre en el hilo de la ventana
+// —ahí atiende WebView2 el IPC—: mientras dura, la ventana no se mueve ni se
+// redimensiona y todo el IPC, también el SQL del índice, queda en cola detrás.
+// Con `(async)` la misma función corre en el pool de Tauri. El precio es que dos
+// llamadas pueden correr a la vez: el frontend espera cada una antes de la
+// siguiente que dependa de ella (`lib/db/vaultFs.ts`), y dos guardados de la
+// misma nota que se crucen los ordena el candado de `escribir_atomico`.
+
 use crate::ventanas::base_de_ventana as base;
 
 /// Ver `escribir_nota_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn escribir_nota(ventana: tauri::Window, vault_ruta: String, ruta_rel: String, contenido: String) -> Result<i64, String> {
     escribir_nota_en(base(&ventana, &vault_ruta)?, ruta_rel, contenido)
 }
 
+/// Ver `guardar_nota_en`.
+#[tauri::command(async)]
+pub fn guardar_nota(
+    ventana: tauri::Window,
+    vault_ruta: String,
+    ruta_rel: String,
+    contenido: String,
+    huella_esperada: Option<String>,
+) -> Result<NotaGuardada, String> {
+    guardar_nota_en(base(&ventana, &vault_ruta)?, ruta_rel, contenido, huella_esperada)
+}
+
 /// Ver `mover_ruta_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn mover_ruta(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     mover_ruta_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
 }
 
 /// Ver `crear_directorio_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn crear_directorio(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     crear_directorio_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `copiar_archivo_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn copiar_archivo(ventana: tauri::Window, vault_ruta: String, origen_rel: String, destino_rel: String) -> Result<(), String> {
     copiar_archivo_en(base(&ventana, &vault_ruta)?, origen_rel, destino_rel)
 }
 
 /// Ver `borrar_a_papelera_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn borrar_a_papelera(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<String, String> {
     borrar_a_papelera_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `restaurar_de_papelera_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn restaurar_de_papelera(
     ventana: tauri::Window,
     vault_ruta: String,
@@ -502,19 +672,19 @@ pub fn restaurar_de_papelera(
 }
 
 /// Ver `borrar_definitivo_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn borrar_definitivo(ventana: tauri::Window, vault_ruta: String, ruta_papelera_rel: String) -> Result<(), String> {
     borrar_definitivo_en(base(&ventana, &vault_ruta)?, ruta_papelera_rel)
 }
 
 /// Ver `leer_archivo_texto_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn leer_archivo_texto(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<Option<String>, String> {
     leer_archivo_texto_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
 
 /// Ver `ia_borrar_anterior_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ia_borrar_anterior(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     ia_borrar_anterior_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
@@ -543,7 +713,7 @@ pub async fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_
             .dialog()
             .message(format!(
                 "«{nombre}» puede ejecutar código al abrirlo (macros, complementos o una imagen de disco). \
-                 Abrilo solo si sabés de dónde viene y confiás en quien lo hizo."
+                 Ábrelo solo si sabes de dónde viene y confías en quien lo hizo."
             ))
             .title("¿Abrir este archivo?")
             .kind(MessageDialogKind::Warning)
@@ -560,7 +730,7 @@ pub async fn abrir_con_sistema(ventana: tauri::Window, vault_ruta: String, ruta_
 }
 
 /// Ver `revelar_en_sistema_en`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn revelar_en_sistema(ventana: tauri::Window, vault_ruta: String, ruta_rel: String) -> Result<(), String> {
     revelar_en_sistema_en(base(&ventana, &vault_ruta)?, ruta_rel)
 }
@@ -738,6 +908,161 @@ mod tests {
         for nombre in ["informe.docx", "Cuentas.xlsx", "charla.pptx", "nota.md", "foto.png", "a.pdf"] {
             assert!(!pide_confirmacion(Path::new(nombre)), "{nombre}");
         }
+    }
+
+    /// `FUN-M-58`: con los comandos en el pool de hilos, dos guardados de la misma
+    /// nota pueden cruzarse. N hilos escriben a la vez, varias veces, contenidos
+    /// distintos y grandes (para que las ventanas se pisen): ninguna escritura
+    /// falla, el archivo final es exactamente uno de los contenidos —no una
+    /// mezcla— y no sobra ningún temporal.
+    #[test]
+    fn escrituras_concurrentes_de_la_misma_nota_dejan_una_entera_y_ningun_temporal() {
+        const HILOS: usize = 12;
+        const VUELTAS: usize = 15;
+        let base = tmp_vault("concurrentes");
+        let destino = base.join("nota.md");
+        let contenidos: Vec<String> = (0..HILOS)
+            .map(|i| format!("hilo {i}
+").repeat(20_000))
+            .collect();
+        let barrera = Arc::new(std::sync::Barrier::new(HILOS));
+        let hilos: Vec<_> = contenidos
+            .iter()
+            .cloned()
+            .map(|contenido| {
+                let destino = destino.clone();
+                let barrera = barrera.clone();
+                std::thread::spawn(move || {
+                    barrera.wait();
+                    for _ in 0..VUELTAS {
+                        escribir_atomico(&destino, &contenido).expect("ninguna escritura debe fallar");
+                    }
+                })
+            })
+            .collect();
+        for h in hilos {
+            h.join().unwrap();
+        }
+        let final_ = std::fs::read_to_string(&destino).unwrap();
+        assert!(contenidos.contains(&final_), "el archivo quedó con una mezcla o truncado");
+        let nombres: Vec<String> = std::fs::read_dir(&base)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(nombres, vec!["nota.md".to_string()], "sobraron temporales");
+        // Y el mapa de candados no se queda con la entrada.
+        assert!(!candados().lock().unwrap().contains_key(&destino));
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// `FUN-M-58`, B9: el guardado con base compara el disco con la huella de
+    /// la base y solo escribe si nadie lo cambió (el criterio de `DEF-138`).
+    #[test]
+    fn guardar_con_huella_escribe_solo_si_el_disco_tiene_la_base() {
+        let base = tmp_vault("guardar-huella");
+        let v = base.to_string_lossy().to_string();
+        let destino = base.join("n.md");
+        escribir_nota_en(v.clone(), "n.md".into(), "base ñ".into()).unwrap();
+        let h_base = huella_de("base ñ".as_bytes());
+
+        // Huella igual → escribe y devuelve la huella de lo escrito y el mtime.
+        let r = guardar_nota_en(v.clone(), "n.md".into(), "mío".into(), Some(h_base.clone())).unwrap();
+        assert!(!r.conflicto);
+        assert_eq!(r.huella.as_deref(), Some(huella_de("mío".as_bytes()).as_str()));
+        assert!(r.mtime > 0);
+        assert_eq!(std::fs::read_to_string(&destino).unwrap(), "mío");
+
+        // Alguien de afuera escribe: con la base vieja, conflicto y NO se escribe.
+        std::fs::write(&destino, "de afuera").unwrap();
+        let h_mio = r.huella.unwrap();
+        let r = guardar_nota_en(v.clone(), "n.md".into(), "mío otra vez".into(), Some(h_mio.clone())).unwrap();
+        assert!(r.conflicto);
+        assert_eq!(r.mtime, 0);
+        assert!(r.huella.is_none());
+        assert_eq!(std::fs::read_to_string(&destino).unwrap(), "de afuera", "lo de afuera no se pisa");
+
+        // «Ya está»: el disco ya tiene lo que se iba a escribir → se escribe igual.
+        let r = guardar_nota_en(v.clone(), "n.md".into(), "de afuera".into(), Some(h_mio.clone())).unwrap();
+        assert!(!r.conflicto);
+        assert_eq!(std::fs::read_to_string(&destino).unwrap(), "de afuera");
+
+        // Sin huella (forzar, «Quedarme con lo mío») → escribe siempre.
+        std::fs::write(&destino, "otra vez de afuera").unwrap();
+        let r = guardar_nota_en(v.clone(), "n.md".into(), "forzado".into(), None).unwrap();
+        assert!(!r.conflicto);
+        assert_eq!(std::fs::read_to_string(&destino).unwrap(), "forzado");
+
+        // No sobra ningún temporal, tampoco tras el conflicto.
+        let nombres: Vec<String> = std::fs::read_dir(&base)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(nombres, vec!["n.md".to_string()]);
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// Archivo inexistente (lo borraron por fuera): se recrea, como antes, con
+    /// sus subcarpetas.
+    #[test]
+    fn guardar_con_huella_recrea_el_archivo_que_no_existe() {
+        let base = tmp_vault("guardar-inexistente");
+        let v = base.to_string_lossy().to_string();
+        let h = huella_de("lo que había".as_bytes());
+        let r = guardar_nota_en(v.clone(), "Sub/n.md".into(), "nuevo".into(), Some(h)).unwrap();
+        assert!(!r.conflicto);
+        assert_eq!(std::fs::read_to_string(base.join("Sub/n.md")).unwrap(), "nuevo");
+        assert!(guardar_nota_en(v.clone(), "../fuera.md".into(), "x".into(), None).is_err());
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    /// La huella es la del frontend: SHA-256 hex de los bytes UTF-8, con BOM y
+    /// CRLF tal cual (`huellaDeTexto`; `scripts/test-conflicto-externo.mjs`
+    /// prueba el mismo vector).
+    #[test]
+    fn huella_es_sha256_hex_de_los_bytes() {
+        assert_eq!(huella_de(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            huella_de("\u{feff}# Árbol\r\nñ".as_bytes()),
+            "f2640117246f20208901709f485d4aacd020fbecd70955d896a4da8452d7da2a"
+        );
+    }
+
+    /// Concurrencia bajo el turno: N hilos guardan a la vez la misma nota con la
+    /// MISMA base. La comparación y la escritura van en el mismo turno, así que
+    /// exactamente uno escribe; los demás ven el disco cambiado (ya no tiene la
+    /// base ni su texto) y reportan conflicto sin escribir. Sin el turno, dos
+    /// podían comparar contra la base antes de que el primero escribiera, y el
+    /// segundo pisaba al primero.
+    #[test]
+    fn guardados_concurrentes_con_la_misma_base_escribe_uno_solo() {
+        const HILOS: usize = 12;
+        let base = tmp_vault("guardar-concurrentes");
+        let v = base.to_string_lossy().to_string();
+        escribir_nota_en(v.clone(), "n.md".into(), "base".into()).unwrap();
+        let h_base = huella_de(b"base");
+        let barrera = Arc::new(std::sync::Barrier::new(HILOS));
+        let hilos: Vec<_> = (0..HILOS)
+            .map(|i| {
+                let (v, h, barrera) = (v.clone(), h_base.clone(), barrera.clone());
+                std::thread::spawn(move || {
+                    let contenido = format!("hilo {i}\n").repeat(20_000);
+                    barrera.wait();
+                    let r = guardar_nota_en(v, "n.md".into(), contenido.clone(), Some(h)).unwrap();
+                    (r.conflicto, contenido)
+                })
+            })
+            .collect();
+        let resultados: Vec<(bool, String)> = hilos.into_iter().map(|h| h.join().unwrap()).collect();
+        let ganadores: Vec<&String> = resultados.iter().filter(|(c, _)| !c).map(|(_, t)| t).collect();
+        assert_eq!(ganadores.len(), 1, "exactamente un guardado escribe");
+        assert_eq!(&std::fs::read_to_string(base.join("n.md")).unwrap(), ganadores[0]);
+        let nombres: Vec<String> = std::fs::read_dir(&base)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(nombres, vec!["n.md".to_string()], "sobraron temporales");
+        assert!(!candados().lock().unwrap().contains_key(&base.join("n.md")));
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

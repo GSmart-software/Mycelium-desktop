@@ -105,6 +105,42 @@ pub fn pedir(canal: &Path, pedido: &Value, espera: Duration) -> Result<Value, Fa
     }
 }
 
+/// La conexión de **presencia** de la sesión (`FUN-L-31`, ver `sesion.rs`):
+/// manda el anuncio y, si la app lo acepta, se queda leyendo **sin plazo**
+/// hasta que la conexión se corte. Corre en su propio hilo: bloquearse es el
+/// punto. `Ok(true)`: se aceptó y después se cortó; `Ok(false)`: la app
+/// contestó que no (una versión que no conoce la presencia).
+pub fn sostener(canal: &Path, anuncio: &Value) -> Result<bool, Fallo> {
+    let mut flujo = abrir(canal)?;
+    let mut linea = anuncio.to_string();
+    linea.push('\n');
+    flujo
+        .write_all(linea.as_bytes())
+        .and_then(|_| flujo.flush())
+        .map_err(|e| Fallo::Roto(format!("no se pudo escribir en el canal: {e}")))?;
+    let mut lector = BufReader::new(flujo);
+    let mut respuesta = String::new();
+    match lector.read_line(&mut respuesta) {
+        Ok(0) => return Err(Fallo::Roto("la app cerró el canal sin contestar".into())),
+        Ok(_) => {}
+        Err(e) => return Err(Fallo::Roto(format!("se cortó el canal: {e}"))),
+    }
+    let r: Value = serde_json::from_str(respuesta.trim()).map_err(|e| Fallo::Roto(format!("respuesta que no es JSON: {e}")))?;
+    if r.get("ok").and_then(Value::as_bool) != Some(true) {
+        return Ok(false);
+    }
+    // Nada más que hacer: la app no manda nada por acá. Se lee para enterarse
+    // de cuándo se corta (la app se cerró o apagó el control).
+    let mut resto = String::new();
+    loop {
+        resto.clear();
+        match lector.read_line(&mut resto) {
+            Ok(0) | Err(_) => return Ok(true),
+            Ok(_) => {}
+        }
+    }
+}
+
 /// Un servidor de canal falso para los tests (también lo usa la prueba de
 /// punta a punta de `tests/`, que lo incluye por ruta).
 #[cfg(test)]

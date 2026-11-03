@@ -32,8 +32,62 @@ export async function listarVaults(): Promise<VaultRef[]> {
  * vault vinculado es una carpeta que todos los comandos del vault pueden leer y
  * escribir, así que la ruta no puede salir de la webview.
  */
-export async function elegirVault(): Promise<VaultRef | null> {
-  return (await invoke<VaultRef | null>("elegir_vault")) ?? null;
+export async function elegirVault(): Promise<VaultElegido | null> {
+  const elegido = (await invoke<VaultElegido | null>("elegir_vault")) ?? null;
+  if (elegido?.notaBienvenida) anotarBienvenida(elegido.ruta, elegido.notaBienvenida);
+  return elegido;
+}
+
+/**
+ * Lo que devuelve `elegirVault`: el vault y, si era nuevo, el id de la nota de
+ * bienvenida que Rust le sembró (`FUN-S-05`), o `null`.
+ */
+export type VaultElegido = VaultRef & { notaBienvenida: string | null };
+
+// ── Nota de bienvenida de un vault nuevo (`FUN-S-05`) ────────────────────────
+
+/**
+ * Clave de `localStorage` con las notas de bienvenida por abrir, por ruta de
+ * vault. En `localStorage` y no en memoria porque el vault puede abrirse en
+ * OTRA ventana (el menú de vaults de la barra superior abre ahí lo que vincula)
+ * o más tarde, desde el selector: la nota se abre la primera vez que se entra,
+ * venga de donde venga.
+ */
+const CLAVE_BIENVENIDA = "mycelium:bienvenida-pendiente";
+
+function leerBienvenidas(): Record<string, string> {
+  try {
+    const crudo = localStorage.getItem(CLAVE_BIENVENIDA);
+    const datos: unknown = crudo ? JSON.parse(crudo) : {};
+    return datos && typeof datos === "object" ? (datos as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function anotarBienvenida(ruta: string, notaId: string): void {
+  try {
+    localStorage.setItem(CLAVE_BIENVENIDA, JSON.stringify({ ...leerBienvenidas(), [ruta]: notaId }));
+  } catch {
+    // Sin `localStorage` la nota igual está en el vault; solo no se abre sola.
+  }
+}
+
+/**
+ * La nota de bienvenida pendiente de ese vault, o `null`, y la olvida: se abre
+ * una sola vez. La llama `vaultSessionStore.abrir` al entrar.
+ */
+export function tomarBienvenidaPendiente(ruta: string): string | null {
+  const pendientes = leerBienvenidas();
+  const notaId = pendientes[ruta];
+  if (typeof notaId !== "string") return null;
+  delete pendientes[ruta];
+  try {
+    localStorage.setItem(CLAVE_BIENVENIDA, JSON.stringify(pendientes));
+  } catch {
+    // Si no se puede olvidar, a lo sumo se abre de nuevo la próxima vez.
+  }
+  return notaId;
 }
 
 /**

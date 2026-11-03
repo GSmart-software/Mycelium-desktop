@@ -1,0 +1,335 @@
+/* Las gráficas de la salud del vault (FUN-L-32): SVG propio con los tokens de
+   Mycelium. Los colores de los grupos llegan por estilo en línea desde
+   usePaletaGraficas (la rampa tonal del tema activo); lo de una sola serie usa
+   --mic-accent, y lo que no cuenta, --mic-text-muted. Las clases globales
+   mic-grafica y mic-grafica-tooltip están en la plantilla de snippets. */
+
+.contenedor {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.svg {
+  display: block;
+  overflow: visible;
+}
+
+.svg text {
+  fill: var(--mic-text-muted);
+  font-family: var(--mic-font-sans, system-ui, sans-serif);
+  font-size: 11.5px;
+}
+
+.svg .rotulo {
+  fill: var(--mic-text-primary);
+  font-size: 12.5px;
+}
+
+.svg .valor {
+  fill: var(--mic-text-primary);
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.svg .centroTotal {
+  fill: var(--mic-text-primary);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.svg .centroPie {
+  fill: var(--mic-text-primary);
+  font-size: 11.5px;
+}
+
+.grilla {
+  stroke: var(--mic-border);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* Una marca con detalle al pasar el puntero. El resaltado sincronizado con la
+   lista atenúa a las demás marcas (opacidad en la hoja, no en el contenedor:
+   DESIGN_SYSTEM, «Atenuado»). */
+.marca {
+  cursor: default;
+  transition: opacity 120ms ease;
+}
+
+.marca:hover {
+  filter: brightness(1.08) saturate(1.1);
+}
+
+.svg[data-resaltado] .marca[data-grupo]:not([data-on]) {
+  opacity: 0.35;
+}
+
+.serie {
+  fill: var(--mic-accent);
+}
+
+.serieTenue {
+  fill: color-mix(in srgb, var(--mic-accent) 50%, var(--mic-bg-surface));
+}
+
+.serieGris {
+  fill: color-mix(in srgb, var(--mic-text-muted) 70%, var(--mic-bg-surface));
+}
+
+.centro {
+  fill: var(--mic-bg-canvas);
+  stroke: var(--mic-border);
+}
+
+.arcoConectadas {
+  fill: none;
+  stroke: var(--mic-glow);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.hifa {
+  fill: none;
+  stroke: color-mix(in srgb, var(--mic-glow) 40%, transparent);
+  stroke-width: 1.2;
+}
+
+.area {
+  fill: color-mix(in srgb, var(--mic-accent) 16%, transparent);
+}
+
+.linea {
+  fill: none;
+  stroke: var(--mic-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.punto {
+  fill: var(--mic-accent);
+}
+
+/* ── Tooltip ──────────────────────────────────────────────────────────── */
+
+.tooltip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mic-raw-base-deep, #000) 22%, transparent);
+}
+
+.tooltip b {
+  font-weight: 600;
+}
+
+.tooltipValor {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+}
+
+.tooltipNota {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Estado vacío ─────────────────────────────────────────────────────── */
+
+.vacio {
+  display: grid;
+  place-items: center;
+  min-height: 5rem;
+  padding: 0.75rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px dashed var(--mic-border);
+  color: var(--mic-text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+/* ── Lista de composición ─────────────────────────────────────────────── */
+
+.lista {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fila {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.fila:hover,
+.fila[data-on] {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.fila:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.fila[data-vacia] {
+  color: var(--mic-text-muted);
+}
+
+.muestra {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.filaNombre {
+  min-width: 0;
+}
+
+.filaDetalle {
+  display: block;
+  font-size: 0.71875rem;
+  color: var(--mic-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filaValor {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.filaPorcentaje {
+  min-width: 3.4em;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Leyenda ──────────────────────────────────────────────────────────── */
+
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leyenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leyenda i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* ── Las más conectadas ───────────────────────────────────────────────── */
+
+.hubs {
+  display: grid;
+  gap: 1px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hub {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, 120px) 2.5rem;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 3px 6px;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.hub:hover {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.hub:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+.hubNombre {
+  color: var(--mic-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--mic-accent) 40%, transparent);
+  text-underline-offset: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hubTexto {
+  color: var(--mic-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hubBarra {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--mic-text-muted) 14%, transparent);
+  overflow: hidden;
+}
+
+.hubBarra i {
+  display: block;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  background: var(--mic-accent);
+}
+
+.hubValor {
+  font-family: var(--mic-font-mono, monospace);
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+  text-align: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marca {
+    transition: none;
+  }
+}

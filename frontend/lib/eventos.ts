@@ -17,11 +17,37 @@
  * recargar su nota si no tienen cambios sin guardar— y el panel de conexiones.
  *
  * El watcher lo emite como `CustomEvent` con `detail.rutas`: las rutas que traía
- * la ráfaga (`FUN-L-26`). Otros emisores lo mandan sin detalle, y eso quiere
- * decir «cualquier cosa pudo cambiar». Los lienzos, diagramas y dibujos lo usan
- * para no releer su archivo por un cambio ajeno (`lib/recargaExterna.ts`).
+ * la ráfaga (`FUN-L-26`). Las reparaciones de enlaces, con las notas que
+ * reescribieron (`FUN-M-58`). Sin detalle quiere decir «cualquier cosa pudo
+ * cambiar» (reconstruir el índice). Los editores de notas, lienzos, diagramas y
+ * dibujos lo usan para no releer su archivo por un cambio ajeno
+ * (`avisoTocaA` en `lib/recargaExterna.ts`). Se emite con `avisarRecarga`.
  */
 export const EVENTO_RECARGA = "micelio:vault-recargar";
+
+/**
+ * Emite `EVENTO_RECARGA` (`FUN-M-58`).
+ *
+ * - Con una lista de rutas, solo con esas en `detail.rutas`: cada editor relee
+ *   su archivo solo si está entre ellas (`avisoTocaA`). Una lista vacía no
+ *   emite nada: no cambió nada.
+ * - Con `"todas"`, sin detalle, que significa «pudo cambiar cualquier cosa»:
+ *   para lo que de verdad es global, como reconstruir el índice.
+ *
+ * Antes las reparaciones de enlaces (renombrar, mover, re-enlazar) lo emitían
+ * siempre sin detalle aunque sabían qué notas reescribieron, y entonces TODOS
+ * los editores, lienzos, dibujos y diagramas abiertos volvían a leer su
+ * archivo del disco para comparar.
+ */
+export function avisarRecarga(rutas: readonly string[] | "todas"): void {
+  if (typeof window === "undefined") return;
+  if (rutas === "todas") {
+    window.dispatchEvent(new Event(EVENTO_RECARGA));
+    return;
+  }
+  if (rutas.length === 0) return;
+  window.dispatchEvent(new CustomEvent(EVENTO_RECARGA, { detail: { rutas: [...rutas] } }));
+}
 
 /**
  * Una nota se acaba de GUARDAR desde la app, y el índice ya tiene su contenido y
@@ -40,3 +66,43 @@ export const EVENTO_RECARGA = "micelio:vault-recargar";
  * conexiones, para la nota que muestran.
  */
 export const EVENTO_NOTA_GUARDADA = "micelio:nota-guardada";
+
+/**
+ * El `detail` de `EVENTO_NOTA_GUARDADA`. Lo que va además de `notaId` es lo que
+ * devolvió el guardado (`FUN-M-58`): si cambiaron los enlaces, las etiquetas o
+ * los alias, y la fecha y el tamaño nuevos. Con eso el panel de conexiones
+ * actualiza «Modificada» y «Tamaño» sin volver a pedir las conexiones —que leen
+ * el texto de cada nota que cita— cuando los enlaces no cambiaron. Sin el dato
+ * (`undefined`), quien escucha supone que sí cambiaron.
+ */
+export type DetalleNotaGuardada = {
+  notaId: string;
+  enlacesCambiaron?: boolean;
+  actualizadoEn?: string;
+  tamanoBytes?: number;
+};
+
+/**
+ * El índice cambió los alias de unas notas (`FUN-M-15`): `detail.aliases` es
+ * `{ [id]: string[] }`, con la lista nueva de cada una (vacía si ya no tiene).
+ *
+ * Lo emite la capa de datos (desktop) al guardar una nota y al indexar lo que
+ * cambió por fuera, porque es la que lee el frontmatter. Lo escucha el árbol
+ * (`stores/vaultStore.ts`), que guarda los alias de cada nota para que el editor
+ * resuelva `[[alias]]` sin preguntarle al índice en cada tecla.
+ */
+export const EVENTO_ALIAS = "micelio:alias-cambiados";
+
+/** Emite `EVENTO_ALIAS` con estos cambios (nada, si no hay o si no hay ventana). */
+export function avisarAliasCambiados(aliases: Record<string, string[]>): void {
+  if (typeof window === "undefined" || Object.keys(aliases).length === 0) return;
+  window.dispatchEvent(new CustomEvent(EVENTO_ALIAS, { detail: { aliases } }));
+}
+
+/**
+ * Un archivo que no es nota se acaba de guardar desde el visor de la app
+ * (`FUN-M-46`): `detail.ruta` dice cuál. El watcher descarta lo que la propia
+ * app escribe, así que sin esto nadie se enteraría. Lo escucha
+ * `lib/esquemasVault.ts` para releer `esquemas.yml` al guardarlo.
+ */
+export const EVENTO_ARCHIVO_GUARDADO = "micelio:archivo-guardado";

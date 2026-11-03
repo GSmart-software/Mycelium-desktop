@@ -208,3 +208,43 @@ test("los pendientes: se quitan solo si son el mismo cambio, y en orden cronoló
   quitarPendientes([a2]);
   assert.deepEqual(pendientesActuales(), []);
 });
+
+// ── Identidad (`FUN-M-58`) ──────────────────────────────────────────────────
+
+const { conservarIdentidad, mismaNota, mismaCarpeta, mismoOtro } = await importarTs("lib/arbolVivo.ts");
+
+test("mismaNota: compara lo que el árbol muestra, no `actualizadoEn`", () => {
+  const a = nota("Area/x.md");
+  assert.ok(mismaNota(a, { ...a, actualizadoEn: "2027-01-01T00:00:00.000Z" }));
+  assert.ok(mismaNota(a, { ...a, aliases: [] }), "sin alias = lista vacía");
+  assert.ok(!mismaNota(a, { ...a, aliases: ["y"] }));
+  assert.ok(!mismaNota({ ...a, aliases: ["y", "z"] }, { ...a, aliases: ["z", "y"] }), "el orden de los alias cuenta");
+  assert.ok(!mismaNota(a, { ...a, titulo: "X" }));
+  assert.ok(!mismaNota(a, { ...a, carpetaId: null }));
+  assert.ok(!mismaNota(a, { ...a, tipo: "canvas" }));
+  assert.ok(mismaCarpeta(carpeta("A/B"), carpeta("A/B")));
+  assert.ok(!mismaCarpeta(carpeta("A/B"), { ...carpeta("A/B"), nombre: "b" }));
+  assert.ok(mismoOtro(otro("a/f.png"), otro("a/f.png")));
+  assert.ok(!mismoOtro(otro("a/f.png"), { ...otro("a/f.png"), extension: "PNG" }));
+});
+
+test("conservarIdentidad: igual → la misma lista; distinta → lista nueva con los objetos de antes", () => {
+  const previa = arbol({ notas: ["a.md", "b.md", "c.md"] }).notas;
+  const igual = previa.map((n) => ({ ...n, actualizadoEn: "otra" }));
+  assert.equal(conservarIdentidad(previa, igual, (n) => n.id, mismaNota), previa);
+
+  const conCambio = [igual[0], { ...igual[1], aliases: ["B"] }, igual[2]];
+  const r = conservarIdentidad(previa, conCambio, (n) => n.id, mismaNota);
+  assert.notEqual(r, previa);
+  assert.equal(r[0], previa[0]);
+  assert.equal(r[1], conCambio[1]);
+  assert.equal(r[2], previa[2]);
+
+  // Mismo contenido en otro orden, o con una de más / de menos: lista nueva.
+  assert.notEqual(conservarIdentidad(previa, [igual[1], igual[0], igual[2]], (n) => n.id, mismaNota), previa);
+  assert.notEqual(conservarIdentidad(previa, igual.slice(0, 2), (n) => n.id, mismaNota), previa);
+  assert.notEqual(conservarIdentidad(previa, [...igual, nota("d.md")], (n) => n.id, mismaNota), previa);
+  // Vacías las dos: la de antes.
+  const vacia = [];
+  assert.equal(conservarIdentidad(vacia, [], (n) => n.id, mismaNota), vacia);
+});

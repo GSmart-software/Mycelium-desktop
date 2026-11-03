@@ -47,8 +47,10 @@ function texto(args: Record<string, unknown>, campo: string): Validado<string> {
 
 // ── Argumentos ──────────────────────────────────────────────────────────────
 
-export function validarRenombrar(args: Record<string, unknown>): Validado<{ objetivo: string; nombre: string }> {
-  const k = clavesConocidas(args, ["objetivo", "nombre"]);
+export function validarRenombrar(
+  args: Record<string, unknown>,
+): Validado<{ objetivo: string; nombre: string; conservarAlias: boolean }> {
+  const k = clavesConocidas(args, ["objetivo", "nombre", "conservarAlias"]);
   if (!k.ok) return k;
   const objetivo = texto(args, "objetivo");
   if (!objetivo.ok) return objetivo;
@@ -56,7 +58,12 @@ export function validarRenombrar(args: Record<string, unknown>): Validado<{ obje
   if (!nombre.ok) return nombre;
   const motivo = motivoNombreInvalido(nombre.valor);
   if (motivo !== null) return invalido("nombre", `${motivo}.`.replace(/\.\.$/, "."));
-  return { ok: true, valor: { objetivo: objetivo.valor, nombre: nombre.valor } };
+  // `FUN-M-47`: opcional, y apagado si no viene.
+  const conservar = args.conservarAlias;
+  if (conservar !== undefined && typeof conservar !== "boolean") {
+    return invalido("conservarAlias", "tiene que ser true o false.");
+  }
+  return { ok: true, valor: { objetivo: objetivo.valor, nombre: nombre.valor, conservarAlias: conservar === true } };
 }
 
 export function validarMover(args: Record<string, unknown>): Validado<{ objetivo: string; carpeta: string }> {
@@ -148,7 +155,7 @@ export function resolverAfectado<N extends NotaEnlazable>(
       return invalido(
         "objetivo",
         `«${r.ruta}» no es una nota (Mycelium no lo indexa): estas herramientas operan notas y carpetas. ` +
-          "Ese archivo lo podés mover con la terminal; ningún [[enlace]] se repara.",
+          "Ese archivo lo puedes mover con la terminal; ningún [[enlace]] se repara.",
       );
     case "nota":
       if (carpeta && porRuta) {
@@ -197,7 +204,7 @@ export function resolverDestino(carpeta: string, carpetas: readonly CarpetaEnlaz
   if (c) return { ok: true, valor: c };
   return error(
     "NO_ENCONTRADO",
-    `No existe la carpeta «${carpeta}». Mover no crea carpetas: creala primero (con la terminal) o elegí una que exista.`,
+    `No existe la carpeta «${carpeta}». Mover no crea carpetas: créala primero (con la terminal) o elige una que exista.`,
     { campo: "carpeta", candidatas: carpetasParecidas(carpeta, carpetas) },
   );
 }
@@ -284,7 +291,7 @@ export function mensajeRechazo(pedido: string, sinRespuesta: boolean): string {
     : `El usuario dijo que no a ${pedido}: no se hizo nada.`;
   return (
     `${porque} Es una respuesta, no un error para reintentar: no lo vuelvas a pedir con otras palabras ni en partes, ` +
-    "y no lo hagas por otro camino (mv, rm). Contáselo y seguí."
+    "y no lo hagas por otro camino (mv, rm). Cuéntaselo y sigue."
   );
 }
 
@@ -299,7 +306,7 @@ export function efectoEnlaces(reescritas: readonly string[], fallidas: readonly 
     partes.push(
       `${fallidas.length === 1 ? "una nota quedó" : `${fallidas.length} notas quedaron`} con el enlace viejo porque no se pudo escribir (${enumerar(
         fallidas,
-      )}): arreglalas a mano`,
+      )}): arréglalas a mano`,
     );
   }
   return partes.join("; ") + ".";
@@ -315,13 +322,28 @@ export function efectoEnlaces(reescritas: readonly string[], fallidas: readonly 
  */
 export type DeshacerArchivos =
   /** Deshacer un renombrar: volver a `nombre`, reparando otra vez. */
-  | { tipo: "archivo_renombrar"; clase: "nota" | "carpeta"; ruta: string; rutaAntes: string; nombre: string }
+  | {
+      tipo: "archivo_renombrar";
+      clase: "nota" | "carpeta";
+      ruta: string;
+      rutaAntes: string;
+      nombre: string;
+      /** El nombre anterior que quedó como alias (`FUN-M-47`): deshacer lo quita. */
+      alias?: string;
+    }
   /** Deshacer un mover: volver a `carpeta` (`null` = la raíz), reparando otra vez. */
   | { tipo: "archivo_mover"; clase: "nota" | "carpeta"; ruta: string; rutaAntes: string; carpeta: string | null }
   /** Deshacer un borrar: restaurar de la papelera (y recrear las carpetas que falten). */
   | { tipo: "archivo_restaurar"; clase: "nota" | "carpeta"; ruta: string; notas: string[] }
   /** Deshacer un restaurar: mandarla otra vez a la papelera. */
-  | { tipo: "archivo_borrar"; ruta: string };
+  | { tipo: "archivo_borrar"; ruta: string }
+  /**
+   * Deshacer la reparación de un renombre hecho por fuera (`FUN-M-47`): en las
+   * `notas` reescritas, los enlaces a `ruta` vuelven a escribirse como a
+   * `rutaAntes` (el archivo NO se renombra: eso lo hizo el usuario por fuera),
+   * y se quita el `alias` si se había agregado.
+   */
+  | { tipo: "archivo_reparar_renombre"; ruta: string; rutaAntes: string; notas: string[]; alias?: string };
 
 export function describirDeshacerArchivos(d: DeshacerArchivos): string {
   switch (d.tipo) {
@@ -333,6 +355,8 @@ export function describirDeshacerArchivos(d: DeshacerArchivos): string {
       return d.clase === "carpeta" ? `restaurar la carpeta «${d.ruta}» de la papelera` : `restaurar «${tituloVisible(d.ruta)}» de la papelera`;
     case "archivo_borrar":
       return `mandar «${tituloVisible(d.ruta)}» otra vez a la papelera`;
+    case "archivo_reparar_renombre":
+      return `volver a escribir los enlaces como «${tituloVisible(d.rutaAntes)}»`;
   }
 }
 
@@ -374,6 +398,8 @@ export function puedeDeshacerArchivos(e: EstadoVault, d: DeshacerArchivos): { ok
       if (d.clase === "nota" && ocupada(d.ruta)) return { ok: false, porque: `«${d.ruta}» está ocupada por otro archivo` };
       return { ok: true };
     case "archivo_borrar":
+      return e.notas.has(d.ruta) ? { ok: true } : { ok: false, porque: `${CAMBIO_DESPUES}: ya no está en «${d.ruta}»` };
+    case "archivo_reparar_renombre":
       return e.notas.has(d.ruta) ? { ok: true } : { ok: false, porque: `${CAMBIO_DESPUES}: ya no está en «${d.ruta}»` };
   }
 }

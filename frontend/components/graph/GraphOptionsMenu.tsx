@@ -126,7 +126,7 @@ export function GraphOptionsMenu() {
       e.preventDefault();
       reordenar(lista, index, index + (e.key === "ArrowUp" ? -1 : 1));
     },
-    title: `Arrastrá para cambiar la prioridad (${index + 1} de ${total}); con el foco acá, ↑/↓ también la mueve`,
+    title: `Arrastra para cambiar la prioridad (${index + 1} de ${total}); con el foco aquí, ↑/↓ también la mueve`,
     "aria-label": `Reordenar: posición ${index + 1} de ${total}`,
   });
 
@@ -311,7 +311,7 @@ export function GraphOptionsMenu() {
             )}
             {colorGroups.length > 1 && (
               <span className={styles.hint}>
-                Gana la primera regla que coincide: arrastrá <GripVertical size={11} aria-hidden />
+                Gana la primera regla que coincide: arrastra <GripVertical size={11} aria-hidden />
                 {" "}para cambiar la prioridad.
               </span>
             )}
@@ -387,7 +387,7 @@ export function GraphOptionsMenu() {
             )}
             {excludeRules.length > 1 && (
               <span className={styles.hint}>
-                Se evalúan en orden: arrastrá <GripVertical size={11} aria-hidden /> para
+                Se evalúan en orden: arrastra <GripVertical size={11} aria-hidden /> para
                 cambiar la prioridad.
               </span>
             )}

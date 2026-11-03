@@ -3,7 +3,7 @@
 import { AlertTriangle, Check, Link2, Search, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { confirmar } from "@/lib/confirmar";
-import { EVENTO_RECARGA } from "@/lib/eventos";
+import { avisarRecarga } from "@/lib/eventos";
 import {
   candidatasDe,
   compilarFormas,
@@ -165,7 +165,7 @@ export function RelinkView() {
         // editores con alguna de esas notas abierta tienen que recargarla (el
         // watcher ya no avisa de lo que escribe la propia app: `FUN-M-38`).
         useGraphStore.getState().markStale();
-        window.dispatchEvent(new Event(EVENTO_RECARGA));
+        avisarRecarga(r.archivos.map((a) => a.id));
         await cargar();
       }
     } catch (e) {
@@ -187,7 +187,7 @@ export function RelinkView() {
     try {
       const r = await deshacer(ultimo);
       useGraphStore.getState().markStale();
-      window.dispatchEvent(new Event(EVENTO_RECARGA));
+      avisarRecarga(r.restaurados);
       setResultado(null);
       setMensaje(
         `Restaurados ${r.restaurados.length} archivo(s).` +
@@ -253,7 +253,7 @@ export function RelinkView() {
           {diag !== null && diag.candidatas === 0 && (
             <p className={styles.nota}>
               No queda ninguna forma por decidir. Si el vault tiene referencias que
-              Mycelium no ve, revisá el léxico: quizá se descartaron antes.
+              Mycelium no ve, revisa el léxico: quizá se descartaron antes.
             </p>
           )}
 
@@ -455,7 +455,7 @@ function Fila({
               className={styles.si}
               // Sin destino no se puede registrar: un wikilink a la nada no sirve.
               disabled={destino === ""}
-              title={destino === "" ? "Elegí primero a qué nota apunta" : "Es una referencia"}
+              title={destino === "" ? "Elige primero a qué nota apunta" : "Es una referencia"}
               onClick={() => onDecidir(destino)}
             >
               <Check size={13} aria-hidden /> Sí

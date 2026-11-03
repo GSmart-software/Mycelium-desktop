@@ -12,6 +12,8 @@
 //! en memoria, y una confirmación que el «usuario» acepta y otra que rechaza.
 //! Desde la Parte 4, el diccionario del vault: una app falsa con las palabras en
 //! memoria a la que se le agrega, lista, quita y rechaza, y el ciclo sin app.
+//! Desde `FUN-M-45` y `FUN-L-30`, las consultas al índice y la salud del vault:
+//! el servidor pasa los argumentos y redacta lo que la app calcula.
 
 #[path = "../src/canal_falso.rs"]
 mod falso;
@@ -105,7 +107,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 12);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 20);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();
@@ -488,5 +490,222 @@ fn el_diccionario_de_punta_a_punta() {
     assert!(err && t.starts_with("MCP_DESACTIVADO"), "{t}");
 
     drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// Las consultas al índice (`FUN-M-45`): el servidor pasa los argumentos tal
+/// cual a la app (que es quien tiene el índice) y redacta lo que vuelve. Una
+/// vista que no existe vuelve como `NO_ENCONTRADO` con las vistas; sin la app,
+/// `APP_CERRADA` dice que el índice vive en su ventana.
+#[test]
+fn las_consultas_de_punta_a_punta() {
+    let (base, dir_app, vault) = preparar("consultas");
+    control(&vault, true);
+    let ruta_registrada = vault.to_string_lossy().to_string();
+    let canal = mycelium_vault::canal::nombre_canal(&ruta_registrada, &dir_app);
+    let mut mcp = Mcp::lanzar(&dir_app, &vault);
+    mcp.pedir("initialize", json!({}));
+
+    let app = falso::levantar(canal, move |p| {
+        let id = p["id"].clone();
+        let a = p["args"].clone();
+        let ok = |r: Value| json!({"id": id, "ok": true, "resultado": r});
+        Some(match p["op"].as_str().unwrap_or_default() {
+            "buscar" => ok(json!({
+                "consulta": a["consulta"], "campo": a["campo"].as_str().unwrap_or("ambos"),
+                "desde": a["desde"].as_u64().unwrap_or(0), "hay_mas": true, "siguiente": 1,
+                "resultados": [{"ruta": "docs/Plan.md", "titulo": "Plan", "tipo": "markdown", "fragmento": "el «plan»"}]
+            })),
+            "enlaces" => ok(json!({
+                "nota": {"ruta": "docs/Plan.md", "titulo": "Plan", "tipo": "markdown"},
+                "total_salientes": 1, "rotos": 1,
+                "salientes": [{"texto": "Nada", "tipo": "enlace", "n": 1, "estado": "roto", "destino": null, "lineas": [4]}],
+                "total_backlinks": 0, "backlinks": []
+            })),
+            "base" if a["vista"] == "Otra" => json!({"id": id, "ok": false, "error": {"codigo": "NO_ENCONTRADO",
+                "mensaje": "La base no tiene una vista «Otra». Sus vistas: «Tabla».", "datos": {"vistas": ["Tabla"]}}}),
+            "base" => ok(json!({
+                "base": {"ruta": "P.base", "titulo": "P"}, "vista": "Tabla", "vistas": ["Tabla"],
+                "columnas": ["Nombre"], "total": 1, "recortadas_por_vista": 0, "recortadas_por_tope": 0, "avisos": [],
+                "filas": [{"ruta": "docs/Plan.md", "celdas": ["Plan"]}]
+            })),
+            "salud" => ok(json!({
+                "alcance": if a["alcance"].is_string() { json!({"tipo": "carpeta", "ruta": a["alcance"]}) } else { json!({"tipo": "vault"}) },
+                "notas": 3, "tope": 100,
+                "conteos": {"rotos": 1, "embedsRotos": 0, "duplicados": 0, "huerfanas": 1, "sinSalientes": 0, "total": 2},
+                "rotos": [{"desde": "docs/Plan.md", "texto": "Nada", "tipo": "enlace", "n": 1, "lineas": [4]}],
+                "embeds_rotos": [], "duplicados": [], "sin_salientes": [],
+                "huerfanas": [{"ruta": "Suelta.md", "titulo": "Suelta"}]
+            })),
+            "validar_nota" => ok(json!({
+                "nota": {"ruta": "docs/Plan.md", "titulo": "Plan"}, "ok": true,
+                "chequeos": [{"id": "titulo_unico", "ok": true, "titulo": "Título único", "detalle": []}]
+            })),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    });
+
+    let (t, err) = mcp.herramienta("mycelium_salud", json!({}));
+    assert!(!err && t.starts_with("Salud del vault: 3 notas y 2 problemas."), "{t}");
+    assert!(t.contains("docs/Plan.md · línea 4 · [[Nada]]") && t.contains("Suelta — Suelta.md"), "{t}");
+    let (t, _) = mcp.herramienta("mycelium_salud", json!({"alcance": "docs"}));
+    assert!(t.starts_with("Salud de la carpeta docs/"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_validar_nota", json!({"ruta": "Plan"}));
+    assert!(!err && t == "«Plan» (docs/Plan.md): pasa todos los chequeos.\n✓ Título único", "{t}");
+
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!({"consulta": "plan tag:proyecto", "limite": 1}));
+    assert!(!err && t.starts_with("1 resultado para «plan tag:proyecto»"), "{t}");
+    assert!(t.contains("1. Plan — docs/Plan.md\n   el «plan»") && t.ends_with("`desde: 1`."), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_enlaces", json!({"nota": "Plan"}));
+    assert!(!err && t.contains("Salientes: 1 (1 roto)") && t.contains("[[Nada]] → ROTO") && t.contains("línea 4"), "{t}");
+    assert!(t.contains("(ninguno: nadie la enlaza)"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_base", json!({"ruta": "P"}));
+    assert!(!err && t.contains("| Nombre | (archivo) |\n|---|---|\n| Plan | docs/Plan.md |"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_base", json!({"ruta": "P", "vista": "Otra"}));
+    assert!(err && t.starts_with("NO_ENCONTRADO: La base no tiene una vista «Otra»"), "{t}");
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!("no es un objeto"));
+    assert!(err && t.starts_with("INVALIDO"), "{t}");
+
+    drop(app);
+    let (t, err) = mcp.herramienta("mycelium_buscar", json!({"consulta": "plan"}));
+    assert!(err && t.starts_with("APP_CERRADA") && t.contains("El índice vive en la ventana de Mycelium"), "{t}");
+    control(&vault, false);
+    let (t, err) = mcp.herramienta("mycelium_enlaces", json!({"nota": "Plan"}));
+    assert!(err && t.starts_with("MCP_DESACTIVADO"), "{t}");
+
+    drop(mcp);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+/// `FUN-L-31`: dos servidores (dos sesiones de Claude Code) contra la misma app
+/// falsa. Cada uno se anuncia por su conexión de presencia y manda su sesión en
+/// cada pedido; la app falsa lleva el registro como la de verdad (`control.rs`
+/// + `lib/sesionesIa.ts`, reducido a lo justo): cada uno ve al otro, con su
+/// tarea y su reserva, y al morir uno el otro deja de verlo.
+#[test]
+fn dos_sesiones_se_ven_entre_si() {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    #[derive(Default)]
+    struct App {
+        /// id de sesión → (conexión de presencia, tarea).
+        sesiones: HashMap<String, (u64, Option<String>)>,
+        /// (ruta, sesión, motivo).
+        reservas: Vec<(String, String, String)>,
+    }
+
+    let (base, dir_app, vault) = preparar("sesiones");
+    control(&vault, true);
+    let canal = mycelium_vault::canal::nombre_canal(&vault.to_string_lossy(), &dir_app);
+    let estado = Arc::new(Mutex::new(App::default()));
+
+    // Lo que la app le cuenta a `propia` de las demás.
+    fn texto(app: &App, propia: &str) -> String {
+        let mut t = format!("Sesiones: {}.", app.sesiones.len());
+        let mut otras: Vec<_> = app.sesiones.iter().filter(|(id, _)| id.as_str() != propia).collect();
+        otras.sort_by_key(|(id, _)| id.as_str());
+        for (id, (_, tarea)) in otras {
+            t.push_str(&format!("\nOtra: {id} «{}»", tarea.as_deref().unwrap_or("sin tarea")));
+        }
+        for (ruta, s, motivo) in app.reservas.iter().filter(|r| r.1 != propia) {
+            t.push_str(&format!("\nReservado: {ruta} por {s} («{motivo}»)"));
+        }
+        t
+    }
+
+    let (e1, e2) = (estado.clone(), estado.clone());
+    let _app = falso::levantar_con_cierre(
+        canal,
+        move |p| {
+            let id = p["id"].clone();
+            let sid = p["sesion"]["id"].as_str().unwrap_or("").to_string();
+            let mut app = e1.lock().unwrap();
+            let ok = |r: Value| Some(json!({"id": id, "ok": true, "resultado": r}));
+            match p["op"].as_str() {
+                Some("sesion_abrir") => {
+                    let conexion = p["_conexion"].as_u64().unwrap();
+                    app.sesiones.insert(sid.clone(), (conexion, None));
+                    ok(json!({"sesion": sid}))
+                }
+                Some("estado") => ok(json!({"etapa": "lista", "paneles": [], "coordinacion": {"texto": texto(&app, &sid)}})),
+                Some("sesion") => {
+                    let tarea = p["args"]["tarea"].as_str().unwrap().to_string();
+                    app.sesiones.get_mut(&sid).expect("la sesión se anunció antes de pedir").1 = Some(tarea.clone());
+                    ok(json!({"efecto": format!("Tarea declarada: «{tarea}»."), "coordinacion": {"texto": texto(&app, &sid)}}))
+                }
+                Some("reservar") => {
+                    let ruta = p["args"]["objetivo"].as_str().unwrap().to_string();
+                    let motivo = p["args"]["motivo"].as_str().unwrap().to_string();
+                    let ajena = app.reservas.iter().find(|r| r.0 == ruta && r.1 != sid).cloned();
+                    app.reservas.push((ruta.clone(), sid.clone(), motivo));
+                    let efecto = match ajena {
+                        Some((_, quien, por)) => format!("Reservé {ruta}. Ojo: ya lo tiene {quien} («{por}»)."),
+                        None => format!("Reservé {ruta}."),
+                    };
+                    ok(json!({"efecto": efecto, "coordinacion": {"texto": texto(&app, &sid)}}))
+                }
+                _ => Some(json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}})),
+            }
+        },
+        move |conexion| {
+            // Se cortó una conexión: si sostenía una sesión, murió (con sus reservas).
+            let mut app = e2.lock().unwrap();
+            let muertas: Vec<String> =
+                app.sesiones.iter().filter(|(_, (c, _))| *c == conexion).map(|(id, _)| id.clone()).collect();
+            for id in &muertas {
+                app.sesiones.remove(id);
+                app.reservas.retain(|r| &r.1 != id);
+            }
+        },
+    );
+
+    let mut uno = Mcp::lanzar(&dir_app, &vault);
+    let mut dos = Mcp::lanzar(&dir_app, &vault);
+    uno.pedir("initialize", json!({"protocolVersion": "2025-06-18", "clientInfo": {"name": "claude-code", "version": "2.1"}}));
+    dos.pedir("initialize", json!({"protocolVersion": "2025-06-18", "clientInfo": {"name": "claude-code", "version": "2.1"}}));
+
+    // Las presencias se abren en un hilo de cada servidor: un instante.
+    let limite = Instant::now() + Duration::from_secs(5);
+    while estado.lock().unwrap().sesiones.len() < 2 {
+        assert!(Instant::now() < limite, "las dos sesiones no se anunciaron");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let ids: Vec<String> = {
+        let app = estado.lock().unwrap();
+        let mut v: Vec<String> = app.sesiones.keys().cloned().collect();
+        v.sort();
+        v
+    };
+    assert_ne!(ids[0], ids[1], "cada proceso es una sesión distinta");
+
+    let (t, err) = uno.herramienta("mycelium_sesion", json!({"tarea": "Reorganizar docs"}));
+    assert!(!err && t.starts_with("Tarea declarada: «Reorganizar docs».") && t.contains("Sesiones: 2."), "{t}");
+    let (t, err) = uno.herramienta("mycelium_reservar", json!({"objetivo": "docs/Plan.md", "motivo": "reescribirla"}));
+    assert!(!err && t.starts_with("Reservé docs/Plan.md."), "{t}");
+
+    // La otra sesión ve a la primera, con su tarea y su reserva.
+    let (t, err) = dos.herramienta("mycelium_estado", json!({}));
+    assert!(!err && t.starts_with("app: abierta"), "{t}");
+    assert!(t.contains("«Reorganizar docs»") && t.contains("Reservado: docs/Plan.md") && t.contains("«reescribirla»"), "{t}");
+    // Y reservar lo mismo se concede, avisando quién lo tiene.
+    let (t, err) = dos.herramienta("mycelium_reservar", json!({"objetivo": "docs/Plan.md", "motivo": "corregir"}));
+    assert!(!err && t.contains("Ojo: ya lo tiene") && t.contains("«reescribirla»"), "{t}");
+    // La primera ve a la segunda (sin tarea) y su reserva.
+    let (t, _) = uno.herramienta("mycelium_estado", json!({}));
+    assert!(t.contains("«sin tarea»") && t.contains("«corregir»"), "{t}");
+
+    // Muere la primera: su presencia se corta y la otra deja de verla.
+    drop(uno);
+    let limite = Instant::now() + Duration::from_secs(5);
+    while estado.lock().unwrap().sesiones.len() > 1 {
+        assert!(Instant::now() < limite, "la sesión muerta no se dio de baja");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let (t, _) = dos.herramienta("mycelium_estado", json!({}));
+    assert!(t.contains("Sesiones: 1.") && !t.contains("Reorganizar docs") && !t.contains("reescribirla"), "{t}");
+
+    drop(dos);
     let _ = std::fs::remove_dir_all(base);
 }

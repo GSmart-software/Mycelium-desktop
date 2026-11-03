@@ -239,7 +239,7 @@ export class TablaEnSitio {
       this.caja.innerHTML = renderMarkdown(md);
       this.avisoEl.hidden = false;
       this.avisoEl.textContent =
-        "Mycelium no puede reescribir esta tabla sin riesgo (formato irregular). Usá «Editar como texto» para tocarla a mano.";
+        "Mycelium no puede reescribir esta tabla sin riesgo (formato irregular). Usa «Editar como texto» para tocarla a mano.";
       this.btnFila.hidden = true;
       this.btnColumna.hidden = true;
       return;

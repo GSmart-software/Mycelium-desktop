@@ -23,10 +23,12 @@ export function TerminalView({ termId }: { termId: string }) {
   const ajustarRef = useRef<(() => void) | null>(null);
   const prefs = useTerminalStore((s) => s.prefs);
   const efectos = prefs.efectos;
-  // Cada parte rige solo con el general encendido; el pulso, además, con fondo.
+  // Cada parte rige solo con el general encendido; el pulso, además, con la
+  // aurora o el micelio (`FUN-S-37`): mueve el que esté encendido.
   const parte = (on: boolean) => efectos && on;
-  const fondo = parte(prefs.efectoFondo);
-  const pulso = fondo && prefs.efectoPulso;
+  const aurora = parte(prefs.efectoAurora);
+  const micelio = parte(prefs.efectoMicelio);
+  const pulso = (aurora || micelio) && prefs.efectoPulso;
   const colores = parte(prefs.efectoColores);
 
   useEffect(() => {
@@ -121,14 +123,12 @@ export function TerminalView({ termId }: { termId: string }) {
     .join(" ");
   return (
     <div className={clases}>
-      {fondo && (
-        <>
-          <div className={styles.luces} aria-hidden />
-          <div className={styles.micelio} aria-hidden />
-        </>
-      )}
+      {aurora && <div className={styles.luces} aria-hidden />}
+      {micelio && <div className={styles.micelio} aria-hidden />}
       {parte(prefs.efectoParticulas) && <div className={styles.esporas} aria-hidden />}
-      <div ref={contRef} className={styles.terminal} />
+      <div className={styles.terminal}>
+        <div ref={contRef} className={styles.grilla} />
+      </div>
       {parte(prefs.efectoTubo) && <div className={styles.crt} aria-hidden />}
       {parte(prefs.efectoBorde) && <div className={styles.marco} aria-hidden />}
       {parte(prefs.efectoMarca) && (

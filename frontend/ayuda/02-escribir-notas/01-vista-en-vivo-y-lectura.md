@@ -7,12 +7,12 @@ sinonimos: [modo lectura, dividido, editor, crudo, modo de visualización, previ
 
 Una nota se puede mirar de **cuatro modos**: en vivo, dividido, lectura y crudo. El
 archivo es siempre el mismo texto Markdown; lo que cambia es cuánto de esa sintaxis ves y
-si lo podés editar.
+si lo puedes editar.
 
 ## Para qué sirve
 
 Para escribir viendo el resultado, sin pelearte con los símbolos, y para pasar a leer
-cuando ya no querés tocar nada. Si algo no se ve como esperabas, el modo crudo te muestra
+cuando ya no quieres tocar nada. Si algo no se ve como esperabas, el modo crudo te muestra
 el texto tal cual está en el archivo.
 
 | Modo | Atajo | Qué ves |
@@ -24,13 +24,13 @@ el texto tal cual está en el archivo.
 
 ## Cómo se usa
 
-1. Elegí el modo con los botones de la derecha de la barra del editor, o con su atajo.
-2. Escribí en vivo: al salir de una línea, sus `**`, `#` o `[[ ]]` se esconden y queda el
-   formato. Volvé a la línea con el cursor y reaparecen para que los edites. Lo mismo el
+1. Elige el modo con los botones de la derecha de la barra del editor, o con su atajo.
+2. Escribe en vivo: al salir de una línea, sus `**`, `#` o `[[ ]]` se esconden y queda el
+   formato. Vuelve a la línea con el cursor y reaparecen para que los edites. Lo mismo el
    `-` de una lista, que fuera de la línea se ve como viñeta (•); en una tarea queda solo
    la casilla. En un bloque de código, las cercas ` ``` ` se esconden mientras el cursor
-   está fuera del bloque y queda el nombre del lenguaje, chico, a la derecha.
-3. Pasá a lectura para revisar. Mycelium recuerda el modo de cada nota y, al cambiar de
+   está fuera del bloque y queda el nombre del lenguaje, pequeño, a la derecha.
+3. Pasa a lectura para revisar. Mycelium recuerda el modo de cada nota y, al cambiar de
    modo, te deja en la misma parte del texto que estabas mirando.
 
 ```ejemplo
@@ -39,7 +39,7 @@ el texto tal cual está en el archivo.
 Texto con **negrita**, un [[enlace]] y una #etiqueta.
 ```
 
-En vivo, ese ejemplo se ve igual que acá mientras el cursor está en otra línea. Con el
+En vivo, ese ejemplo se ve igual que aquí mientras el cursor está en otra línea. Con el
 cursor en la segunda línea vuelven a aparecer los `**` y los corchetes.
 
 ## Qué cambia entre vivo y lectura
@@ -53,9 +53,9 @@ Casi todo se ve igual en los dos: [énfasis](ayuda:escribir-notas/enfasis),
 render.
 
 > [!warning] Los diagramas Mermaid solo se dibujan al leer
-> En vivo y en crudo un bloque `mermaid` se ve como código. Para ver el diagrama, pasá a
+> En vivo y en crudo un bloque `mermaid` se ve como código. Para ver el diagrama, pasa a
 > dividido o a lectura.
 
 > [!tip] Tablas en crudo dentro de la vista en vivo
-> Si preferís escribir las tablas a mano, en **Más opciones** (los tres puntos al extremo
-> derecho de la barra del editor) desmarcá «Renderizar tablas (vista en vivo)».
+> Si prefieres escribir las tablas a mano, en **Más opciones** (los tres puntos al extremo
+> derecho de la barra del editor) desmarca «Renderizar tablas (vista en vivo)».

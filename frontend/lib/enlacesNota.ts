@@ -101,18 +101,75 @@ export function derivarEnlaces(contenido: string, tipo: string): EnlaceDerivado[
     for (const r of rutas) sumar(r, "archivo");
     return [...porClave.values()];
   }
-  if (NO_ES_PROSA.has(tipo) || contenido === "") return [];
+  for (const o of ocurrenciasEnProsa(contenido, tipo)) sumar(o.texto, o.tipo);
+  return [...porClave.values()];
+}
 
+/** Un enlace tal como aparece en el texto: cada aparición por separado, con su línea. */
+export type OcurrenciaEnlace = {
+  /** Lo mismo que `EnlaceDerivado.texto`. */
+  texto: string;
+  tipo: TipoEnlace;
+  /** Línea donde está (desde 1), o `null` si el archivo no es prosa (un canvas). */
+  linea: number | null;
+};
+
+/**
+ * Los `[[enlaces]]` y `![[embeds]]` de la prosa de una nota, uno por aparición
+ * y con su línea. Es la MISMA regla que `derivarEnlaces` —que la usa—, así que
+ * lo que cuenta aquí es exactamente lo que el índice guarda en `enlaces`; lo que
+ * agrega es dónde está cada uno, que el índice no guarda (la salud del vault y
+ * el MCP lo piden: `FUN-L-30`, `FUN-M-45`). Sin el `[[#Sección]]` propio.
+ */
+function ocurrenciasEnProsa(contenido: string, tipo: string): OcurrenciaEnlace[] {
+  if (NO_ES_PROSA.has(tipo) || contenido === "") return [];
   const texto = sinCodigo(contenido);
-  for (let m = WIKILINK_RE.exec(texto); m !== null; m = WIKILINK_RE.exec(texto)) {
+  const fuera: OcurrenciaEnlace[] = [];
+  // Los saltos de línea se cuentan de a poco: el texto se recorre una sola vez.
+  let linea = 1;
+  let hasta = 0;
+  const re = new RegExp(WIKILINK_RE.source, "g");
+  for (let m = re.exec(texto); m !== null; m = re.exec(texto)) {
+    for (; hasta < m.index; hasta++) if (texto.charCodeAt(hasta) === 10) linea++;
     // `[[destino|alias]]` y `[[Carpeta/destino]]` → el destino sin el alias, CON
     // la ruta, que es la pista para desambiguar homónimas. La barra puede venir
     // escapada dentro de una tabla (`DEF-045`). Un embed `![[x.excalidraw]]`
     // conserva la extensión: la quita el resolutor.
     const esEmbed = m.index > 0 && texto[m.index - 1] === "!";
-    sumar(partirWikilink(m[1]).destino, esEmbed ? "embed" : "enlace");
+    const destino = partirWikilink(m[1]).destino;
+    if (destino === "" || sinAncla(destino) === "") continue;
+    fuera.push({ texto: destino, tipo: esEmbed ? "embed" : "enlace", linea });
   }
-  return [...porClave.values()];
+  return fuera;
+}
+
+/**
+ * Cada aparición de un enlace en una nota, con su línea (ver
+ * `ocurrenciasEnProsa`). Un canvas da las referencias de sus tarjetas sin línea:
+ * es JSON, y la línea de un JSON no le dice nada a nadie.
+ */
+export function ocurrenciasDeEnlaces(contenido: string, tipo: string): OcurrenciaEnlace[] {
+  if (tipo === "canvas") {
+    return derivarEnlaces(contenido, tipo).flatMap((e) =>
+      Array.from({ length: e.n }, () => ({ texto: e.texto, tipo: e.tipo, linea: null })),
+    );
+  }
+  return ocurrenciasEnProsa(contenido, tipo);
+}
+
+/**
+ * Las líneas donde aparece cada `(tipo, texto)` en una nota, para ponerle línea
+ * a una fila de `enlaces`. La clave es `tipo + "\u0000" + texto`.
+ */
+export function lineasPorEnlace(contenido: string, tipo: string): Map<string, number[]> {
+  const mapa = new Map<string, number[]>();
+  for (const o of ocurrenciasDeEnlaces(contenido, tipo)) {
+    const k = `${o.tipo}\u0000${o.texto}`;
+    const lista = mapa.get(k) ?? [];
+    if (o.linea !== null) lista.push(o.linea);
+    mapa.set(k, lista);
+  }
+  return mapa;
 }
 
 /**
@@ -167,6 +224,21 @@ export function clavesDeTitulo(titulo: string): string[] {
   // primero: `q`. Es la misma para el título, así que se busca también por ella.
   const i = t.indexOf("#");
   if (i >= 0) claves.push(t.slice(0, i).trim());
+  return claves;
+}
+
+/**
+ * Las claves de las filas de `enlaces` que pueden resolver por estos alias
+ * (`FUN-M-15`): las mismas que las de un título, porque `[[alias]]` se guarda
+ * con la misma `clave` que `[[título]]`. Cuando una nota gana o pierde un alias
+ * —o aparece, se va o se mueve con alias puestos—, son las que se re-resuelven.
+ */
+export function clavesDeAlias(aliases: Iterable<string>): string[] {
+  const claves: string[] = [];
+  for (const a of aliases) {
+    const c = claveDeEnlace(a);
+    if (c !== "") claves.push(...clavesDeTitulo(c));
+  }
   return claves;
 }
 

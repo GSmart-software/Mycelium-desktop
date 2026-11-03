@@ -8,8 +8,11 @@ import {
   encuadrarDibujo,
   hayAlgoDibujado,
   IDIOMA_EXCALIDRAW,
+  propsEmbebibles,
+  refVigilarIframes,
   loadNotaScene,
   saveNotaScene,
+  type ApiBiblioteca,
   type ApiEncuadre,
   type ExcalidrawScene,
 } from "@/lib/excalidraw";
@@ -24,7 +27,8 @@ const Excalidraw = dynamic(
 type ExcalidrawApi = {
   getSceneElements: () => readonly unknown[];
   getFiles: () => Record<string, unknown>;
-} & ApiEncuadre;
+} & ApiEncuadre &
+  ApiBiblioteca;
 
 /**
  * Editor Excalidraw en modal (HU-16 CA3/CA5): se abre al crear o al clicar un
@@ -104,7 +108,7 @@ export function ExcalidrawModal({
             {ilegible === null ? "Guardar y cerrar" : "Cerrar"}
           </button>
         </header>
-        <div className={styles.canvas}>
+        <div ref={refVigilarIframes} className={styles.canvas}>
           {ilegible !== null ? (
             <ArchivoIlegible
               ruta={fileId}
@@ -120,6 +124,7 @@ export function ExcalidrawModal({
                   apiRef.current = api as unknown as ExcalidrawApi;
                 }}
                 langCode={IDIOMA_EXCALIDRAW}
+                {...propsEmbebibles(() => apiRef.current)}
                 initialData={{
                   elements: (initialScene?.elements ?? []) as never,
                   files: (initialScene?.files ?? null) as never,

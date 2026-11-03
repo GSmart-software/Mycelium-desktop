@@ -21,6 +21,30 @@ export type ColoresMermaid = {
   texto: string;
 };
 
+/**
+ * Los colores de las gráficas (`FUN-L-32`), de `lib/paletaGraficas.ts`. Llegan
+ * ya calculados para que este módulo siga sin imports.
+ */
+export type ColoresGraficas = {
+  /**
+   * `pie1`…`pie5`: los cinco grupos en el orden de la torta (`ORDEN_TORTA`).
+   *
+   * Mermaid 11 NO ordena las porciones por valor (`d3.pie().sort(null)`): las
+   * dibuja en el orden en que se declaran, y el color de cada una sale de una
+   * escala ordinal sobre las etiquetas en ese mismo orden. O sea, `pieN` es la
+   * porción declarada en N.º lugar, sea grande o chica. Para que cada grupo
+   * tenga siempre su color, quien genera el Markdown (el informe de salud)
+   * declara las cinco porciones en `ORDEN_TORTA`, todas, también las que valen
+   * 0: Mermaid no dibuja una porción menor al 1 %, pero la deja en la escala y
+   * en la leyenda, y así no corre los colores de las que siguen.
+   */
+  torta: string[];
+  /** `pie6`…`pie12`, para una torta escrita a mano con más porciones. */
+  tortaExtra: string[];
+  /** `xyChart.plotColorPalette`: el acento primero (gráficas de una serie). */
+  series: string[];
+};
+
 /** Mínimos de contraste (WCAG 1.4.3 texto y 1.4.11 elementos gráficos). */
 export const CONTRASTE_TEXTO = 4.5;
 export const CONTRASTE_LINEA = 3;
@@ -107,14 +131,15 @@ const tintaSobre = (fondo: string): string =>
 export function variablesMermaid(
   entrada: ColoresMermaid,
   fuente?: string,
-): Record<string, string | boolean> {
+  graficas?: ColoresGraficas,
+): Record<string, string | boolean | Record<string, string>> {
   const { fondo, nodo, nodo2, grupo } = entrada;
   const oscuro = luminancia(parsearColor(fondo) ?? [255, 255, 255]) < 0.4;
   const texto = asegurarContraste(entrada.texto, [fondo, nodo, nodo2, grupo], CONTRASTE_TEXTO, tintaSobre(fondo));
   const linea = asegurarContraste(entrada.linea, [fondo, grupo], CONTRASTE_LINEA, texto);
   const borde = asegurarContraste(entrada.borde, [fondo], CONTRASTE_LINEA, texto);
 
-  const v: Record<string, string | boolean> = {
+  const v: Record<string, string | boolean | Record<string, string>> = {
     darkMode: oscuro,
     background: fondo,
 
@@ -169,7 +194,38 @@ export function variablesMermaid(
     pieLegendTextColor: texto,
     pieStrokeColor: fondo,
     pieOuterStrokeColor: linea,
+    // Mermaid pinta el porcentaje de cada porción con UN solo color, que no se
+    // lee a la vez sobre los pasos oscuros y los claros de la rampa: se oculta,
+    // y los valores van en la leyenda (`showData`) o en una tabla (spec FUN-L-32).
+    pieSectionTextColor: "transparent",
+    // Su 0.7 de fábrica mezcla cada paso con el fondo y junta los tonos.
+    pieOpacity: "1",
+
+    // Barras y líneas (`xychart-beta`): ejes y títulos con la tinta, marcas
+    // finas con la tinta tenue, sobre el fondo de la nota.
+    xyChart: {
+      backgroundColor: fondo,
+      titleColor: texto,
+      dataLabelColor: texto,
+      legendTextColor: texto,
+      xAxisTitleColor: texto,
+      xAxisLabelColor: texto,
+      xAxisTickColor: linea,
+      xAxisLineColor: linea,
+      yAxisTitleColor: texto,
+      yAxisLabelColor: texto,
+      yAxisTickColor: linea,
+      yAxisLineColor: linea,
+      ...(graficas?.series.length ? { plotColorPalette: graficas.series.join(",") } : {}),
+    },
   };
+  if (graficas) {
+    // Sin estos, Mermaid deriva las porciones del color de los nodos girando el
+    // tono: colores ajenos al tema.
+    [...graficas.torta, ...graficas.tortaExtra].slice(0, 12).forEach((c, i) => {
+      v[`pie${i + 1}`] = c;
+    });
+  }
   if (fuente) v.fontFamily = fuente;
   return v;
 }

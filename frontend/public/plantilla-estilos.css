@@ -3,9 +3,9 @@
    ----------------------------------------------------------------------------
    Es la base de un snippet nuevo (Configuración › Snippets CSS › «Nuevo
    snippet») y la que baja «Descargar plantilla». Tal como viene NO cambia
-   nada: todo está comentado. Para usar un ejemplo, borrá la línea con la barra
+   nada: todo está comentado. Para usar un ejemplo, borra la línea con la barra
    y el asterisco de apertura y la del asterisco y la barra de cierre que lo
-   rodean, y cambiá los valores a tu gusto.
+   rodean, y cambia los valores a tu gusto.
 
    Índice
      0. Cómo apuntar: temas, modo claro/oscuro y atmósferas
@@ -24,10 +24,10 @@
     13. Tablas
     14. Propiedades (la tarjeta del frontmatter)
     15. Diagramas, fórmulas y vídeos dentro de una nota
-    16. Búsqueda y corrector ortográfico
+    16. Búsqueda, corrector ortográfico y avisos de la nota
     17. Calendario y consolas
     18. Lo que se estila solo con colores: bases, lienzos, draw.io, explorador,
-        pestañas, grafo y la ayuda
+        pestañas, grafo, la ayuda y la salud del vault
 
    Dos vistas, dos familias de clases:
    - Lectura (y la vista dividida, la exportación a PDF y la ayuda integrada):
@@ -59,7 +59,7 @@
    Por qué importa el selector: los temas y las atmósferas definen las
    variables con selectores de DOS atributos, como
    [data-theme='cantarela'][data-dark='true']. Un :root a secas tiene menos
-   peso y pierde contra ellos, así que para cambiar variables usá
+   peso y pierde contra ellos, así que para cambiar variables usa
    :root[data-theme] (vale en cualquier tema y modo) o algo más específico.
    El snippet se carga después que el estilo de Mycelium, así que a igual
    peso gana el snippet.
@@ -105,11 +105,11 @@
      --mic-amber-icon      ámbar de los avisos (callout warning)
 
    Ojo con las atmósferas: Niebla, Bosque y Papel recalculan fondos, bordes y
-   títulos con sus propias mezclas (tomando de acá el acento, el brillo y la
-   tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si querés que un
+   títulos con sus propias mezclas (tomando de aquí el acento, el brillo y la
+   tinta). Con la atmósfera Abisal la paleta se ve tal cual. Si quieres que un
    fondo sea exactamente el que elegiste, cambialo en la sección 2.
    Aurora tampoco toca los fondos: usa los de Abisal y pone encima degradados
-   y luces con --mic-glow y --mic-accent, así que si cambiás esos dos colores,
+   y luces con --mic-glow y --mic-accent, así que si cambias esos dos colores,
    sus degradados los siguen.
    ========================================================================== */
 
@@ -190,8 +190,8 @@
    ----------------------------------------------------------------------------
    El brillo y el acento se diseñaron para fondo oscuro; en claro, puestos tal
    cual, no se leen. Por eso cada uso tiene su variable, y Mycelium la ajusta
-   en modo claro para que llegue al contraste mínimo. Si cambiás un color acá,
-   comprobá que se lea en los dos modos.
+   en modo claro para que llegue al contraste mínimo. Si cambias un color aquí,
+   comprueba que se lea en los dos modos.
      --mic-glow-texto      texto e íconos en el color del brillo (etiquetas, _énfasis_)
      --mic-enlace          enlaces dentro de una nota
      --mic-focus           anillo de foco al navegar con el teclado
@@ -220,9 +220,9 @@
 
    La letra y el tamaño de la NOTA se eligen en Configuración › Tipografía, y
    Mycelium los escribe directamente en <html>: eso le gana a cualquier
-   snippet. Para forzarlos desde acá hace falta !important (y entonces el
+   snippet. Para forzarlos desde aquí hace falta !important (y entonces el
    ajuste de Configuración deja de tener efecto mientras el snippet esté
-   prendido):
+   encendido):
      --mic-editor-font-family   --mic-editor-font-size    (edición)
      --mic-preview-font-family  --mic-preview-font-size   (lectura)
    ========================================================================== */
@@ -245,7 +245,7 @@
 /* ============================================================================
    5) MEDIDAS
    ----------------------------------------------------------------------------
-     --mic-radius-sm / -md / -lg   redondeo de esquinas (chico, mediano, grande)
+     --mic-radius-sm / -md / -lg   redondeo de esquinas (pequeño, mediano, grande)
      --mic-ancho-lectura           ancho mínimo de la hoja de la nota (42rem)
      --mic-ancho-hoja-max          ancho máximo: la hoja crece con el panel
                                    entre los dos valores (72rem)
@@ -317,6 +317,14 @@
 }
 */
 
+/* Mientras se renombra desde el título, la pista de debajo del campo
+   («Mayús+Enter: conservar … como alias»). */
+/*
+.mic-doc-title-pista {
+  font-style: italic;
+}
+*/
+
 /* Con la atmósfera Aurora, el título de la nota y el H1 de lectura van en
    degradado y con resplandor, con un selector más fuerte: para dejarlos lisos
    hay que apuntar con el suyo. */
@@ -344,7 +352,22 @@
    ----------------------------------------------------------------------------
    .mic-preview es el contenedor de la vista de lectura. En vivo el texto está
    en .mic-editor-host .cm-content.
+
+   Estilo para UNA nota (cssclasses): si la nota declara en sus propiedades
+     cssclasses: [ficha]
+   la clase «ficha» se agrega a .mic-preview y a .mic-editor-host mientras esa
+   nota está abierta (también en el PDF). Solo valen letras, dígitos, «_» y
+   «-», sin empezar por dígito; lo demás se descarta. El ejemplo de abajo
+   centra y agranda los títulos solo en las notas con «ficha».
    ========================================================================== */
+
+/*
+.mic-preview.ficha h1,
+.mic-editor-host.ficha .mic-live-h1 {
+  text-align: center;
+  font-size: 2.4rem;
+}
+*/
 
 /*
 .mic-preview {
@@ -380,7 +403,7 @@
 */
 
 /* Viñetas: fuera de la línea activa, el - * + de una lista sin numerar se ve
-   como .mic-vineta (con el carácter •). Para otro carácter, cambiá el texto con
+   como .mic-vineta (con el carácter •). Para otro carácter, cambia el texto con
    font-size: 0 y un ::before. */
 /*
 .mic-vineta {
@@ -433,6 +456,7 @@
      _x_      cursiva + brillo     lectura: em.mic-em-us        vivo: .mic-em-cm-us
      __x__    negrita + acento     lectura: strong.mic-strong-us vivo: .mic-strong-cm-us
      ___x___  negrita en degradado lectura: strong.mic-em-us-tri vivo: .mic-em-cm-tri
+     ==x==    resaltado            lectura: mark.mic-resaltado  vivo: .mic-resaltado
    En vivo el color tiene que ir también a los descendientes (el «*» del
    selector), porque el resaltado de sintaxis mete su propio span adentro.
    ========================================================================== */
@@ -450,6 +474,25 @@
 .cm-editor .mic-strong-cm-us,
 .cm-editor .mic-strong-cm-us * {
   color: #ffd27a;
+}
+*/
+
+/* Resaltado: ==texto== es mark.mic-resaltado en lectura y .mic-resaltado en
+   vivo. El fondo sale de --mic-resaltado (por defecto, el ámbar de los avisos
+   del tema, diluido). Para cambiar solo el color, basta con la variable: */
+/*
+:root {
+  --mic-resaltado: rgba(255, 230, 0, 0.45);
+}
+*/
+
+/* O para darle otra forma, por ejemplo un subrayado grueso en lugar de fondo: */
+/*
+.mic-preview mark.mic-resaltado,
+.cm-editor .mic-resaltado {
+  background: none;
+  border-bottom: 3px solid #f5c400;
+  border-radius: 0;
 }
 */
 
@@ -514,7 +557,7 @@
 */
 
 /* En vivo, con el cursor fuera del bloque, las cercas ``` se esconden y la de
-   apertura muestra el lenguaje en .mic-live-code-lang (chico, a la derecha). */
+   apertura muestra el lenguaje en .mic-live-code-lang (pequeño, a la derecha). */
 /*
 .mic-live-code-lang {
   text-align: left;
@@ -636,7 +679,7 @@
    La casilla es la misma en todos lados: .mic-live-check en vivo,
    input.mic-task-check en lectura y .mic-tarea-icono en el menú de estados.
    Lleva data-estado con el nombre del estado y data-task con el símbolo tal
-   cual (como en Obsidian: los snippets escritos para sus temas valen acá).
+   cual (como en Obsidian: los snippets escritos para sus temas valen aquí).
 
    Estado     símbolo  data-estado   color
    pendiente  [ ]      pendiente     (borde gris)
@@ -715,7 +758,17 @@
      .mic-prop-pill    cada elemento de una lista o etiqueta
      .mic-prop-check   una casilla (verdadero/falso)
      .mic-live-props   el envoltorio de la tarjeta en vivo
+     .mic-prop-con-aviso  una fila con un aviso (esquema o # sin comillas)
+     .mic-props-avisos    la lista de avisos debajo de las filas
+     .mic-props-aviso-item  cada aviso
+     --mic-aviso-propiedad  el color de los avisos (ámbar por defecto)
    ========================================================================== */
+
+/*
+:root {
+  --mic-aviso-propiedad: #e07a3a;
+}
+*/
 
 /*
 .mic-props {
@@ -746,11 +799,16 @@
      Excalidraw embebido           lectura: .mic-excalidraw-block  vivo: .mic-live-excalidraw
      draw.io embebido              lectura: .mic-drawio-block      vivo: .mic-live-drawio
                                    (la imagen: .mic-drawio-img)
+     Lienzo embebido               .mic-canvas-block (en vivo, dentro de .mic-live-vista-previa)
+                                   tarjetas: .mic-canvas-tarjeta  grupos: .mic-canvas-grupo
+                                   flechas: .mic-canvas-arista
+     Base embebida                 .mic-base-block (en vivo, dentro de .mic-live-vista-previa)
+                                   la tabla: .mic-base-tabla  encabezado: .mic-base-cabecera
      Fórmulas KaTeX ($...$)        lectura: .katex                 vivo: .mic-live-math
                                    (en bloque: .mic-live-math-bloque)
      Vídeo (![](youtube...))       lectura: .mic-video             vivo: .mic-live-video
    El contenido de un dibujo o un diagrama lo pinta su propio editor: desde
-   acá se le cambia el marco, no los trazos.
+   aquí se le cambia el marco, no los trazos.
    Mermaid es la excepción: sus colores salen de estas variables, que siguen
    al tema, al modo y a la atmósfera. Al cambiarlas, el diagrama se redibuja.
    Si un color no llega al contraste mínimo (texto 4.5:1, líneas y bordes
@@ -762,6 +820,10 @@
      --mic-mermaid-borde    borde de las cajas
      --mic-mermaid-linea    flechas y conectores
      --mic-mermaid-texto    texto
+   Las tortas (pie) y las barras (xychart-beta) no tienen variables propias:
+   sus colores son tonos de --mic-accent y --mic-glow (de oscuro a claro), y
+   la última porción, «Otros», el gris de --mic-text-muted. Cambiando esas
+   dos o tres variables cambian también las gráficas.
    El PDF con «Fondo blanco» no las usa: imprime los diagramas en grises.
    ========================================================================== */
 
@@ -782,6 +844,17 @@
 */
 
 /*
+.mic-canvas-block,
+.mic-base-block {
+  background: transparent;
+  border-style: dashed;
+}
+.mic-canvas-arista {
+  stroke: var(--mic-accent);
+}
+*/
+
+/*
 .mic-preview .mic-video,
 .mic-live-video {
   border-radius: 0;
@@ -790,13 +863,16 @@
 
 
 /* ============================================================================
-   16) BÚSQUEDA Y CORRECTOR ORTOGRÁFICO
+   16) BÚSQUEDA, CORRECTOR ORTOGRÁFICO Y AVISOS DE LA NOTA
    ----------------------------------------------------------------------------
    Coincidencias de la búsqueda en la nota: en vivo, .cm-searchMatch (y la
    actual, .cm-searchMatch-selected); en lectura se pintan con
    ::highlight(mic-buscar) y ::highlight(mic-buscar-actual).
    La palabra mal escrita es .mic-error-ortografico, subrayada con el color
    --mic-error-ortografico.
+   Los avisos de la nota (un enlace roto o ambiguo, un título repetido, una
+   propiedad que no cumple su esquema) son .mic-diagnostico, subrayados con el
+   color --mic-diagnostico, que también usa su cuenta en la barra de estado.
    ========================================================================== */
 
 /*
@@ -809,6 +885,18 @@
 /*
 :root[data-theme] {
   --mic-error-ortografico: #ff6b6b;
+}
+*/
+
+/*
+:root[data-theme] {
+  --mic-diagnostico: #e07a3a;
+}
+*/
+
+/*
+.mic-diagnostico {
+  text-decoration-style: dotted;
 }
 */
 
@@ -858,4 +946,23 @@
      formato JSON Canvas y no se cambian por CSS.
    - La ayuda integrada usa la vista de lectura (.mic-preview): lo que cambies
      ahí la alcanza también.
+   - La salud del vault (el panel del costado y la pestaña con las gráficas):
+     sus colores salen de --mic-accent y --mic-glow en distintas tonalidades, y
+     lo que no cuenta de --mic-text-muted. Cuatro clases estables:
+     .mic-salud-panel (el panel del costado), .mic-salud-vista (la pestaña
+     entera), .mic-grafica (cada gráfica) y .mic-grafica-tooltip (el detalle
+     al pasar el puntero).
    ========================================================================== */
+
+/* La salud del vault con un fondo propio en la pestaña, el panel del costado
+   con algo más de aire y el detalle más grande:
+.mic-salud-vista {
+  background: var(--mic-bg-surface);
+}
+.mic-salud-panel {
+  gap: 1rem;
+}
+.mic-grafica-tooltip {
+  font-size: 0.875rem;
+}
+*/

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
+import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
   type AccionClaudeMd,
@@ -27,6 +28,7 @@ import { Interruptor } from "./Interruptor";
 import { Explicacion } from "./Explicacion";
 import styles from "./Settings.module.css";
 import { confirmar } from "@/lib/confirmar";
+import { mensajeDeError } from "@/lib/mensajeError";
 
 // Títulos de progreso (DEF-018): identifican qué exportación corre para etiquetar
 // el botón correcto y la barra global.
@@ -46,7 +48,7 @@ const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
   "insertado-sobre-anterior":
     "⚠ tu CLAUDE.md tenía las instrucciones de la versión anterior, editadas: el bloque nuevo " +
     "quedó al principio y no se borró nada. Debajo siguen las viejas (empiezan en «# Este vault " +
-    "es tu memoria»): borralas y dejá solo lo tuyo.",
+    "es tu memoria»): bórralas y deja solo lo tuyo.",
 };
 
 /**
@@ -87,6 +89,9 @@ export function VaultSection() {
   const [abrirUltimo, setAbrirUltimoState] = useState(false);
   // Framework IA (FUN-L-08): versión instalada en el vault (null = no generado).
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
+  // Reconstrucción del índice (`FUN-S-23`): el avance sale del mismo store.
+  const reconstruyendo = useVaultSessionStore((s) => s.reconstruyendo);
+  const progresoIndice = useVaultSessionStore((s) => (s.reconstruyendo ? s.progreso : null));
   const [versionIa, setVersionIa] = useState<string | null>(null);
   const [generandoIa, setGenerandoIa] = useState(false);
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
@@ -94,53 +99,9 @@ export function VaultSection() {
   // El vault lo traía encendido de otra máquina (`DEF-169`): acá arranca apagado.
   const controlIaDelVault = usePrefsVaultStore((s) => s.controlIaDelVault);
   const [cambiandoControl, setCambiandoControl] = useState(false);
-  // Carpeta de Esporas (FUN-M-03): borrador local (se teclea libre) + el error
-  // de validación, que se confirma al salir del campo.
-  const carpetaEsporasPref = usePreferencesStore((s) => s.prefs.carpetaEsporas);
-  const [esporasBorrador, setEsporasBorrador] = useState(carpetaEsporasPref);
-  const [esporasError, setEsporasError] = useState<string | null>(null);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
 
   const ocupado = progreso !== null;
-
-  // La preferencia se hidrata en asíncrono al abrir el vault: el borrador se
-  // resetea DURANTE el render (no en un efecto) para no pintar el valor viejo.
-  const [esporasVisto, setEsporasVisto] = useState(carpetaEsporasPref);
-  if (esporasVisto !== carpetaEsporasPref) {
-    setEsporasVisto(carpetaEsporasPref);
-    setEsporasBorrador(carpetaEsporasPref);
-    setEsporasError(null);
-  }
-
-  /**
-   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
-   * del campo puede ser el mismo clic que cambia de categoría: la sección se
-   * desmontaba con el error recién puesto y el usuario nunca lo veía
-   * (crítica de Configuración, 2026-09-20).
-   */
-  const escribirCarpetaEsporas = (valor: string) => {
-    setEsporasBorrador(valor);
-    setEsporasError(
-      normalizarCarpetaEsporas(valor) === null
-        ? "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..»."
-        : null,
-    );
-  };
-
-  /** Confirma la carpeta de Esporas: si la ruta no es válida, no se guarda. */
-  const confirmarCarpetaEsporas = () => {
-    if (esporasBorrador === carpetaEsporasPref) return;
-    const limpia = normalizarCarpetaEsporas(esporasBorrador);
-    if (limpia === null) {
-      setEsporasError(
-        "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».",
-      );
-      return;
-    }
-    setEsporasError(null);
-    setEsporasBorrador(limpia);
-    usePreferencesStore.getState().setPref("carpetaEsporas", limpia);
-  };
 
   useEffect(() => {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
@@ -170,6 +131,9 @@ export function VaultSection() {
           `habías editado (${resultado.conservados.join(" · ")}); los de Mycelium están ahora en ` +
           `.claude/commands/mycelium/.`;
       }
+      // El aviso de referencias sin enlazar (`FUN-S-10`) no impide lo demás:
+      // si no se pudo instalar, se dice por qué.
+      if (resultado.avisoHook) texto += ` ${resultado.avisoHook}`;
       informar(texto);
     } catch (e) {
       fallar((e as Error).message ?? String(e));
@@ -214,7 +178,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const destino = await elegirCarpeta("Elegí la carpeta donde exportar el vault");
+      const destino = await elegirCarpeta("Elige la carpeta donde exportar el vault");
       if (!destino) return;
 
       const { invoke } = await import("@tauri-apps/api/core");
@@ -242,6 +206,37 @@ export function VaultSection() {
   };
 
   const activeFolder = () => useVaultStore.getState().activeFolderId;
+
+  /**
+   * Reconstruir el índice (`FUN-S-23`): lo borra y lo arma de nuevo desde los
+   * archivos. Con aviso, porque en un vault grande tarda y mientras tanto la
+   * búsqueda y el grafo están incompletos.
+   */
+  const handleReconstruirIndice = async () => {
+    setMensaje(null);
+    setError(null);
+    const ok = await confirmar(
+      "Se borra el índice de este vault y se vuelve a armar leyendo todas las notas de la carpeta.\n\n" +
+        "• En un vault grande puede tardar varios minutos. Mientras tanto, la búsqueda, el grafo y " +
+        "los enlaces pueden verse incompletos.\n" +
+        "• No se pierde ninguna nota: el índice es una copia que se arma a partir de los archivos.\n" +
+        "• Los snippets, la apariencia, las preferencias y la papelera viven en la carpeta " +
+        ".mycelium/ del vault y no se tocan.\n\n" +
+        "Sirve cuando la búsqueda o el grafo muestran algo que no coincide con los archivos.",
+      "Reconstruir",
+    );
+    if (!ok) return;
+    try {
+      const r = await useVaultSessionStore.getState().reconstruirIndice();
+      informar(
+        r.borrado
+          ? `Índice reconstruido: ${r.notas} notas.`
+          : `No se pudo borrar el archivo del índice, así que se volvieron a leer las ${r.notas} notas sobre el existente.`,
+      );
+    } catch (e) {
+      fallar(mensajeDeError(e, "No se pudo reconstruir el índice."));
+    }
+  };
 
   /**
    * Abre el `.mycignore` en una **pestaña** del visor de archivos (`FUN-S-25`),
@@ -280,7 +275,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const origen = await elegirCarpeta("Elegí la carpeta del vault a importar");
+      const origen = await elegirCarpeta("Elige la carpeta del vault a importar");
       if (!origen) return;
       // Se copia la carpeta entera —adjuntos incluidos— salvo lo oculto y las
       // dependencias (`FUN-M-40`, `DEF-165`); lo omitido se ve en el resumen.
@@ -298,7 +293,7 @@ export function VaultSection() {
     setMensaje(null);
     setError(null);
     try {
-      const zip = await elegirZip("Elegí el .zip a importar");
+      const zip = await elegirZip("Elige el .zip a importar");
       if (!zip) return;
       await useImportStore.getState().run({ zip }, activeFolder(), "Vault de Obsidian");
     } catch (e) {
@@ -330,51 +325,40 @@ export function VaultSection() {
       </div>
 
       {/* Esporas (FUN-M-03): dónde viven las plantillas de notas. */}
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="mic-carpeta-esporas">
-          Carpeta de Esporas (plantillas)
-        </label>
-        <input
-          id="mic-carpeta-esporas"
-          className={styles.input}
-          value={esporasBorrador}
-          spellCheck={false}
-          placeholder={CARPETA_ESPORAS_DEFECTO}
-          onChange={(e) => escribirCarpetaEsporas(e.target.value)}
-          onBlur={confirmarCarpetaEsporas}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              // Escape acá deshace lo tecleado y NO cierra la ventana: sin
-              // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
-              e.stopPropagation();
-              setEsporasBorrador(carpetaEsporasPref);
-              setEsporasError(null);
-            }
-          }}
-        />
-        <Explicacion
-          detalle={
-            <>
-              Sirven para crear notas ya con su estructura o para insertarla en una que ya
-              existe. Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
-              <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
-              carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
-            </>
-          }
-        >
-          Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
-        </Explicacion>
-        {esporasError && (
-          <p
-            className={styles.cssPreviewNote}
-            style={{ color: "var(--mic-callout-error-border)" }}
-            role="alert"
-          >
-            {esporasError}
-          </p>
-        )}
-      </div>
+      <CampoCarpeta
+        id="mic-carpeta-esporas"
+        etiqueta="Carpeta de Esporas (plantillas)"
+        clave="carpetaEsporas"
+        defecto={CARPETA_ESPORAS_DEFECTO}
+        detalle={
+          <>
+            Sirven para crear notas ya con su estructura o para insertarla en una que ya
+            existe. Admiten variables (<code>{"{{titulo}}"}</code>, <code>{"{{fecha}}"}</code>,{" "}
+            <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code>). Cambiar la
+            carpeta <strong>no mueve ningún archivo</strong>: solo cambia dónde se buscan.
+          </>
+        }
+      >
+        Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
+      </CampoCarpeta>
+
+      {/* Informe de salud (FUN-L-32): dónde se guardan los informes como nota. */}
+      <CampoCarpeta
+        id="mic-carpeta-informes"
+        etiqueta="Carpeta de los informes"
+        clave="carpetaInformes"
+        defecto={CARPETA_INFORMES_DEFECTO}
+        detalle={
+          <>
+            «Generar informe como nota», en la salud del vault, crea ahí{" "}
+            <code>Salud del vault AAAA-MM-DD.md</code> (con la hora, si el del día ya existe).
+            Si la carpeta no existe, se crea. Cambiarla <strong>no mueve los informes</strong>{" "}
+            que ya se generaron.
+          </>
+        }
+      >
+        Donde se guardan los <strong>informes de salud</strong> del vault.
+      </CampoCarpeta>
 
       {/* Auditoría de referencias (FUN-L-17): el caso de entrada de Mycelium
           sobre un proyecto que ya existía. Abre la pantalla como pestaña. */}
@@ -478,7 +462,7 @@ export function VaultSection() {
               la IA a navegar tus notas por sus <code>[[enlaces]]</code>, la estructura del
               vault y las funciones de Mycelium. Al regenerar, reescribe solo eso: lo demás de{" "}
               <code>CLAUDE.md</code> y de <code>.claude/</code> es tuyo y no lo toca. Solo se
-              crean si lo pedís acá.
+              crean si lo pides aquí.
             </>
           }
         >
@@ -527,7 +511,7 @@ export function VaultSection() {
                 Claude Code puede <strong>operar la app</strong>: mostrarte notas, usar el
                 calendario, renombrar y mover.
                 {controlIaDelVault && !controlIa && (
-                  <> Este vault lo traía encendido de otra computadora; acá queda apagado hasta que lo enciendas.</>
+                  <> Este vault lo traía encendido de otra computadora; aquí queda apagado hasta que lo enciendas.</>
                 )}
               </>
             }
@@ -553,7 +537,7 @@ export function VaultSection() {
               <p>
                 Por defecto se ignoran los directorios ocultos (<code>.*/</code>) y las carpetas
                 de dependencias y compilación (<code>node_modules/</code>, <code>target/</code>,{" "}
-                <code>dist/</code>, <code>out/</code>). Editalo para, por ejemplo, dejar de
+                <code>dist/</code>, <code>out/</code>). Edítalo para, por ejemplo, dejar de
                 ignorar <code>.claude/</code> y ver esa documentación en Mycelium.
               </p>
               <p>
@@ -582,6 +566,40 @@ export function VaultSection() {
         )}
       </div>
 
+      {/* Reconstruir el índice (FUN-S-23): la salida cuando el caché no coincide
+          con los archivos, sin buscar el index-<hash>.db a mano. */}
+      {rutaVault && (
+        <div className={styles.field}>
+          <span className={styles.label}>Índice del vault</span>
+          <Explicacion
+            detalle={
+              <>
+                El índice es una copia de las notas que Mycelium usa para buscar, dibujar el
+                grafo y resolver enlaces. Reconstruirlo lo borra y lo vuelve a armar desde los
+                archivos: no se pierde ninguna nota, y los snippets, la apariencia y la
+                papelera, que viven en <code>.mycelium/</code>, no se tocan.
+              </>
+            }
+          >
+            Si la búsqueda o el grafo no coinciden con los archivos, se puede armar de nuevo.
+          </Explicacion>
+          <div className={styles.btnRow}>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              disabled={reconstruyendo}
+              onClick={() => void handleReconstruirIndice()}
+            >
+              {!reconstruyendo
+                ? "Reconstruir el índice…"
+                : progresoIndice !== null
+                  ? `Reconstruyendo… ${progresoIndice.hechas}/${progresoIndice.total}`
+                  : "Reconstruyendo…"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {mensaje && (
         <p className={styles.cssPreviewNote} style={{ color: "var(--mic-text-primary)" }}>
           {mensaje}
@@ -593,6 +611,100 @@ export function VaultSection() {
           style={{ color: "var(--mic-callout-error-border)" }}
           role="alert"
         >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const ERROR_CARPETA = "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».";
+
+/**
+ * Un campo con una carpeta del vault guardada en las preferencias: la de
+ * Esporas (`FUN-M-03`) y la de los informes de salud (`FUN-L-32`). Borrador
+ * local (se teclea libre) + el error de validación; se confirma al salir del
+ * campo o con Enter, y Escape deshace lo tecleado.
+ */
+function CampoCarpeta({
+  id,
+  etiqueta,
+  clave,
+  defecto,
+  detalle,
+  children,
+}: {
+  id: string;
+  etiqueta: string;
+  clave: "carpetaEsporas" | "carpetaInformes";
+  defecto: string;
+  detalle: ReactNode;
+  children: ReactNode;
+}) {
+  const pref = usePreferencesStore((s) => s.prefs[clave]);
+  const [borrador, setBorrador] = useState(pref);
+  const [error, setError] = useState<string | null>(null);
+
+  // La preferencia se hidrata en asíncrono al abrir el vault: el borrador se
+  // resetea DURANTE el render (no en un efecto) para no pintar el valor viejo.
+  const [visto, setVisto] = useState(pref);
+  if (visto !== pref) {
+    setVisto(pref);
+    setBorrador(pref);
+    setError(null);
+  }
+
+  /**
+   * Valida mientras se escribe. Antes el error se fijaba en el `blur`, y salir
+   * del campo puede ser el mismo clic que cambia de categoría: la sección se
+   * desmontaba con el error recién puesto y el usuario nunca lo veía
+   * (crítica de Configuración, 2026-09-20).
+   */
+  const escribir = (valor: string) => {
+    setBorrador(valor);
+    setError(normalizarCarpetaEsporas(valor) === null ? ERROR_CARPETA : null);
+  };
+
+  /** Confirma la carpeta: si la ruta no es válida, no se guarda. */
+  const confirmar = () => {
+    if (borrador === pref) return;
+    const limpia = normalizarCarpetaEsporas(borrador);
+    if (limpia === null) {
+      setError(ERROR_CARPETA);
+      return;
+    }
+    setError(null);
+    setBorrador(limpia);
+    usePreferencesStore.getState().setPref(clave, limpia);
+  };
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {etiqueta}
+      </label>
+      <input
+        id={id}
+        className={styles.input}
+        value={borrador}
+        spellCheck={false}
+        placeholder={defecto}
+        onChange={(e) => escribir(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            // Escape acá deshace lo tecleado y NO cierra la ventana: sin
+            // esto, el mismo Escape llegaba al diálogo y se llevaba todo.
+            e.stopPropagation();
+            setBorrador(pref);
+            setError(null);
+          }
+        }}
+      />
+      <Explicacion detalle={detalle}>{children}</Explicacion>
+      {error && (
+        <p className={styles.cssPreviewNote} style={{ color: "var(--mic-callout-error-border)" }} role="alert">
           {error}
         </p>
       )}

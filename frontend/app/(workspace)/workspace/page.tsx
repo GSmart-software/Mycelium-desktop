@@ -1,7 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
@@ -13,14 +14,13 @@ import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
-import { VentanaAjustes } from "@/components/settings/VentanaAjustes";
 import { UpdateDialog } from "@/components/workspace/UpdateDialog";
 import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
 import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
-import { cerrarPestanaSinPerder } from "@/lib/conflictosAbiertos";
+import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -30,6 +30,10 @@ import { registrarNavegadorMcp } from "@/lib/mcpControl";
 import { listarOtrosArchivos, RUTA_MYCIGNORE } from "@/lib/otrosArchivos";
 import { escucharCambiosVault } from "@/lib/vaultWatch";
 import styles from "./workspace.module.css";
+// Las fórmulas (`FUN-M-58`): el editor en vivo, la lectura, los embeds, las
+// tarjetas y la exportación a PDF —que copia las hojas de la ventana— viven
+// todos en el workspace. Antes iba en el layout raíz, en todas las rutas.
+import "katex/dist/katex.min.css";
 
 export default function WorkspacePage() {
   return (
@@ -110,7 +114,12 @@ function WorkspaceShell() {
   const searchParams = useSearchParams();
   const activeNoteId = searchParams.get("note");
 
-  const { activeSection, leftWidth, toggleLeft } = usePanelLayoutStore();
+  // Un selector por campo (`FUN-M-58`, A-H8): con el store entero, cada
+  // `setRightWidth` —uno por `pointermove` al redimensionar el panel de la
+  // nota— volvía a dibujar el shell y todo lo que cuelga de él.
+  const activeSection = usePanelLayoutStore((s) => s.activeSection);
+  const leftWidth = usePanelLayoutStore((s) => s.leftWidth);
+  const toggleLeft = usePanelLayoutStore((s) => s.toggleLeft);
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
@@ -332,9 +341,9 @@ function WorkspaceShell() {
   }
 
   function navegarHistorialActivo(delta: -1 | 1) {
-    const { activePaneId, navegarHistorial } = useTabsStore.getState();
-    navegarHistorial(activePaneId, delta);
-    syncUrlWithTabs();
+    // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
+    const { activePaneId } = useTabsStore.getState();
+    void navegarHistorialSinPerder(activePaneId, delta).then((navego) => navego && syncUrlWithTabs());
   }
 
   // `replace` y no `push` (DEF-040): con historial propio por pestaña, la pila
@@ -363,7 +372,7 @@ function WorkspaceShell() {
       <LeftPanel />
       <EditorArea />
       <BarraEstado />
-      <VentanaAjustes />
+      <AjustesPerezosos />
       <ImportDialogs />
       <UpdateDialog />
       <PaletaComandos />
@@ -380,6 +389,31 @@ function WorkspaceShell() {
  * vacío. Con varios panes, en el que tiene la pestaña activa; si no hay nota
  * abierta, en el `<main>` mismo.
  */
+/**
+ * Configuración se carga recién la primera vez que se abre (`FUN-M-58`, C-H4
+ * de la auditoría de eficiencia del 2026-11-01): con sus diez secciones, el
+ * editor de CSS y el framework de IA que importa `VaultSection`, eran cientos
+ * de KB que el workspace cargaba de entrada para una ventana que casi nunca
+ * está abierta. El fallback es nulo: el chunk sale del disco de la app y la
+ * ventana aparece en el mismo instante.
+ */
+const VentanaAjustes = dynamic(
+  () => import("@/components/settings/VentanaAjustes").then((m) => m.VentanaAjustes),
+  { ssr: false },
+);
+
+/**
+ * Monta la ventana en la primera apertura y la deja montada: así conserva,
+ * como antes, la categoría que el usuario dejó elegida entre una apertura y
+ * otra (cerrada, `VentanaAjustes` devuelve `null`).
+ */
+function AjustesPerezosos() {
+  const abierto = useUiStore((s) => s.settingsOpen);
+  const [usada, setUsada] = useState(false);
+  if (abierto && !usada) setUsada(true);
+  return usada || abierto ? <VentanaAjustes /> : null;
+}
+
 function saltarALaNota(e: React.MouseEvent<HTMLAnchorElement>) {
   e.preventDefault();
   const main = document.getElementById("contenido");

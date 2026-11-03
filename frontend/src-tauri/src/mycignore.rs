@@ -60,10 +60,10 @@ const CABECERA_PLANTILLA: &str = "\
 # ruta/anidada/ = anclada a la raíz · * y ? comodines · # comentario
 # !patrón = vuelve a incluir (gana la última regla que coincide); p. ej.
 #   !.claude/ debajo de .*/ muestra .claude/. Lo que está dentro de una
-#   carpeta ignorada no vuelve si no re-incluís la carpeta.
+#   carpeta ignorada no vuelve si no re-incluyes la carpeta.
 # .mycelium/ (índice interno) se ignora siempre.
-# Esto es el comportamiento por defecto: borrá la línea que no te sirva
-# (p. ej. si tenés notas en una carpeta llamada dist).
+# Esto es el comportamiento por defecto: borra la línea que no te sirva
+# (p. ej. si tienes notas en una carpeta llamada dist).
 ";
 
 /// Plantilla que muestra el editor de `.mycignore` cuando el vault no tiene uno:

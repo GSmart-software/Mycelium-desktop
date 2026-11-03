@@ -25,14 +25,46 @@ async function importarTs(texto) {
 // generadas se cargan aparte y se le pasan por `globalThis`.
 const rutaSkills = fileURLToPath(new URL("../lib/ia/skillsGeneradas.ts", import.meta.url));
 globalThis.__skillsGeneradas = await importarTs(await readFile(rutaSkills, "utf8"));
+// El hook de `mv`/`rm` y la versión del framework viven en módulos aparte
+// (`FUN-M-58`) para que `mcpControl` no cargue todo lo de arriba.
+const rutaHookGenerado = fileURLToPath(new URL("../lib/ia/hookMvRmGenerado.ts", import.meta.url));
+globalThis.__hookMvRmGenerado = await importarTs(await readFile(rutaHookGenerado, "utf8"));
+const rutaVersion = fileURLToPath(new URL("../lib/ia/versionFramework.ts", import.meta.url));
+globalThis.__versionFramework = await importarTs(await readFile(rutaVersion, "utf8"));
+
+// Y los hooks (`FUN-S-10`): la fusión con `settings.json` y la definición del
+// de referencias.
+const leerLib = (rel) => readFile(fileURLToPath(new URL(`../lib/ia/${rel}`, import.meta.url)), "utf8");
+globalThis.__hookMvRm = await importarTs(await leerLib("hookMvRm.ts"));
+globalThis.__hookReferencias = await importarTs(await leerLib("hookReferencias.ts"));
 
 const rutaTs = fileURLToPath(new URL("../lib/ia/framework.ts", import.meta.url));
-const fuente = (await readFile(rutaTs, "utf8"))
-  .replace('import { invoke } from "@tauri-apps/api/core";', "const invoke = (cmd, args) => globalThis.__invoke(cmd, args);")
-  .replace(
-    'import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";',
-    "const { MARCADOR_VERSION_IA, SKILLS_GENERADAS } = globalThis.__skillsGeneradas;",
-  );
+const reemplazar = (texto, viejo, nuevo) => {
+  assert.ok(texto.includes(viejo), `framework.ts ya no tiene: ${viejo}`);
+  return texto.replace(viejo, nuevo);
+};
+let fuente = await readFile(rutaTs, "utf8");
+fuente = reemplazar(fuente, 'import { invoke } from "@tauri-apps/api/core";', "const invoke = (cmd, args) => globalThis.__invoke(cmd, args);");
+fuente = reemplazar(
+  fuente,
+  'import { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";',
+  "const { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } = globalThis.__skillsGeneradas;",
+);
+fuente = reemplazar(
+  fuente,
+  'import { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } from "./hookMvRm";',
+  "const { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } = globalThis.__hookMvRm;",
+);
+fuente = reemplazar(
+  fuente,
+  'import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";',
+  "const { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } = globalThis.__hookReferencias;",
+);
+fuente = reemplazar(
+  fuente,
+  'import { FRAMEWORK_IA_VERSION } from "./versionFramework";',
+  "const { FRAMEWORK_IA_VERSION } = globalThis.__versionFramework;",
+);
 const mod = await importarTs(fuente);
 const { generarFramework, archivosFramework, bloqueGestionado, planificarClaudeMd, FRAMEWORK_IA_VERSION } = mod;
 
@@ -389,6 +421,11 @@ const DONDE_QUEDO = [
   ["mycelium-operar", /`CAMBIOS_SIN_GUARDAR`/],
   ["mycelium-operar", /MYCELIUM_SIN_MCP=1/],
   ["mycelium-operar", /el usuario agrega la palabra con el clic derecho/],
+  // Varias sesiones a la vez (`FUN-L-31`).
+  ["mycelium-operar", /\*\*Al empezar\*\*, llama a `mycelium_estado`/],
+  ["mycelium-operar", /declara tu tarea con\s+`mycelium_sesion`/],
+  ["mycelium-operar", /resérvalo con\s+`mycelium_reservar`/],
+  ["mycelium-operar", /\*\*aviso, no un bloqueo\*\*/],
   // Qué es Mycelium por fuera.
   ["mycelium-vault", /\*\*renombrar una nota escribiendo en su título\*\*/],
   ["mycelium-vault", /\*\*editor modal\*\* de un dibujo/],
@@ -532,7 +569,8 @@ test("el motivo nombra la herramienta que corresponde y el escape", () => {
 });
 
 test("el hook generado viaja con la marca y sin dependencias", () => {
-  const { HOOK_MV_RM, MARCADOR_VERSION_IA } = globalThis.__skillsGeneradas;
+  const { HOOK_MV_RM, MARCADOR_VERSION_IA } = globalThis.__hookMvRmGenerado;
+  assert.equal(MARCADOR_VERSION_IA, globalThis.__skillsGeneradas.MARCADOR_VERSION_IA, "un solo marcador");
   assert.ok(HOOK_MV_RM.startsWith(`// <!-- mycelium-ia v${MARCADOR_VERSION_IA} -->`));
   assert.ok(HOOK_MV_RM.includes("export function decidir"));
   assert.ok(!/from\s+["'](?!node:)/.test(HOOK_MV_RM), "solo módulos node:");
@@ -578,7 +616,61 @@ test("settings.json: quitar deja lo del usuario; si no queda nada, se puede borr
   assert.deepEqual(settings.quitarDeSettings(settings.fusionarSettings(null).texto), { texto: null, cambia: true });
   assert.equal(settings.scriptLibre(null), true);
   assert.equal(settings.scriptLibre("// mi script"), false, "un archivo del usuario no se pisa");
-  assert.equal(settings.scriptLibre(globalThis.__skillsGeneradas.HOOK_MV_RM), true);
+  assert.equal(settings.scriptLibre(globalThis.__hookMvRmGenerado.HOOK_MV_RM), true);
+});
+
+// ── El aviso de referencias sin enlazar (`FUN-S-10`) ─────────────────────────
+
+const REF = globalThis.__hookReferencias;
+const RUTA_REF = REF.RUTA_HOOK_REFERENCIAS;
+
+test("generar instala el hook de referencias: el script con la marca y su entrada PostToolUse", async () => {
+  const disco = montarVault();
+  const r = await generarFramework("V");
+  assert.equal(r.avisoHook, null);
+  const script = disco.get(RUTA_REF);
+  assert.ok(script.startsWith(`// <!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->`), "la marca con la versión real");
+  assert.ok(script.includes("export function detectar"));
+  assert.ok(!/from\s+["'](?!node:)/.test(script), "solo módulos node:");
+  const ajustes = JSON.parse(disco.get(".claude/settings.json"));
+  assert.deepEqual(ajustes, { hooks: { PostToolUse: [settings.entradaHook(REF.HOOK_REFERENCIAS_DEF)] } });
+  assert.equal(ajustes.hooks.PostToolUse[0].matcher, "Write|Edit|MultiEdit");
+  assert.match(ajustes.hooks.PostToolUse[0].hooks[0].command, /\$CLAUDE_PROJECT_DIR\/\.claude\/hooks\/mycelium-referencias\.mjs/);
+  // Regenerar no duplica la entrada.
+  await generarFramework("V");
+  assert.equal(JSON.parse(disco.get(".claude/settings.json")).hooks.PostToolUse.length, 1);
+});
+
+test("el hook de referencias convive con lo del usuario y con el de mv/rm", async () => {
+  const delUsuario = {
+    permissions: { allow: ["Bash(npm test)"] },
+    hooks: { PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo mio" }] }] },
+  };
+  const conMvRm = settings.fusionarSettings(JSON.stringify(delUsuario)).texto;
+  const disco = montarVault({ ".claude/settings.json": conMvRm });
+  await generarFramework("V");
+  const o = JSON.parse(disco.get(".claude/settings.json"));
+  assert.deepEqual(o.permissions, delUsuario.permissions);
+  assert.deepEqual(o.hooks.PreToolUse, [settings.entradaHook()], "el de mv/rm sigue");
+  assert.deepEqual(o.hooks.PostToolUse, [delUsuario.hooks.PostToolUse[0], settings.entradaHook(REF.HOOK_REFERENCIAS_DEF)]);
+  // Quitar el de mv/rm (apagar el control) no se lleva el de referencias.
+  const sinMvRm = JSON.parse(settings.quitarDeSettings(disco.get(".claude/settings.json")).texto);
+  assert.equal(sinMvRm.hooks.PreToolUse, undefined);
+  assert.equal(sinMvRm.hooks.PostToolUse.length, 2);
+});
+
+test("un script del usuario con ese nombre no se pisa, y un settings.json roto no se toca", async () => {
+  let disco = montarVault({ [RUTA_REF]: "// mío" });
+  let r = await generarFramework("V");
+  assert.match(r.avisoHook, /es un archivo tuyo: no se pisa/);
+  assert.equal(disco.get(RUTA_REF), "// mío");
+  assert.equal(disco.has(".claude/settings.json"), false, "sin script nuestro, no se registra");
+  assert.equal(JSON.parse(disco.get(RUTA_JSON)).version, FRAMEWORK_IA_VERSION, "el resto del framework se instala igual");
+
+  disco = montarVault({ ".claude/settings.json": "{ roto" });
+  r = await generarFramework("V");
+  assert.match(r.avisoHook, /no es JSON válido: no se toca, y el aviso de referencias sin enlazar no se instaló/);
+  assert.equal(disco.get(".claude/settings.json"), "{ roto");
 });
 
 // ── El diccionario del vault por MCP (`FUN-L-09`, Parte 4) ──────────────────
@@ -592,4 +684,30 @@ test("mycelium-operar enseña mycelium_diccionario y para qué sirve", () => {
 
 test("el diccionario del vault no se escribe a mano", () => {
   assert.match(SKILL("mycelium-vault"), /el diccionario solo con\s+`mycelium_diccionario`/);
+});
+
+// ── Consultar el índice por MCP (`FUN-M-45`) ────────────────────────────────
+
+test("mycelium-operar enseña las consultas al índice, y la memoria las prefiere a grep", () => {
+  const operar = SKILL("mycelium-operar");
+  for (const h of ["mycelium_buscar", "mycelium_enlaces", "mycelium_base"]) {
+    assert.ok(operar.includes(`\`${h}\``), `operar no menciona ${h}`);
+  }
+  assert.match(operar, /solo en las notas indexadas/);
+  assert.match(operar, /^description: .*consultar su índice/m);
+  const memoria = SKILL("mycelium-memoria");
+  assert.ok(memoria.indexOf("mycelium_buscar") > memoria.indexOf("grep -ril"), "la búsqueda por MCP va en el movimiento 2");
+  assert.match(memoria, /`mycelium_enlaces` da las dos listas/);
+  assert.match(SKILL("mycelium-base"), /`mycelium_base`/);
+});
+
+// ── La salud del vault por MCP (`FUN-L-30`) ─────────────────────────────────
+
+test("la salud del vault: operar la enseña, la memoria la usa al cerrar una nota y /vault-huerfanas empieza por ella", () => {
+  const operar = SKILL("mycelium-operar");
+  assert.ok(operar.includes("`mycelium_salud`") && operar.includes("`mycelium_validar_nota`"));
+  assert.match(operar, /\*\*chequeo de cierre\*\*/);
+  assert.match(SKILL("mycelium-memoria"), /`mycelium_validar_nota` comprueba/);
+  const huerfanas = archivosFramework().find((a) => a.ruta.endsWith("vault-huerfanas.md")).contenido;
+  assert.ok(huerfanas.indexOf("mycelium_salud") < huerfanas.indexOf("1. **Huérfanas**"), "primero la herramienta");
 });

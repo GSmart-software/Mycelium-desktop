@@ -1,6 +1,6 @@
 ---
 name: mycelium-operar
-description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, mirar qué tiene abierto el usuario antes de escribir, renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
+description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, coordinarse con otras sesiones de IA del mismo vault (declarar la tarea, reservar notas o carpetas), renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar al empezar a trabajar en el vault, antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # Operar Mycelium (herramientas `mycelium_*`)
@@ -18,6 +18,44 @@ herramienta lo dice su descripción; esta skill es el **criterio** para usarlas.
 > **no escribas `.mycelium/recordatorios.json` ni `.mycelium/diccionario.txt`** y
 > **no uses `mv` ni `rm`** con notas o carpetas.
 
+## Consultar el índice (solo lectura)
+
+Mycelium ya sabe qué hay en la memoria: tiene el índice. Estas herramientas lo exponen,
+con el **mismo criterio que la app**, y conviene preferirlas a `grep` cuando están:
+
+- `mycelium_buscar`: la búsqueda de la app, **solo en las notas indexadas** (lo que
+  `.mycignore` oculta, los PDF, las imágenes o el código suelto no están). Acepta
+  `"frase exacta"`, `clave:valor` y `tag:x`, y pagina con `limite` y `desde`. Lo que no
+  devuelve no está en la memoria: no lo cites con `[[ ]]`.
+- `mycelium_enlaces`: los salientes de una nota (a qué resuelve cada uno, cuáles están
+  rotos, en qué línea) y sus **backlinks**. Un `[[x]]` dentro de un bloque de código no
+  cuenta; `[[X|alias]]` y `[[X#Encabezado]]` son enlaces a `X`. Es la expansión por
+  asociación de `mycelium-memoria` sin falsos positivos.
+- `mycelium_base`: evalúa una vista de una tabla `.base` con el motor de la app y
+  devuelve sus filas. Úsala para leer lo que la tabla deriva en vez de mantener una copia
+  a mano.
+
+- `mycelium_salud`: lo que degrada la memoria —enlaces y embeds rotos, títulos duplicados
+  (con los enlaces que quedan ambiguos), huérfanas, notas sin enlaces salientes y
+  propiedades que no cumplen los esquemas de `esquemas.yml` (o con un `#` sin comillas)—, con nota
+  y línea, para el vault, una carpeta o una nota. Es lo mismo que ve el usuario en el panel
+  **Salud del vault** de la app.
+- `mycelium_validar_nota`: el **chequeo de cierre** de una nota que acabas de escribir o
+  editar: título único, enlaces que resuelven, alguien que la enlace y propiedades válidas
+  según `esquemas.yml` (claves obligatorias, tipos, valores permitidos; ver la sección de
+  propiedades de `mycelium-vault`). Pásala antes de dar
+  por terminado un cambio en la memoria; si falla, corrígelo (enlázala desde su mapa,
+  cambia el título, arregla el enlace). Mycelium indexa al guardar: si acabas de escribir
+  el archivo, espera un instante antes de validarla.
+- `mycelium_diagnosticos`: lo que el **editor de la app tiene subrayado** en las notas
+  abiertas (o en una): enlaces rotos o ambiguos, título duplicado y propiedades que no
+  cumplen, con línea y columna. Es lo que ve el usuario mientras escribe; la app lo
+  calcula al abrir y al guardar la nota, y la herramienta no recalcula. Úsala después de
+  editar una nota que el usuario tiene abierta.
+
+No se registran en la actividad de la IA (no cambian nada). Si contestan `APP_CERRADA`,
+vuelve a `grep`, sabiendo que no aplica el criterio del índice.
+
 ## Antes de escribir
 
 - **Antes de escribir un archivo que el usuario podría estar editando**, mirá
@@ -26,6 +64,29 @@ herramienta lo dice su descripción; esta skill es el **criterio** para usarlas.
 - `mycelium_abrir` **no le roba el foco** salvo que pidas `foco: true`: pedilo solo
   cuando tengas algo que mostrarle ahora («mirá esta nota»), no cada vez que abrís algo.
 
+## Varias sesiones a la vez
+
+Puede haber **otras sesiones de IA** trabajando en este mismo vault ahora mismo (otras
+terminales de Claude Code, cada una con su servidor `mycelium`). No se ven entre sí salvo
+por Mycelium:
+
+- **Al empezar**, llama a `mycelium_estado`: además de lo que tiene abierto el usuario,
+  dice qué otras sesiones están conectadas y en qué tarea, qué tienen **reservado**, qué
+  cambiaron recién a través de Mycelium y qué notas cambiaron en disco por fuera (sin
+  saber quién: otra sesión, el usuario en otro editor o git).
+- **Antes de un trabajo que no sea una consulta suelta**, declara tu tarea con
+  `mycelium_sesion` («Reorganizar docs/arquitectura»): las demás la ven, y el usuario ve
+  lo que hiciste agrupado bajo ella en el panel «Actividad de la IA».
+- **Antes de un trabajo largo sobre algo que otra sesión podría tocar**, resérvalo con
+  `mycelium_reservar` (nota o carpeta, motivo, minutos; 30 por defecto). Se puede
+  reservar una nota que todavía no existe, por su ruta, para crearla sin que otra cree la
+  misma. **Libéralo al terminar** (`liberar: true`).
+- Una reserva es un **aviso, no un bloqueo**: nada impide escribir. Si la respuesta dice
+  que otra sesión ya lo tiene, no lo toques sin hablarlo con el usuario.
+- Las sesiones y las reservas viven en la app: mueren con la sesión y si se cierra
+  Mycelium. Sin la app no hay coordinación; si sabes que hay otra sesión, pregúntale al
+  usuario antes de tocar lo mismo.
+
 ## Renombrar, mover, borrar
 
 - `mycelium_renombrar` y `mycelium_mover` reparan los `[[enlaces]]` entrantes con el
@@ -33,6 +94,11 @@ herramienta lo dice su descripción; esta skill es el **criterio** para usarlas.
   título. `mycelium_borrar` manda a la **papelera de Mycelium**, de donde se restaura
   (`mycelium_papelera`).
 - El nombre no puede llevar `? : * | " < > \ /`.
+- `mycelium_renombrar` acepta `conservarAlias: true` (solo notas `.md`): además de
+  reparar, agrega el nombre anterior a la propiedad `aliases` de la nota, así los
+  `[[Nombre viejo]]` que no se reescriben —texto citado, otros vaults, los que se
+  escriban después— siguen llegando. Usarlo cuando el nombre viejo era una referencia
+  conocida (una sigla, un identificador); no por defecto.
 
 ## Lo que pregunta y lo que no
 

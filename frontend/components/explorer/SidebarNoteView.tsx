@@ -11,17 +11,19 @@ import { NoteEditor } from "@/components/editor/NoteEditor";
 import { RelinkView } from "@/components/enlaces/RelinkView";
 import { GraphView } from "@/components/graph/GraphView";
 import { CalendarioPanel } from "@/components/recordatorios/CalendarioPanel";
+import { SaludVista } from "@/components/salud/SaludVista";
 import { VisorArchivo } from "@/components/visor/VisorArchivo";
+import { CLAVE_LATERAL_EDITOR } from "@/lib/cachePestanas";
 import { nombreDeRuta, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { PESTANA_SENTINELA, tipoDePestana } from "@/lib/pestanas";
 import { termIdDe } from "@/lib/terminalBase";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { subscribeDoc } from "@/lib/editor/docBroker";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { fetchNoteContent } from "@/lib/export";
 import { renderNota } from "@/lib/markdown";
+import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useEnlacesDelVault } from "@/components/recordatorios/comun";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
@@ -137,6 +139,21 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
     );
   }
 
+  // La salud del vault (`FUN-L-32`) anclada: el mismo tablero, que se acomoda
+  // al ancho (sus paneles pasan a una columna).
+  if (pestana === "salud") {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.salud.titulo}</span>
+        </div>
+        <div className={styles.viewerGraph}>
+          <SaludVista />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.viewer}>
       <div className={styles.viewerHeader}>
@@ -170,7 +187,7 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
           <NoteEditor
             key={`edit-${notaId}`}
             notaId={notaId}
-            instanceId={`sidebar-${notaId}`}
+            instanceId={`${CLAVE_LATERAL_EDITOR}${notaId}`}
             paneId="sidebar"
           />
         ) : (
@@ -185,6 +202,8 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
 function ReadOnlyNote({ notaId }: { notaId: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState("");
+  // Las clases de `cssclasses` (`FUN-S-08`): también en esta vista de lectura.
+  const [clases, setClases] = useState("");
   // Los enlaces se atienden como en la vista de lectura: wikilink → la nota,
   // web → el navegador, el resto no navega la webview (`DEF-160`).
   const { onClicDetalle } = useEnlacesDelVault();
@@ -199,7 +218,9 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
     // Carga inicial, del disco.
     void fetchNoteContent(notaId)
       .then((content) => {
-        if (vigente) setHtml(renderNota(content));
+        if (!vigente) return;
+        setHtml(renderNota(content));
+        setClases(clasesCssDe(content).join(" "));
       })
       .catch(() => {
         /* nota inaccesible: se deja vacío */
@@ -207,7 +228,10 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
     // Actualización en vivo si el documento se edita en otra vista.
     const unsubscribe = subscribeDoc(notaId, `sidebar-read-${notaId}`, (content) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setHtml(renderNota(content)), 130);
+      timer = setTimeout(() => {
+        setHtml(renderNota(content));
+        setClases(clasesCssDe(content).join(" "));
+      }, 130);
     });
     return () => {
       vigente = false;
@@ -220,8 +244,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
   useEffect(() => {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
-      void renderExcalidrawIn(containerRef.current);
-      void renderDrawioIn(containerRef.current);
+      void renderEmbedsIn(containerRef.current); // con o sin extensión (`FUN-S-18`)
       rellenarImagenesEn(containerRef.current, carpeta);
     }
   }, [html, notaId, otros, carpeta]);
@@ -229,7 +252,7 @@ function ReadOnlyNote({ notaId }: { notaId: string }) {
   const inner = useHtmlDecorable(html, [notaId, otros, carpeta]);
 
   return (
-    <div ref={containerRef} className="mic-preview mic-layout-read" onClick={onClicDetalle}>
+    <div ref={containerRef} className={`mic-preview mic-layout-read ${clases}`} onClick={onClicDetalle}>
       <div dangerouslySetInnerHTML={inner} />
     </div>
   );

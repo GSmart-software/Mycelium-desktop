@@ -69,6 +69,14 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_borrar",
             "mycelium_papelera",
             "mycelium_diccionario",
+            "mycelium_buscar",
+            "mycelium_enlaces",
+            "mycelium_base",
+            "mycelium_salud",
+            "mycelium_validar_nota",
+            "mycelium_sesion",
+            "mycelium_reservar",
+            "mycelium_diagnosticos",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {
@@ -249,7 +257,7 @@ fn ocupada_con_etapa_se_redacta_entera() {
     }));
     assert_eq!(
         t,
-        "OCUPADA: Mycelium está abriendo el vault.\nEtapa: Leyendo los archivos de la carpeta. Reintentá en 1.5 s."
+        "OCUPADA: Mycelium está abriendo el vault.\nEtapa: Leyendo los archivos de la carpeta. Reintenta en 1.5 s."
     );
 }
 

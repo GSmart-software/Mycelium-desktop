@@ -15,11 +15,11 @@ conectan dos temas que creías separados.
 
 ## Cómo se usa
 
-1. Abrilo con el ícono **Grafo de conexiones** del rail, o con **Ctrl+P** → «Abrir el
+1. Ábrelo con el ícono **Grafo de conexiones** del rail, o con **Ctrl+P** → «Abrir el
    grafo de conexiones». Se abre como una pestaña más.
-2. **Clic** en un punto abre esa nota. Pasá el mouse por encima para resaltar sus
+2. **Clic** en un punto abre esa nota. Pasa el mouse por encima para resaltar sus
    conexiones.
-3. Arrastrá un punto para moverlo, arrastrá el fondo para desplazarte y usá la **rueda**
+3. Arrastra un punto para moverlo, arrastra el fondo para desplazarte y usa la **rueda**
    para acercar o alejar.
 
 ## Opciones
@@ -28,7 +28,7 @@ El botón **Opciones del grafo** despliega:
 
 | Opción | Qué hace |
 |---|---|
-| **Nombres** | Qué nombres se ven: **Todos**, **Vecinos** (el punto apuntado y los que conecta) o **Apuntado** (solo el que está bajo el mouse). Con **Todos**, cada nombre se acomoda al costado de su punto que no tape a otro, y al alejar mucho el zoom se desvanecen hasta que volvés a acercar. |
+| **Nombres** | Qué nombres se ven: **Todos**, **Vecinos** (el punto apuntado y los que conecta) o **Apuntado** (solo el que está bajo el mouse). Con **Todos**, cada nombre se acomoda al costado de su punto que no tape a otro, y al alejar mucho el zoom se desvanecen hasta que vuelves a acercar. |
 | **Indicador de dirección** | Cómo se ve hacia dónde va un enlace: **Ninguno**, **Animado**, **Flecha** o **Ambos**. |
 | **Brillo de conexiones al apuntar** | Cuánto se iluminan las líneas del punto apuntado. |
 | **Colores de nodos** | Reglas que pintan puntos por **Ruta**, **Etiqueta** o **Nombre**. |
@@ -42,6 +42,10 @@ grafo en el orden en que se crearon las notas, día por día.
 El panel de enlaces de cada nota (**Ctrl+Shift+\\**) tiene su pestaña **GRAFO**: la nota en
 el centro, con lo que enlaza y lo que la enlaza. Los botones **Referencia** y **Lo
 referencian** muestran u ocultan cada lado.
+
+Para ahorrar procesador, en este grafo el indicador **Animado** (o **Ambos**) solo se
+mueve mientras el puntero está encima y unos segundos después; el resto del tiempo las
+líneas quedan quietas.
 
 > [!tip] Si el grafo gasta mucho
 > Por defecto los puntos dejan de moverse cuando el grafo se acomoda, para ahorrar

@@ -9,10 +9,20 @@
  * `WHERE clave='tags' AND valor='activo'` funciona sin `LIKE`.
  * Ver `docs/features/metadata-yaml.md` § 4.
  */
-import { cuerpoDe, separarFrontmatter, type Frontmatter, type Propiedad } from "@/lib/frontmatter";
+import {
+  CLAVES_ALIAS,
+  aliasesDeValores,
+  cuerpoDe,
+  mismosAliases,
+  esClaveAlias,
+  separarFrontmatter,
+  type Frontmatter,
+  type Propiedad,
+} from "@/lib/frontmatter";
 import { textoBuscable } from "@/lib/textoBuscable";
 import { execute, select } from "./client";
 import { plegar } from "./fts";
+import { enTandas, marcadores } from "./ftsIndice";
 import { huellaDe } from "./util";
 
 export type PropiedadDto = { clave: string; valor: string; tipo: string; orden: number };
@@ -198,3 +208,70 @@ export async function plegarPropiedadesPendientes(): Promise<void> {
     );
   }
 }
+
+/**
+ * Los alias de cada nota según el índice (`FUN-M-15`): las filas de
+ * `propiedades` con clave `aliases` o `alias` (`CLAVES_ALIAS`), en su orden.
+ * Solo aparecen las notas que declaran alguno.
+ *
+ * El `lower()` de SQLite alcanza acá: las claves de alias son ASCII.
+ *
+ * Con todas las notas, filtra primero por `clave_plegada` (`FUN-M-58`): usa
+ * `idx_propiedades_plegado` en vez de recorrer `propiedades` entera (Tesina,
+ * 7.579 filas: 2–4,5 ms → 0,02 ms, y corre en cada recarga del árbol y cada
+ * resolutor). Da lo
+ * mismo: `lower()` solo pliega ASCII, así que una clave con `lower(clave)` de
+ * alias es ASCII y su `plegar` (sin marcas y en minúsculas) es igual; y
+ * `clave_plegada` nunca queda en NULL (se escribe con la fila, y
+ * `plegarPropiedadesPendientes` completa las viejas al abrir el índice). El
+ * `lower(clave)` se queda para no sumar claves que solo `plegar` junta
+ * («Aliás»).
+ *
+ * @param ids las notas a mirar, o `null` para todas las que no están en la
+ *        papelera (el árbol, el resolutor).
+ */
+export async function aliasesPorNota(ids: readonly string[] | null): Promise<Map<string, string[]>> {
+  const claves = CLAVES_ALIAS.map(() => "?").join(", ");
+  const filas: { nota_id: string; valor: string }[] = [];
+  if (ids === null) {
+    filas.push(
+      ...(await select<{ nota_id: string; valor: string }>(
+        `SELECT nota_id, valor FROM propiedades
+         WHERE clave_plegada IN (${claves}) AND lower(clave) IN (${claves})
+           AND nota_id NOT IN (SELECT nota_id FROM papelera)
+         ORDER BY rowid`,
+        [...CLAVES_ALIAS, ...CLAVES_ALIAS],
+      )),
+    );
+  } else {
+    for (const tanda of enTandas([...ids])) {
+      filas.push(
+        ...(await select<{ nota_id: string; valor: string }>(
+          `SELECT nota_id, valor FROM propiedades
+           WHERE lower(clave) IN (${claves}) AND nota_id IN (${marcadores(tanda.length)})
+           ORDER BY rowid`,
+          [...CLAVES_ALIAS, ...tanda],
+        )),
+      );
+    }
+  }
+  const crudos = new Map<string, string[]>();
+  for (const f of filas) {
+    const lista = crudos.get(f.nota_id);
+    if (lista) lista.push(f.valor);
+    else crudos.set(f.nota_id, [f.valor]);
+  }
+  const salida = new Map<string, string[]>();
+  for (const [id, valores] of crudos) {
+    const aliases = aliasesDeValores(valores);
+    if (aliases.length > 0) salida.set(id, aliases);
+  }
+  return salida;
+}
+
+/** Los alias que declaran unas filas ya derivadas (`derivarIndice`) de una nota. */
+export function aliasesDeFilas(filas: readonly FilaPropiedad[]): string[] {
+  return aliasesDeValores(filas.filter((f) => esClaveAlias(f.c)).map((f) => f.v));
+}
+
+export { mismosAliases };

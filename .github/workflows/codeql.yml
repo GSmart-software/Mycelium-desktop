@@ -63,7 +63,9 @@ jobs:
     steps:
       # `analyze` espera a que GitHub procese lo subido (`wait-for-processing`
       # por defecto), así que acá las alertas de este análisis ya están.
-      # Cuentan las abiertas de esta rama; las descartadas, no.
+      # Cuentan las abiertas de esta rama; las descartadas, no. Solo las de CodeQL:
+      # las de OpenSSF Scorecard (que suben al mismo panel) miden cómo se gestiona el
+      # repo, no el código, y no frenan los instaladores.
       - name: Comprobar las alertas abiertas
         env:
           GH_TOKEN: ${{ github.token }}
@@ -72,7 +74,7 @@ jobs:
         run: |
           filtro='.[] | select(.rule.security_severity_level == "high" or .rule.security_severity_level == "critical")
             | "\(.rule.security_severity_level)  \(.rule.id)  \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)  \(.html_url)"'
-          altas=$(gh api --paginate "repos/$REPO/code-scanning/alerts?ref=$REF&state=open&per_page=100" --jq "$filtro")
+          altas=$(gh api --paginate "repos/$REPO/code-scanning/alerts?ref=$REF&tool_name=CodeQL&state=open&per_page=100" --jq "$filtro")
           if [ -n "$altas" ]; then
             echo "::error::CodeQL tiene alertas de severidad alta o crítica abiertas en $REF:"
             echo "$altas"

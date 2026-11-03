@@ -481,3 +481,116 @@ test("inicioDelCuerpo: sin cuerpo después del cierre, el final del texto", () =
   const conSalto = sinSalto + NL;
   assert.equal(inicioDelCuerpo(conSalto), conSalto.length);
 });
+
+// ── `cssclasses` (`FUN-S-08`) ────────────────────────────────────────────────
+
+test("clasesCssDe: lista, en línea o en bloque", () => {
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: [ficha, portada]\n---\ntexto"), ["ficha", "portada"]);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses:\n  - ficha\n  - ancha\n---\n"), ["ficha", "ancha"]);
+});
+
+test("clasesCssDe: un texto, separado por espacios o comas", () => {
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: ficha portada\n---\n"), ["ficha", "portada"]);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: ficha, portada\n---\n"), ["ficha", "portada"]);
+});
+
+test("clasesCssDe: descarta lo que no es un nombre de clase válido", () => {
+  const texto = [
+    "---",
+    'cssclasses: ["ok", "1numero", "-2", "con espacio", "<img>", "é", "bien_hecho", "-guion", "--var", "ok"]',
+    "---",
+  ].join("\n");
+  // `con espacio` se parte en dos nombres válidos; el resto inválido se va, y
+  // `ok` no se repite.
+  assert.deepEqual(mod.clasesCssDe(texto), ["ok", "con", "espacio", "bien_hecho", "-guion", "--var"]);
+});
+
+test("clasesCssDe: sin la propiedad, con un frontmatter no soportado o sin frontmatter, nada", () => {
+  assert.deepEqual(mod.clasesCssDe("sin frontmatter"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ntitulo: x\n---\n"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses:\n  a: b\n---\n"), []);
+  assert.deepEqual(mod.clasesCssDe("---\ncssclasses: 42\n---\n"), []);
+});
+
+test("clasesCssDe: la clave no distingue mayúsculas y hay un tope", () => {
+  assert.deepEqual(mod.clasesCssDe("---\nCSSClasses: ficha\n---\n"), ["ficha"]);
+  const muchas = Array.from({ length: 30 }, (_, i) => `c${i}`).join(" ");
+  assert.equal(mod.clasesCssDe(`---\ncssclasses: ${muchas}\n---\n`).length, 20);
+});
+
+// ── Alias (`FUN-M-15`, `FUN-M-47`) ───────────────────────────────────────────
+
+test("aliasesDe: lista en línea, en bloque, texto, la clave vieja `alias` y sin repetidos", () => {
+  assert.deepEqual(mod.aliasesDe("---\naliases: [HU-009, Gestión]\n---\n"), ["HU-009", "Gestión"]);
+  assert.deepEqual(mod.aliasesDe("---\naliases:\n  - Uno\n  - uno\n  - Dos\n---\n"), ["Uno", "Dos"]);
+  assert.deepEqual(mod.aliasesDe("---\naliases: Un texto, con coma\n---\n"), ["Un texto, con coma"]);
+  assert.deepEqual(mod.aliasesDe("---\nAlias: Viejo\n---\n"), ["Viejo"]);
+  assert.deepEqual(mod.aliasesDe("---\naliases: 2024\n---\n"), ["2024"]);
+  assert.deepEqual(mod.aliasesDe("---\naliases:\n---\n"), []);
+  assert.deepEqual(mod.aliasesDe("sin frontmatter"), []);
+  assert.deepEqual(mod.aliasesDe("---\naliases:\n  a: b\n---\n"), [], "no soportado: ninguno");
+});
+
+test("agregarAlias: crea la propiedad o el bloque, respeta el estilo y no repite", () => {
+  assert.equal(mod.agregarAlias("Cuerpo.", "Viejo"), "---\naliases: [Viejo]\n---\n\nCuerpo.");
+  assert.equal(
+    mod.agregarAlias("---\ntags: [a]\n---\nCuerpo.", "Viejo"),
+    "---\ntags: [a]\naliases: [Viejo]\n---\nCuerpo.",
+  );
+  assert.equal(
+    mod.agregarAlias("---\naliases: [Uno]\nestado: listo\n---\n", "Viejo"),
+    "---\naliases: [Uno, Viejo]\nestado: listo\n---\n",
+  );
+  assert.equal(
+    mod.agregarAlias("---\naliases:\n- Uno\n---\n", "Viejo"),
+    "---\naliases:\n- Uno\n- Viejo\n---\n",
+    "en bloque sigue en bloque",
+  );
+  assert.equal(mod.agregarAlias("---\nalias: Uno # comentario\n---\n", "Viejo"), "---\nalias: [Uno, Viejo] # comentario\n---\n");
+  assert.equal(mod.agregarAlias("---\naliases:\n---\n", "Viejo"), "---\naliases: [Viejo]\n---\n");
+  const ya = "---\naliases: [viejo]\n---\n";
+  assert.equal(mod.agregarAlias(ya, "Viejo"), ya, "ya estaba");
+  assert.equal(mod.agregarAlias("---\nx:\n  a: b\n---\n", "Viejo"), null, "no soportado");
+  assert.equal(mod.agregarAlias("Cuerpo", "  "), null);
+  // CRLF se conserva.
+  assert.equal(mod.agregarAlias("---\r\ntags: [a]\r\n---\r\nC", "V"), "---\r\ntags: [a]\r\naliases: [V]\r\n---\r\nC");
+  // Lo que agrega se vuelve a leer como alias.
+  assert.deepEqual(mod.aliasesDe(mod.agregarAlias("---\naliases: Uno\n---\n", "Dos: con dos puntos")), ["Uno", "Dos: con dos puntos"]);
+});
+
+test("mismosAliases: sin distinguir orden ni mayúsculas", () => {
+  assert.equal(mod.mismosAliases(["A", "b"], ["B", "a"]), true);
+  assert.equal(mod.mismosAliases(["A"], ["A", "B"]), false);
+  assert.equal(mod.mismosAliases([], []), true);
+});
+
+test("quitarAlias: lo contrario de agregarAlias (el Deshacer de FUN-M-47)", () => {
+  assert.equal(mod.quitarAlias("---\naliases: [Uno, Viejo]\n---\n", "viejo"), "---\naliases: [Uno]\n---\n");
+  assert.equal(mod.quitarAlias("---\ntags: [a]\naliases: [Viejo]\n---\nC", "Viejo"), "---\ntags: [a]\n---\nC");
+  const sin = "---\naliases: [Uno]\n---\n";
+  assert.equal(mod.quitarAlias(sin, "Otro"), sin);
+  assert.equal(mod.quitarAlias("Sin frontmatter", "X"), "Sin frontmatter");
+  assert.equal(mod.quitarAlias("---\nx:\n  a: b\n---\n", "X"), null);
+  // Ida y vuelta.
+  const base = "---\naliases: [Uno]\n---\nCuerpo.";
+  assert.equal(mod.quitarAlias(mod.agregarAlias(base, "Viejo"), "Viejo"), base);
+});
+
+test("bloqueFrontmatter: el recorte da lo mismo que el texto entero (FUN-M-58)", () => {
+  const casos = [
+    "", "---", "---\n", "---\n---", "---\n---\n", "---\r\n---\r\ncuerpo", "---\n...\ncuerpo",
+    "---\ncssclasses: [ficha, portada]\n---\ntexto\n---\notra: cosa\n",
+    "---\ncssclasses: ancha\nsin cierre\n", "texto\n---\ncssclasses: x\n---\n",
+    " ---\ncssclasses: x\n---\n", "---\r\ncssclasses:\r\n  - a\r\n  - b\r\n---\r\n# T",
+    "---\nx:\n  a: b\ncssclasses: c\n---\n", "---\ncssclasses: c\n--- \n", "---\ncssclasses: c\n---",
+  ];
+  for (const texto of casos) {
+    const bloque = mod.bloqueFrontmatter(texto);
+    assert.ok(texto.startsWith(bloque), JSON.stringify(texto));
+    assert.deepEqual(mod.separarFrontmatter(bloque).hay, mod.separarFrontmatter(texto).hay, JSON.stringify(texto));
+    assert.deepEqual(mod.clasesCssDe(bloque), mod.clasesCssDe(texto), JSON.stringify(texto));
+  }
+  assert.equal(mod.bloqueFrontmatter("---\na: 1\n---\ncuerpo"), "---\na: 1\n---");
+  assert.equal(mod.bloqueFrontmatter("---\na: 1\nsin cierre"), "");
+  assert.equal(mod.bloqueFrontmatter("cuerpo"), "");
+});

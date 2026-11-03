@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
+import { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
+import { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } from "./hookMvRm";
+import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
+import { FRAMEWORK_IA_VERSION } from "./versionFramework";
 
 /**
  * Framework IA del vault (FUN-L-08, solo-desktop). Genera en el vault un conjunto
@@ -146,8 +149,39 @@ import { MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skillsGeneradas";
  *     `mycelium`». Los comandos viejos sin tocar se borran al regenerar.
  *   - `.mycignore` admite negaciones `!` (`FUN-S-30`).
  *   **Major**: cambia dónde se instala y qué es de quién.
+ * - 2.1.0 — enlaces a encabezados, el aviso de cambios externos y el nombre de
+ *   la nota que sale de una Espora (`DEF-138`, `DEF-140`, `DEF-141`).
+ * - 2.2.0 — **el aviso de referencias sin enlazar** (`FUN-S-10`): un hook
+ *   `PostToolUse` (`.claude/hooks/mycelium-referencias.mjs`, registrado en
+ *   `.claude/settings.json` con la misma fusión que el de `mv`/`rm`) que,
+ *   cuando la IA escribe o edita una nota y deja un `[texto](otra.md)` o una
+ *   forma del léxico de `FUN-M-17` sin corchetes, le avisa con la forma `[[…]]`
+ *   que Mycelium cuenta. A diferencia del de `mv`/`rm`, lo instala
+ *   `generarFramework` siempre: no depende del MCP. La tabla de sintaxis de
+ *   `mycelium-vault` suma el enlace Markdown —que no cuenta— y la lista de
+ *   `.claude/` dice que Mycelium agrega sus hooks a `settings.json`.
+ *   **Minor**: la IA gana un aviso nuevo.
+ * - 2.3.0 — **consultar el índice** (`FUN-M-45`): `mycelium_buscar`,
+ *   `mycelium_enlaces` y `mycelium_base` en la skill `mycelium-operar`
+ *   («Consultar el índice»), y como primera opción en la recuperación de
+ *   `mycelium-memoria`, en `/vault-buscar` y en la verificación de
+ *   `mycelium-base`. Y la **salud del vault** (`FUN-L-30`): `mycelium_salud`
+ *   y `mycelium_validar_nota` en `mycelium-operar`, como cierre de una nota en
+ *   el mantenimiento de `mycelium-memoria`, y como primer paso de
+ *   `/vault-huerfanas`.
+ *   **Minor**: la IA gana herramientas nuevas.
+ * - 2.4.0 — **esquemas de propiedades** (`FUN-M-46`): `esquemas.yml` en la
+ *   raíz del vault (claves obligatorias, tipos, valores permitidos, por carpeta
+ *   o por `tipo`), el aviso del `#` sin comillas, y el chequeo «Propiedades
+ *   válidas» de `mycelium_validar_nota` / la sección de `mycelium_salud`, en
+ *   la sección de propiedades de `mycelium-vault` y en `mycelium-operar`. Y
+ *   los **diagnósticos del editor** (`FUN-M-44`): `mycelium_diagnosticos` en
+ *   `mycelium-operar`.
+ *   **Minor**: la IA gana una validación y una herramienta nuevas.
  */
-export const FRAMEWORK_IA_VERSION = "2.1.0";
+// El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
+// cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.
+export { FRAMEWORK_IA_VERSION };
 
 /** Marcador de versión dentro del vault. */
 const RUTA_VERSION = ".claude/mycelium-ia.json";
@@ -171,13 +205,13 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 
 ## Reglas duras
 
-1. **Títulos únicos**: los enlaces resuelven por título, no por ruta.
+1. **Títulos únicos**: los enlaces resuelven por título (o por \`aliases\`), no por ruta.
 2. **Renombrar, mover, borrar**: con \`mycelium_renombrar\`, \`_mover\`, \`_borrar\`; \`mv\` o
    \`rm\` solo sin MCP, y los enlaces los arreglás vos.
 3. **Nada huérfano**: toda nota nueva enlaza a algo y la enlaza su mapa o nota madre.
 4. **No dupliques**: buscá antes de crear; ampliá antes que fragmentar.
 5. **Estructura**: usá las carpetas que ya existen.
-6. **Propiedades**: frontmatter plano; reusá las claves del vault.
+6. **Propiedades**: frontmatter plano; reusá las claves del vault y cumple \`esquemas.yml\` si existe.
 7. **Idioma**: el del vault.
 8. **Solo los \`.md\` son memoria**: un \`.py\` o un \`.csv\` no se cita con \`[[ ]]\`.
 9. **\`.mycelium/\`**: no se escribe nunca; calendario y diccionario, solo por MCP.
@@ -190,7 +224,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 
 - \`mycelium-memoria\`: buscar y registrar a fondo.
 - \`mycelium-vault\`: sintaxis, propiedades, tipos de archivo, qué ve el usuario.
-- \`mycelium-operar\`: las herramientas \`mycelium_*\`, y qué hacer sin ellas.
+- \`mycelium-operar\`: las herramientas \`mycelium_*\` (operar la app, consultar su índice, coordinarse con otras sesiones), y qué hacer sin ellas.
 - \`mycelium-base\`: tablas \`.base\`.
 - \`mycelium-canvas\`: lienzos \`.canvas\`.
 - \`mycelium-drawio\`: diagramas \`.drawio\`.
@@ -219,7 +253,9 @@ skill \`mycelium-memoria\`; para operar la app, \`mycelium-operar\`.
 | Elemento | Sintaxis | Notas |
 |---|---|---|
 | Enlace interno | \`[[Título]]\` | Resuelve por título (nombre de archivo sin \`.md\`) |
+| Enlace por otro nombre | \`[[HU-009]]\` | Si ningún título calza, resuelve a la nota que lo declara en su propiedad \`aliases\` (ver abajo) |
 | Enlace con alias | \`[[Título\\|alias]]\` | El alias es lo visible |
+| Enlace Markdown | \`[texto](otra.md)\` | **No cuenta** como enlace: ni grafo ni backlinks. Para relacionar notas, \`[[otra]]\` (o \`[[otra\\|texto]]\`). Si queda uno escrito —o una forma del léxico de referencias sin corchetes—, un hook avisa con la forma que corresponde |
 | Enlace a un encabezado | \`[[Título#Encabezado]]\` / \`[[#Encabezado]]\` | Cuenta como enlace a la nota (grafo, backlinks); el clic lleva al encabezado. Se ve «Título › Encabezado». \`[[Título#^bloque]]\` va a la línea que termina en \`^bloque\` |
 | Embed de nota | \`![[Título]]\` | **No se dibuja**: se ve como \`!\` y un enlace común. Para relacionar notas, enlazá con \`[[Título]]\` |
 | Embed de diagrama | \`![[Título.excalidraw]]\` / \`![[Título.drawio]]\` | Renderiza el dibujo o el diagrama |
@@ -302,7 +338,8 @@ Además, fuera de las notas:
 - **\`.claude/\`**: lo que lleva prefijo \`mycelium\` —\`skills/mycelium-*\`,
   \`commands/mycelium/\`, \`hooks/mycelium-*\`, \`mycelium-ia.json\`— es de Mycelium y se pisa
   al regenerar: **no lo edites**. Lo demás (agentes, comandos, hooks, \`settings.json\`)
-  es del usuario y Mycelium no lo toca.
+  es del usuario y Mycelium no lo toca, salvo sus propias entradas en \`settings.json\`:
+  las que corren \`hooks/mycelium-*\`.
 - **\`.mycignore\`** (opcional, raíz): qué ignora Mycelium (abajo).
 
 ## Recorrer el vault (comandos útiles)
@@ -346,9 +383,16 @@ Subconjunto soportado — un **mapa plano** cuyos valores sean:
 | Fecha y hora | \`YYYY-MM-DDTHH:mm\` | \`reunion: 2026-08-30T15:00\` |
 | Lista | \`[a, b]\` o una línea \`- \` por elemento | \`tags: [proyecto, activo]\` |
 
-- **\`tags:\`** es la única clave con comportamiento: sus valores son **etiquetas
+- **\`tags:\`** tiene comportamiento: sus valores son **etiquetas
   de la nota**, se suman a los \`#tag\` del cuerpo y navegan igual. Se aceptan con
   y sin \`#\`.
+- **\`aliases:\`** (lista o texto; también la clave vieja \`alias\`) son **otros
+  nombres** de la nota: \`[[HU-009]]\` resuelve a la nota con \`aliases: [HU-009]\` en el
+  editor, el grafo y los backlinks, como con su título. Un **título siempre gana** a un
+  alias; entre dos notas con el mismo alias gana la más cercana a la raíz, como entre
+  homónimas. Sin distinguir mayúsculas, sin carpeta delante. Sirve para siglas,
+  sinónimos y nombres viejos: antes de crear una nota, buscar el término también en
+  los \`aliases\` (\`grep -rli "^aliases:.*término" --include="*.md" .\`).
 - Un escalar entrecomillado es siempre texto (\`version: "1.0"\` NO es número).
 - Un \`[[enlace]]\` dentro de un valor cuenta como enlace saliente y se ve en el grafo.
 - **No soportado**: mapas anidados, escalares multilínea (\`|\`, \`>\`), anclas y
@@ -359,6 +403,40 @@ Subconjunto soportado — un **mapa plano** cuyos valores sean:
   \`grep -rh "^[a-zA-Z_-]*:" --include="*.md" . | sort -u\`.
 - En la búsqueda de Mycelium, \`clave:valor\` filtra por propiedad y \`tag:x\` por
   etiqueta.
+- **Un valor que empieza con \`#\` va entre comillas**: \`Issue: "#24"\`. Sin comillas,
+  YAML lo lee como comentario y la propiedad queda **nula** para cualquier otro
+  programa (Mycelium la muestra igual, así que el error pasa en silencio; la app lo
+  avisa). No aplica a \`tags\`, que se aceptan con o sin \`#\`.
+
+### Esquemas (\`esquemas.yml\`)
+
+Si en la raíz del vault hay un **\`esquemas.yml\`**, declara qué propiedades tienen que
+tener ciertas notas. **Léelo antes de crear o editar una nota** de una carpeta o un
+\`tipo\` que figure ahí, y cúmplelo:
+
+\`\`\`yaml
+Proyecto:                         # nombre del esquema
+  carpeta: Proyectos              # la carpeta y sus subcarpetas (o una lista); / = todo
+  obligatorias: [estado, inicio]
+  propiedades:
+    estado:
+      tipo: texto                 # texto, numero, casilla, fecha, fecha_hora, lista
+      valores: [activo, pausado, cerrado]
+    inicio: fecha                 # forma corta: solo el tipo
+Reunión:
+  tipo_de_nota: reunion           # las notas con la propiedad \`tipo: reunion\`
+  propiedades:
+    fecha: { … }                  # NO: los mapas en línea no se entienden
+\`\`\`
+
+- Con \`carpeta\` y \`tipo_de_nota\` juntas valen las dos; sin ninguna, aplica a todas.
+- **Varios esquemas que aplican se combinan**: la nota tiene que cumplirlos todos.
+- No se validan las Esporas ni \`CLAUDE.md\`/\`AGENTS.md\` de la raíz.
+- Los avisos (obligatoria que falta o vacía, tipo incorrecto, valor no permitido) se
+  ven en la tarjeta de propiedades, en el panel de salud y en \`mycelium_validar_nota\`
+  (chequeo «Propiedades válidas», con la línea). **No bloquean el guardado**: que no te
+  frene la app no significa que la nota esté bien; valídala.
+- Si el archivo tiene un error, esa parte se ignora y \`mycelium_salud\` lo informa.
 
 \`\`\`md
 ---
@@ -505,6 +583,9 @@ un \`.csv\`) se cita como archivo, no con \`[[enlace]]\` (ver \`mycelium-vault\`
 2. **Léxico** — buscá los términos de la consulta y sus sinónimos en todo el vault:
    \`grep -ril "término" --include="*.md" .\`. Revisá también los **nombres de
    archivo**: un título que coincide es, casi siempre, la nota canónica del tema.
+   Con el MCP de control, \`mycelium_buscar\` hace lo mismo **solo sobre las notas
+   indexadas** (con \`clave:valor\` y \`tag:x\`): lo que devuelve es memoria; lo que solo
+   encuentra \`grep\`, no.
 3. **Lectura** — leé las candidatas enteras antes de concluir. Los fragmentos de
    \`grep\` mienten por falta de contexto (negaciones, "esto se descartó", condiciones).
 4. **Expansión asociativa** — desde cada nota relevante, seguí:
@@ -512,6 +593,8 @@ un \`.csv\`) se cita como archivo, no con \`[[enlace]]\` (ver \`mycelium-vault\`
    - sus **backlinks** (\`grep -rl "\\[\\[Título" --include="*.md" .\`) — quién la
      usa y para qué; aquí aparecen las decisiones que la afectan: la que revirtió a
      otra, el detalle en la nota vecina.
+   Con el MCP de control, \`mycelium_enlaces\` da las dos listas con el criterio del
+   índice (sin los \`[[x]]\` de los bloques de código, con alias y anclas), y en qué línea.
    Uno o dos saltos suelen bastar; frená cuando deja de aportar.
 5. **Facetas** — si el tema es transversal, buscá el \`#tag\` correspondiente
    (\`grep -rl "#tema" --include="*.md" .\`, o \`tags:\` en las propiedades).
@@ -561,12 +644,17 @@ Cómo redactar para tu vos futuro:
 
 - **Huérfanas**: notas sin enlaces en ninguna dirección. Integralas (o proponé
   integrarlas) — usá \`/vault-huerfanas\`.
+- **Cierre de una nota**: con el MCP de control, \`mycelium_validar_nota\` comprueba que
+  la nota que acabas de escribir tenga título único, enlaces que resuelven, alguien que
+  la enlace y propiedades válidas (\`esquemas.yml\`, \`#\` sin comillas);
+  \`mycelium_salud\` da el panorama del vault o de una carpeta.
 - **Enlaces rotos**: apuntan a notas que no existen; corregí el título o creá la
   nota faltante.
 - **Hubs sobrecargados**: si una nota mapa creció demasiado, dividila por subtemas y
   reenlazá.
 - **Al renombrar o mover**: con \`mycelium_renombrar\` / \`mycelium_mover\` Mycelium
-  repara los \`[[enlaces]]\` que la apuntaban; con \`mv\` (solo si no tenés las
+  repara los \`[[enlaces]]\` que la apuntaban (y con \`conservarAlias: true\` deja el
+  nombre anterior en \`aliases\`); con \`mv\` (solo si no tenés las
   herramientas), actualizalos vos.
 
 ## Antipatrones
@@ -588,10 +676,12 @@ Aplicá el protocolo de recuperación de la skill \`mycelium-memoria\`:
 
 1. Buscá notas mapa/índice del área para orientarte.
 2. Buscá los términos de la pregunta y sus sinónimos en contenido **y** en nombres
-   de archivo (\`grep -ril\`), ignorando \`.mycelium/\` y \`.claude/\`.
+   de archivo (\`grep -ril\`), ignorando \`.mycelium/\` y \`.claude/\`. Si está la
+   herramienta \`mycelium_buscar\`, úsala primero: busca solo en las notas indexadas.
 3. Leé completas las notas candidatas (no concluyas desde fragmentos de grep).
 4. Expandí 1–2 saltos por \`[[enlaces]]\` salientes y por **backlinks** de esas
-   notas, para capturar decisiones o matices que las afecten.
+   notas (\`mycelium_enlaces\`, si está), para capturar decisiones o matices que las
+   afecten.
 5. Respondé de forma directa y **citá la procedencia** de cada afirmación con
    \`[[enlaces]]\`. Si hay contradicciones entre notas, mostralas en vez de
    promediarlas.
@@ -667,6 +757,11 @@ description: Audita el grafo del vault — notas huérfanas y enlaces rotos — 
 <!-- mycelium-ia v${FRAMEWORK_IA_VERSION} -->
 Auditá la **salud de la memoria** (ignorando \`.mycelium/\` y \`.claude/\`): una nota
 desconectada es conocimiento que no se puede evocar.
+
+Si está la herramienta \`mycelium_salud\` (MCP de control), úsala para los pasos 1 y 2:
+calcula huérfanas, enlaces y embeds rotos y títulos duplicados con el criterio del
+índice de Mycelium (sin los \`[[x]]\` de los bloques de código, con nota y línea), y deja
+fuera las Esporas. Sin ella, a mano:
 
 1. **Huérfanas**: notas sin enlaces entrantes ni salientes. Listalas con su ruta.
    Excluí la carpeta de **Esporas** (las plantillas son moldes: que no tengan
@@ -962,6 +1057,8 @@ export type ResultadoIa = {
   borrados: string[];
   /** Comandos de la 1.x que el usuario editó: quedan donde estaban, como suyos. */
   conservados: string[];
+  /** Por qué no se instaló el hook de referencias sin enlazar (`FUN-S-10`), o `null`. */
+  avisoHook: string | null;
 };
 
 /**
@@ -998,8 +1095,36 @@ export async function generarFramework(vaultRuta: string): Promise<ResultadoIa> 
     }
   }
 
+  const avisoHook = await instalarHookReferencias(vaultRuta, escribir);
+
   // El marcador de versión va último: si algo falló antes, la app sigue
   // ofreciendo actualizar.
   await escribir(RUTA_VERSION, versionJson());
-  return { claudeMd: plan.accion, borrados, conservados };
+  return { claudeMd: plan.accion, borrados, conservados, avisoHook };
+}
+
+/**
+ * El hook de las referencias sin enlazar (`FUN-S-10`): el script en
+ * `.claude/hooks/` y su entrada en `.claude/settings.json`, fusionada con lo
+ * que el usuario tenga. Devuelve por qué no se instaló, o `null`: un fallo acá
+ * no impide el resto del framework. Un archivo del usuario con el nombre del
+ * script no se pisa, y un `settings.json` que no es JSON no se toca.
+ */
+async function instalarHookReferencias(
+  vaultRuta: string,
+  escribir: (rutaRel: string, contenido: string) => Promise<unknown>,
+): Promise<string | null> {
+  const actual = await leerTexto(vaultRuta, RUTA_HOOK_REFERENCIAS);
+  if (!scriptLibre(actual)) {
+    return `${RUTA_HOOK_REFERENCIAS} es un archivo tuyo: no se pisa, y el aviso de referencias sin enlazar no se instaló.`;
+  }
+  const script = HOOK_REFERENCIAS.split(MARCADOR_VERSION_IA).join(FRAMEWORK_IA_VERSION);
+  if (actual !== script) await escribir(RUTA_HOOK_REFERENCIAS, script);
+  try {
+    const { texto, cambia } = fusionarSettings(await leerTexto(vaultRuta, ARCHIVO_SETTINGS), HOOK_REFERENCIAS_DEF);
+    if (cambia) await escribir(ARCHIVO_SETTINGS, texto);
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
 }

@@ -14,10 +14,10 @@ vault o mudarte desde Obsidian sin perder la estructura de carpetas.
 
 ## Exportar una nota
 
-1. Abrí el menú **Más opciones** (los tres puntos de la barra del editor), o hacé clic
+1. Abre el menú **Más opciones** (los tres puntos de la barra del editor), o haz clic
    derecho en la nota en el explorador.
-2. Elegí **Exportar como .md** para el archivo de texto tal cual, o **Exportar como PDF…**.
-3. Para el PDF, elegí el tamaño de página (**A4** o **Letter**) y cómo se ve:
+2. Elige **Exportar como .md** para el archivo de texto tal cual, o **Exportar como PDF…**.
+3. Para el PDF, elige el tamaño de página (**A4** o **Letter**) y cómo se ve:
 
 | Opción | Qué hace |
 |---|---|
@@ -34,7 +34,7 @@ está **Exportar a carpeta…**, útil para tenerlo en git o en una carpeta sinc
 
 ## Importar
 
-En Configuración → **Vault** → **Importar vault de Obsidian**, elegí una carpeta o un
+En Configuración → **Vault** → **Importar vault de Obsidian**, elige una carpeta o un
 `.zip`. Se respeta la estructura de carpetas y entran las notas, las imágenes, los PDF y
 cualquier otro archivo.
 
@@ -50,7 +50,7 @@ uno: **Renombrar**, **Reemplazar** o **Cancelar este archivo**.
 - **Las carpetas de dependencias y de compilación**: `node_modules/`, `target/`, `dist/` y
   `out/`.
 
-Esto no cambia aunque lo que importás traiga su propio `.mycignore`: lo que dice ese
+Esto no cambia aunque lo que importas traiga su propio `.mycignore`: lo que dice ese
 archivo no se aplica.
 
 ### El aviso al terminar
@@ -59,7 +59,7 @@ Al terminar aparece un resumen con lo que se importó, lo que se omitió agrupad
 «No se importó: .claude/, .git/ y 3 archivos ocultos») y, si entre lo copiado hay
 instrucciones para asistentes de IA (`CLAUDE.md`, `AGENTS.md` y sus variantes), la lista de
 esos archivos. Se importan porque son notas, pero un asistente que abra el vault las sigue:
-leelos antes de usarlo.
+léelos antes de usarlo.
 
 > [!info] Un `.zip` bajado de internet sigue marcado como descargado
 > En Windows, cada archivo que sale de un `.zip` descargado conserva la marca de «descargado
@@ -67,5 +67,5 @@ leelos antes de usarlo.
 > si lo hubieras bajado directamente.
 
 > [!tip] Con la app de escritorio no hace falta importar
-> Tu vault de Obsidian ya es una carpeta: podés abrirlo directamente como vault de
+> Tu vault de Obsidian ya es una carpeta: puedes abrirlo directamente como vault de
 > Mycelium, sin copiar nada.

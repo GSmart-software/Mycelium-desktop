@@ -16,16 +16,16 @@ una herramienta de línea de comandos, como un asistente de IA que lee y escribe
 
 ## Cómo se usa
 
-1. Abrí el panel **Consolas** desde su botón en el rail y tocá **Nueva terminal**. Arranca
+1. Abre el panel **Consolas** desde su botón en el rail y toca **Nueva terminal**. Arranca
    con la shell por defecto en la carpeta del vault. Con la flecha de al lado (o con clic
-   derecho en el botón) elegís otra shell.
+   derecho en el botón) eliges otra shell.
 2. Para abrirla en una carpeta concreta, clic derecho en la carpeta del explorador →
    **Abrir terminal aquí**. También está **Nueva consola** en la paleta (**Ctrl+P**).
-3. La pestaña se mueve, se divide y se ancla como cualquier otra, y podés tener varias
+3. La pestaña se mueve, se divide y se ancla como cualquier otra, y puedes tener varias
    consolas a la vez.
 
 Cerrar la pestaña **no** termina la consola: sigue corriendo y vuelve a abrirse desde el
-panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombrás y le das un
+panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombras y le das un
 color, que marca su pestaña.
 
 ## Configuración
@@ -38,12 +38,13 @@ proceso nuevo) y **Restaurar el historial** (muestra el texto de la sesión ante
 
 En Configuración → **Consolas** → **Consola estilada** la consola cambia de aspecto: un fondo
 de luz con una red de micelio, partículas, pantalla de tubo y texto que brilla, con los
-colores de tu tema. Viene apagada. Al encenderla, debajo elegís cada parte:
+colores de tu tema. Viene apagada. Al encenderla, debajo eliges cada parte:
 
 | Parte | Qué agrega |
 |---|---|
-| **Fondo** | Una aurora con los colores del tema y una red de micelio detrás del texto |
-| **Pulso del fondo** | El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja |
+| **Aurora** | Manchas de luz con los colores del tema detrás del texto |
+| **Red de micelio** | Una red de hifas, como marca de agua, detrás del texto |
+| **Pulso del fondo** | El fondo se mueve: la aurora se desplaza y el micelio se acerca y se aleja. Mueve el que esté encendido; con los dos apagados, no hace nada |
 | **Partículas** | Esporas de luz que suben despacio |
 | **Borde animado** | Un borde de luz que gira alrededor de la consola |
 | **Marca Mycelium** | El rótulo «MYCELIUM // TTY» en la esquina de abajo |
@@ -59,9 +60,14 @@ Los cambios se ven al instante en las consolas abiertas.
 > de IA con su tema propio— se ve con el suyo. El brillo, el fondo y todo lo demás valen para
 > cualquier programa.
 
+> [!info] Minimizada, no se mueve
+> Cuando minimizas la ventana, la consola estilada se queda quieta y deja de gastar procesador;
+> al restaurarla, sigue desde donde estaba.
+
 > [!tip] Si la PC va lenta
-> El fondo que se mueve, las partículas y el borde animado usan la placa de video. Apagá esas
-> partes, o la consola estilada entera, y la consola vuelve a su aspecto de siempre.
+> Las partes que se mueven —pulso del fondo, partículas, borde animado, marca y pantalla de
+> tubo— hacen que la ventana se redibuje sin parar. Apaga esas partes, o la consola estilada
+> entera: la aurora y el micelio quietos, el brillo y los colores del tema no tienen costo.
 
 > [!info] Las consolas son del vault
 > Al cambiar de vault, sus consolas se terminan y desaparecen del panel; al volver, están

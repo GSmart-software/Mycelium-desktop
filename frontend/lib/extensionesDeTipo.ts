@@ -79,3 +79,25 @@ export function sinExtensionDeNota(nombre: string): string {
   const ext = nombre.slice(i + 1).toLowerCase();
   return EXTENSIONES_DE_NOTA.includes(ext) ? nombre.slice(0, i) : nombre;
 }
+
+/**
+ * Qué tipo gana cuando una referencia **sin extensión** (`[[Plano]]`,
+ * `![[Plano]]`) nombra a varios archivos con el mismo título (`FUN-S-18`).
+ * Menor gana.
+ *
+ * La nota markdown primero, como en Obsidian (`[[Pedido]]` es `Pedido.md`); y
+ * entre los demás, un orden fijo —dibujo, diagrama, lienzo, tabla— en vez del
+ * «más cerca de la raíz», para que el mismo `![[Plano]]` no cambie de dibujo a
+ * tabla porque alguien movió una carpeta. Con la extensión escrita esto no
+ * participa: gana siempre el tipo que se escribió.
+ *
+ * Es un `Record<NotaTipo, …>` por lo mismo que `EXTENSION_POR_TIPO`: un tipo
+ * nuevo no compila hasta decidir dónde va.
+ */
+export const PRIORIDAD_SIN_EXTENSION: Record<NotaTipo, number> = {
+  markdown: 0,
+  excalidraw: 1,
+  drawio: 2,
+  canvas: 3,
+  base: 4,
+};

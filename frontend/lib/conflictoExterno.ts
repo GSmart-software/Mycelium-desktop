@@ -69,6 +69,11 @@ export function decidirAnteCambioExterno(estado: {
  */
 export type DecisionGuardado = "escribir" | "ya-esta" | "conflicto";
 
+// `decidirAlGuardar` es la referencia del criterio: desde `FUN-M-58` (B9) el
+// guardado no lo corre acá sino en Rust (`guardar_nota_en`, `vault_fs.rs`), con
+// huellas en vez de textos, para no traer el archivo entero por el puente en
+// cada guardado. Si cambia uno, cambia el otro.
+
 export function decidirAlGuardar(estado: {
   disco: string | null;
   conocido: string | null;
@@ -79,6 +84,17 @@ export function decidirAlGuardar(estado: {
   if (disco === local) return "ya-esta";
   if (disco === conocido) return "escribir";
   return "conflicto";
+}
+
+/**
+ * Huella de un texto (`FUN-M-58`, B9): SHA-256 en hex de sus bytes UTF-8, sin
+ * normalizar nada (BOM y CRLF cuentan). Es la misma que calcula Rust sobre el
+ * archivo (`huella_de`, `vault_fs.rs`): un texto leído del disco y su archivo
+ * tienen la misma huella. El guardado manda la de su base en vez del texto.
+ */
+export async function huellaDeTexto(texto: string): Promise<string> {
+  const digesto = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(digesto), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Sufijo con que se nombra la copia de lo local al resolver un conflicto. */

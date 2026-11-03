@@ -33,6 +33,7 @@ const MODULOS = [
   "lib/video.ts",
   "lib/imagenes.ts",
   "lib/enlacesExternos.ts",
+  "lib/resaltado.ts",
   "lib/estadosTarea.ts",
 ];
 

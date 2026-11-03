@@ -17,11 +17,13 @@
  *     dentro de uno es una constante (la que las rutas `/vaults/:id/...` de
  *     `api()` reciben de `authStore`).
  */
-import { claveDeEnlace, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
+import { claveDeEnlace, clavesDeAlias, clavesDeTitulo, derivarEnlaces, derivarEtiquetas } from "@/lib/enlacesNota";
 import { otrosDesdeMeta, type OtroArchivo } from "@/lib/otrosArchivos";
 import type { CambioVault } from "@/lib/arbolVivo";
 import { execute, getExecutor, select, type SqlExecutor } from "./client";
+import { avisarAliasCambiados } from "@/lib/eventos";
 import {
+  clavesDeAliasDe,
   escribirEnlacesTanda,
   huellaEnlaces,
   plegarEtiquetasPendientes,
@@ -30,7 +32,10 @@ import {
 } from "./enlacesIndice";
 import { crearFtsFilas, enTandas, ftsBorrar, ftsBorrarHuerfanas, ftsPonerTanda, marcadores, type FilaFts } from "./ftsIndice";
 import {
+  aliasesDeFilas,
+  aliasesPorNota,
   derivarIndice,
+  mismosAliases,
   plegarPropiedadesPendientes,
   reindexarPropiedadesTanda,
   type FilaPropiedad,
@@ -591,12 +596,16 @@ export async function indexarVault(
  * `mtime` al final (`DEF-121`), y la misma resolución de enlaces por claves.
  *
  * @returns `reindexadas` y `rutas`: las notas que cambiaron en el índice
- *          (reescritas o borradas), para avisar a las pestañas abiertas.
+ *          (reescritas o borradas), para avisar a las pestañas abiertas. Y
+ *          `estructural`: si entró o salió del índice alguna nota o carpeta
+ *          (`FUN-M-58`). Si no, lo que el árbol lee del índice no cambió —el
+ *          título y la carpeta salen de la ruta, y los alias llegan por
+ *          `EVENTO_ALIAS`— y el watcher no lo recarga.
  */
 export async function indexarRutas(
   vaultRuta: string,
   cambios: readonly CambioVault[],
-): Promise<{ reindexadas: number; rutas: string[] }> {
+): Promise<{ reindexadas: number; rutas: string[]; estructural: boolean }> {
   await asegurarEsquema();
   // Una ruta, un estado: el último que llegó.
   const porRuta = new Map<string, CambioVault>();
@@ -611,6 +620,7 @@ export async function indexarRutas(
 
   const now = ahoraIso();
   const clavesPorResolver = new Set<string>();
+  let estructural = false;
 
   // 1) Carpetas: las de lo que existe (y sus ancestros), solo las que faltan.
   const carpetas = new Map<string, CarpetaDerivada>();
@@ -627,10 +637,9 @@ export async function indexarRutas(
       );
       for (const f of filas) ya.add(f.id);
     }
-    await insertarCarpetas(
-      [...carpetas.values()].filter((c) => !ya.has(c.id)),
-      now,
-    );
+    const nuevas = [...carpetas.values()].filter((c) => !ya.has(c.id));
+    if (nuevas.length > 0) estructural = true;
+    await insertarCarpetas(nuevas, now);
   }
 
   // 2) Notas: qué hay que releer, mirando solo estas en el índice.
@@ -644,6 +653,7 @@ export async function indexarRutas(
       const previo = porId.get(a.rutaRelativa);
       return previo === undefined || Number(previo.incompleta) === 1 || previo.mtime !== a.mtime;
     });
+    if (porReindexar.some((a) => !porId.has(a.rutaRelativa))) estructural = true;
     reescritas = await escribirNotas(vaultRuta, porReindexar, (id) => !porId.has(id), clavesPorResolver, now);
   }
 
@@ -707,7 +717,8 @@ export async function indexarRutas(
   if (clavesPorResolver.size > 0) await reResolverClaves(clavesPorResolver);
   if (borradas.length > 0 || carpetasIdas.length > 0) await compactarSiHaceFalta();
 
-  return { reindexadas: reescritas.length, rutas: [...reescritas, ...borradas] };
+  if (borradas.length > 0 || carpetasIdas.length > 0) estructural = true;
+  return { reindexadas: reescritas.length, rutas: [...reescritas, ...borradas], estructural };
 }
 
 /**
@@ -920,7 +931,20 @@ async function escribirNotas(
         [now, JSON.stringify(filasContenidos)],
       );
       await ftsPonerTanda(filasFts);
+      // Los alias que cambian (`FUN-M-15`): los de antes salen del índice antes
+      // de reescribir las propiedades; sus claves y las de los nuevos se
+      // re-resuelven al final con las demás, y el árbol se entera por evento.
+      const aliasAntes = await aliasesPorNota(entradasPropiedades.map((e) => e.id));
+      const aliasCambiados: Record<string, string[]> = {};
+      for (const e of entradasPropiedades) {
+        const antes = aliasAntes.get(e.id) ?? [];
+        const despues = aliasesDeFilas(e.propiedades);
+        if (mismosAliases(antes, despues)) continue;
+        aliasCambiados[e.id] = despues;
+        for (const c of clavesDeAlias([...antes, ...despues])) claves.add(c);
+      }
       await reindexarPropiedadesTanda(entradasPropiedades);
+      avisarAliasCambiados(aliasCambiados);
       await escribirEnlacesTanda(entradasEnlaces);
       // La tanda entera ya está escrita: recién ahora el `mtime` del disco y las
       // huellas (ver el aviso de arriba). `UPDATE … FROM` como en `enlacesIndice.ts`.
@@ -952,6 +976,8 @@ async function borrarNotas(ids: string[], claves: Set<string>): Promise<void> {
   if (ids.length === 0) return;
   await ftsBorrar(ids);
   for (const id of ids) for (const c of clavesDeTitulo(tituloDeRuta(id))) claves.add(c);
+  // Y sus alias (`FUN-M-15`), mientras las filas de `propiedades` existen.
+  for (const c of await clavesDeAliasDe(ids)) claves.add(c);
   for (const tanda of enTandas(ids)) {
     const q = marcadores(tanda.length);
     await execute(`DELETE FROM propiedades WHERE nota_id IN (${q})`, tanda);

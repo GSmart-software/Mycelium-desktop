@@ -13,20 +13,24 @@
 
    Capas, de atrás hacia adelante, con la opción que las enciende:
      .escena   fondo de la consola y recorte
-     .luces    dos manchas de luz del tema         Fondo (se mueven con Pulso)
-     .micelio  la red de hifas como marca de agua  Fondo (respira con Pulso)
+     .luces    dos manchas de luz del tema         Aurora (se mueven con Pulso)
+     .micelio  la red de hifas como marca de agua  Red de micelio (respira con Pulso)
      .esporas  partículas que suben                Partículas
      .terminal xterm, transparente                 (el brillo: Brillo del texto)
      .crt      líneas, viñeta, grano y el haz      Pantalla de tubo
      .marco    un borde de luz que gira            Borde animado
      .rotulo   el rótulo de la esquina             Marca Mycelium
-   Todo lo que va delante del texto tiene `pointer-events: none`. */
+   Todo lo que va delante del texto tiene `pointer-events: none`.
 
-@property --giro {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
+   Lo que se mueve, se mueve SOLO con `transform` u `opacity` (`DEF-174`).
+   Esas dos propiedades las anima el compositor sobre una capa ya pintada; todo
+   lo demás —un ángulo de degradado, `background-position`, un `filter` sobre
+   la capa animada, una mezcla con lo de abajo— obliga a volver a pintar o a
+   recalcular la capa en cada cuadro. Medido con la ventana maximizada y la
+   consola en reposo: el borde que giraba su degradado gastaba el 22 % de la
+   CPU y girando la capa, el 4 %; el pulso con desenfoque, el 12 % y sin él, el
+   3,8 %; la consola entera, del 16 % a menos del 6 %. Y con la ventana minimizada no se
+   mueve nada (`components/ventana/ReposoVentana.tsx`). */
 
 .escena {
   position: relative;
@@ -53,15 +57,17 @@
 }
 
 /* ---- Aurora: dos manchas grandes y difusas que derivan ---- */
+/* Sin `filter: blur()`: sobre una capa que se mueve, el desenfoque se vuelve a
+   calcular en cada cuadro (`DEF-174`). Lo imitan los degradados, más amplios y
+   con una caída larga hasta transparente. */
 .luces {
   inset: -30%;
   z-index: 0;
   opacity: 0.55;
-  filter: blur(42px) saturate(1.4);
   background:
-    radial-gradient(38% 30% at 30% 35%, color-mix(in srgb, var(--mic-glow) 55%, transparent), transparent 70%),
-    radial-gradient(34% 28% at 72% 62%, color-mix(in srgb, var(--mic-accent) 60%, transparent), transparent 70%),
-    radial-gradient(22% 18% at 60% 22%, color-mix(in srgb, var(--mic-glow) 30%, #fff 10%), transparent 70%);
+    radial-gradient(40% 32% at 30% 35%, color-mix(in srgb, var(--mic-glow) 50%, transparent), color-mix(in srgb, var(--mic-glow) 14%, transparent) 50%, transparent 80%),
+    radial-gradient(36% 30% at 72% 62%, color-mix(in srgb, var(--mic-accent) 56%, transparent), color-mix(in srgb, var(--mic-accent) 16%, transparent) 50%, transparent 80%),
+    radial-gradient(24% 20% at 60% 22%, color-mix(in srgb, var(--mic-glow) 28%, #fff 10%), transparent 80%);
 }
 
 .pulso .luces {
@@ -79,27 +85,21 @@
 .micelio {
   inset: 0;
   z-index: 0;
-  background:
-    linear-gradient(120deg, var(--mic-glow), var(--mic-accent), var(--mic-glow));
-  background-size: 300% 300%;
+  background: linear-gradient(120deg, var(--mic-glow), var(--mic-accent), var(--mic-glow));
   -webkit-mask: url("/consola/micelio.svg") center / min(92%, 980px) auto no-repeat;
   mask: url("/consola/micelio.svg") center / min(92%, 980px) auto no-repeat;
   opacity: 0.13;
 }
 
+/* Antes además corría el color por las hifas animando `background-position`:
+   eso se repinta en cada cuadro, con la máscara encima (`DEF-174`). */
 .pulso .micelio {
-  animation:
-    respira 9s ease-in-out infinite,
-    corre 14s linear infinite;
+  animation: respira 9s ease-in-out infinite;
 }
 
 @keyframes respira {
   0%, 100% { opacity: 0.09; transform: scale(1); }
   50%      { opacity: 0.17; transform: scale(1.025); }
-}
-
-@keyframes corre {
-  to { background-position: 300% 0; }
 }
 
 /* ---- Esporas: puntos de luz que suben, en dos capas a distinta velocidad ---- */
@@ -129,7 +129,6 @@
 .esporas::after {
   background-size: 520px 520px;
   opacity: 0.45;
-  filter: blur(0.6px);
   animation-duration: 40s;
   animation-direction: normal;
 }
@@ -151,6 +150,17 @@
   padding: 10px;
   background: var(--mic-terminal-bg);
   overflow: hidden;
+}
+
+/* El padre del xterm, SIN relleno (`DEF-172`). El FitAddon calcula filas y
+   columnas con el `height` y el `width` calculados del padre, y con
+   `box-sizing: border-box` esos valores incluyen el relleno: con el aire en el
+   padre directo, el grid salía de más tantas filas y columnas como cupieran en
+   el relleno (con efectos, 42px de alto y 40 de ancho) y lo de abajo y la
+   derecha quedaba fuera de la vista. */
+.grilla {
+  height: 100%;
+  width: 100%;
 }
 
 .terminal :global(.xterm) {
@@ -196,10 +206,30 @@
   filter: drop-shadow(0 0 4px var(--mic-glow)) drop-shadow(0 0 10px var(--mic-glow));
 }
 
-/* Barra de desplazamiento: una hifa fina. */
-.conEfectos .terminal :global(.xterm-viewport)::-webkit-scrollbar-thumb {
-  background: linear-gradient(var(--mic-glow), var(--mic-accent));
+/* La barra de desplazamiento (`DEF-173`). La hoja de xterm le deja a
+   `.xterm-viewport` un `overflow-y: scroll`, pero en xterm 6 ese elemento ya
+   no desplaza nada (su contenido mide lo mismo que él): con la barra global de
+   la app se veía una barra muerta, con flechas, que no movía la consola. La
+   que desplaza es la de xterm (`.xterm-scrollable-element > .scrollbar`), que
+   toma sus colores del tema (`barraDeDesplazamiento` en `lib/terminal.ts`). */
+.terminal :global(.xterm-viewport) {
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.terminal :global(.xterm-scrollable-element > .scrollbar > .slider) {
   border-radius: 99px;
+}
+
+/* Con efectos, el deslizador es una hifa de luz. */
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider) {
+  background: linear-gradient(var(--mic-glow), var(--mic-accent));
+  opacity: 0.55;
+}
+
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider:hover),
+.conEfectos .terminal :global(.xterm-scrollable-element > .scrollbar > .slider.active) {
+  opacity: 0.9;
 }
 
 /* ---- CRT: delante del texto, sin tocar el mouse ---- */
@@ -212,7 +242,8 @@
   mix-blend-mode: multiply;
 }
 
-/* El grano, que tiembla. */
+/* El grano, quieto: temblando, movía una capa más grande que la consola
+   mezclada con todo lo de abajo, en cada cuadro (`DEF-174`). */
 .crt::before {
   content: "";
   position: absolute;
@@ -220,7 +251,6 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   opacity: 0.09;
   mix-blend-mode: overlay;
-  animation: grano 0.9s steps(6) infinite;
 }
 
 /* El haz que baja cada tanto. */
@@ -236,18 +266,9 @@
     color-mix(in srgb, var(--mic-glow) 22%, transparent) 96%,
     transparent
   );
-  mix-blend-mode: screen;
   transform: translateY(-120%);
+  will-change: transform;
   animation: barre 7.5s cubic-bezier(0.55, 0, 0.45, 1) infinite;
-}
-
-@keyframes grano {
-  0%   { transform: translate(0, 0); }
-  20%  { transform: translate(-6%, 4%); }
-  40%  { transform: translate(5%, -7%); }
-  60%  { transform: translate(-3%, 8%); }
-  80%  { transform: translate(7%, 2%); }
-  100% { transform: translate(0, 0); }
 }
 
 @keyframes barre {
@@ -255,14 +276,33 @@
   100%    { transform: translateY(560%); }
 }
 
-/* ---- Marco: un borde de luz que gira ---- */
+/* ---- Marco: un borde de luz que gira ----
+   El anillo es la máscara, quieta; adentro gira una capa cuadrada con el
+   degradado cónico, más grande que la consola en cualquier proporción. Antes
+   giraba el ángulo del degradado (`@property --giro`), que se repinta en cada
+   cuadro: 22 % de la CPU contra 4 % girando la capa (`DEF-174`). */
 .marco {
   inset: 0;
   z-index: 3;
   padding: 1.5px;
   border-radius: 10px;
+  overflow: hidden;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  box-shadow: inset 0 0 40px color-mix(in srgb, var(--mic-glow) 14%, transparent);
+}
+
+.marco::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150vmax;
+  height: 150vmax;
+  margin: -75vmax 0 0 -75vmax;
   background: conic-gradient(
-    from var(--giro),
+    from 0deg,
     transparent 0deg,
     var(--mic-glow) 40deg,
     var(--mic-accent) 80deg,
@@ -271,15 +311,12 @@
     color-mix(in srgb, var(--mic-glow) 60%, transparent) 250deg,
     transparent 320deg
   );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  will-change: transform;
   animation: gira 6s linear infinite;
-  box-shadow: inset 0 0 40px color-mix(in srgb, var(--mic-glow) 14%, transparent);
 }
 
 @keyframes gira {
-  to { --giro: 360deg; }
+  to { transform: rotate(360deg); }
 }
 
 /* ---- Rótulo ---- */
@@ -342,9 +379,8 @@
   .pulso .micelio,
   .esporas::before,
   .esporas::after,
-  .crt::before,
   .crt::after,
-  .marco,
+  .marco::before,
   .rotulo,
   .latido {
     animation: none;

@@ -20,6 +20,7 @@
  */
 import { select } from "./client";
 import { DbError } from "./errors";
+import { aliasesPorNota } from "./propiedades";
 
 export type GraphNodeDto = {
   id: string;
@@ -49,9 +50,20 @@ function contarConexiones(aristas: GraphEdgeDto[]): Map<string, number> {
   return conteo;
 }
 
-/** Fragmento de contexto alrededor del [[enlace]] (HU-30 CA7). */
-function fragmentAround(contenido: string, titulo: string): string {
-  const index = contenido.toLowerCase().indexOf(`[[${titulo.toLowerCase()}`);
+/**
+ * Fragmento de contexto alrededor del [[enlace]] (HU-30 CA7). `nombres` son el
+ * título y los alias de la nota citada (`FUN-M-15`): un `[[alias]]` también la
+ * cita, y sin buscarlo el retroenlace salía sin contexto.
+ */
+function fragmentAround(contenido: string, nombres: readonly string[]): string {
+  const bajo = contenido.toLowerCase();
+  let index = -1;
+  let titulo = "";
+  for (const nombre of nombres) {
+    index = bajo.indexOf(`[[${nombre.toLowerCase()}`);
+    titulo = nombre;
+    if (index >= 0) break;
+  }
   if (index < 0) return "";
   const start = Math.max(0, index - 40);
   const end = Math.min(contenido.length, index + titulo.length + 44);
@@ -161,10 +173,11 @@ export async function conexiones(notaId: string): Promise<unknown> {
     );
     for (const f of filas) contenidos.set(f.nota_id, f.contenido);
   }
+  const nombres = [n.titulo, ...((await aliasesPorNota([notaId])).get(notaId) ?? [])];
   const retro = citantes.map((c) => ({
     id: c.id,
     titulo: c.titulo,
-    fragmento: fragmentAround(contenidos.get(c.id) ?? "", n.titulo),
+    fragmento: fragmentAround(contenidos.get(c.id) ?? "", nombres),
   }));
 
   // Mini-grafo: la nota y sus vecinos, cada uno con su grado en el grafo
@@ -212,4 +225,34 @@ export async function conexiones(notaId: string): Promise<unknown> {
     retro,
     grafo: { nodos, aristas: aristasVecinas },
   };
+}
+
+export type ConteoConexionesDto = { salientes: number; retro: number; actualizadoEn: string };
+
+/**
+ * `GET /notas/{id}/conteo-conexiones` — lo que muestra la barra de estado: los
+ * dos números y la hora de la última modificación (`FUN-M-58`). La barra pedía
+ * las `conexiones` enteras en cada guardado (cada 10 s mientras se escribe) y
+ * de todo eso usaba dos `.length`: seis sentencias y el texto de cada nota que
+ * cita, hasta 1,7 MB por guardado en la nota más citada de la Tesina. Esto es
+ * una sentencia que no lee contenido.
+ *
+ * Cuenta con el MISMO criterio que `conexiones`: el mismo `ES_ARISTA` y el mismo
+ * `JOIN notas` (una fila cuyo destino ya no está en `notas` no cuenta), y
+ * `COUNT(DISTINCT …)` sobre la columna por la que aquélla agrupa. Así el número
+ * de la barra es siempre el `length` de las listas del panel.
+ */
+export async function conteoConexiones(notaId: string): Promise<ConteoConexionesDto> {
+  const filas = await select<{ actualizado_en: string; salientes: number; retro: number }>(
+    `SELECT n.actualizado_en,
+       (SELECT COUNT(DISTINCT e.destino_id) FROM enlaces e JOIN notas d ON d.id = e.destino_id
+        WHERE e.desde_id = n.id AND ${ES_ARISTA}) AS salientes,
+       (SELECT COUNT(DISTINCT e.desde_id) FROM enlaces e JOIN notas o ON o.id = e.desde_id
+        WHERE e.destino_id = n.id AND ${ES_ARISTA}) AS retro
+     FROM notas n WHERE n.id = ?`,
+    [notaId],
+  );
+  if (filas.length === 0) throw new DbError(404, "La nota no existe.");
+  const f = filas[0];
+  return { salientes: Number(f.salientes), retro: Number(f.retro), actualizadoEn: f.actualizado_en };
 }

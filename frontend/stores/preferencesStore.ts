@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "@/lib/atmosferas";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
+import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
 import { atmosferaEnUso, type Tema } from "@/lib/temas";
 import { sanearContraDefectos, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 
@@ -86,6 +87,12 @@ export type Preferencias = {
    * Apagado, el worker no se carga. Activado por defecto.
    */
   correctorOrtografico: boolean;
+  /**
+   * Diagnósticos del editor (`FUN-M-44`): marcar en la nota, como un linter, los
+   * enlaces rotos o ambiguos, el título duplicado y los avisos de propiedades.
+   * Se calculan al abrir y al guardar. Activado por defecto.
+   */
+  diagnosticosEditor: boolean;
   /**
    * Mostrar el nombre del archivo como título centrado en la parte superior de
    * todas las vistas (no es un encabezado `#` del documento). Por defecto `true`.
@@ -173,6 +180,17 @@ export type Preferencias = {
    */
   carpetaEsporas: string;
   /**
+   * Informe de salud (`FUN-L-32`): carpeta del vault donde se guardan los
+   * informes generados como nota. Ruta relativa POSIX; cambiarla no mueve los
+   * informes que ya existen.
+   */
+  carpetaInformes: string;
+  /**
+   * Pestaña «Salud del vault» (`FUN-L-32`): cómo se dibuja «Qué hay en el
+   * vault», en anillos o en barras. Va con el vault, como todo lo de acá.
+   */
+  formaComposicionSalud: "anillos" | "barras";
+  /**
    * Atmósfera de cada modo (lib/atmosferas.ts): cómo se reparten los colores del
    * tema en fondos, marco y títulos. Una por modo, porque de noche y de día
    * conviene otra cosa.
@@ -190,6 +208,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphContinuousSim: false,
   autoCloseBrackets: true,
   correctorOrtografico: true,
+  diagnosticosEditor: true,
   showFileTitle: true,
   iconosEnPestanas: true,
   busquedaCampo: "ambos",
@@ -201,6 +220,8 @@ const DEFAULT_PREFS: Preferencias = {
   graphColorGroups: [],
   graphExcludeRules: [],
   carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
+  carpetaInformes: CARPETA_INFORMES_DEFECTO,
+  formaComposicionSalud: "anillos",
   atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
   atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,
 };

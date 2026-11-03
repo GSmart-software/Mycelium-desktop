@@ -36,7 +36,7 @@ export function TypographySection() {
             </p>
           }
         >
-          La letra con la que escribís.
+          La letra con la que escribes.
         </Explicacion>
       </div>
 
@@ -62,7 +62,7 @@ export function TypographySection() {
             </p>
           }
         >
-          El tamaño del texto mientras escribís.
+          El tamaño del texto mientras escribes.
         </Explicacion>
       </div>
 
@@ -82,7 +82,7 @@ export function TypographySection() {
           detalle={
             <p>
               Se usa en el modo lectura, en la mitad renderizada del modo dividido y en el texto
-              de las tarjetas de un lienzo (mientras escribís en una, va la del editor). El
+              de las tarjetas de un lienzo (mientras escribes en una, va la del editor). El
               código sigue en monoespaciada.
             </p>
           }
@@ -108,8 +108,8 @@ export function TypographySection() {
         <Explicacion
           detalle={
             <p>
-              Entre 12 y 24 píxeles; por defecto 16. Es independiente del tamaño del editor: podés
-              escribir chico y leer grande.
+              Entre 12 y 24 píxeles; por defecto 16. Es independiente del tamaño del editor: puedes
+              escribir pequeño y leer grande.
             </p>
           }
         >

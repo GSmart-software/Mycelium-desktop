@@ -145,14 +145,21 @@ function enBloqueDeCodigo(state: EditorState, pos: number): boolean {
   return false;
 }
 
-/** Los bloques `$$ … $$` cerrados del documento. Uno sin cierre no se dibuja. */
-function bloquesDeFormula(state: EditorState): BloqueFormula[] {
+/**
+ * Los bloques `$$ … $$` cerrados del documento. Uno sin cierre no se dibuja.
+ * `hayApertura` dice si algún renglón PODRÍA abrir uno (aunque esté en código o
+ * no cierre): si no hay ninguno, no hay bloques, y el campo lo aprovecha.
+ */
+function bloquesDeFormula(state: EditorState): { bloques: BloqueFormula[]; hayApertura: boolean } {
   const doc = state.doc;
   const bloques: BloqueFormula[] = [];
+  let hayApertura = false;
   for (let n = 1; n <= doc.lines; n++) {
     const apertura = doc.line(n);
     const m = APERTURA_RE.exec(apertura.text);
-    if (!m || enBloqueDeCodigo(state, apertura.from)) continue;
+    if (!m) continue;
+    hayApertura = true;
+    if (enBloqueDeCodigo(state, apertura.from)) continue;
     for (let k = n + 1; k <= doc.lines; k++) {
       const linea = doc.line(k);
       const c = CIERRE_RE.exec(linea.text);
@@ -165,7 +172,24 @@ function bloquesDeFormula(state: EditorState): BloqueFormula[] {
       }
     }
   }
-  return bloques;
+  return { bloques, hayApertura };
+}
+
+/** ¿Algún renglón tocado por la transacción podría abrir un bloque? */
+function aperturaEnCambios(tr: Transaction): boolean {
+  const doc = tr.state.doc;
+  let hay = false;
+  tr.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+    if (hay) return;
+    const ultima = doc.lineAt(toB).number;
+    for (let n = doc.lineAt(fromB).number; n <= ultima; n++) {
+      if (APERTURA_RE.test(doc.line(n).text)) {
+        hay = true;
+        return;
+      }
+    }
+  });
+  return hay;
 }
 
 export type EstadoFormulas = {
@@ -174,13 +198,22 @@ export type EstadoFormulas = {
   ranges: [number, number][];
   /** Todos los bloques, dibujados o no: dentro de ellos no hay fórmulas en línea. */
   todos: [number, number][];
+  /** Los bloques hallados, para no volver a buscarlos si solo se movió el cursor. */
+  bloques: BloqueFormula[];
+  /** ¿Algún renglón podría abrir un bloque? Ver `bloquesDeFormula`. */
+  hayApertura: boolean;
 };
 
-function calcularBloques(state: EditorState): EstadoFormulas {
+/** Las decoraciones de `bloques` según dónde está el cursor ahora. */
+function decorarBloques(
+  state: EditorState,
+  bloques: BloqueFormula[],
+  hayApertura: boolean,
+): EstadoFormulas {
   const builder = new RangeSetBuilder<Decoration>();
   const ranges: [number, number][] = [];
   const todos: [number, number][] = [];
-  for (const b of bloquesDeFormula(state)) {
+  for (const b of bloques) {
     todos.push([b.desde, b.hasta]);
     // Con el cursor (o la selección) tocándolo se ve la fuente, para editarla.
     const tocado = state.selection.ranges.some((r) => r.to >= b.desde && r.from <= b.hasta);
@@ -192,23 +225,55 @@ function calcularBloques(state: EditorState): EstadoFormulas {
     );
     ranges.push([b.desde, b.hasta]);
   }
-  return { decorations: builder.finish(), ranges, todos };
+  return { decorations: builder.finish(), ranges, todos, bloques, hayApertura };
+}
+
+function calcularBloques(state: EditorState): EstadoFormulas {
+  const { bloques, hayApertura } = bloquesDeFormula(state);
+  return decorarBloques(state, bloques, hayApertura);
+}
+
+/**
+ * Tras un movimiento del cursor: los mismos bloques, decorados según dónde
+ * quedó. Si el cursor no entró ni salió de ninguno, el valor de antes, para que
+ * CodeMirror no tenga decoraciones nuevas que comparar.
+ */
+function reDecorar(antes: EstadoFormulas, state: EditorState): EstadoFormulas {
+  const ahora = decorarBloques(state, antes.bloques, antes.hayApertura);
+  const iguales =
+    ahora.ranges.length === antes.ranges.length &&
+    ahora.ranges.every((r, i) => r[0] === antes.ranges[i][0] && r[1] === antes.ranges[i][1]);
+  return iguales ? antes : ahora;
 }
 
 /**
  * Las fórmulas en bloque son decoraciones de BLOQUE que cruzan renglones, así
  * que tienen que venir de un `StateField`: un `ViewPlugin` no puede darlas.
+ *
+ * Buscar los bloques recorre el documento entero con una regex por renglón
+ * (`FUN-M-58`, A-H4: 4,1 ms por tecla en una nota de 443 KB, 1,2 ms en una de
+ * 135 KB; sin el campo, 0,015 ms). Por eso:
+ * - Si ningún renglón podía abrir un bloque —casi todas las notas—, una tecla
+ *   solo mira los renglones que tocó: así se nota el primer `$$` recién
+ *   escrito. Y el árbol de sintaxis no importa: sin aperturas no hay bloques,
+ *   estén o no en código.
+ * - Si el documento no cambió (se movió el cursor), los bloques son los mismos:
+ *   solo se vuelve a ver cuáles toca el cursor.
  */
 export const formulasField = StateField.define<EstadoFormulas>({
   create: calcularBloques,
   update(value, tr: Transaction) {
-    if (
-      tr.docChanged ||
-      tr.selection ||
-      syntaxTree(tr.startState) !== syntaxTree(tr.state)
-    ) {
+    if (!value.hayApertura) {
+      // Sin aperturas, un cambio que no escribe una deja todo igual. (Borrar
+      // la última apertura entra por la rama de abajo, que recalcula todo y
+      // deja `hayApertura` en falso.)
+      if (tr.docChanged && aperturaEnCambios(tr)) return calcularBloques(tr.state);
+      return value;
+    }
+    if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
       return calcularBloques(tr.state);
     }
+    if (tr.selection) return reDecorar(value, tr.state);
     return value;
   },
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),

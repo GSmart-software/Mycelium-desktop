@@ -5,6 +5,8 @@ import {
   BookOpen,
   CalendarDays,
   FilePlus,
+  FileText,
+  HeartPulse,
   Palette,
   PanelLeft,
   Search,
@@ -17,7 +19,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
+import { ICONO_POR_TIPO, ICONO_SALUD } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -25,6 +27,7 @@ import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
+import { abrirPestanaSalud } from "@/lib/saludPestana";
 import { useTabsStore } from "@/stores/tabsStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -204,6 +207,37 @@ export function PaletaComandos() {
         titulo: "Abrir el calendario",
         icono: CalendarDays,
         ejecutar: () => abrirNota(CALENDAR_TAB_ID),
+      },
+      // Salud del vault (FUN-L-30): el mismo panel que el ícono del rail.
+      {
+        id: "cmd-salud",
+        titulo: "Revisar la salud del vault",
+        detalle: "Enlaces rotos, huérfanas y títulos duplicados",
+        icono: HeartPulse,
+        ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
+      },
+      // La pestaña de salud (FUN-L-32): el tablero con las gráficas. Cierra el
+      // panel de salud si es el que está a la vista.
+      {
+        id: "cmd-salud-pestana",
+        titulo: "Abrir la salud del vault en una pestaña",
+        detalle: "El tablero: qué hay, qué pesa, la red y los problemas",
+        icono: ICONO_SALUD,
+        ejecutar: () => abrirPestanaSalud((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`)),
+      },
+      // El informe como nota (FUN-L-32): revisa, lo guarda en la carpeta de
+      // informes y lo abre. Los fallos los avisa `generarInformeSalud`.
+      {
+        id: "cmd-informe-salud",
+        titulo: "Generar informe de salud del vault",
+        detalle: "Una nota con los problemas y las gráficas",
+        icono: FileText,
+        ejecutar: async () => {
+          const { generarInformeSalud } = await import("@/lib/informeSaludVault");
+          await generarInformeSalud({
+            navegar: (id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`),
+          }).catch(() => undefined);
+        },
       },
       {
         id: "cmd-recordatorio",
@@ -404,7 +438,7 @@ export function PaletaComandos() {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={enComandos ? "Escribí un comando…" : "Ir a una nota…  (empezá con > para comandos)"}
+            placeholder={enComandos ? "Escribe un comando…" : "Ir a una nota…  (empieza con > para comandos)"}
             role="combobox"
             aria-expanded="true"
             aria-controls={idLista}
@@ -443,7 +477,7 @@ export function PaletaComandos() {
           })}
           {opciones.length === 0 && (
             <li className={styles.vacio} role="option" aria-selected="false" aria-disabled="true">
-              {enComandos ? "Ningún comando se llama así." : "Escribí el nombre de una nota."}
+              {enComandos ? "Ningún comando se llama así." : "Escribe el nombre de una nota."}
             </li>
           )}
         </ul>

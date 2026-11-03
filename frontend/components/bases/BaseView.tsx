@@ -572,7 +572,7 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
 
       {!editable && modo === "tabla" && (
         <p className={styles.aviso}>
-          Los filtros y las columnas se editan acá solo si Mycelium entiende el archivo
+          Los filtros y las columnas se editan aquí solo si Mycelium entiende el archivo
           entero, y en este no: {bloqueos[0]}. Regenerar el YAML lo borraría, así que se
           edita desde <strong>Fuente</strong>.
         </p>

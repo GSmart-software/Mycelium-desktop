@@ -289,6 +289,26 @@ export function convertirValor(valor: ValorPropiedad, hacia: TipoPropiedad): Val
 const VERDADEROS = new Set(["true", "yes", "y", "sí", "si", "s", "1", "on", "verdadero"]);
 
 /**
+ * El bloque de frontmatter tal como está escrito —del `---` de apertura hasta
+ * el final de su renglón de cierre—, o `""` si no hay. Mismas reglas que
+ * `separarFrontmatter`, que da lo mismo sobre este recorte que sobre el texto
+ * entero; pero sin partir el texto entero en renglones: recorre solo hasta el
+ * cierre. Lo usa el editor para no volver a leer las propiedades en cada tecla
+ * (`FUN-M-58`, A-H9: partir una nota de 443 KB costaba hasta 1,2 ms por tecla).
+ */
+export function bloqueFrontmatter(texto: string): string {
+  let fin = texto.indexOf("\n");
+  if (fin === -1 || sinCr(texto.slice(0, fin)) !== "---") return "";
+  for (;;) {
+    const desde = fin + 1;
+    fin = texto.indexOf("\n", desde);
+    const linea = sinCr(texto.slice(desde, fin === -1 ? texto.length : fin));
+    if (linea === "---" || linea === "...") return texto.slice(0, fin === -1 ? texto.length : fin);
+    if (fin === -1) return "";
+  }
+}
+
+/**
  * Separa el frontmatter del cuerpo. Reglas de detección (spec § 1):
  * el archivo debe EMPEZAR con una línea que sea exactamente `---`; el bloque se
  * cierra en la primera línea posterior que sea `---` o `...`; sin cierre no hay
@@ -636,4 +656,147 @@ export function renombrarPropiedad(texto: string, clave: string, nueva: string):
   if (!m) return texto;
   lineas[p.desdeLinea] = textoYaml(limpia) + sin.slice(m[1].length) + cr;
   return lineas.join("\n");
+}
+
+// ── `cssclasses`: clases CSS de la nota (`FUN-S-08`) ─────────────────────────
+
+/** Cuántas clases se aplican como mucho: más es un error, no un estilo. */
+const MAX_CLASES_CSS = 20;
+
+/**
+ * Un nombre de clase que se puede poner en un `class` sin escaparlo: letras
+ * ASCII, dígitos, `_` y `-`, sin empezar por dígito ni por `-` + dígito (eso no
+ * es un identificador de CSS válido y el selector no lo alcanzaría).
+ */
+const CLASE_CSS_VALIDA = /^(?!-?\d)[A-Za-z0-9_-]+$/;
+
+/**
+ * Las clases que pide la propiedad `cssclasses` de una nota, ya saneadas: se
+ * aplican al contenedor de la nota (edición y lectura) para que un snippet del
+ * usuario la pueda estilar, como en Obsidian.
+ *
+ * Acepta una lista (`[ficha, portada]` o con `- `) o un texto, separado por
+ * espacios o comas. Lo que no es un nombre de clase válido se descarta en
+ * silencio (`CLASE_CSS_VALIDA`); sin repetidos y con un tope. Sin la propiedad,
+ * o con un frontmatter que Mycelium no interpreta, ninguna.
+ */
+export function clasesCssDe(texto: string): string[] {
+  const p = propiedadDe(texto, "cssclasses");
+  if (p === undefined) return [];
+  const crudos = Array.isArray(p.valor) ? p.valor : [String(p.valor)];
+  const salida: string[] = [];
+  for (const crudo of crudos) {
+    for (const nombre of String(crudo).split(/[\s,]+/)) {
+      if (nombre === "" || !CLASE_CSS_VALIDA.test(nombre) || salida.includes(nombre)) continue;
+      salida.push(nombre);
+      if (salida.length >= MAX_CLASES_CSS) return salida;
+    }
+  }
+  return salida;
+}
+
+// ── `aliases`: los otros nombres de la nota (`FUN-M-15`, `FUN-M-47`) ─────────
+
+/**
+ * Las claves que declaran alias, en minúsculas: `aliases` (la de Obsidian) y
+ * `alias`, la forma vieja que Obsidian todavía lee. Se escribe en `aliases`
+ * salvo que la nota ya use `alias`.
+ */
+export const CLAVES_ALIAS: readonly string[] = ["aliases", "alias"];
+
+/** ¿Esta clave declara alias? Sin distinguir mayúsculas, como `propiedadDe`. */
+export function esClaveAlias(clave: string): boolean {
+  return CLAVES_ALIAS.includes(clave.trim().toLowerCase());
+}
+
+/**
+ * Los alias que declaran estos valores de propiedad (los de las claves de
+ * alias): cada elemento de una lista, o el texto entero si es un escalar
+ * —`aliases: HU-009` es UN alias, aunque lleve comas—. Sin vacíos ni
+ * repetidos (sin distinguir mayúsculas), en el orden escrito.
+ */
+export function aliasesDeValores(valores: readonly (string | number | boolean)[]): string[] {
+  const salida: string[] = [];
+  const vistos = new Set<string>();
+  for (const v of valores) {
+    const a = String(v).trim();
+    const clave = a.toLowerCase();
+    if (a === "" || vistos.has(clave)) continue;
+    vistos.add(clave);
+    salida.push(a);
+  }
+  return salida;
+}
+
+/** Los alias de una nota ya parseada. Un frontmatter no interpretado no declara ninguno. */
+export function aliasesDeFrontmatter(fm: Frontmatter): string[] {
+  if (!fm.hay || !fm.soportado) return [];
+  const valores: (string | number | boolean)[] = [];
+  for (const p of fm.props) {
+    if (!esClaveAlias(p.clave)) continue;
+    if (Array.isArray(p.valor)) valores.push(...p.valor);
+    else valores.push(p.valor);
+  }
+  return aliasesDeValores(valores);
+}
+
+/** Los alias de una nota a partir de su texto. */
+export function aliasesDe(texto: string): string[] {
+  return aliasesDeFrontmatter(separarFrontmatter(texto));
+}
+
+/**
+ * Agrega `alias` a los alias de la nota (`FUN-M-47`: conservar el nombre
+ * anterior al renombrar), tocando solo esas líneas (`ponerPropiedad`):
+ *
+ * - sin frontmatter, o sin la propiedad: `aliases: [alias]`;
+ * - con una lista (en línea o en bloque): se le suma al final, en su estilo;
+ * - con un texto: pasa a ser una lista con el texto de antes y el nuevo
+ *   (vacío: solo el nuevo);
+ * - si ya estaba (sin distinguir mayúsculas), el texto no cambia.
+ *
+ * Devuelve el texto nuevo, o `null` si no se puede editar sin romperlo (un
+ * frontmatter que Mycelium no interpreta, `guardaEdicion`) o si el alias está
+ * vacío. Quien llama decide qué decir: el renombre no falla por esto.
+ */
+export function agregarAlias(texto: string, alias: string): string | null {
+  const limpio = alias.trim();
+  if (limpio === "") return null;
+  const fm = separarFrontmatter(texto);
+  if (fm.hay && !fm.soportado) return null;
+  if (aliasesDeFrontmatter(fm).some((a) => a.toLowerCase() === limpio.toLowerCase())) return texto;
+  const existente = fm.hay && fm.soportado ? fm.props.find((p) => esClaveAlias(p.clave)) : undefined;
+  if (!existente) return ponerPropiedad(texto, "aliases", [limpio], "lista");
+  const previos = Array.isArray(existente.valor)
+    ? existente.valor.map(String)
+    : String(existente.valor).trim() === ""
+      ? []
+      : [String(existente.valor)];
+  return ponerPropiedad(texto, existente.clave, [...previos, limpio], "lista");
+}
+
+/** ¿Dos listas de alias son la misma (sin distinguir mayúsculas ni orden)? */
+export function mismosAliases(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const norm = (l: readonly string[]) => l.map((s) => s.toLowerCase()).sort().join("\u0000");
+  return norm(a) === norm(b);
+}
+
+/**
+ * Lo contrario de `agregarAlias` (`FUN-M-47`, para el Deshacer): saca `alias`
+ * (sin distinguir mayúsculas) de la propiedad de alias de la nota. Si era el
+ * único, se va la propiedad entera. Devuelve el texto sin cambios si no estaba,
+ * y `null` si el frontmatter no se puede editar.
+ */
+export function quitarAlias(texto: string, alias: string): string | null {
+  const limpio = alias.trim().toLowerCase();
+  const fm = separarFrontmatter(texto);
+  if (fm.hay && !fm.soportado) return null;
+  const existente = fm.hay && fm.soportado ? fm.props.find((p) => esClaveAlias(p.clave)) : undefined;
+  if (!existente) return texto;
+  const previos = Array.isArray(existente.valor) ? existente.valor.map(String) : [String(existente.valor)];
+  const quedan = previos.filter((a) => a.trim().toLowerCase() !== limpio);
+  if (quedan.length === previos.length) return texto;
+  if (quedan.filter((a) => a.trim() !== "").length === 0) return quitarPropiedad(texto, existente.clave);
+  return ponerPropiedad(texto, existente.clave, quedan, "lista");
 }

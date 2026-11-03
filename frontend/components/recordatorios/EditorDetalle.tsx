@@ -67,7 +67,7 @@ export function EditorDetalle({
           EditorView.contentAttributes.of({ "aria-label": etiqueta }),
           // El mismo corrector que las notas (`FUN-L-12`).
           correctorOrtografico(() => usePreferencesStore.getState().prefs.correctorOrtografico),
-          placeholder("Detalle en markdown. Podés enlazar notas con [[…]]"),
+          placeholder("Detalle en markdown. Puedes enlazar notas con [[…]]"),
           liveExtensions(
             (titulo) => abrirRef.current(titulo),
             (titulo) => existeRef.current(titulo),

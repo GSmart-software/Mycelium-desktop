@@ -51,15 +51,27 @@ import {
   type CambioVault,
   type RecorridoVault,
 } from "@/lib/arbolVivo";
-import { EVENTO_RECARGA } from "@/lib/eventos";
-import { refreshAllLiveViews } from "@/lib/editor/livePreview";
+import { EVENTO_RECARGA, avisarRecarga } from "@/lib/eventos";
+import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { otrosDesdeMeta } from "@/lib/otrosArchivos";
 import { indexarRutas, indexarVault } from "@/lib/db/indexer";
 import { esEscrituraPropia } from "@/lib/db/vaultFs";
+import { ofrecerRenombres, prepararRenombres } from "@/lib/renombresExternos";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
+
+/** Las notas que cambiaron por fuera, para la coordinación entre sesiones de IA. */
+function anotarExternos(cambios: readonly CambioVault[]): void {
+  const momento = Date.now();
+  const notas = cambios
+    .filter((c) => !esEscrituraPropia(c.ruta, c.mtime))
+    .filter((c) => c.estado === "nota" || (c.estado === "ausente" && /\.md$/i.test(c.ruta)))
+    .map((c) => ({ ruta: c.ruta, momento, borrada: c.estado === "ausente" }));
+  useSesionesIaStore.getState().anotarExternos(notas);
+}
 
 /** Nombre del evento Tauri emitido por el watcher nativo. */
 const EVENTO_TAURI = "vault-cambios";
@@ -112,18 +124,23 @@ export async function refrescarVault(): Promise<void> {
   if (ruta) await reconciliar(ruta);
 }
 
-/** Recarga el árbol desde el índice (con los pendientes encima: ver `loadTree`). */
-async function recargarArbol(): Promise<void> {
+/**
+ * Recarga el árbol desde el índice (con los pendientes encima: ver `loadTree`).
+ * Devuelve si cambió, y entonces ya refrescó las vistas en vivo.
+ */
+async function recargarArbol(): Promise<boolean> {
   const vaultId =
     useVaultStore.getState().vaultId ?? useAuthStore.getState().vaults[0]?.id ?? null;
-  if (vaultId) await useVaultStore.getState().loadTree(vaultId);
+  return vaultId ? useVaultStore.getState().loadTree(vaultId) : false;
 }
 
 /**
  * Lo que depende del índice, tras ponerlo al día: el grafo, las vistas en vivo
- * y los editores abiertos.
+ * y los editores abiertos. `refrescar` en `false` si la recarga del árbol ya
+ * refrescó las vistas en vivo (`FUN-M-58`): antes se refrescaban dos veces por
+ * ciclo, una en `loadTree` y otra acá, y cada vez se redecora cada editor.
  */
-function avisarIndexado(rutas: string[]): void {
+function avisarIndexado(rutas: string[], refrescar = true): void {
   // El grafo también quedó viejo (`DEF-054`). Faltaba: los mutadores de
   // `vaultStore` lo marcan al crear o borrar desde la UI, pero por acá pasan
   // los cambios hechos desde FUERA —otro editor, un `git pull`, un agente de
@@ -131,18 +148,15 @@ function avisarIndexado(rutas: string[]): void {
   // solo si está abierto, y si no, al abrirlo.
   useGraphStore.getState().markStale();
   // Y las vistas en vivo: un archivo nuevo puede hacer que un `[[enlace]]`
-  // que se mostraba como roto pase a resolver.
-  refreshAllLiveViews();
+  // que se mostraba como roto pase a resolver, y una nota embebida que cambió
+  // se vuelve a dibujar.
+  if (refrescar) refreshAllLiveViews();
   // Avisar a los editores abiertos para que recarguen su nota si no tienen
   // cambios locales sin guardar (lo decide cada vista). Con las rutas
   // (`FUN-L-26`): un lienzo o un diagrama abierto solo relee su archivo si está
   // entre ellas. Sin rutas (no debería pasar) va sin detalle, que significa
   // «pudo cambiar cualquier cosa».
-  window.dispatchEvent(
-    rutas.length > 0
-      ? new CustomEvent(EVENTO_RECARGA, { detail: { rutas } })
-      : new Event(EVENTO_RECARGA),
-  );
+  avisarRecarga(rutas.length > 0 ? rutas : "todas");
 }
 
 /**
@@ -161,11 +175,17 @@ async function reconciliar(ruta: string): Promise<string[]> {
   const diferencias = diferenciasConDisco(store, recorrido);
   if (diferencias.length > 0) store.aplicarCambios(diferencias);
   // Los otros archivos, tal cual los vio el disco (no los guarda el índice).
+  // `setOtros` conserva la lista si es igual.
   store.setOtros(otrosDesdeMeta(recorrido.otros));
   const indexado = await indexarVault(ruta, undefined, recorrido);
-  await recargarArbol();
   const rutas = [...new Set([...diferencias.map((d) => d.ruta), ...indexado.rutas])];
-  if (rutas.length > 0) avisarIndexado(rutas);
+  // Nada distinto en el árbol ni en el índice (`FUN-M-58`): el caso de casi
+  // todas las veces que se vuelve a la ventana. Antes se recargaba el árbol
+  // igual —una lectura de todas las notas y sus alias, ~0,5 MB en la Tesina—
+  // y la lista nueva redisparaba todo lo suscrito a ella.
+  if (rutas.length === 0) return rutas;
+  const recargado = await recargarArbol();
+  avisarIndexado(rutas, !recargado);
   return rutas;
 }
 
@@ -192,6 +212,11 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
   // Lo que trajo la ráfaga que se está juntando (y lo que llegó mientras se
   // procesaba la anterior): ruta → último cambio visto.
   const rafaga = new Map<string, CambioVault>();
+  // Si algún evento de la ráfaga cambió el árbol al aplicarse (`FUN-M-58`):
+  // entonces el árbol puede diferir del índice y se recarga tras indexar. Si
+  // no —una nota que ya estaba cambió de contenido—, solo se recarga si el
+  // indexado agregó o quitó algo (`estructural`).
+  let arbolTocado = false;
   // Reconciliación pedida y quiénes esperan a que termine (el botón).
   let reconciliacion: ((error?: unknown) => void)[] | null = null;
   let ultimaReconciliacion = Date.now();
@@ -202,6 +227,7 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     const ruta = useVaultSessionStore.getState().rutaActual;
     if (!ruta) {
       rafaga.clear();
+      arbolTocado = false;
       for (const listo of reconciliacion ?? []) listo();
       reconciliacion = null;
       return;
@@ -214,6 +240,8 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     pendiente = false;
     const cambios = [...rafaga.values()];
     rafaga.clear();
+    const tocado = arbolTocado;
+    arbolTocado = false;
     const esperan = reconciliacion;
     reconciliacion = null;
     let fallo: unknown = undefined;
@@ -233,10 +261,26 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
         if (cambios.every((c) => esEscrituraPropia(c.ruta, c.mtime))) {
           quitarPendientes(cambios);
         } else {
-          await indexarRutas(ruta, cambios);
+          // Lo que cambió en disco sin pasar por Mycelium (`FUN-L-31`): las
+          // sesiones de IA lo ven en `mycelium_estado`, sin atribuir (el
+          // watcher no sabe quién escribió).
+          anotarExternos(cambios);
+          // Un renombre hecho por fuera (`FUN-M-47`): se mira ANTES de indexar,
+          // que es cuando el índice todavía sabe quién enlazaba a la nota que
+          // se fue. Si falla, se indexa igual: es una oferta, no un requisito.
+          const renombres = await prepararRenombres(ruta, cambios).catch((e) => {
+            console.warn("[Mycelium] watcher · no se pudo mirar si hubo un renombre externo", e);
+            return [];
+          });
+          const indexado = await indexarRutas(ruta, cambios);
           quitarPendientes(cambios);
-          await recargarArbol();
-          avisarIndexado(cambios.map((c) => c.ruta));
+          // El árbol ya lo corrigió `aplicarCambios` al llegar el evento; desde
+          // el índice solo se recarga si pudo quedar distinto (`FUN-M-58`). Con
+          // una nota que cambió de contenido, antes se releían TODAS las notas
+          // y sus alias (Tesina: ~0,5 MB) para dejar el árbol igual.
+          const recargado = tocado || indexado.estructural ? await recargarArbol() : false;
+          avisarIndexado(cambios.map((c) => c.ruta), !recargado);
+          if (renombres.length > 0) ofrecerRenombres(renombres);
         }
       }
     } catch (e) {
@@ -281,7 +325,7 @@ export async function escucharCambiosVault(): Promise<UnlistenFn> {
     // 1) El árbol, ya. Anotados como pendientes ANTES de aplicarlos: si una
     // recarga desde el índice llega en el medio, los vuelve a poner.
     anotarPendientes(cambios);
-    useVaultStore.getState().aplicarCambios(cambios);
+    if (useVaultStore.getState().aplicarCambios(cambios)) arbolTocado = true;
     // 2) El índice, con debounce.
     for (const c of cambios) rafaga.set(c.ruta, c);
     const ahora = Date.now();

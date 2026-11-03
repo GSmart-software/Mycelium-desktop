@@ -16,8 +16,8 @@ curso, lo que se pospuso, lo que se canceló o lo que tiene una pregunta abierta
 
 ## Cómo se usa
 
-1. Empezá una línea con `- [ ] ` (guion, espacio, corchetes con un espacio adentro y otro
-   espacio) y escribí la tarea.
+1. Empieza una línea con `- [ ] ` (guion, espacio, corchetes con un espacio adentro y otro
+   espacio) y escribe la tarea.
 2. **Clic** en la casilla: una pendiente pasa a hecha; cualquier otra vuelve a pendiente.
 3. **Clic derecho** en la casilla: un menú con los nueve estados para elegir uno.
 

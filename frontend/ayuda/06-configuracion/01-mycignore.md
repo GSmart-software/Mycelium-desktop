@@ -18,15 +18,15 @@ Para esconder lo que no son notas —carpetas de trabajo, borradores, copias— 
 
 ## Cómo se usa
 
-1. Abrí **Configuración → Vault** y tocá «Editar .mycignore». Se abre en una pestaña; si el
+1. Abre **Configuración → Vault** y toca «Editar .mycignore». Se abre en una pestaña; si el
    vault no tenía uno, Mycelium lo crea con la lista por defecto, así que no cambia nada
    hasta que lo toques.
-2. Tocá «Editar», agregá o borrá líneas y guardá con **Ctrl+S**.
+2. Toca «Editar», agrega o borra líneas y guarda con **Ctrl+S**.
 3. Listo: al guardarlo, el vault se vuelve a filtrar solo.
 
 ## Sintaxis
 
-| Escribís | Ignora |
+| Escribes | Ignora |
 |---|---|
 | `# texto` | Nada: es un comentario. Las líneas vacías también se saltean. |
 | `nombre/` | Las **carpetas** con ese nombre, en cualquier nivel, con todo lo que tengan. |
@@ -47,7 +47,7 @@ Una línea que empieza con `!` des-ignora. Dos reglas deciden qué pasa:
   mostrar la carpeta. Con `.*/` arriba, `!.claude/*.md` no muestra nada, porque `.claude/`
   sigue ignorada; hace falta `!.claude/`. Es la misma regla que en git.
 
-Para ver `.claude/` entera, agregá una línea debajo de la lista por defecto:
+Para ver `.claude/` entera, agrega una línea debajo de la lista por defecto:
 
 ```text
 .*/
@@ -59,7 +59,7 @@ out/
 ```
 
 Para ver **solo las notas** de primer nivel de `.claude/` —sin sus subcarpetas ni sus otros
-archivos—, mostrá la carpeta, volvé a ignorar lo que tiene y des-ignorá los `.md`:
+archivos—, muestra la carpeta, vuelve a ignorar lo que tiene y des-ignora los `.md`:
 
 ```text
 .*/
@@ -101,5 +101,5 @@ Proyectos/borradores/
 
 > [!warning] Tu archivo reemplaza a la lista por defecto entera
 > Si el vault tiene `.mycignore`, solo vale lo que dice: lo que no escribas ahí deja de
-> ignorarse. Si borrás `.*/`, todas las carpetas que empiezan con punto vuelven a verse.
-> Conservá las líneas por defecto que te sirvan.
+> ignorarse. Si borras `.*/`, todas las carpetas que empiezan con punto vuelven a verse.
+> Conserva las líneas por defecto que te sirvan.

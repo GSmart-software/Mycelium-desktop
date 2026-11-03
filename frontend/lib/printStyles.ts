@@ -118,6 +118,7 @@ html, body { margin: 0; padding: 0; background: var(--mic-bg-canvas); color: var
 .mic-preview .mic-excalidraw-block, .mic-preview .mermaid { page-break-inside: avoid; text-align: center; }
 .mic-preview .mic-wikilink { color: var(--mic-accent); text-decoration: none; }
 .mic-preview .mic-tag { color: var(--mic-glow); }
+.mic-preview mark.mic-resaltado { background: color-mix(in srgb, var(--mic-amber-icon, #C9821E) 38%, transparent); color: inherit; border-radius: 0.2em; }
 /* Tarjeta de propiedades del frontmatter (FUN-M-04): antes el bloque salía como
    línea horizontal + título fantasma; ahora se imprime como tabla de metadatos. */
 .mic-preview .mic-props {
@@ -186,6 +187,7 @@ html, body { margin: 0; padding: 0; background: #ffffff; color: #141414; }
 .mic-preview .mic-prop-clave { flex: 0 0 30%; color: #555; font-weight: 600; }
 .mic-preview .mic-prop-icono { display: inline-block; width: 1.2em; opacity: 0.7; }
 .mic-preview .mic-props-aviso { color: #555; font-style: italic; margin: 0 0 0.4em; }
+.mic-preview mark.mic-resaltado { background: #fff1a8; color: inherit; }
 `;
 
 /**
@@ -206,7 +208,8 @@ const PRINT_SOBRE_APP = `
 .mic-preview h1, .mic-preview h2, .mic-preview h3,
 .mic-preview h4, .mic-preview h5, .mic-preview h6 { break-after: avoid; page-break-after: avoid; }
 .mic-preview pre, .mic-preview table, .mic-preview blockquote, .mic-preview .mic-callout,
-.mic-preview .mic-props, .mic-preview .mermaid, .mic-preview .mic-excalidraw-block {
+.mic-preview .mic-props, .mic-preview .mermaid, .mic-preview .mic-excalidraw-block,
+.mic-preview .mic-drawio-block, .mic-preview .mic-canvas-block, .mic-preview .mic-base-block {
   break-inside: avoid; page-break-inside: avoid;
 }
 .mic-preview img, .mic-preview svg { max-width: 100%; height: auto; }
@@ -331,6 +334,12 @@ export function armarDocumentoImpresion(p: {
   css: string;
   atributos: Record<string, string>;
   html: string;
+  /**
+   * Clases de `cssclasses` de la nota (`FUN-S-08`), ya saneadas con
+   * `clasesCssDe`: van en el contenedor, como en la vista de lectura. Se
+   * vuelven a filtrar acá porque terminan dentro de un atributo.
+   */
+  clases?: readonly string[];
   titulo: string;
   pageSize: "A4" | "Letter";
   opts: PdfPrintOpts;
@@ -345,6 +354,6 @@ export function armarDocumentoImpresion(p: {
     `<title>${escaparAtributo(p.titulo)}</title>` +
     (p.css ? `<style>${cssParaHtml(p.css)}</style>` : "") +
     `<style>@page { size: ${p.pageSize}; margin: 16mm; } ${buildPrintCss(p.opts, p.css !== "")}</style></head>` +
-    `<body><div class="mic-preview">${p.html}</div></body></html>`
+    `<body><div class="${["mic-preview", ...(p.clases ?? []).filter((c) => /^[A-Za-z0-9_-]+$/.test(c))].join(" ")}">${p.html}</div></body></html>`
   );
 }

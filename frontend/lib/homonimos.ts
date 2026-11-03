@@ -39,7 +39,13 @@ import {
 } from "@/lib/wikilinks";
 
 /** Una nota del vault vista por su ruta: lo mínimo para resolver enlaces. */
-export type NotaRuta = { id: string; titulo: string; tipo: string };
+export type NotaRuta = {
+  id: string;
+  titulo: string;
+  tipo: string;
+  /** Sus alias (`FUN-M-15`): un `[[alias]]` también resuelve a ella. */
+  aliases?: readonly string[];
+};
 
 /** Lo que pasa con un archivo en la operación: su id antes y después. */
 export type Traslado = { id: string; idNuevo: string; titulo: string; cambio?: CambioDeRuta };
@@ -66,7 +72,7 @@ function vista(notas: readonly NotaRuta[]): { notas: NotaEnlazable[]; carpetas: 
   const salida: NotaEnlazable[] = [];
   for (const n of notas) {
     const carpetaId = carpetaDe(n.id);
-    salida.push({ id: n.id, titulo: n.titulo, carpetaId, tipo: n.tipo });
+    salida.push({ id: n.id, titulo: n.titulo, carpetaId, tipo: n.tipo, aliases: n.aliases });
     let c = carpetaId;
     while (c !== null && !carpetas.has(c)) {
       const padreId = carpetaDe(c);
@@ -99,6 +105,10 @@ export function trasTraslados(notas: readonly NotaRuta[], traslados: readonly Tr
  * cambian de ruta y las que, **antes** de la operación, ya se llamaban como
  * alguna de `titulosDespues` (los títulos con que quedan las tocadas). Ellas
  * son las que pueden ganar o perder un `[[Título]]` sin ruta.
+ *
+ * También las que lo declaran como **alias** (`FUN-M-15`): un título le gana a
+ * un alias, así que renombrar una nota con el alias de otra le quitaría sus
+ * `[[alias]]`. Mirándolas, esos enlaces se escriben con la ruta de la de antes.
  */
 export function involucradas(
   antes: readonly NotaRuta[],
@@ -107,7 +117,10 @@ export function involucradas(
 ): string[] {
   const titulos = new Set(titulosDespues.map((t) => t.trim().toLowerCase()));
   const ids = new Set(trasladadas);
-  for (const n of antes) if (titulos.has(n.titulo.trim().toLowerCase())) ids.add(n.id);
+  for (const n of antes) {
+    if (titulos.has(n.titulo.trim().toLowerCase())) ids.add(n.id);
+    else if (n.aliases?.some((a) => titulos.has(a.trim().toLowerCase()))) ids.add(n.id);
+  }
   return [...ids];
 }
 

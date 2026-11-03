@@ -1,0 +1,218 @@
+/* Panel de salud del vault, en el rail (FUN-L-30, rehecho en FUN-L-32). De la
+   misma familia que la pestaña «Salud del vault» (SaludVista.module.css): el
+   resumen con el fondo apenas teñido y el borde por estado, cifras en celdas
+   tenues, secciones con rótulo chico en versalitas y las gráficas compartidas.
+   Pensado para el ancho angosto del panel (desde ~240 px): nada se corta, los
+   rótulos largos se recortan con puntos suspensivos. La clase global
+   mic-salud-panel está en la plantilla de snippets. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: var(--mic-text-primary);
+}
+
+/* ── Cabecera: título y tres botones de ícono ─────────────────────────── */
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.titulo {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.icono {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.icono:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+  color: var(--mic-text-primary);
+}
+
+.icono:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.icono:focus-visible,
+.boton:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
+
+/* Gira solo mientras revisa (el ícono se desmonta del estado al terminar), y
+   nunca con movimiento reducido. */
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .girando {
+    animation: none;
+  }
+}
+
+/* ── El resumen ───────────────────────────────────────────────────────── */
+
+.resumen {
+  display: grid;
+  gap: 1px;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+  min-width: 0;
+}
+
+.resumen[data-estado="sano"] {
+  border-color: color-mix(in srgb, var(--mic-callout-success-border) 35%, transparent);
+}
+
+.resumen[data-estado="problemas"] {
+  border-color: color-mix(in srgb, var(--mic-callout-warning-border) 40%, transparent);
+}
+
+.resumenTitulo {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.resumenDetalle {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.error,
+.aviso {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-callout-error-border);
+}
+
+.aviso {
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px dashed var(--mic-border);
+  color: var(--mic-text-muted);
+}
+
+/* ── Cifras clave ─────────────────────────────────────────────────────── */
+
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cifra {
+  display: grid;
+  min-width: 0;
+  padding: 5px 7px;
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-text-muted) 6%, transparent);
+}
+
+.cifra b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cifra span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+/* ── Secciones ────────────────────────────────────────────────────────── */
+
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.seccionTitulo {
+  padding: 0 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+/* ── Botones de texto, al pie ─────────────────────────────────────────── */
+
+.acciones {
+  display: grid;
+  gap: 6px;
+  padding-top: 0.2rem;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: var(--mic-radius-sm);
+  border: 1px solid var(--mic-border);
+  background: var(--mic-bg-canvas);
+  color: var(--mic-text-primary);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.boton svg {
+  flex-shrink: 0;
+}
+
+.boton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
+}
+
+.boton:disabled {
+  cursor: default;
+  color: var(--mic-text-muted);
+}

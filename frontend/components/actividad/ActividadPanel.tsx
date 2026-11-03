@@ -11,6 +11,8 @@ import {
   type Objetivo,
 } from "@/lib/actividadIa";
 import { describir, esDelDiccionario, motivoSinDeshacer } from "@/lib/deshacerIa";
+import { agruparPorSesion, hace, venceEn, vigentes, type GrupoActividad } from "@/lib/sesionesIa";
+import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { fechaLocal, horaLocal } from "@/lib/recordatorios";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
@@ -31,10 +33,15 @@ import styles from "./ActividadPanel.module.css";
  * donde se puede, lo que falló, y arriba el estado del canal.
  *
  * Es lo que permite que lo reversible no pregunte: se ve y se deshace acá.
+ *
+ * Desde `FUN-L-31`, la cabecera lista las sesiones de IA conectadas (su tarea
+ * y sus reservas) y el registro se agrupa por sesión, bajo su tarea.
  */
 export function ActividadPanel() {
   const entradas = useActividadIaStore((s) => s.entradas);
+  const sesiones = useSesionesIaStore((s) => s.sesiones);
   const vista = useMemo(() => vistaActividad(entradas), [entradas]);
+  const grupos = useMemo(() => agruparPorSesion(vista, sesiones), [vista, sesiones]);
   // Para saber si lo borrado sigue en la papelera (el Deshacer de un borrar).
   useEffect(() => {
     void useVaultStore.getState().loadPapelera().catch(() => {});
@@ -47,16 +54,82 @@ export function ActividadPanel() {
         <p className={styles.vacio}>
           Todavía no hay actividad. Lo que Claude Code haga en Mycelium —abrir notas, agendar o cambiar
           recordatorios, renombrar, mover o mandar a la papelera, agregar o quitar palabras del diccionario
-          del vault— aparece acá, con <strong>Deshacer</strong> donde se pueda.
+          del vault— aparece aquí, con <strong>Deshacer</strong> donde se pueda.
         </p>
       ) : (
-        <ul className={styles.lista} aria-label="Lo que hizo la IA, de lo más nuevo a lo más viejo">
-          {vista.map((e) => (
-            <Fila key={e.id} entrada={e} />
+        <div className={styles.grupos}>
+          {grupos.map((g) => (
+            <Grupo key={g.clave} grupo={g} />
           ))}
-        </ul>
+        </div>
       )}
     </div>
+  );
+}
+
+// ── Un grupo: lo que hizo una sesión ────────────────────────────────────────
+
+function Grupo({ grupo: g }: { grupo: GrupoActividad }) {
+  const titulo = g.sesion === null ? "Sin sesión identificada" : (g.tarea ?? "Sin tarea declarada");
+  return (
+    <section className={styles.grupo} aria-label={`${titulo}: lo que hizo, de lo más nuevo a lo más viejo`}>
+      <header className={styles.grupoCabecera}>
+        <span className={styles.grupoTarea} data-sin-tarea={g.sesion !== null && g.tarea === null ? true : undefined}>
+          {titulo}
+        </span>
+        {g.sesion !== null && (
+          <span className={styles.grupoMeta} title={g.conectada ? "La sesión sigue conectada" : "La sesión ya terminó"}>
+            {g.sesion}
+            {g.conectada ? " · conectada" : ""}
+          </span>
+        )}
+      </header>
+      <ul className={styles.lista}>
+        {g.entradas.map((e) => (
+          <Fila key={e.id} entrada={e} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ── Las sesiones conectadas ─────────────────────────────────────────────────
+
+function Sesiones({ ahora }: { ahora: number }) {
+  const sesiones = useSesionesIaStore((s) => s.sesiones);
+  const reservas = useSesionesIaStore((s) => s.reservas);
+  const lista = useMemo(() => Object.values(sesiones).sort((a, b) => a.inicio - b.inicio), [sesiones]);
+  if (lista.length === 0) return null;
+  const vivas = vigentes(reservas, ahora);
+  return (
+    <ul className={styles.sesiones} aria-label="Sesiones de IA conectadas">
+      {lista.map((s) => {
+        const suyas = vivas.filter((r) => r.sesion === s.id);
+        return (
+          <li key={s.id} className={styles.sesion}>
+            <span className={styles.sesionTarea} data-sin-tarea={s.tarea === null ? true : undefined}>
+              {s.tarea ?? "Sin tarea declarada"}
+            </span>
+            <span className={styles.sesionMeta}>
+              {s.id} · conectada {hace(ahora - s.inicio)}
+              {s.ultimaActividad !== null ? ` · habló ${hace(ahora - s.ultimaActividad)}` : ""}
+            </span>
+            {suyas.length > 0 && (
+              <span className={styles.sesionReservas}>
+                Reservó:{" "}
+                {suyas.map((r, i) => (
+                  <span key={r.objetivo.ruta} title={`«${r.motivo}» · ${venceEn(r.vence - ahora)}`}>
+                    {i > 0 ? ", " : ""}
+                    {r.objetivo.ruta}
+                    {r.objetivo.clase === "carpeta" ? "/" : ""}
+                  </span>
+                ))}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -65,7 +138,7 @@ export function ActividadPanel() {
 const TEXTO_CANAL: Record<EstadoCanal, { titulo: string; detalle: string }> = {
   apagado: {
     titulo: "Control apagado",
-    detalle: "Claude Code no puede operar Mycelium en este vault. Leer y escribir sus archivos lo puede hacer igual.",
+    detalle: "Claude Code no puede operar Mycelium en este vault. Leer y escribir sus archivos lo puede hacer de todos modos.",
   },
   encendido: {
     titulo: "Control encendido",
@@ -87,21 +160,30 @@ function Canal() {
   const ultimoPedido = useActividadIaStore((s) => s.ultimoPedido);
   const ruta = useVaultSessionStore((s) => s.rutaActual);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
+  const conectadas = useSesionesIaStore((s) => Object.keys(s.sesiones).length);
   const [tic, setTic] = useState(() => Date.now());
   const [cambiando, setCambiando] = useState(false);
 
   // «Conectado» vence solo: se recalcula cada medio minuto. Un pedido nuevo
-  // es más reciente que el último tic, así que cuenta como «ahora».
+  // es más reciente que el último tic, así que cuenta como «ahora». De paso se
+  // olvida lo vencido (reservas, sesiones que nunca se anunciaron).
   useEffect(() => {
-    const t = window.setInterval(() => setTic(Date.now()), 30_000);
+    const t = window.setInterval(() => {
+      setTic(Date.now());
+      useSesionesIaStore.getState().podar();
+    }, 30_000);
     return () => window.clearInterval(t);
   }, []);
   const ahora = Math.max(tic, ultimoPedido ?? 0);
 
-  const estado = estadoCanal(encendido, errorCanal, ultimoPedido, ahora);
+  const estado = estadoCanal(encendido, errorCanal, ultimoPedido, ahora, conectadas);
   const { titulo } = TEXTO_CANAL[estado];
   const detalle =
-    estado === "conectado" && ultimoPedido !== null
+    estado === "conectado" && conectadas > 0
+      ? conectadas === 1
+        ? "Una sesión de Claude Code conectada."
+        : `${conectadas} sesiones de Claude Code conectadas.`
+      : estado === "conectado" && ultimoPedido !== null
       ? `Claude Code habló ${haceCuanto(ahora - ultimoPedido)}.`
       : estado === "error"
         ? (errorCanal ?? "")
@@ -127,6 +209,7 @@ function Canal() {
         {titulo}
       </p>
       {detalle && <p className={styles.canalDetalle}>{detalle}</p>}
+      {estado === "conectado" && <Sesiones ahora={ahora} />}
       {(estado === "apagado" || estado === "error") && (
         <div className={styles.acciones}>
           <button type="button" className={styles.boton} onClick={() => void encender()} disabled={cambiando || !ruta}>

@@ -10,7 +10,9 @@
  * **El archivo**: `.mycelium/actividad.jsonl`, una entrada JSON por renglón,
  * *append-only*: una entrada nunca se reescribe. Deshacer agrega una entrada
  * `deshacer` que apunta a la original (`ref`), y al leer se cruza. Con tope:
- * al escribir se conservan los últimos `TOPE_ENTRADAS` renglones. Un renglón
+ * en memoria se conservan las últimas `TOPE_ENTRADAS`; en disco cada entrada
+ * se agrega al final y el archivo se recorta reescribiéndolo entero cuando
+ * pasaría de `TOPE_ENTRADAS + MARGEN_COMPACTAR` renglones (`FUN-M-58`). Un renglón
  * que no se entiende se ignora, sin romper el resto: el registro es
  * descartable, perderlo no pierde nada del vault.
  */
@@ -28,6 +30,14 @@ export const ARCHIVO_ACTIVIDAD = "actividad.jsonl";
 
 /** Cuántos renglones se conservan. */
 export const TOPE_ENTRADAS = 500;
+
+/**
+ * Cuántos renglones de más puede tener el archivo antes de recortarlo
+ * (`FUN-M-58`). Antes se reescribía entero —ya recortado— en cada operación:
+ * cientos de KB para sumar un renglón con el registro lleno. Ahora se agrega
+ * el renglón, y una de cada `MARGEN_COMPACTAR` operaciones se reescribe.
+ */
+export const MARGEN_COMPACTAR = 100;
 
 /** Versión del formato de cada renglón. */
 const VERSION = 1;
@@ -70,6 +80,13 @@ export type Entrada = {
   deshacer?: DeshacerIa;
   /** Solo en `deshacer`: la entrada que deshace. */
   ref?: string;
+  /**
+   * La sesión de IA que la pidió (`FUN-L-31`): el id de su servidor MCP. Las
+   * entradas viejas no lo traen; tampoco los `deshacer` (los hace el usuario).
+   */
+  sesion?: string;
+  /** La tarea que tenía declarada esa sesión en ese momento, si tenía. */
+  tarea?: string;
 };
 
 /** Una entrada como se muestra: con lo que se sabe de su deshacer. */
@@ -105,6 +122,8 @@ export function leerRenglon(renglon: string): Entrada | null {
   };
   if (typeof e.codigo === "string") entrada.codigo = e.codigo;
   if (typeof e.ref === "string") entrada.ref = e.ref;
+  if (typeof e.sesion === "string" && e.sesion !== "") entrada.sesion = e.sesion;
+  if (typeof e.tarea === "string" && e.tarea !== "") entrada.tarea = e.tarea;
   if (esObjetivo(e.objetivo)) entrada.objetivo = e.objetivo;
   if (esDeshacer(e.deshacer)) entrada.deshacer = e.deshacer;
   return entrada;
@@ -155,6 +174,8 @@ function esDeshacer(x: unknown): x is DeshacerIa {
       return clase && s("ruta") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
     case "archivo_borrar":
       return s("ruta");
+    case "archivo_reparar_renombre":
+      return s("ruta") && s("rutaAntes") && Array.isArray(o.notas) && o.notas.every((n) => typeof n === "string");
     // Parte 4: el diccionario del vault.
     case "diccionario_quitar":
     case "diccionario_agregar":
@@ -181,6 +202,27 @@ export function agregarEntrada(entradas: readonly Entrada[], nueva: Entrada, top
 
 export function serializar(entradas: readonly Entrada[]): string {
   return entradas.map((e) => JSON.stringify(e)).join("\n") + (entradas.length ? "\n" : "");
+}
+
+/** Cuántos renglones ocupa el archivo, legibles o no (lo que pesa en disco). */
+export function renglonesEnDisco(texto: string | null): number {
+  if (!texto) return 0;
+  let n = 0;
+  for (const r of texto.split(/\r?\n/)) if (r.trim() !== "") n++;
+  return n;
+}
+
+/**
+ * Cómo guardar una entrada nueva (`FUN-M-58`), sabiendo cuántos renglones
+ * tiene ya el archivo: agregarla al final, o reescribirlo entero —con las
+ * últimas `tope`— cuando pasaría del margen.
+ */
+export function comoGuardar(
+  enDisco: number,
+  tope = TOPE_ENTRADAS,
+  margen = MARGEN_COMPACTAR,
+): "agregar" | "reescribir" {
+  return enDisco + 1 > tope + margen ? "reescribir" : "agregar";
 }
 
 /**
@@ -222,7 +264,30 @@ export const NOMBRE_OP: Record<string, string> = {
   borrar: "Mandar a la papelera",
   papelera: "Papelera",
   diccionario: "Diccionario del vault",
+  buscar: "Buscar en el vault",
+  enlaces: "Enlaces de una nota",
+  base: "Leer una base",
+  salud: "Salud del vault",
+  validar_nota: "Validar una nota",
+  diagnosticos: "Avisos del editor",
+  reparar_renombre: "Reparar un renombre externo",
+  sesion: "Declarar la tarea",
+  reservar: "Reservar",
 };
+
+/**
+ * Las consultas que solo leen (`FUN-M-45`, `FUN-L-30`, `FUN-M-44`): como leer el
+ * calendario, no se registran cuando salen bien; sus fallos sí.
+ */
+export const SOLO_LECTURA: ReadonlySet<string> = new Set([
+  "recordatorios",
+  "buscar",
+  "enlaces",
+  "base",
+  "salud",
+  "validar_nota",
+  "diagnosticos",
+]);
 
 /**
  * Qué operaciones se registran. `estado` no: es la primera llamada de casi
@@ -236,7 +301,7 @@ export function seRegistra(op: string, resultado: Resultado): boolean {
   // Consultar o retirar una confirmación pendiente no es una operación: la
   // operación confirmada se registra sola, cuando el usuario contesta.
   if (op === "confirmacion" || op === "confirmacion_retirar") return false;
-  if (op === "recordatorios") return resultado !== "hecho";
+  if (SOLO_LECTURA.has(op)) return resultado !== "hecho";
   return true;
 }
 
@@ -248,16 +313,19 @@ export const VENTANA_CONECTADO_MS = 10 * 60 * 1000;
 
 /**
  * El servidor MCP abre una conexión por pedido, así que «conectado» no es un
- * estado del pipe: es que **Claude Code habló hace poco**.
+ * estado del pipe: es que **Claude Code habló hace poco**, o (desde `FUN-L-31`)
+ * que hay alguna sesión sosteniendo su conexión de presencia.
  */
 export function estadoCanal(
   encendido: boolean,
   error: string | null,
   ultimoPedido: number | null,
   ahora: number,
+  sesiones = 0,
 ): EstadoCanal {
   if (!encendido) return "apagado";
   if (error !== null) return "error";
+  if (sesiones > 0) return "conectado";
   if (ultimoPedido !== null && ahora - ultimoPedido <= VENTANA_CONECTADO_MS) return "conectado";
   return "encendido";
 }

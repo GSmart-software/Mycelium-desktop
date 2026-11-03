@@ -32,6 +32,7 @@ async function modulo(nombre) {
       compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     })
     .outputText.replace(/["']@\/lib\/mermaidTema["']/g, '"./mermaidTema.js"')
+    .replace(/["']@\/lib\/paletaGraficas["']/g, '"./paletaGraficas.js"')
     .replace(/import\(["']mermaid["']\)/g, 'import("/mm/mermaid.esm.min.mjs")');
 }
 
@@ -55,10 +56,24 @@ const PAGINA = `<!doctype html><html data-theme="bioluminiscencia" data-atmosfer
   Jardinera->>Huerta: riega
   Note right of Huerta: crece
   Huerta-->>Jardinera: cosecha</code></pre>
+<pre><code class="language-mermaid">pie showData
+  title Peso por tipo
+  "Imágenes" : 12
+  "PDF" : 40
+  "Notas" : 30
+  "Visuales" : 0
+  "Otros" : 18</code></pre>
+<pre><code class="language-mermaid">xychart-beta
+  title "Notas por mes"
+  x-axis [ene, feb, mar, abr]
+  y-axis "Notas" 0 --> 50
+  bar [12, 30, 22, 41]</code></pre>
 </div>
 <script type="module">
   import { renderMermaidIn } from "/lib/mermaid.js";
+  import { leerPaletaGraficas } from "/lib/paletaGraficas.js";
   window.renderMermaidIn = renderMermaidIn;
+  window.leerPaletaGraficas = leerPaletaGraficas;
   window.listo = true;
 </script></body></html>`;
 
@@ -123,7 +138,7 @@ try {
             timeout: 3000,
           })
           .catch(() => {});
-        await pagina.waitForTimeout(150);
+        await pagina.waitForTimeout(400);
 
         const m = await pagina.evaluate(() => {
           const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
@@ -149,7 +164,19 @@ try {
           const punta = svg.querySelector("marker path");
           const texto = svg.querySelector(".nodeLabel, .node text");
           const cs = (el) => getComputedStyle(el);
+          // Torta y barras (`FUN-L-32`): la porción declarada en N.º lugar lleva
+          // el N.º color de la torta, aunque sea más chica o valga 0 (sin dibujar).
+          const hex = (css) => "#" + rgb(css).map((n) => n.toString(16).padStart(2, "0")).join("");
+          const p = window.leerPaletaGraficas(document.getElementById("nota"));
+          const tortaSvg = [...document.querySelectorAll(".mic-mermaid svg")].find((s) => s.querySelector(".pieCircle"));
+          const porciones = [...tortaSvg.querySelectorAll(".legend rect")].map((r) => hex(cs(r).fill));
+          const barrasSvg = [...document.querySelectorAll(".mic-mermaid svg")].find((s) => s.querySelector(".plot"));
+          const barra = hex(cs(barrasSvg.querySelector(".plot rect")).fill);
+          const porcentaje = cs(tortaSvg.querySelector("text.slice")).fill;
           return {
+            graficas: JSON.stringify(porciones) === JSON.stringify(p.torta) && barra === p.acento.toLowerCase()
+              && /rgba\(0, 0, 0, 0\)|transparent/.test(porcentaje),
+            porciones: porciones.join(" "),
             fondo,
             caja: cs(caja).fill,
             texto: cs(texto).color || cs(texto).fill,
@@ -160,10 +187,10 @@ try {
           };
         });
         const ok =
-          m.textoCaja >= 4.5 && m.bordeFondo >= 3 && m.flechaFondo >= 3 && m.puntaFondo >= 3;
+          m.textoCaja >= 4.5 && m.bordeFondo >= 3 && m.flechaFondo >= 3 && m.puntaFondo >= 3 && m.graficas;
         if (!ok) fallos++;
         console.log(
-          `${ok ? "ok  " : "FALLO"} ${combo.padEnd(34)} texto/caja ${m.textoCaja.toFixed(2)}  borde ${m.bordeFondo.toFixed(2)}  flecha ${m.flechaFondo.toFixed(2)}  punta ${m.puntaFondo.toFixed(2)}`,
+          `${ok ? "ok  " : "FALLO"} ${combo.padEnd(34)} texto/caja ${m.textoCaja.toFixed(2)}  borde ${m.bordeFondo.toFixed(2)}  flecha ${m.flechaFondo.toFixed(2)}  punta ${m.puntaFondo.toFixed(2)}  torta ${m.graficas ? "ok" : "MAL"} ${m.porciones}`,
         );
         if (CAPTURAS) {
           await pagina.locator("#nota").screenshot({ path: join(CAPTURAS, `${combo.replace(/ /g, "-")}.png`) });

@@ -87,15 +87,65 @@ export async function escribirNota(vault: string, rutaRel: string, contenido: st
   return mtime;
 }
 
+/** Lo que devuelve `guardarNota`. */
+export type NotaGuardada = {
+  /** `mtime` con que quedó el archivo; 0 si no se escribió. */
+  mtime: number;
+  /** El disco ya no tenía la base: no se escribió nada (`DEF-138`). */
+  conflicto: boolean;
+  /** Huella de lo escrito (`huellaDeTexto`); `null` en conflicto. */
+  huella: string | null;
+};
+
+/**
+ * Guardado con base (`FUN-M-58`, B9): Rust compara el archivo con
+ * `huellaEsperada` y escribe solo si coincide (o si ya tiene `contenido`, o si
+ * no existe), todo dentro del turno del archivo. Con `null`, escribe siempre.
+ * El texto cruza el puente una sola vez: antes se leía el archivo entero para
+ * compararlo en JS.
+ */
+export async function guardarNota(
+  vault: string,
+  rutaRel: string,
+  contenido: string,
+  huellaEsperada: string | null,
+): Promise<NotaGuardada> {
+  const invoke = await getInvoke();
+  const r = await invoke<NotaGuardada>("guardar_nota", { vaultRuta: vault, rutaRel, contenido, huellaEsperada });
+  if (!r.conflicto) anotarEscrituraPropia(rutaRel, r.mtime);
+  return r;
+}
+
 /** Abre el explorador del SO mostrando el archivo/carpeta `rutaRel` del vault. */
 export async function revelarEnSistema(vault: string, rutaRel: string): Promise<void> {
   const invoke = await getInvoke();
   await invoke("revelar_en_sistema", { vaultRuta: vault, rutaRel });
 }
 
+/**
+ * Rutas que la propia app movió hace poco (`FUN-M-47`): el origen y el destino
+ * de cada `moverRuta`, con el momento. La detección de renombres hechos por
+ * fuera (`lib/renombresExternos.ts`) las descarta: un renombre de la app ya
+ * reparó sus enlaces. Es una segunda red: el índice ya está rekeyeado cuando
+ * llega el aviso del watcher, así que la ruta vieja no figura como nota.
+ */
+const movimientosPropios = new Map<string, number>();
+
+/** ¿Esta ruta la movió la propia app (como origen o destino) en el último minuto? */
+export function esMovimientoPropio(rutaRel: string): boolean {
+  const en = movimientosPropios.get(rutaRel);
+  return en !== undefined && Date.now() - en <= VIGENCIA_ESCRITURA_MS;
+}
+
 /** Renombra/mueve un archivo o carpeta dentro del vault. */
 export async function moverRuta(vault: string, origenRel: string, destinoRel: string): Promise<void> {
   const invoke = await getInvoke();
+  const ahora = Date.now();
+  if (movimientosPropios.size >= 256) {
+    for (const [ruta, en] of movimientosPropios) if (ahora - en > VIGENCIA_ESCRITURA_MS) movimientosPropios.delete(ruta);
+  }
+  movimientosPropios.set(origenRel, ahora);
+  movimientosPropios.set(destinoRel, ahora);
   await invoke("mover_ruta", { vaultRuta: vault, origenRel, destinoRel });
 }
 
@@ -374,6 +424,13 @@ export async function rekeyIndice(
   // enlace entrante en el id nuevo, que es lo correcto si todavía resuelve ahí;
   // esto corrige los que no: `[[Viejo]]` tras renombrar a «Nuevo» pasa a su
   // homónima o a roto, y un `[[Nuevo]]` que estaba roto pasa a resolver.
-  if (notas.length > 0) await reResolverTitulos([...titulosViejos, ...notas.map((n) => n.newTitulo)]);
+  // Con los alias de las notas movidas (`FUN-M-15`): la profundidad desempata
+  // entre dos notas que declaran el mismo alias. Ya están en el id nuevo (paso 3).
+  if (notas.length > 0) {
+    await reResolverTitulos(
+      [...titulosViejos, ...notas.map((n) => n.newTitulo)],
+      notas.map((n) => n.newId),
+    );
+  }
 }
 

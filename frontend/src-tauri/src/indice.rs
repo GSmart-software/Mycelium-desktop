@@ -25,7 +25,7 @@ use std::ffi::{c_char, c_int, c_void, CStr};
 use std::path::Path;
 use std::str::FromStr;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use sqlx::{Pool, Sqlite};
 use tauri::Manager;
 use tauri_plugin_sql::{DbInstances, DbPool};
@@ -59,12 +59,25 @@ unsafe extern "C" fn autorizador(
 }
 
 /// Pool sobre `archivo` con el autorizador puesto en cada conexión. Mismas
-/// opciones que el `Pool::connect` del plugin (crear si falta, 10 conexiones).
+/// opciones que el `Pool::connect` del plugin (crear si falta, 10 conexiones),
+/// más WAL y `synchronous=NORMAL` en **todas** las conexiones (`FUN-M-58`).
+///
+/// > [!info] Por qué `synchronous=NORMAL` acá y no desde el frontend
+/// > `synchronous` es por conexión. El frontend lo pedía con un `PRAGMA` que
+/// > tocaba una sola de las 10 del pool; las otras 9 escribían con el valor de
+/// > sqlx, `FULL`: un fsync en cada commit. Medido con WAL: 1,31 ms contra
+/// > 0,045 ms por sentencia de escritura, y el indexado son miles. Con
+/// > `NORMAL` + WAL, un corte de luz puede perder los últimos commits, pero no
+/// > corrompe la base; y el índice es reconstruible: el indexado incremental
+/// > por `mtime` repone lo que falte. El resto de lo que pone sqlx por defecto
+/// > (`foreign_keys=ON`, `busy_timeout` de 5 s) no cambia.
 pub(crate) async fn abrir_pool(archivo: &Path) -> Result<Pool<Sqlite>, String> {
     let url = format!("sqlite:{}", archivo.to_string_lossy());
     let opciones = SqliteConnectOptions::from_str(&url)
         .map_err(|e| format!("Ruta del índice inválida: {e}"))?
-        .create_if_missing(true);
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal);
     SqlitePoolOptions::new()
         .after_connect(|conexion, _| {
             Box::pin(async move {
@@ -132,6 +145,82 @@ pub async fn abrir_indice_vault(ventana: tauri::Window, vault_ruta: String) -> R
     Ok(clave)
 }
 
+/// Cierra el índice del vault de ESTA ventana y borra su archivo, para que el
+/// frontend lo vuelva a abrir vacío y lo reconstruya desde los archivos
+/// (`FUN-S-23`). Devuelve `true` si lo borró; `false` si quedó el de antes (el
+/// frontend entonces fuerza un reindexado completo sobre él).
+///
+/// > [!important] El índice hay que cerrarlo antes (`DEF-107`)
+/// > Mientras el pool del plugin `sql` lo tiene abierto, Windows no deja borrar
+/// > el archivo. Se saca de `DbInstances` y se cierra: `close` espera a que
+/// > vuelvan las conexiones prestadas, así que una consulta en vuelo termina
+/// > antes. Las que lleguen después fallan hasta que `abrir_indice_vault` lo
+/// > reabra —el frontend deja de usar el índice mientras tanto—.
+///
+/// Solo toca el índice del vault registrado por la ventana que lo pide
+/// (`ventanas::base_de_ventana`): otra ventana con otro vault tiene otra clave y
+/// otro archivo, y no se entera.
+///
+/// Nunca deja a la app sin índice: no lo reabre acá, pero el archivo o se borró
+/// entero o quedó entero, y `abrir_indice_vault` lo crea si falta.
+#[tauri::command]
+pub async fn reconstruir_indice_vault(ventana: tauri::Window, vault_ruta: String) -> Result<bool, String> {
+    let registrada = crate::ventanas::base_de_ventana(&ventana, &vault_ruta)?;
+    let nombre = mycelium_vault::rutas::nombre_indice_app(&registrada);
+    let clave = format!("sqlite:{nombre}");
+
+    let instancias = ventana.state::<DbInstances>();
+    let quitado = instancias.0.write().await.remove(&clave);
+    if let Some(DbPool::Sqlite(pool)) = quitado {
+        pool.close().await;
+    }
+
+    let dir = ventana
+        .app_handle()
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("No se pudo resolver el config-dir: {e}"))?;
+    Ok(borrar_indice_al_soltarse(&dir.join(&nombre)).await)
+}
+
+/// [`borrar_indice`] con reintentos. `Pool::close` de sqlx no espera a que el
+/// hilo de cada conexión SQLite suelte el archivo: medido en Windows, justo
+/// después del `close` el `-wal` sigue tomado («está siendo utilizado por otro
+/// proceso») y unos milisegundos más tarde ya no. Se reintenta hasta ~3 s.
+async fn borrar_indice_al_soltarse(archivo: &Path) -> bool {
+    let mut ultimo = String::new();
+    for _ in 0..30 {
+        match borrar_indice(archivo) {
+            Ok(()) => return true,
+            Err(e) => ultimo = e,
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    eprintln!("[indice] {ultimo}");
+    false
+}
+
+/// Borra el archivo del índice y sus compañeros de SQLite (`-wal`, `-shm`,
+/// `-journal`). Primero los compañeros: si alguno no se deja borrar, el índice
+/// principal se conserva —un `.db` nuevo con el `-wal` de otro no es un estado
+/// en el que convenga dejarlo—. `Ok` si al final no queda ninguno.
+fn borrar_indice(archivo: &Path) -> Result<(), String> {
+    let compania = |sufijo: &str| {
+        let mut nombre = archivo.as_os_str().to_owned();
+        nombre.push(sufijo);
+        std::path::PathBuf::from(nombre)
+    };
+    let borrar = |ruta: &Path| match std::fs::remove_file(ruta) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("no se pudo borrar {}: {e}", ruta.display())),
+    };
+    for sufijo in ["-wal", "-shm", "-journal"] {
+        borrar(&compania(sufijo))?;
+    }
+    borrar(archivo)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,6 +230,64 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn reconstruir_borra_el_indice_cerrado_y_reabrirlo_lo_crea_vacio() {
+        let dir = temporal("reconstruir");
+        let archivo = dir.join("index-prueba.db");
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let pool = abrir_pool(&archivo).await.unwrap();
+            sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await.unwrap();
+            sqlx::query("CREATE TABLE t (x TEXT)").execute(&pool).await.unwrap();
+            sqlx::query("INSERT INTO t VALUES ('viejo')").execute(&pool).await.unwrap();
+            // Cerrado el pool, el archivo se deja borrar (en Windows, abierto no),
+            // aunque no en el acto: por eso los reintentos.
+            pool.close().await;
+            assert!(borrar_indice_al_soltarse(&archivo).await, "tenía que borrarlo");
+        });
+        assert!(!archivo.exists());
+        assert!(!dir.join("index-prueba.db-wal").exists());
+        // Borrar lo que ya no está no es un fallo.
+        assert!(borrar_indice(&archivo).is_ok());
+        rt.block_on(async {
+            let pool = abrir_pool(&archivo).await.unwrap();
+            let tablas: Vec<(String,)> = sqlx::query_as("SELECT name FROM sqlite_master WHERE type = 'table'")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+            assert!(tablas.is_empty(), "el índice reabierto tiene que estar vacío");
+            pool.close().await;
+        });
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// `FUN-M-58`: TODAS las conexiones del pool escriben con WAL y
+    /// `synchronous=NORMAL` (1), no solo la primera. Se toman las 10 a la vez
+    /// para que el pool no pueda devolver siempre la misma.
+    #[test]
+    fn todas_las_conexiones_del_pool_usan_wal_y_synchronous_normal() {
+        let dir = temporal("pragmas");
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let pool = abrir_pool(&dir.join("index-prueba.db")).await.unwrap();
+            let mut conexiones = Vec::new();
+            for _ in 0..10 {
+                conexiones.push(pool.acquire().await.unwrap());
+            }
+            for c in conexiones.iter_mut() {
+                let (sync,): (i64,) = sqlx::query_as("PRAGMA synchronous").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(sync, 1, "synchronous tiene que ser NORMAL (1)");
+                let (modo,): (String,) = sqlx::query_as("PRAGMA journal_mode").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(modo.to_ascii_lowercase(), "wal");
+                let (fk,): (i64,) = sqlx::query_as("PRAGMA foreign_keys").fetch_one(&mut **c).await.unwrap();
+                assert_eq!(fk, 1, "foreign_keys sigue encendido");
+            }
+            drop(conexiones);
+            pool.close().await;
+        });
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

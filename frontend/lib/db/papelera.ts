@@ -51,7 +51,7 @@ export async function borrarNota(id: string): Promise<void> {
   );
   // Los enlaces que llegaban a ella pasan a su homónima, si hay, o a rotos
   // (`FUN-L-25`): una nota en la papelera no es destino, como antes en el grafo.
-  await reResolverTitulos([notas[0].titulo]);
+  await reResolverTitulos([notas[0].titulo], [id]);
   // El registro también va a `.mycelium/papelera.json` (`DEF-107`): sin él,
   // reconstruir el índice deja el archivo en `.trash` sin forma de recuperarlo.
   await respaldarPapelera();
@@ -115,7 +115,7 @@ export async function recuperarNota(id: string): Promise<void> {
     ]);
     // Vuelve a ser destino (`FUN-L-25`); por el camino de arriba lo hace `rekeyIndice`.
     const fila = await select<{ titulo: string }>("SELECT titulo FROM notas WHERE id = ?", [id]);
-    if (fila.length > 0) await reResolverTitulos([fila[0].titulo]);
+    if (fila.length > 0) await reResolverTitulos([fila[0].titulo], [id]);
   }
   await respaldarPapelera();
 }

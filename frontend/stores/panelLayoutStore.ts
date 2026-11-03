@@ -5,7 +5,8 @@ import { persist } from "zustand/middleware";
  * no es una sección: se abre como ventana en el área de panes. `terminal` es el
  * panel de consolas (FUN-L-07, solo-desktop), `esporas` el de plantillas
  * (FUN-M-03), `calendario` el de recordatorios (FUN-L-22) y `actividad` el
- * registro de lo que hizo la IA por el MCP de control (FUN-L-09). */
+ * registro de lo que hizo la IA por el MCP de control (FUN-L-09). `salud` es
+ * la salud del vault: enlaces rotos, huérfanas, duplicados (FUN-L-30). */
 export type RailSection =
   | "explorer"
   | "search"
@@ -13,6 +14,7 @@ export type RailSection =
   | "esporas"
   | "calendario"
   | "actividad"
+  | "salud"
   | "trash"
   | "terminal";
 

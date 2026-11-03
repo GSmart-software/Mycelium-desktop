@@ -1,9 +1,8 @@
-import JSZip from "jszip";
 import { api } from "@/lib/api";
 import { renderNota } from "@/lib/markdown";
+import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn, type TemaMermaid } from "@/lib/mermaid";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { armarDocumentoImpresion, type PdfPrintOpts } from "@/lib/printStyles";
@@ -106,6 +105,10 @@ export async function exportVaultZip(
   const { vaultId } = useVaultStore.getState();
   const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
 
+  // `jszip` (95 KB) se carga recién acá: el resto de este módulo entra con el
+  // menú de exportar del workspace, y el zip del vault se pide muy de vez en
+  // cuando (`FUN-M-58`, C-H4).
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   for (const archivo of await recolectarArchivosVault(onProgress)) {
     zip.file(archivo.rutaRelativa, archivo.contenido);
@@ -142,10 +145,16 @@ export async function exportVaultACarpeta(
  * fijo de impresión (grises sobre blanco, legibles también en blanco y negro).
  * Sin «Fondo blanco» el PDF conserva el tema de la ventana, y Mermaid también.
  */
-async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise<string> {
+async function renderNoteHtml(
+  notaId: string,
+  temaMermaid: TemaMermaid,
+): Promise<{ html: string; clases: string[] }> {
   const content = await fetchNoteContent(notaId);
+  // Las clases de `cssclasses` (`FUN-S-08`): también en el PDF, para que el
+  // snippet que estila la nota en la app la estile en el papel.
+  const clases = clasesCssDe(content);
   const container = document.createElement("div");
-  container.className = "mic-preview";
+  container.className = ["mic-preview", ...clases].join(" ");
   container.style.position = "fixed";
   container.style.left = "-99999px";
   container.style.top = "0";
@@ -154,14 +163,14 @@ async function renderNoteHtml(notaId: string, temaMermaid: TemaMermaid): Promise
   document.body.appendChild(container);
   try {
     await renderMermaidIn(container, temaMermaid);
-    await renderExcalidrawIn(container);
-    // Los diagramas de draw.io tambien se dibujan antes de imprimir: si no,
-    // saldrian como un hueco en el PDF.
-    await renderDrawioIn(container);
+    // Los dibujos y diagramas también se dibujan antes de imprimir: si no,
+    // saldrían como un hueco en el PDF. `renderEmbedsIn` resuelve además los
+    // `![[embeds]]` escritos sin extensión (`FUN-S-18`).
+    await renderEmbedsIn(container, { perezoso: false });
     // Y las imágenes (`DEF-126`), con la URL `asset:` que el iframe de
     // impresión —mismo webview, mismo origen— puede pedir.
     rellenarImagenesEn(container, carpetaDeNota(notaId));
-    return container.innerHTML;
+    return { html: container.innerHTML, clases };
   } finally {
     container.remove();
   }
@@ -206,7 +215,7 @@ export async function exportNotePdf(
   pageSize: "A4" | "Letter",
   opts: PdfPrintOpts,
 ): Promise<void> {
-  const html = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
+  const { html, clases } = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -238,6 +247,7 @@ export async function exportNotePdf(
       css: cssDeLaVentana(),
       atributos: atributosDeLaVentana(),
       html,
+      clases,
       titulo: safeName(titulo),
       pageSize,
       opts,

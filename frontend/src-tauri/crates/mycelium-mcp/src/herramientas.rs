@@ -11,15 +11,28 @@
 //! Parte 4: `mycelium_diccionario`, el diccionario del vault del corrector,
 //! igual de fina: qué es una palabra y el tope por llamada los decide la app
 //! con la regla del corrector (`lib/mcpDiccionarioLogica.ts`).
+//! `FUN-M-45`: las consultas al índice (`mycelium_buscar`, `mycelium_enlaces`,
+//! `mycelium_base`), de solo lectura: la búsqueda, los enlaces y las bases los
+//! resuelve la app con lo que ya usa (`lib/mcpIndice.ts`), porque el índice
+//! vive en su ventana; acá solo se redacta.
+//! `FUN-L-31`: la coordinación entre sesiones (`mycelium_sesion`,
+//! `mycelium_reservar`, y lo que suma `mycelium_estado`): las sesiones y las
+//! reservas viven en la app (`lib/sesionesIa.ts`), que también redacta.
+//! `FUN-L-30`: la salud del vault (`mycelium_salud`, `mycelium_validar_nota`),
+//! también de solo lectura: el mismo informe que el panel de salud de la app
+//! (`lib/saludVault.ts`).
+//! `FUN-M-44`: `mycelium_diagnosticos`, lo que el editor de la app tiene marcado
+//! en las notas abiertas (o en una), sin recalcular lo ya calculado.
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
 //! se valida lo evidente, se habla por el canal y se **redacta la respuesta**:
 //! texto corto que dice el efecto, no el eco (spec § 3).
 //!
-//! Las búsquedas de la fase de memoria (`vault_buscar`, `vault_leer`) se
-//! evaluaron y no entraron (`docs/arquitectura/MCP de Mycelium - tesina,
-//! protocolo.md` § 9); su código quedó en la historia de `feat/mcp-desktop`.
+//! Las búsquedas de la fase de memoria (`vault_buscar`, `vault_leer`), con un
+//! índice PROPIO del servidor, se evaluaron y no entraron (`docs/arquitectura/
+//! MCP de Mycelium - tesina, protocolo.md` § 9). `mycelium_buscar` no es
+//! aquello: no indexa nada, le pregunta a la app por SU búsqueda.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -34,7 +47,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 12] = [
+const NOMBRES: [&str; 20] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_recordatorios",
@@ -47,6 +60,14 @@ const NOMBRES: [&str; 12] = [
     "mycelium_borrar",
     "mycelium_papelera",
     "mycelium_diccionario",
+    "mycelium_buscar",
+    "mycelium_enlaces",
+    "mycelium_base",
+    "mycelium_salud",
+    "mycelium_validar_nota",
+    "mycelium_sesion",
+    "mycelium_reservar",
+    "mycelium_diagnosticos",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -65,8 +86,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Si Mycelium está abierto con este vault, si el control está encendido y qué está \
                 mirando el usuario: las pestañas de cada panel, cuál está activa y cuáles tienen cambios sin \
                 guardar. Funciona también con la app cerrada (lo dice). No devuelve el contenido de las notas: \
-                para eso leé los archivos. Miralo antes de escribir un archivo que el usuario podría estar \
-                editando: si su pestaña tiene cambios sin guardar, avisale, porque lo que guarde después pisa lo tuyo.",
+                para eso lee los archivos. Míralo antes de escribir un archivo que el usuario podría estar \
+                editando: si su pestaña tiene cambios sin guardar, avísale, porque lo que guarde después pisa lo tuyo.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
             "annotations": { "readOnlyHint": true, "openWorldHint": false }
         }),
@@ -74,8 +95,8 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_abrir",
             "title": "Mostrar algo en Mycelium",
             "description": "Abre en Mycelium una nota o archivo del vault, el grafo o el calendario, en una \
-                pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pedí \
-                `foco: true` solo si tenés algo que mostrarle ahora. En una nota puede saltar a un encabezado, \
+                pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pide \
+                `foco: true` solo si tienes algo que mostrarle ahora. En una nota puede saltar a un encabezado, \
                 una línea o un texto. Devuelve en qué panel quedó y qué pestañas hay. No crea nada: si el \
                 objetivo no existe, contesta NO_ENCONTRADO con las candidatas más parecidas.",
             "inputSchema": {
@@ -204,7 +225,7 @@ pub fn definiciones() -> Vec<Value> {
         json!({
             "name": "mycelium_renombrar",
             "title": "Renombrar una nota o carpeta",
-            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Usala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
+            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Úsala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -212,7 +233,11 @@ pub fn definiciones() -> Vec<Value> {
                         "type": "string",
                         "description": "La nota (ruta `docs/Plan.md` o título `Plan`) o la carpeta (`Área/Proyectos`, o con `/` al final para que sea la carpeta)."
                     },
-                    "nombre": { "type": "string", "description": "El nombre nuevo, sin carpeta (la extensión de una nota se puede omitir)." }
+                    "nombre": { "type": "string", "description": "El nombre nuevo, sin carpeta (la extensión de una nota se puede omitir)." },
+                    "conservarAlias": {
+                        "type": "boolean",
+                        "description": "Solo notas .md: agrega el nombre anterior a la propiedad `aliases` de la nota, para que los [[enlaces]] que no se reescriben (texto citado, otros vaults, los que se escriban después) sigan llegando. Los enlaces se reparan igual. Por defecto, false."
+                    }
                 },
                 "required": ["objetivo", "nombre"],
                 "additionalProperties": false
@@ -224,7 +249,7 @@ pub fn definiciones() -> Vec<Value> {
             "title": "Mover una nota o carpeta",
             "description": "Mueve una nota o una carpeta a otra carpeta que ya exista (no crea carpetas), REPARANDO LOS \
                 ENLACES que la nombraban con su carpeta (`[[Carpeta/Nota]]`; los enlaces por título siguen andando solos). \
-                Usala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
+                Úsala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
                 notas. Se deshace desde el registro de actividad.",
             "inputSchema": {
                 "type": "object",
@@ -241,7 +266,7 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_borrar",
             "title": "Mandar a la papelera",
             "description": "Manda una nota o una carpeta (con todo lo que tiene) a la PAPELERA DE MYCELIUM: nunca borra \
-                para siempre. Usala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
+                para siempre. Úsala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
                 carpeta SIEMPRE le pregunta al usuario y esta llamada espera su respuesta. Devuelve con qué id se \
                 restaura (mycelium_papelera) y qué pestañas se cerraron. Una nota con cambios sin guardar no se borra: \
                 CAMBIOS_SIN_GUARDAR.",
@@ -297,7 +322,176 @@ pub fn definiciones() -> Vec<Value> {
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
+        json!({
+            "name": "mycelium_buscar",
+            "title": "Buscar en el vault",
+            "description": "La búsqueda de Mycelium, la misma del panel de búsqueda, solo en las NOTAS INDEXADAS (lo que el \
+                vault considera memoria: lo ignorado por .mycignore, los PDF, las imágenes o el código suelto no están). \
+                Busca por nombre, por contenido o por los dos, sin distinguir tildes ni mayúsculas; acepta \"una frase\" \
+                entre comillas, filtros de propiedad `clave:valor` (o `clave:\"valor completo\"`) y de etiqueta `tag:x` \
+                (incluye las anidadas `x/…`), combinables entre sí y con texto. Devuelve ruta, título, tipo y un fragmento \
+                con la coincidencia entre «», en el orden de la app (primero los títulos que empiezan con lo buscado). \
+                Pagina con `limite` y `desde`. Es preferible a grep para saber qué dice la memoria: lo que no devuelve no \
+                está en ella.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "consulta": { "type": "string", "description": "Lo que se busca: palabras, \"frase exacta\", clave:valor, tag:x. Al menos 2 caracteres, como en el panel." },
+                    "campo": { "type": "string", "enum": ["ambos", "nombre", "contenido"], "description": "Dónde buscar. Por defecto ambos." },
+                    "exacto": { "type": "boolean", "description": "Palabra completa en vez de prefijo (`plan` no trae `planta`). Por defecto false." },
+                    "limite": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Resultados por página. Por defecto 20." },
+                    "desde": { "type": "integer", "minimum": 0, "description": "Cuántos resultados saltar (para la página siguiente, el `desde` que indica la respuesta)." }
+                },
+                "required": ["consulta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_enlaces",
+            "title": "Enlaces de una nota",
+            "description": "Los enlaces de una nota según el índice de Mycelium, con el mismo criterio que el grafo y el \
+                panel de conexiones: los SALIENTES (cada [[enlace]] o ![[embed]] tal como está escrito, a qué nota \
+                resuelve, si está roto y en qué líneas) y los BACKLINKS (qué notas la enlazan y en qué líneas). Un \
+                [[enlace]] dentro de un bloque de código no cuenta; [[X|alias]] y [[X#Encabezado]] cuentan como enlaces a X; \
+                un lienzo que la tiene como tarjeta la enlaza. Más fiable que grep para recorrer la memoria por asociación.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "nota": { "type": "string", "description": "Ruta (`docs/Plan.md`) o título (`Plan`, o `Carpeta/Plan` para desambiguar)." }
+                },
+                "required": ["nota"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_base",
+            "title": "Leer una tabla .base",
+            "description": "Evalúa una vista de una tabla `.base` con el MISMO motor que Mycelium (filtros, columnas, orden \
+                y límite de la vista) y devuelve sus columnas y sus filas en texto plano, cada una con la ruta de su nota. \
+                Sirve para leer lo que la tabla deriva en vez de mantener una copia a mano. Tope de 200 filas (lo dice si \
+                recorta). Si la vista no existe, NO_ENCONTRADO con los nombres de las que hay; si un filtro está fuera de lo \
+                que Mycelium entiende, INVALIDO con el motivo (skill mycelium-base).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ruta": { "type": "string", "description": "La base: ruta (`Tablas/Proyectos.base`) o título (`Proyectos`)." },
+                    "vista": { "type": "string", "description": "Nombre de la vista. Por defecto, la primera." }
+                },
+                "required": ["ruta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_salud",
+            "title": "Salud del vault",
+            "description": "Lo que degrada la memoria del vault, calculado con el criterio del índice de Mycelium (el mismo \
+                del panel de salud de la app): ENLACES y EMBEDS ROTOS (nota y línea), TÍTULOS DUPLICADOS (con los enlaces \
+                que quedan ambiguos entre ellos), notas HUÉRFANAS (ninguna nota las enlaza; un lienzo que las tiene como \
+                tarjeta sí cuenta), notas SIN ENLACES SALIENTES y PROPIEDADES que no cumplen los esquemas de \
+                `esquemas.yml` (o con un valor que empieza con # sin comillas, que YAML lee como comentario). Un [[enlace]] dentro de un bloque de código no cuenta, \
+                y un enlace a un archivo que existe pero no es nota (imagen, PDF) no está roto. Las Esporas (plantillas) y \
+                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Alcance: el vault entero, \
+                una carpeta o una nota. Hasta 100 ítems por clase, con los totales.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "alcance": {
+                        "type": "string",
+                        "description": "Vacío u omitido: el vault. Una carpeta (`Proyectos`, o `Proyectos/` para forzar carpeta) o una nota (ruta o título)."
+                    }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_validar_nota",
+            "title": "Validar una nota",
+            "description": "Chequeo de cierre de una nota recién escrita o editada, con el criterio del índice: que su título \
+                sea único (si no, sus homónimas), que todos sus enlaces y embeds resuelvan (los rotos y los ambiguos, con su \
+                línea), que alguna nota la enlace (si no, está huérfana: hay que enlazarla desde su mapa o nota madre) y \
+                que sus PROPIEDADES sean válidas (claves obligatorias, tipos y valores permitidos de los esquemas de \
+                `esquemas.yml`, y ningún valor con # sin comillas). \
+                Úsala antes de dar por terminado un cambio en la memoria. Mycelium indexa al guardar: si se acaba de \
+                escribir el archivo, conviene esperar un instante antes de validarla.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "ruta": { "type": "string", "description": "La nota: ruta (`docs/Plan.md`) o título (`Plan`)." }
+                },
+                "required": ["ruta"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_sesion",
+            "title": "Declarar la tarea de esta sesión",
+            "description": "Le dice a Mycelium en qué está trabajando esta sesión, en una línea («Reorganizar docs/arquitectura», \
+                «Bug DEF-173»). Varias sesiones de IA pueden trabajar a la vez sobre el mismo vault: con la tarea declarada, \
+                las demás la ven en su mycelium_estado y el usuario la ve en el panel «Actividad de la IA», que agrupa lo que \
+                hizo cada sesión bajo su tarea. Declárala al empezar un trabajo que no sea una consulta suelta, y de nuevo si \
+                cambias de tarea. Devuelve las otras sesiones conectadas y lo que tienen reservado.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "tarea": { "type": "string", "description": "La tarea, en una línea (hasta 200 caracteres)." }
+                },
+                "required": ["tarea"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+        }),
+        json!({
+            "name": "mycelium_reservar",
+            "title": "Reservar una nota o carpeta",
+            "description": "Avisa a las otras sesiones de IA que vas a trabajar sobre una nota o una carpeta del vault, con un \
+                motivo y un vencimiento (30 minutos si no se indica otro; hasta 240). Es un AVISO, no un bloqueo: nada impide \
+                escribir. Si otra sesión ya tenía reservado eso (o una carpeta que lo contiene, o algo dentro de la carpeta), \
+                la reserva se concede de todos modos y la respuesta dice quién lo tiene y por qué: coordina con el usuario antes de \
+                tocarlo. Reservar de nuevo lo mismo renueva el vencimiento. Con `liberar: true` se suelta (sin `objetivo`, \
+                todas las de esta sesión). Las reservas mueren con la sesión y si se cierra Mycelium. Reserva antes de un \
+                trabajo largo sobre algo que otra sesión podría tocar; libera al terminar.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "objetivo": { "type": "string", "description": "Nota (ruta o título) o carpeta (ruta; con `/` al final para forzar carpeta). Una nota que todavía no existe, por su ruta (`docs/Nueva.md`)." },
+                    "motivo": { "type": "string", "description": "Para qué, en una línea. Obligatorio al reservar." },
+                    "minutos": { "type": "integer", "minimum": 1, "maximum": 240, "description": "Cuánto dura. Por defecto 30." },
+                    "liberar": { "type": "boolean", "description": "true para soltar la reserva de `objetivo` (o todas, sin objetivo)." }
+                },
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
+        }),
+        definicion_diagnosticos(),
     ]
+}
+
+/// La definición de `mycelium_diagnosticos` (`FUN-M-44`), aparte para no
+/// alargar la lista de arriba.
+fn definicion_diagnosticos() -> Value {
+    json!({
+        "name": "mycelium_diagnosticos",
+        "title": "Avisos del editor",
+        "description": "Lo que el editor de Mycelium tiene marcado en una nota, como un linter: ENLACES y EMBEDS ROTOS, \
+            ENLACES AMBIGUOS (entre notas homónimas), TÍTULO DUPLICADO y PROPIEDADES que no cumplen los esquemas de \
+            `esquemas.yml` (o con un # sin comillas), cada uno con línea y columna. Se calculan al abrir y al guardar la \
+            nota en la app; esta herramienta devuelve lo ya calculado, sin recalcular. Sin `nota`: las notas abiertas en \
+            algún editor. Con `nota`: esa nota (si no está abierta, se calcula en el momento sobre el índice). Úsala \
+            después de editar una nota que el usuario tiene abierta, para ver lo mismo que él.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nota": { "type": "string", "description": "Opcional: la nota, por ruta (`docs/Plan.md`) o título (`Plan`)." }
+            },
+            "additionalProperties": false
+        },
+        "annotations": { "readOnlyHint": true, "openWorldHint": false }
+    })
 }
 
 /// Atiende un `tools/call`. `None` si la herramienta no existe (error de
@@ -328,6 +522,14 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_borrar" => herramienta_archivos(estado, vault, "borrar", args, redactar_archivo),
         "mycelium_papelera" => herramienta_archivos(estado, vault, "papelera", args, redactar_papelera),
         "mycelium_diccionario" => herramienta_diccionario(estado, vault, args),
+        "mycelium_buscar" => herramienta_consulta(estado, vault, "buscar", args, redactar_buscar),
+        "mycelium_enlaces" => herramienta_consulta(estado, vault, "enlaces", args, redactar_enlaces),
+        "mycelium_base" => herramienta_consulta(estado, vault, "base", args, redactar_base),
+        "mycelium_salud" => herramienta_consulta(estado, vault, "salud", args, redactar_salud),
+        "mycelium_validar_nota" => herramienta_consulta(estado, vault, "validar_nota", args, redactar_validar_nota),
+        "mycelium_sesion" => herramienta_coordinacion(estado, vault, "sesion", args),
+        "mycelium_reservar" => herramienta_coordinacion(estado, vault, "reservar", args),
+        "mycelium_diagnosticos" => herramienta_consulta(estado, vault, "diagnosticos", args, redactar_diagnosticos),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -345,7 +547,9 @@ enum SinResultado {
 fn pedir(estado: &Estado, vault: &VaultResuelto, op: &str, args: Value) -> Result<Value, SinResultado> {
     static ID: AtomicU64 = AtomicU64::new(1);
     let id = json!(ID.fetch_add(1, Ordering::Relaxed));
-    let pedido = protocolo_canal::pedido(&id, op, args, &vault.registrado.ruta);
+    let mut pedido = protocolo_canal::pedido(&id, op, args, &vault.registrado.ruta);
+    // Quién pide (`FUN-L-31`): la app atribuye la operación a esta sesión.
+    pedido["sesion"] = crate::sesion::datos();
     match canal::pedir(&estado.canal, &pedido, estado.espera.unwrap_or(ESPERA_CLIENTE)) {
         Ok(r) if r.get("ok").and_then(Value::as_bool) == Some(true) => Ok(r.get("resultado").cloned().unwrap_or(Value::Null)),
         Ok(r) if r.get("ok").and_then(Value::as_bool) == Some(false) => {
@@ -355,14 +559,14 @@ fn pedir(estado: &Estado, vault: &VaultResuelto, op: &str, args: Value) -> Resul
         Err(Fallo::NadieEscucha) => Err(SinResultado::NadieEscucha),
         Err(Fallo::SinRespuesta) => Err(SinResultado::Error(format!(
             "{}: Mycelium no contestó a tiempo (quizás un diálogo abierto o la ventana trabada). \
-             Probá de nuevo en unos segundos; si se repite, preguntale al usuario.",
+             Prueba de nuevo en unos segundos; si se repite, pregúntale al usuario.",
             codigo::OCUPADA
         ))),
         // Un corte a mitad de la llamada (la ventana se cerró): la operación
         // puede haber ocurrido igual (spec de septiembre § 5.2).
         Err(Fallo::Roto(m)) => Err(SinResultado::Error(format!(
-            "{}: se cortó el canal con Mycelium ({m}). La operación pudo haber ocurrido igual: \
-             comprobalo con mycelium_estado antes de repetirla.",
+            "{}: se cortó el canal con Mycelium ({m}). La operación pudo haber ocurrido de todos modos: \
+             compruébalo con mycelium_estado antes de repetirla.",
             codigo::APP_CERRADA
         ))),
     }
@@ -382,7 +586,7 @@ fn sin_ventana_con(vault: &VaultResuelto, calendario: bool) -> String {
     if calendario {
         t.push_str(
             "\nEl calendario solo se modifica con estas herramientas: sin ellas, no escribas \
-             .mycelium/recordatorios.json (decíselo al usuario). Para leerlo, la skill mycelium-calendario trae un script.",
+             .mycelium/recordatorios.json (díselo al usuario). Para leerlo, la skill mycelium-calendario trae un script.",
         );
     }
     t
@@ -393,8 +597,8 @@ fn sin_ventana_base(vault: &VaultResuelto) -> String {
     if control_encendido(&vault.raiz) {
         format!(
             "{}: Mycelium no está abierto con el vault «{nombre}» (nadie escucha en su canal). Sin la app \
-             podés usar mycelium_estado, leer el calendario con la skill mycelium-calendario y leer o escribir \
-             los archivos del vault como siempre. Para mostrarle algo, pedile al usuario que abra Mycelium con \
+             puedes usar mycelium_estado, leer el calendario con la skill mycelium-calendario y leer o escribir \
+             los archivos del vault como siempre. Para mostrarle algo, pídele al usuario que abra Mycelium con \
              este vault.",
             codigo::APP_CERRADA
         )
@@ -423,7 +627,7 @@ pub fn redactar_error(error: &Value) -> String {
         }
     }
     if let Some(rutas) = datos.get("rutas").and_then(Value::as_array) {
-        t.push_str("\nRepetí la llamada con una de estas rutas:");
+        t.push_str("\nRepite la llamada con una de estas rutas:");
         for r in rutas {
             t.push_str(&format!("\n  - {}", r.as_str().unwrap_or_default()));
         }
@@ -432,7 +636,7 @@ pub fn redactar_error(error: &Value) -> String {
         t.push_str(&format!("\nEtapa: {etapa}."));
     }
     if let Some(ms) = datos.get("reintentar_en_ms").and_then(Value::as_u64) {
-        t.push_str(&format!(" Reintentá en {:.1} s.", ms as f64 / 1000.0));
+        t.push_str(&format!(" Reintenta en {:.1} s.", ms as f64 / 1000.0));
     }
     t
 }
@@ -486,6 +690,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             }
             t.push('\n');
             t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
+            t.push_str(&redactar_coordinacion(&r));
             texto(t, false)
         }
         Err(SinResultado::NadieEscucha) => {
@@ -493,7 +698,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             let t = if control_encendido(&vault.raiz) {
                 format!(
                     "app: cerrada · control: encendido · {cabecera}\nMycelium no está abierto con este vault: \
-                     no hay pestañas que mirar. Los archivos se leen y escriben igual."
+                     no hay pestañas que mirar. Los archivos se leen y escriben de todos modos."
                 )
             } else {
                 format!(
@@ -502,6 +707,44 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
                 )
             };
             texto(t, false)
+        }
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+// ── Coordinación entre sesiones (`FUN-L-31`) ──────────────────────────────
+
+/// Lo que la app cuenta de las otras sesiones (y de esta), ya redactado por
+/// `lib/sesionesIa.ts`: va al final de `mycelium_estado`, `mycelium_sesion` y
+/// `mycelium_reservar`. Vacío si la app no lo mandó (una versión vieja).
+pub fn redactar_coordinacion(r: &Value) -> String {
+    match r.get("coordinacion").and_then(|c| c.get("texto")).and_then(Value::as_str) {
+        Some(t) if !t.trim().is_empty() => format!("\n\n{}", t.trim_end()),
+        _ => String::new(),
+    }
+}
+
+/// `mycelium_sesion` y `mycelium_reservar`: la app valida, resuelve el
+/// objetivo y redacta el efecto (con los conflictos); acá se agrega lo demás.
+fn herramienta_coordinacion(estado: &Estado, vault: &VaultResuelto, op: &str, args: &Value) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir(estado, vault, op, args) {
+        Ok(r) => {
+            let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
+            t.push_str(&redactar_coordinacion(&r));
+            texto(t, false)
+        }
+        Err(SinResultado::NadieEscucha) => {
+            let mut t = sin_ventana_base(vault);
+            t.push_str(
+                "\nLas sesiones y las reservas viven en la ventana de Mycelium: sin ella no hay coordinación. \
+                 Si sabes que otra sesión trabaja en este vault, pregúntale al usuario antes de tocar lo mismo.",
+            );
+            texto(t, true)
         }
         Err(SinResultado::Error(e)) => texto(e, true),
     }
@@ -704,7 +947,7 @@ fn pedir_con_permiso(estado: &Estado, vault: &VaultResuelto, op: &str, args: Val
             Err(SinResultado::NadieEscucha) => {
                 return Err(SinResultado::Error(format!(
                     "{}: Mycelium se cerró mientras esperaba que el usuario contestara. Lo más probable es que \
-                     no se haya hecho nada: comprobalo (mycelium_estado, mycelium_papelera) antes de repetirlo.",
+                     no se haya hecho nada: compruébalo (mycelium_estado, mycelium_papelera) antes de repetirlo.",
                     codigo::APP_CERRADA
                 )))
             }
@@ -739,8 +982,8 @@ fn herramienta_archivos(
 fn sin_ventana_archivos(vault: &VaultResuelto) -> String {
     let mut t = sin_ventana_base(vault);
     t.push_str(
-        "\nSin estas herramientas, renombrar o mover con `mv` deja los [[enlaces]] rotos: si lo hacés igual, \
-         arreglalos vos (regla dura 2 del CLAUDE.md; el hook te deja pasar con MYCELIUM_SIN_MCP=1 delante del \
+        "\nSin estas herramientas, renombrar o mover con `mv` deja los [[enlaces]] rotos: si aun así lo haces, \
+         arréglalos tú (regla dura 2 del CLAUDE.md; el hook te deja pasar con MYCELIUM_SIN_MCP=1 delante del \
          comando). Para borrar, mejor esperar a que el usuario abra Mycelium: un `rm` no pasa por la papelera.",
     );
     t
@@ -796,7 +1039,7 @@ fn sin_ventana_diccionario(vault: &VaultResuelto) -> String {
     let mut t = sin_ventana_base(vault);
     t.push_str(
         "\nEl diccionario del vault solo se modifica con esta herramienta: sin ella, no escribas \
-         .mycelium/diccionario.txt (decíselo al usuario; lo puede agregar él con el clic derecho sobre la palabra).",
+         .mycelium/diccionario.txt (díselo al usuario; lo puede agregar él con el clic derecho sobre la palabra).",
     );
     t
 }
@@ -829,7 +1072,7 @@ pub fn redactar_diccionario(r: &Value) -> String {
     let mut t = r.get("efecto").and_then(Value::as_str).unwrap_or("Hecho.").to_string();
     for n in r.get("no_estaban").and_then(Value::as_array).into_iter().flatten() {
         if let (Some(p), Some(par)) = (n.get("palabra").and_then(Value::as_str), n.get("parecida").and_then(Value::as_str)) {
-            t.push_str(&format!("\n«{p}» no estaba, pero sí «{par}»: para quitarla, pedila así."));
+            t.push_str(&format!("\n«{p}» no estaba, pero sí «{par}»: para quitarla, pídela así."));
         }
     }
     let rechazadas = r.get("rechazadas").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -842,6 +1085,478 @@ pub fn redactar_diccionario(r: &Value) -> String {
         }
     }
     t
+}
+
+// ── Consultar el índice (`FUN-M-45`) ───────────────────────────────────────
+
+/// Buscar, los enlaces de una nota y leer una base: solo leen. Comprueban que
+/// los argumentos sean un objeto y los pasan a la app, que valida y consulta
+/// su índice (`lib/mcpIndice.ts`); acá se redacta.
+fn herramienta_consulta(
+    estado: &Estado,
+    vault: &VaultResuelto,
+    op: &str,
+    args: &Value,
+    redactar: fn(&Value) -> String,
+) -> Value {
+    let args = match args {
+        Value::Null => json!({}),
+        Value::Object(_) => args.clone(),
+        _ => return texto(format!("{}: los argumentos van en un objeto.", codigo::INVALIDO), true),
+    };
+    match pedir(estado, vault, op, args) {
+        Ok(r) => texto(redactar(&r), false),
+        Err(SinResultado::NadieEscucha) => texto(sin_ventana_consulta(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Sin la app no hay índice que consultar: qué hacer entonces.
+fn sin_ventana_consulta(vault: &VaultResuelto) -> String {
+    let mut t = sin_ventana_base(vault);
+    t.push_str(
+        "\nEl índice vive en la ventana de Mycelium: sin ella, busca en los archivos (grep), sabiendo que no \
+         aplica su criterio (cuenta enlaces dentro de bloques de código, no ve .mycignore ni resuelve homónimas).",
+    );
+    t
+}
+
+fn s<'a>(v: &'a Value, k: &str) -> &'a str {
+    v.get(k).and_then(Value::as_str).unwrap_or_default()
+}
+
+fn n(v: &Value, k: &str) -> u64 {
+    v.get(k).and_then(Value::as_u64).unwrap_or(0)
+}
+
+/// `línea 3` / `líneas 3, 7`, o nada.
+fn lineas(v: &Value) -> String {
+    let l: Vec<String> = v
+        .get("lineas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_u64).map(|x| x.to_string()).collect())
+        .unwrap_or_default();
+    match l.len() {
+        0 => String::new(),
+        1 => format!(" · línea {}", l[0]),
+        _ => format!(" · líneas {}", l.join(", ")),
+    }
+}
+
+/// Una página de resultados, con cómo pedir la siguiente.
+pub fn redactar_buscar(r: &Value) -> String {
+    let consulta = s(r, "consulta");
+    let desde = n(r, "desde");
+    let lista = r.get("resultados").and_then(Value::as_array).cloned().unwrap_or_default();
+    if lista.is_empty() {
+        return if desde > 0 {
+            format!("No hay más resultados para «{consulta}» después del {desde}.")
+        } else {
+            format!("Ningún resultado para «{consulta}» en las notas indexadas (campo: {}).", s(r, "campo"))
+        };
+    }
+    let mut t = format!(
+        "{} {} para «{consulta}» (campo: {}){}:",
+        lista.len(),
+        if lista.len() == 1 { "resultado" } else { "resultados" },
+        s(r, "campo"),
+        if desde > 0 { format!(", desde el {}", desde + 1) } else { String::new() }
+    );
+    for (i, x) in lista.iter().enumerate() {
+        let tipo = s(x, "tipo");
+        let tipo = if tipo.is_empty() || tipo == "markdown" { String::new() } else { format!(" [{tipo}]") };
+        t.push_str(&format!("\n{}. {} — {}{tipo}", desde + i as u64 + 1, s(x, "titulo"), s(x, "ruta")));
+        let f = s(x, "fragmento");
+        if !f.is_empty() {
+            t.push_str(&format!("\n   {f}"));
+        }
+    }
+    if r.get("hay_mas").and_then(Value::as_bool) == Some(true) {
+        t.push_str(&format!("\nHay más resultados: repite la llamada con `desde: {}`.", n(r, "siguiente")));
+    }
+    t
+}
+
+/// Los salientes y los backlinks de una nota, una línea por enlace.
+pub fn redactar_enlaces(r: &Value) -> String {
+    let nota = r.get("nota").unwrap_or(&Value::Null);
+    let mut t = format!("«{}» ({})", s(nota, "titulo"), s(nota, "ruta"));
+    let salientes = r.get("salientes").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total_sal = n(r, "total_salientes");
+    let rotos = n(r, "rotos");
+    t.push_str(&format!(
+        "\nSalientes: {total_sal}{}",
+        if rotos > 0 { format!(" ({rotos} {})", if rotos == 1 { "roto" } else { "rotos" }) } else { String::new() }
+    ));
+    if salientes.is_empty() {
+        t.push_str("\n  (ninguno)");
+    }
+    for x in &salientes {
+        let escrito = if s(x, "tipo") == "embed" { format!("![[{}]]", s(x, "texto")) } else { format!("[[{}]]", s(x, "texto")) };
+        let destino = x.get("destino").unwrap_or(&Value::Null);
+        let a = match s(x, "estado") {
+            "nota" => format!("{} — {}", s(destino, "titulo"), s(destino, "ruta")),
+            "propia" => "ella misma".to_string(),
+            "archivo" => format!("el archivo {} (no es nota)", s(destino, "ruta")),
+            _ => "ROTO: no resuelve a ninguna nota".to_string(),
+        };
+        let origen = match s(x, "tipo") {
+            "canvas" => " · en una tarjeta de texto",
+            "archivo" => " · tarjeta de nota",
+            _ => "",
+        };
+        t.push_str(&format!("\n  {escrito} → {a}{origen}{}", lineas(x)));
+    }
+    if (salientes.len() as u64) < total_sal {
+        t.push_str(&format!("\n  (se muestran {} de {total_sal})", salientes.len()));
+    }
+    let back = r.get("backlinks").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total_back = n(r, "total_backlinks");
+    t.push_str(&format!("\nBacklinks: {total_back}"));
+    if back.is_empty() {
+        t.push_str("\n  (ninguno: nadie la enlaza)");
+    }
+    for x in &back {
+        let textos: Vec<String> = x
+            .get("textos")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(Value::as_str).map(|s| format!("[[{s}]]")).collect())
+            .unwrap_or_default();
+        let tipo = s(x, "tipo");
+        let tipo = if tipo.is_empty() || tipo == "markdown" { String::new() } else { format!(" [{tipo}]") };
+        t.push_str(&format!("\n  {} — {}{tipo}{} · como {}", s(x, "titulo"), s(x, "ruta"), lineas(x), textos.join(", ")));
+    }
+    if (back.len() as u64) < total_back {
+        t.push_str(&format!("\n  (se muestran {} de {total_back})", back.len()));
+    }
+    t
+}
+
+/// Una celda para una tabla Markdown: sin saltos de línea ni barras sueltas.
+fn celda(v: &str) -> String {
+    v.replace(['\r', '\n'], " ").replace('|', "\\|")
+}
+
+/// La vista de una base como tabla Markdown, con la ruta de cada fila.
+pub fn redactar_base(r: &Value) -> String {
+    let base = r.get("base").unwrap_or(&Value::Null);
+    let vistas: Vec<String> = r
+        .get("vistas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(|v| format!("«{v}»")).collect())
+        .unwrap_or_default();
+    let filas = r.get("filas").and_then(Value::as_array).cloned().unwrap_or_default();
+    let total = n(r, "total");
+    let por_vista = n(r, "recortadas_por_vista");
+    let por_tope = n(r, "recortadas_por_tope");
+    let mut t = format!(
+        "Base «{}» ({}) · vista «{}»{}",
+        s(base, "titulo"),
+        s(base, "ruta"),
+        s(r, "vista"),
+        if vistas.len() > 1 { format!(" (vistas: {})", vistas.join(", ")) } else { String::new() }
+    );
+    t.push_str(&format!("\n{total} {} los filtros", if total == 1 { "nota cumple" } else { "notas cumplen" }));
+    if por_vista > 0 {
+        t.push_str(&format!("; el límite de la vista deja fuera {por_vista}"));
+    }
+    if por_tope > 0 {
+        t.push_str(&format!("; se muestran {} (tope de esta herramienta)", filas.len()));
+    }
+    t.push('.');
+    for a in r.get("avisos").and_then(Value::as_array).into_iter().flatten() {
+        if let Some(a) = a.as_str() {
+            t.push_str(&format!("\nAviso: {a}"));
+        }
+    }
+    if filas.is_empty() {
+        t.push_str("\nNinguna nota cumple los filtros de esta vista.");
+        return t;
+    }
+    let mut columnas: Vec<String> = r
+        .get("columnas")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).map(celda).collect())
+        .unwrap_or_default();
+    columnas.push("(archivo)".to_string());
+    t.push_str(&format!("\n\n| {} |\n|{}|", columnas.join(" | "), vec!["---"; columnas.len()].join("|")));
+    for f in &filas {
+        let mut celdas: Vec<String> = f
+            .get("celdas")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().map(|c| celda(c.as_str().unwrap_or_default())).collect())
+            .unwrap_or_default();
+        celdas.push(celda(s(f, "ruta")));
+        t.push_str(&format!("\n| {} |", celdas.join(" | ")));
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_consultas {
+    use super::*;
+
+    #[test]
+    fn la_busqueda_numera_y_dice_como_seguir() {
+        let t = redactar_buscar(&json!({
+            "consulta": "plan", "campo": "ambos", "desde": 20, "hay_mas": true, "siguiente": 22,
+            "resultados": [
+                {"ruta": "Plan.md", "titulo": "Plan", "tipo": "markdown", "fragmento": "el «plan» de"},
+                {"ruta": "T.base", "titulo": "T", "tipo": "base", "fragmento": ""}
+            ]
+        }));
+        assert!(t.starts_with("2 resultados para «plan» (campo: ambos), desde el 21:"), "{t}");
+        assert!(t.contains("\n21. Plan — Plan.md\n   el «plan» de"), "{t}");
+        assert!(t.contains("\n22. T — T.base [base]"), "{t}");
+        assert!(t.ends_with("repite la llamada con `desde: 22`."), "{t}");
+        let vacio = redactar_buscar(&json!({"consulta": "x", "campo": "nombre", "desde": 0, "resultados": []}));
+        assert!(vacio.starts_with("Ningún resultado para «x»"), "{vacio}");
+    }
+
+    #[test]
+    fn los_enlaces_dicen_a_donde_van_y_en_que_linea() {
+        let t = redactar_enlaces(&json!({
+            "nota": {"ruta": "A.md", "titulo": "A"},
+            "total_salientes": 3, "rotos": 1,
+            "salientes": [
+                {"texto": "B#Sec", "tipo": "enlace", "estado": "nota", "destino": {"ruta": "x/B.md", "titulo": "B"}, "lineas": [3, 7]},
+                {"texto": "foto.png", "tipo": "embed", "estado": "archivo", "destino": {"ruta": "img/foto.png"}, "lineas": [9]},
+                {"texto": "Nada", "tipo": "enlace", "estado": "roto", "destino": null, "lineas": [12]}
+            ],
+            "total_backlinks": 1,
+            "backlinks": [{"ruta": "C.md", "titulo": "C", "tipo": "markdown", "textos": ["A"], "lineas": [2]}]
+        }));
+        assert!(t.contains("Salientes: 3 (1 roto)"), "{t}");
+        assert!(t.contains("[[B#Sec]] → B — x/B.md · líneas 3, 7"), "{t}");
+        assert!(t.contains("![[foto.png]] → el archivo img/foto.png (no es nota) · línea 9"), "{t}");
+        assert!(t.contains("[[Nada]] → ROTO"), "{t}");
+        assert!(t.contains("C — C.md · línea 2 · como [[A]]"), "{t}");
+    }
+
+    #[test]
+    fn la_base_sale_como_tabla_y_avisa_el_recorte() {
+        let t = redactar_base(&json!({
+            "base": {"ruta": "P.base", "titulo": "P"}, "vista": "Activos", "vistas": ["Activos", "Todos"],
+            "columnas": ["Nombre", "Estado"], "total": 250, "recortadas_por_vista": 0, "recortadas_por_tope": 249,
+            "avisos": ["Mycelium ignora: groupBy."],
+            "filas": [{"ruta": "a/X.md", "celdas": ["X", "en curso | casi"]}]
+        }));
+        assert!(t.starts_with("Base «P» (P.base) · vista «Activos» (vistas: «Activos», «Todos»)"), "{t}");
+        assert!(t.contains("250 notas cumplen los filtros; se muestran 1 (tope de esta herramienta)."), "{t}");
+        assert!(t.contains("Aviso: Mycelium ignora: groupBy."), "{t}");
+        assert!(t.contains("| Nombre | Estado | (archivo) |\n|---|---|---|\n| X | en curso \\| casi | a/X.md |"), "{t}");
+    }
+}
+
+// ── La salud del vault (`FUN-L-30`) ────────────────────────────────────────
+
+/// Un problema de enlace: la nota, la línea y cómo está escrito.
+fn problema_en_linea(p: &Value) -> String {
+    let escrito = if s(p, "tipo") == "embed" { format!("![[{}]]", s(p, "texto")) } else { format!("[[{}]]", s(p, "texto")) };
+    let veces = n(p, "n");
+    let extra = if veces > 1 && lineas(p).is_empty() { format!(" ×{veces}") } else { String::new() };
+    format!("{}{} · {escrito}{extra}", s(p, "desde"), lineas(p))
+}
+
+/// El informe de salud: cada clase con su conteo y sus ítems, y cómo seguir.
+pub fn redactar_salud(r: &Value) -> String {
+    let alcance = r.get("alcance").unwrap_or(&Value::Null);
+    let donde = match s(alcance, "tipo") {
+        "carpeta" => format!("de la carpeta {}/", s(alcance, "ruta")),
+        "nota" => format!("de la nota {}", s(alcance, "ruta")),
+        _ => "del vault".to_string(),
+    };
+    let c = r.get("conteos").unwrap_or(&Value::Null);
+    let total = n(c, "total");
+    let notas = n(r, "notas");
+    let mut t = format!(
+        "Salud {donde}: {notas} {} {}. Las Esporas y las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan.",
+        if notas == 1 { "nota" } else { "notas" },
+        if total == 0 { "y ningún problema".to_string() } else { format!("y {total} {}", if total == 1 { "problema" } else { "problemas" }) }
+    );
+    let tope = n(r, "tope");
+    let mut recortado = false;
+    let mut seccion = |titulo: &str, clave_conteo: &str, clave: &str, linea: &dyn Fn(&Value) -> String| {
+        let total = n(c, clave_conteo);
+        if total == 0 {
+            return;
+        }
+        t.push_str(&format!("\n{titulo}: {total}"));
+        let lista = r.get(clave).and_then(Value::as_array).cloned().unwrap_or_default();
+        for x in &lista {
+            t.push_str(&format!("\n  - {}", linea(x)));
+        }
+        if (lista.len() as u64) < total {
+            recortado = true;
+        }
+    };
+    seccion("Enlaces rotos", "rotos", "rotos", &problema_en_linea);
+    seccion("Embeds rotos", "embedsRotos", "embeds_rotos", &problema_en_linea);
+    seccion("Títulos duplicados (enlaces ambiguos)", "duplicados", "duplicados", &|d: &Value| {
+        let rutas: Vec<&str> =
+            d.get("rutas").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+        let ambiguos = d.get("ambiguos").and_then(Value::as_array).cloned().unwrap_or_default();
+        let mut l = format!("«{}» [{}]: {}", s(d, "titulo"), s(d, "tipo"), rutas.join(", "));
+        if ambiguos.is_empty() {
+            l.push_str(" · ningún enlace duda entre ellas (todos llevan carpeta)");
+        } else {
+            l.push_str(&format!(" · {} {}:", ambiguos.len(), if ambiguos.len() == 1 { "enlace ambiguo" } else { "enlaces ambiguos" }));
+            for a in &ambiguos {
+                l.push_str(&format!("\n      {}", problema_en_linea(a)));
+            }
+        }
+        l
+    });
+    let nota = |x: &Value| format!("{} — {}", s(x, "titulo"), s(x, "ruta"));
+    seccion("Huérfanas (ninguna nota las enlaza)", "huerfanas", "huerfanas", &nota);
+    seccion("Sin enlaces salientes", "sinSalientes", "sin_salientes", &nota);
+    // `FUN-M-46`: propiedades que no cumplen los esquemas de `esquemas.yml` o con un `#` sin comillas.
+    seccion("Propiedades que no cumplen (esquemas.yml o # sin comillas)", "propiedades", "propiedades", &|x: &Value| {
+        let mut l = format!("{} — {}", s(x, "titulo"), s(x, "ruta"));
+        for a in x.get("avisos").and_then(Value::as_array).into_iter().flatten() {
+            l.push_str(&format!("\n      línea {} · {}", n(a, "linea"), s(a, "mensaje")));
+        }
+        l
+    });
+    let avisos_esquemas = r.get("esquemas_avisos").and_then(Value::as_array).cloned().unwrap_or_default();
+    if !avisos_esquemas.is_empty() {
+        t.push_str("\nesquemas.yml tiene problemas (lo que no se entiende se ignora):");
+        for a in &avisos_esquemas {
+            t.push_str(&format!("\n  - {}", s(a, "mensaje")));
+        }
+    }
+    if recortado {
+        t.push_str(&format!(
+            "\n(Cada lista muestra hasta {tope}. Para ver el resto, pide un alcance más pequeño: una carpeta o una nota.)"
+        ));
+    }
+    t
+}
+
+/// Los diagnósticos del editor: por nota, cada uno con su línea y columna.
+pub fn redactar_diagnosticos(r: &Value) -> String {
+    let notas = r.get("notas").and_then(Value::as_array).cloned().unwrap_or_default();
+    let mut t = String::new();
+    if r.get("encendidos").and_then(Value::as_bool) == Some(false) {
+        t.push_str("Los avisos del editor están apagados (Configuración → Editor → «Avisos en la nota»): el editor no marca nada.\n");
+    }
+    if notas.is_empty() {
+        t.push_str("No hay notas abiertas en ningún editor. Pide una con `nota` para calcularla en el momento.");
+        return t;
+    }
+    for (i, nota) in notas.iter().enumerate() {
+        if i > 0 {
+            t.push('\n');
+        }
+        let total = n(nota, "total");
+        let origen = s(nota, "origen");
+        t.push_str(&format!("«{}» ({}): ", s(nota, "titulo"), s(nota, "ruta")));
+        if origen == "pendiente" {
+            t.push_str("recién abierta, todavía sin calcular. Repite en un instante.");
+            continue;
+        }
+        t.push_str(&if total == 0 { "sin avisos".to_string() } else { format!("{total} {}", if total == 1 { "aviso" } else { "avisos" }) });
+        if origen == "calculado_ahora" {
+            t.push_str(" (no está abierta: calculado ahora sobre el índice)");
+        }
+        t.push('.');
+        let lista = nota.get("diagnosticos").and_then(Value::as_array).cloned().unwrap_or_default();
+        for d in &lista {
+            t.push_str(&format!("\n  - línea {}, col. {} · {}", n(d, "linea"), n(d, "columna"), s(d, "mensaje")));
+        }
+        if (lista.len() as u64) < total {
+            t.push_str(&format!("\n  (y {} más)", total - lista.len() as u64));
+        }
+    }
+    t
+}
+
+/// El chequeo de cierre de una nota: cada chequeo con ✓ o ✗ y su detalle.
+pub fn redactar_validar_nota(r: &Value) -> String {
+    let nota = r.get("nota").unwrap_or(&Value::Null);
+    let chequeos = r.get("chequeos").and_then(Value::as_array).cloned().unwrap_or_default();
+    let fallan = chequeos.iter().filter(|c| c.get("ok").and_then(Value::as_bool) != Some(true)).count();
+    let mut t = format!(
+        "«{}» ({}): {}",
+        s(nota, "titulo"),
+        s(nota, "ruta"),
+        if fallan == 0 {
+            "pasa todos los chequeos.".to_string()
+        } else {
+            format!("{fallan} de {} {} con problemas.", chequeos.len(), if chequeos.len() == 1 { "chequeo" } else { "chequeos" })
+        }
+    );
+    for c in &chequeos {
+        let ok = c.get("ok").and_then(Value::as_bool) == Some(true);
+        t.push_str(&format!("\n{} {}", if ok { "✓" } else { "✗" }, s(c, "titulo")));
+        for d in c.get("detalle").and_then(Value::as_array).into_iter().flatten() {
+            if let Some(d) = d.as_str() {
+                t.push_str(&format!("\n    {d}"));
+            }
+        }
+    }
+    t
+}
+
+#[cfg(test)]
+mod tests_salud {
+    use super::*;
+
+    #[test]
+    fn el_informe_dice_cada_clase_con_su_linea() {
+        let t = redactar_salud(&json!({
+            "alcance": {"tipo": "vault"}, "notas": 9, "tope": 1,
+            "conteos": {"rotos": 2, "embedsRotos": 0, "duplicados": 1, "huerfanas": 1, "sinSalientes": 0, "total": 4},
+            "rotos": [{"desde": "Mapa.md", "texto": "Fantasma", "tipo": "enlace", "n": 2, "lineas": [6, 9]}],
+            "embeds_rotos": [],
+            "duplicados": [{"titulo": "Plan", "tipo": "markdown", "rutas": ["Plan.md", "p/Plan.md"],
+                "ambiguos": [{"desde": "Mapa.md", "texto": "Plan", "tipo": "enlace", "n": 1, "lineas": [8]}]}],
+            "huerfanas": [{"ruta": "Suelta.md", "titulo": "Suelta"}],
+            "sin_salientes": []
+        }));
+        assert!(t.starts_with("Salud del vault: 9 notas y 4 problemas."), "{t}");
+        assert!(t.contains("\nEnlaces rotos: 2\n  - Mapa.md · líneas 6, 9 · [[Fantasma]]"), "{t}");
+        assert!(!t.contains("Embeds rotos"), "{t}");
+        assert!(t.contains("«Plan» [markdown]: Plan.md, p/Plan.md · 1 enlace ambiguo:\n      Mapa.md · línea 8 · [[Plan]]"), "{t}");
+        assert!(t.contains("Huérfanas (ninguna nota las enlaza): 1\n  - Suelta — Suelta.md"), "{t}");
+        assert!(t.ends_with("una carpeta o una nota.)"), "recortó los rotos: {t}");
+        let props = redactar_salud(&json!({"alcance": {"tipo": "vault"}, "notas": 3, "tope": 100,
+            "conteos": {"propiedades": 1, "total": 1},
+            "propiedades": [{"ruta": "P/a.md", "titulo": "a", "avisos": [{"linea": 1, "mensaje": "Falta la propiedad obligatoria «estado»."}]}],
+            "esquemas_avisos": [{"mensaje": "Esquema «X»: el tipo «raro» no existe."}]}));
+        assert!(props.contains("Propiedades que no cumplen (esquemas.yml o # sin comillas): 1\n  - a — P/a.md\n      línea 1 · Falta"), "{props}");
+        assert!(props.contains("esquemas.yml tiene problemas"), "{props}");
+        let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
+            "conteos": {"total": 0}}));
+        assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");
+    }
+
+    #[test]
+    fn diagnosticos_por_nota_con_linea_y_columna() {
+        let t = redactar_diagnosticos(&json!({"encendidos": true, "notas": [
+            {"ruta": "Mapa.md", "titulo": "Mapa", "origen": "editor", "total": 1,
+             "diagnosticos": [{"linea": 6, "columna": 5, "origen": "enlace_roto", "mensaje": "Enlace roto: no hay ninguna nota «Fantasma»."}]},
+            {"ruta": "Nueva.md", "titulo": "Nueva", "origen": "pendiente", "total": 0, "diagnosticos": []},
+            {"ruta": "Otra.md", "titulo": "Otra", "origen": "calculado_ahora", "total": 0, "diagnosticos": []}
+        ]}));
+        assert!(t.contains("«Mapa» (Mapa.md): 1 aviso.\n  - línea 6, col. 5 · Enlace roto"), "{t}");
+        assert!(t.contains("«Nueva» (Nueva.md): recién abierta"), "{t}");
+        assert!(t.contains("«Otra» (Otra.md): sin avisos (no está abierta"), "{t}");
+        let apagados = redactar_diagnosticos(&json!({"encendidos": false, "notas": []}));
+        assert!(apagados.starts_with("Los avisos del editor están apagados"), "{apagados}");
+    }
+
+    #[test]
+    fn validar_nota_marca_cada_chequeo() {
+        let t = redactar_validar_nota(&json!({
+            "nota": {"ruta": "Mapa.md", "titulo": "Mapa"}, "ok": false,
+            "chequeos": [
+                {"id": "titulo_unico", "ok": true, "titulo": "Título único", "detalle": []},
+                {"id": "enlaces_resuelven", "ok": false, "titulo": "Sus enlaces resuelven", "detalle": ["Roto: [[Fantasma]] (línea 6)"]}
+            ]
+        }));
+        assert_eq!(t, "«Mapa» (Mapa.md): 1 de 2 chequeos con problemas.\n✓ Título único\n✗ Sus enlaces resuelven\n    Roto: [[Fantasma]] (línea 6)");
+    }
 }
 
 #[cfg(test)]

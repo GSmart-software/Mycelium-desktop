@@ -19,6 +19,7 @@ export function EditorSection() {
   const previewTabs = usePreferencesStore((s) => s.prefs.previewTabs);
   const autoCloseBrackets = usePreferencesStore((s) => s.prefs.autoCloseBrackets);
   const correctorOrtografico = usePreferencesStore((s) => s.prefs.correctorOrtografico);
+  const diagnosticosEditor = usePreferencesStore((s) => s.prefs.diagnosticosEditor);
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
@@ -81,7 +82,7 @@ export function EditorSection() {
         valor={previewTabs}
         onChange={(v) => setPref("previewTabs", v)}
         ayuda="Abrir un archivo sin editarlo reemplaza esa pestaña en vez de abrir otra."
-        detalle="La pestaña se fija al editarla o con doble clic. Desactivá esta opción para abrir siempre una pestaña nueva."
+        detalle="La pestaña se fija al editarla o con doble clic. Desactiva esta opción para abrir siempre una pestaña nueva."
       />
 
       <Interruptor
@@ -89,7 +90,7 @@ export function EditorSection() {
         valor={iconosEnPestanas}
         onChange={(v) => setPref("iconosEnPestanas", v)}
         ayuda="Nota, dibujo, lienzo, tabla o consola, junto al nombre."
-        detalle="También marca los archivos que Mycelium no indexa. Apagalo si preferís que el título ocupe todo el ancho de la pestaña."
+        detalle="También marca los archivos que Mycelium no indexa. Apágalo si prefieres que el título ocupe todo el ancho de la pestaña."
       />
 
       <Interruptor
@@ -101,7 +102,7 @@ export function EditorSection() {
           <>
             Vale para <code>(</code>, <code>[</code>, <code>{"{"}</code>, <code>&quot;</code>,{" "}
             <code>&apos;</code>, <code>`</code>, <code>*</code> y <code>_</code>. Con texto
-            seleccionado, lo envuelve en vez de reemplazarlo. Desactivá esta opción para
+            seleccionado, lo envuelve en vez de reemplazarlo. Desactiva esta opción para
             escribir los símbolos tal cual.
           </>
         }
@@ -118,9 +119,17 @@ export function EditorSection() {
           refrescarCorrector(v);
         }}
         ayuda="Subraya las palabras mal escritas; clic derecho para ver sugerencias."
-        detalle="También revisa lo que ya estaba escrito al abrir la nota. Desde el clic derecho podés agregar la palabra al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las fórmulas y el frontmatter no se corrigen."
+        detalle="También revisa lo que ya estaba escrito al abrir la nota. Desde el clic derecho puedes agregar la palabra al diccionario del vault o ignorarla. El código, los enlaces, las etiquetas, las fórmulas y el frontmatter no se corrigen."
       />
       <DiccionariosCorrector />
+
+      <Interruptor
+        etiqueta="Avisos en la nota"
+        valor={diagnosticosEditor}
+        onChange={(v) => setPref("diagnosticosEditor", v)}
+        ayuda="Subraya los enlaces rotos o ambiguos, el título repetido y las propiedades que no cumplen sus esquemas."
+        detalle="Se revisa al abrir la nota y al guardarla, no en cada tecla. Pasa el mouse sobre lo subrayado para leer el aviso; la barra de estado dice cuántos hay. Nada de esto impide guardar."
+      />
 
       <Interruptor
         etiqueta="Números de línea"
@@ -130,7 +139,7 @@ export function EditorSection() {
         ayuda={
           <>
             Al costado del texto, en las vistas de edición. Es un ajuste{" "}
-            <strong>de este vault</strong>.{!hayVault && " Abrí un vault para poder cambiarlo."}
+            <strong>de este vault</strong>.{!hayVault && " Abre un vault para poder cambiarlo."}
           </>
         }
         detalle={
@@ -156,7 +165,7 @@ export function EditorSection() {
         detalle={
           <>
             No es un encabezado <code>#</code> del documento: es el nombre del archivo, y
-            escribir en él lo renombra. Desactivá esta opción para ocultarlo.
+            escribir en él lo renombra. Desactiva esta opción para ocultarlo.
           </>
         }
       />

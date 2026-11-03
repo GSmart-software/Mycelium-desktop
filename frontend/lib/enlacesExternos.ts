@@ -132,10 +132,30 @@ export function manejarClicDeEnlace(
   return true;
 }
 
+/**
+ * Dónde abrir un enlace interno según cómo se lo pulsó (`FUN-S-34`): clic
+ * simple, en la pestaña actual; Ctrl (⌘ en macOS) + clic, en una pestaña nueva
+ * con foco; clic con la rueda, en una pestaña nueva en segundo plano —la misma
+ * convención que la rueda en el explorador y en las flechas del historial—.
+ */
+export type DondeAbrir = "aqui" | "pestana" | "fondo";
+
+/** Lo que importa de un evento de ratón para decidir `DondeAbrir`. */
+export type ClicConModificadores = { button?: number; ctrlKey?: boolean; metaKey?: boolean };
+
+export function dondeAbrirClic(evento: ClicConModificadores): DondeAbrir {
+  if (evento.button === 1) return "fondo";
+  if (evento.ctrlKey || evento.metaKey) return "pestana";
+  return "aqui";
+}
+
 /** Lo que una vista sabe hacer con un enlace interno. */
 export interface AccionesDeEnlace {
-  /** `[[Nota]]` / `[[Nota#Encabezado]]`: el destino ya decodificado. */
-  abrirNota?: (destino: string) => void;
+  /**
+   * `[[Nota]]` / `[[Nota#Encabezado]]`: el destino ya decodificado, y dónde lo
+   * pidió abrir el clic (`FUN-S-34`). Una vista que no tiene pestañas lo ignora.
+   */
+  abrirNota?: (destino: string, donde: DondeAbrir) => void;
 }
 
 /**
@@ -153,7 +173,7 @@ export interface AccionesDeEnlace {
  * Devuelve `true` cuando el clic era de un enlace (lo haya abierto o no).
  */
 export function atenderClicEnEnlace(
-  evento: { preventDefault: () => void; target: EventTarget | null },
+  evento: { preventDefault: () => void; target: EventTarget | null } & ClicConModificadores,
   acciones: AccionesDeEnlace = {},
 ): boolean {
   const ancla = anclaDe(evento.target);
@@ -167,7 +187,7 @@ export function atenderClicEnEnlace(
     } catch {
       return true; // un `%` mal formado: no es un destino que se pueda abrir
     }
-    acciones.abrirNota?.(destino);
+    acciones.abrirNota?.(destino, dondeAbrirClic(evento));
     return true;
   }
   if (esEnlaceExterno(href)) void abrirEnNavegador(href);

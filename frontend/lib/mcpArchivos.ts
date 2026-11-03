@@ -43,16 +43,19 @@ import {
 } from "@/lib/mcpArchivosLogica";
 import {
   cambioRenombrar,
+  alternarAliasDeNota,
   carpetaDeRuta,
   extensionDeRuta,
   leerPrevia,
   movidosPorCarpeta,
+  repararEntrantes,
   repararTrasOperacion,
   tituloDeRuta,
   type Movido,
   type Reparacion,
 } from "@/lib/repararEnlaces";
 import { motivoNombreInvalido } from "@/lib/tituloEditable";
+import { avisarRecarga } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { avisar } from "@/stores/avisosStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -122,7 +125,7 @@ function exigirGuardado(ids: readonly string[]): void {
     "CAMBIOS_SIN_GUARDAR",
     `${sucias.length === 1 ? `«${tituloVisible(sucias[0])}» tiene` : `${sucias.length} notas tienen`} cambios sin guardar en su ` +
       `pestaña (${enumerar(sucias)}), y esta operación la${sucias.length === 1 ? "" : "s"} tocaría. Mycelium guarda solo en ` +
-      "unos segundos: esperá y repetí, o pedile al usuario que la guarde.",
+      "unos segundos: espera y repite, o pídele al usuario que la guarde.",
     { pestanas: sucias.map((ruta) => ({ titulo: tituloVisible(ruta), ruta })) },
   );
 }
@@ -167,7 +170,7 @@ type Plan = {
 async function alcance(plan: Plan): Promise<string[]> {
   const { vaultId, notas } = useVaultStore.getState();
   if (vaultId === null) return [];
-  const antes = notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo }));
+  const antes = notas.map((n) => ({ id: n.id, titulo: n.titulo, tipo: n.tipo, aliases: n.aliases }));
   const titulos = plan.movidos.map((m) => m.cambio.tituloNuevo);
   const previa = await leerPrevia(antes, plan.afectadas, titulos, vaultId, token());
   return (await repararTrasOperacion(previa, plan.movidos, [], token(), true)).reescritas;
@@ -206,7 +209,7 @@ async function conAlcance(
 // ── renombrar ───────────────────────────────────────────────────────────────
 
 export async function renombrar(args: Record<string, unknown>, confirmado = false): Promise<Atendible> {
-  const { objetivo, nombre } = exigir(validarRenombrar(args));
+  const { objetivo, nombre, conservarAlias } = exigir(validarRenombrar(args));
   const { notas, carpetas, otros } = useVaultStore.getState();
   const a = exigir(resolverAfectado(objetivo, notas, carpetas, otros));
 
@@ -223,7 +226,7 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     const idNuevo = unir(a.nota.carpetaId, nombreNuevo + ext);
     if (nombreNuevo === nombreAntes) throw fallo("INVALIDO", `«${nombreAntes}» ya se llama así: no hay nada que renombrar.`, { campo: "nombre" });
     if (rutaOcupada(idNuevo, ocupadas(), id)) {
-      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elegí otro nombre (renombrar no pisa ni numera).`, { campo: "nombre" });
+      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elige otro nombre (renombrar no pisa ni numera).`, { campo: "nombre" });
     }
     plan = {
       clase: "nota",
@@ -239,7 +242,7 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     const idNuevo = unir(carpetaDeRuta(id) || null, nombreNuevo);
     if (nombreNuevo === nombreAntes) throw fallo("INVALIDO", `La carpeta ya se llama «${nombreAntes}».`, { campo: "nombre" });
     if (rutaOcupada(idNuevo, ocupadas(), id)) {
-      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elegí otro nombre.`, { campo: "nombre" });
+      throw fallo("INVALIDO", `Ya existe «${idNuevo}»: elige otro nombre.`, { campo: "nombre" });
     }
     plan = { clase: "carpeta", id, idNuevo, afectadas: notasDeCarpeta(id), movidos: movidosPorCarpeta(notas, id, idNuevo) };
   }
@@ -256,15 +259,32 @@ export async function renombrar(args: Record<string, unknown>, confirmado = fals
     () => renombrar(args, true),
     async () => {
       const vs = useVaultStore.getState();
-      let r: Reparacion & { id: string };
+      let r: Reparacion & { id: string; aliasConservado?: boolean };
       try {
-        r = plan.clase === "nota" ? await vs.renameNota(plan.id, nombreNuevo) : await vs.renameCarpeta(plan.id, nombreNuevo);
+        r =
+          plan.clase === "nota"
+            ? await vs.renameNota(plan.id, nombreNuevo, { conservarAlias })
+            : await vs.renameCarpeta(plan.id, nombreNuevo);
       } catch (e) {
         throw comoFallo(e);
       }
       const extra = plan.clase === "carpeta" && plan.afectadas.length > 0 ? ` Sus ${plan.afectadas.length} notas cambiaron de ruta.` : "";
-      const efecto = `Renombré ${que} a «${nombreNuevo}» (${r.id}).${extra} ${efectoEnlaces(r.reescritas, r.fallidas)}`;
-      const deshacer: DeshacerArchivos = { tipo: "archivo_renombrar", clase: plan.clase, ruta: r.id, rutaAntes: plan.id, nombre: nombreAntes };
+      // `FUN-M-47`: si se pidió, qué pasó con el nombre anterior como alias.
+      const alias =
+        !conservarAlias || plan.clase !== "nota"
+          ? ""
+          : r.aliasConservado
+            ? ` «${nombreAntes}» quedó como alias en su propiedad \`aliases\`: los [[${nombreAntes}]] siguen llegando.`
+            : ` «${nombreAntes}» NO quedó como alias (solo notas .md con un frontmatter que Mycelium interpreta).`;
+      const efecto = `Renombré ${que} a «${nombreNuevo}» (${r.id}).${extra} ${efectoEnlaces(r.reescritas, r.fallidas)}${alias}`;
+      const deshacer: DeshacerArchivos = {
+        tipo: "archivo_renombrar",
+        clase: plan.clase,
+        ruta: r.id,
+        rutaAntes: plan.id,
+        nombre: nombreAntes,
+        ...(r.aliasConservado ? { alias: nombreAntes } : {}),
+      };
       return {
         resultado: { efecto, clase: plan.clase, ruta_anterior: plan.id, ruta: r.id, ...enlacesParaIa(r) },
         actividad: { efecto, objetivo: objetivoDe(plan.clase, r.id), deshacer },
@@ -462,7 +482,7 @@ export async function papelera(args: Record<string, unknown>): Promise<Atendible
     throw fallo(
       "INVALIDO",
       `No se puede restaurar en su lugar: ya hay otro archivo en ${enumerar(tapadas.map((t) => `«${t}»`))}. ` +
-        "Renombrá o mové ese archivo primero.",
+        "Renombra o mueve ese archivo primero.",
       { campo: "id" },
     );
   }
@@ -513,6 +533,8 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
   switch (d.tipo) {
     case "archivo_renombrar": {
       const r = d.clase === "nota" ? await vs.renameNota(d.ruta, d.nombre) : await vs.renameCarpeta(d.ruta, d.nombre);
+      // El alias que agregó el renombre (`FUN-M-47`) se va con él.
+      if (d.alias) await alternarAliasDeNota(r.id, d.alias, token(), true).catch(() => false);
       return `Volvió a llamarse «${d.nombre}» (${r.id}). ${efectoEnlaces(r.reescritas, r.fallidas)}`;
     }
     case "archivo_mover": {
@@ -524,6 +546,8 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
       const hechas = await restaurarNotas(d.notas);
       return d.clase === "nota" ? `«${tituloVisible(d.ruta)}» volvió de la papelera.` : `La carpeta «${d.ruta}» volvió con ${hechas.length} notas.`;
     }
+    case "archivo_reparar_renombre":
+      return deshacerReparacionRenombre(d);
     case "archivo_borrar": {
       cerrarPestanas([d.ruta]);
       await vs.deleteNota(d.ruta);
@@ -531,6 +555,31 @@ export async function deshacerArchivos(d: DeshacerArchivos): Promise<string> {
       return `«${tituloVisible(d.ruta)}» volvió a la papelera.`;
     }
   }
+}
+
+/**
+ * Deshace la reparación de un renombre hecho por fuera (`FUN-M-47`): en las
+ * notas que se reescribieron, los enlaces vuelven a nombrar al archivo de
+ * antes (con el mismo `reescribirEnlacesMovidos` de siempre, al revés), y se
+ * quita el alias si se había agregado. El archivo no se toca.
+ */
+async function deshacerReparacionRenombre(
+  d: Extract<DeshacerArchivos, { tipo: "archivo_reparar_renombre" }>,
+): Promise<string> {
+  const cambio = {
+    tituloViejo: tituloDeRuta(d.ruta),
+    tituloNuevo: tituloDeRuta(d.rutaAntes),
+    carpetaVieja: carpetaDeRuta(d.ruta),
+    carpetaNueva: carpetaDeRuta(d.rutaAntes),
+    extension: extensionDeRuta(d.ruta),
+  };
+  const r = await repararEntrantes(new Map(d.notas.map((n) => [n, new Set([d.ruta])])), [{ id: d.ruta, idNuevo: d.ruta, cambio }], token());
+  if (d.alias) await alternarAliasDeNota(d.ruta, d.alias, token(), true).catch(() => false);
+  avisarRecarga(r.reescritas);
+  // Con las vistas en vivo aunque el árbol no cambie (`FUN-M-58`): se
+  // reescribió el contenido de otras notas, que pueden estar embebidas.
+  await useVaultStore.getState().loadTree(useVaultStore.getState().vaultId!, { refrescarVistas: true });
+  return `Los enlaces volvieron a nombrar a «${tituloDeRuta(d.rutaAntes)}». ${efectoEnlaces(r.reescritas, r.fallidas)}`;
 }
 
 export { mensajeRechazo };

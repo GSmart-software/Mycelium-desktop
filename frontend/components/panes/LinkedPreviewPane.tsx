@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { subscribeDoc } from "@/lib/editor/docBroker";
 import { getView } from "@/lib/editor/viewRegistry";
-import { renderDrawioIn } from "@/lib/drawioRender";
-import { renderExcalidrawIn } from "@/lib/excalidraw";
+import { renderEmbedsIn } from "@/lib/embedsRender";
 import { rellenarImagenesEn } from "@/lib/imagenesRender";
 import { renderNota } from "@/lib/markdown";
+import { clasesCssDe } from "@/lib/frontmatter";
 import { renderMermaidIn } from "@/lib/mermaid";
 import { useEnlacesDelVault } from "@/components/recordatorios/comun";
 import { useHtmlDecorable } from "@/lib/useHtmlDecorable";
@@ -27,6 +27,8 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     return source.tabs.find((t) => t.id === source.activeTabId)?.notaId ?? null;
   });
   const [html, setHtml] = useState("");
+  // Las clases de `cssclasses` (`FUN-S-08`): también en esta vista de lectura.
+  const [clases, setClases] = useState("");
   // Los enlaces se atienden como en la vista de lectura: wikilink → la nota,
   // web → el navegador, el resto no navega la webview (`DEF-160`).
   const { onClicDetalle } = useEnlacesDelVault();
@@ -40,6 +42,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   useEffect(() => {
     if (!sourceNotaId) {
       setHtml("");
+      setClases("");
       return;
     }
     let vigente = true;
@@ -49,11 +52,15 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     // salía de la caché de IndexedDB, que en desktop se retiró (`FUN-M-40`, D7).
     const vivo = pane.linkedTo ? getView(pane.linkedTo) : null;
     if (vivo) {
-      setHtml(renderNota(vivo.state.doc.toString()));
+      const texto = vivo.state.doc.toString();
+      setHtml(renderNota(texto));
+      setClases(clasesCssDe(texto).join(" "));
     } else {
       void api<{ contenido: string }>(`/notas/${encodeURIComponent(sourceNotaId)}/contenido`)
         .then(({ contenido }) => {
-          if (vigente) setHtml(renderNota(contenido));
+          if (!vigente) return;
+          setHtml(renderNota(contenido));
+          setClases(clasesCssDe(contenido).join(" "));
         })
         .catch(() => {
           /* nota inaccesible: se deja vacío */
@@ -61,7 +68,10 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
     }
     const unsubscribe = subscribeDoc(sourceNotaId, `linked-${pane.id}`, (content) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setHtml(renderNota(content)), 130);
+      timer = setTimeout(() => {
+        setHtml(renderNota(content));
+        setClases(clasesCssDe(content).join(" "));
+      }, 130);
     });
     return () => {
       vigente = false;
@@ -74,8 +84,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   useEffect(() => {
     if (containerRef.current) {
       void renderMermaidIn(containerRef.current);
-      void renderExcalidrawIn(containerRef.current);
-      void renderDrawioIn(containerRef.current);
+      void renderEmbedsIn(containerRef.current); // con o sin extensión (`FUN-S-18`)
       rellenarImagenesEn(containerRef.current, carpeta);
     }
   }, [html, sourceNotaId, otros, carpeta]);
@@ -109,7 +118,7 @@ export function LinkedPreviewPane({ pane }: { pane: LeafPane }) {
   }
 
   return (
-    <div ref={containerRef} className="mic-preview mic-layout-read" onClick={onClicDetalle}>
+    <div ref={containerRef} className={`mic-preview mic-layout-read ${clases}`} onClick={onClicDetalle}>
       <div dangerouslySetInnerHTML={inner} />
     </div>
   );

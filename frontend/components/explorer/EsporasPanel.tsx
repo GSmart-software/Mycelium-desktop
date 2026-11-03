@@ -124,8 +124,8 @@ export function EsporasPanel() {
       {!existe ? (
         <div className={styles.vacio}>
           <p>
-            La carpeta <code>{carpeta}</code> todavía no existe. Creala para empezar a guardar
-            plantillas ahí (podés cambiarla en Configuración → Vault).
+            La carpeta <code>{carpeta}</code> todavía no existe. Créala para empezar a guardar
+            plantillas ahí (puedes cambiarla en Configuración → Vault).
           </p>
           <div className={styles.acciones}>
             <button
@@ -149,8 +149,8 @@ export function EsporasPanel() {
       ) : esporas.length === 0 ? (
         <div className={styles.vacio}>
           <p>
-            No hay ninguna Espora en <code>{carpeta}</code>. Creá la primera: escribí ahí la
-            estructura que repetís (encabezados, propiedades, checklist) y usá las variables
+            No hay ninguna Espora en <code>{carpeta}</code>. Crea la primera: escribe ahí la
+            estructura que repites (encabezados, propiedades, checklist) y usa las variables
             donde quieras la fecha o el título.
           </p>
           <div className={styles.acciones}>

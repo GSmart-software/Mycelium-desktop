@@ -13,7 +13,7 @@ draw.io, así que se abre también en draw.io o en diagrams.net.
 ## Para qué sirve
 
 Para el diagrama formal que vas a retocar dentro de seis meses: un flujo, un organigrama, un
-modelo de entidades, una arquitectura. Movés una caja y las flechas la siguen, y tenés las
+modelo de entidades, una arquitectura. Mueves una caja y las flechas la siguen, y tienes las
 bibliotecas de figuras de draw.io (UML, redes, BPMN y más). Para un boceto rápido a mano
 alzada, mejor un [dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw).
 
@@ -23,7 +23,7 @@ alzada, mejor un [dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw).
    derecho en una carpeta.
 2. Se abre en su pestaña con el editor completo de draw.io. Los cambios se guardan solos en
    el archivo, y el editor sigue el modo claro u oscuro de Mycelium.
-3. Para mostrarlo dentro de una nota, escribí su embed:
+3. Para mostrarlo dentro de una nota, escribe su embed:
 
 ```markdown
 ![[Arquitectura.drawio]]

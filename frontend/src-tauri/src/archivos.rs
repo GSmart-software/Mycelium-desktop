@@ -46,6 +46,10 @@ pub struct ArchivoMeta {
     /// `"excalidraw"` para `.excalidraw`, `"base"` para `.base`, `"canvas"` para
     /// `.canvas`, `"drawio"` para `.drawio`, `"markdown"` para el resto.
     pub tipo: String,
+    /// Tamaño en bytes (`FUN-L-32`): el peso de cada archivo en el dashboard de
+    /// salud. Sale del MISMO `metadata()` que ya se pedía para el `mtime`, así
+    /// que no agrega llamadas al disco; solo unos bytes de JSON por archivo.
+    pub bytes: u64,
 }
 
 /// Tipo de nota según la extensión (espeja `notas.tipo` del índice/esquema).
@@ -102,7 +106,7 @@ pub(crate) fn es_importable(path: &Path) -> bool {
 /// siguiente reindexado.
 ///
 /// También el temporal de la escritura atómica de la PROPIA app
-/// (`vault_fs::escribir_atomico`: `nota.md.tmp-<pid>`, `FUN-M-42`). No termina
+/// (`vault_fs::escribir_atomico`: `nota.md.tmp-<pid>-<n>`, `FUN-M-42`). No termina
 /// en `.tmp`, así que pasaba el filtro: cada guardado traía en su ráfaga una
 /// ruta ajena —el temporal, ya renombrado, con `mtime` 0— y el frontend no
 /// podía descartarla como escritura propia (`FUN-M-38`). Y con el debounce
@@ -117,12 +121,18 @@ pub(crate) fn es_temporal(nombre: &str) -> bool {
         || es_temporal_propio(&minus)
 }
 
-/// `*.tmp-<dígitos>`: el temporal de `vault_fs::escribir_atomico`.
+/// `*.tmp-<pid>-<n>`: el temporal de `vault_fs::escribir_atomico`. También
+/// `*.tmp-<pid>`, el formato de antes de `FUN-M-58`, por si quedó alguno de una
+/// versión anterior (un corte en el instante justo).
 fn es_temporal_propio(minus: &str) -> bool {
+    let digitos = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     match minus.rfind(".tmp-") {
         Some(i) => {
-            let pid = &minus[i + 5..];
-            !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit())
+            let resto = &minus[i + 5..];
+            match resto.split_once('-') {
+                Some((pid, n)) => digitos(pid) && digitos(n),
+                None => digitos(resto),
+            }
         }
         None => false,
     }
@@ -247,11 +257,11 @@ pub(crate) fn recorrer_todo(
         if es_temporal(&entrada.file_name().to_string_lossy()) {
             continue;
         }
-        let mtime = entrada.metadata().map(|m| mtime_ms(&m)).unwrap_or(0);
+        let (mtime, bytes) = entrada.metadata().map(|m| (mtime_ms(&m), m.len())).unwrap_or((0, 0));
         if es_importable(&ruta) {
-            out.archivos_meta.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta) });
+            out.archivos_meta.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: tipo_de(&ruta), bytes });
         } else {
-            out.otros.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: extension_de(&ruta) });
+            out.otros.push(ArchivoMeta { ruta_relativa: relativa, mtime, tipo: extension_de(&ruta), bytes });
         }
     }
     Ok(())
@@ -850,7 +860,7 @@ fn temporal_valida(dir: &str) -> Result<PathBuf, String> {
 }
 
 /// Crea una carpeta temporal de importación vacía y devuelve su ruta.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn crear_temporal_importacion() -> Result<String, String> {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -946,7 +956,7 @@ pub fn escribir_trozo_importacion(request: tauri::ipc::Request<'_>) -> Result<()
 }
 
 /// Borra una carpeta temporal de importación (y solo eso: ver `temporal_valida`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn borrar_temporal_importacion(dir: String) -> Result<(), String> {
     let ruta = temporal_valida(&dir)?;
     std::fs::remove_dir_all(&ruta).map_err(|e| format!("No se pudo borrar {dir}: {e}"))
@@ -1067,6 +1077,11 @@ pub fn extraer_zip_importacion(ventana: tauri::Window, zip: String, dir: String)
 // - una de fuera del vault (exportar, importar una carpeta), solo si el usuario
 //   la eligió en el selector nativo abierto desde Rust (`dialogos`), o si es una
 //   carpeta temporal de importación (`temporal_valida`).
+//
+// Los que tocan el disco llevan `#[tauri::command(async)]` (`FUN-M-58`): sin
+// `async`, Tauri los corre en el hilo de la ventana, y `recorrer_vault` en un
+// vault de 1.500 notas o una exportación entera dejaban la ventana sin poder
+// moverse y todo el IPC —también el SQL— en cola hasta que terminaban.
 
 /// El origen de una importación: una carpeta temporal de importación o una
 /// carpeta elegida en el selector nativo por esta ventana.
@@ -1079,7 +1094,7 @@ fn origen_permitido(ventana: &tauri::Window, origen: &str) -> Result<String, Str
 
 /// Exporta el vault a una carpeta **elegida en el selector nativo** (ver
 /// `exportar_a_carpeta_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn exportar_a_carpeta(
     ventana: tauri::Window,
     destino: String,
@@ -1090,7 +1105,7 @@ pub fn exportar_a_carpeta(
 }
 
 /// Si una carpeta elegida en el selector tiene contenido (ver `carpeta_no_vacia_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn carpeta_no_vacia(ventana: tauri::Window, ruta: String) -> Result<bool, String> {
     let ruta = crate::dialogos::elegida_por(&ventana, &ruta)?;
     carpeta_no_vacia_en(ruta.to_string_lossy().to_string())
@@ -1098,19 +1113,19 @@ pub fn carpeta_no_vacia(ventana: tauri::Window, ruta: String) -> Result<bool, St
 
 /// Un solo recorrido del vault para el índice, el explorador y el watcher
 /// (`FUN-M-13`, `FUN-M-38`): notas con metadatos, otros archivos y directorios.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn recorrer_vault(ventana: tauri::Window, origen: String) -> Result<RecorridoVault, String> {
     recorrer_vault_en(&crate::ventanas::base_de_ventana(&ventana, &origen)?)
 }
 
 /// Los archivos del vault que no son notas (ver `listar_otros_archivos_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn listar_otros_archivos(ventana: tauri::Window, origen: String) -> Result<Vec<ArchivoMeta>, String> {
     listar_otros_archivos_en(crate::ventanas::base_de_ventana(&ventana, &origen)?)
 }
 
 /// El texto de las notas pedidas (ver `leer_archivos_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn leer_archivos(
     ventana: tauri::Window,
     origen: String,
@@ -1120,7 +1135,7 @@ pub fn leer_archivos(
 }
 
 /// Un archivo del vault para el visor (ver `leer_archivo_visor_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn leer_archivo_visor(
     ventana: tauri::Window,
     origen: String,
@@ -1131,7 +1146,7 @@ pub fn leer_archivo_visor(
 }
 
 /// Guarda un archivo editado en el visor (ver `escribir_archivo_visor_en`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn escribir_archivo_visor(
     ventana: tauri::Window,
     origen: String,
