@@ -444,3 +444,27 @@ export function destinoDeEmbed(destino: string): string | null {
   if (sinAlias.length === 0) return null;
   return /\.drawio$/i.test(sinAlias) ? sinAlias : null;
 }
+
+/**
+ * Lo que exporta draw.io va al `src` de un <img>. No se reenvía tal cual: se
+ * saca el SVG del data URI que manda (en base64 o con escapes de URL) y se arma
+ * uno nuevo con el tipo fijo, así que el resultado es siempre una imagen SVG
+ * aunque llegara otra cosa. `null` si no es un SVG o viene vacío.
+ */
+export function svgComoDataUri(dato: string): string | null {
+  const m = /^data:image\/svg\+xml((?:;[^,;]*)*),([\s\S]*)$/.exec(dato);
+  if (!m) return null;
+  let texto: string;
+  try {
+    if (/;base64$/i.test(m[1])) {
+      const binario = atob(m[2]);
+      texto = new TextDecoder().decode(Uint8Array.from(binario, (c) => c.charCodeAt(0)));
+    } else {
+      texto = decodeURIComponent(m[2]);
+    }
+  } catch {
+    return null;
+  }
+  if (!texto.trim()) return null;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(texto)}`;
+}

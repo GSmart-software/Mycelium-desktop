@@ -37,6 +37,7 @@ const {
   origenDeBase,
   SANDBOX_EDITOR,
   SANDBOX_RENDERIZADOR,
+  svgComoDataUri,
   urlDelEditor,
   urlDelRenderizador,
 } = await import(`data:text/javascript,${encodeURIComponent(outputText)}`);
@@ -332,4 +333,17 @@ test("los marcos no pueden navegar la ventana", () => {
   }
   assert.ok(!/allow-downloads|allow-popups|allow-modals/.test(SANDBOX_RENDERIZADOR));
   assert.match(ALLOW_EDITOR, /clipboard-write/);
+});
+
+test("la vista previa solo acepta un SVG y arma su propio data URI", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Año ✓</text></svg>';
+  const esperado = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  const enBase64 = "data:image/svg+xml;base64," + Buffer.from(svg, "utf8").toString("base64");
+  assert.equal(svgComoDataUri(enBase64), esperado);
+  assert.equal(svgComoDataUri("data:image/svg+xml," + encodeURIComponent(svg)), esperado);
+  assert.equal(svgComoDataUri("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg)), esperado);
+  for (const malo of ["", "javascript:alert(1)", "data:text/html,<script>1</script>",
+    "data:image/png;base64,AAAA", "data:image/svg+xml,", "data:image/svg+xml,%E0%A4%A"]) {
+    assert.equal(svgComoDataUri(malo), null, malo);
+  }
 });

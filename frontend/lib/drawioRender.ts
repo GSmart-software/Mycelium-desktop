@@ -13,6 +13,7 @@ import {
   origenDeBase,
   SANDBOX_RENDERIZADOR,
   urlDelRenderizador,
+  svgComoDataUri,
 } from "@/lib/drawio";
 import { resolveWikilink } from "@/lib/editor/wikilink";
 import { useVaultStore, type TreeNota } from "@/stores/vaultStore";
@@ -156,8 +157,8 @@ function pedirSvg(marco: HTMLIFrameElement, xml: string): Promise<string> {
       if (msg.event === "export") {
         clearTimeout(limite);
         window.removeEventListener("message", alRecibir);
-        // Va al `src` de un <img>: solo un SVG como data URI, nada más.
-        if (typeof msg.data === "string" && /^data:image\/svg\+xml[;,]/.test(msg.data)) resolver(msg.data);
+        const svg = typeof msg.data === "string" ? svgComoDataUri(msg.data) : null;
+        if (svg !== null) resolver(svg);
         else rechazar(new Error("la exportación vino vacía o no es un SVG"));
       }
     }
