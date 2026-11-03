@@ -101,8 +101,11 @@ export function codigo(s: string): string {
   return `${valla}${relleno}${texto}${relleno}${valla}`;
 }
 
-/** Código en línea dentro de una celda (el `|` se escapa también ahí en GFM). */
-const codigoEnCelda = (s: string) => codigo(s).replace(/\|/g, "\\|");
+/**
+ * Código en línea dentro de una celda: el `|` se escapa también ahí en GFM, y la
+ * barra invertida con él, para que un `\` del texto no anule el escape del `|`.
+ */
+const codigoEnCelda = (s: string) => codigo(s).replace(/[\\|]/g, "\\$&");
 
 /**
  * Una etiqueta de Mermaid entre comillas (categorías de un eje). Mermaid no

@@ -6,7 +6,6 @@
 // es la política real. Lo que replica a mano —la validación de la ruta, dónde va
 // la guarda y los hashes— lo prueban los tests de Rust del módulo.
 import { createHash } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
 
@@ -79,7 +78,11 @@ export async function responderDrawio(raiz, rutaPedida, ancestros) {
   const limpia =
     rel !== null && rel.split("/").every((s) => s && !s.startsWith(".") && !/[\\:\0-\x1f]/.test(s));
   const ruta = limpia ? join(raiz, rel) : "";
-  if (!limpia || !ruta.startsWith(raiz + sep) || !existsSync(ruta) || !statSync(ruta).isFile()) {
+  // Se lee de una vez, sin comprobar antes que exista: si no está o es una
+  // carpeta, readFile falla y es un 404 (sin carrera entre comprobar y leer).
+  let cuerpo = null;
+  if (limpia && ruta.startsWith(raiz + sep)) cuerpo = await readFile(ruta).catch(() => null);
+  if (cuerpo === null) {
     return {
       estado: 404,
       cabeceras: { "Content-Type": "text/plain; charset=utf-8", "Content-Security-Policy": politicaDrawio([], ancestros) },
@@ -87,7 +90,6 @@ export async function responderDrawio(raiz, rutaPedida, ancestros) {
     };
   }
   const tipo = MIME[extname(ruta).toLowerCase()] ?? "application/octet-stream";
-  let cuerpo = await readFile(ruta);
   let hashes = [];
   if (tipo.startsWith("text/html")) {
     const html = inyectarGuarda(cuerpo.toString("utf8"));

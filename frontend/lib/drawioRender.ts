@@ -156,8 +156,9 @@ function pedirSvg(marco: HTMLIFrameElement, xml: string): Promise<string> {
       if (msg.event === "export") {
         clearTimeout(limite);
         window.removeEventListener("message", alRecibir);
-        if (typeof msg.data === "string" && msg.data.length > 0) resolver(msg.data);
-        else rechazar(new Error("la exportación vino vacía"));
+        // Va al `src` de un <img>: solo un SVG como data URI, nada más.
+        if (typeof msg.data === "string" && /^data:image\/svg\+xml[;,]/.test(msg.data)) resolver(msg.data);
+        else rechazar(new Error("la exportación vino vacía o no es un SVG"));
       }
     }
 
