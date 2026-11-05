@@ -459,8 +459,8 @@
      El celeste del logo sigue en el degradado y en los H3.
    - base-deep: la marca no tiene un fondo más hondo que el suyo; para el código
      y los velos se usa el fondo oscurecido sin perder el tono azul (#040812,
-     mismo matiz de 223°, ~70 % de su luz). El código se distingue de la nota por
-     su borde más que por el fondo; un negro neutro rompía la familia. */
+     mismo matiz de 223°, ~70 % de su luz) para velos y sombras; un negro neutro
+     rompía la familia. El código no lo usa: va en la hoja (ver abajo). */
 [data-theme='gsmart'][data-dark='true'] {
   --mic-raw-base:       #0A1532;   /* noche: rail / topbar */
   --mic-raw-base-deep:  #040812;   /* código, velos, sombras (derivado) */
@@ -475,6 +475,11 @@
 [data-theme='gsmart'][data-dark='true'] {
   --mic-border:         #1D2945;   /* línea de la marca */
   --mic-bg-hover:       rgba(238, 243, 252, 0.06);
+  /* El código va en la hoja, no en base-deep: #040812 contra la nota #060B18 da
+     1.02:1 y los bloques de código no tienen borde, así que no se distinguían.
+     Ningún color más hondo que la nota pasa de ~1.07; la hoja sí se separa, como
+     las tarjetas de la marca. base-deep queda para velos y sombras. */
+  --mic-bg-code:        var(--mic-raw-mist);
   /* Foco en el acento (9.0:1 sobre la nota): «bordes activos» en la marca. */
   --mic-focus:          #6FB4FF;
   /* El marco: íconos en el acento, el segundo color del logo en aguamarina. */
