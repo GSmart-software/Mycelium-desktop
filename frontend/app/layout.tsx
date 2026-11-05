@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import {
+  Archivo,
   Fira_Code,
   Geist,
   Inter,
   JetBrains_Mono,
   Lora,
-  Manrope,
-  Michroma,
   Source_Code_Pro,
   Source_Serif_4,
 } from "next/font/google";
@@ -61,22 +60,18 @@ const sourceCodePro = Source_Code_Pro({
   preload: false,
 });
 
-// Las letras del tema GSmart (`FUN-M-52`): Manrope en la interfaz y Michroma en
-// títulos y etiquetas. Solo las usa styles/gsmart.css, bajo
-// `:root[data-theme='gsmart']`. `next/font/google` las descarga AL COMPILAR y
-// las sirve con la app: en ejecución no sale ningún pedido a Google, así que
-// andan sin red. Sin precarga: el resto de los temas no las pide, y el
+// La letra del tema GSmart (`FUN-M-52`, marca v3): Archivo, en sus dos anchos
+// —al 100 % en la interfaz y al 125 % en los títulos—, así que va como fuente
+// variable con el eje `wdth` además del peso. Solo la usa styles/gsmart.css,
+// bajo `:root[data-theme='gsmart']`; las etiquetas en mayúsculas de la marca van
+// en JetBrains Mono, que ya está arriba. `next/font/google` la descarga AL
+// COMPILAR y la sirve con la app: en ejecución no sale ningún pedido a Google,
+// así que anda sin red. Sin precarga: el resto de los temas no la pide, y el
 // navegador solo baja un @font-face cuando una regla lo usa.
-const manrope = Manrope({
-  variable: "--font-manrope",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  display: "swap",
-  preload: false,
-});
-const michroma = Michroma({
-  variable: "--font-michroma",
-  weight: "400",
-  subsets: ["latin"],
+  axes: ["wdth"],
   display: "swap",
   preload: false,
 });
@@ -86,8 +81,7 @@ const fontVariables = [
   lora.variable,
   firaCode.variable,
   sourceCodePro.variable,
-  manrope.variable,
-  michroma.variable,
+  archivo.variable,
 ].join(" ");
 
 export const metadata: Metadata = {
