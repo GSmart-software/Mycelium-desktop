@@ -38,14 +38,14 @@ export const PRINT_CSS = `
   --mic-raw-ink: #F7F9FC; --mic-raw-ink-muted: #8A9095;
 }
 [data-theme='gsmart'] {
-  --mic-raw-base: #E8ECF1; --mic-raw-base-deep: #141E3C; --mic-raw-accent: #1F6FC4;
-  --mic-raw-glow: #166A5E; --mic-raw-mist: #FFFFFF; --mic-raw-canvas: #F3F5F8;
-  --mic-raw-ink: #1B1F24; --mic-raw-ink-muted: #4A525B; --mic-amber-icon: #E0A63A;
+  --mic-raw-base: #E8F0FB; --mic-raw-base-deep: #0D1E46; --mic-raw-accent: #1F6FD0;
+  --mic-raw-glow: #0B7D70; --mic-raw-mist: #FFFFFF; --mic-raw-canvas: #F5F8FC;
+  --mic-raw-ink: #0D1220; --mic-raw-ink-muted: #4A5468; --mic-amber-icon: #E0A63A;
 }
 [data-theme='gsmart'][data-dark='true'] {
-  --mic-raw-base: #2E3134; --mic-raw-base-deep: #18191B; --mic-raw-accent: #3B9BE8;
-  --mic-raw-glow: #A3ECE2; --mic-raw-canvas: #1E2023; --mic-raw-mist: #25282B;
-  --mic-raw-ink: #ECEFF2; --mic-raw-ink-muted: #B3B9C0;
+  --mic-raw-base: #0A1532; --mic-raw-base-deep: #040812; --mic-raw-accent: #6FB4FF;
+  --mic-raw-glow: #A3ECE2; --mic-raw-canvas: #060B18; --mic-raw-mist: #0E1730;
+  --mic-raw-ink: #EEF3FC; --mic-raw-ink-muted: #B3C0DA;
 }
 [data-theme='amethystina'] {
   --mic-raw-base: #35195F; --mic-raw-base-deep: #2A1349; --mic-raw-accent: #6C3DBD;

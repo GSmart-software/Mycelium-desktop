@@ -1,13 +1,13 @@
 /*
- * Tema GSmart (`FUN-M-52`, solo con el modo dev): la FORMA de la marca personal
- * del usuario. Los colores están en tokens.css, como los de los otros temas; acá
- * va lo que Bioluminiscencia y Cantarela no tienen: el degradado de la marca,
- * sus radios, sus letras (Manrope en la interfaz, Michroma en títulos y
- * etiquetas) y el foco en el acento. Fuente de los valores: la skill `gsmart-marca`.
- * Spec: docs/features/tema-gsmart.md.
+ * Tema GSmart (`FUN-M-52`, solo con el modo dev): la FORMA de la marca GSmart
+ * (v3). Los colores están en tokens.css, como los de los otros temas; acá va lo
+ * que Bioluminiscencia y Cantarela no tienen: el degradado de la marca, sus
+ * radios, sus letras (Archivo en dos anchos y JetBrains Mono en las etiquetas)
+ * y el foco en el acento. Fuente de los valores: la skill `gsmart-marca`
+ * (tokens.css de la marca v3). Spec: docs/features/tema-gsmart.md.
  *
  * Sigue la estructura de styles/arrecife.css, el primer tema de marca:
- *  - Todo va bajo `:root[data-theme='gsmart']`, así que los otros tres temas no
+ *  - Todo va bajo `:root[data-theme='gsmart']`, así que los otros temas no
  *    cambian. Lleva `:root` porque la forma es de la ventana: las muestras de
  *    Configuración repiten `data-theme` en un <span> y no deben heredarla.
  *  - Lo de cada componente vive en su .module.css, con
@@ -16,66 +16,100 @@
  *  - Las variables son `--gsmart-*` y no `--mic-*`: no son tokens públicos, y la
  *    plantilla de snippets no las ofrece.
  *
- * Las letras se cargan en app/layout.tsx con `next/font/google` (se empaquetan
- * al compilar: andan sin red). El texto de las notas NO se toca: su fuente la
- * elige el usuario en Configuración → Tipografía. Solo los títulos de la nota
- * (el del documento, H1 y H2) van en Michroma, porque son títulos.
+ * Archivo se carga en app/layout.tsx con `next/font/google` (se empaqueta al
+ * compilar: anda sin red). El texto de las notas NO se toca: su fuente la elige
+ * el usuario en Configuración → Tipografía. Solo los títulos de la nota (el del
+ * documento, H1 y H2) van en Archivo ancha, porque son títulos.
  */
 :root[data-theme='gsmart'] {
-  /* El degradado de la marca, de azul profundo a cian, a 90° como en la marca.
+  /* El degradado del logo: índigo → azul → celeste, a 100° como en la marca.
      Botones primarios, barras de progreso, interruptores, indicadores de
-     selección. Es para superficies: sobre él va texto claro (#f2fbff). */
-  --gsmart-degradado: linear-gradient(90deg, #2B4AA6 0%, #12A8E8 100%);
-  --gsmart-degradado-vertical: linear-gradient(180deg, #2B4AA6 0%, #12A8E8 100%);
+     selección. Es para superficies: sobre él va texto claro (#eef4ff). */
+  --gsmart-degradado: linear-gradient(100deg, #2B4AA6 0%, #1F6FD0 50%, #12A8E8 100%);
+  --gsmart-degradado-vertical: linear-gradient(180deg, #2B4AA6 0%, #1F6FD0 50%, #12A8E8 100%);
   /* Selección suave: ítem activo de una lista, pestaña activa. */
-  --gsmart-degradado-suave: linear-gradient(90deg, rgba(43, 74, 166, 0.16), rgba(18, 168, 232, 0.10));
-  --gsmart-sobre-degradado: #F2FBFF;
-  /* Sombra del botón primario (azul profundo). */
+  --gsmart-degradado-suave: linear-gradient(
+    100deg,
+    rgba(43, 74, 166, 0.16) 0%,
+    rgba(31, 111, 208, 0.12) 50%,
+    rgba(18, 168, 232, 0.10) 100%
+  );
+  --gsmart-sobre-degradado: #EEF4FF;
+  /* Sombra del botón primario (índigo). */
   --gsmart-sombra-boton: 0 4px 16px rgba(43, 74, 166, 0.35);
   --gsmart-transicion: filter 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
   --gsmart-elevar: translateY(-1px);
   --gsmart-radio-control: 12px; /* botones e inputs */
 
-  /* Letras. Michroma tiene un solo peso: nunca se le pide negrita (el navegador
-     la inventaría engrosándola). Las etiquetas, en mayúsculas y con el
-     espaciado amplio de la marca. */
-  --gsmart-letra-titulo: var(--font-michroma), "Segoe UI", sans-serif;
-  --gsmart-espaciado-etiqueta: 0.3em;
+  /* Letras. Una familia en dos anchos: Archivo al 100 % en la interfaz y al
+     125 % en los títulos, en 600 y con el interletrado cerrado de la marca
+     (−0,028 a −0,038 em). Las etiquetas en mayúsculas («ARCHIVOS», los títulos
+     de grupo) van en JetBrains Mono, la mono de Mycelium, con +0,14 em. */
+  --gsmart-letra-titulo: var(--font-archivo), "Segoe UI", system-ui, sans-serif;
+  --gsmart-ancho-titulo: 125%;
+  --gsmart-peso-titulo: 600;
+  --gsmart-interletra-titulo: -0.032em;
+  --gsmart-letra-etiqueta: var(--mic-font-mono);
+  --gsmart-espaciado-etiqueta: 0.14em;
+  --gsmart-tamano-etiqueta: 0.6875rem;
 
-  /* Manrope en toda la interfaz (en lugar de Geist). El código ya es JetBrains
-     Mono (`--mic-font-mono`), la de la marca. */
-  --mic-font-sans: var(--font-manrope), "Segoe UI", system-ui, sans-serif;
+  /* Archivo en toda la interfaz (en lugar de Geist), a su ancho normal. El
+     código ya es JetBrains Mono (`--mic-font-mono`), la de la marca. */
+  --mic-font-sans: var(--font-archivo), "Segoe UI", system-ui, sans-serif;
 
-  /* Radios: la marca va de 12 a 20 (controles 12, base 16, grande 20). Los de
-     Mycelium son 4/8/16 y quedan en 8/12/16, como en Arrecife:
-     - el chico va a 8 y no a 12 porque también lo usan cosas de 16px de alto (el
+  /* Radios: la marca usa 9 / 12 / 18 (chico, base, tarjeta). Los de Mycelium
+     (4/8/16) pasan a 9/12 y el grande se queda en 16:
+     - el chico va a 9 y no a 12 porque también lo usan cosas de 16px de alto (el
        código en línea, la marca «dev», chips del árbol) que con 12 serían
        píldoras; botones e inputs toman 12 explícito;
-     - el grande se queda en 16 y no sube a 20 porque `--mic-radius-lg` es además
+     - el grande se queda en 16 y no sube a 18 porque `--mic-radius-lg` es además
        el relleno de la hoja de lectura (editor.css): subirlo movería el texto de
        las notas. */
-  --mic-radius-sm: 8px;
+  --mic-radius-sm: 9px;
   --mic-radius-md: 12px;
   --mic-radius-lg: 16px;
 }
 
-/* Las dos tintas del degradado que se leen como TEXTO (el nombre de la app, el
-   título de la nota, el H1 de lectura). El degradado de la marca, en crudo, no
-   se lee como letra en ninguno de los dos modos: el azul profundo da 2.05:1
-   sobre el fondo oscuro y el cian 2.47:1 sobre el claro. Se aclara (o se
-   oscurece) la punta que no llega, y la otra queda tal cual:
-   - oscuro: #2b4aa6 al 60% con #f2fbff → #7B91CA (5.2:1 sobre la nota) y el
-     cian #12a8e8 (6.1:1);
-   - claro: el azul profundo #2b4aa6 (7.3:1) y el cian al 60% con la tinta →
-     #16719A (5.0:1).
-   `--gsmart-cian` es el cian legible de cada modo (viñetas, H3). */
+/* Lo que cambia con el modo.
+
+   El degradado como TEXTO (el nombre de la app, el título de la nota, el H1 de
+   lectura). El del logo, en crudo, no se lee como letra: el índigo da 2.0:1
+   sobre el fondo oscuro y el celeste 2.5:1 sobre el claro.
+   - oscuro: el «degradado-luz» de la marca, cielo #6fb4ff → aguamarina #a3ece2
+     (9.0 y 14.7:1 sobre la nota);
+   - claro: el de la marca con la punta celeste corregida —el celeste al 60 % con
+     la tinta, #106C98 (5.5:1)— y el azul del medio un 5 % más hondo, #1E6AC7,
+     para que el nombre de la app pase también sobre el marco (4.6:1; el
+     #1f6fd0 de la marca da 4.3). El índigo queda tal cual (7.5:1).
+   `--gsmart-cian` es el celeste legible de cada modo (viñetas, H3).
+
+   La selección de texto, en el acento de cada modo.
+
+   El brillo ambiental del lienzo: los brillos de la marca (índigo arriba a la
+   izquierda, celeste abajo a la derecha, aguamarina arriba a la derecha), más
+   tenues que en la marca para que el texto de la nota no pierda contraste:
+   - oscuro, al 60 % de la marca (índigo .30, celeste .16, aguamarina .08): en
+     el pico de cada uno el texto secundario sigue en ≥8.7:1 y el H3 en ≥5.9:1;
+   - claro, mucho más tenue (índigo .06, celeste .06, aguamarina .12): el acento
+     de la marca ya está al límite sobre el fondo (4.65:1) y cualquier tinte lo
+     baja; así el secundario queda en ≥6.5:1. */
 :root[data-theme='gsmart'][data-dark='true'] {
-  --gsmart-degradado-texto: linear-gradient(90deg, #7B91CA 0%, #12A8E8 100%);
+  --gsmart-degradado-texto: linear-gradient(100deg, #6FB4FF 0%, #A3ECE2 100%);
   --gsmart-cian: #12A8E8;
+  --gsmart-seleccion: rgba(111, 180, 255, 0.30);
+  --gsmart-brillo-lienzo:
+    radial-gradient(ellipse 60% 55% at 0% 0%, rgba(43, 74, 166, 0.30), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 100% 100%, rgba(18, 168, 232, 0.16), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 100% 0%, rgba(163, 236, 226, 0.08), transparent 70%);
 }
 :root[data-theme='gsmart']:not([data-dark='true']) {
-  --gsmart-degradado-texto: linear-gradient(90deg, #2B4AA6 0%, #16719A 100%);
-  --gsmart-cian: #16719A;
+  --gsmart-degradado-texto: linear-gradient(100deg, #2B4AA6 0%, #1E6AC7 50%, #106C98 100%);
+  --gsmart-cian: #106C98;
+  --gsmart-seleccion: rgba(31, 111, 208, 0.22);
+  --gsmart-brillo-lienzo:
+    radial-gradient(ellipse 60% 55% at 0% 0%, rgba(43, 74, 166, 0.06), transparent 70%),
+    radial-gradient(ellipse 60% 55% at 100% 100%, rgba(18, 168, 232, 0.06), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 100% 0%, rgba(163, 236, 226, 0.12), transparent 70%);
 }
 
 /* La marca no pide reducir movimiento, pero Mycelium sí lo respeta. */
@@ -108,48 +142,51 @@
   border-color: var(--mic-focus);
 }
 
-/* ── Michroma en títulos y etiquetas, nunca en párrafos ──────────────────── */
+/* ── Letras: Archivo ancha en títulos, mono en etiquetas ─────────────────── */
 
-/* Los títulos de sección de los menús en mayúsculas (los del explorador y de
-   Configuración van en su módulo). */
+/* Los títulos de sección de los menús en mayúsculas: etiquetas de la marca, en
+   mono con +0,14 em (los del explorador y de Configuración van en su módulo). */
 :root[data-theme='gsmart'] .mic-tab-menu-titulo {
-  font-family: var(--gsmart-letra-titulo);
-  font-size: 0.625rem;
+  font-family: var(--gsmart-letra-etiqueta);
+  font-size: var(--gsmart-tamano-etiqueta);
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
 
 /* El título de la nota y sus H1 y H2: son títulos, y la marca los quiere en
-   Michroma. El cuerpo sigue con la fuente que eligió el usuario. Sin negrita:
-   Michroma tiene un solo peso. */
+   Archivo ancha (125 %), en 600 y con el interletrado cerrado. El cuerpo sigue
+   con la fuente que eligió el usuario. */
 :root[data-theme='gsmart'] :is(.mic-doc-title-texto, .mic-doc-title-campo),
 :root[data-theme='gsmart'] :is(.mic-live-h1, .mic-live-h2),
 :root[data-theme='gsmart'] .mic-preview :is(h1, h2) {
   font-family: var(--gsmart-letra-titulo);
-  font-weight: 400;
+  font-stretch: var(--gsmart-ancho-titulo);
+  font-weight: var(--gsmart-peso-titulo);
+  letter-spacing: var(--gsmart-interletra-titulo);
 }
 
 /* ── Presencia de la marca: los mismos lugares que Arrecife (`571decb`) ──── */
 
-/* Los títulos de la nota: acento y aguamarina alternados, con el cian en el H3.
-   Medidos sobre la nota y los paneles (docs/features/tema-gsmart.md). */
+/* Los títulos de la nota: acento (cielo) y aguamarina alternados, con el
+   celeste en el H3. Medidos sobre la nota y los paneles
+   (docs/features/tema-gsmart.md). */
 :root[data-theme='gsmart'][data-dark='true'] {
-  --mic-h1: #3B9BE8;
+  --mic-h1: #6FB4FF;
   --mic-h2: #A3ECE2;
   --mic-h3: #12A8E8;
   --mic-h4: color-mix(in srgb, #A3ECE2 70%, var(--mic-text-primary));
-  --mic-h5: color-mix(in srgb, #3B9BE8 55%, var(--mic-text-primary));
+  --mic-h5: color-mix(in srgb, #6FB4FF 55%, var(--mic-text-primary));
 }
 :root[data-theme='gsmart']:not([data-dark='true']) {
-  --mic-h1: #1F6FC4;
-  --mic-h2: #166A5E;
-  --mic-h3: #16719A;
-  --mic-h4: color-mix(in srgb, #166A5E 80%, var(--mic-text-primary));
-  --mic-h5: color-mix(in srgb, #1F6FC4 60%, var(--mic-text-primary));
+  --mic-h1: #1F6FD0;
+  --mic-h2: #0B7D70;
+  --mic-h3: #106C98;
+  --mic-h4: color-mix(in srgb, #0B7D70 80%, var(--mic-text-primary));
+  --mic-h5: color-mix(in srgb, #1F6FD0 60%, var(--mic-text-primary));
 }
 
 /* El título del documento, en el degradado. La caja se ajusta al texto: si
    ocupara todo el ancho, el degradado se estiraría y el texto solo alcanzaría el
-   tramo azul. */
+   primer tramo. */
 :root[data-theme='gsmart'] :is(.mic-doc-title-texto, .mic-doc-title-campo) {
   background-image: var(--gsmart-degradado-texto);
   width: fit-content;
@@ -169,28 +206,27 @@
   caret-color: var(--mic-accent);
 }
 
-/* Etiquetas: pastillas con el degradado de la marca al 18% de fondo (la marca:
-   «etiquetas y pastillas con el acento al 15–18 % de fondo»). */
+/* Etiquetas: pastillas con el degradado de la marca al 18% de fondo. */
 :root[data-theme='gsmart'] :is(.mic-tag-cm, .mic-tag-pill) {
-  background: linear-gradient(90deg, rgba(43, 74, 166, 0.18), rgba(18, 168, 232, 0.18));
+  background: linear-gradient(100deg, rgba(43, 74, 166, 0.18), rgba(18, 168, 232, 0.18));
   border-radius: 999px;
   padding: 0.05em 0.6em;
 }
 
-/* Selección de texto en el acento. */
+/* Selección de texto en el acento de cada modo. */
 :root[data-theme='gsmart'] ::selection {
-  background: rgba(59, 155, 232, 0.30);
+  background: var(--gsmart-seleccion);
 }
 
 /* Barras de desplazamiento con el degradado, atenuado. */
 :root[data-theme='gsmart'] *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(43, 74, 166, 0.55), rgba(18, 168, 232, 0.45));
+  background: linear-gradient(180deg, rgba(43, 74, 166, 0.55), rgba(31, 111, 208, 0.5), rgba(18, 168, 232, 0.45));
 }
 :root[data-theme='gsmart'] *::-webkit-scrollbar-thumb:hover {
   background: var(--gsmart-degradado-vertical);
 }
 
-/* Viñetas de lista en el cian. */
+/* Viñetas de lista en el celeste. */
 :root[data-theme='gsmart'] :is(.mic-vineta, .mic-preview li)::marker,
 :root[data-theme='gsmart'] .mic-vineta {
   color: var(--gsmart-cian);

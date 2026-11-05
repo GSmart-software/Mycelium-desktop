@@ -59,10 +59,9 @@ export const TEMAS: readonly InfoTema[] = [
   // Los acentos de la marca tal cual (cian y violeta), no los derivados que usa
   // la interfaz para leerse: la muestra es la identidad, no un texto.
   { id: "arrecife", nombre: "Arrecife", canvas: "#14171E", mist: "#1D222C", glow: "#7444E4", accent: "#3AB8D8", soloDev: true },
-  // GSmart (`FUN-M-52`), la marca personal del usuario: los colores del
-  // símbolo —el aguamarina de las líneas de la G y el cian del degradado— sobre
-  // el carbón. El azul profundo, la otra punta, casi no se ve sobre ese fondo.
-  { id: "gsmart", nombre: "GSmart", canvas: "#1E2023", mist: "#25282B", glow: "#A3ECE2", accent: "#12A8E8", soloDev: true },
+  // GSmart (`FUN-M-52`, marca v3): el fondo y la hoja de la marca, con el
+  // cielo de los enlaces y la aguamarina de las líneas de la G.
+  { id: "gsmart", nombre: "GSmart", canvas: "#060B18", mist: "#0E1730", glow: "#A3ECE2", accent: "#6FB4FF", soloDev: true },
 ];
 
 /**

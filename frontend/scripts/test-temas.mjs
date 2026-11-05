@@ -80,11 +80,12 @@ test("la muestra de Arrecife lleva los colores de la marca", () => {
   assert.equal(a.glow, "#7444E4");
 });
 
-test("la muestra de GSmart lleva los colores del símbolo sobre el carbón", () => {
+test("la muestra de GSmart lleva el fondo y la hoja de la marca v3, con el cielo y la aguamarina", () => {
   const g = TEMAS.find((t) => t.id === "gsmart");
   assert.equal(g.nombre, "GSmart");
-  assert.equal(g.canvas, "#1E2023");
-  assert.equal(g.accent, "#12A8E8");
+  assert.equal(g.canvas, "#060B18");
+  assert.equal(g.mist, "#0E1730");
+  assert.equal(g.accent, "#6FB4FF");
   assert.equal(g.glow, "#A3ECE2");
 });
 
@@ -164,26 +165,30 @@ test("tokens.css define los ocho raw de Arrecife en claro y en oscuro", () => {
 test("tokens.css define los ocho raw de GSmart con los valores de la marca", () => {
   assert.deepEqual(Object.keys(gsClaro).sort(), [...RAW].sort());
   assert.deepEqual(Object.keys(gsOscuro).sort(), [...RAW].sort());
-  // Oscuro: todo tal cual la marca (skill gsmart-marca, tokens.css).
+  // Oscuro: tal cual la marca v3 (skill gsmart-marca, tokens.css), salvo el
+  // fondo del código, que la marca no tiene (el fondo oscurecido, azulado).
   assert.deepEqual(gsOscuro, {
-    canvas: "#1E2023", // fondo
-    mist: "#25282B", // fondo 2
-    base: "#2E3134", // panel
-    "base-deep": "#18191B", // código
-    ink: "#ECEFF2",
-    "ink-muted": "#B3B9C0",
-    accent: "#3B9BE8",
+    canvas: "#060B18", // fondo
+    mist: "#0E1730", // hoja
+    base: "#0A1532", // noche
+    "base-deep": "#040812", // código (derivado)
+    ink: "#EEF3FC",
+    "ink-muted": "#B3C0DA",
+    accent: "#6FB4FF", // cielo
     glow: "#A3ECE2", // aguamarina
   });
-  // Claro: tal cual, salvo el glow (el aguamarina no se lee sobre claro) y el
-  // tinte de las sombras.
-  assert.equal(gsClaro.canvas, "#F3F5F8");
-  assert.equal(gsClaro.mist, "#FFFFFF");
-  assert.equal(gsClaro.base, "#E8ECF1");
-  assert.equal(gsClaro.ink, "#1B1F24");
-  assert.equal(gsClaro["ink-muted"], "#4A525B");
-  assert.equal(gsClaro.accent, "#1F6FC4");
-  assert.equal(gsClaro.glow, "#166A5E");
+  // Claro: tal cual, con el resalte claro de la marca como glow y el color de
+  // su sombra como tinte de velos.
+  assert.deepEqual(gsClaro, {
+    canvas: "#F5F8FC", // fondo
+    mist: "#FFFFFF", // hoja
+    base: "#E8F0FB", // tinte
+    "base-deep": "#0D1E46", // sombra
+    ink: "#0D1220",
+    "ink-muted": "#4A5468",
+    accent: "#1F6FD0",
+    glow: "#0B7D70", // resalte
+  });
 });
 
 test("el PDF (lib/printStyles.ts) lleva los mismos raw de los temas de marca que la app", async () => {
@@ -242,12 +247,14 @@ test("contraste de Arrecife: texto principal y secundario ≥4.5:1 sobre sus fon
 
 test("contraste de GSmart: texto, acento y aguamarina ≥4.5:1 sobre sus fondos, en los dos modos", () => {
   textosLegibles("gsmart", [["claro", gsClaro], ["oscuro", gsOscuro]]);
-  // El segundo tono va como texto en los dos modos (H2, íconos de nota): el
-  // aguamarina en oscuro y su derivado en claro, sobre los tres fondos.
+  // El segundo tono va como texto en los dos modos (H2, íconos de nota): la
+  // aguamarina en oscuro y el resalte de la marca en claro, sobre la nota y los
+  // paneles. Sobre el marco solo pinta el segundo color del logo (objeto
+  // gráfico, ≥3:1): en claro da 4.37.
   for (const [modo, p] of [["claro", gsClaro], ["oscuro", gsOscuro]]) {
-    for (const fondo of ["canvas", "mist", "base"]) {
+    for (const [fondo, minimo] of [["canvas", 4.5], ["mist", 4.5], ["base", 3]]) {
       const c = contraste(p.glow, p[fondo]);
-      assert.ok(c >= 4.5, `gsmart ${modo}: glow ${p.glow} sobre ${fondo} = ${c.toFixed(2)}:1`);
+      assert.ok(c >= minimo, `gsmart ${modo}: glow ${p.glow} sobre ${fondo} = ${c.toFixed(2)}:1`);
     }
   }
 });
@@ -256,22 +263,25 @@ const gsmartCss = await leer("styles/gsmart.css");
 const sinComentarios = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
 
 test("GSmart: el degradado de la marca, y sus tintas como texto legibles en los dos modos", () => {
-  assert.match(gsmartCss, /--gsmart-degradado:\s*linear-gradient\(90deg, #2B4AA6 0%, #12A8E8 100%\)/);
+  assert.match(gsmartCss, /--gsmart-degradado:\s*linear-gradient\(100deg, #2B4AA6 0%, #1F6FD0 50%, #12A8E8 100%\)/);
   // Las puntas del degradado que se leen como texto (nombre, título, H1).
   const tintas = (selector) => {
     const i = gsmartCss.indexOf(`${selector} {`);
     assert.ok(i >= 0, `falta ${selector}`);
     const cuerpo = gsmartCss.slice(i, gsmartCss.indexOf("}", i));
-    const m = cuerpo.match(/--gsmart-degradado-texto:\s*linear-gradient\(90deg, (#[0-9A-F]{6}) 0%, (#[0-9A-F]{6}) 100%\)/);
+    const m = cuerpo.match(/--gsmart-degradado-texto:\s*linear-gradient\(100deg,([^;]+)\);/);
     assert.ok(m, `sin degradado de texto en ${selector}`);
-    return [m[1], m[2]];
+    const paradas = [...m[1].matchAll(/#[0-9A-F]{6}/g)].map((x) => x[0]);
+    assert.ok(paradas.length >= 2, `${selector}: el degradado de texto necesita dos paradas`);
+    return paradas;
   };
   for (const [modo, selector, p] of [
     ["oscuro", ":root[data-theme='gsmart'][data-dark='true']", gsOscuro],
     ["claro", ":root[data-theme='gsmart']:not([data-dark='true'])", gsClaro],
   ]) {
     for (const color of tintas(selector)) {
-      for (const fondo of ["canvas", "mist"]) {
+      // El marco también: ahí va el nombre de la app.
+      for (const fondo of ["canvas", "mist", "base"]) {
         const c = contraste(color, p[fondo]);
         assert.ok(c >= 4.5, `gsmart ${modo}: degradado de texto ${color} sobre ${fondo} = ${c.toFixed(2)}:1`);
       }
@@ -420,19 +430,17 @@ test("GSmart lleva su marca en todos los lugares donde Arrecife lleva la suya", 
   }
 });
 
-test("GSmart: las letras se empaquetan con la app y solo las usa su tema", async () => {
+test("GSmart: Archivo se empaqueta con la app, con su eje de ancho, y solo la usa su tema", async () => {
   const layout = await leer("app/layout.tsx");
-  for (const [familia, variable] of [
-    ["Manrope", "--font-manrope"],
-    ["Michroma", "--font-michroma"],
-  ]) {
-    const i = layout.indexOf(`= ${familia}({`);
-    assert.ok(i >= 0, `falta ${familia} con next/font/google`);
-    const opciones = layout.slice(i, layout.indexOf("});", i));
-    assert.match(opciones, new RegExp(`variable: "${variable}"`));
-    assert.match(opciones, /preload: false/, `${familia} no se precarga`);
-    assert.match(opciones, /display: "swap"/, `${familia} con display: swap`);
-  }
+  const i = layout.indexOf("= Archivo({");
+  assert.ok(i >= 0, "falta Archivo con next/font/google");
+  const opciones = layout.slice(i, layout.indexOf("});", i));
+  assert.match(opciones, /variable: "--font-archivo"/);
+  assert.match(opciones, /axes: \["wdth"\]/, "Archivo necesita el eje wdth para los títulos al 125 %");
+  assert.match(opciones, /preload: false/, "Archivo no se precarga");
+  assert.match(opciones, /display: "swap"/, "Archivo con display: swap");
+  // Las letras de la marca anterior ya no se cargan.
+  assert.doesNotMatch(layout, /Manrope|Michroma/);
   // Ningún pedido a Google Fonts en ejecución: next/font las baja al compilar.
   for (const dir of ["app", "components", "lib", "stores", "styles"]) {
     const archivos = [];
@@ -445,15 +453,20 @@ test("GSmart: las letras se empaquetan con la app y solo las usa su tema", async
     };
     await juntar(join(FRONTEND, dir));
     for (const ruta of archivos) {
-      assert.doesNotMatch(await readFile(ruta, "utf8"), /fonts\.(googleapis|gstatic)\.com/, relative(FRONTEND, ruta));
+      const texto = await readFile(ruta, "utf8");
+      assert.doesNotMatch(texto, /fonts\.(googleapis|gstatic)\.com/, relative(FRONTEND, ruta));
+      assert.doesNotMatch(texto, /--font-(manrope|michroma)/, relative(FRONTEND, ruta));
     }
   }
-  // Las variables de las letras nuevas solo se leen bajo el tema GSmart.
+  // La variable de la letra nueva solo se lee bajo el tema GSmart.
   for (const ruta of [join(FRONTEND, "styles/tokens.css"), join(FRONTEND, "styles/editor.css"), join(FRONTEND, "app/globals.css")]) {
-    assert.doesNotMatch(await readFile(ruta, "utf8"), /--font-(manrope|michroma)/, relative(FRONTEND, ruta));
+    assert.doesNotMatch(await readFile(ruta, "utf8"), /--font-archivo/, relative(FRONTEND, ruta));
   }
-  assert.match(gsmartCss, /--mic-font-sans: var\(--font-manrope\)/);
-  assert.match(gsmartCss, /--gsmart-letra-titulo: var\(--font-michroma\)/);
+  assert.match(gsmartCss, /--mic-font-sans: var\(--font-archivo\)/);
+  assert.match(gsmartCss, /--gsmart-letra-titulo: var\(--font-archivo\)/);
+  assert.match(gsmartCss, /--gsmart-ancho-titulo: 125%/);
+  assert.match(gsmartCss, /--gsmart-letra-etiqueta: var\(--mic-font-mono\)/);
+  assert.match(gsmartCss, /--gsmart-espaciado-etiqueta: 0\.14em/);
 });
 
 test("GSmart: el cuerpo de las notas conserva la fuente que elige el usuario", () => {
@@ -462,12 +475,12 @@ test("GSmart: el cuerpo de las notas conserva la fuente que elige el usuario", (
   const css = sinComentarios(gsmartCss);
   assert.doesNotMatch(css, /--mic-(editor|preview)-font-family/);
   assert.doesNotMatch(css, /\.cm-content|\.mic-preview\s*\{|\.mic-preview p\b/);
-  // Michroma solo en títulos y etiquetas.
+  // Archivo ancha solo en títulos.
   for (const m of css.matchAll(/([^{}]+)\{([^}]*letra-titulo[^}]*)\}/g)) {
     const sel = m[1].trim();
     // El bloque de variables declara la letra sin usarla.
     if (!/font-family/.test(m[2])) continue;
-    assert.match(sel, /title|h1|h2|titulo/, `Michroma fuera de un título: ${sel}`);
+    assert.match(sel, /title|h1|h2|titulo/, `letra de títulos fuera de un título: ${sel}`);
   }
 });
 

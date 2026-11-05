@@ -132,13 +132,13 @@
   background: var(--mic-border);
 }
 
-/* GSmart (`FUN-M-52`): los títulos de sección del menú de vaults en Michroma, en mayúsculas y con el espaciado
-   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
-   chica para que entre en el mismo lugar. */
+/* GSmart (`FUN-M-52`): los títulos de sección del menú de vaults como etiquetas de la marca: JetBrains Mono, en
+   mayúsculas y con +0,14 em (styles/gsmart.css), a 11px para que entren en el
+   mismo lugar. */
 :global(:root[data-theme='gsmart']) .seccion {
-  font-family: var(--gsmart-letra-titulo);
+  font-family: var(--gsmart-letra-etiqueta);
   font-weight: 400;
-  font-size: 0.625rem;
+  font-size: var(--gsmart-tamano-etiqueta);
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
 
