@@ -1,7 +1,7 @@
 ---
 titulo: Macros
 tema: Herramientas
-sinonimos: [macro, macros, secuencia, automatizar, repetir, pasos, grabar, grabar macro, insertar texto, snippet, nota del día, diario, plantilla, atajo propio]
+sinonimos: [macro, macros, mover un paso, Ctrl+flechas, secuencia, automatizar, repetir, pasos, grabar, grabar macro, insertar texto, snippet, nota del día, diario, plantilla, atajo propio]
 ---
 
 Una **macro** es una lista de pasos con nombre que Mycelium ejecuta uno detrás de otro: abrir
@@ -47,7 +47,7 @@ buscador. **Nueva macro** crea una vacía; pulsa una macro para desplegarla y ed
   combinación; si ya es de otro comando, te ofrece reemplazarla. Las teclas reservadas y las
   letras solas no se pueden usar.
 - **Pasos**: elige el tipo y pulsa **Agregar paso**. Cada paso tiene botones para subirlo,
-  bajarlo o quitarlo; con el foco en un paso, **Alt+↑** y **Alt+↓** también lo mueven.
+  bajarlo o quitarlo; con el foco en un paso, **Ctrl+↑** y **Ctrl+↓** también lo mueven.
 
 Todo se maneja con el teclado: **Tab** recorre los campos y los botones, y el buscador de
 comandos se usa con **↑**, **↓**, **Enter** y **Esc**.
@@ -91,3 +91,7 @@ En lugar de armarla paso a paso, puedes **grabarla**:
 
 Lo que haces con el mouse o escribiendo dentro de una nota **no** se graba: solo los comandos.
 Para que la macro escriba un texto, agrégale después un paso **Insertar texto**.
+
+Tampoco se graba **moverse con el teclado** —**Ctrl+flechas**, **Enter** para entrar y **Alt** o
+**Esc** para salir—, porque depende de dónde esté el foco en ese momento. Los accesos directos
+a una sección (**Ctrl+Num 1** a **Ctrl+Num 5**) sí se graban: llevan siempre al mismo lugar.

@@ -49,7 +49,7 @@ const nombreTipo = (t: TipoPaso) => TIPOS_DE_PASO.find((x) => x.tipo === t)?.nom
  * mismas en todos los vaults— con un buscador. Cada una se despliega para
  * editarla: el nombre, el atajo (el mismo grabador de «Atajos de teclado», con
  * sus conflictos y reservadas), los pasos —agregar, editar, reordenar con
- * botones o con **Alt+↑/↓**, quitar— y «Probar». Arriba, crear, grabar y
+ * botones o con **Ctrl+↑/↓**, quitar— y «Probar». Arriba, crear, grabar y
  * restaurar las de fábrica; y, si se acaba de grabar, la grabación para
  * guardarla o descartarla.
  *
@@ -419,8 +419,8 @@ function FilaMacro({
           <div className={styles.campo}>
             <span className={styles.rotulo}>Pasos</span>
             <p className={settings.hint}>
-              Se ejecutan en orden; si uno falla, la macro se detiene y te avisa cuál. <strong>Alt+↑</strong> y{" "}
-              <strong>Alt+↓</strong> mueven el paso donde estás. En los textos puedes usar{" "}
+              Se ejecutan en orden; si uno falla, la macro se detiene y te avisa cuál. <strong>Ctrl+↑</strong> y{" "}
+              <strong>Ctrl+↓</strong> mueven el paso donde estás. En los textos puedes usar{" "}
               <code>{"{{fecha}}"}</code>, <code>{"{{hora}}"}</code>, <code>{"{{fecha:DD/MM/AAAA}}"}</code> y{" "}
               <code>{"{{titulo}}"}</code>.
             </p>
@@ -432,7 +432,9 @@ function FilaMacro({
                   data-paso={i}
                   tabIndex={-1}
                   onKeyDown={(e) => {
-                    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    // Ctrl+↑/↓ mueve el paso (Ctrl para moverse, como en el resto
+                    // de Mycelium desde el 2026-11-06; antes era Alt+↑/↓).
+                    if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
                     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -449,7 +451,7 @@ function FilaMacro({
                         disabled={i === 0}
                         onClick={() => mover(i, -1)}
                         aria-label={`Subir el paso ${i + 1}`}
-                        title="Subir (Alt+↑)"
+                        title="Subir (Ctrl+↑)"
                       >
                         <ArrowUp size={14} aria-hidden />
                       </button>
@@ -459,7 +461,7 @@ function FilaMacro({
                         disabled={i === macro.pasos.length - 1}
                         onClick={() => mover(i, 1)}
                         aria-label={`Bajar el paso ${i + 1}`}
-                        title="Bajar (Alt+↓)"
+                        title="Bajar (Ctrl+↓)"
                       >
                         <ArrowDown size={14} aria-hidden />
                       </button>
@@ -729,7 +731,7 @@ function SelectorComando({
           setTexto(null);
         }}
         onKeyDown={(e) => {
-          if (e.altKey) return; // Alt+↑/↓ mueve el paso.
+          if (e.ctrlKey) return; // Ctrl+↑/↓ mueve el paso.
           if (e.key === "ArrowDown" || e.key === "ArrowUp") {
             e.preventDefault();
             if (!abierto) return setAbierto(true);

@@ -21,7 +21,9 @@ frase que escribiste hace meses o todas las notas con una etiqueta o una propied
 2. **Ctrl+P** abre la paleta en modo comandos, con un `>` adelante: nueva nota, grafo,
    calendario, modo oscuro, configuración, ayuda y más.
 3. El ícono **Búsqueda global** del rail busca en todo el vault. Un clic en un resultado
-   abre la nota en la primera coincidencia.
+   abre la nota en la primera coincidencia. Con el teclado (**Ctrl+Shift+F**), **↓** baja
+   del campo a los resultados, **↑** en el primero o **Esc** vuelven al campo, **Enter** abre
+   el resultado, y teclear el comienzo de un nombre salta a ese resultado.
 
 ## La búsqueda global
 

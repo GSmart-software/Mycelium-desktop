@@ -156,7 +156,8 @@ Escribir esas letras es como hacer clic ahí, sin el mouse.
   cada panel, «**C** Conexiones», «**B** Barra de estado»—: escribirla deja esa sección
   elegida. Desde ahí, **Enter** entra y **F10** muestra sus controles.
 - **En una sección con grupos** (el explorador), F10 muestra una pista por grupo —«**H**
-  Herramientas», «**B** Bandeja», «**A** Archivos»— que lo deja elegido, sin plegarlo;
+  Herramientas», «**B** Bandeja», «**AR** Archivos» (las letras salen del nombre y pueden
+  variar si se repiten)— que lo deja elegido, sin plegarlo;
   dentro de un grupo, solo sus controles.
 - **Los elementos de una lista no llevan pista**: archivos y carpetas, pestañas, resultados
   de la búsqueda, filas de una tabla, días del calendario, tarjetas de un lienzo, nodos del
