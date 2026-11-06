@@ -20,7 +20,8 @@ import {
 import { grabandoAtajo } from "./grabacion";
 import { estaPersonalizado } from "./personalizar";
 import { cargarPreferenciasAtajos } from "./preferenciasAtajos";
-import type { Comando, ContextoComando, Fase } from "./registro";
+import { anotarComando } from "./preferenciasMacros";
+import type { ArgsComando, Comando, ContextoComando, Fase } from "./registro";
 
 /**
  * Suma los comandos al registro al montar y los saca al desmontar. La lista
@@ -47,10 +48,15 @@ export function useVersionAtajos(): number {
 /** ¿Está encendido el modo desarrollador? (Se carga de Rust al arrancar.) */
 export const modoDevActivo = () => useUpdaterStore.getState().estado?.dev ?? false;
 
-/** Ejecuta un comando y avisa si falla, en vez de dejar una promesa rechazada. */
-export function ejecutarComando(c: Comando, ctx: ContextoComando) {
+/**
+ * Ejecuta un comando y avisa si falla, en vez de dejar una promesa rechazada.
+ * Es el camino de la paleta y de los atajos: si se está grabando una macro
+ * (`FUN-XL-04`, Parte 6), el comando queda anotado como un paso.
+ */
+export function ejecutarComando(c: Comando, ctx: ContextoComando, args?: ArgsComando) {
+  if (!c.noSeGraba) anotarComando(c.id, args);
   try {
-    const r = c.ejecutar(ctx);
+    const r = c.ejecutar(ctx, args);
     if (r instanceof Promise) r.catch(avisarFallo(`ejecutar «${resolverTexto(c.titulo)}»`));
   } catch (err) {
     avisarFallo(`ejecutar «${resolverTexto(c.titulo)}»`)(err);

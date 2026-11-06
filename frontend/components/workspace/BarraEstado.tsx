@@ -8,6 +8,8 @@ import { EditorView } from "@codemirror/view";
 import { resumenDiagnosticos } from "@/lib/diagnosticos";
 import { useDiagnosticos } from "@/lib/diagnosticosVault";
 import { getView } from "@/lib/editor/viewRegistry";
+import { alternarGrabacion } from "@/lib/comandos/comandosMacros";
+import { useMacros } from "@/lib/comandos/preferenciasMacros";
 import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -39,6 +41,7 @@ const hora = (ms: number) => {
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 export function BarraEstado() {
+  const { grabacion } = useMacros();
   const notaId = useTabsStore((s) => s.activeNotaId());
   const paneId = useTabsStore((s) => s.activePaneId);
   const panelAbierto = useTabsStore((s) => panelMetaAbierto(s.root, s.activePaneId));
@@ -120,6 +123,19 @@ export function BarraEstado() {
 
   return (
     <footer className={styles.barra} aria-label="Barra de estado" data-zona="estado">
+      {grabacion && (
+        // Mientras se graba una macro (`FUN-XL-04`, Parte 6): se ve siempre, y
+        // pulsarla detiene la grabación.
+        <button
+          type="button"
+          className={`${styles.item} ${styles.grabando} mic-grabando-macro`}
+          title="Detener la grabación y guardarla como macro"
+          onClick={alternarGrabacion}
+        >
+          <span className={styles.punto} aria-hidden />
+          Grabando macro · {plural(grabacion.length, "paso", "pasos")}
+        </button>
+      )}
       {esNota && (
         <>
           {conteo && (

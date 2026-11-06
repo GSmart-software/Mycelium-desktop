@@ -254,6 +254,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   // Ctrl+Shift+N: el menú «Nuevo…», con flechas, Enter y Esc.
   {
     id: "crear.nuevo",
+    // Abre algo para elegir: al grabar una macro cuenta lo elegido (`FUN-XL-04`, Parte 6).
+    noSeGraba: true,
     titulo: "Nuevo…",
     detalle: "Nota, carpeta, canvas, base, dibujo, diagrama o desde una Espora",
     icono: FilePlus2,
@@ -271,6 +273,8 @@ export const COMANDOS_APP: readonly Comando[] = [
       detalle: o.tipo === "espora" ? "Elegir la plantilla" : "En la carpeta seleccionada",
       icono: ICONO_NUEVO[o.tipo],
       categoria: "notas",
+      // «Nueva desde Espora…» abre la lista: al grabar cuenta la Espora elegida.
+      noSeGraba: o.tipo === "espora",
       ejecutar: (ctx) => {
         if (o.tipo === "espora") return useUiStore.getState().setNuevo("esporas");
         if (o.tipo === "carpeta") return pedirYCrearCarpeta(carpetaDestino());
@@ -481,6 +485,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   // teclado de EE. UU.— por posición (`Slash` con Shift).
   {
     id: "atajos.hoja",
+    // Abre algo para elegir: al grabar una macro cuenta lo elegido (`FUN-XL-04`, Parte 6).
+    noSeGraba: true,
     titulo: "Ver los atajos de teclado",
     detalle: "La hoja con todos los atajos",
     icono: Keyboard,
@@ -506,6 +512,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   // pistas son las de adentro del diálogo.
   {
     id: "pistas.mostrar",
+    // Abre algo para elegir: al grabar una macro cuenta lo elegido (`FUN-XL-04`, Parte 6).
+    noSeGraba: true,
     titulo: "Mostrar las pistas para hacer clic con el teclado",
     icono: MousePointerClick,
     categoria: "navegacion",
@@ -563,6 +571,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   // (rediseño del cascarón): los atajos de la categoría en Obsidian y VS Code.
   {
     id: "paleta.notas",
+    // Abre algo para elegir: al grabar una macro cuenta lo elegido (`FUN-XL-04`, Parte 6).
+    noSeGraba: true,
     titulo: "Ir a una nota",
     icono: Search,
     categoria: "navegacion",
@@ -572,6 +582,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   },
   {
     id: "paleta.comandos",
+    // Abre algo para elegir: al grabar una macro cuenta lo elegido (`FUN-XL-04`, Parte 6).
+    noSeGraba: true,
     titulo: "Ejecutar un comando",
     icono: Command,
     categoria: "navegacion",

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { alternarModoDev } from "@/lib/comandos/comandosApp";
 import { abrirNota as abrirNotaEn } from "@/lib/comandos/navegar";
+import { anotarPaso } from "@/lib/comandos/preferenciasMacros";
 import { comandosDePaleta, textoEnPaleta, type IconoComando } from "@/lib/comandos/registro";
 import { ejecutarComando, useComandos, useVersionAtajos } from "@/lib/comandos/useComandos";
 import { textoAtajoVisible, useDistribucion } from "@/lib/comandos/distribucion";
@@ -160,7 +161,11 @@ export function PaletaComandos() {
       titulo: n.titulo,
       detalle: rutaDe(n.carpetaId, porId),
       icono: ICONO_POR_TIPO[n.tipo] ?? ICONO_POR_TIPO.markdown,
-      ejecutar: () => abrirNota(n.id),
+      ejecutar: () => {
+        // Si se graba una macro (`FUN-XL-04`, Parte 6), ir a una nota es un paso.
+        anotarPaso({ tipo: "abrir", nota: n.id });
+        abrirNota(n.id);
+      },
     });
 
     // Sin consulta: las últimas notas que se miraron. Listar el vault entero en

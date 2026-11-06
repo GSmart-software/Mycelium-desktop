@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones]
+sinonimos: [teclas, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -54,6 +54,14 @@ lateral (la posición de la `\` en un teclado de EE. UU.) se ve como **Ctrl+Ç**
 | {{atajo:atajos.hoja|Ctrl+Shift+/}} | La hoja de atajos. |
 | {{atajo:pistas.mostrar|F10}} | Las **pistas**: una letra sobre cada cosa que se puede pulsar; escribirla es el clic (más abajo). |
 | **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollo, si las encendiste para este vault en Configuración → Avanzado. |
+
+## Macros
+
+Una [macro](ayuda:herramientas/macros) es una lista de pasos —comandos, texto para insertar,
+notas para abrir— que se ejecuta desde la paleta o con **su propio atajo**. Ninguna trae atajo de
+fábrica: se lo das en **Configuración → Macros**, con el mismo grabador, los mismos
+conflictos y las mismas teclas reservadas que aquí. Las que tienen atajo aparecen en la hoja,
+en el grupo **Macros**, y también en Configuración → Atajos de teclado.
 
 ## Moverse sin el mouse
 

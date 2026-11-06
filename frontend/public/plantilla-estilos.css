@@ -1094,3 +1094,31 @@
   visibility: hidden;
 }
 */
+
+
+/* ============================================================================
+   23) LAS MACROS   (Configuración → Macros y la grabación)
+   ----------------------------------------------------------------------------
+   Una macro es una lista de pasos que se ejecuta desde la paleta o con un
+   atajo. Mientras se graba una, la barra de estado lo dice a la izquierda.
+     .mic-ajustes-macros           la sección de Configuración
+     .mic-ajustes-macros-fila      cada macro de la lista
+     .mic-ajustes-macros-paso      cada paso de una macro abierta
+     .mic-ajustes-macros-opciones  la lista del buscador de comandos de un paso
+     .mic-ajustes-macros-grabada   lo recién grabado, para guardarlo o descartarlo
+     .mic-grabando-macro           el aviso «Grabando macro» de la barra de estado
+   ========================================================================== */
+
+/* Los pasos con el número más visible y un fondo suave:
+.mic-ajustes-macros-paso {
+  background: color-mix(in srgb, var(--mic-accent) 5%, transparent);
+  border-color: color-mix(in srgb, var(--mic-accent) 30%, transparent);
+}
+*/
+
+/* El aviso de grabación en el color de acento y en negrita:
+.mic-grabando-macro {
+  color: var(--mic-accent);
+  font-weight: 600;
+}
+*/

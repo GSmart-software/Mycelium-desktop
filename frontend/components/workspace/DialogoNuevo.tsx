@@ -13,6 +13,7 @@ import {
   type EstadoNuevo,
   type OpcionNuevo,
 } from "@/lib/comandos/nuevo";
+import { anotarPaso } from "@/lib/comandos/preferenciasMacros";
 import { carpetaDestino, crearDesdeEsporaYAbrir, crearYAbrir, pedirYCrearCarpeta } from "@/lib/crear";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { avisarFallo } from "@/stores/avisosStore";
@@ -92,6 +93,8 @@ function Dialogo({ pasoInicial }: { pasoInicial: "tipos" | "esporas" }) {
       return;
     }
     cerrar();
+    // Si se graba una macro (`FUN-XL-04`, Parte 6), lo elegido es el paso.
+    anotarPaso({ tipo: "comando", comando: o.comando });
     if (o.tipo === "carpeta") {
       void pedirYCrearCarpeta(carpetaDestino()).catch(avisarFallo("crear la carpeta"));
     } else {
@@ -101,6 +104,7 @@ function Dialogo({ pasoInicial }: { pasoInicial: "tipos" | "esporas" }) {
 
   function elegirEspora(e: Espora) {
     cerrar();
+    anotarPaso({ tipo: "espora", espora: e.titulo });
     void crearDesdeEsporaYAbrir(navegar, e).catch(avisarFallo(`crear la nota desde «${e.titulo}»`));
   }
 

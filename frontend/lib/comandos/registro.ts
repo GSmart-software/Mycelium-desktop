@@ -54,6 +54,7 @@ export type CategoriaComando =
   | "vault"
   | "apariencia"
   | "app"
+  | "macros"
   | "dev";
 
 /**
@@ -70,6 +71,7 @@ export const NOMBRE_CATEGORIA: Readonly<Record<CategoriaComando, string>> = {
   vault: "Vault",
   apariencia: "Apariencia",
   app: "Aplicación",
+  macros: "Macros",
   dev: "Desarrollo",
 };
 
@@ -109,6 +111,17 @@ export type Comando = {
   enCaptura?: boolean;
   /** `false`: no aparece en la paleta (los que hoy solo son un atajo). */
   enPaleta?: boolean;
+  /**
+   * Solo tiene sentido con datos (`args`): insertar un texto, abrir una nota
+   * concreta (`FUN-XL-04`, Parte 6). Lo usan las macros; no aparece en la
+   * paleta ni en los atajos, porque sin datos no haría nada.
+   */
+  requiereArgs?: boolean;
+  /**
+   * No se anota al grabar una macro: abre algo para elegir (la paleta, las
+   * pistas, el menú «Nuevo…») y lo que importa es lo que se elige después.
+   */
+  noSeGraba?: boolean;
   /** Comando de desarrollador: solo existe con el modo dev (`FUN-S-36`). */
   soloDev?: boolean;
   /** Cuándo aparece y actúa. Sin esto, siempre (dentro del workspace). */
@@ -218,7 +231,7 @@ export function atajosDe(c: Comando, comandos: readonly Comando[] = instantanea)
 /** Los comandos que lista la paleta con el modo dev en el estado dado. */
 export function comandosDePaleta(comandos: readonly Comando[], ctx: ContextoComando): Comando[] {
   return comandosDisponibles(
-    comandos.filter((c) => c.enPaleta !== false),
+    comandos.filter((c) => c.enPaleta !== false && !c.requiereArgs),
     ctx.dev,
   ).filter((c) => c.disponible?.(ctx) ?? true);
 }
@@ -295,7 +308,7 @@ export function gruposDeAtajos(
   const grupos: GrupoDeAtajos[] = [];
   for (const categoria of Object.keys(NOMBRE_CATEGORIA) as CategoriaComando[]) {
     const lista = comandosDisponibles(comandos, dev)
-      .filter((c) => c.categoria === categoria && !c.muestraAtajoDe)
+      .filter((c) => c.categoria === categoria && !c.muestraAtajoDe && !c.requiereArgs)
       .map((c) => ({ comando: c, titulo: resolverTexto(c.titulo) ?? c.id, atajos: porId.get(c.id) ?? [] }))
       .filter((x) => !soloConAtajo || x.atajos.length > 0);
     if (lista.length) grupos.push({ categoria, nombre: NOMBRE_CATEGORIA[categoria], comandos: lista });
