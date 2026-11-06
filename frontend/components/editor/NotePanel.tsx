@@ -208,7 +208,7 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
 
   if (!data) {
     return (
-      <div className={styles.panel} ref={panelRef} style={{ width }}>
+      <div className={styles.panel} ref={panelRef} style={{ width }} data-zona="lateral">
         {resizeHandle}
         <p className={styles.empty}>Cargando conexiones…</p>
       </div>
@@ -216,7 +216,7 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
   }
 
   return (
-    <div className={styles.panel} ref={panelRef} style={{ width }}>
+    <div className={styles.panel} ref={panelRef} style={{ width }} data-zona="lateral">
       {resizeHandle}
       <div className={styles.tabs} role="tablist">
         <TabButton active={tab === "propiedades"} onClick={() => setTab("propiedades")}>

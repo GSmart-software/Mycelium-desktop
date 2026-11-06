@@ -136,6 +136,8 @@
   --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
   --mic-enlace:         var(--mic-accent);   /* enlaces en el texto de una nota */
   --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
+  --mic-zona-activa:    var(--mic-focus);    /* borde de la zona con el foco (F6) */
+  --mic-documento-seleccionado: var(--mic-focus); /* contorno del documento seleccionado (modo navegar) */
   --mic-marca:          var(--mic-accent);   /* «es este»: lo que señala algo sin enfocarlo */
   --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
   --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */

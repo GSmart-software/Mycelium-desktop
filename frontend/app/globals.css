@@ -59,6 +59,29 @@ button {
   outline-offset: 2px;
 }
 
+/* ── Zonas y modos del teclado (`FUN-XL-04`, Parte 2) ─────────────
+   La zona con el foco (rail, panel izquierdo, cada panel de la división, panel
+   de enlaces, barra de estado) lleva `data-zona-activa`; el documento de un
+   panel, `data-modo="navegar"` cuando está seleccionado (el foco en él mismo)
+   y `"escribir"` cuando el foco está adentro. Solo se dibuja mientras se usa
+   el teclado (`data-teclado` en <html>, que se va con el puntero), como
+   `:focus-visible`. El contorno va hacia adentro para que ningún
+   `overflow: hidden` lo corte. */
+:root[data-teclado] [data-zona][data-zona-activa] {
+  outline: 1px solid var(--mic-zona-activa);
+  outline-offset: -1px;
+}
+
+/* Seleccionado (navegar): punteado y más grueso; escribiendo, sin contorno
+   propio (la señal es el cursor y el borde de la zona). */
+[data-documento]:focus {
+  outline: none;
+}
+:root[data-teclado] [data-documento][data-modo='navegar'] {
+  outline: 2px dashed var(--mic-documento-seleccionado);
+  outline-offset: -3px;
+}
+
 /* ── Controles nativos: la lista de un <select> y los popups ─────
    Un <select> tiene DOS partes y solo una está en el documento. La cerrada se
    estila como cualquier caja; la lista desplegada la dibuja el navegador fuera

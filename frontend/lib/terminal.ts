@@ -4,6 +4,7 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { teclaSaleDeLaConsola } from "@/lib/comandos/teclasConsola";
 import { listarShells, tabIdDe } from "@/lib/terminalBase";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -246,6 +247,10 @@ export function getInstancia(termId: string): Instancia {
   // y si no, interrumpe como siempre. Perder el `Ctrl+C` de interrumpir sería
   // mucho peor que no poder copiar con él.
   term.attachCustomKeyEventHandler((ev) => {
+    // Los atajos de la app que la consola deja pasar (`FUN-XL-04`): con
+    // `false` xterm no los procesa ni los cancela, y siguen hasta el
+    // despachador del workspace. La lista vive en `teclasConsola.ts`.
+    if (teclaSaleDeLaConsola(ev)) return false;
     if (ev.type !== "keydown" || !(ev.ctrlKey || ev.metaKey)) return true;
     const tecla = ev.key.toLowerCase();
 

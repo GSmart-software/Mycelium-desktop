@@ -9,7 +9,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { avisarFallo } from "@/stores/avisosStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { resolverTexto, comandoParaTecla, listarComandos, registrarComandos, suscribirComandos } from "./registro";
-import type { Comando, ContextoComando } from "./registro";
+import type { Comando, ContextoComando, Fase } from "./registro";
 
 /**
  * Suma los comandos al registro al montar y los saca al desmontar. La lista
@@ -39,25 +39,34 @@ export function ejecutarComando(c: Comando, ctx: ContextoComando) {
 }
 
 /**
- * El despachador de atajos del workspace: un solo `keydown` en `window`, en
- * burbuja —la misma fase que tenían los atajos sueltos de `workspace/page.tsx`,
- * así CodeMirror, la consola y el lienzo atienden antes lo suyo—, que busca en
- * el registro el comando de la tecla y lo ejecuta. Los atajos con manejador
- * propio (F1, F12, la captura rápida) no pasan por acá.
+ * El despachador de atajos del workspace: un `keydown` en `window` en burbuja
+ * —la misma fase que tenían los atajos sueltos de `workspace/page.tsx`, así
+ * CodeMirror, la consola y el lienzo atienden antes lo suyo— y otro en
+ * captura para los pocos comandos `enCaptura` (F6), que tienen que llegar
+ * aunque la consola o el editor se queden con la tecla. Busca en el registro
+ * el comando de la tecla y lo ejecuta. Los atajos con manejador propio (F1,
+ * F12, la captura rápida) no pasan por acá.
  */
 export function useDespachadorAtajos(navegar: (url: string) => void) {
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
+    const atender = (fase: Fase) => (event: KeyboardEvent) => {
       const dev = modoDevActivo();
-      const comando = comandoParaTecla(event, listarComandos(), dev);
+      const comando = comandoParaTecla(event, listarComandos(), dev, fase);
       if (!comando) return;
       if (comando.ignorarSiPrevenido && event.defaultPrevented) return;
       const ctx: ContextoComando = { navegar, dev };
       if (comando.disponible && !comando.disponible(ctx)) return;
       event.preventDefault();
+      if (fase === "captura") event.stopPropagation();
       ejecutarComando(comando, ctx);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    };
+    const enCaptura = atender("captura");
+    const enBurbuja = atender("burbuja");
+    window.addEventListener("keydown", enCaptura, true);
+    window.addEventListener("keydown", enBurbuja);
+    return () => {
+      window.removeEventListener("keydown", enCaptura, true);
+      window.removeEventListener("keydown", enBurbuja);
+    };
   }, [navegar]);
 }

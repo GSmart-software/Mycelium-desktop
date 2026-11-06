@@ -21,6 +21,8 @@ import {
   type ArchivoVisor,
 } from "@/lib/otrosArchivos";
 import { EVENTO_ARCHIVO_GUARDADO } from "@/lib/eventos";
+import { autoFocoPermitido } from "@/lib/teclado/focoDom";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./VisorArchivo.module.css";
 
@@ -450,7 +452,11 @@ function EditorTexto({
       }),
       parent: host.current,
     });
-    vista.focus();
+    // Con el foco entra a escribir; salvo que se haya llegado con Ctrl+Tab o
+    // Ctrl+W (queda seleccionado, `FUN-XL-04`) o que su panel no sea el
+    // activo: el foco lo activaría (el panel activo sigue al foco).
+    const panel = host.current.closest<HTMLElement>("[data-pane-id]")?.dataset.paneId;
+    if (autoFocoPermitido() && (!panel || panel === useTabsStore.getState().activePaneId)) vista.focus();
     const cancelar = cargar(vista);
     return () => {
       cancelar();

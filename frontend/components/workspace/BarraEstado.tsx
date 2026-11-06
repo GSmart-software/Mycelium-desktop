@@ -119,7 +119,7 @@ export function BarraEstado() {
           : "Guardado";
 
   return (
-    <footer className={styles.barra} aria-label="Barra de estado">
+    <footer className={styles.barra} aria-label="Barra de estado" data-zona="estado">
       {esNota && (
         <>
           {conteo && (

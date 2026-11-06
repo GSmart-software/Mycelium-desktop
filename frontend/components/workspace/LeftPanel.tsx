@@ -71,6 +71,7 @@ export function LeftPanel() {
     <aside
       className={`${styles.panel} ${styles.panelLeft}`}
       aria-hidden={activeSection === null}
+      data-zona="izquierda"
     >
       {activeSection !== null && (
         <>

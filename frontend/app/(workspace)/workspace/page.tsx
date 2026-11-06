@@ -25,6 +25,7 @@ import { navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { COMANDOS_APP } from "@/lib/comandos/comandosApp";
 import { sincronizarUrl } from "@/lib/comandos/navegar";
 import { useDespachadorAtajos, useRegistrarComandos } from "@/lib/comandos/useComandos";
+import { useTecladoZonas } from "@/lib/teclado/useTecladoZonas";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -228,6 +229,9 @@ function WorkspaceShell() {
   const navegar = useCallback((url: string) => router.replace(url), [router]);
   useRegistrarComandos(COMANDOS_APP);
   useDespachadorAtajos(navegar);
+  // Las zonas del teclado, su resaltado y los dos modos de los documentos
+  // (navegar / escribir, Esc y Enter) (`FUN-XL-04`, Parte 2).
+  useTecladoZonas();
 
   /**
    * Botones auxiliares del ratón (DEF-040): 3 = atrás, 4 = adelante. Hasta
