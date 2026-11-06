@@ -73,8 +73,8 @@ button {
 }
 
 /* La sección SELECCIONADA (rediseño por niveles, 2026-11-06): el foco en el
-   contenedor de la sección, el nivel de arriba (Alt+flechas pasa a la sección
-   vecina, Ctrl+Enter entra). Más marcada que la zona activa: borde de 2px y un
+   contenedor de la sección, el nivel de arriba (Ctrl+flechas pasa a la sección
+   vecina, Enter entra). Más marcada que la zona activa: borde de 2px y un
    velo del acento por encima del contenido, que si no la tapa (como al
    documento). `:where` deja la especificidad en cero: un módulo que ya
    posiciona la zona manda. */

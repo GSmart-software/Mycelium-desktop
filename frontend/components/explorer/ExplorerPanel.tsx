@@ -1830,9 +1830,9 @@ function navegarArbol(e: React.KeyboardEvent<HTMLElement>) {
   // Solo cuando el foco está en la FILA: dentro del campo de renombrar, las
   // flechas y el Enter son del campo.
   if (fila.getAttribute("role") !== "treeitem") return;
-  // Alt+flechas es moverse en la sección: desde la primera fila, Alt+↑ sube a
-  // los botones de arriba (`niveles.ts`). Con Ctrl, Ctrl+Enter es entrar (que
-  // le manda a la fila un Enter sin Ctrl) y Ctrl+Z, deshacer.
+  // Ctrl+flechas es moverse en la sección: desde la primera fila, Ctrl+↑ sube
+  // a los botones de arriba (`niveles.ts`). Con Alt, nada: Alt solo sale un
+  // nivel. Ctrl+Z, deshacer.
   if (e.altKey || e.ctrlKey || e.metaKey) return;
   const filas = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')];
   const i = filas.indexOf(fila);

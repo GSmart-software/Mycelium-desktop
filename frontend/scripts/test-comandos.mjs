@@ -286,12 +286,12 @@ test("el despachador encuentra el comando de cada atajo global", () => {
     // AltGr+←/→ (en Windows llega como Ctrl+Alt con AltGraph): el historial.
     [tecla("ArrowLeft", ALTGR), "historial.atras"],
     [tecla("ArrowRight", ALTGR), "historial.adelante"],
-    // Los niveles: Alt+flechas se mueve, Ctrl+Num salta (Enter entra, pero lo
+    // Los niveles: Ctrl+flechas se mueve, Ctrl+Num salta (Enter entra, pero lo
     // atiende useTecladoZonas solo donde no tiene otro uso: no es global).
-    [tecla("ArrowLeft", { altKey: true }), "nivel.izquierda"],
-    [tecla("ArrowRight", { altKey: true }), "nivel.derecha"],
-    [tecla("ArrowUp", { altKey: true }), "nivel.arriba"],
-    [tecla("ArrowDown", { altKey: true }), "nivel.abajo"],
+    [tecla("ArrowLeft", { ctrlKey: true }), "nivel.izquierda"],
+    [tecla("ArrowRight", { ctrlKey: true }), "nivel.derecha"],
+    [tecla("ArrowUp", { ctrlKey: true }), "nivel.arriba"],
+    [tecla("ArrowDown", { ctrlKey: true }), "nivel.abajo"],
     [tecla("Numpad1", { ctrlKey: true }), "zona.rail"],
     [tecla("Numpad2", { ctrlKey: true }), "zona.izquierda"],
     [tecla("Numpad3", { ctrlKey: true }), "zona.pestanas"],
@@ -319,6 +319,11 @@ test("el despachador no toca las teclas de los manejadores propios ni las suelta
     tecla("KeyI", { ctrlKey: true, shiftKey: true }),
     tecla("Space", { ctrlKey: true, shiftKey: true }),
     tecla("Tab", { altKey: true }),
+    // Alt+flechas ya no se mueve (segunda vuelta): Alt solo es salir.
+    tecla("ArrowLeft", { altKey: true }),
+    tecla("ArrowUp", { altKey: true }),
+    // Alt solo lo atiende `useTecladoZonas`, no el despachador.
+    tecla("AltLeft", { altKey: true }),
     tecla("KeyW"),
     tecla("KeyO", { ctrlKey: true, shiftKey: true }),
   ]) {

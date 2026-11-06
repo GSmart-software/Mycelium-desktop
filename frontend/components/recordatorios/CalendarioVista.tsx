@@ -146,7 +146,7 @@ export function CalendarioVista() {
     ? fecha
     : `${anio}-${mesTexto}-01`;
   const alTeclaDia = (e: React.KeyboardEvent<HTMLElement>, dia: string, columna: number) => {
-    // Alt+flechas, igual que las flechas dentro de la pestaña (niveles).
+    // Ctrl+flechas, igual que las flechas dentro de la pestaña (niveles).
     if (!flechaDelComponente(e, dentroDeDocumento(e.currentTarget))) return;
     const paso = pasoDeCalendario(e.key, columna, e.shiftKey);
     if (paso === null) return;

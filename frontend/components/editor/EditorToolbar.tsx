@@ -289,7 +289,7 @@ export function EditorToolbar({
 
   return (
     // `data-barra-documento`: la barra es un elemento de la sección del panel
-    // (Alt+flechas llega desde las pestañas y desde el documento), no del
+    // (Ctrl+flechas llega desde las pestañas y desde el documento), no del
     // interior del documento (`lib/teclado/nivelesDom.ts`).
     <div className={styles.toolbar} ref={toolbarRef} data-barra-documento="">
       {showFormatTools && !collapsed && (

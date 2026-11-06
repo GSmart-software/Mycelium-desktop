@@ -1,7 +1,7 @@
 /**
  * Los niveles del teclado sobre el DOM (`FUN-XL-04`, rediseño del
- * 2026-11-06): Alt+flechas se mueve en el nivel actual, Enter entra y Esc
- * sale. Las decisiones están en `niveles.ts` (puras, con test); acá se buscan
+ * 2026-11-06; teclas de la segunda vuelta): Ctrl+flechas se mueve en el
+ * nivel actual, Enter entra y Alt solo o Esc salen. Las decisiones están en `niveles.ts` (puras, con test); acá se buscan
  * los elementos y se mueve el foco.
  *
  * **Qué es cada nivel en el DOM**:
@@ -30,7 +30,7 @@ import {
   visible,
   zonaDe,
 } from "./focoDom";
-import { entradaDe, vecinoPorCajas, type Caja, type Lugar } from "./niveles";
+import { ctrlFlechaMueve, entradaDe, vecinoPorCajas, type Caja, type Lugar } from "./niveles";
 import type { Direccion } from "./navegacion";
 
 const SEL_BARRA = "[data-barra-documento]";
@@ -97,7 +97,7 @@ export function elementosDe(contenedor: HTMLElement): HTMLElement[] {
 /**
  * La caja de un elemento para medir distancias. La del documento empieza
  * debajo de su barra (que está adentro, arriba): sin esto, desde el documento
- * Alt+↑ no veía la barra «arriba» y desde la barra Alt+↓ no veía el documento.
+ * Ctrl+↑ no veía la barra «arriba» y desde la barra Ctrl+↓ no veía el documento.
  */
 function cajaDe(el: HTMLElement): Caja {
   const r = el.getBoundingClientRect();
@@ -161,10 +161,36 @@ function enfocarElemento(el: HTMLElement) {
   else el.focus();
 }
 
-// ── Alt+flechas ──────────────────────────────────────────────────────────
+// ── Ctrl+flechas ─────────────────────────────────────────────────────────
+
+/** Donde se escribe y Ctrl+flechas es del componente: el editor, la consola, Excalidraw. */
+const SEL_ESCRIBIENDO = `.cm-editor, ${SEL_TECLADO_PROPIO}`;
+
+/** Los `input` donde se escribe una línea (Ctrl+←/→ salta de palabra). */
+const INPUT_DE_TEXTO = new Set(["text", "search", "url", "email", "password", "tel", "number"]);
+
+/** ¿Es un campo de texto? (`input` de texto, `textarea`, `contenteditable`.) */
+function esCampoDeTexto(el: HTMLElement): boolean {
+  if (el instanceof HTMLTextAreaElement) return true;
+  if (el instanceof HTMLInputElement) return INPUT_DE_TEXTO.has(el.type);
+  return el.isContentEditable;
+}
 
 /**
- * Alt+flecha: al vecino en esa dirección dentro del nivel actual. En el nivel
+ * ¿Ctrl+flecha en esta dirección es de los niveles (`ctrlFlechaMueve`)? Si no,
+ * el despachador no la toca: el editor salta de palabra, un campo mueve el
+ * cursor.
+ */
+export function ctrlFlechaEsDelNivel(dir: Direccion): boolean {
+  const foco = document.activeElement as HTMLElement | null;
+  return ctrlFlechaMueve(
+    { escribiendo: !!foco?.closest(SEL_ESCRIBIENDO), enCampoDeTexto: !!foco && esCampoDeTexto(foco) },
+    dir,
+  );
+}
+
+/**
+ * Ctrl+flecha: al vecino en esa dirección dentro del nivel actual. En el nivel
  * de secciones, a la sección; en una sección, entre sus elementos; dentro de
  * un documento, entre lo suyo. Nunca sale del nivel: sin nada de ese lado, no
  * hace nada. Sin foco (`body`), selecciona el panel activo.

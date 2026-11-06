@@ -107,6 +107,10 @@ const NOMBRE_TECLA: Record<string, string> = {
   NumpadDivide: "Num /",
   NumpadDecimal: "Num .",
   NumpadEnter: "Num Enter",
+  // Alt solo (el izquierdo, apretado y soltado sin otra tecla) sale un nivel
+  // (`FUN-XL-04`, segunda vuelta). Solo para mostrarlo en la hoja: lo atiende
+  // `useTecladoZonas` y no se puede grabar ni guardar como atajo.
+  AltLeft: "Alt",
 };
 
 /** Todos los `code` que un atajo puede usar. */
@@ -194,7 +198,7 @@ export function atajoLimpio(a: Atajo): Atajo {
 export function atajoValido(crudo: unknown): Atajo | null {
   if (crudo === null || typeof crudo !== "object") return null;
   const o = crudo as Record<string, unknown>;
-  if (typeof o.code !== "string" || !CODES_VALIDOS.has(o.code)) return null;
+  if (typeof o.code !== "string" || !CODES_VALIDOS.has(o.code) || esModificador(o.code)) return null;
   return atajoLimpio({
     code: o.code,
     ctrl: o.ctrl === true,

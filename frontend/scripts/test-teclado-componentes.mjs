@@ -123,16 +123,30 @@ test("valorDeSeparador: ejes, Shift, invertido y límites", () => {
 
 const niv = await cargar("../lib/teclado/niveles.ts");
 
-test("lienzo, grafo, calendario y tablas: Alt+flechas navega como las flechas dentro del documento", () => {
+test("lienzo, grafo, calendario y tablas: Ctrl+flechas navega como las flechas dentro del documento", () => {
   const e = (m = {}) => ({ ctrlKey: false, altKey: false, metaKey: false, ...m });
-  // Dentro de la pestaña: flechas y Alt+flechas, lo mismo.
+  // Dentro de la pestaña: flechas y Ctrl+flechas, lo mismo.
   assert.equal(niv.flechaDelComponente(e(), true), true);
-  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), true);
-  // Ctrl+flechas no es del recorrido (en el lienzo, mueve la tarjeta).
-  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), false);
-  // El mini-grafo del panel de enlaces está en una sección: Alt+flechas sale.
-  assert.equal(niv.flechaDelComponente(e({ altKey: true }), false), false);
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), true);
+  // Alt+flechas ya no es del recorrido (Alt solo sale un nivel).
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), false);
+  // El mini-grafo del panel de enlaces está en una sección: Ctrl+flechas sale.
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), false), false);
   assert.equal(niv.flechaDelComponente(e(), false), true);
+});
+
+test("lienzo: flechas y Ctrl+flechas pasan de tarjeta; Ctrl+Shift+flechas la mueve de a 10; Alt, nada", () => {
+  const e = (m = {}) => ({ ctrlKey: false, shiftKey: false, altKey: false, ...m });
+  assert.equal(nav.teclaDeTarjeta(e()), "pasar");
+  assert.equal(nav.teclaDeTarjeta(e({ ctrlKey: true })), "pasar");
+  assert.equal(nav.teclaDeTarjeta(e({ ctrlKey: true, shiftKey: true })), "mover");
+  assert.equal(nav.teclaDeTarjeta(e({ altKey: true })), null);
+  assert.equal(nav.teclaDeTarjeta(e({ ctrlKey: true, altKey: true })), null);
+  assert.equal(nav.teclaDeTarjeta(e({ ctrlKey: true, shiftKey: true, altKey: true })), null);
+  assert.deepEqual(nav.pasoDeTarjeta("derecha"), { dx: 10, dy: 0 });
+  assert.deepEqual(nav.pasoDeTarjeta("izquierda"), { dx: -10, dy: 0 });
+  assert.deepEqual(nav.pasoDeTarjeta("arriba"), { dx: 0, dy: -10 });
+  assert.deepEqual(nav.pasoDeTarjeta("abajo"), { dx: 0, dy: 10 });
 });
 
 test("dentro del documento, entre tarjetas: el vecino por cajas sigue la vista", () => {

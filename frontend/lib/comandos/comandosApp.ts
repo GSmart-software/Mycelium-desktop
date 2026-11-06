@@ -83,7 +83,7 @@ import {
   irAZona,
 } from "@/lib/teclado/focoDom";
 import { abrirPistas, cerrarPistas, pistasVisibles } from "@/lib/teclado/pistasDom";
-import { entrarEnNivel, irASeccion, moverEnNivel, type SeccionDirecta } from "@/lib/teclado/nivelesDom";
+import { ctrlFlechaEsDelNivel, entrarEnNivel, irASeccion, moverEnNivel, type SeccionDirecta } from "@/lib/teclado/nivelesDom";
 import type { Direccion } from "@/lib/teclado/navegacion";
 import { EVENTO_VISTA_NOTA } from "./eventos";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
@@ -238,7 +238,7 @@ function ciclarAnclada(delta: -1 | 1) {
 const claveAtmosfera = () =>
   usePreferencesStore.getState().modoOscuro ? ("atmosferaOscuro" as const) : ("atmosferaClaro" as const);
 
-/** Alt+flechas: moverse en el nivel actual. */
+/** Ctrl+flechas: moverse en el nivel actual (hasta la segunda vuelta, 2026-11-06, Alt+flechas). */
 const NIVELES_FLECHAS: readonly { id: string; code: string; dir: Direccion; titulo: string }[] = [
   { id: "izquierda", code: "ArrowLeft", dir: "izquierda", titulo: "Moverse a la izquierda" },
   { id: "derecha", code: "ArrowRight", dir: "derecha", titulo: "Moverse a la derecha" },
@@ -715,7 +715,7 @@ export const COMANDOS_APP: readonly Comando[] = [
     },
   },
   // AltGr+←/→: historial de la pestaña activa (DEF-040). Hasta el rediseño
-  // por niveles (2026-11-06) era Alt+←/→, que ahora es moverse. AltGr llega
+  // por niveles (2026-11-06) era Alt+←/→. AltGr llega
   // en Windows como Ctrl+Alt y se distingue por `getModifierState`
   // (`atajos.ts`). Si el editor ya consumió la pulsación, no se duplica.
   {
@@ -767,7 +767,7 @@ export const COMANDOS_APP: readonly Comando[] = [
   },
   // Al panel contiguo de la pantalla dividida. Hasta el rediseño por niveles
   // eran Ctrl+Alt+←/→: chocaban con AltGr+←/→ (el historial; en Windows
-  // AltGr llega como Ctrl+Alt) y Alt+flechas entre secciones los reemplaza.
+  // AltGr llega como Ctrl+Alt) y Ctrl+flechas entre secciones los reemplaza.
   // Quedan en la paleta, sin atajo (se les puede dar uno).
   {
     id: "panel.izquierda",
@@ -787,11 +787,14 @@ export const COMANDOS_APP: readonly Comando[] = [
   },
 
   // ── Los niveles (`FUN-XL-04`, rediseño tras la revisión del usuario) ──
-  // Tres teclas en todos los niveles: Alt+flechas se mueve en el nivel,
-  // Enter entra y Esc sale (`lib/teclado/niveles.ts`). En burbuja y
-  // solo si nadie usó la tecla: escribiendo en una nota, Alt+↑/↓ sube o baja
-  // la línea y Enter es del editor; en el lienzo, el grafo, el
-  // calendario y las tablas, Alt+flechas lo atiende el componente.
+  // Tres teclas en todos los niveles: Ctrl+flechas se mueve en el nivel,
+  // Enter entra y Alt solo o Esc salen (`lib/teclado/niveles.ts`; segunda
+  // vuelta tras probarlo, 2026-11-06: «Ctrl para todo», Alt solo para salir).
+  // En burbuja y solo si nadie usó la tecla: en el lienzo, el grafo, el
+  // calendario y las tablas, Ctrl+flechas lo atiende el componente. Escribiendo
+  // (el editor, la consola, Excalidraw) Ctrl+flechas es de ellos, y en un campo
+  // de texto Ctrl+←/→ salta de palabra: `disponible` no los toma
+  // (`ctrlFlechaEsDelNivel`) y la tecla sigue su curso.
   ...NIVELES_FLECHAS.map(
     (n): Comando => ({
       id: `nivel.${n.id}`,
@@ -800,8 +803,9 @@ export const COMANDOS_APP: readonly Comando[] = [
       categoria: "navegacion",
       enPaleta: false,
       noSeGraba: true,
-      atajos: [{ alt: true, code: n.code }],
+      atajos: [{ ctrl: true, code: n.code }],
       ignorarSiPrevenido: true,
+      disponible: () => ctrlFlechaEsDelNivel(n.dir),
       ejecutar: () => moverEnNivel(n.dir),
     }),
   ),
@@ -820,8 +824,9 @@ export const COMANDOS_APP: readonly Comando[] = [
     disponible: () => !hayModalAbierto(),
     ejecutar: () => entrarEnNivel(),
   },
-  // Esc lo atiende `useTecladoZonas` (decide después de que todos atiendan la
-  // tecla, para no salir cuando cerró algo). Se registra para la hoja.
+  // Alt solo (el izquierdo, apretado y soltado sin otra tecla) y Esc los
+  // atiende `useTecladoZonas` (decide después de que todos atiendan la tecla,
+  // para no salir cuando cerró algo). Se registra para la hoja: «Alt o Esc».
   {
     id: "nivel.salir",
     titulo: "Salir un nivel",
@@ -830,7 +835,7 @@ export const COMANDOS_APP: readonly Comando[] = [
     categoria: "navegacion",
     enPaleta: false,
     manejadorPropio: true,
-    atajos: [{ code: "Escape" }],
+    atajos: [{ code: "AltLeft" }, { code: "Escape" }],
     ejecutar: () => undefined,
   },
   // Accesos directos por el teclado numérico (la fila de números es de las

@@ -817,7 +817,7 @@ export function MiniGraph({
       anunciar(n);
     };
     const onKeyDown = (ev: KeyboardEvent) => {
-      // En la pestaña del grafo, Alt+flechas también pasa entre nodos (la
+      // En la pestaña del grafo, Ctrl+flechas también pasa entre nodos (la
       // regla de los niveles); en el mini-grafo del panel de enlaces, es de la
       // sección: pasa al elemento vecino.
       if (!flechaDelComponente(ev, dentroDeDocumento(canvas)) || fase !== "vivo") return;
