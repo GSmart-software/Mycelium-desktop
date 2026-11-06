@@ -1,7 +1,7 @@
 ---
 titulo: Bandeja y captura rápida
 tema: Herramientas
-sinonimos: [bandeja, captura, captura rápida, anotar, apunte rápido, inbox, bandeja de entrada, notas rápidas, pendientes, Ctrl+Shift+Espacio, bandeja personal, todos los vaults]
+sinonimos: [bandeja, captura, captura rápida, captura global, desde cualquier programa, minimizado, atajo global, anotar, apunte rápido, inbox, bandeja de entrada, notas rápidas, pendientes, Ctrl+Shift+Espacio, bandeja personal, todos los vaults]
 ---
 
 La **captura rápida** sirve para anotar algo en el momento, sin decidir dónde va: lo que
@@ -27,7 +27,8 @@ que no es donde quieres dejarlo.
 
 1. Pulsa **Ctrl+Shift+Espacio** desde cualquier lugar de la app (o busca **Captura
    rápida** en la paleta de comandos, **Ctrl+P**). Aparece una cajita arriba, sobre lo que
-   tengas abierto.
+   tengas abierto. También funciona **desde cualquier otro programa**, con Mycelium
+   minimizado o detrás: ver más abajo.
 2. Escribe lo que quieras anotar. Si empiezas con `[]`, entra como **tarea**; si no, como
    **nota**. La etiqueta de la derecha te dice cuál será.
 3. Elige el destino abajo a la derecha: **Vault** (con el nombre del vault) o **Personal**.
@@ -41,6 +42,34 @@ escribiendo como si nada.
 La cajita **recuerda el último destino** que elegiste, para todos tus vaults. Si prefieres
 que abra siempre con el mismo, elígelo en **Configuración → Vault**, **Destino de la
 captura rápida**. La primera vez, abre con la Bandeja del vault.
+
+## Desde cualquier programa
+
+Mientras Mycelium esté abierto —aunque esté minimizado o detrás de otras ventanas—,
+**Ctrl+Shift+Espacio** funciona desde cualquier programa: el navegador, el correo, una
+planilla. Aparece la misma cajita en una ventanita propia, en el centro de la pantalla
+donde está el puntero, **sin traer Mycelium al frente**.
+
+- **Vault** es la Bandeja del vault de la **última ventana de Mycelium que usaste**. Si
+  ninguna ventana tiene un vault abierto, solo se puede anotar en la **Personal**.
+- **Tab** cambia el destino, como siempre, y se recuerda el último que elegiste.
+- **Enter** anota y la cajita desaparece: vuelves al programa en el que estabas, con el
+  cursor donde lo tenías. **Esc** la cierra sin anotar.
+- Si haces clic en otra ventana, la cajita se esconde y **guarda lo que escribiste** para
+  la próxima vez que la abras.
+
+El apunte aparece enseguida en el contador del explorador y en la Bandeja, si la tienes
+abierta, igual que si lo hubieras anotado desde adentro de Mycelium.
+
+> [!info] Con Mycelium cerrado no funciona
+> El atajo lo atiende Mycelium, así que tiene que estar abierto (puede estar minimizado).
+
+> [!warning] Si otro programa ya usa Ctrl+Shift+Espacio
+> Al abrir Mycelium te avisa que no pudo tomar el atajo. La captura rápida sigue
+> funcionando adentro de Mycelium, pero no desde otros programas. Para usarla desde
+> cualquier lado, quítale ese atajo al otro programa (suele estar en su configuración de
+> teclado) y vuelve a abrir Mycelium. Por ahora el atajo de la captura rápida no se puede
+> cambiar.
 
 ## El formato
 

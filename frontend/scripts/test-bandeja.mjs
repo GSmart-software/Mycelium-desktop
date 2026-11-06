@@ -408,3 +408,48 @@ test("la personal no recibe rutas: los comandos de Rust no tienen parámetro de 
   assert.match(api, /b === BANDEJA_PERSONAL_ID/);
   assert.match(api, /MOTIVO_PERSONAL_FUERA_DEL_VAULT/);
 });
+
+// ── la captura global (Parte C) ────────────────────────────────────────────
+
+test("lo que manda la flotante se vuelve a interpretar igual en la ventana del vault", () => {
+  for (const crudo of ["hola", "[] comprar pan", "[ ] [] raro", "  [x] no es tarea  ", "a [] b"]) {
+    const captura = b.interpretarCaptura(crudo);
+    assert.deepEqual(b.interpretarCaptura(b.capturaComoTexto(captura)), captura, crudo);
+  }
+  assert.equal(b.capturaComoTexto({ tipo: "tarea", texto: "x" }), "[] x");
+  assert.equal(b.capturaComoTexto({ tipo: "nota", texto: "x" }), "x");
+});
+
+test("sin ningún vault abierto la flotante solo ofrece la personal, sin olvidar lo recordado", () => {
+  assert.equal(b.destinoDisponible("vault", true), "vault");
+  assert.equal(b.destinoDisponible("personal", true), "personal");
+  assert.equal(b.destinoDisponible("vault", false), "personal");
+  assert.equal(b.destinoDisponible("personal", false), "personal");
+});
+
+test("la flotante no elige vault ni ruta: solo manda el texto, y Rust elige la ventana", async () => {
+  const rust = await readFile(fileURLToPath(new URL("../src-tauri/src/captura_global.rs", import.meta.url)), "utf8");
+  const i = rust.indexOf("pub async fn captura_flotante_anotar_vault(");
+  assert.ok(i > 0);
+  const firma = rust.slice(i, rust.indexOf(") ->", i));
+  assert.doesNotMatch(firma, /ruta|path|vault:|ventana_destino|label/i, "no recibe a dónde escribir");
+  assert.match(firma, /texto: String/);
+  // Solo contesta la ventana a la que se le pidió.
+  assert.match(rust, /p\.ventana == ventana\.label\(\)/);
+  // Los comandos de la flotante, solo desde ella.
+  for (const cmd of ["captura_flotante_destinos", "captura_flotante_ocultar", "captura_flotante_anotar_vault"]) {
+    const j = rust.indexOf(`fn ${cmd}(`);
+    assert.ok(j > 0, cmd);
+    assert.match(rust.slice(j, j + 600), /solo_flotante\(&ventana\)\?/, `${cmd} exige la flotante`);
+  }
+  const lib = await readFile(fileURLToPath(new URL("../src-tauri/src/lib.rs", import.meta.url)), "utf8");
+  for (const cmd of ["captura_flotante_destinos", "captura_flotante_ocultar", "captura_flotante_anotar_vault", "captura_anotada", "captura_global_aviso"]) {
+    assert.match(lib, new RegExp(`captura_global::${cmd},`), cmd);
+  }
+  // La flotante tiene su capability, sin los permisos de SQL ni diálogos de las de vault.
+  const cap = JSON.parse(
+    await readFile(fileURLToPath(new URL("../src-tauri/capabilities/captura.json", import.meta.url)), "utf8"),
+  );
+  assert.deepEqual(cap.windows, ["captura"]);
+  assert.ok(!cap.permissions.some((p) => /^(sql|dialog|opener):/.test(p)));
+});

@@ -944,6 +944,11 @@
    .mic-captura-destinos, y cada botón, .mic-captura-destino, con
    data-destino="vault" o "personal" y aria-pressed="true" en el elegido.
 
+   Abierta desde otro programa (la captura global), la cajita va en su propia
+   ventanita, fuera de todo vault: ahí no se aplican los snippets ni el tema
+   del vault (usa el tema por defecto). Lleva data-flotante y su contenedor es
+   .mic-captura-flotante.
+
    En el explorador, la sección «Bandeja» es .mic-explorador-bandeja; cada
    entrada, .mic-bandeja-fila (con data-bandeja="vault" o "personal"), y su
    contador de entradas sin procesar, .mic-bandeja-cuenta.

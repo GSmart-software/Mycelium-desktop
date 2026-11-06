@@ -153,3 +153,22 @@
   color: var(--mic-glow-texto);
   background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
 }
+
+/* La captura global (`FUN-L-33`, Parte C): la misma cajita en su propia
+   ventana, que la ventana mide entera (la sombra y el borde los pone el
+   sistema). `.mic-captura-flotante` es el contenedor; la cajita lleva además
+   `.mic-captura[data-flotante]`. */
+.contenedorFlotante {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.captura.flotante {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}

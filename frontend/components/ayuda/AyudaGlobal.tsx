@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { useUiStore } from "@/stores/uiStore";
 import { grabandoAtajo } from "@/lib/comandos/grabacion";
+import { esVentanaCaptura } from "@/lib/ventana";
 
 /**
  * La ventana de ayuda se carga recién cuando se abre: trae el índice entero y
@@ -36,6 +37,8 @@ export function AyudaGlobal() {
   const abierta = useUiStore((s) => s.ayudaAbierta);
 
   useEffect(() => {
+    // En la ventana de la captura global (una línea) no hay lugar para la ayuda.
+    if (esVentanaCaptura()) return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "F1" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
       // Grabando un atajo en Configuración, F1 es la tecla que se graba.

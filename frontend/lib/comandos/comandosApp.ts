@@ -283,7 +283,8 @@ export const COMANDOS_APP: readonly Comando[] = [
     }),
   ),
   // La captura rápida (FUN-L-33). Su tecla la atiende `CapturaRapida`, en
-  // captura. Un cuadro después, para que la paleta termine de cerrarse y
+  // captura, o Rust como atajo global del sistema (Parte C,
+  // `src-tauri/src/captura_global.rs`): por eso no es personalizable. Un cuadro después, para que la paleta termine de cerrarse y
   // devolver el foco antes de que la cajita lo tome.
   {
     id: "bandeja.capturar",
