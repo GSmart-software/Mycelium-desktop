@@ -3,7 +3,13 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
-import { RUTA_BANDEJA_DEFECTO, normalizarRutaBandeja } from "@/lib/bandeja";
+import {
+  CLAVE_DESTINO_PREFERENCIA,
+  RUTA_BANDEJA_DEFECTO,
+  leerPreferenciaDestino,
+  normalizarRutaBandeja,
+  type PreferenciaDestino,
+} from "@/lib/bandeja";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
   type AccionClaudeMd,
@@ -361,6 +367,9 @@ export function VaultSection() {
       >
         La nota donde anota la <strong>captura rápida</strong>. No se renombra ni se elimina.
       </CampoCarpeta>
+
+      {/* Con qué destino abre la captura rápida (FUN-L-33, Parte B). */}
+      <DestinoCaptura />
 
       {/* Informe de salud (FUN-L-32): dónde se guardan los informes como nota. */}
       <CampoCarpeta
@@ -736,6 +745,52 @@ function CampoCarpeta({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Con qué destino abre la captura rápida (`FUN-L-33`, Parte B): el último
+ * elegido (lo de siempre) o uno fijo. Es del usuario, no del vault
+ * (`localStorage`, como los atajos): la Bandeja personal es la misma desde
+ * todos los vaults.
+ */
+function DestinoCaptura() {
+  const [valor, setValor] = useState<PreferenciaDestino>(() =>
+    leerPreferenciaDestino(typeof window === "undefined" ? null : window.localStorage),
+  );
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor="mic-captura-destino-preferencia">
+        Destino de la captura rápida
+      </label>
+      <select
+        id="mic-captura-destino-preferencia"
+        className={styles.select}
+        value={valor}
+        onChange={(e) => {
+          const v = e.target.value as PreferenciaDestino;
+          setValor(v);
+          if (v === "ultimo") window.localStorage.removeItem(CLAVE_DESTINO_PREFERENCIA);
+          else window.localStorage.setItem(CLAVE_DESTINO_PREFERENCIA, v);
+        }}
+      >
+        <option value="ultimo">El último elegido</option>
+        <option value="vault">Siempre la Bandeja del vault</option>
+        <option value="personal">Siempre la Bandeja personal</option>
+      </select>
+      <Explicacion
+        detalle={
+          <>
+            La <strong>Bandeja personal</strong> es una sola para todos tus vaults y no es parte de
+            ninguno: vive en la carpeta de datos de Mycelium, fuera de las búsquedas, los enlaces,
+            el grafo y la IA del vault. En la cajita, <kbd>Tab</kbd> cambia el destino. Esta opción
+            vale para todos los vaults.
+          </>
+        }
+      >
+        Adónde anota la cajita al abrirse: la Bandeja de este vault o tu Bandeja personal.
+      </Explicacion>
     </div>
   );
 }

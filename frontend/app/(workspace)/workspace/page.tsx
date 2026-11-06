@@ -23,6 +23,7 @@ import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { escucharBandejaPersonal } from "@/lib/bandejaPersonal";
 import { navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { COMANDOS_APP } from "@/lib/comandos/comandosApp";
 import { COMANDOS_MACROS, useRegistrarMacros } from "@/lib/comandos/comandosMacros";
@@ -151,6 +152,23 @@ function WorkspaceShell() {
       dispose?.();
     };
   }, [rutaVault]);
+
+  // La Bandeja personal (`FUN-L-33`, Parte B) está fuera del vault: el watcher
+  // no la ve. Rust avisa a todas las ventanas cuando la app la escribe, y acá
+  // se reparte como un cambio externo de su pestaña y un apunte para el
+  // contador del explorador.
+  useEffect(() => {
+    let dispose: (() => void) | null = null;
+    let vigente = true;
+    void escucharBandejaPersonal().then((unlisten) => {
+      if (vigente) dispose = unlisten;
+      else unlisten();
+    });
+    return () => {
+      vigente = false;
+      dispose?.();
+    };
+  }, []);
 
   // Comprobación de actualizaciones (FUN-L-14). Va acá, en el shell ya montado,
   // y no en el arranque de la app: así el diálogo solo puede aparecer cuando

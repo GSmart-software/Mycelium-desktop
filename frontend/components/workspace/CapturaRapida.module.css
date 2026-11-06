@@ -116,13 +116,40 @@
   color: var(--mic-text-primary);
 }
 
-.destino {
+/* El selector de destino (`FUN-L-33`, Parte B): dos botones, el elegido
+   marcado. `.mic-captura-destinos` es el grupo; `.mic-captura-destino` cada
+   botón, con `data-destino="vault|personal"` y `aria-pressed`. */
+.destinos {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+}
+
+.destino {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   padding: 0.15rem 0.55rem;
-  border: 1px solid var(--mic-border);
-  border-radius: var(--mic-radius-sm);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.destino + .destino {
+  border-left: 1px solid var(--mic-border);
+}
+
+.destino:hover {
   color: var(--mic-text-primary);
+}
+
+.destino[aria-pressed="true"] {
+  color: var(--mic-glow-texto);
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
 }

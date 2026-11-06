@@ -288,7 +288,8 @@ export const COMANDOS_APP: readonly Comando[] = [
   {
     id: "bandeja.capturar",
     titulo: "Captura rápida",
-    detalle: "anotar en la Bandeja del vault",
+    // El destino (del vault o personal) lo recuerda la cajita: Tab lo cambia.
+    detalle: "anotar en la Bandeja del vault o en la personal",
     icono: Inbox,
     categoria: "notas",
     atajos: [{ ctrl: true, shift: true, code: "Space" }],

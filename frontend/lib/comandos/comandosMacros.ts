@@ -14,7 +14,7 @@
  * Cada comando con datos **espera** a que su acción termine (devuelve una
  * promesa): así el paso siguiente de la macro no arranca antes de tiempo.
  */
-import { CircleDot, FileInput, Inbox, TextCursorInput, Workflow } from "lucide-react";
+import { CircleDot, FileInput, Inbox, TextCursorInput, UserRound, Workflow } from "lucide-react";
 import { useMemo } from "react";
 import { api } from "@/lib/api";
 import { carpetaDestino, abrirCreado } from "@/lib/crear";
@@ -184,6 +184,17 @@ async function abrirBandeja(ctx: ContextoComando) {
   enfocarNota(id);
 }
 
+/**
+ * Abre la Bandeja personal (`FUN-L-33`, Parte B) en su pestaña, creándola si
+ * falta. Es la misma desde todos los vaults y no es parte de ninguno.
+ */
+async function abrirBandejaPersonalComando(ctx: ContextoComando) {
+  const { abrirBandejaPersonal } = await import("@/lib/bandejaPersonalPestana");
+  const id = await abrirBandejaPersonal();
+  ctx.navegar(urlDeNota(id));
+  enfocarNota(id);
+}
+
 // ── ejecutar una macro ─────────────────────────────────────────────────────
 
 /** El entorno real: el registro, las macros guardadas y los cuadros del navegador. */
@@ -311,6 +322,14 @@ export const COMANDOS_MACROS: readonly Comando[] = [
     icono: Inbox,
     categoria: "notas",
     ejecutar: (ctx) => abrirBandeja(ctx),
+  },
+  {
+    id: "bandeja.abrir-personal",
+    titulo: "Abrir la Bandeja personal",
+    detalle: "La misma desde todos los vaults, fuera de ellos",
+    icono: UserRound,
+    categoria: "notas",
+    ejecutar: (ctx) => abrirBandejaPersonalComando(ctx),
   },
   {
     id: "macros.grabar",

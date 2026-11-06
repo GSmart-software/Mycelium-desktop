@@ -365,7 +365,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <Icono size={13} className={styles.tabIcono} aria-hidden />
             )}
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
-            {tipoDePestana(tab.notaId) === "nota" && sync !== "synced" && (
+            {(tipoDePestana(tab.notaId) === "nota" || tipoDePestana(tab.notaId) === "bandeja") &&
+              sync !== "synced" && (
               <span
                 className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
                 aria-hidden

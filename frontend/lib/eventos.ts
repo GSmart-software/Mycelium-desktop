@@ -108,9 +108,11 @@ export function avisarAliasCambiados(aliases: Record<string, string[]>): void {
 export const EVENTO_ARCHIVO_GUARDADO = "micelio:archivo-guardado";
 
 /**
- * La captura rápida acaba de anotar en la Bandeja del vault (`FUN-L-33`):
- * `detail.ruta` dice en qué archivo. Lo escucha el contador de la sección
- * «Bandeja» del explorador. Los editores abiertos se enteran por
- * `EVENTO_RECARGA` (con esa ruta), como de cualquier cambio externo.
+ * La captura rápida acaba de anotar en la Bandeja del vault (`FUN-L-33`), o
+ * la Bandeja personal cambió desde cualquier ventana (Parte B; entonces
+ * `detail.ruta` es `BANDEJA_PERSONAL_ID`): `detail.ruta` dice en qué archivo.
+ * Lo escuchan los contadores de la sección «Bandeja» del explorador. Los
+ * editores abiertos se enteran por `EVENTO_RECARGA` (con esa ruta), como de
+ * cualquier cambio externo.
  */
 export const EVENTO_BANDEJA = "micelio:bandeja-anotada";

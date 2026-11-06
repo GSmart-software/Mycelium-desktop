@@ -94,6 +94,21 @@ export function SidebarNoteView({ notaId }: { notaId: string }) {
     );
   }
 
+  // La Bandeja personal (`FUN-L-33`) anclada: siempre su editor, como una nota
+  // en edición (no está en el índice, así que no tiene vista de solo lectura).
+  if (pestana === "bandeja") {
+    return (
+      <div className={styles.viewer}>
+        <div className={styles.viewerHeader}>
+          <span className={styles.viewerTitle}>{PESTANA_SENTINELA.bandeja.titulo}</span>
+        </div>
+        <div className={styles.viewerBody}>
+          <NoteEditor key={notaId} notaId={notaId} instanceId={`${CLAVE_LATERAL_EDITOR}${notaId}`} paneId="sidebar" />
+        </div>
+      </div>
+    );
+  }
+
   // El grafo de conexiones también se puede anclar (no es una nota editable).
   if (pestana === "grafo") {
     return (

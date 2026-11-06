@@ -3,6 +3,7 @@ import { confirmar } from "@/lib/confirmar";
 import { rutaDeCopiaDeEmergencia } from "@/lib/conflictoExterno";
 import { getVaultActual } from "@/lib/db/vaultContext";
 import { escribirNota } from "@/lib/db/vaultFs";
+import { BANDEJA_PERSONAL_ID, TITULO_BANDEJA_PERSONAL } from "@/lib/pestanas";
 import { avisar } from "@/stores/avisosStore";
 import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -84,7 +85,17 @@ export function hayConflicto(instanceId: string): boolean {
 }
 
 function tituloDe(notaId: string): string {
+  if (notaId === BANDEJA_PERSONAL_ID) return TITULO_BANDEJA_PERSONAL;
   return useVaultStore.getState().notas.find((n) => n.id === notaId)?.titulo ?? "la nota";
+}
+
+/**
+ * La ruta (en el vault) sobre la que se arma la copia de emergencia. La Bandeja
+ * personal (`FUN-L-33`) no está en el vault y su id no es una ruta (`:` no
+ * vale en un nombre de Windows): su copia va a la raíz, con su título.
+ */
+function rutaBaseDeCopia(notaId: string): string {
+  return notaId === BANDEJA_PERSONAL_ID ? `${TITULO_BANDEJA_PERSONAL}.md` : notaId;
 }
 
 /**
@@ -181,7 +192,7 @@ async function resguardar(conflicto: Conflicto): Promise<void> {
     ok = false;
   }
   if (ok) return;
-  const ruta = rutaDeCopiaDeEmergencia(conflicto.notaId, new Date());
+  const ruta = rutaDeCopiaDeEmergencia(rutaBaseDeCopia(conflicto.notaId), new Date());
   try {
     await escribirNota(getVaultActual(), ruta, conflicto.contenido());
     avisar(`Lo tuyo de «${tituloDe(conflicto.notaId)}» quedó en «${ruta}».`);
@@ -231,7 +242,7 @@ export function escribirCopiasDeEmergencia(ahora = new Date()): string[] {
     const sello = new Date(ahora.getTime() + deLaNota.size * 1000);
     deLaNota.add(texto);
     vistos.set(conflicto.notaId, deLaNota);
-    const ruta = rutaDeCopiaDeEmergencia(conflicto.notaId, sello);
+    const ruta = rutaDeCopiaDeEmergencia(rutaBaseDeCopia(conflicto.notaId), sello);
     escritas.push(ruta);
     void escribirNota(vault, ruta, texto).catch(() => {});
   }

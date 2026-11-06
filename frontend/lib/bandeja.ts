@@ -232,7 +232,72 @@ export function contarEntradas(contenido: string): number {
   return total;
 }
 
-/** El aviso breve al anotar. */
-export function textoAvisoCaptura(captura: Captura): string {
-  return `${captura.tipo === "tarea" ? "Tarea anotada" : "Anotado"} en la Bandeja del vault`;
+// ── El destino de la captura (Parte B) ────────────────────────────────────
+
+/**
+ * Adónde anota la captura: la Bandeja **del vault** abierto o la Bandeja
+ * **personal**, que es una sola para todos los vaults (fuera de ellos, en la
+ * carpeta de datos de la app).
+ */
+export type DestinoCaptura = "vault" | "personal";
+
+/**
+ * Con qué destino abre la cajita (Configuración → Vault, «Captura rápida»):
+ * el último que se eligió (por defecto), o siempre uno fijo.
+ */
+export type PreferenciaDestino = "ultimo" | DestinoCaptura;
+
+/**
+ * Dónde se recuerdan, a nivel de usuario (`localStorage`, como los atajos): el
+ * último destino elegido y la preferencia. No son del vault: la Bandeja
+ * personal es la misma desde todos.
+ */
+export const CLAVE_DESTINO_ULTIMO = "mic-captura-destino";
+export const CLAVE_DESTINO_PREFERENCIA = "mic-captura-destino-preferencia";
+
+/** Lo mínimo de `localStorage` que hace falta (para probarlo sin navegador). */
+export type AlmacenDestino = Pick<Storage, "getItem" | "setItem">;
+
+const esDestino = (v: unknown): v is DestinoCaptura => v === "vault" || v === "personal";
+
+/** La preferencia guardada; `"ultimo"` si no hay o no se entiende. */
+export function leerPreferenciaDestino(almacen: AlmacenDestino | null): PreferenciaDestino {
+  const v = almacen?.getItem(CLAVE_DESTINO_PREFERENCIA) ?? null;
+  return esDestino(v) ? v : "ultimo";
 }
+
+/**
+ * El destino con que abre la cajita: el fijo, si se configuró uno; si no, el
+ * último elegido; y si nunca se eligió, la Bandeja del vault.
+ */
+export function destinoInicial(almacen: AlmacenDestino | null): DestinoCaptura {
+  const pref = leerPreferenciaDestino(almacen);
+  if (pref !== "ultimo") return pref;
+  const ultimo = almacen?.getItem(CLAVE_DESTINO_ULTIMO) ?? null;
+  return esDestino(ultimo) ? ultimo : "vault";
+}
+
+/** Recuerda el destino elegido (Tab o clic en la cajita). */
+export function recordarDestino(almacen: AlmacenDestino | null, destino: DestinoCaptura): void {
+  try {
+    almacen?.setItem(CLAVE_DESTINO_ULTIMO, destino);
+  } catch {
+    // Sin almacenamiento (cuota, modo privado): la cajita sigue funcionando.
+  }
+}
+
+/** El otro destino: lo que hace Tab en la cajita. */
+export const otroDestino = (d: DestinoCaptura): DestinoCaptura => (d === "vault" ? "personal" : "vault");
+
+/** El aviso breve al anotar, que dice adónde fue. */
+export function textoAvisoCaptura(captura: Captura, destino: DestinoCaptura = "vault"): string {
+  const que = captura.tipo === "tarea" ? "Tarea anotada" : "Anotado";
+  return destino === "personal" ? `${que} en tu Bandeja personal` : `${que} en la Bandeja del vault`;
+}
+
+/** Por qué la Bandeja personal no tiene enlace, ni se renombra, mueve o elimina. */
+export const MOTIVO_PERSONAL_FUERA_DEL_VAULT = "La Bandeja personal no es parte del vault";
+/** … al intentar renombrarla. */
+export const MOTIVO_PERSONAL_NO_RENOMBRA = "La Bandeja personal no se renombra";
+/** … al intentar mandarla a la papelera. */
+export const MOTIVO_PERSONAL_NO_ELIMINA = "La Bandeja personal no se elimina";
