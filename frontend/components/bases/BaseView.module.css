@@ -101,6 +101,14 @@
   outline: none;
 }
 
+/* Con el teclado, el tinte solo no alcanzaba para ver qué fila tiene el foco
+   (auditoría de teclado, `FUN-XL-04`): un anillo hacia adentro, que una fila
+   de tabla no recorta. */
+.tabla tbody tr:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: -2px;
+}
+
 /* La primera columna es el nombre: se destaca como el enlace que es. */
 .tabla tbody td:first-child {
   color: var(--mic-accent);

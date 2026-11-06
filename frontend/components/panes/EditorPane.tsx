@@ -53,14 +53,33 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
   return (
     <section
       className={isActive ? `${styles.pane} ${styles.paneActive}` : styles.pane}
+      // Cada panel de la división es una zona del teclado (`FUN-XL-04`): F6
+      // la recorre y lleva el borde cuando tiene el foco.
+      data-zona="panel"
       onPointerDownCapture={() => {
         if (!isActive) setActivePane(pane.id);
+      }}
+      // El panel activo sigue al foco, no solo al puntero (`FUN-XL-04`): llegar
+      // con Tab, F6 o Ctrl+Alt+←/→ a otro panel lo activa, y Ctrl+W, Ctrl+Tab
+      // y compañía actúan sobre él. Un `focus` no interrumpe un arrastre.
+      onFocusCapture={() => {
+        if (useTabsStore.getState().activePaneId !== pane.id) setActivePane(pane.id);
       }}
     >
       <TabBar pane={pane} />
       {/* data-pane-id: el explorador ubica este cuerpo por geometría al arrastrar
-          una nota (DEF-023 P2), usando el tracking de puntero de dnd-kit. */}
-      <div className={styles.paneBody} data-pane-id={pane.id}>
+          una nota (DEF-023 P2), usando el tracking de puntero de dnd-kit.
+          data-documento + tabIndex=-1: el documento del panel (`FUN-XL-04`).
+          Con el foco en él mismo está SELECCIONADO (modo navegar: Enter entra a
+          escribir); con el foco adentro, se está escribiendo (Esc sale). */}
+      <div
+        className={styles.paneBody}
+        data-pane-id={pane.id}
+        data-documento=""
+        tabIndex={-1}
+        role="group"
+        aria-label={activeTab ? "Documento" : "Panel vacío"}
+      >
         {pane.linkedTo !== null ? (
           <LinkedPreviewPane pane={pane} />
         ) : activeTab && pestana === "grafo" ? (

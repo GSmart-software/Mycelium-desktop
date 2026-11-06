@@ -34,6 +34,8 @@ import {
   X,
   ArrowLeftRight,
   Command,
+  Columns2,
+  SquareDashedMousePointer,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -50,6 +52,13 @@ import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import {
+  enfocarDocumentoActivo,
+  escribiendoEnEditor,
+  hayModalAbierto,
+  irAPanelContiguo,
+  irAZona,
+} from "@/lib/teclado/focoDom";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
 import type { Comando, ContextoComando } from "./registro";
 
@@ -73,8 +82,10 @@ function ciclarPestana(ctx: ContextoComando, delta: -1 | 1) {
   if (!pane || pane.tabs.length < 2) return;
   const i = pane.tabs.findIndex((t) => t.id === pane.activeTabId);
   const destino = pane.tabs[(i + delta + pane.tabs.length) % pane.tabs.length];
+  const veniaEscribiendo = escribiendoEnEditor();
   activateTab(pane.id, destino.id);
   ctx.navegar("/workspace?note=" + encodeURIComponent(destino.notaId));
+  enfocarDocumentoActivo(veniaEscribiendo);
 }
 
 /** Historial de la pestaña activa, sin perder lo de una nota en conflicto (`DEF-177`). */
@@ -349,8 +360,14 @@ export const COMANDOS_APP: readonly Comando[] = [
       // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
       const { activePaneId, root } = useTabsStore.getState();
       const activa = findLeaf(root, activePaneId)?.activeTabId;
+      const veniaEscribiendo = escribiendoEnEditor();
       if (activa) {
-        void cerrarPestanaSinPerder(activePaneId, activa).then((cerrada) => cerrada && sincronizarUrl(ctx.navegar));
+        void cerrarPestanaSinPerder(activePaneId, activa).then((cerrada) => {
+          if (!cerrada) return;
+          sincronizarUrl(ctx.navegar);
+          // El foco no puede quedar en `body` (ni meterse en una consola).
+          enfocarDocumentoActivo(veniaEscribiendo);
+        });
       }
     },
   },
@@ -362,8 +379,10 @@ export const COMANDOS_APP: readonly Comando[] = [
     enPaleta: false,
     atajos: [{ ctrl: true, shift: true, code: "KeyT" }],
     ejecutar: (ctx) => {
+      const veniaEscribiendo = escribiendoEnEditor();
       useTabsStore.getState().reopenLastClosed();
       sincronizarUrl(ctx.navegar);
+      enfocarDocumentoActivo(veniaEscribiendo);
     },
   },
   // Alt+←/→: historial de la pestaña activa (DEF-040). Si el editor ya
@@ -387,5 +406,54 @@ export const COMANDOS_APP: readonly Comando[] = [
     atajos: [{ alt: true, code: "ArrowRight" }],
     ignorarSiPrevenido: true,
     ejecutar: (ctx) => navegarHistorialActivo(ctx, 1),
+  },
+
+  // ── Zonas y paneles (`FUN-XL-04`, Parte 2) ──
+  // F6 / Shift+F6 recorren las zonas: rail, panel izquierdo, cada panel de la
+  // división (y su panel de enlaces), barra de estado. En captura, para salir
+  // también de la consola y de CodeMirror. Con un diálogo modal abierto, no.
+  {
+    id: "zona.siguiente",
+    titulo: "Ir a la zona siguiente",
+    icono: SquareDashedMousePointer,
+    categoria: "navegacion",
+    enPaleta: false,
+    atajos: [{ code: "F6" }],
+    enCaptura: true,
+    disponible: () => !hayModalAbierto(),
+    ejecutar: () => irAZona(1),
+  },
+  {
+    id: "zona.anterior",
+    titulo: "Ir a la zona anterior",
+    icono: SquareDashedMousePointer,
+    categoria: "navegacion",
+    enPaleta: false,
+    atajos: [{ shift: true, code: "F6" }],
+    enCaptura: true,
+    disponible: () => !hayModalAbierto(),
+    ejecutar: () => irAZona(-1),
+  },
+  // Ctrl+Alt+←/→: al panel contiguo de la pantalla dividida. ↑/↓ no: con
+  // Ctrl+Alt son el multicursor de CodeMirror.
+  {
+    id: "panel.izquierda",
+    titulo: "Ir al panel de la izquierda",
+    icono: Columns2,
+    categoria: "paneles",
+    enPaleta: false,
+    atajos: [{ ctrl: true, alt: true, code: "ArrowLeft" }],
+    disponible: () => !hayModalAbierto(),
+    ejecutar: () => irAPanelContiguo("izquierda"),
+  },
+  {
+    id: "panel.derecha",
+    titulo: "Ir al panel de la derecha",
+    icono: Columns2,
+    categoria: "paneles",
+    enPaleta: false,
+    atajos: [{ ctrl: true, alt: true, code: "ArrowRight" }],
+    disponible: () => !hayModalAbierto(),
+    ejecutar: () => irAPanelContiguo("derecha"),
   },
 ];

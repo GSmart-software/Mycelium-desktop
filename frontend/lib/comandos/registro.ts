@@ -80,6 +80,13 @@ export type Comando = {
   manejadorPropio?: boolean;
   /** El despachador no actúa si alguien ya consumió la tecla (`defaultPrevented`). */
   ignorarSiPrevenido?: boolean;
+  /**
+   * Su atajo se escucha en la fase de **captura** y no en burbuja, y nadie más
+   * lo recibe (`stopPropagation`): F6 / Shift+F6 (`FUN-XL-04`, Parte 2), que
+   * tienen que funcionar también con el foco en la consola —xterm cancela casi
+   * todo— y en CodeMirror. Solo para teclas que no son de nadie más.
+   */
+  enCaptura?: boolean;
   /** `false`: no aparece en la paleta (los que hoy solo son un atajo). */
   enPaleta?: boolean;
   /** Comando de desarrollador: solo existe con el modo dev (`FUN-S-36`). */
@@ -167,14 +174,23 @@ export function textoEnPaleta(c: Comando, comandos: readonly Comando[]): { titul
 
 // ── el despachador ─────────────────────────────────────────────────────────
 
+/** La fase del evento en la que escucha el despachador. */
+export type Fase = "captura" | "burbuja";
+
 /**
- * El comando que el despachador del workspace dispara con esta tecla, o
- * `null`. No cuenta los de manejador propio ni los de desarrollador sin el
- * modo.
+ * El comando que el despachador del workspace dispara con esta tecla en esta
+ * fase, o `null`. No cuenta los de manejador propio ni los de desarrollador
+ * sin el modo. En captura, solo los `enCaptura`; en burbuja, el resto.
  */
-export function comandoParaTecla(e: EventoTecla, comandos: readonly Comando[], dev: boolean): Comando | null {
+export function comandoParaTecla(
+  e: EventoTecla,
+  comandos: readonly Comando[],
+  dev: boolean,
+  fase: Fase = "burbuja",
+): Comando | null {
   for (const c of comandosDisponibles(comandos, dev)) {
     if (c.manejadorPropio) continue;
+    if (!!c.enCaptura !== (fase === "captura")) continue;
     if (c.atajos?.some((a) => coincide(a, e))) return c;
   }
   return null;

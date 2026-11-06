@@ -97,6 +97,13 @@
   outline: none;
 }
 
+/* El fondo de hover no distinguía la opción enfocada con el teclado
+   (`FUN-XL-04`). */
+.item:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: -2px;
+}
+
 .icono {
   flex-shrink: 0;
   color: var(--mic-text-muted);
