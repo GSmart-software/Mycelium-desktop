@@ -30,8 +30,13 @@
   background: color-mix(in srgb, var(--mic-text-muted) 22%, transparent);
 }
 
-.divisor:hover {
+.divisor:hover,
+.divisor:focus-visible {
   background: color-mix(in srgb, var(--mic-glow) 45%, transparent);
+}
+
+.divisor:focus-visible {
+  outline-offset: 0;
 }
 
 /* ── Región de pestañas ancladas (alto por estilo inline) ───────── */

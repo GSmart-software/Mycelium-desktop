@@ -66,6 +66,7 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
 export function LeftPanel() {
   const activeSection = usePanelLayoutStore((s) => s.activeSection);
   const setLeftWidth = usePanelLayoutStore((s) => s.setLeftWidth);
+  const leftWidth = usePanelLayoutStore((s) => s.leftWidth);
 
   return (
     <aside
@@ -94,7 +95,7 @@ export function LeftPanel() {
               )}
             </SidebarDock>
           </div>
-          <ResizeHandle side="left" onResize={setLeftWidth} />
+          <ResizeHandle side="left" width={leftWidth} onResize={setLeftWidth} />
         </>
       )}
     </aside>

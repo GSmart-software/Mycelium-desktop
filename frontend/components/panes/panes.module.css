@@ -70,8 +70,16 @@
 .dividerV:hover,
 .dividerH:hover,
 .dividerV:active,
-.dividerH:active {
+.dividerH:active,
+.dividerV:focus-visible,
+.dividerH:focus-visible {
   background: color-mix(in srgb, var(--mic-glow) 40%, transparent);
+}
+
+/* Con el teclado (`FUN-XL-04`): la barra mide 4 px, el anillo va hacia adentro. */
+.dividerV:focus-visible,
+.dividerH:focus-visible {
+  outline-offset: -2px;
 }
 
 /* ── Tab bar (HU-25) ────────────────────────────────────────────── */

@@ -26,8 +26,13 @@
   touch-action: none;
 }
 
-.resize:hover {
+.resize:hover,
+.resize:focus-visible {
   background: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+.resize:focus-visible {
+  outline-offset: -2px;
 }
 
 .tabs {

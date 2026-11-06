@@ -3,6 +3,7 @@
 import { Fragment, useRef } from "react";
 import { useTabsStore, type PaneNode, type SplitPane } from "@/stores/tabsStore";
 import { EditorPane } from "./EditorPane";
+import { propsDeSeparador } from "@/components/workspace/separador";
 import styles from "./panes.module.css";
 
 /** Render recursivo del árbol de panes (HU-26 CA5: grids M×N anidados). */
@@ -14,6 +15,28 @@ export function PaneTree({ node }: { node: PaneNode }) {
 function SplitContainer({ split }: { split: SplitPane }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const setSizes = useTabsStore((s) => s.setSizes);
+
+  /** Las props de teclado del divisor entre el panel `index` y el siguiente. */
+  function separadorDelPar(index: number) {
+    const par = (split.sizes[index] ?? 1) + (split.sizes[index + 1] ?? 1);
+    const pct = ((split.sizes[index] ?? 1) / Math.max(par, 1e-6)) * 100;
+    return propsDeSeparador({
+      etiqueta: split.direction === "row" ? "Ancho de los paneles" : "Alto de los paneles",
+      texto: `${Math.round(pct)} %`,
+      valor: pct,
+      min: 12,
+      max: 88,
+      orientacion: split.direction === "row" ? "vertical" : "horizontal",
+      paso: 2,
+      pasoGrande: 10,
+      alCambiar: (v) => {
+        const sizes = [...split.sizes];
+        sizes[index] = (par * v) / 100;
+        sizes[index + 1] = par - sizes[index];
+        setSizes(split.id, sizes);
+      },
+    });
+  }
 
   // Divisor arrastrable entre panes (HU-26 CA4)
   function startDrag(index: number, event: React.PointerEvent<HTMLDivElement>) {
@@ -71,8 +94,10 @@ function SplitContainer({ split }: { split: SplitPane }) {
           </div>
           {index < split.children.length - 1 && (
             <div
-              role="separator"
-              aria-orientation={split.direction === "row" ? "vertical" : "horizontal"}
+              // Con el teclado (`FUN-XL-04`, Parte 7): el valor es el porcentaje
+              // del panel de antes dentro del par que separa (los dos suman
+              // 100), entre 12 y 88, como el arrastre.
+              {...separadorDelPar(index)}
               className={
                 split.direction === "row" ? styles.dividerV : styles.dividerH
               }
