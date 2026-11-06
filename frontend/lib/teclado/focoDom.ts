@@ -23,7 +23,7 @@ import { claseDeDocumento, modoTrasCambio, panelContiguo, zonaVecina, type Zona 
 
 const SEL_ZONA = "[data-zona]";
 const SEL_DOCUMENTO = "[data-documento]";
-const SEL_ENFOCABLE = [
+export const SEL_ENFOCABLE = [
   "a[href]",
   "button:not([disabled])",
   "input:not([disabled]):not([type='hidden'])",
@@ -35,13 +35,13 @@ const SEL_ENFOCABLE = [
 ].join(", ");
 
 /** ¿Se ve? (Ni oculto, ni de ancho cero, ni dentro de algo `aria-hidden` o `inert`.) */
-function visible(el: HTMLElement): boolean {
+export function visible(el: HTMLElement): boolean {
   if (el.getClientRects().length === 0) return false;
   if (el.offsetWidth === 0 && el.offsetHeight === 0) return false;
   return !el.closest("[aria-hidden='true'], [inert]");
 }
 
-function primerEnfocable(raiz: HTMLElement, selector = SEL_ENFOCABLE): HTMLElement | null {
+export function primerEnfocable(raiz: HTMLElement, selector = SEL_ENFOCABLE): HTMLElement | null {
   for (const el of raiz.querySelectorAll<HTMLElement>(selector)) if (visible(el)) return el;
   return null;
 }
@@ -177,25 +177,29 @@ function destinoEnLectura(doc: HTMLElement): HTMLElement | null {
 
 // ── las zonas (F6) ────────────────────────────────────────────────────────
 
-/** Pone el foco en lo que corresponde de una zona al entrar con F6. */
-export function enfocarZona(zona: HTMLElement) {
-  if (tipoZona(zona) === "panel") {
-    const doc = zona.querySelector<HTMLElement>(SEL_DOCUMENTO);
-    if (doc) {
-      const paneId = doc.dataset.paneId;
-      if (paneId) useTabsStore.getState().setActivePane(paneId);
-      seleccionarDocumento(doc);
-      return;
-    }
+/**
+ * Deja la sección seleccionada (`FUN-XL-04`, niveles): el foco en su
+ * contenedor. El `tabindex=-1` se pone solo mientras tiene el foco: si
+ * quedara, un clic en un hueco de la sección se lo daría y le quitaría el foco
+ * al editor.
+ */
+export function seleccionarSeccion(zona: HTMLElement) {
+  if (!zona.hasAttribute("tabindex")) {
+    zona.setAttribute("tabindex", "-1");
+    zona.addEventListener("blur", () => zona.removeAttribute("tabindex"), { once: true });
   }
-  const preferido =
-    tipoZona(zona) === "rail"
-      ? primerEnfocable(zona, "button[aria-pressed='true']")
-      : tipoZona(zona) === "izquierda"
-        ? primerEnfocable(zona, "[role='treeitem'][tabindex='0'], [aria-selected='true'][tabindex]")
-        : null;
-  (preferido ?? primerEnfocable(zona))?.focus();
+  if (tipoZona(zona) === "panel") {
+    const paneId = zona.querySelector<HTMLElement>(SEL_DOCUMENTO)?.dataset.paneId;
+    if (paneId) useTabsStore.getState().setActivePane(paneId);
+  }
+  zona.focus({ preventScroll: true });
 }
+
+/**
+ * F6 / Shift+F6 llegan a una zona: queda **seleccionada**, como con
+ * Alt+flechas en el nivel de secciones; Ctrl+Enter entra.
+ */
+export const enfocarZona = seleccionarSeccion;
 
 /** ¿El foco está en el panel izquierdo? */
 export const focoEnElPanelIzquierdo = () => !!document.activeElement?.closest("[data-zona='izquierda']");
@@ -258,7 +262,7 @@ export const autoFocoPermitido = () => Date.now() > sinAutoFocoHasta;
 /** ¿El foco está escribiendo en un editor de notas? Se mira ANTES del cambio. */
 export const escribiendoEnEditor = () => !!document.activeElement?.closest(`${SEL_DOCUMENTO} .cm-editor`);
 
-function claseDelActivo() {
+export function claseDelActivo() {
   const id = useTabsStore.getState().activeNotaId();
   if (!id) return "otro" as const;
   // La Bandeja personal (`FUN-L-33`) se edita con el editor de notas.

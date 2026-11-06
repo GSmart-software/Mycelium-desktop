@@ -10,14 +10,30 @@
  * - `data-teclado` en `<html>` mientras se usa el teclado (se va con el
  *   puntero): el borde de la zona solo se dibuja con el teclado, como
  *   `:focus-visible`.
- * - **Esc** sin nada que cerrar saca de escribir y deja el documento
- *   seleccionado; **Enter** sobre un documento seleccionado vuelve a escribir.
+ * - **Esc** sale un nivel (`niveles.ts`) si no había nada que cerrar:
+ *   escribiendo → el documento seleccionado → la sección seleccionada; de un
+ *   elemento de una sección → la sección. **Enter** sobre un documento
+ *   seleccionado vuelve a escribir.
+ * - **Tab** no recorre controles en el workspace (`tabRecorre`): se navega
+ *   con Alt+flechas. Sí en los diálogos, el editor (sangría) y la consola.
+ * - La sección con el foco en su contenedor lleva `data-zona-seleccionada`.
  *
  * Los atributos se ponen a mano, sin estado de React: cambian en cada foco y
  * repintar el workspace por eso sería caro. React no los toca (no los maneja).
  */
 import { useEffect } from "react";
-import { documentoDe, documentoDeMarco, enfocarDocumentoActivo, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
+import {
+  documentoDe,
+  documentoDeMarco,
+  enfocarDocumentoActivo,
+  entrarAEscribir,
+  recordarFoco,
+  seleccionarDocumento,
+  seleccionarSeccion,
+  zonaDe,
+} from "./focoDom";
+import { destinoDeEsc, tabRecorre } from "./niveles";
+import { recordarElemento, ubicar } from "./nivelesDom";
 import { pistasVisibles } from "./pistasDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
 
@@ -32,6 +48,11 @@ const SEL_EMERGENTES = "[role='menu'], [role='listbox'], [role='dialog'], .cm-to
  * Excalidraw (deselecciona, cancela la herramienta). De ahí se sale con F6.
  */
 const SEL_ESC_PROPIO = ".xterm, .excalidraw, [data-esc-propio]";
+
+/** Donde Tab sigue recorriendo controles: los diálogos y los menús. */
+const SEL_DIALOGO = "[aria-modal='true'], [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
+/** Los componentes que usan Tab para otra cosa: la sangría del editor, la shell, Excalidraw. */
+const SEL_CON_TAB = ".cm-editor, .xterm, .excalidraw";
 
 function foto(): FotoEsc {
   const foco = document.activeElement;
@@ -54,9 +75,16 @@ export function useTecladoZonas() {
       const zona = zonaDe(deMarco ?? foco);
       if (zona !== zonaMarcada) {
         zonaMarcada?.removeAttribute("data-zona-activa");
+        zonaMarcada?.removeAttribute("data-zona-seleccionada");
         zona?.setAttribute("data-zona-activa", "");
         zonaMarcada = zona;
       }
+      // La sección seleccionada (el foco en su contenedor): el nivel de arriba.
+      if (zona) {
+        if (foco === zona) zona.setAttribute("data-zona-seleccionada", "");
+        else zona.removeAttribute("data-zona-seleccionada");
+      }
+      if (foco && !deMarco) recordarElemento(foco);
       const doc = deMarco ?? documentoDe(foco);
       if (doc !== docMarcado) {
         docMarcado?.removeAttribute("data-modo");
@@ -105,42 +133,51 @@ export function useTecladoZonas() {
       // Con las pistas a la vista (F10), Esc solo las cierra.
       if (pistasVisibles()) return;
       const foco = document.activeElement as HTMLElement | null;
-      const doc = documentoDe(foco);
-      if (!foco) return;
-      // Fuera de un documento, o en el panel de enlaces (que vive dentro del
-      // documento del panel pero es otra zona).
-      if (!doc || zonaDe(foco) !== zonaDe(doc)) {
-        escEnPanelDePestana(e, foco);
-        return;
-      }
-      if (foco === doc) return;
-      if (foco.closest(SEL_ESC_PROPIO)) return;
+      if (!foco || foco.closest(SEL_ESC_PROPIO)) return;
+      const { lugar, zona, doc } = ubicar(foco);
+      const destino = destinoDeEsc(lugar);
+      if (destino === null) return;
+      // El contenido de una pestaña (el panel de la nota: propiedades,
+      // mini-grafo, enlaces): Esc vuelve a esa pestaña, un nivel arriba. Sin
+      // esto, en el mini-grafo del panel lateral Esc no hacía nada (prueba en
+      // vivo del 2026-11-06).
+      const pestana =
+        destino === "pestana"
+          ? document.getElementById(
+              foco.closest("[role='tabpanel'][aria-labelledby]")?.getAttribute("aria-labelledby") ?? "",
+            )
+          : null;
+      const aDonde = destino === "documento" ? doc : destino === "pestana" ? pestana : zona;
+      if (!aDonde) return;
       // Se decide después de que todos atiendan la tecla: si alguien cerró
-      // algo con ella, este Esc ya se usó.
+      // algo con ella (sugerencias, un menú, vaciar un buscador), este Esc ya
+      // se usó y el siguiente sale.
       const antes = foto();
       setTimeout(() => {
-        if (!doc.isConnected) return;
-        if (escSaleDeEscribir(e.defaultPrevented, antes, foto())) seleccionarDocumento(doc);
+        if (!aDonde.isConnected) return;
+        if (!escSaleDeEscribir(e.defaultPrevented, antes, foto())) return;
+        if (destino === "documento") seleccionarDocumento(aDonde);
+        else if (destino === "pestana") aDonde.focus();
+        else seleccionarSeccion(aDonde);
       }, 0);
     }
 
     /**
-     * Fuera de un documento, dentro del contenido de una pestaña (el panel de
-     * la nota: propiedades, mini-grafo, enlaces): Esc vuelve a esa pestaña, un
-     * nivel arriba. Sin esto, en el mini-grafo del panel lateral Esc no hacía
-     * nada (prueba en vivo del 2026-11-06). Como en el documento, solo si nadie
-     * usó la tecla para cerrar algo (una lista de sugerencias, un menú).
+     * Tab en el workspace no recorre controles (rediseño por niveles,
+     * 2026-11-06): se navega con Alt+flechas. Se mira en burbuja, después de
+     * que el editor (sangría), la consola, la captura rápida y los demás
+     * atiendan la tecla; mover el foco es la acción por defecto de Tab, así
+     * que basta con `preventDefault`.
      */
-    function escEnPanelDePestana(e: KeyboardEvent, foco: HTMLElement) {
-      const panel = foco.closest<HTMLElement>("[role='tabpanel'][aria-labelledby]");
-      if (!panel || foco.closest(SEL_ESC_PROPIO)) return;
-      const pestana = document.getElementById(panel.getAttribute("aria-labelledby") ?? "");
-      if (!pestana) return;
-      const antes = foto();
-      setTimeout(() => {
-        if (!pestana.isConnected) return;
-        if (escSaleDeEscribir(e.defaultPrevented, antes, foto())) pestana.focus();
-      }, 0);
+    function alPulsarTab(e: KeyboardEvent) {
+      if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+      const foco = document.activeElement as HTMLElement | null;
+      const recorre = tabRecorre({
+        enDialogo: !!foco?.closest(SEL_DIALOGO) || document.querySelector("[aria-modal='true']") !== null,
+        enComponenteConTab: !!foco?.closest(SEL_CON_TAB),
+        enWorkspace: !foco || foco === document.body || zonaDe(foco) !== null,
+      });
+      if (!recorre) e.preventDefault();
     }
 
     function alPulsarEnBurbuja(e: KeyboardEvent) {
@@ -156,15 +193,18 @@ export function useTecladoZonas() {
     document.addEventListener("focusout", alCambiarFoco);
     window.addEventListener("keydown", alPulsar, true);
     window.addEventListener("keydown", alPulsarEnBurbuja);
+    window.addEventListener("keydown", alPulsarTab);
     window.addEventListener("pointerdown", alApuntar, true);
     return () => {
       document.removeEventListener("focusin", alCambiarFoco);
       document.removeEventListener("focusout", alCambiarFoco);
       window.removeEventListener("keydown", alPulsar, true);
       window.removeEventListener("keydown", alPulsarEnBurbuja);
+      window.removeEventListener("keydown", alPulsarTab);
       window.removeEventListener("pointerdown", alApuntar, true);
       if (rescate !== null) clearTimeout(rescate);
       zonaMarcada?.removeAttribute("data-zona-activa");
+      zonaMarcada?.removeAttribute("data-zona-seleccionada");
       docMarcado?.removeAttribute("data-modo");
       raiz.removeAttribute("data-teclado");
     };

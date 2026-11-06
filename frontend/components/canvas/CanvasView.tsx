@@ -625,15 +625,16 @@ export function CanvasView({ notaId }: { notaId: string }) {
       ?.focus({ preventScroll: true });
 
   /**
-   * Las teclas con el foco en una tarjeta: las flechas pasan a la tarjeta más
-   * cercana en esa dirección (por su centro), Alt+flechas la mueven (de a 10,
-   * con Shift de a 50; cada pulsación es un paso de deshacer), Enter edita el
-   * texto o abre la nota. Supr la borra (el manejador de arriba) y Esc deja el
-   * lienzo seleccionado (la regla general de los dos modos).
+   * Las teclas con el foco en una tarjeta: las flechas —y Alt+flechas, la
+   * regla de los niveles— pasan a la tarjeta más cercana en esa dirección (por
+   * su centro); Ctrl+flechas la mueven (mover es una acción: de a 10, con
+   * Shift de a 50; cada pulsación es un paso de deshacer; hasta el rediseño
+   * del 2026-11-06 era Alt+flechas). Enter edita el texto o abre la nota. Supr
+   * la borra (el manejador de arriba) y Esc deja el lienzo seleccionado.
    */
   const alTeclaEnTarjeta = (n: Nodo, e: React.KeyboardEvent<HTMLDivElement>, notaDestino: string | null) => {
-    if (e.ctrlKey || e.metaKey) return;
-    if (e.key === "Enter" && !e.altKey && !e.shiftKey) {
+    if (e.metaKey) return;
+    if (e.key === "Enter" && !e.altKey && !e.shiftKey && !e.ctrlKey) {
       if (n.tipo === "text") {
         e.preventDefault();
         abrirGesto(`texto:${n.id}`);
@@ -645,9 +646,9 @@ export function CanvasView({ notaId }: { notaId: string }) {
       return;
     }
     const dir = direccionDeTecla(e.key);
-    if (dir === null) return;
+    if (dir === null || (e.ctrlKey && e.altKey)) return;
     e.preventDefault();
-    if (e.altKey) {
+    if (e.ctrlKey) {
       const paso = e.shiftKey ? 50 : 10;
       const dx = dir === "derecha" ? paso : dir === "izquierda" ? -paso : 0;
       const dy = dir === "abajo" ? paso : dir === "arriba" ? -paso : 0;

@@ -263,11 +263,13 @@ test("el despachador usa los atajos de hoy: el nuevo funciona y el viejo ya no",
   }
 });
 
-test("Ctrl+1..4 son las vistas por la fila de números; Ctrl+Num1..4 quedan libres", () => {
+test("Ctrl+1..4 son las vistas por la fila de números; Ctrl+Num1..5, las secciones", () => {
   const ids = ["editor.vista-en-vivo", "editor.vista-dividido", "editor.vista-lectura", "editor.vista-crudo"];
   ids.forEach((id, i) => {
     assert.equal(reg.comandoParaTecla(tecla(`Digit${i + 1}`, { ctrlKey: true }), COMANDOS_APP, false)?.id, id);
-    assert.equal(reg.comandoParaTecla(tecla(`Numpad${i + 1}`, { ctrlKey: true }), COMANDOS_APP, false), null);
+  });
+  ["zona.rail", "zona.izquierda", "zona.pestanas", "zona.enlaces", "zona.estado"].forEach((id, i) => {
+    assert.equal(reg.comandoParaTecla(tecla(`Numpad${i + 1}`, { ctrlKey: true }), COMANDOS_APP, false)?.id, id);
   });
   // Con Shift o Alt, no.
   assert.equal(reg.comandoParaTecla(tecla("Digit1", { ctrlKey: true, shiftKey: true }), COMANDOS_APP, false), null);
@@ -422,4 +424,32 @@ test("el editor le deja a la app Ctrl+I (cursiva) y Ctrl+Shift+\\ (panel de enla
   assert.match(editor, /\{ key: "Mod-i", run: \(v\) => \(wrapSelection\(v, "\*"\), true\) \}/);
   // Y ya no hay un Ctrl+1..4 por `e.key` (confundía el teclado numérico).
   assert.doesNotMatch(editor, /\["1", "2", "3", "4"\]\.indexOf/);
+});
+
+// ── AltGr (rediseño por niveles, 2026-11-06) ───────────────────────────────
+
+const ALTGR = { ctrlKey: true, altKey: true, getModifierState: (k) => k === "AltGraph" };
+
+test("AltGr se distingue de Ctrl+Alt por getModifierState", () => {
+  const altGr = { altGr: true, code: "ArrowLeft" };
+  const ctrlAlt = { ctrl: true, alt: true, code: "ArrowLeft" };
+  assert.equal(at.coincide(altGr, tecla("ArrowLeft", ALTGR)), true);
+  assert.equal(at.coincide(altGr, tecla("ArrowLeft", { ctrlKey: true, altKey: true })), false);
+  assert.equal(at.coincide(ctrlAlt, tecla("ArrowLeft", ALTGR)), false);
+  assert.equal(at.coincide(ctrlAlt, tecla("ArrowLeft", { ctrlKey: true, altKey: true })), true);
+  // Alt sola no es AltGr.
+  assert.equal(at.coincide(altGr, tecla("ArrowLeft", { altKey: true })), false);
+  assert.equal(at.mismoAtajo(altGr, ctrlAlt), false);
+  assert.equal(at.mismoAtajo(altGr, { altGr: true, ctrl: true, code: "ArrowLeft" }), true);
+});
+
+test("AltGr se graba, se muestra, se guarda y se valida", () => {
+  const grabado = at.atajoDeEvento(tecla("ArrowRight", ALTGR));
+  assert.deepEqual(grabado, { altGr: true, code: "ArrowRight" });
+  assert.equal(at.textoAtajo(grabado), "AltGr+→");
+  assert.equal(at.claveAtajo(grabado), "altgr+ArrowRight");
+  assert.deepEqual(at.atajoValido(JSON.parse(JSON.stringify(grabado))), grabado);
+  assert.equal(at.problemaDeAtajo(grabado), null);
+  // AltGr con una letra escribe un carácter.
+  assert.notEqual(at.problemaDeAtajo({ altGr: true, code: "KeyQ" }), null);
 });

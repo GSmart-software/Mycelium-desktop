@@ -45,8 +45,11 @@ export const TECLAS_QUE_SALEN_DE_LA_CONSOLA: readonly { atajo: Atajo; para: stri
   { atajo: { ctrl: true, shift: true, code: "Tab" }, para: "pestana.anterior" },
   { atajo: { ctrl: true, code: "Backslash" }, para: "panel-izquierdo.alternar" },
   { atajo: { ctrl: true, code: "Comma" }, para: "configuracion.abrir" },
-  { atajo: { ctrl: true, alt: true, code: "ArrowLeft" }, para: "panel.izquierda" },
-  { atajo: { ctrl: true, alt: true, code: "ArrowRight" }, para: "panel.derecha" },
+  { atajo: { ctrl: true, code: "Numpad1" }, para: "zona.rail" },
+  { atajo: { ctrl: true, code: "Numpad2" }, para: "zona.izquierda" },
+  { atajo: { ctrl: true, code: "Numpad3" }, para: "zona.pestanas" },
+  { atajo: { ctrl: true, code: "Numpad4" }, para: "zona.enlaces" },
+  { atajo: { ctrl: true, code: "Numpad5" }, para: "zona.estado" },
   { atajo: { ctrl: true, shift: true, code: "Slash" }, para: "atajos.hoja" },
 ];
 

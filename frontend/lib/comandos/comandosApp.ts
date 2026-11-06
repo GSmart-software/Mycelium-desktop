@@ -50,6 +50,11 @@ import {
   Trash2,
   FolderPlus,
   MousePointerClick,
+  Move,
+  CornerDownRight,
+  LogOut,
+  PanelBottom,
+  LayoutPanelLeft,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -78,6 +83,8 @@ import {
   irAZona,
 } from "@/lib/teclado/focoDom";
 import { abrirPistas, cerrarPistas, pistasVisibles } from "@/lib/teclado/pistasDom";
+import { entrarEnNivel, irASeccion, moverEnNivel, type SeccionDirecta } from "@/lib/teclado/nivelesDom";
+import type { Direccion } from "@/lib/teclado/navegacion";
 import { EVENTO_VISTA_NOTA } from "./eventos";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
 import { OPCIONES_NUEVO, type OpcionNuevo } from "./nuevo";
@@ -230,6 +237,23 @@ function ciclarAnclada(delta: -1 | 1) {
 /** Atmósfera del modo en uso (la del otro modo se cambia en Configuración). */
 const claveAtmosfera = () =>
   usePreferencesStore.getState().modoOscuro ? ("atmosferaOscuro" as const) : ("atmosferaClaro" as const);
+
+/** Alt+flechas: moverse en el nivel actual. */
+const NIVELES_FLECHAS: readonly { id: string; code: string; dir: Direccion; titulo: string }[] = [
+  { id: "izquierda", code: "ArrowLeft", dir: "izquierda", titulo: "Moverse a la izquierda" },
+  { id: "derecha", code: "ArrowRight", dir: "derecha", titulo: "Moverse a la derecha" },
+  { id: "arriba", code: "ArrowUp", dir: "arriba", titulo: "Moverse hacia arriba" },
+  { id: "abajo", code: "ArrowDown", dir: "abajo", titulo: "Moverse hacia abajo" },
+];
+
+/** Ctrl+Num1…Num5, en este orden. */
+const SECCIONES_DIRECTAS: readonly { id: SeccionDirecta; titulo: string; icono: IconoComando }[] = [
+  { id: "rail", titulo: "Ir al rail", icono: LayoutPanelLeft },
+  { id: "izquierda", titulo: "Ir al panel izquierdo", icono: PanelLeft },
+  { id: "pestanas", titulo: "Ir a las pestañas", icono: Columns2 },
+  { id: "enlaces", titulo: "Ir al panel de enlaces", icono: PanelRight },
+  { id: "estado", titulo: "Ir a la barra de estado", icono: PanelBottom },
+];
 
 /** Las vistas de una nota, en el orden de sus atajos (Ctrl+1..4). */
 const VISTAS_DE_NOTA = [
@@ -690,15 +714,17 @@ export const COMANDOS_APP: readonly Comando[] = [
       enfocarDocumentoActivo(veniaEscribiendo);
     },
   },
-  // Alt+←/→: historial de la pestaña activa (DEF-040). Si el editor ya
-  // consumió la pulsación, no se duplica la acción.
+  // AltGr+←/→: historial de la pestaña activa (DEF-040). Hasta el rediseño
+  // por niveles (2026-11-06) era Alt+←/→, que ahora es moverse. AltGr llega
+  // en Windows como Ctrl+Alt y se distingue por `getModifierState`
+  // (`atajos.ts`). Si el editor ya consumió la pulsación, no se duplica.
   {
     id: "historial.atras",
     titulo: "Atrás en el historial de la pestaña",
     icono: History,
     categoria: "pestanas",
     enPaleta: false,
-    atajos: [{ alt: true, code: "ArrowLeft" }],
+    atajos: [{ altGr: true, code: "ArrowLeft" }],
     ignorarSiPrevenido: true,
     ejecutar: (ctx) => navegarHistorialActivo(ctx, -1),
   },
@@ -708,7 +734,7 @@ export const COMANDOS_APP: readonly Comando[] = [
     icono: History,
     categoria: "pestanas",
     enPaleta: false,
-    atajos: [{ alt: true, code: "ArrowRight" }],
+    atajos: [{ altGr: true, code: "ArrowRight" }],
     ignorarSiPrevenido: true,
     ejecutar: (ctx) => navegarHistorialActivo(ctx, 1),
   },
@@ -739,15 +765,15 @@ export const COMANDOS_APP: readonly Comando[] = [
     disponible: () => !hayModalAbierto(),
     ejecutar: () => irAZona(-1),
   },
-  // Ctrl+Alt+←/→: al panel contiguo de la pantalla dividida. ↑/↓ no: con
-  // Ctrl+Alt son el multicursor de CodeMirror.
+  // Al panel contiguo de la pantalla dividida. Hasta el rediseño por niveles
+  // eran Ctrl+Alt+←/→: chocaban con AltGr+←/→ (el historial; en Windows
+  // AltGr llega como Ctrl+Alt) y Alt+flechas entre secciones los reemplaza.
+  // Quedan en la paleta, sin atajo (se les puede dar uno).
   {
     id: "panel.izquierda",
     titulo: "Ir al panel de la izquierda",
     icono: Columns2,
     categoria: "paneles",
-    enPaleta: false,
-    atajos: [{ ctrl: true, alt: true, code: "ArrowLeft" }],
     disponible: () => !hayModalAbierto(),
     ejecutar: () => irAPanelContiguo("izquierda"),
   },
@@ -756,11 +782,70 @@ export const COMANDOS_APP: readonly Comando[] = [
     titulo: "Ir al panel de la derecha",
     icono: Columns2,
     categoria: "paneles",
-    enPaleta: false,
-    atajos: [{ ctrl: true, alt: true, code: "ArrowRight" }],
     disponible: () => !hayModalAbierto(),
     ejecutar: () => irAPanelContiguo("derecha"),
   },
+
+  // ── Los niveles (`FUN-XL-04`, rediseño tras la revisión del usuario) ──
+  // Tres teclas en todos los niveles: Alt+flechas se mueve en el nivel,
+  // Ctrl+Enter entra y Esc sale (`lib/teclado/niveles.ts`). En burbuja y
+  // solo si nadie usó la tecla: escribiendo en una nota, Alt+↑/↓ sube o baja
+  // la línea y Ctrl+Enter es del editor; en el lienzo, el grafo, el
+  // calendario y las tablas, Alt+flechas lo atiende el componente.
+  ...NIVELES_FLECHAS.map(
+    (n): Comando => ({
+      id: `nivel.${n.id}`,
+      titulo: n.titulo,
+      icono: Move,
+      categoria: "navegacion",
+      enPaleta: false,
+      noSeGraba: true,
+      atajos: [{ alt: true, code: n.code }],
+      ignorarSiPrevenido: true,
+      ejecutar: () => moverEnNivel(n.dir),
+    }),
+  ),
+  {
+    id: "nivel.entrar",
+    titulo: "Entrar a lo elegido",
+    detalle: "A la sección, al documento, a la pestaña; sobre un botón o una fila, lo ejecuta",
+    icono: CornerDownRight,
+    categoria: "navegacion",
+    enPaleta: false,
+    noSeGraba: true,
+    atajos: [{ ctrl: true, code: "Enter" }],
+    ignorarSiPrevenido: true,
+    disponible: () => !hayModalAbierto(),
+    ejecutar: () => entrarEnNivel(),
+  },
+  // Esc lo atiende `useTecladoZonas` (decide después de que todos atiendan la
+  // tecla, para no salir cuando cerró algo). Se registra para la hoja.
+  {
+    id: "nivel.salir",
+    titulo: "Salir un nivel",
+    detalle: "Si hay algo abierto, primero lo cierra",
+    icono: LogOut,
+    categoria: "navegacion",
+    enPaleta: false,
+    manejadorPropio: true,
+    atajos: [{ code: "Escape" }],
+    ejecutar: () => undefined,
+  },
+  // Accesos directos por el teclado numérico (la fila de números es de las
+  // vistas de una nota): dejan esa sección seleccionada y, si está oculta, la
+  // muestran.
+  ...SECCIONES_DIRECTAS.map(
+    (s, i): Comando => ({
+      id: `zona.${s.id}`,
+      titulo: s.titulo,
+      icono: s.icono,
+      categoria: "navegacion",
+      enPaleta: false,
+      atajos: [{ ctrl: true, code: `Numpad${i + 1}` }],
+      disponible: () => !hayModalAbierto(),
+      ejecutar: () => irASeccion(s.id),
+    }),
+  ),
 
   // ── Las vistas de una nota (`FUN-XL-04`, Parte 3) ──
   // Ctrl+1..4: En vivo, Dividido, Lectura, Crudo. Antes las atendía
