@@ -351,10 +351,21 @@ export type DescriptorPista = {
  * - `documento`: seleccionar el documento que lo contiene (el grafo).
  * - `puntero`: una tarjeta de un lienzo, que se selecciona con el puntero.
  * - `seccion`: una sección entera (en el nivel de secciones): queda elegida.
+ * - `grupo`: un grupo de una sección (su título, o el grupo sin título): queda
+ *   elegido, sin plegarlo ni desplegarlo; Enter entra.
  */
-export type AccionPista = "clic" | "foco" | "marco" | "consola" | "documento" | "puntero" | "seccion";
+export type AccionPista = "clic" | "foco" | "marco" | "consola" | "documento" | "puntero" | "seccion" | "grupo";
 
-const MARCAS: ReadonlySet<string> = new Set(["clic", "foco", "marco", "consola", "documento", "puntero", "seccion"]);
+const MARCAS: ReadonlySet<string> = new Set([
+  "clic",
+  "foco",
+  "marco",
+  "consola",
+  "documento",
+  "puntero",
+  "seccion",
+  "grupo",
+]);
 
 /** Los `<input>` que se usan con un clic; el resto son campos de texto. */
 const INPUT_DE_CLIC: ReadonlySet<string> = new Set([
@@ -395,10 +406,13 @@ export function accionDePista(d: DescriptorPista, shift = false): AccionPista {
  * - `emergente`: el foco en un menú o una lista emergente: lo de adentro.
  * - `secciones`: el nivel de secciones (una sección elegida, o el foco en
  *   ningún lado): **una pista por sección**, que la deja elegida.
- * - `seccion`: el foco dentro de una sección: **solo sus controles**.
+ * - `seccion`: el foco dentro de una sección: **solo sus controles**. Si la
+ *   sección tiene grupos (`data-grupo`), los de su nivel: una pista por grupo
+ *   (su título) y los controles que no están en ninguno.
+ * - `grupo`: el foco dentro de un grupo: **solo los controles del grupo**.
  * - `global`: el foco fuera de las secciones en otra cosa (un aviso): todo.
  */
-export type AlcancePistas = "modal" | "emergente" | "secciones" | "seccion" | "global";
+export type AlcancePistas = "modal" | "emergente" | "secciones" | "seccion" | "grupo" | "global";
 
 export function alcanceDePistas(d: {
   hayModal: boolean;
@@ -407,11 +421,14 @@ export function alcanceDePistas(d: {
   nivelDeSecciones: boolean;
   /** El foco está dentro de una sección. */
   enSeccion: boolean;
+  /** El foco está dentro de un grupo de la sección (no en su título). */
+  enGrupo?: boolean;
 }): AlcancePistas {
   if (d.hayModal) return "modal";
   if (d.enEmergente) return "emergente";
   if (d.nivelDeSecciones) return "secciones";
-  return d.enSeccion ? "seccion" : "global";
+  if (!d.enSeccion) return "global";
+  return d.enGrupo ? "grupo" : "seccion";
 }
 
 /** Lo que se sabe de un objetivo para saber si es un elemento de una lista. */

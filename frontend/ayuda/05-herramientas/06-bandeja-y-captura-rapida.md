@@ -118,6 +118,12 @@ entradas, no muestra número. Como tiene su propia sección, `Bandeja.md` no se 
 árbol de **Archivos**. La sección se pliega con un clic en su título, como **Archivos**, y
 lo recuerda.
 
+Con el teclado, la Bandeja es un **grupo** del explorador: con el explorador elegido,
+**Enter** y después **Ctrl+↑** / **Ctrl+↓** hasta su título; **Enter** entra a sus dos
+entradas (y la despliega si estaba plegada), **←** / **→** la pliegan y despliegan, y
+**Alt** o **Esc** vuelve al título. Ver [Atajos de
+teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
+
 | Acción | Del vault | Personal |
 |---|---|---|
 | **Clic** | La abre en una pestaña. | La abre en su pestaña. |

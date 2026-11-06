@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, saltar tecleando, buscar tecleando, escribir el nombre en una lista, niveles, secciones, Ctrl+flechas, Alt+flechas, Alt solo, Enter, Enter del teclado numérico, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
+sinonimos: [teclas, grupos, grupo, plegar con el teclado, desplegar con el teclado, saltar tecleando, buscar tecleando, escribir el nombre en una lista, niveles, secciones, Ctrl+flechas, Alt+flechas, Alt solo, Enter, Enter del teclado numérico, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -82,10 +82,18 @@ Todo Mycelium se recorre con **tres teclas**, siempre las mismas:
    usaste en ella (o a la primera).
 2. **Dentro de una sección**: sus botones, campos, pestañas, filas del árbol… y, en un panel,
    la barra de la nota y el **documento** como un elemento más. **Ctrl+flechas** se mueve entre
-   ellos: en el explorador, **Ctrl+↑** desde el primer archivo sube a los botones de arriba, y
-   desde la barra de la nota (formato, modo de vista) **Ctrl+↓** te pone a escribir.
+   ellos: desde la barra de la nota (formato, modo de vista) **Ctrl+↓** te pone a escribir.
    **Enter** ejecuta el botón o la fila; sobre una pestaña, la abre y entra a su
    documento. **Alt** o **Esc** vuelve a la sección.
+   - **Los grupos**: algunas secciones juntan sus elementos en grupos. En el **explorador**
+     son tres: los **botones** de arriba (Nueva nota, Nuevo, Refrescar), la **Bandeja** y
+     **Archivos**. Al entrar al explorador queda elegido un grupo —el último que usaste; la
+     primera vez, **Archivos**— con un borde fino alrededor. **Ctrl+↑** / **Ctrl+↓** pasan de
+     un grupo a otro; **Enter** entra (si estaba plegado, primero lo despliega) a lo último
+     que usaste ahí o a lo primero; **←** lo pliega y **→** lo despliega, como una carpeta
+     del árbol (desplegado, **→** entra). Adentro, **Ctrl+flechas** se mueve solo entre lo
+     del grupo —desde el primer archivo, **Ctrl+↑** ya no sube a los botones— y **Alt** o
+     **Esc** vuelve al título del grupo; otra vez, a la sección.
 3. **Dentro del documento**: escribir en una nota, o moverse por un lienzo, una tabla, el
    grafo o el calendario. **Alt** o **Esc** deja el documento seleccionado.
 
@@ -147,6 +155,9 @@ Escribir esas letras es como hacer clic ahí, sin el mouse.
   sección** —«**V** Ventana», «**R** Rail», «**E** Explorador», el nombre de la pestaña de
   cada panel, «**C** Conexiones», «**B** Barra de estado»—: escribirla deja esa sección
   elegida. Desde ahí, **Enter** entra y **F10** muestra sus controles.
+- **En una sección con grupos** (el explorador), F10 muestra una pista por grupo —«**H**
+  Herramientas», «**B** Bandeja», «**A** Archivos»— que lo deja elegido, sin plegarlo;
+  dentro de un grupo, solo sus controles.
 - **Los elementos de una lista no llevan pista**: archivos y carpetas, pestañas, resultados
   de la búsqueda, filas de una tabla, días del calendario, tarjetas de un lienzo, nodos del
   grafo y las entradas de las Esporas, la papelera, la actividad y la salud. A esos se llega
@@ -264,6 +275,18 @@ teclado en la vista de lectura.
 
 ## Explorador
 
+El explorador tiene tres grupos —los botones de arriba, la **Bandeja** y **Archivos**—: se
+elige uno con **Ctrl+↑** / **Ctrl+↓** y se entra con **Enter** (ver «Los grupos», arriba).
+
+Con el foco en el título de un grupo:
+
+| Atajo | Qué hace |
+|---|---|
+| **Ctrl+↑** / **Ctrl+↓** | Pasan al grupo de arriba o de abajo. |
+| **Enter** | Entra al grupo: lo despliega si estaba plegado y va a lo último que usaste ahí. |
+| **←** / **→** | Pliegan / despliegan el grupo; desplegado, **→** entra. |
+| **Alt** o **Esc** | Vuelve a la sección. |
+
 Con el foco en el árbol de archivos:
 
 | Atajo | Qué hace |
@@ -275,6 +298,7 @@ Con el foco en el árbol de archivos:
 | **F2** | Renombra. |
 | **Shift+F10** o la tecla de menú | El menú del clic derecho. |
 | **Ctrl+Z** | Deshace el último movimiento de un archivo o carpeta. |
+| **Alt** o **Esc** | Vuelve al título de **Archivos**. |
 
 Las acciones de ese menú también están en la paleta (**Ctrl+P**), sobre el **elemento
 seleccionado** —la última fila del árbol que tuvo el foco, o el archivo abierto— y con su

@@ -119,6 +119,11 @@ de un documento, lo que escribes.
 - **Alt** —la de la izquierda, apretada y soltada sola— o **Esc** sale un nivel (si hay algo
   abierto, primero lo cierra).
 
+Algunas secciones agrupan lo suyo: en el **explorador**, los botones de arriba, la
+**Bandeja** y **Archivos** son tres grupos. Se elige uno con **Ctrl+↑** / **Ctrl+↓**,
+**Enter** entra (y lo despliega si estaba plegado), **←** / **→** lo pliegan y despliegan, y
+adentro **Ctrl+flechas** no sale del grupo: **Alt** o **Esc** vuelve a su título.
+
 La sección elegida lleva un borde y un velo del color de acento. Con el **teclado
 numérico**, **{{atajo:zona.rail|Ctrl+Num 1}}** a **{{atajo:zona.estado|Ctrl+Num 5}}** saltan
 al rail, al panel lateral, a las pestañas, al panel de enlaces y a la barra de estado.

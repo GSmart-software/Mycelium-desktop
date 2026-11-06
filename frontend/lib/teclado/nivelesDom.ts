@@ -14,6 +14,14 @@
  *   como un elemento, y también la barra del documento
  *   (`[data-barra-documento]`: la barra de herramientas de una nota).
  * - **Dentro del documento**: lo enfocable del documento, salvo su barra.
+ * - **Grupos** (2026-11-06): un `[data-grupo="<nombre>"]` dentro de una sección
+ *   junta elementos que solo se alcanzan entrando a él. Su **asa** —lo que lo
+ *   representa en el nivel de arriba— es su título (`[data-grupo-titulo]`, hijo directo, el
+ *   encabezado plegable, con `aria-expanded`) o, si no tiene, el grupo mismo
+ *   (que recibe el foco como una sección: `tabindex=-1` mientras lo tiene).
+ *   `data-grupo-principal` marca el grupo al que se entra la primera vez. El
+ *   grupo elegido (el foco en su asa) lleva `data-grupo-seleccionado`, y el que
+ *   tiene el foco adentro, `data-grupo-activo` (los pone `useTecladoZonas`).
  */
 import { useTabsStore } from "@/stores/tabsStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
@@ -30,10 +38,19 @@ import {
   visible,
   zonaDe,
 } from "./focoDom";
-import { ctrlFlechaMueve, entradaDe, vecinoPorCajas, type Caja, type Lugar } from "./niveles";
+import {
+  ctrlFlechaMueve,
+  entradaDe,
+  flechaEnGrupo,
+  nivelDeMovimiento,
+  vecinoPorCajas,
+  type Caja,
+  type Lugar,
+} from "./niveles";
 import type { Direccion } from "./navegacion";
 
 const SEL_BARRA = "[data-barra-documento]";
+const SEL_ZONA = "[data-zona]";
 /** Donde el teclado es del componente: la consola y Excalidraw. */
 export const SEL_TECLADO_PROPIO = ".xterm, .excalidraw, [data-esc-propio]";
 
@@ -61,33 +78,119 @@ const enfocable = (el: HTMLElement) =>
   !(el as HTMLButtonElement).disabled &&
   el.getAttribute("aria-disabled") !== "true";
 
+// ── los grupos ───────────────────────────────────────────────────────────
+
+const SEL_GRUPO = "[data-grupo]";
+const SEL_TITULO_GRUPO = "[data-grupo-titulo]";
+
+/**
+ * El asa de un grupo: su título, o el grupo mismo si no tiene. El título es
+ * un **hijo directo** del grupo: se mira por cada elemento al calcular un
+ * nivel, y buscarlo en todo el árbol de Archivos (miles de filas) por cada
+ * fila sería cuadrático.
+ */
+export function tituloDeGrupo(grupo: HTMLElement): HTMLElement {
+  for (const t of grupo.children) {
+    if (t instanceof HTMLElement && t.hasAttribute("data-grupo-titulo")) return t;
+  }
+  return grupo;
+}
+
+/** El grupo cuya asa es `el` (su título o él mismo), o `null`. */
+export function grupoDeAsa(el: Element | null): HTMLElement | null {
+  if (!(el instanceof HTMLElement)) return null;
+  if (!el.matches(`${SEL_GRUPO}, ${SEL_TITULO_GRUPO}`)) return null;
+  const g = el.closest<HTMLElement>(SEL_GRUPO);
+  return g && tituloDeGrupo(g) === el && zonaDe(g) === zonaDe(el) ? g : null;
+}
+
+/**
+ * El grupo **en el que está** `el` como elemento: el que hay que abrir para
+ * alcanzarlo. El asa de un grupo no está en él sino en el nivel de arriba (en
+ * el grupo que lo contiene, o en la sección). Solo cuenta un grupo de la misma
+ * sección y del mismo documento: el panel de enlaces vive dentro del documento
+ * pero es otra sección.
+ */
+export function grupoDe(el: Element | null): HTMLElement | null {
+  if (!el) return null;
+  let g = el.closest<HTMLElement>(SEL_GRUPO);
+  if (g && tituloDeGrupo(g) === el) g = g.parentElement?.closest<HTMLElement>(SEL_GRUPO) ?? null;
+  if (!g || zonaDe(g) !== zonaDe(el) || documentoDe(g) !== documentoDe(el)) return null;
+  return g;
+}
+
+/** ¿El grupo está desplegado? `null` si no se pliega (su título no lleva `aria-expanded`). */
+function expandido(grupo: HTMLElement): boolean | null {
+  const v = tituloDeGrupo(grupo).getAttribute("aria-expanded");
+  return v === null ? null : v === "true";
+}
+
+/**
+ * Deja elegido un grupo: el foco en su asa. Un grupo sin título recibe el foco
+ * él mismo, con `tabindex=-1` solo mientras lo tiene (como una sección).
+ */
+export function seleccionarGrupo(grupo: HTMLElement) {
+  const asa = tituloDeGrupo(grupo);
+  if (asa === grupo && !grupo.hasAttribute("tabindex")) {
+    grupo.setAttribute("tabindex", "-1");
+    grupo.addEventListener("blur", () => grupo.removeAttribute("tabindex"), { once: true });
+  }
+  asa.focus({ preventScroll: true });
+  asa.scrollIntoView({ block: "nearest" });
+}
+
 // ── dónde está el foco ───────────────────────────────────────────────────
 
-export type Ubicacion = { lugar: Lugar; zona: HTMLElement | null; doc: HTMLElement | null };
+export type Ubicacion = {
+  lugar: Lugar;
+  zona: HTMLElement | null;
+  doc: HTMLElement | null;
+  /**
+   * El grupo en el que está lo enfocado (`grupoDe`): el contenedor de su
+   * nivel. Con el foco en el asa de un grupo, el que lo contiene (o `null`).
+   */
+  grupo: HTMLElement | null;
+};
 
 /** El lugar del foco visto como niveles (`niveles.ts`). */
 export function ubicar(foco: Element | null): Ubicacion {
-  if (!foco || foco === document.body) return { lugar: "fuera", zona: null, doc: null };
+  if (!foco || foco === document.body) return { lugar: "fuera", zona: null, doc: null, grupo: null };
   const zona = zonaDe(foco);
-  if (!zona) return { lugar: "fuera", zona: null, doc: null };
-  if (foco === zona) return { lugar: "seccion", zona, doc: null };
+  if (!zona) return { lugar: "fuera", zona: null, doc: null, grupo: null };
+  if (foco === zona) return { lugar: "seccion", zona, doc: null, grupo: null };
+  const grupo = grupoDe(foco);
   const doc = documentoDe(foco);
-  if (doc && zona.contains(doc)) {
-    if (foco === doc) return { lugar: "documento", zona, doc };
-    if (foco.closest(SEL_BARRA)) return { lugar: "elemento", zona, doc };
-    return { lugar: "dentro", zona, doc };
+  const docDeZona = doc && zona.contains(doc) ? doc : null;
+  if (grupoDeAsa(foco)) return { lugar: "grupo", zona, doc: docDeZona, grupo };
+  if (docDeZona) {
+    if (foco === docDeZona) return { lugar: "documento", zona, doc: docDeZona, grupo };
+    if (foco.closest(SEL_BARRA)) return { lugar: "elemento", zona, doc: docDeZona, grupo };
+    return { lugar: "dentro", zona, doc: docDeZona, grupo };
   }
   const panel = foco.closest("[role='tabpanel'][aria-labelledby]");
-  if (panel && panel !== foco && zona.contains(panel)) return { lugar: "contenido-de-pestana", zona, doc: null };
-  return { lugar: "elemento", zona, doc: null };
+  if (panel && panel !== foco && zona.contains(panel)) return { lugar: "contenido-de-pestana", zona, doc: null, grupo };
+  return { lugar: "elemento", zona, doc: null, grupo };
 }
 
-/** Los elementos de una sección, o los de dentro de un documento. */
+/**
+ * Los elementos de una sección, de un grupo o de dentro de un documento. Un
+ * grupo cuenta como **un** elemento (su asa) en el nivel que lo contiene; lo
+ * de adentro, solo en el suyo. Un grupo sin título y sin nada a la vista, no.
+ */
 export function elementosDe(contenedor: HTMLElement): HTMLElement[] {
   const esDoc = contenedor.matches("[data-documento]");
-  const zona = esDoc ? zonaDe(contenedor) : contenedor;
-  return [...contenedor.querySelectorAll<HTMLElement>(SEL_ELEMENTO)].filter((el) => {
-    if (zonaDe(el) !== zona || !visible(el) || !enfocable(el)) return false;
+  const esGrupo = !esDoc && contenedor.matches(SEL_GRUPO) && !contenedor.matches(SEL_ZONA);
+  const zona = esDoc || esGrupo ? zonaDe(contenedor) : contenedor;
+  const nivel = esGrupo ? contenedor : null;
+  return [...contenedor.querySelectorAll<HTMLElement>(`${SEL_ELEMENTO}, ${SEL_GRUPO}`)].filter((el) => {
+    if (zonaDe(el) !== zona || !visible(el)) return false;
+    const esContenedorDeGrupo = el.matches(SEL_GRUPO);
+    const grupoSinTitulo = esContenedorDeGrupo && tituloDeGrupo(el) === el;
+    // Un grupo con título está representado por su título (un botón).
+    if (esContenedorDeGrupo && !grupoSinTitulo) return false;
+    if (!grupoSinTitulo && !enfocable(el)) return false;
+    if (grupoDe(el) !== nivel) return false;
+    if (grupoSinTitulo && elementosDe(el).length === 0) return false;
     if (esDoc) return !el.closest(SEL_BARRA);
     const d = documentoDe(el);
     return !(d && contenedor.contains(d) && d !== el && !el.closest(SEL_BARRA));
@@ -113,8 +216,6 @@ function cajaDe(el: HTMLElement): Caja {
 
 // ── seleccionar una sección ──────────────────────────────────────────────
 
-const SEL_ZONA = "[data-zona]";
-
 export { seleccionarSeccion };
 
 /** Las secciones que se ven y tienen algo, en el orden de la ventana. */
@@ -124,24 +225,53 @@ export function seccionesVisibles(): HTMLElement[] {
   );
 }
 
-// ── el último elemento de cada sección ───────────────────────────────────
+// ── el último elemento de cada sección y de cada grupo ───────────────────
 
-const ultimoDeSeccion = new WeakMap<HTMLElement, HTMLElement>();
+/** El último elemento usado de cada nivel: una sección o un grupo. */
+const ultimoDeNivel = new WeakMap<HTMLElement, HTMLElement>();
 
-/** Lo llama `useTecladoZonas` en cada `focusin`: Enter sobre la sección vuelve ahí. */
+/**
+ * Lo llama `useTecladoZonas` en cada `focusin`: Enter sobre la sección (o
+ * sobre un grupo) vuelve ahí. Con el foco dentro de un grupo, cada grupo de la
+ * cadena recuerda el elemento por el que se llega, y la sección el asa del
+ * grupo de más afuera: entrar al explorador deja elegido el último grupo usado.
+ */
 export function recordarElemento(foco: HTMLElement) {
   const { lugar, zona, doc } = ubicar(foco);
   if (!zona) return;
-  if (lugar === "elemento" || lugar === "documento") ultimoDeSeccion.set(zona, foco);
-  else if (lugar === "dentro" && doc) ultimoDeSeccion.set(zona, doc);
+  let el: HTMLElement;
+  if (lugar === "elemento" || lugar === "documento" || lugar === "grupo") el = foco;
+  else if (lugar === "dentro" && doc) el = doc;
+  else return;
+  for (let g = grupoDe(el); g; g = grupoDe(el)) {
+    ultimoDeNivel.set(g, el);
+    el = tituloDeGrupo(g);
+  }
+  ultimoDeNivel.set(zona, el);
+}
+
+/** Lo que se prefiere al entrar a un grupo sin memoria: la fila elegida del árbol, la abierta. */
+const SEL_PREFERIDO_EN_GRUPO =
+  "[role='treeitem'][tabindex='0'], [aria-current='page'], [aria-selected='true'][tabindex]";
+
+/** El elemento con el que se entra a un grupo (Enter sobre su título). */
+function elementoDeEntradaDeGrupo(grupo: HTMLElement): HTMLElement | null {
+  const elementos = elementosDe(grupo);
+  const ultimo = ultimoDeNivel.get(grupo);
+  if (ultimo && ultimo.isConnected && elementos.includes(ultimo)) return ultimo;
+  return elementos.find((el) => el.matches(SEL_PREFERIDO_EN_GRUPO)) ?? elementos[0] ?? null;
 }
 
 /** El elemento con el que se entra a una sección (Enter sobre ella). */
 function elementoDeEntrada(zona: HTMLElement): HTMLElement | null {
   const elementos = elementosDe(zona);
-  const ultimo = ultimoDeSeccion.get(zona);
+  const ultimo = ultimoDeNivel.get(zona);
   if (ultimo && ultimo.isConnected && elementos.includes(ultimo)) return ultimo;
   const preferido = (selector: string) => elementos.find((el) => el.matches(selector)) ?? null;
+  // Sin memoria, el grupo principal (Archivos, en el explorador): es lo que se
+  // usa casi siempre, y antes de los grupos se entraba directo a su árbol.
+  const principal = elementos.find((el) => grupoDeAsa(el)?.hasAttribute("data-grupo-principal"));
+  if (principal) return principal;
   switch (zona.dataset.zona) {
     case "panel":
       return preferido("[data-documento]") ?? elementos[0] ?? null;
@@ -158,6 +288,7 @@ function elementoDeEntrada(zona: HTMLElement): HTMLElement | null {
 
 function enfocarElemento(el: HTMLElement) {
   if (el.matches("[data-documento]")) seleccionarDocumento(el);
+  else if (el.matches(SEL_GRUPO) && tituloDeGrupo(el) === el) seleccionarGrupo(el);
   else el.focus();
 }
 
@@ -199,7 +330,7 @@ export function moverEnNivel(dir: Direccion) {
   if (hayModalAbierto()) return;
   const foco = document.activeElement as HTMLElement | null;
   if (foco?.closest(SEL_TECLADO_PROPIO)) return;
-  const { lugar, zona, doc } = ubicar(foco);
+  const { lugar, zona, doc, grupo } = ubicar(foco);
   if (lugar === "fuera") {
     const panel = !foco || foco === document.body ? seccionDelPanelActivo() : null;
     if (panel) seleccionarSeccion(panel);
@@ -219,7 +350,10 @@ export function moverEnNivel(dir: Direccion) {
     entrarAEscribir(doc);
     return;
   }
-  const contenedor = lugar === "dentro" ? doc : zona;
+  // Dentro de un grupo, solo entre sus elementos: no salta a otro grupo. Desde
+  // el título de un grupo, entre los grupos (y lo suelto) del nivel de arriba.
+  const nivel = nivelDeMovimiento(lugar, grupo !== null);
+  const contenedor = nivel === "grupo" ? grupo : nivel === "documento" ? doc : zona;
   if (!contenedor || !foco) return;
   const candidatos = elementosDe(contenedor)
     .filter((el) => el !== foco && !el.contains(foco))
@@ -249,6 +383,12 @@ export function entrarEnNivel(): boolean {
   if (!foco || foco.closest(SEL_TECLADO_PROPIO)) return false;
   const { lugar, zona, doc } = ubicar(foco);
   switch (entradaDe(lugar, esPestana(foco))) {
+    case "al-grupo": {
+      const g = grupoDeAsa(foco);
+      if (g) entrarAlGrupo(g);
+      // Siempre se usa la tecla: si no, el título (un botón) se plegaría con ella.
+      return true;
+    }
     case "a-la-seccion": {
       const destino = zona ? elementoDeEntrada(zona) : null;
       if (!destino) return false;
@@ -262,6 +402,46 @@ export function entrarEnNivel(): boolean {
       return true;
     case "activar":
       activar(foco);
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Entra a un grupo: si está plegado, primero lo despliega (un clic en su
+ * título) y espera a que React dibuje su contenido; después, al último
+ * elemento usado ahí o al preferido. Un grupo vacío deja el foco en su título.
+ */
+function entrarAlGrupo(grupo: HTMLElement) {
+  const plegado = expandido(grupo) === false;
+  if (plegado) tituloDeGrupo(grupo).click();
+  const intentar = (intentos: number) => {
+    if (!grupo.isConnected) return;
+    const destino = elementoDeEntradaDeGrupo(grupo);
+    if (destino) enfocarElemento(destino);
+    else if (intentos > 0) requestAnimationFrame(() => intentar(intentos - 1));
+  };
+  if (plegado) requestAnimationFrame(() => intentar(20));
+  else intentar(0);
+}
+
+/**
+ * ← y → solas sobre el título de un grupo (`flechaEnGrupo`): ← lo pliega, →
+ * lo despliega o, si ya está desplegado, entra. Devuelve si hizo algo, para
+ * quedarse con la tecla.
+ */
+export function flechaSobreGrupo(dir: "izquierda" | "derecha"): boolean {
+  if (hayModalAbierto()) return false;
+  const g = grupoDeAsa(document.activeElement);
+  if (!g) return false;
+  switch (flechaEnGrupo(dir, expandido(g))) {
+    case "plegar":
+    case "desplegar":
+      tituloDeGrupo(g).click();
+      return true;
+    case "entrar":
+      entrarAlGrupo(g);
       return true;
     default:
       return false;

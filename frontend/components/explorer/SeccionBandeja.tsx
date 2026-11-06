@@ -56,7 +56,7 @@ export function SeccionBandeja() {
     });
 
   return (
-    <div className={`${styles.paneBandeja} mic-explorador-bandeja`}>
+    <div className={`${styles.paneBandeja} mic-explorador-bandeja`} data-grupo="Bandeja">
       <SectionHeader title="Bandeja" collapsed={plegada} onToggle={alternar} />
       {!plegada && (
         <div className={styles.listaBandejas}>

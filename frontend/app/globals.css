@@ -91,6 +91,39 @@ button {
   background: color-mix(in srgb, var(--mic-zona-activa) 8%, transparent);
 }
 
+/* Los GRUPOS de una sección (2026-11-06; en el explorador, la barra de
+   botones, la Bandeja y Archivos): el grupo ELEGIDO (el foco en su título, o
+   en él mismo si no tiene) lleva `data-grupo-seleccionado`, con el mismo
+   borde y velo que una sección pero más finos; el que tiene el foco adentro,
+   `data-grupo-activo`, solo un borde tenue que muestra hasta dónde llega
+   Ctrl+flechas. El título elegido, además, con el texto pleno. */
+:where([data-grupo]) {
+  position: relative;
+}
+:root[data-teclado] [data-grupo][data-grupo-seleccionado]::after,
+:root[data-teclado] [data-grupo][data-grupo-activo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 44;
+  pointer-events: none;
+  border-radius: var(--mic-radius-sm);
+}
+:root[data-teclado] [data-grupo][data-grupo-seleccionado]::after {
+  border: 1px solid var(--mic-zona-activa);
+  background: color-mix(in srgb, var(--mic-zona-activa) 6%, transparent);
+}
+:root[data-teclado] [data-grupo][data-grupo-activo]::after {
+  border: 1px dashed color-mix(in srgb, var(--mic-zona-activa) 55%, transparent);
+}
+:root[data-teclado] [data-grupo-seleccionado] [data-grupo-titulo]:focus-visible {
+  color: var(--mic-text-primary);
+}
+/* El grupo sin título recibe el foco él mismo: su borde ya lo marca. */
+[data-grupo]:focus {
+  outline: none;
+}
+
 /* Seleccionado (navegar): punteado y más grueso; escribiendo, sin contorno
    propio (la señal es el cursor y el borde de la zona). */
 [data-documento]:focus {

@@ -1035,6 +1035,11 @@
    lleva data-documento, y data-modo='navegar' cuando está seleccionado (Esc)
    o data-modo='escribir' cuando se está escribiendo en él. La barra de
    herramientas de una nota lleva data-barra-documento.
+   Dentro de una sección, un GRUPO (data-grupo; en el explorador, la barra de
+   botones, la Bandeja y Archivos) junta elementos a los que se llega entrando
+   a él. Su título lleva data-grupo-titulo; el grupo elegido (el foco en su
+   título) lleva data-grupo-seleccionado y el que tiene el foco adentro,
+   data-grupo-activo. Los dos se dibujan en un ::after.
    El borde y el contorno solo se dibujan mientras se usa el teclado: en ese
    momento <html> lleva data-teclado. Los colores son --mic-zona-activa y
    --mic-documento-seleccionado (sección 3).
@@ -1054,6 +1059,17 @@
 /* La sección elegida sin velo, solo con el borde:
 :root[data-teclado] [data-zona][data-zona-seleccionada]::after {
   background: none;
+}
+*/
+
+/* El grupo elegido más marcado, como una sección, y sin el borde del grupo
+   con el foco adentro:
+:root[data-teclado] [data-grupo][data-grupo-seleccionado]::after {
+  border-width: 2px;
+  background: color-mix(in srgb, var(--mic-zona-activa) 10%, transparent);
+}
+:root[data-teclado] [data-grupo][data-grupo-activo]::after {
+  border: none;
 }
 */
 

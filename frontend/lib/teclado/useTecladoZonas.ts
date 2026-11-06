@@ -22,6 +22,10 @@
  * - **Tab** no recorre controles en el workspace (`tabRecorre`): se navega
  *   con Ctrl+flechas. Sí en los diálogos, el editor (sangría) y la consola.
  * - La sección con el foco en su contenedor lleva `data-zona-seleccionada`.
+ * - **Grupos** dentro de una sección (`data-grupo`, 2026-11-06): el grupo con
+ *   el foco en su título lleva `data-grupo-seleccionado`; el que tiene el foco
+ *   adentro, `data-grupo-activo`. Esc sale de un grupo a su título; ← y → sobre
+ *   el título lo pliegan y despliegan, y Enter entra.
  * - En una lista (el árbol, los resultados, una tabla), teclear el comienzo
  *   de un nombre salta a ese elemento (`tecleoDom.ts`).
  *
@@ -41,7 +45,15 @@ import {
   zonaDe,
 } from "./focoDom";
 import { altSoloAlBajar, altSoloAlSoltar, destinoDeEsc, tabRecorre, type TeclaAlt } from "./niveles";
-import { entrarEnNivel, recordarElemento, ubicar } from "./nivelesDom";
+import {
+  entrarEnNivel,
+  flechaSobreGrupo,
+  grupoDe,
+  grupoDeAsa,
+  recordarElemento,
+  seleccionarGrupo,
+  ubicar,
+} from "./nivelesDom";
 import { pistasVisibles } from "./pistasDom";
 import { atenderTecleo } from "./tecleoDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
@@ -83,6 +95,8 @@ export function useTecladoZonas() {
     const raiz = document.documentElement;
     let zonaMarcada: HTMLElement | null = null;
     let docMarcado: HTMLElement | null = null;
+    let grupoElegido: HTMLElement | null = null;
+    let grupoActivo: HTMLElement | null = null;
     /** Alt solo sigue siendo posible: el Alt izquierdo está apretado y nada más pasó. */
     let altSolo = false;
 
@@ -104,6 +118,19 @@ export function useTecladoZonas() {
         else zona.removeAttribute("data-zona-seleccionada");
       }
       if (foco && !deMarco) recordarElemento(foco);
+      // El grupo elegido (el foco en su título) y el grupo con el foco adentro.
+      const elegido = deMarco ? null : grupoDeAsa(foco);
+      const activo = deMarco || elegido ? null : grupoDe(foco);
+      if (elegido !== grupoElegido) {
+        grupoElegido?.removeAttribute("data-grupo-seleccionado");
+        elegido?.setAttribute("data-grupo-seleccionado", "");
+        grupoElegido = elegido;
+      }
+      if (activo !== grupoActivo) {
+        grupoActivo?.removeAttribute("data-grupo-activo");
+        activo?.setAttribute("data-grupo-activo", "");
+        grupoActivo = activo;
+      }
       const doc = deMarco ?? documentoDe(foco);
       if (doc !== docMarcado) {
         docMarcado?.removeAttribute("data-modo");
@@ -154,8 +181,8 @@ export function useTecladoZonas() {
       if (pistasVisibles()) return;
       const foco = document.activeElement as HTMLElement | null;
       if (!foco || foco.closest(SEL_ESC_PROPIO)) return;
-      const { lugar, zona, doc } = ubicar(foco);
-      const destino = destinoDeEsc(lugar);
+      const { lugar, zona, doc, grupo } = ubicar(foco);
+      const destino = destinoDeEsc(lugar, grupo !== null);
       if (destino === null) return;
       // El contenido de una pestaña (el panel de la nota: propiedades,
       // mini-grafo, enlaces): Esc vuelve a esa pestaña, un nivel arriba. Sin
@@ -167,7 +194,8 @@ export function useTecladoZonas() {
               foco.closest("[role='tabpanel'][aria-labelledby]")?.getAttribute("aria-labelledby") ?? "",
             )
           : null;
-      const aDonde = destino === "documento" ? doc : destino === "pestana" ? pestana : zona;
+      const aDonde =
+        destino === "documento" ? doc : destino === "pestana" ? pestana : destino === "grupo" ? grupo : zona;
       if (!aDonde) return;
       // Se decide después de que todos atiendan la tecla: si alguien cerró
       // algo con ella (sugerencias, un menú, vaciar un buscador), este Esc ya
@@ -178,6 +206,7 @@ export function useTecladoZonas() {
         if (!escSaleDeEscribir(e.defaultPrevented, antes, foto())) return;
         if (destino === "documento") seleccionarDocumento(aDonde);
         else if (destino === "pestana") aDonde.focus();
+        else if (destino === "grupo") seleccionarGrupo(aDonde);
         else seleccionarSeccion(aDonde);
       }, 0);
     }
@@ -209,12 +238,20 @@ export function useTecladoZonas() {
      * es «Enter» también con el Enter del teclado numérico.
      */
     function alPulsarEnBurbuja(e: KeyboardEvent) {
-      if (e.key !== "Enter" || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      // ← y → sobre el título de un grupo: plegar, desplegar o entrar, como en
+      // una carpeta del árbol.
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        if (flechaSobreGrupo(e.key === "ArrowLeft" ? "izquierda" : "derecha")) e.preventDefault();
+        return;
+      }
+      if (e.key !== "Enter") return;
       if (hayModalAbierto()) return;
       const foco = document.activeElement as HTMLElement | null;
       const { lugar } = ubicar(foco);
       const pestanaSola = lugar === "elemento" && !!foco?.matches("[role='tab']:not(button)");
-      if (lugar !== "seccion" && lugar !== "documento" && !pestanaSola) return;
+      // El título de un grupo es un botón: Enter entra al grupo en vez de plegarlo.
+      if (lugar !== "seccion" && lugar !== "documento" && lugar !== "grupo" && !pestanaSola) return;
       if (entrarEnNivel()) e.preventDefault();
     }
 
@@ -288,6 +325,8 @@ export function useTecladoZonas() {
       zonaMarcada?.removeAttribute("data-zona-activa");
       zonaMarcada?.removeAttribute("data-zona-seleccionada");
       docMarcado?.removeAttribute("data-modo");
+      grupoElegido?.removeAttribute("data-grupo-seleccionado");
+      grupoActivo?.removeAttribute("data-grupo-activo");
       raiz.removeAttribute("data-teclado");
     };
   }, []);
