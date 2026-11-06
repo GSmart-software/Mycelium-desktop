@@ -101,6 +101,12 @@ terminal. Mycelium las reconoce a todas:
 > al volver, cada sesión que siga abierta se reconecta sola en unos segundos, pero sin su
 > tarea ni sus reservas, que tiene que declarar de nuevo.
 
+> [!info] Al actualizar Mycelium en Windows
+> El servidor del control de la IA lo abre tu herramienta de IA, no Mycelium, y sigue
+> corriendo mientras dure su sesión. Para poder reemplazarlo, el instalador de la
+> actualización lo **cierra** antes de copiar los archivos. La sesión de IA pierde el control
+> de Mycelium hasta que lo reconectes: en Claude Code, con `/mcp`, o abriendo una sesión nueva.
+
 ## Lo que te pregunta antes
 
 Lo que se deshace fácil, lo hace sin preguntar. Te pide confirmación, con un aviso que dice

@@ -86,6 +86,9 @@
       "signingIdentity": "-"
     },
     "windows": {
+      "nsis": {
+        "installerHooks": "./windows/instalador.nsh"
+      },
       "wix": {
         "upgradeCode": "6e50c446-8815-5802-95d7-35ac80282d7f"
       }
