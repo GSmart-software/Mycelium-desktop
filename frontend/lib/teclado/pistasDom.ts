@@ -247,18 +247,23 @@ function objetivosVirtuales(cortes: Map<Element, boolean>): Objetivo[] {
     const visibleDelLienzo = cajaVisible(el, cortes);
     if (!visibleDelLienzo) continue;
     const r = el.getBoundingClientRect();
-    const puntos = proveedor()
+    // Primero los de más peso, y `elementFromPoint` (lo caro) solo hasta juntar
+    // `MAX_VIRTUALES`: un grafo grande tiene cientos de nodos a la vista.
+    const ordenados = proveedor()
       .map((v) => ({ v, x: r.left + v.x, y: r.top + v.y }))
       .filter(
         (p) =>
           p.x >= visibleDelLienzo.left &&
           p.x <= visibleDelLienzo.right &&
           p.y >= visibleDelLienzo.top &&
-          p.y <= visibleDelLienzo.bottom &&
-          document.elementFromPoint(p.x, p.y) === el,
+          p.y <= visibleDelLienzo.bottom,
       )
-      .sort((a, b) => b.v.peso - a.v.peso)
-      .slice(0, MAX_VIRTUALES);
+      .sort((a, b) => b.v.peso - a.v.peso);
+    const puntos: typeof ordenados = [];
+    for (const p of ordenados) {
+      if (puntos.length >= MAX_VIRTUALES) break;
+      if (document.elementFromPoint(p.x, p.y) === el) puntos.push(p);
+    }
     for (const p of puntos) {
       salida.push({
         el,
