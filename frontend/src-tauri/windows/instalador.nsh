@@ -18,8 +18,16 @@
 ; 32 bits, y desde ahí `.Path` de un proceso de 64 bits sale vacío, así que el
 ; filtro no encontraba nada (probado con makensis el 2026-11-06).
 
+;
+; La carpeta **no** se escribe dentro del comando: va por la variable de entorno
+; MYCELIUM_INSTDIR, que el PowerShell hijo hereda y lee como dato. Escrita entre
+; comillas simples, un apóstrofo en la ruta (un usuario O'Brien) rompía el
+; filtro y no cerraba nada, y una carpeta armada a propósito podía ampliarlo a
+; cualquier ruta (red team, 2026-11-06).
+
 !macro MYCELIUM_CERRAR_MCP
-  nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process -Filter \"Name='mycelium-mcp.exe'\" | Where-Object { $$_.ExecutablePath -eq '$INSTDIR\mycelium-mcp.exe' } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
+  System::Call 'Kernel32::SetEnvironmentVariable(t "MYCELIUM_INSTDIR", t "$INSTDIR")i'
+  nsExec::Exec `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$mcp = Join-Path $$env:MYCELIUM_INSTDIR 'mycelium-mcp.exe'; Get-CimInstance Win32_Process -Filter \"Name='mycelium-mcp.exe'\" | Where-Object { $$_.ExecutablePath -eq $$mcp } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
   Pop $0
   ; Windows tarda un instante en soltar el archivo tras cerrar el proceso.
   Sleep 500
