@@ -47,6 +47,7 @@ import { EVENTO_RECARGA } from "@/lib/eventos";
 import { htmlDeTarjeta } from "@/lib/canvasRender";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
+import { desplazamientoParaVer, direccionDeTecla, vecinoEnDireccion } from "@/lib/teclado/navegacion";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -594,6 +595,73 @@ export function CanvasView({ notaId }: { notaId: string }) {
     [notas, busqueda],
   );
 
+  // ── Teclado sobre las tarjetas (`FUN-XL-04`, Parte 7) ─────────────────────
+
+  /** Desplaza la vista lo justo para que la tarjeta `n` se vea entera. */
+  const asegurarVisible = (n: Nodo) => {
+    const host = hostRef.current;
+    if (!host) return;
+    // Enfocar algo dentro de un contenedor con `overflow: hidden` lo desplaza
+    // por su cuenta; el lienzo se mueve con la vista, no con el scroll.
+    if (host.scrollTop !== 0 || host.scrollLeft !== 0) {
+      host.scrollTop = 0;
+      host.scrollLeft = 0;
+    }
+    setVista((v) => {
+      const caja = {
+        left: n.x * v.escala + v.x,
+        top: n.y * v.escala + v.y,
+        right: (n.x + n.ancho) * v.escala + v.x,
+        bottom: (n.y + n.alto) * v.escala + v.y,
+      };
+      const { dx, dy } = desplazamientoParaVer(caja, host.clientWidth, host.clientHeight);
+      return dx === 0 && dy === 0 ? v : { ...v, x: v.x + dx, y: v.y + dy };
+    });
+  };
+
+  const enfocarTarjeta = (id: string) =>
+    hostRef.current
+      ?.querySelector<HTMLElement>(`[data-nodo="${CSS.escape(id)}"]`)
+      ?.focus({ preventScroll: true });
+
+  /**
+   * Las teclas con el foco en una tarjeta: las flechas pasan a la tarjeta más
+   * cercana en esa dirección (por su centro), Alt+flechas la mueven (de a 10,
+   * con Shift de a 50; cada pulsación es un paso de deshacer), Enter edita el
+   * texto o abre la nota. Supr la borra (el manejador de arriba) y Esc deja el
+   * lienzo seleccionado (la regla general de los dos modos).
+   */
+  const alTeclaEnTarjeta = (n: Nodo, e: React.KeyboardEvent<HTMLDivElement>, notaDestino: string | null) => {
+    if (e.ctrlKey || e.metaKey) return;
+    if (e.key === "Enter" && !e.altKey && !e.shiftKey) {
+      if (n.tipo === "text") {
+        e.preventDefault();
+        abrirGesto(`texto:${n.id}`);
+        setEditando(n.id);
+      } else if (n.tipo === "file" && notaDestino !== null) {
+        e.preventDefault();
+        abrirNota(notaDestino);
+      }
+      return;
+    }
+    const dir = direccionDeTecla(e.key);
+    if (dir === null) return;
+    e.preventDefault();
+    if (e.altKey) {
+      const paso = e.shiftKey ? 50 : 10;
+      const dx = dir === "derecha" ? paso : dir === "izquierda" ? -paso : 0;
+      const dy = dir === "abajo" ? paso : dir === "arriba" ? -paso : 0;
+      const movido = { ...n, x: n.x + dx, y: n.y + dy };
+      cambiar((c) => ({ ...c, nodos: c.nodos.map((x) => (x.id === n.id ? movido : x)) }));
+      asegurarVisible(movido);
+      return;
+    }
+    const centro = (x: Nodo) => ({ id: x.id, x: x.x + x.ancho / 2, y: x.y + x.alto / 2 });
+    const otros = (canvasRef.current?.nodos ?? []).filter((x) => x.id !== n.id).map(centro);
+    const destino = vecinoEnDireccion(centro(n), otros, dir);
+    if (destino) enfocarTarjeta(destino.id);
+  };
+
   // Las mismas flechas que dibuja la vista previa embebida (`FUN-S-19`).
   const aristas = useMemo(() => (canvas === null ? [] : aristasDibujables(canvas)), [canvas]);
 
@@ -609,12 +677,24 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
   // Grupos y tarjetas se pintan en capas separadas (`DEF-151`).
   const pintado = ordenDePintado(canvas.nodos);
+  // La parada de Tab: la tarjeta seleccionada, o la primera del archivo.
+  const idEnfocable =
+    seleccion !== null && canvas.nodos.some((n) => n.id === seleccion) ? seleccion : (canvas.nodos[0]?.id ?? null);
   const vistaDe = (n: Nodo) => (
   <NodoVista
     key={n.id}
     nodo={n}
     seleccionado={seleccion === n.id}
     editando={editando === n.id}
+    enfocable={idEnfocable === n.id}
+    onTecla={(e, notaDestino) => alTeclaEnTarjeta(n, e, notaDestino)}
+    onEnfocar={() => {
+      lienzoActivo = yoRef.current;
+      setSeleccion(n.id);
+      // Solo con el teclado: con el puntero, el clic que enfoca la tarjeta
+      // puede ser el comienzo de un arrastre, y mover la vista lo arruinaría.
+      if (document.documentElement.hasAttribute("data-teclado")) asegurarVisible(n);
+    }}
     notas={notas}
     carpetas={carpetas}
     onSeleccionar={() => setSeleccion(n.id)}
@@ -911,6 +991,24 @@ function hayScroll(desde: EventTarget | null, hasta: HTMLElement | null): boolea
   return false;
 }
 
+/** Lo que se anuncia de una tarjeta al enfocarla: su tipo y un comienzo de su contenido. */
+function rotuloDeTarjeta(nodo: Nodo, tituloNota: string | undefined): string {
+  const corto = (t: string) => {
+    const limpio = t.replace(/\s+/g, " ").trim();
+    return limpio.length > 60 ? `${limpio.slice(0, 60)}…` : limpio;
+  };
+  switch (nodo.tipo) {
+    case "text":
+      return `Texto: ${corto(nodo.texto ?? "") || "vacío"}`;
+    case "file":
+      return `Nota: ${tituloNota ?? nodo.archivo ?? ""}`;
+    case "link":
+      return `Enlace: ${nodo.url ?? ""}`;
+    default:
+      return `Grupo: ${nodo.etiqueta ?? ""}`;
+  }
+}
+
 function NodoVista({
   nodo,
   seleccionado,
@@ -926,10 +1024,19 @@ function NodoVista({
   onConectar,
   onAbrirTitulo,
   onAbrirNota,
+  enfocable,
+  onTecla,
+  onEnfocar,
 }: {
   nodo: Nodo;
   seleccionado: boolean;
   editando: boolean;
+  /** La parada de Tab del lienzo (`tabindex` itinerante, `FUN-XL-04`, Parte 7). */
+  enfocable: boolean;
+  /** Una tecla con el foco en la tarjeta misma (no en su texto ni en un botón). */
+  onTecla: (e: React.KeyboardEvent<HTMLDivElement>, notaId: string | null) => void;
+  /** La tarjeta recibió el foco (Tab, flechas, Enter sobre el lienzo, F10). */
+  onEnfocar: () => void;
   notas: TreeNota[];
   carpetas: TreeCarpeta[];
   onSeleccionar: () => void;
@@ -1007,6 +1114,20 @@ function NodoVista({
       data-nodo={nodo.id}
       className={clases}
       style={{ left: nodo.x, top: nodo.y, width: nodo.ancho, height: nodo.alto, ...estiloColor }}
+      // Con el teclado (`FUN-XL-04`, Parte 7): las tarjetas son UNA parada de
+      // Tab (la seleccionada, o la primera) y se recorren con las flechas. Con
+      // F10, la pista la enfoca, y enfocarla la selecciona.
+      role="group"
+      aria-roledescription="tarjeta"
+      aria-label={rotuloDeTarjeta(nodo, nota?.titulo)}
+      tabIndex={enfocable ? 0 : -1}
+      data-pista="foco"
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) onEnfocar();
+      }}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget) onTecla(e, nota?.id ?? null);
+      }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onSeleccionar();
@@ -1071,7 +1192,15 @@ function NodoVista({
             onChange={(e) => onTexto(e.target.value)}
             onBlur={onTerminarEdicion}
             onKeyDown={(e) => {
-              if (e.key === "Escape") onTerminarEdicion();
+              if (e.key === "Escape") {
+                // El foco vuelve a la tarjeta (`FUN-XL-04`): sin esto quedaba en
+                // `body` al desmontarse el texto. Enfocarla quita el foco del
+                // texto, y su `onBlur` termina la edición.
+                e.preventDefault();
+                const tarjeta = e.currentTarget.closest<HTMLElement>("[data-nodo]");
+                if (tarjeta) tarjeta.focus({ preventScroll: true });
+                else onTerminarEdicion();
+              }
               e.stopPropagation(); // Supr dentro del texto no borra la tarjeta
             }}
             onPointerDown={(e) => e.stopPropagation()}
