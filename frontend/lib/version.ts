@@ -178,6 +178,14 @@
  *
  *   **Minor, y uno solo**: hay capacidad nueva y eso manda. Ver
  *   `docs/estado/Version 2.7.0.md`.
+ * - `2.8.0` — **la Bandeja y Mycelium entero con el teclado**: la Bandeja del
+ *   vault y la personal con la captura rápida, también desde cualquier programa
+ *   (`FUN-L-33`, framework de IA `2.5.0`); el manejo completo con el teclado y
+ *   las macros (`FUN-XL-04`, absorbe `FUN-L-01`): catálogo de comandos, atajos
+ *   configurables, niveles con Ctrl+flechas, Enter y Alt o Esc, grupos, pistas
+ *   F10 por sección, saltar tecleando; `DEF-179` y `DEF-180`.
+ *
+ *   **Minor, y uno solo**: hay capacidad nueva. Ver `docs/estado/Version 2.8.0.md`.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/versionFramework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
@@ -187,4 +195,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.7.0";
+export const APP_VERSION = "2.8.0";
