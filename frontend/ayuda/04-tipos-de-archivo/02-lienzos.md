@@ -33,6 +33,10 @@ del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo 
 acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 
+Con el teclado, las tarjetas se recorren con las **flechas**, **Alt**+flechas las mueve,
+**Enter** edita el texto o abre la nota y **Esc** vuelve a la tarjeta.
+Detalle en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
+
 **Ctrl+Z** deshace el último cambio del lienzo y **Ctrl+Y** (o **Ctrl+Shift+Z**) lo rehace;
 también están los botones de flecha de la barra. Se deshace todo lo que cambia el archivo:
 crear o borrar una tarjeta, moverla, cambiarle el tamaño o el color, crear una flecha y

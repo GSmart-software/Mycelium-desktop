@@ -17,7 +17,7 @@ pendientes, las reuniones de este mes. La tabla se arma sola con las
 cambias.
 
 La tabla es de solo lectura: muestra las notas, no las edita. Un clic en una fila abre la
-nota, y el valor se cambia ahí.
+nota, y el valor se cambia ahí. Con el teclado, **↑** y **↓** recorren las filas y **Enter** abre la nota.
 
 ## Cómo se usa
 

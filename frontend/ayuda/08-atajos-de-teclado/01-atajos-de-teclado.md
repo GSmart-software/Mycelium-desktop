@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones]
+sinonimos: [teclas, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -86,7 +86,7 @@ consola…— tiene **dos modos**:
 | Atajo | Qué hace |
 |---|---|
 | **Esc** | Sale de escribir y deja el documento seleccionado. Si hay algo abierto —las sugerencias de `[[`, la búsqueda en la nota, un menú, el texto de una tarjeta—, el primer **Esc** lo cierra y el segundo sale. |
-| **Enter** | Sobre un documento seleccionado, vuelve a escribir donde estabas: en una nota, con el cursor donde lo dejaste; en la lectura, en el primer enlace o casilla; en una tabla, en la primera fila. |
+| **Enter** | Sobre un documento seleccionado, vuelve a escribir donde estabas: en una nota, con el cursor donde lo dejaste; en la lectura, en el primer enlace o casilla; en una tabla, en la última fila elegida (o la primera); en un lienzo, en la última tarjeta seleccionada; en el grafo, en el lienzo del grafo; en un diagrama de draw.io, en su editor. |
 
 En una **consola** y en un **dibujo de Excalidraw**, **Esc** es suyo (lo usan la shell, vim
 o la herramienta de dibujo): de ahí se sale con **F6**. En un **diagrama de draw.io** el
@@ -116,8 +116,9 @@ ventana. Escribir esas letras es como hacer clic ahí, sin el mouse.
 - Con un diálogo abierto —la paleta, Configuración, un aviso—, las pistas son las del
   diálogo.
 - El texto de una nota es **una** pista (el cursor vuelve donde estaba), no una por renglón.
-  El grafo también es una sola: selecciona la pestaña. En un lienzo, cada tarjeta lleva la
-  suya y la letra la selecciona.
+  En el grafo, el lienzo lleva una pista y además cada nodo a la vista (hasta 60, los de más
+  conexiones): sus letras abren la nota y, con **Shift**, solo lo eligen. En un lienzo, cada
+  tarjeta lleva la suya y la letra la selecciona.
 - Las pistas se van solas si mueves el mouse para hacer clic o si se desplaza lo que hay
   debajo; si la ventana cambia de tamaño, se vuelven a calcular.
 - Funcionan también desde una consola y desde un diagrama de draw.io (ahí siempre con
@@ -210,14 +211,94 @@ lado», «Exportar como .md», «Exportar como PDF», «Mostrar en el explorador
 
 ## Lienzos
 
-Después de tocar el lienzo, con el foco fuera del texto de una tarjeta:
+Las tarjetas de un [lienzo](ayuda:tipos-de-archivo/lienzos) son **una** parada de **Tab**: la
+seleccionada (o la primera). Con el lienzo seleccionado, **Enter** entra a la última tarjeta.
+Con el foco en una tarjeta:
 
 | Atajo | Qué hace |
 |---|---|
-| **Ctrl+Z** | Deshace el último cambio del [lienzo](ayuda:tipos-de-archivo/lienzos). |
-| **Ctrl+Y** o **Ctrl+Shift+Z** | Rehace lo deshecho. |
+| **←** **→** **↑** **↓** | Pasa a la tarjeta más cercana en esa dirección; la vista se desplaza para mostrarla. |
+| **Alt** + flechas | Mueve la tarjeta (con **Shift**, más rápido). |
+| **Enter** | Edita el texto de una tarjeta de texto, o abre la nota de una tarjeta de nota. |
+| **Esc** | Termina de editar el texto y vuelve a la tarjeta. Sin texto en edición, deja el lienzo seleccionado. |
 | **Supr** | Borra la tarjeta seleccionada (se recupera con Ctrl+Z). |
-| **Esc** | Termina de editar el texto de una tarjeta. |
+| **Ctrl+Z** | Deshace el último cambio del lienzo. |
+| **Ctrl+Y** o **Ctrl+Shift+Z** | Rehace lo deshecho. |
+
+## Grafo
+
+El [grafo](ayuda:enlazar-y-organizar/grafo) —el de la pestaña y el mini-grafo del panel de
+enlaces— es una parada de **Tab**. Al llegar con el teclado se elige la nota central (en el
+mini-grafo, la nota abierta) o la más cercana al centro de la vista, con un **anillo**.
+
+| Atajo | Qué hace |
+|---|---|
+| **←** **→** **↑** **↓** | Pasa a la nota más cercana en esa dirección; la vista la sigue. |
+| **Inicio** | Vuelve a la nota de partida. |
+| **Enter** | Abre la nota elegida. |
+| **Esc** | Deja la pestaña del grafo seleccionada. |
+
+## Calendario
+
+En el [calendario](ayuda:herramientas/calendario), la grilla de días es **una** parada de
+**Tab** (el día elegido):
+
+| Atajo | Qué hace |
+|---|---|
+| **←** / **→** | Día anterior / siguiente. |
+| **↑** / **↓** | Semana anterior / siguiente. |
+| **Inicio** / **Fin** | Lunes / domingo de esa semana. |
+| **RePág** / **AvPág** | Mes anterior / siguiente (con **Shift**, un año). Al salir del mes, la grilla pasa al mes nuevo. |
+| **Enter** | Abre el día en la lista de la derecha, con sus recordatorios. |
+
+## Tablas
+
+En una [tabla](ayuda:tipos-de-archivo/bases), las filas son **una** parada de **Tab**:
+
+| Atajo | Qué hace |
+|---|---|
+| **↑** / **↓** | Fila anterior / siguiente. |
+| **Inicio** / **Fin** | Primera / última fila. |
+| **RePág** / **AvPág** | Diez filas arriba / abajo. |
+| **Enter** | Abre la nota de la fila. |
+
+Si la base tiene varias vistas, sus pestañas se recorren con **←** y **→**.
+
+## Listas de los paneles
+
+En los resultados de la [búsqueda](ayuda:enlazar-y-organizar/busqueda), las
+[Esporas](ayuda:enlazar-y-organizar/esporas), la [papelera](ayuda:herramientas/papelera), la
+actividad y la salud del vault:
+
+| Atajo | Qué hace |
+|---|---|
+| **↑** / **↓**, **Inicio** / **Fin** | Pasan de una fila a otra (al mismo botón de la fila). |
+| **←** / **→** | Pasan entre los botones de la misma fila. |
+| **Enter** | Lo del botón: abrir, usar, recuperar… |
+
+En la búsqueda, **↓** desde el campo baja a los resultados; **Esc**, o **↑** en el primero,
+vuelve al campo.
+
+## Divisores y panel de enlaces
+
+Los **divisores** que cambian el tamaño de los paneles —el borde del panel lateral, el del
+panel de enlaces, el del visor de pestañas ancladas y los de la vista dividida— se alcanzan
+con **Tab**:
+
+| Atajo | Qué hace |
+|---|---|
+| **←** / **→** (o **↑** / **↓** en uno horizontal) | Achica o agranda, como arrastrar el borde. Con **Shift**, de a más. |
+| **Inicio** / **Fin** | El tamaño mínimo / máximo. |
+
+Las pestañas del **panel de enlaces** (Propiedades, Grafo, Salientes, Retro) son una parada
+de **Tab**: **←** y **→** cambian de pestaña.
+
+## Archivos con un visor propio
+
+- **PDF**: el visor es el del sistema y se queda con las teclas mientras tiene el foco: ahí no
+  llegan **F6**, **Esc** ni **F10**. **Tab** y **Shift+Tab** recorren sus botones y, al
+  terminar, vuelven a Mycelium.
+- **Excalidraw**: **Tab** recorre sus herramientas y **F6** sale del dibujo.
 
 ## Consolas
 

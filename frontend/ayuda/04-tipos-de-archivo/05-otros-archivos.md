@@ -18,7 +18,8 @@ que lo resume, mirar una imagen, consultar un archivo de configuración o retoca
 
 1. Haz clic en el archivo en el explorador. Se abre según su tipo:
    - **Texto y código**: con números de línea, colores según el lenguaje y un buscador.
-   - **PDF**: el documento, paginado.
+   - **PDF**: el documento, paginado. Mientras tiene el foco, sus teclas son del visor: **F6**, **Esc** y
+     **F10** no llegan a Mycelium; **Tab** recorre sus botones y, al terminar, vuelve.
    - **Imágenes**: con zoom; **Ajustar al panel** vuelve a encajarla.
    - Lo que no es texto ni sabe dibujar, lo dice y ofrece **Abrir con el sistema**.
 2. Un archivo de texto se abre en solo lectura. Para cambiarlo, **Editar**; los cambios no se
