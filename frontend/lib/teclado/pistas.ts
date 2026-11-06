@@ -243,6 +243,14 @@ export function ubicarNombres(pistas: readonly PistaParaUbicar[]): (number | nul
     if (!p.activa) return null;
     const k = p.alternativas.findIndex((caja) => !ocupadas.some((o) => o.de !== i && sePisan(caja, o.caja)));
     if (k < 0) return null;
+    // Si se ubica más abajo, el código se mueve con el nombre: su caja vieja
+    // dejaba un hueco fantasma que escondía nombres que sí cabían (los de las
+    // secciones de una vista dividida; prueba en vivo del 2026-11-06).
+    const dy = p.alternativas[k].top - p.alternativas[0].top;
+    if (dy !== 0) {
+      const propia = ocupadas.find((o) => o.de === i);
+      if (propia) propia.caja = { ...propia.caja, top: propia.caja.top + dy, bottom: propia.caja.bottom + dy };
+    }
     ocupadas.push({ caja: p.alternativas[k], de: i });
     return k;
   });

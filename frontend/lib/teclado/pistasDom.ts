@@ -276,7 +276,11 @@ export function buscarObjetivos(): Objetivo[] {
       // de la vista dividida), para que también se alcancen.
       return ordenarPorPosicion([
         ...objetivosDeSecciones(cortes),
-        ...objetivosEn(document, cortes, (el) => zonaDe(el) === null && !deLista(el)),
+        // Los marcos de draw.io cuelgan de `body` pero son del documento de
+        // un panel: no son controles sueltos (sumaban pistas sin nombre y les
+        // quitaban lugar a los nombres de las secciones; prueba en vivo del
+        // 2026-11-06).
+        ...objetivosEn(document, cortes, (el) => zonaDe(el) === null && !deLista(el) && !(el instanceof HTMLIFrameElement)),
       ]);
     case "seccion":
       // Solo los controles de esta sección: ni los de una sección anidada (el
