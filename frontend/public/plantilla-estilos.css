@@ -940,11 +940,13 @@
    ----------------------------------------------------------------------------
    La cajita de la captura rápida es .mic-captura (el velo de atrás,
    .mic-captura-velo). Adentro, .mic-captura-tipo dice si entra como «nota» o
-   «tarea» y lleva data-tipo con eso; .mic-captura-destino es el destino, al pie.
+   «tarea» y lleva data-tipo con eso. Al pie, el selector de destino es
+   .mic-captura-destinos, y cada botón, .mic-captura-destino, con
+   data-destino="vault" o "personal" y aria-pressed="true" en el elegido.
 
    En el explorador, la sección «Bandeja» es .mic-explorador-bandeja; cada
-   entrada, .mic-bandeja-fila (con data-bandeja="vault"), y su contador de
-   entradas sin procesar, .mic-bandeja-cuenta.
+   entrada, .mic-bandeja-fila (con data-bandeja="vault" o "personal"), y su
+   contador de entradas sin procesar, .mic-bandeja-cuenta.
 
    El título de la Bandeja abierta como nota no se edita (no se renombra): en
    vez de .mic-doc-title-editable lleva .mic-doc-title-fijo.
@@ -957,6 +959,13 @@
 }
 .mic-captura-tipo[data-tipo="tarea"] {
   color: var(--mic-tarea-destacada);
+}
+*/
+
+/* El destino elegido de la cajita, en el color de acento: */
+/*
+.mic-captura-destino[aria-pressed="true"] {
+  color: var(--mic-accent);
 }
 */
 

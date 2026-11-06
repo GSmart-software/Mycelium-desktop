@@ -54,8 +54,9 @@ import {
   setDocTitle,
 } from "@/lib/editor/docTitle";
 import { tomarEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
-import { MOTIVO_NO_RENOMBRA } from "@/lib/bandeja";
+import { MOTIVO_NO_RENOMBRA, MOTIVO_PERSONAL_NO_RENOMBRA } from "@/lib/bandeja";
 import { esBandeja } from "@/lib/bandejaRuta";
+import { TITULO_BANDEJA_PERSONAL, esBandejaPersonal } from "@/lib/pestanas";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
@@ -104,6 +105,15 @@ import { SearchBar } from "./SearchBar";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
+
+/**
+ * El título de lo que muestra el editor. La Bandeja personal (`FUN-L-33`) no
+ * tiene fila en el índice del vault: su título es fijo.
+ */
+function tituloDeNota(id: string): string | undefined {
+  if (esBandejaPersonal(id)) return TITULO_BANDEJA_PERSONAL;
+  return useVaultStore.getState().notas.find((n) => n.id === id)?.titulo;
+}
 
 /**
  * El keymap por defecto de CodeMirror sin dos teclas que son de la app
@@ -728,9 +738,7 @@ export function NoteEditor({
             // anuncia «campo de texto» sin decir qué nota es. Se evalúa en cada
             // actualización de la vista, así acompaña un renombrado.
             EditorView.contentAttributes.of(() => {
-              const titulo = useVaultStore
-                .getState()
-                .notas.find((n) => n.id === notaIdRef.current)?.titulo;
+              const titulo = tituloDeNota(notaIdRef.current);
               return { "aria-label": titulo ? `Nota: ${titulo}` : "Nota" };
             }),
             history(),
@@ -760,7 +768,10 @@ export function NoteEditor({
             markdown({ extensions: GFM_MYCELIUM, codeLanguages: languages }),
             // Autocompletado de wikilinks al escribir dentro de `[[` (estilo
             // Obsidian); inserta la ruta de carpeta si el nombre es ambiguo.
-            autocompletion({ override: [wikilinkCompletions] }),
+            // La Bandeja personal (`FUN-L-33`) no es parte del vault: sin
+            // autocompletado de `[[`, que propondría notas de un vault que no es
+            // el suyo (es la misma desde todos).
+            autocompletion({ override: esBandejaPersonal(notaId) ? [] : [wikilinkCompletions] }),
             // Plegar secciones por título (raw + edición en vivo): flecha en el
             // gutter sobre cada título; pliega hasta el próximo título <= nivel.
             codeFolding(),
@@ -801,16 +812,29 @@ export function NoteEditor({
             ),
             // La Bandeja del vault no se renombra (`FUN-L-33`): su título no
             // abre el campo. Por referencia, como el de arriba.
-            motivoTituloFijo.of(() => (esBandeja(notaIdRef.current) ? MOTIVO_NO_RENOMBRA : null)),
+            // Tampoco la personal, que además no es parte del vault.
+            motivoTituloFijo.of(() =>
+              esBandejaPersonal(notaIdRef.current)
+                ? MOTIVO_PERSONAL_NO_RENOMBRA
+                : esBandeja(notaIdRef.current)
+                  ? MOTIVO_NO_RENOMBRA
+                  : null,
+            ),
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
             carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),
             // Los avisos de la tarjeta de propiedades (`FUN-M-46`): esquemas de
             // `esquemas.yml` y el `#` sin comillas. Por referencia, como arriba.
-            avisosPropiedades.of((texto) => avisosDeNota(notaIdRef.current, texto)),
+            // La Bandeja personal no está en el índice ni bajo los esquemas del
+            // vault: solo el aviso del `#` sin comillas (`id` nulo).
+            avisosPropiedades.of((texto) =>
+              avisosDeNota(esBandejaPersonal(notaIdRef.current) ? null : notaIdRef.current, texto),
+            ),
             // Los diagnósticos de la nota, como un linter (`FUN-M-44`): al abrir
             // y al guardar, nunca en cada tecla. Por referencia, como arriba.
-            diagnosticosEditor(() => notaIdRef.current),
+            // Sin diagnósticos en la Bandeja personal: miran enlaces e índice del
+            // vault, y ella no es parte de ninguno (`FUN-L-33`).
+            esBandejaPersonal(notaId) ? [] : diagnosticosEditor(() => notaIdRef.current),
             // Adónde va el foco al confirmar o descartar el título (`DEF-139`).
             // A la vista VIVA (`viewRef`), no a la del widget: si se renombró, esa
             // ya está destruida y otra ocupa su lugar. Un frame de margen para que
@@ -885,8 +909,7 @@ export function NoteEditor({
       // Título inicial dentro del documento (se lee del store para evitar
       // closures obsoletos; los cambios posteriores los aplica un efecto).
       {
-        const titulo =
-          useVaultStore.getState().notas.find((n) => n.id === notaId)?.titulo ?? "nota";
+        const titulo = tituloDeNota(notaId) ?? "nota";
         const show = usePreferencesStore.getState().prefs.showFileTitle;
         viewRef.current.dispatch({ effects: setDocTitle.of({ title: titulo, show }) });
       }
@@ -1069,8 +1092,7 @@ export function NoteEditor({
 
   /** «Ver lo de afuera»: descarta lo propio (con confirmación; Ctrl+Z lo trae). */
   const verLoDeAfuera = useCallback(async () => {
-    const titulo =
-      useVaultStore.getState().notas.find((n) => n.id === notaIdRef.current)?.titulo ?? "la nota";
+    const titulo = tituloDeNota(notaIdRef.current) ?? "la nota";
     const acepta = await confirmar(
       `Se descartan tus cambios sin guardar en «${titulo}» y se muestra lo que tiene el archivo ahora. ` +
         "Si te arrepientes, Ctrl+Z en la nota los trae de vuelta.",
@@ -1116,10 +1138,12 @@ export function NoteEditor({
     const local = contentRef.current;
     setResolviendo(true);
     try {
+      // La Bandeja personal no tiene carpeta: su copia va a la raíz del vault.
+      const titulo = tituloDeNota(notaIdRef.current) ?? "Sin título";
       const nuevoId = await vault.createNota(
         nota?.carpetaId ?? null,
         "markdown",
-        tituloDeCopiaLocal(nota?.titulo ?? "Sin título"),
+        tituloDeCopiaLocal(titulo),
       );
       await api(`/notas/${encodeURIComponent(nuevoId)}/contenido`, {
         method: "PUT",
@@ -1142,7 +1166,7 @@ export function NoteEditor({
         salirDeConflicto();
       }
       const tituloCopia = useVaultStore.getState().notas.find((n) => n.id === nuevoId)?.titulo;
-      avisar(`Lo tuyo quedó en «${tituloCopia ?? tituloDeCopiaLocal(nota?.titulo ?? "")}».`, {
+      avisar(`Lo tuyo quedó en «${tituloCopia ?? tituloDeCopiaLocal(titulo)}».`, {
         etiqueta: "Abrir",
         hacer: () => {
           useTabsStore.getState().openNote(nuevoId);
@@ -1771,9 +1795,15 @@ export function NoteEditor({
     [],
   );
 
-  const notaTitulo = useVaultStore(
-    (s) => s.notas.find((n) => n.id === notaId)?.titulo ?? "nota",
+  const notaTitulo = useVaultStore((s) =>
+    esBandejaPersonal(notaId)
+      ? TITULO_BANDEJA_PERSONAL
+      : (s.notas.find((n) => n.id === notaId)?.titulo ?? "nota"),
   );
+  // La Bandeja personal (`FUN-L-33`) se edita como nota, pero lo que depende del
+  // índice del vault no aplica: el panel de enlaces y propiedades, insertar un
+  // dibujo (que sería un archivo del vault).
+  const personal = esBandejaPersonal(notaId);
 
   const showFileTitle = usePreferencesStore((s) => s.prefs.showFileTitle);
   const tabWidth = usePreferencesStore((s) => s.prefs.tabWidth);
@@ -1817,10 +1847,11 @@ export function NoteEditor({
         getView={() => viewRef.current}
         mode={mode}
         onModeChange={setMode}
-        onInsertDiagram={insertDiagram}
+        onInsertDiagram={personal ? undefined : insertDiagram}
         notaId={notaId}
         titulo={notaTitulo}
         paneId={paneId}
+        sinPanel={personal}
       />
 
       {conflicto && (
@@ -1864,7 +1895,9 @@ export function NoteEditor({
             }
           }}
           onDrop={(e) => {
-            // Drag & drop de archivos .excalidraw sobre el editor (HU-16 CA1b)
+            // Drag & drop de archivos .excalidraw sobre el editor (HU-16 CA1b).
+            // En la Bandeja personal no: el dibujo sería un archivo del vault.
+            if (personal) return;
             const file = Array.from(e.dataTransfer.files).find((f) =>
               f.name.toLowerCase().endsWith(".excalidraw"),
             );
@@ -1904,7 +1937,7 @@ export function NoteEditor({
           </div>
         )}
       </div>
-        {metaPanelOpen && <NotePanel notaId={notaId} paneId={paneId} />}
+        {metaPanelOpen && !personal && <NotePanel notaId={notaId} paneId={paneId} />}
       </div>
 
       {diagMenu && <ContextMenu {...diagMenu} onClose={() => setDiagMenu(null)} />}

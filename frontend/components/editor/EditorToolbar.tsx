@@ -97,6 +97,7 @@ export function EditorToolbar({
   notaId,
   titulo,
   paneId,
+  sinPanel = false,
 }: {
   getView: () => EditorView | null;
   mode: EditorMode;
@@ -106,6 +107,11 @@ export function EditorToolbar({
   titulo: string;
   /** Pane al que pertenece esta barra: su panel de metadatos es propio (`DEF-060`). */
   paneId: string;
+  /**
+   * Sin el botón del panel de enlaces: lo que se edita no está en el índice del
+   * vault (la Bandeja personal, `FUN-L-33`) y el panel no tendría qué mostrar.
+   */
+  sinPanel?: boolean;
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -407,16 +413,18 @@ export function EditorToolbar({
               onClick={() => useUiStore.getState().setSearchInNoteOpen(true)}
             />
 
-            <button
-              type="button"
-              className={metaPanelOpen ? `${styles.toolButton} ${styles.modeActive}` : styles.toolButton}
-              title="Panel de enlaces (Ctrl+Shift+\\)"
-              aria-label="Panel de enlaces"
-              aria-pressed={metaPanelOpen}
-              onClick={toggleMetaPanel}
-            >
-              <PanelRight size={16} aria-hidden />
-            </button>
+            {!sinPanel && (
+              <button
+                type="button"
+                className={metaPanelOpen ? `${styles.toolButton} ${styles.modeActive}` : styles.toolButton}
+                title="Panel de enlaces (Ctrl+Shift+\\)"
+                aria-label="Panel de enlaces"
+                aria-pressed={metaPanelOpen}
+                onClick={toggleMetaPanel}
+              >
+                <PanelRight size={16} aria-hidden />
+              </button>
+            )}
 
             <div className={styles.modeGroup} role="group" aria-label="Modo de visualización">
               {MODES.map(({ mode: m, icon: Icon, label, shortcut }) => (
@@ -472,22 +480,24 @@ export function EditorToolbar({
                   <Search size={15} aria-hidden />
                   <span>Buscar en el archivo</span>
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={
-                    metaPanelOpen
-                      ? `${styles.formatMenuItem} ${styles.menuItemActive}`
-                      : styles.formatMenuItem
-                  }
-                  onClick={() => {
-                    toggleMetaPanel();
-                    setRightMenuOpen(false);
-                  }}
-                >
-                  <PanelRight size={15} aria-hidden />
-                  <span>Panel de enlaces</span>
-                </button>
+                {!sinPanel && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={
+                      metaPanelOpen
+                        ? `${styles.formatMenuItem} ${styles.menuItemActive}`
+                        : styles.formatMenuItem
+                    }
+                    onClick={() => {
+                      toggleMetaPanel();
+                      setRightMenuOpen(false);
+                    }}
+                  >
+                    <PanelRight size={15} aria-hidden />
+                    <span>Panel de enlaces</span>
+                  </button>
+                )}
                 <div className={styles.formatMenuSep} />
                 {MODES.map(({ mode: m, icon: Icon, label }) => (
                   <button

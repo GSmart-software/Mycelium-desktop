@@ -42,8 +42,10 @@ globalThis.window ??= globalThis;
 globalThis.__def177 = { respuesta: true, preguntas: [], avisos: [], escritos: [] };
 
 const PESTANAS = aUrl(`
-export const esSentinela = (id) => /^(graph|calendario|terminal|archivo|enlaces):/.test(id);
-export const seDuplicaAlDividir = () => true;`);
+export const esSentinela = (id) => /^(graph|calendario|terminal|archivo|enlaces|bandeja):/.test(id);
+export const seDuplicaAlDividir = () => true;
+export const BANDEJA_PERSONAL_ID = "bandeja:personal";
+export const TITULO_BANDEJA_PERSONAL = "Bandeja personal";`);
 const PREFS = aUrl(`
 export const prefs = { previewTabs: false };
 export const usePreferencesStore = { getState: () => ({ prefs }) };`);
@@ -85,6 +87,7 @@ const CONFLICTOS = await fuente("../lib/conflictosAbiertos.ts", {
   "@/lib/conflictoExterno": await fuente("../lib/conflictoExterno.ts"),
   "@/lib/db/vaultContext": VAULT_CTX,
   "@/lib/db/vaultFs": VAULT_FS,
+  "@/lib/pestanas": PESTANAS,
   "@/stores/avisosStore": AVISOS,
   "@/stores/tabsStore": TABS,
   "@/stores/vaultStore": VAULT,
@@ -288,4 +291,15 @@ test("cerrar la ventana: copia de emergencia de cada conflicto, también de las 
   const otras = C.escribirCopiasDeEmergencia(ahora);
   assert.ok(otras.includes("a (copia local 2026-11-02 090508).md"));
   assert.equal(new Set(otras).size, otras.length);
+});
+
+test("la Bandeja personal (FUN-L-33): su copia de emergencia va a la raíz del vault, con su título", () => {
+  deCero();
+  estado().openNote("bandeja:personal");
+  const [tab] = todas();
+  enConflicto(tab, "lo mío");
+  const rutas = C.escribirCopiasDeEmergencia(new Date(2026, 10, 6, 10, 0, 0));
+  // Nada de «bandeja:personal (…)»: los dos puntos no valen en un nombre de Windows.
+  assert.deepEqual(rutas, ["Bandeja personal (copia local 2026-11-06 100000).md"]);
+  C.olvidarConflicto(tab.id);
 });

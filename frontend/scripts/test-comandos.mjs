@@ -236,7 +236,7 @@ test("la paleta lista los comandos en su orden y con su texto", () => {
     LISTA_ATMOSFERAS.map((a) => `Atmósfera: ${a.nombre}`),
   );
   const detalle = (id) => paleta.find((p) => p.id === id).detalle;
-  assert.equal(detalle("bandeja.capturar"), "Ctrl+Shift+Espacio · anotar en la Bandeja del vault");
+  assert.equal(detalle("bandeja.capturar"), "Ctrl+Shift+Espacio · anotar en la Bandeja del vault o en la personal");
   assert.equal(detalle("explorador.alternar"), "Ctrl+Shift+E");
   assert.equal(detalle("ayuda.abrir"), "F1 · Cómo se usa Mycelium");
   assert.equal(detalle("nota.nueva"), "Ctrl+N · En la carpeta seleccionada");

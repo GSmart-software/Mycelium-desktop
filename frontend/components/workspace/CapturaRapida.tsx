@@ -1,8 +1,17 @@
 "use client";
 
-import { Inbox, Plus } from "lucide-react";
+import { Inbox, Plus, UserRound } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { esCapturaDeTarea, interpretarCaptura, textoAvisoCaptura } from "@/lib/bandeja";
+import {
+  destinoInicial,
+  esCapturaDeTarea,
+  interpretarCaptura,
+  otroDestino,
+  recordarDestino,
+  textoAvisoCaptura,
+  type DestinoCaptura,
+} from "@/lib/bandeja";
+import { anotarEnBandejaPersonal } from "@/lib/bandejaPersonal";
 import { anotarEnBandeja } from "@/lib/bandejaVault";
 import { mensajeDeError } from "@/lib/mensajeError";
 import { nombreDeVault } from "@/lib/vaultMode";
@@ -28,9 +37,10 @@ export function esAtajoCaptura(e: KeyboardEvent): boolean {
  * o un clic afuera cierra sin anotar. No abre la Bandeja ni cambia la pestaña
  * activa: al cerrarse, el foco vuelve adonde estaba.
  *
- * El pie tiene el **destino**. Hoy hay uno solo, la Bandeja del vault; la
- * Parte B de `FUN-L-33` suma la Bandeja personal, y el pie pasa a ser un
- * selector (Tab o clic) que recuerda el último elegido.
+ * El pie tiene el **destino** (Parte B): la Bandeja del vault abierto o la
+ * Bandeja personal, la misma desde todos los vaults. **Tab** lo alterna sin
+ * salir del campo, y también un clic; se recuerda el último elegido (a nivel de
+ * usuario), salvo que en Configuración → Vault se haya fijado uno.
  */
 export function CapturaRapida() {
   const abierta = useUiStore((s) => s.capturaAbierta);
@@ -55,6 +65,9 @@ function Cajita() {
   const [texto, setTexto] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [anotando, setAnotando] = useState(false);
+  const [destino, setDestinoEstado] = useState<DestinoCaptura>(() =>
+    destinoInicial(typeof window === "undefined" ? null : window.localStorage),
+  );
   const campoRef = useRef<HTMLInputElement>(null);
   const idAyuda = useId();
   const tarea = esCapturaDeTarea(texto);
@@ -71,6 +84,14 @@ function Cajita() {
 
   const cerrar = () => useUiStore.getState().setCaptura(false);
 
+  /** Elige el destino y lo recuerda; el foco sigue en el campo. */
+  const elegirDestino = (d: DestinoCaptura) => {
+    setDestinoEstado(d);
+    recordarDestino(window.localStorage, d);
+    setError(null);
+    campoRef.current?.focus();
+  };
+
   const anotar = async () => {
     if (anotando) return;
     const captura = interpretarCaptura(texto);
@@ -78,9 +99,10 @@ function Cajita() {
     setAnotando(true);
     setError(null);
     try {
-      await anotarEnBandeja(captura);
+      if (destino === "personal") await anotarEnBandejaPersonal(captura);
+      else await anotarEnBandeja(captura);
       cerrar();
-      avisar(textoAvisoCaptura(captura));
+      avisar(textoAvisoCaptura(captura, destino));
     } catch (e) {
       // Lo escrito se queda en la cajita: un fallo no se lleva la nota.
       setError(`No se pudo anotar: ${mensajeDeError(e)}`);
@@ -115,7 +137,7 @@ function Cajita() {
             autoComplete="off"
             spellCheck
             placeholder="Anotar algo… ([] al principio para una tarea)"
-            aria-label="Qué anotar"
+            aria-label={`Qué anotar (en la Bandeja ${destino === "personal" ? "personal" : "del vault"})`}
             aria-describedby={idAyuda}
             onChange={(e) => {
               setTexto(e.target.value);
@@ -127,6 +149,12 @@ function Cajita() {
                 e.preventDefault();
                 e.stopPropagation();
                 cerrar();
+              } else if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                // Tab (y Mayús+Tab) cambia el destino sin salir de la cajita:
+                // hay solo dos, así que las dos direcciones alternan.
+                e.preventDefault();
+                e.stopPropagation();
+                elegirDestino(otroDestino(destino));
               } else if (e.key === "Enter" && e.nativeEvent.isComposing) {
                 e.preventDefault();
               }
@@ -148,11 +176,43 @@ function Cajita() {
           <span>
             <kbd>Esc</kbd> cerrar
           </span>
-          {/* El destino. Con la Bandeja personal (Parte B) pasa a ser un
-              grupo de botones (Tab o clic) con el elegido marcado. */}
-          <span className={`${styles.destino} mic-captura-destino`} title="Se anota al final de la Bandeja de este vault">
-            <Inbox size={14} aria-hidden />
-            Vault · {rutaVault ? nombreDeVault(rutaVault) : ""}
+          <span>
+            <kbd>Tab</kbd> destino
+          </span>
+          {/* El destino: dos botones con el elegido marcado. Fuera del orden de
+              Tab (`tabIndex={-1}`): Tab en el campo ya alterna, y salir de la
+              cajita con Tab la dejaría abierta sin foco. */}
+          <span
+            className={`${styles.destinos} mic-captura-destinos`}
+            role="group"
+            aria-label="Destino de la captura"
+          >
+            <button
+              type="button"
+              tabIndex={-1}
+              className={`${styles.destino} mic-captura-destino`}
+              data-destino="vault"
+              aria-pressed={destino === "vault"}
+              title="Se anota al final de la Bandeja de este vault"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => elegirDestino("vault")}
+            >
+              <Inbox size={14} aria-hidden />
+              Vault · {rutaVault ? nombreDeVault(rutaVault) : ""}
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              className={`${styles.destino} mic-captura-destino`}
+              data-destino="personal"
+              aria-pressed={destino === "personal"}
+              title="Se anota en tu Bandeja personal: la misma desde todos los vaults, fuera de ellos"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => elegirDestino("personal")}
+            >
+              <UserRound size={14} aria-hidden />
+              Personal
+            </button>
           </span>
         </div>
       </form>

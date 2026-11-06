@@ -3,6 +3,7 @@ import {
   CalendarDays,
   FileQuestion,
   FileText,
+  Inbox,
   LayoutDashboard,
   Link2,
   Share2,
@@ -61,3 +62,9 @@ export const ICONO_CONSOLA = Terminal;
  * nota», que es justo lo que hay que saber antes de abrirlo.
  */
 export const ICONO_OTRO_ARCHIVO = FileQuestion;
+
+/**
+ * La Bandeja personal (`FUN-L-33`): el mismo ícono que su fila en la sección
+ * «Bandeja» del explorador.
+ */
+export const ICONO_BANDEJA = Inbox;

@@ -4,6 +4,7 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod bandeja_personal;
 mod bienvenida;
 mod config_local;
 mod control;
@@ -246,6 +247,10 @@ pub fn run() {
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
             vault_config::marcar_acceso,
+            // La Bandeja personal (`FUN-L-33`): un único archivo fuera de los
+            // vaults, sin ruta desde la interfaz (`bandeja_personal.rs`).
+            bandeja_personal::bandeja_personal_leer,
+            bandeja_personal::bandeja_personal_guardar,
             vault_fs::escribir_nota,
             vault_fs::guardar_nota,
             vault_fs::mover_ruta,

@@ -261,7 +261,8 @@ export const escribiendoEnEditor = () => !!document.activeElement?.closest(`${SE
 function claseDelActivo() {
   const id = useTabsStore.getState().activeNotaId();
   if (!id) return "otro" as const;
-  const tipoPestana = tipoDePestana(id);
+  // La Bandeja personal (`FUN-L-33`) se edita con el editor de notas.
+  const tipoPestana = tipoDePestana(id) === "bandeja" ? "nota" : tipoDePestana(id);
   const tipoNota =
     tipoPestana === "nota" ? (useVaultStore.getState().notas.find((n) => n.id === id)?.tipo ?? null) : null;
   return claseDeDocumento(tipoPestana, tipoNota);

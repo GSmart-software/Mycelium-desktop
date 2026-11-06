@@ -1,14 +1,21 @@
 "use client";
 
-import { Columns2, FileText, Inbox, Link2, Pencil, Trash2 } from "lucide-react";
+import { Columns2, FileText, Inbox, Link2, Pencil, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   MOTIVO_NO_ELIMINA,
   MOTIVO_NO_RENOMBRA,
+  MOTIVO_PERSONAL_FUERA_DEL_VAULT,
+  MOTIVO_PERSONAL_NO_ELIMINA,
+  MOTIVO_PERSONAL_NO_RENOMBRA,
   RUTA_BANDEJA_DEFECTO,
+  contarEntradas,
   normalizarRutaBandeja,
 } from "@/lib/bandeja";
+import { leerBandejaPersonal } from "@/lib/bandejaPersonal";
+import { abrirBandejaPersonal } from "@/lib/bandejaPersonalPestana";
+import { BANDEJA_PERSONAL_ID } from "@/lib/pestanas";
 import { asegurarBandeja, entradasDeBandeja } from "@/lib/bandejaVault";
 import { EVENTO_BANDEJA, EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { enlaceANota } from "@/lib/menuNota";
@@ -33,9 +40,9 @@ const ico = (Icono: typeof Inbox) => <Icono size={15} aria-hidden />;
  * plegable como ella, con una entrada por bandeja y su contador de entradas sin
  * procesar.
  *
- * Hoy hay una sola entrada, la **Bandeja del vault**. La lista está armada para
- * sumar la **Bandeja personal** (la Parte B de `FUN-L-33`): cada entrada es un
- * `FilaBandeja` con su propio contador, menú y forma de abrirse.
+ * Dos entradas: la **Bandeja del vault** y la **Bandeja personal** (Parte B),
+ * la misma desde todos los vaults, fuera de ellos. Cada una con su contador,
+ * su menú y su forma de abrirse.
  */
 export function SeccionBandeja() {
   const [plegada, setPlegada] = useState(
@@ -54,6 +61,7 @@ export function SeccionBandeja() {
       {!plegada && (
         <div className={styles.listaBandejas}>
           <FilaBandejaVault />
+          <FilaBandejaPersonal />
         </div>
       )}
     </div>
@@ -181,6 +189,115 @@ function FilaBandejaVault() {
         <Inbox size={15} className={styles.noteIcon} aria-hidden />
         <span className={styles.name}>
           Del vault <span className={styles.bandejaDetalle}>· {nombre}</span>
+        </span>
+        {entradas > 0 && (
+          <span
+            className={`${styles.bandejaCuenta} mic-bandeja-cuenta`}
+            aria-label={`${entradas} ${entradas === 1 ? "entrada" : "entradas"} sin procesar`}
+          >
+            {entradas}
+          </span>
+        )}
+      </button>
+      {menu && <ContextMenu {...menu} items={items} onClose={() => setMenu(null)} />}
+    </>
+  );
+}
+
+/**
+ * Cuántas entradas sin procesar tiene la Bandeja personal. Se relee al anotar
+ * o guardarla desde cualquier ventana (Rust avisa a todas y llega como
+ * `EVENTO_BANDEJA`, ver `escucharBandejaPersonal`) y al volver a la ventana:
+ * un cambio hecho por fuera de Mycelium no avisa a nadie.
+ */
+function useEntradasPersonal(): { entradas: number; ruta: string | null } {
+  const [estado, setEstado] = useState<{ entradas: number; ruta: string | null }>({ entradas: 0, ruta: null });
+  useEffect(() => {
+    let vivo = true;
+    const releer = () => {
+      // Sin crearla: no se crea antes de la primera captura.
+      void leerBandejaPersonal()
+        .then((r) => {
+          if (vivo) setEstado({ entradas: r.existe ? contarEntradas(r.contenido) : 0, ruta: r.ruta });
+        })
+        .catch(() => {
+          if (vivo) setEstado((e) => ({ ...e, entradas: 0 }));
+        });
+    };
+    releer();
+    window.addEventListener(EVENTO_BANDEJA, releer);
+    window.addEventListener("focus", releer);
+    return () => {
+      vivo = false;
+      window.removeEventListener(EVENTO_BANDEJA, releer);
+      window.removeEventListener("focus", releer);
+    };
+  }, []);
+  return estado;
+}
+
+/** La entrada «Personal · todos los vaults». */
+function FilaBandejaPersonal() {
+  const router = useRouter();
+  const activa = useSearchParams().get("note");
+  const { entradas, ruta } = useEntradasPersonal();
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  /** Abre la Bandeja personal (creándola si falta) en su pestaña. */
+  const abrir = (como: "aqui" | "al-lado") => {
+    void abrirBandejaPersonal(como)
+      .then((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`))
+      .catch(avisarFallo("abrir la Bandeja personal"));
+  };
+
+  const fuera = `${MOTIVO_PERSONAL_FUERA_DEL_VAULT}: no tiene enlace`;
+  const items: MenuItem[] = [
+    { label: "Abrir como nota", icono: ico(FileText), onClick: () => abrir("aqui") },
+    { label: "Abrir al lado", icono: ico(Columns2), onClick: () => abrir("al-lado") },
+    // Visibles y apagadas, con el motivo: no es parte del vault.
+    { label: "Copiar enlace", icono: ico(Link2), disabled: true, title: fuera },
+    {
+      label: "Renombrar",
+      icono: ico(Pencil),
+      separadorAntes: true,
+      disabled: true,
+      title: `${MOTIVO_PERSONAL_NO_RENOMBRA}: no es parte del vault`,
+    },
+    {
+      label: "Mover a la papelera",
+      icono: ico(Trash2),
+      disabled: true,
+      title: `${MOTIVO_PERSONAL_NO_ELIMINA}: no es parte del vault`,
+    },
+  ];
+
+  const abierta = activa === BANDEJA_PERSONAL_ID;
+  return (
+    <>
+      <button
+        type="button"
+        className={[styles.row, styles.filaBandeja, abierta ? styles.rowActive : "", "mic-bandeja-fila"]
+          .filter(Boolean)
+          .join(" ")}
+        data-bandeja="personal"
+        aria-current={abierta ? "page" : undefined}
+        title={
+          "Tu Bandeja personal: la misma desde todos los vaults, fuera de ellos" +
+          (ruta ? ` (${ruta})` : "") +
+          ". Doble clic: abrir como nota; clic derecho: menú"
+        }
+        // La personal no tiene vista previa (no es una nota del vault): clic y
+        // doble clic la abren en su pestaña.
+        onClick={() => abrir("aqui")}
+        onDoubleClick={() => abrir("aqui")}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
+        <UserRound size={15} className={styles.noteIcon} aria-hidden />
+        <span className={styles.name}>
+          Personal <span className={styles.bandejaDetalle}>· todos los vaults</span>
         </span>
         {entradas > 0 && (
           <span

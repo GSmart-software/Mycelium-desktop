@@ -393,7 +393,9 @@ function paneles(): PanelIa[] {
   return allLeaves(root).map((hoja, i) => ({
     panel: i + 1,
     activo: hoja.id === activePaneId,
-    pestanas: hoja.tabs.map((t) => {
+    // La Bandeja personal (`FUN-L-33`) no existe para la IA del vault: no es
+    // parte de él (decisión del usuario, 2026-11-05). Su pestaña no se informa.
+    pestanas: hoja.tabs.filter((t) => tipoDePestana(t.notaId) !== "bandeja").map((t) => {
       const clase = tipoDePestana(t.notaId);
       const nota = clase === "nota" ? notas.find((n) => n.id === t.notaId) : undefined;
       return {

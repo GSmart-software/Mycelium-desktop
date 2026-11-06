@@ -90,6 +90,16 @@ export function EditorPane({ pane }: { pane: LeafPane }) {
           <CalendarioVista key={activeTab.id} />
         ) : activeTab && pestana === "salud" ? (
           <SaludVista key={activeTab.id} />
+        ) : activeTab && pestana === "bandeja" ? (
+          // La Bandeja personal (`FUN-L-33`): el editor de notas, que lee y
+          // guarda por los comandos de Rust de ese archivo (`lib/api.ts`).
+          <NoteEditor
+            key={activeTab.id}
+            notaId={activeTab.notaId}
+            instanceId={activeTab.id}
+            paneId={pane.id}
+            isActivePane={isActive}
+          />
         ) : activeTab && pestana === "terminal" ? (
           <TerminalView key={activeTab.notaId} termId={termIdDe(activeTab.notaId)} />
         ) : activeTab && pestana === "archivo" ? (
