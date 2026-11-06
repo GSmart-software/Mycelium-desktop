@@ -143,6 +143,15 @@ async function abrirNotaConArgs(ctx: ContextoComando, args?: ArgsComando) {
     });
   }
   abrirNota(ctx.navegar, id);
+  // Una nota recién creada abre con el cursor al principio: un paso «texto»
+  // siguiente escribía ANTES del contenido inicial («hola…# Ideas», visto en
+  // la prueba en vivo del 2026-11-06). Se deja el cursor al final, donde se
+  // seguiría escribiendo.
+  const vista = await esperarHasta(() => {
+    const v = getView(useTabsStore.getState().activePaneId);
+    return v && notaDeVista(v) === id && v.dom.isConnected ? v : null;
+  });
+  if (vista) vista.dispatch({ selection: { anchor: vista.state.doc.length } });
 }
 
 /** Crea una nota desde la Espora `espora` (por nombre) en `carpeta`, o en la seleccionada. */
