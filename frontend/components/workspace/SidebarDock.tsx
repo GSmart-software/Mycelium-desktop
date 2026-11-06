@@ -208,10 +208,12 @@ export function SidebarDock({
 
       {/* Sección activa: siempre montada; oculta si no toca mostrarla. */}
       {/* `data-seccion-izquierda`: donde los comandos que abren una sección
-          ponen el foco (`FUN-XL-04`, Parte 4). */}
+          ponen el foco (`FUN-XL-04`, Parte 4). `data-titulo-seccion`: el
+          nombre de la pista de F10 de esta sección («Explorador»). */}
       <div
         className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}
         data-seccion-izquierda
+        data-titulo-seccion={label}
       >
         {children}
       </div>

@@ -1,4 +1,5 @@
-// Recorrido de cobertura del teclado (`FUN-XL-04`, Parte 7, pedido del usuario).
+// Recorrido de cobertura del teclado (`FUN-XL-04`, Parte 7, pedido del usuario;
+// rehecho para la navegación por niveles del 2026-11-06).
 //
 // Se conecta por CDP a la app de desarrollo YA ABIERTA (con un vault cargado),
 // recorre la ventana **solo con el teclado** y lista los elementos interactivos
@@ -17,20 +18,24 @@
 //   --sin-pestanas       No recorre las pestañas abiertas con Ctrl+Tab.
 //   --max-capturas <n>   Cuántos huecos se fotografían (por defecto 40).
 //
-// Qué teclas usa: Tab, Shift+Tab, F6, Shift+F6, flechas, Enter, Esc y Ctrl+Tab
-// (para pasar de pestaña). Nada más. Las reglas de seguridad, para que el
-// recorrido no cambie el vault:
+// Qué teclas usa: las de la navegación por niveles —Alt+flechas (moverse),
+// Ctrl+Enter (entrar) y Esc (salir)—, F6 para ir de sección en sección, las
+// flechas solas dentro de las listas, F10 (contar lo que tiene pista) y
+// Ctrl+Tab (para pasar de pestaña). **No usa Tab**: desde el rediseño, Tab no
+// recorre la ventana, así que lo alcanzable es lo que se alcanza así. Las
+// reglas de seguridad, para que el recorrido no cambie el vault:
 //
 // - **Nunca escribe texto.** No manda letras, números ni espacios.
-// - **Enter solo sobre un documento seleccionado** (`[data-documento]` con el
-//   foco en él mismo): es «entrar a escribir», que no modifica nada. Nunca
-//   sobre un botón, una fila del árbol ni una opción.
+// - **Ctrl+Enter solo sobre una sección elegida o un documento seleccionado**
+//   (entrar, que no modifica nada). Nunca sobre un botón, una fila del árbol
+//   ni una opción: ahí Ctrl+Enter los ejecutaría.
+// - **Alt+flechas nunca en un editor** (sube o baja la línea) ni en una
+//   consola, un `select` o un campo que no sea de texto.
 // - **Las flechas solo donde mueven el foco o la vista**: filas del árbol,
 //   pestañas, días del calendario, filas de una tabla, tarjetas del lienzo, el
 //   grafo, botones de una lista. Nunca en un `select`, un `radio`, un campo
 //   numérico o de rango, un divisor de tamaño, la consola ni un editor.
-// - **No hace Tab dentro de un editor** (CodeMirror indentaría) ni de un
-//   `textarea`: al llegar a uno, lo registra y sale con Esc.
+// - Al llegar a un editor o un `textarea`, lo registra y sale con Esc.
 // - **Nunca entra a un iframe** (draw.io, PDF) a propósito; si el foco cae en
 //   uno, lo registra y sale con F6.
 //
@@ -50,7 +55,10 @@ const SALIDA = resolve(opcion("--salida", "cobertura-teclado"));
 const CDP = opcion("--cdp", "http://localhost:9222");
 const MAX_CAPTURAS = Number(opcion("--max-capturas", "40"));
 const CON_PESTANAS = !args.includes("--sin-pestanas");
-const MAX_TAB_POR_ZONA = 120;
+/** Cuántos pasos de Alt+flecha en una dirección, como mucho, en un barrido. */
+const MAX_ALT = 60;
+/** Cuántas filas baja un barrido, como mucho. */
+const MAX_FILAS = 80;
 const MAX_FLECHAS = 25;
 /** En listas de una sola parada (árbol, pestañas, filas, grillas), hasta el final. */
 const MAX_FLECHAS_LISTA = 300;
@@ -199,6 +207,8 @@ function instalar() {
               ? "consola"
               : el.hasAttribute("data-documento")
                 ? "documento"
+                : el.hasAttribute("data-zona")
+                  ? "seccion"
                 : el instanceof HTMLTextAreaElement || el.isContentEditable
                   ? "texto"
                   : el instanceof HTMLSelectElement
@@ -206,8 +216,8 @@ function instalar() {
                     : el instanceof HTMLInputElement
                       ? `input:${el.type}`
                       : el.getAttribute("role") === "separator"
-                        ? "separador"
-                        : "otro";
+                          ? "separador"
+                          : "otro";
       const zonas = [...document.querySelectorAll("[data-zona]")].filter((z) => z.getClientRects().length > 0);
       const zona = el.closest("[data-zona]");
       return {
@@ -275,7 +285,9 @@ async function tecla(t) {
 
 /** Tipos de foco donde una flecha no cambia nada del vault. */
 const FLECHAS_SEGURAS = new Set(["otro", "documento"]);
-/** Tipos de foco donde Tab escribiría o donde no hay que quedarse. */
+/** Tipos de foco donde Alt+flechas solo mueve el foco (es la navegación por niveles). */
+const ALT_SEGURO = new Set(["otro", "documento", "seccion", "separador", "input:text", "input:search", "input:checkbox"]);
+/** Tipos de foco donde no hay que quedarse. */
 const TRAMPAS = new Set(["editor", "consola", "marco", "texto"]);
 
 /** Sale de un editor, una consola o un marco sin escribir nada. */
@@ -286,7 +298,7 @@ async function salirDeTrampa(f) {
   return tecla("Shift+F6");
 }
 
-/** Prueba las flechas sobre el elemento con el foco, mientras muevan el foco. */
+/** Prueba las flechas solas sobre el elemento con el foco, mientras muevan el foco. */
 async function explorarConFlechas() {
   for (const t of ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"]) {
     let previo = (await foco()).selector;
@@ -303,52 +315,85 @@ async function explorarConFlechas() {
   }
 }
 
-/** Recorre con Tab la zona donde está el foco, hasta salir de ella o dar la vuelta. */
-async function recorrerZona() {
-  const inicio = await foco();
-  const vistos = new Set([inicio.selector]);
-  await inventariar();
-  for (let i = 0; i < MAX_TAB_POR_ZONA; i++) {
-    let f = await foco();
+/**
+ * Alt+`dir` mientras mueva el foco (y sea seguro). Devuelve si se movió al
+ * menos una vez. En cada elemento nuevo prueba las flechas solas (listas) y,
+ * sobre un documento, entra y lo recorre.
+ */
+async function avanzar(dir, unaVez = false) {
+  let movido = false;
+  for (let i = 0; i < (unaVez ? 1 : MAX_ALT); i++) {
+    const f = await foco();
     if (TRAMPAS.has(f.tipo)) {
       await salirDeTrampa(f);
-      return;
+      return movido;
     }
-    await explorarConFlechas();
-    f = await tecla("Tab");
+    if (!ALT_SEGURO.has(f.tipo) || f.modal) return movido;
+    const g = await tecla(`Alt+${dir}`);
     await inventariar();
-    if (TRAMPAS.has(f.tipo)) {
-      await salirDeTrampa(f);
-      return;
-    }
-    if (f.zona !== inicio.zona || f.indiceZona !== inicio.indiceZona) return;
-    if (vistos.has(f.selector)) return;
-    vistos.add(f.selector);
+    if (g.selector === f.selector) return movido;
+    movido = true;
+    if (g.tipo === "documento") await probarDocumento();
+  }
+  return movido;
+}
+
+/**
+ * Barre el nivel actual como se lee una página: arriba a la izquierda, después
+ * cada «renglón» hacia la derecha y de vuelta, y un paso hacia abajo, hasta
+ * que ya no baja. Solo con Alt+flechas.
+ */
+async function barrer() {
+  await avanzar("ArrowUp");
+  await avanzar("ArrowLeft");
+  for (let fila = 0; fila < MAX_FILAS; fila++) {
+    await explorarConFlechas();
+    await avanzar("ArrowRight");
+    await avanzar("ArrowLeft");
+    if (!(await avanzar("ArrowDown", true))) return;
   }
 }
 
-/** Pone el foco en la zona `indice` (en el orden de F6). */
+/** Con una sección elegida: entra (Ctrl+Enter), barre sus elementos y vuelve a elegirla. */
+async function recorrerZona() {
+  const inicio = await foco();
+  if (inicio.tipo !== "seccion") return;
+  await inventariar();
+  const f = await tecla("Control+Enter");
+  await inventariar();
+  if (TRAMPAS.has(f.tipo)) {
+    await salirDeTrampa(f);
+    return;
+  }
+  // Las pistas de adentro de la sección (F10 por sección).
+  await contarPistas();
+  await barrer();
+}
+
+/** Pone el foco en la zona `indice` (en el orden de F6): queda elegida. */
 async function irAZona(indice) {
   for (let i = 0; i < 12; i++) {
     const f = await foco();
-    if (f.indiceZona === indice) return true;
+    if (f.indiceZona === indice && f.tipo === "seccion") return true;
     await tecla("F6");
   }
   return false;
 }
 
-/** Con un documento seleccionado: entrar a escribir (Enter), mirar y volver. */
+/** Con un documento seleccionado: entrar (Ctrl+Enter), barrer lo de adentro y volver. */
 async function probarDocumento() {
   const f = await foco();
   if (f.tipo !== "documento") return;
-  const g = await tecla("Enter");
+  const g = await tecla("Control+Enter");
   await inventariar();
   if (TRAMPAS.has(g.tipo)) {
     await salirDeTrampa(g);
     return;
   }
-  // Adentro de un lienzo, una tabla, el calendario o el grafo: las flechas.
+  // Adentro de un lienzo, una tabla, el calendario o el grafo: las flechas,
+  // y Alt+flechas entre lo que haya (botones de la vista, tarjetas).
   await explorarConFlechas();
+  for (const dir of ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"]) await avanzar(dir);
   await tecla("Escape");
 }
 
@@ -361,35 +406,16 @@ async function recorrerZonas() {
   let f0 = await tecla("F6");
   for (let i = 0; i < 8 && (!f0.zona || f0.zona === "-" || !f0.totalZonas); i++) f0 = await tecla("F6");
   const { totalZonas } = f0;
+  // En el nivel de secciones, F10 da una pista por sección y los controles
+  // sueltos entre ellas (los divisores de la vista dividida).
+  await contarPistas();
   for (let z = 0; z < totalZonas; z++) {
     if (!(await irAZona(z))) continue;
-    await inventariar();
-    await probarDocumento();
-    await irAZona(z);
     await recorrerZona();
   }
-  // Y hacia atrás, por si F6 y Tab dejaron algo de lado.
-  for (let i = 0; i < totalZonas; i++) await tecla("Shift+F6");
-}
-
-/**
- * Una vuelta completa con Tab desde el principio de la ventana: alcanza lo que
- * queda entre zonas (los divisores) y lo que F6 no visita. Sale de las trampas
- * igual que el recorrido por zonas.
- */
-async function vueltaConTab() {
-  await pagina.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
-  const vistos = new Set();
-  for (let i = 0; i < MAX_TAB_POR_ZONA * 4; i++) {
-    const f = await tecla("Tab");
-    if (TRAMPAS.has(f.tipo)) {
-      await salirDeTrampa(f);
-      continue;
-    }
-    if (vistos.has(f.selector)) break;
-    vistos.add(f.selector);
-  }
-  await inventariar();
+  // Y las secciones con Alt+flechas, desde la última elegida.
+  await irAZona(0);
+  for (const dir of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]) await avanzar(dir);
 }
 
 /** F10: lo que tiene una pista (`data-con-pista`) se alcanza con el teclado. */
@@ -412,8 +438,6 @@ async function recorrerPestanas() {
     await tecla("Control+Tab");
     await pausa(400); // que monte la pestaña
     await inventariar();
-    // Lo de cada pestaña (su panel de enlaces, sus barras) que tiene pista.
-    await contarPistas();
     const f = await foco();
     const z = f.indiceZona;
     await probarDocumento();
@@ -465,10 +489,7 @@ try {
   await pagina.evaluate(instalar);
   await inventariar();
   await recorrerZonas();
-  await contarPistas();
-  await vueltaConTab();
   if (CON_PESTANAS) await recorrerPestanas();
-  await contarPistas();
   await informar();
 } finally {
   // Solo se desconecta: la app sigue abierta.

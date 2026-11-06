@@ -21,7 +21,7 @@ conectan dos temas que creías separados.
    conexiones.
 . Con el teclado: con la pestaña del grafo seleccionada, **Ctrl+Enter** (o **Enter**) entra
    al grafo; las **flechas** —o **Alt** y las flechas— pasan de una nota a la vecina en esa
-   dirección y **Enter** la abre. Con **F10**, cada nota a la vista lleva su pista. Detalle
+   dirección y **Enter** la abre. Detalle
    en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 
 ## Opciones

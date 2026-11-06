@@ -300,7 +300,8 @@ export function SearchPanel() {
       )}
 
       {/* `display: contents`: solo escucha las teclas, no cambia el layout. */}
-      <div ref={resultadosRef} style={{ display: "contents" }} onKeyDown={alTeclaEnResultados}>
+      {/* `data-lista`: teclear el comienzo de un resultado salta a él (`tecleoDom.ts`). */}
+      <div ref={resultadosRef} style={{ display: "contents" }} onKeyDown={alTeclaEnResultados} data-lista="button">
       {arbol ? (
         <div className={styles.results}>
           <Rama

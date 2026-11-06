@@ -61,6 +61,8 @@ export function ActividadPanel() {
         <div
           className={styles.grupos}
           // ↑ ↓ entre las entradas, ← → entre sus botones (`FUN-XL-04`, Parte 7).
+          // `data-lista`: teclear el comienzo de una entrada salta a ella (`tecleoDom.ts`).
+          data-lista="li"
           onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
         >
           {grupos.map((g) => (

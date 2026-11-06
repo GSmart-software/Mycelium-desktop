@@ -182,6 +182,8 @@ export function TrashPanel() {
       <ul
         className={styles.list}
         // ↑ ↓ entre los elementos, ← → entre la casilla y sus botones (`FUN-XL-04`, Parte 7).
+        // `data-lista`: teclear el comienzo de un nombre salta a ese elemento.
+        data-lista="li"
         onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
       >
         {papelera.map((item) => {
