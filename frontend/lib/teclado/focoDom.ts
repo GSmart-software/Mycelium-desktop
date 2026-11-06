@@ -144,6 +144,29 @@ export function enfocarZona(zona: HTMLElement) {
   (preferido ?? primerEnfocable(zona))?.focus();
 }
 
+/** ¿El foco está en el panel izquierdo? */
+export const focoEnElPanelIzquierdo = () => !!document.activeElement?.closest("[data-zona='izquierda']");
+
+/**
+ * Pone el foco en la sección del panel izquierdo (`FUN-XL-04`, Parte 4), tras
+ * abrirla con un comando: la fila del árbol en el explorador, el campo si
+ * `preferirCampo` (la búsqueda), y si no, lo primero que se pueda enfocar.
+ * Espera a que React monte la sección, unos cuadros como máximo.
+ */
+export function enfocarSeccionIzquierda(preferirCampo = false, intentos = 30) {
+  requestAnimationFrame(() => {
+    const region = document.querySelector<HTMLElement>("[data-zona='izquierda'] [data-seccion-izquierda]");
+    const destino =
+      region && visible(region)
+        ? (primerEnfocable(region, "[role='treeitem'][tabindex='0']") ??
+          (preferirCampo ? primerEnfocable(region, "input:not([disabled]):not([type='hidden'])") : null) ??
+          primerEnfocable(region))
+        : null;
+    if (destino) destino.focus();
+    else if (intentos > 0) enfocarSeccionIzquierda(preferirCampo, intentos - 1);
+  });
+}
+
 /** F6 (`delta` 1) / Shift+F6 (-1): a la zona siguiente o anterior. */
 export function irAZona(delta: 1 | -1) {
   const zonas = zonasVisibles();

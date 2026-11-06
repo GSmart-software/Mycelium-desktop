@@ -58,9 +58,10 @@ const REGISTRO = await fuente("../lib/comandos/registro.ts", {
 });
 const CONSOLA = await fuente("../lib/comandos/teclasConsola.ts", { "./atajos": ATAJOS, "./registro": REGISTRO });
 const ATMOSFERAS = await fuente("../lib/atmosferas.ts");
+const NUEVO = await fuente("../lib/comandos/nuevo.ts");
 const APP = await fuente(
   "../lib/comandos/comandosApp.ts",
-  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS },
+  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS, "./nuevo": NUEVO },
   { falsos: true },
 );
 

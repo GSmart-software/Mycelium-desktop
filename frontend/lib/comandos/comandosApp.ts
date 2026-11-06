@@ -40,32 +40,46 @@ import {
   PenLine,
   BookOpenText,
   FileCode,
+  FilePlus2,
+  Rows2,
+  SquareX,
+  PanelLeftDashed,
+  Files,
+  CircleDot,
+  Bot,
+  Trash2,
+  FolderPlus,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
 import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
-import { ICONO_SALUD } from "@/lib/iconosDeTipo";
+import { carpetaDestino, crearYAbrir, pedirYCrearCarpeta } from "@/lib/crear";
+import { ICONO_POR_TIPO, ICONO_SALUD } from "@/lib/iconosDeTipo";
 import { avisoModoDev } from "@/lib/modoDev";
-import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
+import { CALENDAR_TAB_ID, GRAPH_TAB_ID, seDuplicaAlDividir } from "@/lib/pestanas";
 import { abrirPestanaSalud } from "@/lib/saludPestana";
 import { avisar } from "@/stores/avisosStore";
-import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
+import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import {
   enfocarDocumentoActivo,
+  enfocarSeccionIzquierda,
   escribiendoEnEditor,
+  focoEnElPanelIzquierdo,
   hayModalAbierto,
   irAPanelContiguo,
   irAZona,
 } from "@/lib/teclado/focoDom";
 import { EVENTO_VISTA_NOTA } from "./eventos";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
-import type { Comando, ContextoComando } from "./registro";
+import { OPCIONES_NUEVO, type OpcionNuevo } from "./nuevo";
+import type { Comando, ContextoComando, IconoComando } from "./registro";
 
 /**
  * Enciende o apaga el modo desarrollador y lo confirma con un aviso. El estado
@@ -99,6 +113,118 @@ function navegarHistorialActivo(ctx: ContextoComando, delta: -1 | 1) {
   void navegarHistorialSinPerder(activePaneId, delta).then((navego) => navego && sincronizarUrl(ctx.navegar));
 }
 
+// ── crear y mostrar/ocultar (`FUN-XL-04`, Parte 4) ──
+
+/** El ícono de cada opción de «Nuevo…»: el del tipo de archivo, como en el árbol. */
+const ICONO_NUEVO: Record<OpcionNuevo["tipo"], IconoComando> = {
+  nota: ICONO_POR_TIPO.markdown,
+  carpeta: FolderPlus,
+  lienzo: ICONO_POR_TIPO.canvas,
+  tabla: ICONO_POR_TIPO.base,
+  dibujo: ICONO_POR_TIPO.excalidraw,
+  diagrama: ICONO_POR_TIPO.drawio,
+  espora: CircleDot,
+};
+
+/**
+ * Las secciones del rail que se abren con un comando propio. La búsqueda
+ * (`busqueda.vault`) y la salud (`salud.panel`) ya tenían el suyo.
+ */
+const SECCIONES_DEL_RAIL: readonly { id: string; seccion: RailSection; titulo: string; icono: IconoComando }[] = [
+  { id: "explorador", seccion: "explorer", titulo: "Abrir el explorador", icono: Files },
+  { id: "esporas", seccion: "esporas", titulo: "Abrir el panel de Esporas", icono: CircleDot },
+  { id: "calendario", seccion: "calendario", titulo: "Abrir el panel del calendario", icono: CalendarDays },
+  { id: "consolas", seccion: "terminal", titulo: "Abrir el panel de consolas", icono: Terminal },
+  { id: "actividad", seccion: "actividad", titulo: "Abrir la actividad de la IA", icono: Bot },
+  { id: "papelera", seccion: "trash", titulo: "Abrir la papelera", icono: Trash2 },
+];
+
+/**
+ * Abre una sección en el panel izquierdo (no la alterna: si ya está, se queda)
+ * y le pone el foco: el árbol en el explorador, el campo en la búsqueda, lo
+ * primero en el resto. Si el panel muestra una pestaña anclada a pantalla
+ * completa, vuelve a la sección.
+ */
+function abrirSeccion(seccion: RailSection) {
+  usePanelLayoutStore.setState({ activeSection: seccion, lastSection: seccion });
+  const dock = useSidebarViewerStore.getState();
+  if (dock.mode === "full" && dock.tabs.includes(dock.activeTab)) dock.activar(EXPLORER_TAB);
+  enfocarSeccionIzquierda(seccion === "search");
+}
+
+/** Oculta el panel izquierdo; si el foco estaba ahí, pasa al documento activo y no se pierde en `body`. */
+function ocultarPanelIzquierdo() {
+  const teniaElFoco = focoEnElPanelIzquierdo();
+  usePanelLayoutStore.setState({ activeSection: null });
+  if (teniaElFoco) enfocarDocumentoActivo(false);
+}
+
+/** ¿El panel activo tiene una pestaña a la vista? */
+function hayPestanaActiva() {
+  const { root, activePaneId } = useTabsStore.getState();
+  return !!findLeaf(root, activePaneId)?.activeTabId;
+}
+
+/**
+ * Divide el panel activo como el menú «⋯» de su barra de pestañas: el mismo
+ * archivo a los dos lados si se puede (`FUN-S-35`).
+ */
+function dividirPanelActivo(ctx: ContextoComando, lado: "right" | "bottom") {
+  const tabs = useTabsStore.getState();
+  const notaId = tabs.activeNotaId();
+  if (!notaId) return;
+  const tipo = useVaultStore.getState().notas.find((n) => n.id === notaId)?.tipo;
+  tabs.splitActivePane(tabs.activePaneId, lado, seDuplicaAlDividir(notaId, tipo));
+  sincronizarUrl(ctx.navegar);
+  enfocarDocumentoActivo(false);
+}
+
+/**
+ * Cierra el panel activo de la división: sus pestañas una por una, sin perder
+ * lo de una nota en conflicto con el disco (`DEF-138`). Si una no se cierra,
+ * se detiene ahí.
+ */
+async function cerrarPanelActivo(ctx: ContextoComando) {
+  const { root, activePaneId } = useTabsStore.getState();
+  const hoja = findLeaf(root, activePaneId);
+  if (!hoja || allLeaves(root).length < 2) return;
+  for (const t of [...hoja.tabs]) {
+    if (!(await cerrarPestanaSinPerder(activePaneId, t.id))) break;
+  }
+  sincronizarUrl(ctx.navegar);
+  enfocarDocumentoActivo(false);
+}
+
+/**
+ * Ancla la pestaña activa en el panel lateral, como arrastrarla ahí: se cierra
+ * en el área de trabajo y se ve debajo de la sección (`DEF-023 P3`). Abre el
+ * panel si estaba cerrado.
+ */
+async function anclarPestanaActiva(ctx: ContextoComando) {
+  const { root, activePaneId } = useTabsStore.getState();
+  const hoja = findLeaf(root, activePaneId);
+  const tab = hoja?.tabs.find((t) => t.id === hoja.activeTabId);
+  if (!tab) return;
+  if (!(await cerrarPestanaSinPerder(activePaneId, tab.id))) return;
+  useSidebarViewerStore.getState().dock(tab.notaId);
+  if (usePanelLayoutStore.getState().activeSection === null) usePanelLayoutStore.getState().toggleLeft();
+  sincronizarUrl(ctx.navegar);
+  enfocarDocumentoActivo(false);
+}
+
+/**
+ * Pasa a la pestaña anclada siguiente o anterior del panel lateral. A pantalla
+ * completa, la sección cuenta como una pestaña más (la primera).
+ */
+function ciclarAnclada(delta: -1 | 1) {
+  const { tabs, activeTab, mode, activar } = useSidebarViewerStore.getState();
+  const lista = mode === "full" ? [EXPLORER_TAB, ...tabs] : tabs;
+  if (!lista.length) return;
+  const i = lista.indexOf(activeTab);
+  activar(lista[i < 0 ? (delta > 0 ? 0 : lista.length - 1) : (i + delta + lista.length) % lista.length]);
+  if (usePanelLayoutStore.getState().activeSection === null) usePanelLayoutStore.getState().toggleLeft();
+}
+
 /** Atmósfera del modo en uso (la del otro modo se cambia en Configuración). */
 const claveAtmosfera = () =>
   usePreferencesStore.getState().modoOscuro ? ("atmosferaOscuro" as const) : ("atmosferaClaro" as const);
@@ -112,17 +238,44 @@ const VISTAS_DE_NOTA = [
 ] as const;
 
 export const COMANDOS_APP: readonly Comando[] = [
+  // Ctrl+N (`FUN-XL-04`, Parte 4): en la carpeta seleccionada del explorador,
+  // o en la raíz, con el título en edición para nombrarla enseguida.
   {
     id: "nota.nueva",
     titulo: "Nueva nota",
     detalle: "En la carpeta seleccionada",
     icono: FilePlus,
     categoria: "notas",
-    ejecutar: async (ctx) => {
-      const v = useVaultStore.getState();
-      abrirNota(ctx.navegar, await v.createNota(v.activeFolderId), { editarTitulo: true });
+    atajos: [{ ctrl: true, code: "KeyN" }],
+    ejecutar: (ctx) => crearYAbrir(ctx.navegar, "nota"),
+  },
+  // Ctrl+Shift+N: el menú «Nuevo…», con flechas, Enter y Esc.
+  {
+    id: "crear.nuevo",
+    titulo: "Nuevo…",
+    detalle: "Nota, carpeta, canvas, base, dibujo, diagrama o desde una Espora",
+    icono: FilePlus2,
+    categoria: "notas",
+    atajos: [{ ctrl: true, shift: true, code: "KeyN" }],
+    ejecutar: () => {
+      const ui = useUiStore.getState();
+      ui.setNuevo(ui.nuevo ? null : "tipos");
     },
   },
+  ...OPCIONES_NUEVO.filter((o) => o.tipo !== "nota").map(
+    (o): Comando => ({
+      id: o.comando,
+      titulo: o.titulo,
+      detalle: o.tipo === "espora" ? "Elegir la plantilla" : "En la carpeta seleccionada",
+      icono: ICONO_NUEVO[o.tipo],
+      categoria: "notas",
+      ejecutar: (ctx) => {
+        if (o.tipo === "espora") return useUiStore.getState().setNuevo("esporas");
+        if (o.tipo === "carpeta") return pedirYCrearCarpeta(carpetaDestino());
+        return crearYAbrir(ctx.navegar, o.tipo);
+      },
+    }),
+  ),
   // La captura rápida (FUN-L-33). Su tecla la atiende `CapturaRapida`, en
   // captura. Un cuadro después, para que la paleta termine de cerrarse y
   // devolver el foco antes de que la cajita lo tome.
@@ -138,12 +291,16 @@ export const COMANDOS_APP: readonly Comando[] = [
       requestAnimationFrame(() => useUiStore.getState().setCaptura(true));
     },
   },
+  // Ctrl+Shift+F (`FUN-XL-04`, Parte 4): la búsqueda global con el cursor en
+  // su campo, como en VS Code y Obsidian.
   {
     id: "busqueda.vault",
     titulo: "Buscar en el contenido del vault",
     icono: Search,
     categoria: "navegacion",
-    ejecutar: () => usePanelLayoutStore.setState({ activeSection: "search", lastSection: "search" }),
+    atajos: [{ ctrl: true, shift: true, code: "KeyF" }],
+    ignorarSiPrevenido: true,
+    ejecutar: () => abrirSeccion("search"),
   },
   {
     id: "grafo.abrir",
@@ -166,7 +323,7 @@ export const COMANDOS_APP: readonly Comando[] = [
     detalle: "Enlaces rotos, huérfanas y títulos duplicados",
     icono: HeartPulse,
     categoria: "vault",
-    ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
+    ejecutar: () => abrirSeccion("salud"),
   },
   // La pestaña de salud (FUN-L-32): el tablero con las gráficas. Cierra el
   // panel de salud si es el que está a la vista.
@@ -199,13 +356,84 @@ export const COMANDOS_APP: readonly Comando[] = [
     categoria: "vault",
     ejecutar: () => nuevoRecordatorio(hoy()),
   },
+  // Ctrl+Shift+E (`FUN-XL-04`, Parte 4), además de Ctrl+\ (el panel izquierdo
+  // entero). Si el dibujo de Excalidraw ya usó la tecla (exportar), no actúa.
   {
     id: "explorador.alternar",
     titulo: "Mostrar u ocultar el explorador",
     icono: PanelLeft,
     categoria: "paneles",
-    muestraAtajoDe: "panel-izquierdo.alternar",
-    ejecutar: () => usePanelLayoutStore.getState().toggleSection("explorer"),
+    atajos: [{ ctrl: true, shift: true, code: "KeyE" }],
+    ignorarSiPrevenido: true,
+    ejecutar: () => {
+      if (usePanelLayoutStore.getState().activeSection === "explorer") ocultarPanelIzquierdo();
+      else abrirSeccion("explorer");
+    },
+  },
+  // Cada sección del rail, en el panel izquierdo y con el foco adentro. Sin
+  // atajo de fábrica (la búsqueda y la salud tienen los suyos arriba).
+  ...SECCIONES_DEL_RAIL.map(
+    (s): Comando => ({
+      id: `seccion.${s.id}`,
+      titulo: s.titulo,
+      icono: s.icono,
+      categoria: "navegacion",
+      ejecutar: () => abrirSeccion(s.seccion),
+    }),
+  ),
+  // Dividir, cerrar el panel y anclar (`FUN-XL-04`, Parte 4): lo del menú «⋯»
+  // de la barra de pestañas, sin mouse.
+  {
+    id: "panel.dividir-derecha",
+    titulo: "Dividir a la derecha",
+    detalle: "El mismo archivo a los dos lados",
+    icono: Columns2,
+    categoria: "paneles",
+    disponible: () => hayPestanaActiva(),
+    ejecutar: (ctx) => dividirPanelActivo(ctx, "right"),
+  },
+  {
+    id: "panel.dividir-abajo",
+    titulo: "Dividir hacia abajo",
+    detalle: "El mismo archivo arriba y abajo",
+    icono: Rows2,
+    categoria: "paneles",
+    disponible: () => hayPestanaActiva(),
+    ejecutar: (ctx) => dividirPanelActivo(ctx, "bottom"),
+  },
+  {
+    id: "panel.cerrar",
+    titulo: "Cerrar el panel activo",
+    detalle: "Cierra todas sus pestañas",
+    icono: SquareX,
+    categoria: "paneles",
+    disponible: () => allLeaves(useTabsStore.getState().root).length > 1,
+    ejecutar: (ctx) => cerrarPanelActivo(ctx),
+  },
+  {
+    id: "pestana.anclar-lateral",
+    titulo: "Anclar la pestaña en el panel lateral",
+    detalle: "Se ve debajo de la sección del panel izquierdo",
+    icono: PanelLeftDashed,
+    categoria: "pestanas",
+    disponible: () => hayPestanaActiva(),
+    ejecutar: (ctx) => anclarPestanaActiva(ctx),
+  },
+  {
+    id: "lateral.siguiente",
+    titulo: "Siguiente pestaña anclada del panel lateral",
+    icono: ArrowLeftRight,
+    categoria: "paneles",
+    disponible: () => useSidebarViewerStore.getState().tabs.length > 0,
+    ejecutar: () => ciclarAnclada(1),
+  },
+  {
+    id: "lateral.anterior",
+    titulo: "Pestaña anclada anterior del panel lateral",
+    icono: ArrowLeftRight,
+    categoria: "paneles",
+    disponible: () => useSidebarViewerStore.getState().tabs.length > 0,
+    ejecutar: () => ciclarAnclada(-1),
   },
   {
     id: "consola.nueva",
@@ -349,7 +577,13 @@ export const COMANDOS_APP: readonly Comando[] = [
     categoria: "paneles",
     enPaleta: false,
     atajos: [{ ctrl: true, code: "Backslash" }],
-    ejecutar: () => usePanelLayoutStore.getState().toggleLeft(),
+    ejecutar: () => {
+      if (usePanelLayoutStore.getState().activeSection === null) {
+        usePanelLayoutStore.getState().toggleLeft();
+      } else {
+        ocultarPanelIzquierdo();
+      }
+    },
   },
   // El panel derecho es de cada pane (`DEF-060`): actúa sobre el que tiene el foco.
   {

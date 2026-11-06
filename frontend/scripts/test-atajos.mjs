@@ -60,9 +60,10 @@ const REGISTRO = await fuente("../lib/comandos/registro.ts", {
 });
 const CONSOLA = await fuente("../lib/comandos/teclasConsola.ts", { "./atajos": ATAJOS, "./registro": REGISTRO });
 const ATMOSFERAS = await fuente("../lib/atmosferas.ts");
+const NUEVO = await fuente("../lib/comandos/nuevo.ts");
 const APP = await fuente(
   "../lib/comandos/comandosApp.ts",
-  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS },
+  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS, "./nuevo": NUEVO },
   { falsos: true },
 );
 const RENDER = await fuente("../lib/ayuda/render.ts", {}, { falsos: true });
@@ -278,10 +279,12 @@ test("la hoja: Ctrl+Shift+/ la abre, y refleja las personalizaciones", () => {
     reg.gruposDeAtajos(COMANDOS_APP, false, { soloConAtajo: true, sobre }).flatMap((g) => g.comandos.map((c) => c));
   const antes = hoja({});
   assert.ok(antes.every((c) => c.atajos.length > 0));
-  assert.ok(!antes.some((c) => c.comando.id === "nota.nueva"), "sin atajo no está en la hoja");
-  const sobre = per.asignarAtajo({}, COMANDOS_APP, "nota.nueva", null, { ctrl: true, code: "KeyN" });
+  assert.ok(!antes.some((c) => c.comando.id === "recordatorio.nuevo"), "sin atajo no está en la hoja");
+  const sobre = per.asignarAtajo({}, COMANDOS_APP, "recordatorio.nuevo", null, { alt: true, code: "KeyR" });
   const despues = hoja(sobre);
-  assert.deepEqual(despues.find((c) => c.comando.id === "nota.nueva")?.atajos, [{ ctrl: true, code: "KeyN" }]);
+  assert.deepEqual(despues.find((c) => c.comando.id === "recordatorio.nuevo")?.atajos, [
+    { alt: true, code: "KeyR" },
+  ]);
   // Quitarle el atajo a uno lo saca de la hoja.
   const sin = hoja({ "pestana.cerrar": null });
   assert.ok(!sin.some((c) => c.comando.id === "pestana.cerrar"));
@@ -301,12 +304,14 @@ test("sin el modo dev, sus comandos no están ni en la hoja ni en Configuración
   assert.doesNotMatch(choque.motivo, /desarrollador/);
 });
 
-test("la hoja agrupa en el orden de las categorías y no repite el atajo prestado del explorador", () => {
+test("la hoja agrupa en el orden de las categorías; el explorador, con su Ctrl+Shift+E", () => {
   const grupos = reg.gruposDeAtajos(COMANDOS_APP, false, { soloConAtajo: true, sobre: {} });
   const orden = Object.keys(reg.NOMBRE_CATEGORIA);
   const indices = grupos.map((g) => orden.indexOf(g.categoria));
   assert.deepEqual(indices, [...indices].sort((a, b) => a - b));
-  assert.ok(!grupos.some((g) => g.comandos.some((c) => c.comando.id === "explorador.alternar")));
+  // Desde la Parte 4 tiene un atajo propio y ya no presta el de Ctrl+\.
+  const explorador = grupos.flatMap((g) => g.comandos).find((c) => c.comando.id === "explorador.alternar");
+  assert.deepEqual(explorador?.atajos, [{ ctrl: true, shift: true, code: "KeyE" }]);
 });
 
 // ── la consola ─────────────────────────────────────────────────────────────

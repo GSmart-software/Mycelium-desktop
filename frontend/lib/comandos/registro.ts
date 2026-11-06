@@ -46,6 +46,7 @@ export type IconoComando = ComponentType<{ size?: number }>;
 
 export type CategoriaComando =
   | "notas"
+  | "explorador"
   | "editor"
   | "navegacion"
   | "pestanas"
@@ -64,6 +65,7 @@ export const NOMBRE_CATEGORIA: Readonly<Record<CategoriaComando, string>> = {
   pestanas: "Pestañas",
   paneles: "Paneles",
   notas: "Notas",
+  explorador: "Explorador",
   editor: "Editor de notas",
   vault: "Vault",
   apariencia: "Apariencia",
