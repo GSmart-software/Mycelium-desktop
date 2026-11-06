@@ -3,6 +3,7 @@
 import { BookOpen, Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
+import { AtajosSection } from "@/components/settings/AtajosSection";
 import { AvanzadoSection } from "@/components/settings/AvanzadoSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
@@ -39,6 +40,7 @@ type CategoriaId =
   | "editor"
   | "grafo"
   | "consolas"
+  | "atajos"
   | "vault"
   | "actualizaciones"
   | "avanzado";
@@ -154,6 +156,20 @@ const CATEGORIAS: Categoria[] = [
     ],
   },
   {
+    id: "atajos",
+    nombre: "Atajos de teclado",
+    descripcion: "Las teclas de cada comando: cámbialas, quítalas o vuelve a las de fábrica. Son tuyas: valen en todos los vaults.",
+    grupo: "Trabajo",
+    ajustes: [
+      { rotulo: "Atajos de teclado", alias: ["teclas", "shortcuts", "combinaciones", "atajo", "hotkeys", "teclado"] },
+      { rotulo: "Restaurar todos", alias: ["atajos de fábrica", "reiniciar atajos"] },
+      {
+        rotulo: "Teclas que salen de una consola",
+        alias: ["consola", "terminal", "ctrl+p", "ctrl+w", "shell"],
+      },
+    ],
+  },
+  {
     id: "vault",
     nombre: "Vault",
     descripcion: "La carpeta abierta: qué se indexa, qué se exporta y qué sabe la IA de ella.",
@@ -228,6 +244,8 @@ function contenido(id: CategoriaId) {
       return <GraphSection />;
     case "consolas":
       return <TerminalSection />;
+    case "atajos":
+      return <AtajosSection />;
     case "vault":
       return <VaultSection />;
     case "actualizaciones":
@@ -264,11 +282,15 @@ export function VentanaAjustes() {
   const cerrar = useCallback(() => setSettingsOpen(false), [setSettingsOpen]);
   useDialogoModal({ abierto, cerrar, dialogoRef });
 
-  // Cada apertura arranca limpia: sin búsqueda previa.
+  // Cada apertura arranca limpia: sin búsqueda previa. Si se pidió una
+  // categoría (la hoja de atajos pide «atajos»), se abre en ella.
   useEffect(() => {
     if (!abierto) return;
     setConsulta("");
     setLicencias(false);
+    const pedida = useUiStore.getState().ajustesCategoria;
+    if (pedida && CATEGORIAS.some((c) => c.id === pedida)) setCategoria(pedida as CategoriaId);
+    if (pedida) useUiStore.setState({ ajustesCategoria: null });
   }, [abierto]);
 
   /**

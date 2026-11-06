@@ -49,9 +49,14 @@ async function fuente(ruta, mapa = {}, { falsos = false } = {}) {
 
 const ZONAS = await fuente("../lib/teclado/zonas.ts");
 const ATAJOS = await fuente("../lib/comandos/atajos.ts");
-const CONSOLA = await fuente("../lib/comandos/teclasConsola.ts", { "./atajos": ATAJOS });
 const MODO_DEV = await fuente("../lib/modoDev.ts");
-const REGISTRO = await fuente("../lib/comandos/registro.ts", { "@/lib/modoDev": MODO_DEV, "./atajos": ATAJOS });
+const PERSONALIZAR = await fuente("../lib/comandos/personalizar.ts", { "./atajos": ATAJOS });
+const REGISTRO = await fuente("../lib/comandos/registro.ts", {
+  "@/lib/modoDev": MODO_DEV,
+  "./atajos": ATAJOS,
+  "./personalizar": PERSONALIZAR,
+});
+const CONSOLA = await fuente("../lib/comandos/teclasConsola.ts", { "./atajos": ATAJOS, "./registro": REGISTRO });
 const ATMOSFERAS = await fuente("../lib/atmosferas.ts");
 const APP = await fuente(
   "../lib/comandos/comandosApp.ts",

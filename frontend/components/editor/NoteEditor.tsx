@@ -14,6 +14,7 @@ import { languages } from "@codemirror/language-data";
 import { search } from "@codemirror/search";
 import { Compartment, EditorState, type StateEffect } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { EVENTO_VISTA_NOTA } from "@/lib/comandos/eventos";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -103,6 +104,16 @@ import { SearchBar } from "./SearchBar";
 import styles from "./NoteEditor.module.css";
 
 const MODES: EditorMode[] = ["live", "split", "read", "raw"];
+
+/**
+ * El keymap por defecto de CodeMirror sin dos teclas que son de la app
+ * (`FUN-XL-04`, Parte 3, de la auditoría de teclado del 2026-11-06):
+ * - **Mod-i** (`selectParentSyntax`): iba antes que el keymap de formato y se
+ *   quedaba con Ctrl+I, que tiene que poner cursiva.
+ * - **Shift-Mod-\** (`cursorMatchingBracket`): con el cursor junto a un
+ *   paréntesis se comía Ctrl+Shift+\, el panel de enlaces de la nota.
+ */
+const KEYMAP_BASE = defaultKeymap.filter((k) => k.key !== "Mod-i" && k.key !== "Shift-Mod-\\");
 const SYNC_INTERVAL_MS = 10_000; // guardado periódico al disco (HU-04 CA8)
 const PREVIEW_DEBOUNCE_MS = 130; // re-render del preview (HU-01 CA3)
 const PALABRAS_DEBOUNCE_MS = 400; // conteo de palabras de la barra de estado
@@ -724,7 +735,7 @@ export function NoteEditor({
             }),
             history(),
             // Tab/Shift+Tab indentan la línea (sangría) en vez de mover el foco.
-            keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap, indentWithTab]),
+            keymap.of([...KEYMAP_BASE, ...historyKeymap, ...foldKeymap, indentWithTab]),
             formatKeymap,
             // Autocierre de pares ()[]{}""''``** __ con envoltura de la selección;
             // se consulta la preferencia en cada pulsación (toggle en vivo).
@@ -1404,18 +1415,17 @@ export function NoteEditor({
     modeRef.current = mode;
   }, [mode]);
 
+  // Ctrl+1..4 son comandos del registro (`editor.vista-*`, `FUN-XL-04` Parte 3),
+  // por posición: la fila de números y no el teclado numérico. El comando avisa
+  // con un evento y lo atiende el editor del panel activo.
   useEffect(() => {
     if (!isActivePane) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (!event.ctrlKey || event.shiftKey || event.altKey) return;
-      const index = ["1", "2", "3", "4"].indexOf(event.key);
-      if (index >= 0) {
-        event.preventDefault();
-        setMode(MODES[index]);
-      }
+    function onVista(event: Event) {
+      const modo = (event as CustomEvent<unknown>).detail;
+      if (MODES.includes(modo as EditorMode)) setMode(modo as EditorMode);
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(EVENTO_VISTA_NOTA, onVista);
+    return () => window.removeEventListener(EVENTO_VISTA_NOTA, onVista);
   }, [setMode, isActivePane]);
 
   // Datos del vault para resolver wikilinks/embeds del preview. Reacciona a

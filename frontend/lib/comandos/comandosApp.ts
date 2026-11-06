@@ -36,6 +36,10 @@ import {
   Command,
   Columns2,
   SquareDashedMousePointer,
+  Keyboard,
+  PenLine,
+  BookOpenText,
+  FileCode,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -59,6 +63,7 @@ import {
   irAPanelContiguo,
   irAZona,
 } from "@/lib/teclado/focoDom";
+import { EVENTO_VISTA_NOTA } from "./eventos";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
 import type { Comando, ContextoComando } from "./registro";
 
@@ -97,6 +102,14 @@ function navegarHistorialActivo(ctx: ContextoComando, delta: -1 | 1) {
 /** Atmósfera del modo en uso (la del otro modo se cambia en Configuración). */
 const claveAtmosfera = () =>
   usePreferencesStore.getState().modoOscuro ? ("atmosferaOscuro" as const) : ("atmosferaClaro" as const);
+
+/** Las vistas de una nota, en el orden de sus atajos (Ctrl+1..4). */
+const VISTAS_DE_NOTA = [
+  { id: "en-vivo", modo: "live", nombre: "En vivo", icono: PenLine },
+  { id: "dividido", modo: "split", nombre: "Dividido", icono: Columns2 },
+  { id: "lectura", modo: "read", nombre: "Lectura", icono: BookOpenText },
+  { id: "crudo", modo: "raw", nombre: "Crudo", icono: FileCode },
+] as const;
 
 export const COMANDOS_APP: readonly Comando[] = [
   {
@@ -233,6 +246,28 @@ export const COMANDOS_APP: readonly Comando[] = [
     atajos: [{ code: "F1" }],
     manejadorPropio: true,
     ejecutar: () => useUiStore.getState().abrirAyuda(),
+  },
+  // La hoja de atajos (`FUN-XL-04`, Parte 3): Ctrl+Shift+/ —el «?» de un
+  // teclado de EE. UU.— por posición (`Slash` con Shift).
+  {
+    id: "atajos.hoja",
+    titulo: "Ver los atajos de teclado",
+    detalle: "La hoja con todos los atajos",
+    icono: Keyboard,
+    categoria: "app",
+    atajos: [{ ctrl: true, shift: true, code: "Slash" }],
+    ejecutar: () => {
+      const ui = useUiStore.getState();
+      ui.setHojaAtajos(!ui.hojaAtajos);
+    },
+  },
+  {
+    id: "atajos.configurar",
+    titulo: "Cambiar los atajos de teclado",
+    detalle: "Configuración → Atajos de teclado",
+    icono: Keyboard,
+    categoria: "app",
+    ejecutar: () => useUiStore.getState().abrirAjustes("atajos"),
   },
   ...ATMOSFERAS.map(
     (a): Comando => ({
@@ -456,4 +491,21 @@ export const COMANDOS_APP: readonly Comando[] = [
     disponible: () => !hayModalAbierto(),
     ejecutar: () => irAPanelContiguo("derecha"),
   },
+
+  // ── Las vistas de una nota (`FUN-XL-04`, Parte 3) ──
+  // Ctrl+1..4: En vivo, Dividido, Lectura, Crudo. Antes las atendía
+  // `NoteEditor` por `e.key`, que da «1» también en el teclado numérico: ahora
+  // van por posición (`Digit1`…`Digit4`), y Ctrl+Num1..4 quedan libres (regla
+  // del usuario, 2026-11-06). El editor del panel activo escucha el evento.
+  ...VISTAS_DE_NOTA.map(
+    (v, i): Comando => ({
+      id: `editor.vista-${v.id}`,
+      titulo: `Cambiar a la vista ${v.nombre}`,
+      icono: v.icono,
+      categoria: "editor",
+      enPaleta: false,
+      atajos: [{ ctrl: true, code: `Digit${i + 1}` }],
+      ejecutar: () => window.dispatchEvent(new CustomEvent(EVENTO_VISTA_NOTA, { detail: v.modo })),
+    }),
+  ),
 ];

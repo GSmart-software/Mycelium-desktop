@@ -23,6 +23,7 @@
 import type { ComponentType } from "react";
 import { comandosDisponibles } from "@/lib/modoDev";
 import { coincide, reservaQueChoca, mismoAtajo, textoAtajo, CODES_VALIDOS, type Atajo, type EventoTecla } from "./atajos";
+import { calcularEfectivos, type Efectivos, type Sobreescrituras } from "./personalizar";
 
 /** Lo que un comando recibe al ejecutarse: lo que no puede leer de un store. */
 export type ContextoComando = {
@@ -45,6 +46,7 @@ export type IconoComando = ComponentType<{ size?: number }>;
 
 export type CategoriaComando =
   | "notas"
+  | "editor"
   | "navegacion"
   | "pestanas"
   | "paneles"
@@ -52,6 +54,22 @@ export type CategoriaComando =
   | "apariencia"
   | "app"
   | "dev";
+
+/**
+ * Las categorías como se muestran en la hoja de atajos y en Configuración, en
+ * ese orden.
+ */
+export const NOMBRE_CATEGORIA: Readonly<Record<CategoriaComando, string>> = {
+  navegacion: "Navegación",
+  pestanas: "Pestañas",
+  paneles: "Paneles",
+  notas: "Notas",
+  editor: "Editor de notas",
+  vault: "Vault",
+  apariencia: "Apariencia",
+  app: "Aplicación",
+  dev: "Desarrollo",
+};
 
 export type Comando = {
   /** Estable: lo guardan los atajos configurables y las macros. `area.accion`. */
@@ -141,9 +159,56 @@ export const listarComandos = (): readonly Comando[] => instantanea;
 
 export const comandoPorId = (id: string) => registrados.get(id);
 
+/** Avisa cuando cambian los comandos registrados o los atajos personalizados. */
 export function suscribirComandos(oyente: () => void): () => void {
   oyentes.add(oyente);
   return () => oyentes.delete(oyente);
+}
+
+// ── los atajos personalizados ──────────────────────────────────────────────
+
+/**
+ * Las sobreescrituras del usuario (`FUN-XL-04`, Parte 3), que carga y guarda
+ * `preferenciasAtajos.ts`. Viven acá, junto al registro, porque el despachador,
+ * la paleta, la hoja de atajos y la consola tienen que ver las mismas.
+ */
+let sobreescrituras: Sobreescrituras = {};
+let version = 0;
+
+/** Las sobreescrituras en uso. */
+export const sobreescriturasActuales = (): Sobreescrituras => sobreescrituras;
+
+/** Cambia las sobreescrituras en uso y avisa a quien muestre atajos. */
+export function fijarSobreescrituras(s: Sobreescrituras) {
+  if (s === sobreescrituras) return;
+  sobreescrituras = s;
+  version++;
+  for (const o of oyentes) o();
+}
+
+/** Un número que cambia con cada cambio de las sobreescrituras (para memorizar). */
+export const versionSobreescrituras = () => version;
+
+/** Una sola entrada de memoria: los efectivos de la última lista y sobreescrituras pedidas. */
+let memo: { comandos: readonly Comando[]; sobre: Sobreescrituras; efectivos: Efectivos } | null = null;
+
+/**
+ * Los atajos que valen hoy —los de fábrica con las sobreescrituras— para
+ * `comandos`. Por defecto, los registrados con las sobreescrituras en uso.
+ */
+export function efectivosDe(
+  comandos: readonly Comando[] = instantanea,
+  sobre: Sobreescrituras = sobreescrituras,
+): Efectivos {
+  if (memo && memo.comandos === comandos && memo.sobre === sobre) return memo.efectivos;
+  const efectivos = calcularEfectivos(comandos, sobre);
+  memo = { comandos, sobre, efectivos };
+  return efectivos;
+}
+
+/** Los atajos que tiene hoy un comando (con las personalizaciones). */
+export function atajosDe(c: Comando, comandos: readonly Comando[] = instantanea): readonly Atajo[] {
+  return efectivosDe(comandos).porId.get(c.id) ?? c.atajos ?? [];
 }
 
 // ── la paleta ──────────────────────────────────────────────────────────────
@@ -158,16 +223,21 @@ export function comandosDePaleta(comandos: readonly Comando[], ctx: ContextoComa
 
 /**
  * Título y detalle como los muestra la paleta: el atajo se deriva del comando
- * («Ctrl+Shift+Espacio · anotar en la Bandeja del vault», «Abrir la
- * configuración (Ctrl+,)»).
+ * —con las personalizaciones del usuario— («Ctrl+Shift+Espacio · anotar en la
+ * Bandeja del vault», «Abrir la configuración (Ctrl+,)»). `texto` escribe el
+ * atajo (la paleta le pasa el que usa la distribución del teclado del usuario).
  */
-export function textoEnPaleta(c: Comando, comandos: readonly Comando[]): { titulo: string; detalle?: string } {
+export function textoEnPaleta(
+  c: Comando,
+  comandos: readonly Comando[],
+  texto: (a: Atajo) => string = (a) => textoAtajo(a),
+): { titulo: string; detalle?: string } {
   const titulo = resolverTexto(c.titulo) ?? "";
   const detalle = resolverTexto(c.detalle);
   const fuente = c.muestraAtajoDe ? comandos.find((o) => o.id === c.muestraAtajoDe) : c;
-  const atajo = fuente?.atajos?.[0];
+  const atajo = fuente ? atajosDe(fuente, comandos)[0] : undefined;
   if (!atajo) return { titulo, detalle };
-  const tecla = textoAtajo(atajo);
+  const tecla = texto(atajo);
   if (c.atajoEnTitulo) return { titulo: `${titulo} (${tecla})`, detalle };
   return { titulo, detalle: detalle ? `${tecla} · ${detalle}` : tecla };
 }
@@ -179,21 +249,56 @@ export type Fase = "captura" | "burbuja";
 
 /**
  * El comando que el despachador del workspace dispara con esta tecla en esta
- * fase, o `null`. No cuenta los de manejador propio ni los de desarrollador
- * sin el modo. En captura, solo los `enCaptura`; en burbuja, el resto.
+ * fase, o `null`. Con los atajos que valen hoy (las personalizaciones del
+ * usuario incluidas). No cuenta los de manejador propio ni los de
+ * desarrollador sin el modo. En captura, solo los `enCaptura`; en burbuja, el
+ * resto.
  */
 export function comandoParaTecla(
   e: EventoTecla,
   comandos: readonly Comando[],
   dev: boolean,
   fase: Fase = "burbuja",
+  sobre: Sobreescrituras = sobreescrituras,
 ): Comando | null {
+  const { porId } = efectivosDe(comandos, sobre);
   for (const c of comandosDisponibles(comandos, dev)) {
     if (c.manejadorPropio) continue;
     if (!!c.enCaptura !== (fase === "captura")) continue;
-    if (c.atajos?.some((a) => coincide(a, e))) return c;
+    if ((porId.get(c.id) ?? []).some((a) => coincide(a, e))) return c;
   }
   return null;
+}
+
+// ── la hoja de atajos ──────────────────────────────────────────────────────
+
+export type GrupoDeAtajos = {
+  categoria: CategoriaComando;
+  nombre: string;
+  comandos: { comando: Comando; titulo: string; atajos: readonly Atajo[] }[];
+};
+
+/**
+ * Los comandos agrupados por categoría (en el orden de `NOMBRE_CATEGORIA`),
+ * con sus atajos de hoy. Sin los de desarrollador si el modo está apagado: ni
+ * la hoja ni Configuración los nombran. Con `soloConAtajo`, los que tienen
+ * alguno (la hoja); sin él, todos (Configuración).
+ */
+export function gruposDeAtajos(
+  comandos: readonly Comando[],
+  dev: boolean,
+  { soloConAtajo = false, sobre = sobreescrituras }: { soloConAtajo?: boolean; sobre?: Sobreescrituras } = {},
+): GrupoDeAtajos[] {
+  const { porId } = efectivosDe(comandos, sobre);
+  const grupos: GrupoDeAtajos[] = [];
+  for (const categoria of Object.keys(NOMBRE_CATEGORIA) as CategoriaComando[]) {
+    const lista = comandosDisponibles(comandos, dev)
+      .filter((c) => c.categoria === categoria && !c.muestraAtajoDe)
+      .map((c) => ({ comando: c, titulo: resolverTexto(c.titulo) ?? c.id, atajos: porId.get(c.id) ?? [] }))
+      .filter((x) => !soloConAtajo || x.atajos.length > 0);
+    if (lista.length) grupos.push({ categoria, nombre: NOMBRE_CATEGORIA[categoria], comandos: lista });
+  }
+  return grupos;
 }
 
 // ── la validación ──────────────────────────────────────────────────────────

@@ -24,8 +24,32 @@ function htmlDeEjemplo(fuente: string): string {
   );
 }
 
-export function htmlDePagina(cuerpo: string): string {
-  return partirEjemplos(cuerpo)
+/**
+ * Los atajos de la ayuda que el usuario puede cambiar (`FUN-XL-04`, Parte 3) se
+ * escriben como `{{atajo:id-del-comando|Texto de fábrica}}`. Al mostrar la
+ * página, `resolver` da el atajo de hoy de ese comando —con lo que el usuario
+ * cambió y la tecla como se ve en su teclado—; si el comando no está (la
+ * ayuda abierta desde el selector de vaults) o no hay resolver, vale el texto
+ * de fábrica. `null` del resolver = el comando no tiene atajo.
+ */
+export const RE_ATAJO = /\{\{atajo:([a-z0-9.-]+)\|([^}]*)\}\}/g;
+
+/** Lo que el Markdown interpretaría en un texto de atajo («\», «|», «*»…). */
+const escaparMd = (s: string) => s.replace(/[\\`*_|[\]<>]/g, (c) => `\\${c}`);
+
+export type ResolverAtajo = (id: string) => string[] | null | undefined;
+
+export function sustituirAtajos(cuerpo: string, resolver?: ResolverAtajo): string {
+  return cuerpo.replace(RE_ATAJO, (_, id: string, fabrica: string) => {
+    const hoy = resolver?.(id);
+    if (hoy === null || (hoy && hoy.length === 0)) return "*sin atajo*";
+    const textos = hoy ?? [fabrica];
+    return textos.map((t) => `**${escaparMd(t)}**`).join(" o ");
+  });
+}
+
+export function htmlDePagina(cuerpo: string, resolver?: ResolverAtajo): string {
+  return partirEjemplos(sustituirAtajos(cuerpo, resolver))
     .map((t) => (t.tipo === "ejemplo" ? htmlDeEjemplo(t.fuente) : renderMarkdown(t.texto)))
     .join("");
 }

@@ -8,7 +8,18 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { avisarFallo } from "@/stores/avisosStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
-import { resolverTexto, comandoParaTecla, listarComandos, registrarComandos, suscribirComandos } from "./registro";
+import {
+  resolverTexto,
+  comandoParaTecla,
+  listarComandos,
+  registrarComandos,
+  sobreescriturasActuales,
+  suscribirComandos,
+  versionSobreescrituras,
+} from "./registro";
+import { grabandoAtajo } from "./grabacion";
+import { estaPersonalizado } from "./personalizar";
+import { cargarPreferenciasAtajos } from "./preferenciasAtajos";
 import type { Comando, ContextoComando, Fase } from "./registro";
 
 /**
@@ -23,6 +34,14 @@ export function useRegistrarComandos(lista: readonly Comando[]) {
 /** Los comandos registrados; se vuelve a pintar cuando cambian. */
 export function useComandos(): readonly Comando[] {
   return useSyncExternalStore(suscribirComandos, listarComandos, listarComandos);
+}
+
+/**
+ * Un número que cambia cuando el usuario cambia sus atajos: para que quien los
+ * muestra (paleta, hoja, Configuración) se vuelva a pintar.
+ */
+export function useVersionAtajos(): number {
+  return useSyncExternalStore(suscribirComandos, versionSobreescrituras, versionSobreescrituras);
 }
 
 /** ¿Está encendido el modo desarrollador? (Se carga de Rust al arrancar.) */
@@ -49,11 +68,17 @@ export function ejecutarComando(c: Comando, ctx: ContextoComando) {
  */
 export function useDespachadorAtajos(navegar: (url: string) => void) {
   useEffect(() => {
+    // Los atajos del usuario (Parte 3), antes de la primera tecla.
+    cargarPreferenciasAtajos();
     const atender = (fase: Fase) => (event: KeyboardEvent) => {
+      if (grabandoAtajo()) return;
       const dev = modoDevActivo();
       const comando = comandoParaTecla(event, listarComandos(), dev, fase);
       if (!comando) return;
-      if (comando.ignorarSiPrevenido && event.defaultPrevented) return;
+      // Un atajo que el usuario eligió no le quita la tecla a quien ya la usó
+      // (el editor, un lienzo): los de fábrica se eligieron libres.
+      const personalizado = estaPersonalizado(comando.id, sobreescriturasActuales());
+      if ((comando.ignorarSiPrevenido || personalizado) && event.defaultPrevented) return;
       const ctx: ContextoComando = { navegar, dev };
       if (comando.disponible && !comando.disponible(ctx)) return;
       event.preventDefault();

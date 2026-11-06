@@ -6,7 +6,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { alternarModoDev } from "@/lib/comandos/comandosApp";
 import { abrirNota as abrirNotaEn } from "@/lib/comandos/navegar";
 import { comandosDePaleta, textoEnPaleta, type IconoComando } from "@/lib/comandos/registro";
-import { ejecutarComando, useComandos } from "@/lib/comandos/useComandos";
+import { ejecutarComando, useComandos, useVersionAtajos } from "@/lib/comandos/useComandos";
+import { textoAtajoVisible, useDistribucion } from "@/lib/comandos/distribucion";
 import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
 import { useRecientesStore } from "@/stores/recientesStore";
@@ -118,6 +119,9 @@ export function PaletaComandos() {
   const navegar = useCallback((url: string) => router.replace(url), [router]);
   const abrirNota = useCallback((id: string) => abrirNotaEn(navegar, id), [navegar]);
   const registrados = useComandos();
+  // Los atajos que muestra, con las personalizaciones y el teclado del usuario.
+  const versionAtajos = useVersionAtajos();
+  const distribucion = useDistribucion();
 
   // Los comandos del catálogo, con el título y el detalle de este momento: el
   // del cambio de modo y el de la atmósfera en uso se recalculan en cada
@@ -126,13 +130,13 @@ export function PaletaComandos() {
     const ctx = { navegar, dev };
     return comandosDePaleta(registrados, ctx).map((c) => ({
       id: c.id,
-      ...textoEnPaleta(c, registrados),
+      ...textoEnPaleta(c, registrados, textoAtajoVisible),
       icono: c.icono,
       soloDev: c.soloDev,
       ejecutar: () => ejecutarComando(c, ctx),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registrados, navegar, dev, abierto]);
+  }, [registrados, navegar, dev, abierto, versionAtajos, distribucion]);
 
   const enComandos = texto.startsWith(">");
   const consulta = (enComandos ? texto.slice(1) : texto).trim();
