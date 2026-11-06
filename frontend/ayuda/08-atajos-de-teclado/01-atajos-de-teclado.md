@@ -14,6 +14,7 @@ el foco en un lugar —el texto de una nota, el explorador, una consola—: cada
 | **F1** | Abre esta ayuda. Con la ayuda abierta, lleva al buscador. |
 | **Ctrl+O** | Ir a una nota por su nombre. |
 | **Ctrl+P** o **Ctrl+Shift+P** | La paleta de comandos. |
+| **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault sin cambiar de pestaña. |
 | **Ctrl+,** | Configuración. |
 | **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollo, si las encendiste para este vault en Configuración → Avanzado. |
 

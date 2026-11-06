@@ -934,7 +934,41 @@
 
 
 /* ============================================================================
-   18) LO QUE SE ESTILA SOLO CON COLORES
+   18) LA BANDEJA Y LA CAPTURA RÁPIDA   (Ctrl+Shift+Espacio)
+   ----------------------------------------------------------------------------
+   La cajita de la captura rápida es .mic-captura (el velo de atrás,
+   .mic-captura-velo). Adentro, .mic-captura-tipo dice si entra como «nota» o
+   «tarea» y lleva data-tipo con eso; .mic-captura-destino es el destino, al pie.
+
+   En el explorador, la sección «Bandeja» es .mic-explorador-bandeja; cada
+   entrada, .mic-bandeja-fila (con data-bandeja="vault"), y su contador de
+   entradas sin procesar, .mic-bandeja-cuenta.
+
+   El título de la Bandeja abierta como nota no se edita (no se renombra): en
+   vez de .mic-doc-title-editable lleva .mic-doc-title-fijo.
+   ========================================================================== */
+
+/* La cajita más ancha y la etiqueta de tarea en el color de las destacadas: */
+/*
+.mic-captura {
+  width: min(720px, 100%);
+}
+.mic-captura-tipo[data-tipo="tarea"] {
+  color: var(--mic-tarea-destacada);
+}
+*/
+
+/* El contador de la Bandeja, en el color de acento: */
+/*
+.mic-bandeja-cuenta {
+  background: var(--mic-accent);
+  color: var(--mic-bg-canvas);
+}
+*/
+
+
+/* ============================================================================
+   19) LO QUE SE ESTILA SOLO CON COLORES
    ----------------------------------------------------------------------------
    Las tablas .base, los lienzos .canvas, el editor de draw.io, el calendario,
    el explorador, las pestañas, los menús, la configuración y la ventana de

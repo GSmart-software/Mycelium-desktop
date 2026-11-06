@@ -99,6 +99,11 @@ por Mycelium:
   `[[Nombre viejo]]` que no se reescriben —texto citado, otros vaults, los que se
   escriban después— siguen llegando. Usarlo cuando el nombre viejo era una referencia
   conocida (una sigla, un identificador); no por defecto.
+- La **Bandeja del vault** (`Bandeja.md`, o la ruta configurada) no se renombra, no se
+  mueve y no va a la papelera; la carpeta que la contiene tampoco va a la papelera
+  (renombrarla o moverla sí: la Bandeja la sigue). Las herramientas lo rechazan con
+  `INVALIDO` y el motivo. Es una respuesta, no algo para
+  rodear: no lo intentes con `mv` ni `rm` (Mycelium la recrearía vacía).
 
 ## Lo que pregunta y lo que no
 
