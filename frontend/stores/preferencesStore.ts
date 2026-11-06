@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ATMOSFERA_CLARO_DEFECTO, ATMOSFERA_OSCURO_DEFECTO, type Atmosfera } from "@/lib/atmosferas";
 import { CARPETA_ESPORAS_DEFECTO } from "@/lib/esporas";
+import { RUTA_BANDEJA_DEFECTO } from "@/lib/bandeja";
 import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
 import { atmosferaEnUso, type Tema } from "@/lib/temas";
 import { sanearContraDefectos, usePrefsVaultStore } from "@/stores/prefsVaultStore";
@@ -186,6 +187,12 @@ export type Preferencias = {
    */
   carpetaInformes: string;
   /**
+   * La Bandeja del vault (`FUN-L-33`): ruta relativa POSIX de la nota donde
+   * anota la captura rápida. Cambiarla NO mueve el archivo: la Bandeja pasa a
+   * ser la de la ruta nueva (se crea con la primera captura).
+   */
+  rutaBandeja: string;
+  /**
    * Pestaña «Salud del vault» (`FUN-L-32`): cómo se dibuja «Qué hay en el
    * vault», en anillos o en barras. Va con el vault, como todo lo de acá.
    */
@@ -221,6 +228,7 @@ const DEFAULT_PREFS: Preferencias = {
   graphExcludeRules: [],
   carpetaEsporas: CARPETA_ESPORAS_DEFECTO,
   carpetaInformes: CARPETA_INFORMES_DEFECTO,
+  rutaBandeja: RUTA_BANDEJA_DEFECTO,
   formaComposicionSalud: "anillos",
   atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
   atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,

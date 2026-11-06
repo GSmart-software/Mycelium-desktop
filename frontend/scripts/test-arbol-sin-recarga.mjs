@@ -60,6 +60,11 @@ const STUB = {
     export const tituloDeRuta = () => ""; export const coincidencias = () => []; export const textoAviso = () => null;
     export const trasTraslados = () => []; export const avisoCaracteresReemplazados = () => null; export const sanearNombre = (x) => x;
     export const avisar = () => {}; export const TITULO_POR_DEFECTO = {};`),
+  // La Bandeja (`FUN-L-33`): la protección y la preferencia, que acá no importan.
+  bandeja: aUrl(`export const rutaTrasMoverCarpeta = () => null;
+    export const protegerBandeja = () => {}; export const protegerCarpetaConBandeja = () => {};
+    export const rutaBandeja = () => "Bandeja.md";
+    export const usePreferencesStore = { getState: () => ({ prefs: {}, setPref: () => {} }) };`),
   authStore: aUrl(`export const useAuthStore = { getState: () => ({ accessToken: null, vaults: [{ id: "v" }] }) };`),
   graphStore: aUrl(`export const useGraphStore = { getState: () => ({ markStale() {} }) };`),
   tabsStore: aUrl(`export const useTabsStore = { getState: () => ({}) };`),
@@ -105,6 +110,9 @@ const VAULT_STORE = await fuente("../stores/vaultStore.ts", {
   "@/stores/tabsStore": STUB.tabsStore,
   "@/lib/editor/refrescoVivo": STUB.livePreview,
   "@/lib/extensionesDeTipo": STUB.vacio,
+  "@/lib/bandeja": STUB.bandeja,
+  "@/lib/bandejaRuta": STUB.bandeja,
+  "@/stores/preferencesStore": STUB.bandeja,
 });
 const { useVaultStore } = await import(VAULT_STORE);
 const { escucharCambiosVault, refrescarVault } = await import(

@@ -8,4 +8,4 @@
  * `mv`/`rm`, y `mcpControl` carga con el workspace. Importarla de
  * `framework.ts` arrastraba `skillsGeneradas.ts` (353 KB de texto) al arranque.
  */
-export const FRAMEWORK_IA_VERSION = "2.4.0";
+export const FRAMEWORK_IA_VERSION = "2.5.0";

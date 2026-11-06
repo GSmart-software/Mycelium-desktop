@@ -57,6 +57,9 @@ El clic derecho sobre una nota (o un lienzo, una base, un dibujo, un diagrama) o
 Sobre una carpeta, el menú también tiene **Mover a…**, que la lleva con todo lo que
 contiene y actualiza los enlaces. Arrastrar en el árbol hace lo mismo.
 
+Arriba de **Archivos**, la sección **Bandeja** lleva a la Bandeja del vault, donde anota la
+[captura rápida](ayuda:herramientas/bandeja-y-captura-rapida) (**Ctrl+Shift+Espacio**).
+
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas

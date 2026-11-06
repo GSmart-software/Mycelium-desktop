@@ -15,6 +15,13 @@ type UiState = {
   /** La página que se pidió al abrirla (`escribir-notas/tareas`); `null` = la
    *  última que se leyó. */
   ayudaPagina: string | null;
+  /**
+   * La cajita de la captura rápida (`FUN-L-33`, Ctrl+Shift+Espacio). No es una
+   * ventana modal como las de arriba: flota sobre lo que esté abierto y se
+   * cierra sola con Esc o un clic afuera. Abrirla cierra la paleta.
+   */
+  capturaAbierta: boolean;
+  setCaptura: (abierta: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setSearchInNoteOpen: (open: boolean) => void;
   setLiveTables: (on: boolean) => void;
@@ -38,13 +45,16 @@ export const useUiStore = create<UiState>((set) => ({
   paleta: null,
   ayudaAbierta: false,
   ayudaPagina: null,
+  capturaAbierta: false,
+  setCaptura: (abierta) => set(abierta ? { capturaAbierta: true, paleta: null } : { capturaAbierta: false }),
   setSettingsOpen: (open) => set(open ? { settingsOpen: true, ayudaAbierta: false } : { settingsOpen: false }),
   setSearchInNoteOpen: (open) => set({ searchInNoteOpen: open }),
   setLiveTables: (on) => {
     if (typeof window !== "undefined") localStorage.setItem("mic-live-tables", on ? "1" : "0");
     set({ liveTables: on });
   },
-  setPaleta: (modo) => set(modo ? { paleta: modo, ayudaAbierta: false } : { paleta: null }),
+  setPaleta: (modo) =>
+    set(modo ? { paleta: modo, ayudaAbierta: false, capturaAbierta: false } : { paleta: null }),
   abrirAyuda: (pagina) =>
     set({ ayudaAbierta: true, ayudaPagina: pagina ?? null, settingsOpen: false, paleta: null }),
   cerrarAyuda: () => set({ ayudaAbierta: false, ayudaPagina: null }),

@@ -11,6 +11,7 @@ import { Avisos } from "@/components/workspace/Avisos";
 import { BarraEstado } from "@/components/workspace/BarraEstado";
 import { DialogoConfirmar } from "@/components/workspace/DialogoConfirmar";
 import { PaletaComandos } from "@/components/workspace/PaletaComandos";
+import { CapturaRapida } from "@/components/workspace/CapturaRapida";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
@@ -376,6 +377,8 @@ function WorkspaceShell() {
       <ImportDialogs />
       <UpdateDialog />
       <PaletaComandos />
+      {/* La captura rápida (FUN-L-33): Ctrl+Shift+Espacio. */}
+      <CapturaRapida />
       <Avisos />
       {/* Tarjetas de aviso y modal del calendario (FUN-L-22). */}
       <Recordatorios />

@@ -7,6 +7,7 @@ import {
   FilePlus,
   FileText,
   HeartPulse,
+  Inbox,
   Palette,
   PanelLeft,
   Search,
@@ -188,6 +189,18 @@ export function PaletaComandos() {
         ejecutar: async () => {
           const v = useVaultStore.getState();
           abrirNota(await v.createNota(v.activeFolderId), { editarTitulo: true });
+        },
+      },
+      // La captura rápida (FUN-L-33): el mismo destino que Ctrl+Shift+Espacio.
+      // Un cuadro después, para que la paleta termine de cerrarse y devolver
+      // el foco antes de que la cajita lo tome.
+      {
+        id: "cmd-captura",
+        titulo: "Captura rápida",
+        detalle: "Ctrl+Shift+Espacio · anotar en la Bandeja del vault",
+        icono: Inbox,
+        ejecutar: () => {
+          requestAnimationFrame(() => useUiStore.getState().setCaptura(true));
         },
       },
       {
