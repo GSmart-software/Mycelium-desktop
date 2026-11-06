@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ConteoConexionesDto } from "@/lib/db/grafo";
 import { nextDiagnostic } from "@codemirror/lint";
+import { EditorView } from "@codemirror/view";
 import { resumenDiagnosticos } from "@/lib/diagnosticos";
 import { useDiagnosticos } from "@/lib/diagnosticosVault";
 import { getView } from "@/lib/editor/viewRegistry";
@@ -146,6 +147,12 @@ export function BarraEstado() {
                 const view = getView(paneId);
                 if (!view) return;
                 nextDiagnostic(view);
+                // DEF-179: `nextDiagnostic` desplaza lo mínimo (`scrollIntoView: true`)
+                // y la línea del aviso quedaba pegada al borde de abajo. Se centra,
+                // como los demás saltos del editor (DEF-056).
+                view.dispatch({
+                  effects: EditorView.scrollIntoView(view.state.selection.main.head, { y: "center" }),
+                });
                 view.focus();
               }}
             >
