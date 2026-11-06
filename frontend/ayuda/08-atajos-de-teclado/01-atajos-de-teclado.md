@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico]
+sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -46,6 +46,9 @@ lateral (la posición de la `\` en un teclado de EE. UU.) se ve como **Ctrl+Ç**
 | **F1** | Abre esta ayuda. Con la ayuda abierta, lleva al buscador. |
 | {{atajo:paleta.notas|Ctrl+O}} | Ir a una nota por su nombre. |
 | {{atajo:paleta.comandos|Ctrl+P}} | La paleta de comandos. |
+| {{atajo:nota.nueva|Ctrl+N}} | Nueva nota en la carpeta seleccionada del explorador (o en la raíz), con el título listo para escribir. |
+| {{atajo:crear.nuevo|Ctrl+Shift+N}} | El menú **Nuevo…**: nota, carpeta, canvas, base, dibujo, diagrama o una nota desde una Espora. |
+| {{atajo:busqueda.vault|Ctrl+Shift+F}} | La búsqueda global, con el cursor en su campo. |
 | **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault sin cambiar de pestaña. |
 | {{atajo:configuracion.abrir|Ctrl+,}} | Configuración. |
 | {{atajo:atajos.hoja|Ctrl+Shift+/}} | La hoja de atajos. |
@@ -95,12 +98,42 @@ sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda selecc
 | {{atajo:pestana.reabrir|Ctrl+Shift+T}} | Reabre la última pestaña cerrada. |
 | {{atajo:historial.atras|Alt+←}} / {{atajo:historial.adelante|Alt+→}} | Atrás y adelante en lo que se abrió en la pestaña. Dentro del texto de una nota, esas teclas mueven el cursor. |
 | {{atajo:panel-izquierdo.alternar|Ctrl+\}} | Muestra u oculta el panel lateral. |
+| {{atajo:explorador.alternar|Ctrl+Shift+E}} | Muestra u oculta el explorador, con el foco en el árbol de archivos. |
 | {{atajo:panel-derecho.alternar|Ctrl+Shift+\}} | Muestra u oculta el panel de enlaces de la nota. Funciona también con el cursor junto a un paréntesis. |
 | **←** / **→**, **Inicio** / **Fin** | Con el foco en la barra de pestañas, recorren las pestañas. **Supr** cierra la enfocada. |
+| **Shift+F10** o la tecla de menú | Con el foco en una pestaña, su menú: cerrar, fijar, dividir, anclar en el panel lateral y exportar. |
+
+En la paleta (**Ctrl+P**) están además **Dividir a la derecha**, **Dividir hacia abajo**,
+**Cerrar el panel activo** (con la vista dividida), **Anclar la pestaña en el panel lateral**
+y las pestañas ancladas siguiente y anterior; y un comando por cada sección del rail
+(**Abrir el explorador**, **Abrir el panel de Esporas**, **Abrir la papelera**…), que la
+muestra y pone el foco en ella. Ninguno trae atajo, pero puedes darles uno.
 
 Los botones laterales del mouse (atrás y adelante) también recorren el historial de la
 pestaña. **Ctrl+clic** en un enlace lo abre en una pestaña nueva que conserva ese
 historial, así que **Atrás** vuelve a la nota de origen.
+
+## Crear sin el mouse
+
+**{{atajo:crear.nuevo|Ctrl+Shift+N}}** abre el menú **Nuevo…**. Lo nuevo se crea en la
+carpeta seleccionada del explorador o, si no hay ninguna, en la raíz.
+
+| Atajo | Qué hace |
+|---|---|
+| **↑** / **↓**, **Inicio** / **Fin** | Recorren las opciones. |
+| **Enter** | Crea lo elegido. Una nota se abre con el título listo para nombrarla; el resto, seleccionado (**Enter** entra a editarlo). |
+| **→** | Sobre **Nueva desde Espora…**, muestra las [Esporas](ayuda:enlazar-y-organizar/esporas). |
+| **←** o **Esc** | En las Esporas, vuelve a los tipos. En los tipos, **Esc** cierra. |
+
+Cada opción es también un comando de la paleta: «Nueva carpeta», «Nuevo canvas», «Nueva
+base», «Nuevo dibujo Excalidraw», «Nuevo diagrama draw.io» y «Nueva desde Espora…».
+
+## Menús
+
+En cualquier menú —el del clic derecho, el **⋯** de la barra de pestañas, el **Nuevo** del
+explorador—, **↑** y **↓** recorren las entradas y **Enter** elige. En una entrada con
+submenú (**▸**), **→** o **Enter** lo abren y llevan el foco adentro; **←** o **Esc** lo
+cierran y vuelven a la entrada. **Esc** fuera de un submenú cierra el menú.
 
 ## Escribir en una nota
 
@@ -134,6 +167,12 @@ Con el foco en el árbol de archivos:
 | **F2** | Renombra. |
 | **Shift+F10** o la tecla de menú | El menú del clic derecho. |
 | **Ctrl+Z** | Deshace el último movimiento de un archivo o carpeta. |
+
+Las acciones de ese menú también están en la paleta (**Ctrl+P**), sobre el **elemento
+seleccionado** —la última fila del árbol que tuvo el foco, o el archivo abierto— y con su
+nombre: «Renombrar «Ideas»», «Mover a…», «Duplicar», «Copiar el enlace a», «Abrir al
+lado», «Exportar como .md», «Exportar como PDF», «Mostrar en el explorador del sistema» y
+«Eliminar». Están mientras el explorador está a la vista.
 
 ## Lienzos
 

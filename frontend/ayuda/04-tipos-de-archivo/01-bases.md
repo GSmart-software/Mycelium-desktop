@@ -22,7 +22,7 @@ nota, y el valor se cambia ahí.
 ## Cómo se usa
 
 1. En el explorador, **Nueva base**: con el botón de la barra o con clic derecho en una
-   carpeta. Nace con una vista «Todas» que muestra cada nota con su fecha de modificación.
+   carpeta, o con el menú **Nuevo…** (**{{atajo:crear.nuevo|Ctrl+Shift+N}}**). Nace con una vista «Todas» que muestra cada nota con su fecha de modificación.
 2. En la cabecera de la tabla, **Filtros** decide qué notas entran: condiciones de
    propiedad, operador y valor, en grupos que se cumplen todas o alguna, y que se pueden
    negar. **Columnas** elige qué se muestra.

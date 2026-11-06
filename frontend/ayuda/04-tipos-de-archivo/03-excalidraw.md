@@ -18,7 +18,7 @@ no tiene forma. Si lo que quieres es poner notas en el espacio y enlazarlas, te 
 ## Cómo se usa
 
 1. En el explorador, **Nuevo dibujo Excalidraw**: con el botón de la barra o con clic
-   derecho en una carpeta. Se abre en su pestaña y se guarda solo mientras dibujas.
+   derecho en una carpeta, o con el menú **Nuevo…** (**{{atajo:crear.nuevo|Ctrl+Shift+N}}**). Se abre en su pestaña y se guarda solo mientras dibujas.
 2. Desde una nota, el botón **Insertar diagrama Excalidraw** de la barra del editor crea el
    dibujo en la carpeta de la nota, escribe su embed donde está el cursor y abre el editor
    encima de la nota.

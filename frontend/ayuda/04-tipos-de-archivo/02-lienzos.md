@@ -19,7 +19,7 @@ el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
 ## Cómo se usa
 
 1. En el explorador, **Nuevo canvas**: con el botón de la barra o con clic derecho en una
-   carpeta.
+   carpeta, o con el menú **Nuevo…** (**{{atajo:crear.nuevo|Ctrl+Shift+N}}**).
 2. **Tarjeta de texto** agrega una tarjeta y la deja lista para escribir; **doble clic**
    en una tarjeta de texto la vuelve a editar. **Tarjeta de nota** busca una nota por el
    principio de su nombre y la pone en el lienzo. La tarjeta nueva aparece en el centro de
