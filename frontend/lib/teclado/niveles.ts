@@ -21,6 +21,13 @@
  * 2. **Elementos de una sección**: sus botones, campos, pestañas, filas del
  *    árbol… y el **documento** del panel como un elemento más (seleccionado =
  *    el foco en él mismo).
+ *    - **Grupos** (pedido del usuario, 2026-11-06): una sección puede juntar
+ *      sus elementos en grupos (`data-grupo`; en el explorador, la barra de
+ *      botones, la Bandeja y Archivos). En el nivel de la sección cada grupo es
+ *      **un** elemento —su título (`data-grupo-titulo`) o, si no tiene, el
+ *      grupo mismo— y lo de adentro solo se alcanza entrando: Enter entra (si
+ *      está plegado, lo despliega), ←/→ lo pliegan y despliegan como una
+ *      carpeta del árbol, y Alt o Esc vuelven al título.
  * 3. **Dentro del documento** (escribiendo): el editor, o el contenido de la
  *    pestaña (las tarjetas de un lienzo, las filas de una tabla…).
  */
@@ -34,6 +41,8 @@ export type Lugar =
   | "seccion"
   /** En un elemento de una sección (un botón, una fila, una pestaña…). */
   | "elemento"
+  /** En el título de un grupo (o en el grupo mismo, si no tiene título): el grupo está elegido. */
+  | "grupo"
   /** En el documento de un panel, él mismo: seleccionado (modo navegar). */
   | "documento"
   /** Dentro del documento: escribiendo, o en su contenido. */
@@ -44,20 +53,26 @@ export type Lugar =
   | "fuera";
 
 /** Adónde lleva Esc desde cada lugar (si nadie usó la tecla para cerrar algo). */
-export type DestinoEsc = "documento" | "seccion" | "pestana" | null;
+export type DestinoEsc = "documento" | "seccion" | "pestana" | "grupo" | null;
 
 /**
  * Esc sale un nivel: escribiendo → el documento seleccionado; del documento o
  * de un elemento → la sección seleccionada; del contenido de una pestaña → esa
  * pestaña. En el nivel de secciones y fuera de ellas, nada.
+ *
+ * `enGrupo`: lo enfocado está **dentro de un grupo** (es uno de sus elementos;
+ * o, si es el título de un grupo, ese grupo está dentro de otro). Entonces se
+ * sale al título del grupo que lo contiene, no a la sección: del árbol de
+ * Archivos, Esc vuelve a «Archivos»; de «Archivos», a la sección.
  */
-export function destinoDeEsc(lugar: Lugar): DestinoEsc {
+export function destinoDeEsc(lugar: Lugar, enGrupo = false): DestinoEsc {
   switch (lugar) {
     case "dentro":
-      return "documento";
+      return enGrupo ? "grupo" : "documento";
     case "documento":
     case "elemento":
-      return "seccion";
+    case "grupo":
+      return enGrupo ? "grupo" : "seccion";
     case "contenido-de-pestana":
       return "pestana";
     default:
@@ -71,6 +86,8 @@ export type Entrada =
   | "a-la-seccion"
   /** Desde un documento seleccionado: a escribir (o al componente). */
   | "al-documento"
+  /** Desde el título de un grupo: lo despliega si está plegado y va a su último elemento (o el primero). */
+  | "al-grupo"
   /** Sobre una pestaña: activarla y entrar a su documento. */
   | "pestana"
   /** Sobre un botón, una fila, una casilla…: ejecutarlo, como Enter o un clic. */
@@ -83,6 +100,8 @@ export function entradaDe(lugar: Lugar, esPestana: boolean): Entrada {
       return "a-la-seccion";
     case "documento":
       return "al-documento";
+    case "grupo":
+      return "al-grupo";
     case "elemento":
     case "dentro":
     case "contenido-de-pestana":
@@ -90,6 +109,38 @@ export function entradaDe(lugar: Lugar, esPestana: boolean): Entrada {
     default:
       return null;
   }
+}
+
+/** Entre qué se mueve Ctrl+flechas: el nivel del foco. */
+export type NivelDeMovimiento = "secciones" | "seccion" | "grupo" | "documento" | null;
+
+/**
+ * Entre qué se mueve Ctrl+flechas según dónde esté el foco. `enGrupo`: lo
+ * enfocado está dentro de un grupo (`destinoDeEsc`). Dentro de un grupo, solo
+ * entre sus elementos: no salta a otro grupo ni a lo suelto de la sección.
+ * Desde el título de un grupo, entre los grupos y lo suelto del nivel de
+ * arriba (la sección, o el grupo que lo contiene).
+ */
+export function nivelDeMovimiento(lugar: Lugar, enGrupo = false): NivelDeMovimiento {
+  if (lugar === "fuera") return null;
+  if (lugar === "seccion") return "secciones";
+  if (enGrupo) return "grupo";
+  return lugar === "dentro" ? "documento" : "seccion";
+}
+
+/** Lo que hace una flecha sola (← o →) sobre el título de un grupo. */
+export type FlechaEnGrupo = "plegar" | "desplegar" | "entrar" | null;
+
+/**
+ * ← y → sobre el título de un grupo, como sobre una carpeta del árbol: ←
+ * pliega un grupo desplegado (plegado, no hace nada: se sale con Alt o Esc);
+ * → despliega uno plegado y, si ya está desplegado, entra (como Enter; el árbol
+ * baja al primer hijo, acá se vuelve al último elemento usado). `expandido` es
+ * `null` si el grupo no se pliega (la barra de botones): → entra y ← nada.
+ */
+export function flechaEnGrupo(dir: "izquierda" | "derecha", expandido: boolean | null): FlechaEnGrupo {
+  if (dir === "izquierda") return expandido === true ? "plegar" : null;
+  return expandido === false ? "desplegar" : "entrar";
 }
 
 /**

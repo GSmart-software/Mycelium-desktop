@@ -1309,7 +1309,10 @@ export function ExplorerPanel() {
           e.target.value = "";
         }}
       />
-      <div className={styles.actions}>
+      {/* Grupos del teclado (`FUN-XL-04`, 2026-11-06): la barra de botones, la
+          Bandeja y Archivos. Enter sobre el explorador elige uno (Archivos la
+          primera vez) y Enter entra; adentro, Ctrl+flechas no sale del grupo. */}
+      <div className={styles.actions} data-grupo="Herramientas">
         <button
           type="button"
           className={styles.actionButton}
@@ -1382,7 +1385,7 @@ export function ExplorerPanel() {
         {/* La Bandeja (`FUN-L-33`): arriba de «Archivos», plegable como ella. */}
         <SeccionBandeja />
         {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}
-        <div className={styles.paneArchivos}>
+        <div className={styles.paneArchivos} data-grupo="Archivos" data-grupo-principal>
           <SectionHeader
             title="Archivos"
             collapsed={archivosCollapsed}
@@ -1442,7 +1445,11 @@ export function ExplorerPanel() {
   );
 }
 
-/** Cabecera colapsable de una sección del explorador (estilo paneles de VSCode). */
+/**
+ * Cabecera colapsable de una sección del explorador (estilo paneles de VSCode).
+ * Es el título de su grupo del teclado (`data-grupo-titulo`): con el foco ahí,
+ * ← la pliega, → la despliega y Enter entra (`lib/teclado/nivelesDom.ts`).
+ */
 export function SectionHeader({
   title,
   collapsed,
@@ -1453,7 +1460,13 @@ export function SectionHeader({
   onToggle: () => void;
 }) {
   return (
-    <button type="button" className={styles.sectionHeader} onClick={onToggle}>
+    <button
+      type="button"
+      className={styles.sectionHeader}
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      data-grupo-titulo
+    >
       {collapsed ? (
         <ChevronRight size={13} aria-hidden />
       ) : (

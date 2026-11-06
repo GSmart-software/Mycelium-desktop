@@ -356,6 +356,16 @@ test("qué pistas muestra F10 según dónde esté el foco", () => {
   assert.equal(p.alcanceDePistas({ ...base, nivelDeSecciones: true }), "secciones");
   assert.equal(p.alcanceDePistas({ ...base, enSeccion: true }), "seccion");
   assert.equal(p.alcanceDePistas(base), "global");
+  // Grupos (el explorador): dentro de uno, solo lo suyo; en su título, los de la sección.
+  assert.equal(p.alcanceDePistas({ ...base, enSeccion: true, enGrupo: true }), "grupo");
+  assert.equal(p.alcanceDePistas({ ...base, enSeccion: true, enGrupo: false }), "seccion");
+  assert.equal(p.alcanceDePistas({ ...base, nivelDeSecciones: true, enGrupo: true }), "secciones");
+});
+
+test("el título de un grupo elige el grupo, no lo pliega", () => {
+  assert.equal(p.accionDePista({ etiqueta: "BUTTON", marca: "grupo" }), "grupo");
+  assert.equal(p.accionDePista({ etiqueta: "BUTTON", marca: "grupo" }, true), "grupo");
+  assert.equal(p.accionDePista({ etiqueta: "DIV", marca: "grupo" }), "grupo");
 });
 
 test("los elementos de una lista no llevan pista; los controles sí", () => {

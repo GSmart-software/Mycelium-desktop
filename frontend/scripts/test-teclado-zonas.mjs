@@ -474,3 +474,68 @@ test("Ctrl+flechas dentro de una sección: del primer archivo a los botones de a
   assert.equal(desde("ordenar", "derecha"), null);
   assert.equal(desde("fila4", "abajo"), null);
 });
+
+// ── los grupos de una sección (pedido del usuario, 2026-11-06) ────────────
+
+test("grupos: Esc del árbol vuelve al título de Archivos, y de ahí a la sección", () => {
+  // Un elemento dentro de un grupo (una fila del árbol, un botón de la barra).
+  assert.equal(niv.destinoDeEsc("elemento", true), "grupo");
+  // El título de un grupo de la sección: a la sección elegida.
+  assert.equal(niv.destinoDeEsc("grupo", false), "seccion");
+  // El título de un grupo dentro de otro grupo: al título del de afuera.
+  assert.equal(niv.destinoDeEsc("grupo", true), "grupo");
+  // Sin grupos, como siempre.
+  assert.equal(niv.destinoDeEsc("elemento", false), "seccion");
+  assert.equal(niv.destinoDeEsc("dentro", false), "documento");
+  assert.equal(niv.destinoDeEsc("contenido-de-pestana", true), "pestana");
+  assert.equal(niv.destinoDeEsc("seccion", true), null);
+});
+
+test("grupos: Enter sobre el título entra al grupo (no lo pliega)", () => {
+  assert.equal(niv.entradaDe("grupo", false), "al-grupo");
+  // Adentro, Enter sigue siendo de la fila o del botón.
+  assert.equal(niv.entradaDe("elemento", false), "activar");
+});
+
+test("grupos: ← pliega, → despliega y, desplegado, entra; sin plegado, → entra", () => {
+  assert.equal(niv.flechaEnGrupo("izquierda", true), "plegar");
+  assert.equal(niv.flechaEnGrupo("izquierda", false), null);
+  assert.equal(niv.flechaEnGrupo("derecha", false), "desplegar");
+  assert.equal(niv.flechaEnGrupo("derecha", true), "entrar");
+  // La barra de botones no se pliega.
+  assert.equal(niv.flechaEnGrupo("derecha", null), "entrar");
+  assert.equal(niv.flechaEnGrupo("izquierda", null), null);
+});
+
+test("grupos: Ctrl+flechas no sale del grupo; desde un título, entre los grupos", () => {
+  // Dentro de un grupo (el árbol), solo entre sus elementos.
+  assert.equal(niv.nivelDeMovimiento("elemento", true), "grupo");
+  // Desde el título de un grupo de la sección, entre los grupos y lo suelto.
+  assert.equal(niv.nivelDeMovimiento("grupo", false), "seccion");
+  // Desde el título de un grupo anidado, entre los de su grupo.
+  assert.equal(niv.nivelDeMovimiento("grupo", true), "grupo");
+  // Lo de siempre.
+  assert.equal(niv.nivelDeMovimiento("seccion"), "secciones");
+  assert.equal(niv.nivelDeMovimiento("elemento"), "seccion");
+  assert.equal(niv.nivelDeMovimiento("documento"), "seccion");
+  assert.equal(niv.nivelDeMovimiento("dentro"), "documento");
+  assert.equal(niv.nivelDeMovimiento("fuera"), null);
+});
+
+test("grupos: los títulos del explorador, uno debajo del otro, se recorren con Ctrl+↑/↓", () => {
+  // La barra de botones (sin título: el grupo entero), la Bandeja y Archivos.
+  const grupos = [
+    { id: "herramientas", caja: caja(44, 40, 296, 66) },
+    { id: "bandeja", caja: caja(44, 70, 296, 90) },
+    { id: "archivos", caja: caja(44, 150, 296, 170) },
+  ];
+  const desde = (id, dir) => {
+    const o = grupos.find((x) => x.id === id);
+    return niv.vecinoPorCajas(o.caja, grupos.filter((x) => x !== o), dir)?.id ?? null;
+  };
+  assert.equal(desde("herramientas", "abajo"), "bandeja");
+  assert.equal(desde("bandeja", "abajo"), "archivos");
+  assert.equal(desde("archivos", "arriba"), "bandeja");
+  assert.equal(desde("archivos", "abajo"), null);
+  assert.equal(desde("bandeja", "derecha"), null);
+});

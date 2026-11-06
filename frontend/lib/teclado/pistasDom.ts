@@ -34,6 +34,11 @@
  * tarjetas, nodos— no llevan pista (`esElementoDeLista`): con menos pistas
  * por pantalla, casi todas son de una letra y entran sus nombres.
  *
+ * **Por grupo** (2026-11-06): en una sección con grupos (`data-grupo`, el
+ * explorador), F10 muestra una pista por grupo —su título, o el grupo sin
+ * título— y lo suelto; elegirla deja el grupo elegido. Dentro de un grupo,
+ * solo sus controles.
+ *
  * **F10 y Windows.** F10 sin consumir activa el «modo menú» de Win32 (la
  * siguiente tecla se la come el menú de la ventana). El despachador hace
  * `preventDefault()` siempre que la atiende. Si en WebView2 eso no alcanzara,
@@ -48,7 +53,15 @@
 import { useTabsStore } from "@/stores/tabsStore";
 import { distribucionActual } from "@/lib/comandos/distribucion";
 import { documentoDe, documentoDelPanel, seleccionarDocumento, seleccionarSeccion, zonaDe } from "./focoDom";
-import { seccionesVisibles, ubicar as ubicarFoco } from "./nivelesDom";
+import {
+  elementosDe,
+  grupoDe,
+  grupoDeAsa,
+  seccionesVisibles,
+  seleccionarGrupo,
+  tituloDeGrupo,
+  ubicar as ubicarFoco,
+} from "./nivelesDom";
 import {
   ALFABETO_NOMBRES,
   accionDePista,
@@ -226,6 +239,8 @@ type Objetivo = { el: HTMLElement; caja: CajaPista; marca: string | null; virtua
 /** La marca que deduce el DOM para los casos aparte, o la de `data-pista`. */
 function marcaDe(el: HTMLElement): string | null {
   if (el.dataset.pista) return el.dataset.pista;
+  // El título de un grupo: elegir el grupo, no plegarlo con un clic.
+  if (grupoDeAsa(el)) return "grupo";
   if (el.classList.contains("xterm")) return "consola";
   if (el.classList.contains("cm-content")) return "foco";
   if (el.classList.contains("excalidraw-container")) return "foco";
@@ -258,12 +273,13 @@ export function buscarObjetivos(): Objetivo[] {
   const modal = raizDeBusqueda();
   const foco = document.activeElement as HTMLElement | null;
   const emergente = foco?.closest<HTMLElement>(SEL_EMERGENTE) ?? null;
-  const { lugar, zona } = ubicarFoco(foco);
+  const { lugar, zona, grupo } = ubicarFoco(foco);
   const alcance = alcanceDePistas({
     hayModal: modal !== document,
     enEmergente: emergente !== null && zonaDe(emergente) === null,
     nivelDeSecciones: lugar === "seccion" || !foco || foco === document.body,
     enSeccion: zona !== null,
+    enGrupo: grupo !== null,
   });
   const cortes = new Map<Element, boolean>();
   switch (alcance) {
@@ -283,10 +299,19 @@ export function buscarObjetivos(): Objetivo[] {
         ...objetivosEn(document, cortes, (el) => zonaDe(el) === null && !deLista(el) && !(el instanceof HTMLIFrameElement)),
       ]);
     case "seccion":
+    case "grupo": {
       // Solo los controles de esta sección: ni los de una sección anidada (el
       // panel de enlaces vive dentro del documento), ni los elementos de una
-      // lista, ni los nodos del grafo.
-      return ordenarPorPosicion(objetivosEn(zona!, cortes, (el) => zonaDe(el) === zona && !deLista(el)));
+      // lista, ni los nodos del grafo. Con grupos, solo los del nivel del foco:
+      // en la sección, los títulos de sus grupos y lo suelto; en un grupo, lo
+      // suyo. El documento de un panel no está en un grupo y sigue igual.
+      const nivel = alcance === "grupo" ? grupo : null;
+      const raiz = nivel ?? zona!;
+      return ordenarPorPosicion([
+        ...objetivosEn(raiz, cortes, (el) => zonaDe(el) === zona && !deLista(el) && grupoDe(el) === nivel),
+        ...objetivosDeGrupos(raiz, nivel, cortes),
+      ]);
+    }
     default:
       return ordenarPorPosicion([...objetivosEn(document, cortes), ...objetivosVirtuales(cortes)]);
   }
@@ -333,6 +358,25 @@ function objetivosDeSecciones(cortes: Map<Element, boolean>): Objetivo[] {
           ? zona.querySelector("[data-titulo-seccion]")?.getAttribute("data-titulo-seccion")
           : null;
     salida.push({ el: zona, caja, marca: "seccion", nombre: nombreDeSeccion({ zona: tipo, titulo }) });
+  }
+  return salida;
+}
+
+/**
+ * Una pista por cada grupo **sin título** del nivel (la barra de botones del
+ * explorador): el grupo es su propia asa y no es un control, así que no lo
+ * encuentra la búsqueda de lo interactivo. Como una sección, no pasa por
+ * `puntoLibre`: lo tapan sus propios botones. Los grupos con título ya
+ * tienen su pista en el título (`marcaDe`).
+ */
+function objetivosDeGrupos(raiz: HTMLElement, nivel: HTMLElement | null, cortes: Map<Element, boolean>): Objetivo[] {
+  const salida: Objetivo[] = [];
+  for (const g of raiz.querySelectorAll<HTMLElement>("[data-grupo]")) {
+    if (tituloDeGrupo(g) !== g || grupoDe(g) !== nivel || descartado(g)) continue;
+    if (zonaDe(g) !== zonaDe(raiz) || elementosDe(g).length === 0) continue;
+    const caja = cajaVisible(g, cortes);
+    if (!caja) continue;
+    salida.push({ el: g, caja, marca: "grupo", nombre: g.dataset.grupo || "Grupo" });
   }
   return salida;
 }
@@ -408,6 +452,12 @@ export function activarObjetivo(el: HTMLElement, accion: AccionPista) {
     case "seccion":
       seleccionarSeccion(el);
       break;
+    case "grupo": {
+      const g = grupoDeAsa(el);
+      if (g) seleccionarGrupo(g);
+      else enfocar(el);
+      break;
+    }
     case "puntero": {
       // Las tarjetas de un lienzo se seleccionan en `pointerdown`.
       const r = el.getBoundingClientRect();
@@ -490,6 +540,8 @@ function nombreDe(o: Objetivo): string {
 function llevaNombre(o: Objetivo): boolean {
   // Una sección: su nombre siempre (no tiene un texto propio que se lea).
   if (o.marca === "seccion") return true;
+  // Un grupo: el nombre si no se lee (la barra de botones); el título, no.
+  if (o.marca === "grupo") return o.el.matches("[data-grupo]") || !muestraTexto(o.el.innerText);
   if (o.virtual || o.marca) return false;
   const el = o.el;
   if (el instanceof HTMLIFrameElement || el instanceof HTMLCanvasElement || el instanceof HTMLSelectElement) return false;

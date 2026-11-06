@@ -26,9 +26,10 @@
 // reglas de seguridad, para que el recorrido no cambie el vault:
 //
 // - **Nunca escribe texto.** No manda letras, números ni espacios.
-// - **Enter solo sobre una sección elegida o un documento seleccionado**
-//   (entrar, que no modifica nada). Nunca sobre un botón, una fila del árbol
-//   ni una opción: ahí Enter los ejecutaría.
+// - **Enter solo sobre una sección elegida, el título de un grupo o un
+//   documento seleccionado** (entrar, que no modifica nada; un grupo plegado se
+//   despliega, que solo cambia la vista). Nunca sobre un botón, una fila del
+//   árbol ni una opción: ahí Enter los ejecutaría.
 // - **Ctrl+flechas nunca en un editor** (es suyo: saltar de palabra) ni en una
 //   consola, un `select` o un campo que no sea de texto. En un campo de texto,
 //   Ctrl+←/→ salta de palabra (no mueve el foco) y Ctrl+↑/↓ sale del campo.
@@ -211,6 +212,8 @@ function instalar() {
                 ? "documento"
                 : el.hasAttribute("data-zona")
                   ? "seccion"
+                : el.hasAttribute("data-grupo-titulo") || el.hasAttribute("data-grupo")
+                  ? "grupo"
                 : el instanceof HTMLTextAreaElement || el.isContentEditable
                   ? "texto"
                   : el instanceof HTMLSelectElement
@@ -288,7 +291,7 @@ async function tecla(t) {
 /** Tipos de foco donde una flecha no cambia nada del vault. */
 const FLECHAS_SEGURAS = new Set(["otro", "documento"]);
 /** Tipos de foco donde Ctrl+flechas solo mueve el foco (es la navegación por niveles). */
-const CTRL_SEGURO = new Set(["otro", "documento", "seccion", "separador", "input:text", "input:search", "input:checkbox"]);
+const CTRL_SEGURO = new Set(["otro", "documento", "seccion", "grupo", "separador", "input:text", "input:search", "input:checkbox"]);
 /** Tipos de foco donde no hay que quedarse. */
 const TRAMPAS = new Set(["editor", "consola", "marco", "texto"]);
 
@@ -336,6 +339,7 @@ async function avanzar(dir, unaVez = false) {
     if (g.selector === f.selector) return movido;
     movido = true;
     if (g.tipo === "documento") await probarDocumento();
+    if (g.tipo === "grupo") await recorrerGrupo();
   }
   return movido;
 }
@@ -356,6 +360,35 @@ async function barrer() {
   }
 }
 
+/** Cuántos grupos anidados se recorren, como mucho. */
+let profundidadDeGrupos = 0;
+
+/**
+ * Con el título de un grupo elegido (el explorador: botones, Bandeja,
+ * Archivos): entra (Enter), barre lo de adentro —con Ctrl+flechas no sale del
+ * grupo— y vuelve a su título con Esc. Desde el título, el barrido sigue con
+ * los otros grupos de la sección.
+ */
+async function recorrerGrupo() {
+  const inicio = await foco();
+  if (inicio.tipo !== "grupo" || profundidadDeGrupos >= 3) return;
+  profundidadDeGrupos++;
+  try {
+    const f = await tecla("Enter");
+    await inventariar();
+    if (f.selector === inicio.selector) return;
+    if (TRAMPAS.has(f.tipo)) {
+      await salirDeTrampa(f);
+      return;
+    }
+    await contarPistas();
+    await barrer();
+    await tecla("Escape");
+  } finally {
+    profundidadDeGrupos--;
+  }
+}
+
 /** Con una sección elegida: entra (Enter), barre sus elementos y vuelve a elegirla. */
 async function recorrerZona() {
   const inicio = await foco();
@@ -369,6 +402,8 @@ async function recorrerZona() {
   }
   // Las pistas de adentro de la sección (F10 por sección).
   await contarPistas();
+  // Si se entró al título de un grupo (el explorador), también lo de adentro.
+  if (f.tipo === "grupo") await recorrerGrupo();
   await barrer();
 }
 
