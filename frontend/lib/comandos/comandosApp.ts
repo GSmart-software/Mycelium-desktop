@@ -788,9 +788,9 @@ export const COMANDOS_APP: readonly Comando[] = [
 
   // ── Los niveles (`FUN-XL-04`, rediseño tras la revisión del usuario) ──
   // Tres teclas en todos los niveles: Alt+flechas se mueve en el nivel,
-  // Ctrl+Enter entra y Esc sale (`lib/teclado/niveles.ts`). En burbuja y
+  // Enter entra y Esc sale (`lib/teclado/niveles.ts`). En burbuja y
   // solo si nadie usó la tecla: escribiendo en una nota, Alt+↑/↓ sube o baja
-  // la línea y Ctrl+Enter es del editor; en el lienzo, el grafo, el
+  // la línea y Enter es del editor; en el lienzo, el grafo, el
   // calendario y las tablas, Alt+flechas lo atiende el componente.
   ...NIVELES_FLECHAS.map(
     (n): Comando => ({
@@ -813,8 +813,10 @@ export const COMANDOS_APP: readonly Comando[] = [
     categoria: "navegacion",
     enPaleta: false,
     noSeGraba: true,
-    atajos: [{ ctrl: true, code: "Enter" }],
-    ignorarSiPrevenido: true,
+    // Enter solo, donde no tiene otro uso: lo atiende `useTecladoZonas` (era
+    // Ctrl+Enter hasta que el usuario lo probó, 2026-11-06). Se registra para la hoja.
+    manejadorPropio: true,
+    atajos: [{ code: "Enter" }],
     disponible: () => !hayModalAbierto(),
     ejecutar: () => entrarEnNivel(),
   },

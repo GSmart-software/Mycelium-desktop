@@ -50,7 +50,10 @@ export const conAltGr = (e: EventoTecla): boolean => e.getModifierState?.("AltGr
  * AltGr+← no dispara un Ctrl+Alt+← ni al revés.
  */
 export function coincide(atajo: Atajo, e: EventoTecla): boolean {
-  if (e.code !== atajo.code || !!atajo.shift !== e.shiftKey) return false;
+  // El Enter del teclado numérico es el mismo Enter (pedido del usuario,
+  // 2026-11-06): a diferencia de los números, no tiene sentido distinguirlos.
+  const code = e.code === "NumpadEnter" ? "Enter" : e.code;
+  if (code !== atajo.code || !!atajo.shift !== e.shiftKey) return false;
   if (atajo.altGr) return conAltGr(e);
   if (conAltGr(e)) return false;
   return !!atajo.ctrl === (e.ctrlKey || e.metaKey) && !!atajo.alt === e.altKey;

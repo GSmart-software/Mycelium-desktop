@@ -19,16 +19,16 @@
 //   --max-capturas <n>   Cuántos huecos se fotografían (por defecto 40).
 //
 // Qué teclas usa: las de la navegación por niveles —Alt+flechas (moverse),
-// Ctrl+Enter (entrar) y Esc (salir)—, F6 para ir de sección en sección, las
+// Enter (entrar) y Esc (salir)—, F6 para ir de sección en sección, las
 // flechas solas dentro de las listas, F10 (contar lo que tiene pista) y
 // Ctrl+Tab (para pasar de pestaña). **No usa Tab**: desde el rediseño, Tab no
 // recorre la ventana, así que lo alcanzable es lo que se alcanza así. Las
 // reglas de seguridad, para que el recorrido no cambie el vault:
 //
 // - **Nunca escribe texto.** No manda letras, números ni espacios.
-// - **Ctrl+Enter solo sobre una sección elegida o un documento seleccionado**
+// - **Enter solo sobre una sección elegida o un documento seleccionado**
 //   (entrar, que no modifica nada). Nunca sobre un botón, una fila del árbol
-//   ni una opción: ahí Ctrl+Enter los ejecutaría.
+//   ni una opción: ahí Enter los ejecutaría.
 // - **Alt+flechas nunca en un editor** (sube o baja la línea) ni en una
 //   consola, un `select` o un campo que no sea de texto.
 // - **Las flechas solo donde mueven el foco o la vista**: filas del árbol,
@@ -354,12 +354,12 @@ async function barrer() {
   }
 }
 
-/** Con una sección elegida: entra (Ctrl+Enter), barre sus elementos y vuelve a elegirla. */
+/** Con una sección elegida: entra (Enter), barre sus elementos y vuelve a elegirla. */
 async function recorrerZona() {
   const inicio = await foco();
   if (inicio.tipo !== "seccion") return;
   await inventariar();
-  const f = await tecla("Control+Enter");
+  const f = await tecla("Enter");
   await inventariar();
   if (TRAMPAS.has(f.tipo)) {
     await salirDeTrampa(f);
@@ -380,11 +380,11 @@ async function irAZona(indice) {
   return false;
 }
 
-/** Con un documento seleccionado: entrar (Ctrl+Enter), barrer lo de adentro y volver. */
+/** Con un documento seleccionado: entrar (Enter), barrer lo de adentro y volver. */
 async function probarDocumento() {
   const f = await foco();
   if (f.tipo !== "documento") return;
-  const g = await tecla("Control+Enter");
+  const g = await tecla("Enter");
   await inventariar();
   if (TRAMPAS.has(g.tipo)) {
     await salirDeTrampa(g);

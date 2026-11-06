@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, saltar tecleando, buscar tecleando, escribir el nombre en una lista, niveles, secciones, Alt+flechas, Ctrl+Enter, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
+sinonimos: [teclas, saltar tecleando, buscar tecleando, escribir el nombre en una lista, niveles, secciones, Alt+flechas, Enter, Enter del teclado numérico, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -70,7 +70,7 @@ Todo Mycelium se recorre con **tres teclas**, siempre las mismas:
 | Atajo | Qué hace |
 |---|---|
 | {{atajo:nivel.izquierda|Alt+←}} {{atajo:nivel.derecha|Alt+→}} {{atajo:nivel.arriba|Alt+↑}} {{atajo:nivel.abajo|Alt+↓}} | **Moverse**: va a lo que está en esa dirección, sin salir del nivel en el que estás. |
-| {{atajo:nivel.entrar|Ctrl+Enter}} | **Entrar** a lo elegido, un nivel más adentro. Sobre un botón o una fila, lo ejecuta (como un clic). |
+| {{atajo:nivel.entrar|Enter}} | **Entrar** a lo elegido, un nivel más adentro. Sobre un botón o una fila, lo ejecuta (como un clic). |
 | **Esc** | **Salir** un nivel. Si hay algo abierto —las sugerencias de `[[`, la búsqueda en la nota, un menú, el texto de una tarjeta—, el primer **Esc** lo cierra y el segundo sale. |
 
 ### Los niveles
@@ -78,12 +78,12 @@ Todo Mycelium se recorre con **tres teclas**, siempre las mismas:
 1. **Las secciones**: la barra superior, el rail, el panel lateral, **cada panel** del área de
    trabajo (con la vista dividida, cada uno es una sección), el panel de enlaces y la barra de
    estado. La sección elegida lleva un **borde y un velo** del color de acento. Aquí
-   **Alt+flechas** pasa a la sección vecina y **Ctrl+Enter** entra a la última cosa que
+   **Alt+flechas** pasa a la sección vecina y **Enter** entra a la última cosa que
    usaste en ella (o a la primera).
 2. **Dentro de una sección**: sus botones, campos, pestañas, filas del árbol… y, en un panel,
    la barra de la nota y el **documento** como un elemento más. **Alt+flechas** se mueve entre
    ellos: en el explorador, **Alt+↑** desde el primer archivo sube a los botones de arriba.
-   **Ctrl+Enter** ejecuta el botón o la fila; sobre una pestaña, la abre y entra a su
+   **Enter** ejecuta el botón o la fila; sobre una pestaña, la abre y entra a su
    documento. **Esc** vuelve a la sección.
 3. **Dentro del documento**: escribir en una nota, o moverse por un lienzo, una tabla, el
    grafo o el calendario. **Esc** deja el documento seleccionado.
@@ -93,7 +93,7 @@ escribiendo y las teclas son suyas: solo actúan los atajos con **Ctrl**, **Alt*
 **F**, así que escribir nunca dispara nada. Mientras escribes en una nota, **Alt+↑** y
 **Alt+↓** suben o bajan la línea: para moverte por la ventana, primero **Esc**.
 
-| Pestaña | Ctrl+Enter (o Enter) sobre el documento seleccionado |
+| Pestaña | Enter sobre el documento seleccionado |
 |---|---|
 | Nota | Vuelve a escribir con el cursor donde lo dejaste; en la lectura, al primer enlace o casilla. |
 | Lienzo | La última tarjeta seleccionada. |
@@ -118,7 +118,7 @@ llegan mientras escribes ahí: también se sale con **F6** (o **Shift+F6**).
 | {{atajo:zona.estado|Ctrl+Num 5}} | La barra de estado. |
 | {{atajo:zona.siguiente|F6}} / {{atajo:zona.anterior|Shift+F6}} | La sección siguiente / anterior, en orden. Funciona desde cualquier lado, también desde una consola. |
 
-Todos dejan la sección **elegida**: **Ctrl+Enter** entra. Los números del teclado numérico
+Todos dejan la sección **elegida**: **Enter** entra. Los números del teclado numérico
 son teclas distintas de los de la fila de arriba (**Ctrl+1** cambia la vista de la nota).
 
 **Tab** ya no recorre los botones de la ventana: para eso están **Alt+flechas**. Sigue
@@ -128,7 +128,7 @@ paleta, los menús).
 Después de **Ctrl+Tab**, **Ctrl+W** o **Ctrl+Shift+T**, el documento que queda a la vista
 queda seleccionado; si venías escribiendo en una nota y la que queda también es una nota,
 sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda seleccionada y
-**Ctrl+Enter** entra.
+**Enter** entra.
 
 ## Hacer clic con el teclado: las pistas
 
@@ -139,7 +139,7 @@ Escribir esas letras es como hacer clic ahí, sin el mouse.
 - **En el nivel de secciones** (con una sección elegida), F10 muestra **una pista por
   sección** —«**V** Ventana», «**R** Rail», «**E** Explorador», el nombre de la pestaña de
   cada panel, «**C** Conexiones», «**B** Barra de estado»—: escribirla deja esa sección
-  elegida. Desde ahí, **Ctrl+Enter** entra y **F10** muestra sus controles.
+  elegida. Desde ahí, **Enter** entra y **F10** muestra sus controles.
 - **Los elementos de una lista no llevan pista**: archivos y carpetas, pestañas, resultados
   de la búsqueda, filas de una tabla, días del calendario, tarjetas de un lienzo, nodos del
   grafo y las entradas de las Esporas, la papelera, la actividad y la salud. A esos se llega
@@ -277,7 +277,7 @@ lado», «Exportar como .md», «Exportar como PDF», «Mostrar en el explorador
 
 ## Lienzos
 
-Con el [lienzo](ayuda:tipos-de-archivo/lienzos) seleccionado, **Ctrl+Enter** (o **Enter**) entra
+Con el [lienzo](ayuda:tipos-de-archivo/lienzos) seleccionado, **Enter** entra
 a la última tarjeta seleccionada (o a la primera). Con el foco en una tarjeta:
 
 | Atajo | Qué hace |
@@ -293,7 +293,7 @@ a la última tarjeta seleccionada (o a la primera). Con el foco en una tarjeta:
 ## Grafo
 
 El [grafo](ayuda:enlazar-y-organizar/grafo) —el de la pestaña y el mini-grafo del panel de
-enlaces— se maneja con las flechas: en la pestaña, se entra con **Ctrl+Enter**; en el panel
+enlaces— se maneja con las flechas: en la pestaña, se entra con **Enter**; en el panel
 de enlaces, se llega con **Alt+flechas**. Al llegar se elige la nota central (en el
 mini-grafo, la nota abierta) o la más cercana al centro de la vista, con un **anillo**.
 
@@ -307,8 +307,8 @@ mini-grafo, la nota abierta) o la más cercana al centro de la vista, con un **a
 ## Calendario
 
 En el [calendario](ayuda:herramientas/calendario) —la pestaña y el calendario chico del
-panel—, la grilla de días se recorre con las flechas desde el día elegido. **Ctrl+Enter** (o
-**Enter**) sobre la pestaña del calendario seleccionada entra directo a ella; en la pestaña,
+panel—, la grilla de días se recorre con las flechas desde el día elegido. **Enter**
+sobre la pestaña del calendario seleccionada entra directo a ella; en la pestaña,
 las flechas también funcionan con **Alt**:
 
 | Atajo | Qué hace |
@@ -321,7 +321,7 @@ las flechas también funcionan con **Alt**:
 
 ## Tablas
 
-En una [tabla](ayuda:tipos-de-archivo/bases), **Ctrl+Enter** sobre la tabla seleccionada entra a
+En una [tabla](ayuda:tipos-de-archivo/bases), **Enter** sobre la tabla seleccionada entra a
 la última fila elegida; las flechas (también con **Alt**) recorren las filas:
 
 | Atajo | Qué hace |
@@ -360,7 +360,7 @@ con **Alt+flechas** desde lo que tienen al lado:
 | **Inicio** / **Fin** | El tamaño mínimo / máximo. |
 
 En las pestañas del **panel de enlaces** (Propiedades, Grafo, Salientes, Retro), **←** y **→**
-cambian de pestaña y **Ctrl+Enter** entra a su contenido. Con el foco dentro de una de ellas,
+cambian de pestaña y **Enter** entra a su contenido. Con el foco dentro de una de ellas,
 **Esc** vuelve a su pestaña (si había una lista de sugerencias abierta, el primer **Esc** la
 cierra), y otro **Esc**, a la sección.
 

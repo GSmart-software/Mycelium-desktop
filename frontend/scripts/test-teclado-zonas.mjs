@@ -237,7 +237,7 @@ test("los comandos de zonas y paneles existen, con su atajo", () => {
   assert.equal(atajo("zona.anterior"), "Shift+F6");
   assert.equal(atajo("nivel.izquierda"), "Alt+←");
   assert.equal(atajo("nivel.abajo"), "Alt+↓");
-  assert.equal(atajo("nivel.entrar"), "Ctrl+Enter");
+  assert.equal(atajo("nivel.entrar"), "Enter");
   assert.equal(atajo("nivel.salir"), "Esc");
   assert.equal(atajo("zona.rail"), "Ctrl+Num 1");
   assert.equal(atajo("zona.estado"), "Ctrl+Num 5");

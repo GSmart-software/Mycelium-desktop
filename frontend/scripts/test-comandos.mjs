@@ -286,12 +286,12 @@ test("el despachador encuentra el comando de cada atajo global", () => {
     // AltGr+←/→ (en Windows llega como Ctrl+Alt con AltGraph): el historial.
     [tecla("ArrowLeft", ALTGR), "historial.atras"],
     [tecla("ArrowRight", ALTGR), "historial.adelante"],
-    // Los niveles: Alt+flechas se mueve, Ctrl+Enter entra, Ctrl+Num salta.
+    // Los niveles: Alt+flechas se mueve, Ctrl+Num salta (Enter entra, pero lo
+    // atiende useTecladoZonas solo donde no tiene otro uso: no es global).
     [tecla("ArrowLeft", { altKey: true }), "nivel.izquierda"],
     [tecla("ArrowRight", { altKey: true }), "nivel.derecha"],
     [tecla("ArrowUp", { altKey: true }), "nivel.arriba"],
     [tecla("ArrowDown", { altKey: true }), "nivel.abajo"],
-    [tecla("Enter", { ctrlKey: true }), "nivel.entrar"],
     [tecla("Numpad1", { ctrlKey: true }), "zona.rail"],
     [tecla("Numpad2", { ctrlKey: true }), "zona.izquierda"],
     [tecla("Numpad3", { ctrlKey: true }), "zona.pestanas"],
@@ -334,10 +334,15 @@ test("el historial y los niveles respetan lo que el editor o un componente ya co
     "nivel.derecha",
     "nivel.arriba",
     "nivel.abajo",
-    "nivel.entrar",
   ]) {
     assert.equal(COMANDOS_APP.find((c) => c.id === id).ignorarSiPrevenido, true, id);
   }
+});
+
+test("entrar es Enter solo y no pasa por el despachador global (botones, filas y editor tienen su Enter)", () => {
+  const c = COMANDOS_APP.find((x) => x.id === "nivel.entrar");
+  assert.equal(c.manejadorPropio, true);
+  assert.deepEqual(c.atajos, [{ code: "Enter" }]);
 });
 
 // ── el registro vivo ───────────────────────────────────────────────────────

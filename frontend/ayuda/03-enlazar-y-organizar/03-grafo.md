@@ -19,7 +19,7 @@ conectan dos temas que creías separados.
    grafo de conexiones». Se abre como una pestaña más.
 2. **Clic** en un punto abre esa nota. Pasa el mouse por encima para resaltar sus
    conexiones.
-. Con el teclado: con la pestaña del grafo seleccionada, **Ctrl+Enter** (o **Enter**) entra
+. Con el teclado: con la pestaña del grafo seleccionada, **Enter** entra
    al grafo; las **flechas** —o **Alt** y las flechas— pasan de una nota a la vecina en esa
    dirección y **Enter** la abre. Detalle
    en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).

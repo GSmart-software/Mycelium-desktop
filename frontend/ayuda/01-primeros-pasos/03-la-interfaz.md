@@ -1,7 +1,7 @@
 ---
 titulo: La interfaz
 tema: Primeros pasos
-sinonimos: [pantalla, zonas, secciones, niveles, Alt+flechas, Ctrl+Enter, teclado numérico, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
+sinonimos: [pantalla, zonas, secciones, niveles, Alt+flechas, Enter, Enter del teclado numérico, teclado numérico, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
 ---
 
 La ventana de Mycelium tiene cinco zonas: la **barra superior**, el **rail** de íconos a la
@@ -114,7 +114,7 @@ de un documento, lo que escribes.
 
 - **{{atajo:nivel.derecha|Alt+→}}** (y las otras flechas con **Alt**) se mueve hacia lo que
   está en esa dirección, sin salir del nivel en el que estás.
-- **{{atajo:nivel.entrar|Ctrl+Enter}}** entra a lo elegido: a la sección, al documento, a la
+- **{{atajo:nivel.entrar|Enter}}** entra a lo elegido: a la sección, al documento, a la
   pestaña; sobre un botón o una fila, lo ejecuta.
 - **Esc** sale un nivel (si hay algo abierto, primero lo cierra).
 

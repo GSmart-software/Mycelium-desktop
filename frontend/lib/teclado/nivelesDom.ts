@@ -1,6 +1,6 @@
 /**
  * Los niveles del teclado sobre el DOM (`FUN-XL-04`, rediseño del
- * 2026-11-06): Alt+flechas se mueve en el nivel actual, Ctrl+Enter entra y Esc
+ * 2026-11-06): Alt+flechas se mueve en el nivel actual, Enter entra y Esc
  * sale. Las decisiones están en `niveles.ts` (puras, con test); acá se buscan
  * los elementos y se mueve el foco.
  *
@@ -128,7 +128,7 @@ export function seccionesVisibles(): HTMLElement[] {
 
 const ultimoDeSeccion = new WeakMap<HTMLElement, HTMLElement>();
 
-/** Lo llama `useTecladoZonas` en cada `focusin`: Ctrl+Enter sobre la sección vuelve ahí. */
+/** Lo llama `useTecladoZonas` en cada `focusin`: Enter sobre la sección vuelve ahí. */
 export function recordarElemento(foco: HTMLElement) {
   const { lugar, zona, doc } = ubicar(foco);
   if (!zona) return;
@@ -136,7 +136,7 @@ export function recordarElemento(foco: HTMLElement) {
   else if (lugar === "dentro" && doc) ultimoDeSeccion.set(zona, doc);
 }
 
-/** El elemento con el que se entra a una sección (Ctrl+Enter sobre ella). */
+/** El elemento con el que se entra a una sección (Enter sobre ella). */
 function elementoDeEntrada(zona: HTMLElement): HTMLElement | null {
   const elementos = elementosDe(zona);
   const ultimo = ultimoDeSeccion.get(zona);
@@ -200,13 +200,13 @@ function seccionDelPanelActivo(): HTMLElement | null {
   return documentoDelPanel(useTabsStore.getState().activePaneId)?.closest<HTMLElement>(SEL_ZONA) ?? null;
 }
 
-// ── Ctrl+Enter ───────────────────────────────────────────────────────────
+// ── Enter ───────────────────────────────────────────────────────────
 
 /** ¿Es una pestaña (de un panel, del panel de enlaces, de las vistas de una tabla)? */
 const esPestana = (el: HTMLElement) => el.getAttribute("role") === "tab";
 
 /**
- * Ctrl+Enter: entra a lo elegido. Devuelve si hizo algo (para no quitarle la
+ * Enter: entra a lo elegido. Devuelve si hizo algo (para no quitarle la
  * tecla a nadie cuando no).
  */
 export function entrarEnNivel(): boolean {

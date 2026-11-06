@@ -443,6 +443,12 @@ test("AltGr se distingue de Ctrl+Alt por getModifierState", () => {
   assert.equal(at.mismoAtajo(altGr, { altGr: true, ctrl: true, code: "ArrowLeft" }), true);
 });
 
+test("el Enter del teclado numérico cuenta como Enter (no así los números)", () => {
+  assert.equal(at.coincide({ code: "Enter" }, tecla("NumpadEnter")), true);
+  assert.equal(at.coincide({ ctrl: true, code: "Enter" }, tecla("NumpadEnter", { ctrlKey: true })), true);
+  assert.equal(at.coincide({ ctrl: true, code: "Digit1" }, tecla("Numpad1", { ctrlKey: true })), false);
+});
+
 test("AltGr se graba, se muestra, se guarda y se valida", () => {
   const grabado = at.atajoDeEvento(tecla("ArrowRight", ALTGR));
   assert.deepEqual(grabado, { altGr: true, code: "ArrowRight" });

@@ -28,14 +28,14 @@ import {
   documentoDe,
   documentoDeMarco,
   enfocarDocumentoActivo,
-  entrarAEscribir,
+  hayModalAbierto,
   recordarFoco,
   seleccionarDocumento,
   seleccionarSeccion,
   zonaDe,
 } from "./focoDom";
 import { destinoDeEsc, tabRecorre } from "./niveles";
-import { recordarElemento, ubicar } from "./nivelesDom";
+import { entrarEnNivel, recordarElemento, ubicar } from "./nivelesDom";
 import { pistasVisibles } from "./pistasDom";
 import { atenderTecleo } from "./tecleoDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
@@ -183,11 +183,22 @@ export function useTecladoZonas() {
       if (!recorre) e.preventDefault();
     }
 
+    /**
+     * Enter solo también entra (pedido del usuario al probar los niveles, 2026-11-06:
+     * Ctrl+Enter «parece un control innecesario»), en los lugares donde Enter no
+     * tenía otro uso: una sección seleccionada, el documento seleccionado y una
+     * pestaña de la barra (un `div`, que no se activa sola). Los botones, las
+     * filas, los campos y el editor ya tienen su Enter y no se tocan. `e.key`
+     * es «Enter» también con el Enter del teclado numérico.
+     */
     function alPulsarEnBurbuja(e: KeyboardEvent) {
       if (e.key !== "Enter" || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
-      const doc = e.target instanceof HTMLElement && e.target.matches("[data-documento]") ? e.target : null;
-      if (!doc) return;
-      if (entrarAEscribir(doc)) e.preventDefault();
+      if (hayModalAbierto()) return;
+      const foco = document.activeElement as HTMLElement | null;
+      const { lugar } = ubicar(foco);
+      const pestanaSola = lugar === "elemento" && !!foco?.matches("[role='tab']:not(button)");
+      if (lugar !== "seccion" && lugar !== "documento" && !pestanaSola) return;
+      if (entrarEnNivel()) e.preventDefault();
     }
 
     const alApuntar = () => raiz.removeAttribute("data-teclado");

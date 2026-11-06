@@ -7,7 +7,7 @@
  * **La regla, con tres teclas en todos los niveles**:
  * - **Alt+flechas**: moverse **espacialmente** dentro del nivel actual (hacia
  *   lo que está en esa dirección), sin salir de él.
- * - **Ctrl+Enter**: entrar a lo elegido (un nivel más adentro).
+ * - **Enter**: entrar a lo elegido (un nivel más adentro).
  * - **Esc**: salir un nivel; si hay algo abierto, primero lo cierra.
  *
  * **Los niveles**:
@@ -62,7 +62,7 @@ export function destinoDeEsc(lugar: Lugar): DestinoEsc {
   }
 }
 
-/** Lo que hace Ctrl+Enter según dónde esté el foco. */
+/** Lo que hace Enter según dónde esté el foco. */
 export type Entrada =
   /** Desde una sección seleccionada: a su último elemento enfocado (o el primero). */
   | "a-la-seccion"
