@@ -65,7 +65,9 @@ const APP = await fuente(
   { falsos: true },
 );
 
+const NIVELES = await fuente("../lib/teclado/niveles.ts");
 const z = await import(ZONAS);
+const niv = await import(NIVELES);
 const at = await import(ATAJOS);
 const consola = await import(CONSOLA);
 const reg = await import(REGISTRO);
@@ -175,8 +177,10 @@ test("la consola deja pasar F6, la paleta, Ctrl+O, Ctrl+Tab, Ctrl+\\, Ctrl+, y F
     tecla("Tab", { ctrlKey: true, shiftKey: true }),
     tecla("Backslash", { ctrlKey: true }),
     tecla("Comma", { ctrlKey: true }),
-    tecla("ArrowLeft", { ctrlKey: true, altKey: true }),
-    tecla("ArrowRight", { ctrlKey: true, altKey: true }),
+    // Los accesos por el teclado numérico (niveles): también sacan de la consola.
+    tecla("Numpad1", { ctrlKey: true }),
+    tecla("Numpad3", { ctrlKey: true }),
+    tecla("Numpad5", { ctrlKey: true }),
   ]) {
     assert.equal(consola.teclaSaleDeLaConsola(e), true, JSON.stringify(e));
   }
@@ -212,14 +216,37 @@ test("cada tecla que la consola deja pasar es el atajo de un comando de la app",
 
 // ── los comandos nuevos ───────────────────────────────────────────────────
 
-const NUEVOS = ["zona.siguiente", "zona.anterior", "panel.izquierda", "panel.derecha"];
+const NUEVOS = [
+  "zona.siguiente",
+  "zona.anterior",
+  "nivel.izquierda",
+  "nivel.derecha",
+  "nivel.arriba",
+  "nivel.abajo",
+  "nivel.entrar",
+  "zona.rail",
+  "zona.izquierda",
+  "zona.pestanas",
+  "zona.enlaces",
+  "zona.estado",
+];
 
 test("los comandos de zonas y paneles existen, con su atajo", () => {
   const atajo = (id) => at.textoAtajo(COMANDOS_APP.find((c) => c.id === id).atajos[0]);
   assert.equal(atajo("zona.siguiente"), "F6");
   assert.equal(atajo("zona.anterior"), "Shift+F6");
-  assert.equal(atajo("panel.izquierda"), "Ctrl+Alt+←");
-  assert.equal(atajo("panel.derecha"), "Ctrl+Alt+→");
+  assert.equal(atajo("nivel.izquierda"), "Alt+←");
+  assert.equal(atajo("nivel.abajo"), "Alt+↓");
+  assert.equal(atajo("nivel.entrar"), "Ctrl+Enter");
+  assert.equal(atajo("nivel.salir"), "Esc");
+  assert.equal(atajo("zona.rail"), "Ctrl+Num 1");
+  assert.equal(atajo("zona.estado"), "Ctrl+Num 5");
+  // Los paneles contiguos quedan sin atajo (chocaban con AltGr), en la paleta.
+  for (const id of ["panel.izquierda", "panel.derecha"]) {
+    const c = COMANDOS_APP.find((x) => x.id === id);
+    assert.equal(c.atajos?.length ?? 0, 0, id);
+    assert.notEqual(c.enPaleta, false, id);
+  }
 });
 
 test("ningún atajo nuevo es una tecla reservada ni una letra o un dígito sin Ctrl ni Alt", () => {
@@ -237,12 +264,12 @@ test("ningún atajo nuevo es una tecla reservada ni una letra o un dígito sin C
   }
 });
 
-test("F6 y Shift+F6 se atienden en captura; Ctrl+Alt+←/→, en burbuja", () => {
+test("F6 y Shift+F6 se atienden en captura; Alt+flechas, en burbuja", () => {
   assert.equal(reg.comandoParaTecla(tecla("F6"), COMANDOS_APP, false, "captura")?.id, "zona.siguiente");
   assert.equal(reg.comandoParaTecla(tecla("F6", { shiftKey: true }), COMANDOS_APP, false, "captura")?.id, "zona.anterior");
   assert.equal(reg.comandoParaTecla(tecla("F6"), COMANDOS_APP, false, "burbuja"), null);
-  const izq = tecla("ArrowLeft", { ctrlKey: true, altKey: true });
-  assert.equal(reg.comandoParaTecla(izq, COMANDOS_APP, false)?.id, "panel.izquierda");
+  const izq = tecla("ArrowLeft", { altKey: true });
+  assert.equal(reg.comandoParaTecla(izq, COMANDOS_APP, false)?.id, "nivel.izquierda");
   assert.equal(reg.comandoParaTecla(izq, COMANDOS_APP, false, "captura"), null);
   // En captura no se cuela ningún atajo de burbuja.
   assert.equal(reg.comandoParaTecla(tecla("KeyW", { ctrlKey: true }), COMANDOS_APP, false, "captura"), null);
@@ -255,4 +282,102 @@ test("ningún comando de la app usa una letra o un dígito sin Ctrl ni Alt (modo
       assert.ok(!imprime || a.ctrl || a.alt, `${c.id}: ${at.textoAtajo(a)}`);
     }
   }
+});
+
+// ── los niveles (rediseño tras la revisión del usuario, 2026-11-06) ───────
+
+
+test("Esc sale un nivel: escribiendo → documento → sección; en las secciones, nada", () => {
+  assert.equal(niv.destinoDeEsc("dentro"), "documento");
+  assert.equal(niv.destinoDeEsc("documento"), "seccion");
+  assert.equal(niv.destinoDeEsc("elemento"), "seccion");
+  assert.equal(niv.destinoDeEsc("contenido-de-pestana"), "pestana");
+  assert.equal(niv.destinoDeEsc("seccion"), null);
+  assert.equal(niv.destinoDeEsc("fuera"), null);
+});
+
+test("Ctrl+Enter entra un nivel según dónde esté el foco", () => {
+  assert.equal(niv.entradaDe("seccion", false), "a-la-seccion");
+  assert.equal(niv.entradaDe("documento", false), "al-documento");
+  assert.equal(niv.entradaDe("elemento", true), "pestana");
+  assert.equal(niv.entradaDe("elemento", false), "activar");
+  assert.equal(niv.entradaDe("dentro", false), "activar");
+  assert.equal(niv.entradaDe("fuera", false), null);
+});
+
+test("Tab no recorre el workspace; sí los diálogos y lo que usa Tab", () => {
+  assert.equal(niv.tabRecorre({ enDialogo: false, enComponenteConTab: false, enWorkspace: true }), false);
+  assert.equal(niv.tabRecorre({ enDialogo: true, enComponenteConTab: false, enWorkspace: true }), true);
+  assert.equal(niv.tabRecorre({ enDialogo: false, enComponenteConTab: true, enWorkspace: true }), true);
+  // Fuera del workspace (un aviso suelto), Tab es lo único que hay.
+  assert.equal(niv.tabRecorre({ enDialogo: false, enComponenteConTab: false, enWorkspace: false }), true);
+});
+
+test("las flechas de un componente: Alt cuenta solo dentro de un documento; Ctrl nunca", () => {
+  const e = (m = {}) => ({ ctrlKey: false, altKey: false, metaKey: false, ...m });
+  assert.equal(niv.flechaDelComponente(e(), false), true);
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), true);
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), false), false);
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), false);
+});
+
+// La ventana de prueba: barra superior, rail, panel izquierdo, dos paneles
+// (el izquierdo con su panel de enlaces adentro) y la barra de estado.
+const SECCIONES = {
+  superior: caja(0, 0, 1200, 30),
+  rail: caja(0, 30, 40, 780),
+  izquierda: caja(40, 30, 300, 780),
+  panelA: caja(300, 30, 750, 780),
+  lateral: caja(550, 70, 750, 780),
+  panelB: caja(750, 30, 1200, 780),
+  estado: caja(0, 780, 1200, 800),
+};
+const lista = (excepto) =>
+  Object.entries(SECCIONES)
+    .filter(([id]) => id !== excepto)
+    .map(([id, c]) => ({ id, caja: c }));
+const ir = (desde, dir) => niv.vecinoPorCajas(SECCIONES[desde], lista(desde), dir)?.id ?? null;
+
+test("Alt+flechas entre secciones: a la más cercana en esa dirección", () => {
+  assert.equal(ir("rail", "derecha"), "izquierda");
+  assert.equal(ir("izquierda", "izquierda"), "rail");
+  assert.equal(ir("izquierda", "derecha"), "panelA");
+  assert.equal(ir("izquierda", "arriba"), "superior");
+  assert.equal(ir("panelA", "abajo"), "estado");
+  assert.equal(ir("estado", "arriba") !== null, true);
+  // El panel de enlaces vive dentro de su panel: es lo primero a la derecha…
+  assert.equal(ir("panelA", "derecha"), "lateral");
+  // …y de ahí se sigue al otro panel, o se vuelve al suyo.
+  assert.equal(ir("lateral", "derecha"), "panelB");
+  assert.equal(ir("lateral", "izquierda"), "panelA");
+  assert.equal(ir("panelB", "izquierda"), "lateral");
+  // Sin nada de ese lado, null (no se sale del nivel).
+  assert.equal(ir("superior", "arriba"), null);
+  assert.equal(ir("panelB", "derecha"), null);
+});
+
+test("Alt+flechas dentro de una sección: del primer archivo a los botones de arriba, y de vuelta", () => {
+  // El explorador: una barra con tres botones chicos y filas anchas debajo.
+  const botones = [
+    { id: "nueva", caja: caja(50, 40, 74, 64) },
+    { id: "carpeta", caja: caja(80, 40, 104, 64) },
+    { id: "ordenar", caja: caja(260, 40, 284, 64) },
+  ];
+  const filas = [0, 1, 2, 3, 4].map((i) => ({ id: `fila${i}`, caja: caja(44, 72 + i * 24, 296, 94 + i * 24) }));
+  const todos = [...botones, ...filas];
+  const desde = (id, dir) => {
+    const o = todos.find((x) => x.id === id);
+    return niv.vecinoPorCajas(o.caja, todos.filter((x) => x !== o), dir)?.id ?? null;
+  };
+  // Alt+↑ desde la primera fila sube a un botón (no se queda en la fila).
+  assert.ok(botones.some((b) => b.id === desde("fila0", "arriba")));
+  // Desde cualquier botón, Alt+↓ va a la PRIMERA fila, no a una más abajo
+  // (con centros, desde el botón de la derecha se iba a la quinta).
+  for (const b of botones) assert.equal(desde(b.id, "abajo"), "fila0", b.id);
+  assert.equal(desde("fila2", "abajo"), "fila3");
+  assert.equal(desde("fila2", "arriba"), "fila1");
+  assert.equal(desde("nueva", "derecha"), "carpeta");
+  assert.equal(desde("carpeta", "derecha"), "ordenar");
+  assert.equal(desde("ordenar", "derecha"), null);
+  assert.equal(desde("fila4", "abajo"), null);
 });

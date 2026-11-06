@@ -281,6 +281,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             tabIndex={isActiveTab ? 0 : -1}
             data-tab-id={tab.id}
             onKeyDown={(e) => {
+              // Alt+flechas es moverse en la sección (pasa a los botones de la
+              // barra o al documento); Ctrl+Enter, entrar (`niveles.ts`).
+              if (e.altKey || e.ctrlKey || e.metaKey) return;
               const i = pane.tabs.findIndex((t) => t.id === tab.id);
               const destino =
                 e.key === "ArrowRight" ? pane.tabs[(i + 1) % pane.tabs.length]

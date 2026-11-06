@@ -1,7 +1,7 @@
 ---
 titulo: La interfaz
 tema: Primeros pasos
-sinonimos: [pantalla, zonas, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
+sinonimos: [pantalla, zonas, secciones, niveles, Alt+flechas, Ctrl+Enter, teclado numérico, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
 ---
 
 La ventana de Mycelium tiene cinco zonas: la **barra superior**, el **rail** de íconos a la
@@ -107,11 +107,22 @@ abre el panel de enlaces), cuántas palabras lleva y cuándo se guardó por últ
 
 ## Con el teclado
 
-**F6** recorre las zonas —la barra superior, el rail, el panel lateral, cada panel del área de trabajo, el
-panel de enlaces y la barra de estado— y **Shift+F6** va al revés; la zona donde estás
-lleva un borde del color de acento. Con la vista dividida, **Ctrl+Alt+←** y **Ctrl+Alt+→**
-pasan de un panel a otro, y el panel al que llegas con el teclado queda como el activo.
-**Esc** sale de escribir en un documento y lo deja seleccionado; **Enter** vuelve a entrar.
+La ventana se recorre con **tres teclas** y por **niveles**: arriba, las **secciones** —la
+barra superior, el rail, el panel lateral, cada panel del área de trabajo, el panel de
+enlaces y la barra de estado—; dentro de cada una, sus botones, pestañas y filas; y dentro
+de un documento, lo que escribes.
+
+- **{{atajo:nivel.derecha|Alt+→}}** (y las otras flechas con **Alt**) se mueve hacia lo que
+  está en esa dirección, sin salir del nivel en el que estás.
+- **{{atajo:nivel.entrar|Ctrl+Enter}}** entra a lo elegido: a la sección, al documento, a la
+  pestaña; sobre un botón o una fila, lo ejecuta.
+- **Esc** sale un nivel (si hay algo abierto, primero lo cierra).
+
+La sección elegida lleva un borde y un velo del color de acento. Con el **teclado
+numérico**, **{{atajo:zona.rail|Ctrl+Num 1}}** a **{{atajo:zona.estado|Ctrl+Num 5}}** saltan
+al rail, al panel lateral, a las pestañas, al panel de enlaces y a la barra de estado.
+**F6** y **Shift+F6** también recorren las secciones. Detalle en [Atajos de
+teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 
 Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una
 letra o dos— sobre cada botón, enlace, pestaña y campo a la vista: escribir esas letras es

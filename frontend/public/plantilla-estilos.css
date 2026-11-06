@@ -1019,17 +1019,22 @@
 
 
 /* ============================================================================
-   20) LAS ZONAS Y LOS MODOS DEL TECLADO   (F6, Esc, Enter)
+   20) LAS SECCIONES Y LOS NIVELES DEL TECLADO   (Alt+flechas, Ctrl+Enter, Esc)
    ----------------------------------------------------------------------------
-   F6 recorre las zonas de la ventana. Cada zona lleva data-zona con su nombre:
+   Alt+flechas recorre las secciones de la ventana (y F6, en orden). Cada
+   sección lleva data-zona con su nombre:
+     data-zona='superior'    la barra superior
      data-zona='rail'        el rail de íconos
      data-zona='izquierda'   el panel lateral (explorador, búsqueda...)
      data-zona='panel'       cada panel del área de trabajo
      data-zona='lateral'     el panel de enlaces de una nota
      data-zona='estado'      la barra de estado
-   La que tiene el foco lleva además data-zona-activa. El documento de cada
-   panel lleva data-documento, y data-modo='navegar' cuando está seleccionado
-   (Esc) o data-modo='escribir' cuando se está escribiendo en él.
+   La que tiene el foco lleva además data-zona-activa, y data-zona-seleccionada
+   cuando está ELEGIDA como sección (el nivel de arriba: el foco en ella misma);
+   su borde y su velo se dibujan en un ::after. El documento de cada panel
+   lleva data-documento, y data-modo='navegar' cuando está seleccionado (Esc)
+   o data-modo='escribir' cuando se está escribiendo en él. La barra de
+   herramientas de una nota lleva data-barra-documento.
    El borde y el contorno solo se dibujan mientras se usa el teclado: en ese
    momento <html> lleva data-teclado. Los colores son --mic-zona-activa y
    --mic-documento-seleccionado (sección 3).
@@ -1043,6 +1048,12 @@
 }
 :root[data-teclado] [data-documento][data-modo='navegar'] {
   background: color-mix(in srgb, var(--mic-documento-seleccionado) 6%, transparent);
+}
+*/
+
+/* La sección elegida sin velo, solo con el borde:
+:root[data-teclado] [data-zona][data-zona-seleccionada]::after {
+  background: none;
 }
 */
 

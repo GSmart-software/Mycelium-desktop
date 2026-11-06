@@ -118,3 +118,33 @@ test("valorDeSeparador: ejes, Shift, invertido y límites", () => {
   assert.equal(nav.valorDeSeparador(h, "ArrowDown"), 290);
   assert.equal(nav.valorDeSeparador(h, "ArrowLeft"), null);
 });
+
+// ── los niveles (rediseño del 2026-11-06) ─────────────────────────────────
+
+const niv = await cargar("../lib/teclado/niveles.ts");
+
+test("lienzo, grafo, calendario y tablas: Alt+flechas navega como las flechas dentro del documento", () => {
+  const e = (m = {}) => ({ ctrlKey: false, altKey: false, metaKey: false, ...m });
+  // Dentro de la pestaña: flechas y Alt+flechas, lo mismo.
+  assert.equal(niv.flechaDelComponente(e(), true), true);
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), true);
+  // Ctrl+flechas no es del recorrido (en el lienzo, mueve la tarjeta).
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), false);
+  // El mini-grafo del panel de enlaces está en una sección: Alt+flechas sale.
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), false), false);
+  assert.equal(niv.flechaDelComponente(e(), false), true);
+});
+
+test("dentro del documento, entre tarjetas: el vecino por cajas sigue la vista", () => {
+  const c = (id, l, t, r, b) => ({ id, caja: { left: l, top: t, right: r, bottom: b } });
+  const tarjetas = [c("a", 0, 0, 100, 60), c("b", 200, 0, 300, 60), c("c", 0, 200, 100, 260), c("d", 220, 180, 320, 240)];
+  const ir = (id, dir) => {
+    const o = tarjetas.find((x) => x.id === id);
+    return niv.vecinoPorCajas(o.caja, tarjetas.filter((x) => x !== o), dir)?.id ?? null;
+  };
+  assert.equal(ir("a", "derecha"), "b");
+  assert.equal(ir("a", "abajo"), "c");
+  assert.equal(ir("c", "derecha"), "d");
+  assert.equal(ir("b", "abajo"), "d");
+  assert.equal(ir("a", "arriba"), null);
+});

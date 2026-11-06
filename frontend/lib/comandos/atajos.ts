@@ -20,26 +20,46 @@ export type Atajo = {
   ctrl?: boolean;
   shift?: boolean;
   alt?: boolean;
+  /**
+   * **AltGr** (la Alt de la derecha en los teclados europeos y
+   * latinoamericanos). En Windows llega como Ctrl+Alt; se distingue por
+   * `getModifierState("AltGraph")`. Con `altGr`, `ctrl` y `alt` no se miran:
+   * el atajo es AltGr + la tecla (+ Shift). Lo usa el historial de la nota
+   * (AltGr+←/→, `FUN-XL-04`, rediseño por niveles).
+   */
+  altGr?: boolean;
   /** La tecla física, como la da `KeyboardEvent.code` («KeyW», «Digit1», «F12»). */
   code: string;
 };
 
-/** Lo que hace falta de un evento de teclado para reconocer un atajo. */
-export type EventoTecla = Pick<KeyboardEvent, "code" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">;
+/**
+ * Lo que hace falta de un evento de teclado para reconocer un atajo.
+ * `getModifierState` es opcional para que las pruebas y las macros puedan
+ * describir una tecla con un objeto simple; sin él, no hay AltGr.
+ */
+export type EventoTecla = Pick<KeyboardEvent, "code" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey"> & {
+  getModifierState?: (tecla: "AltGraph") => boolean;
+};
 
-/** ¿El evento es este atajo? */
+/** ¿El evento viene con AltGr? (En Windows, AltGr llega además como Ctrl+Alt.) */
+export const conAltGr = (e: EventoTecla): boolean => e.getModifierState?.("AltGraph") === true;
+
+/**
+ * ¿El evento es este atajo? Un atajo con AltGr solo coincide con AltGr, y uno
+ * sin AltGr nunca coincide con AltGr aunque el evento traiga Ctrl+Alt: así
+ * AltGr+← no dispara un Ctrl+Alt+← ni al revés.
+ */
 export function coincide(atajo: Atajo, e: EventoTecla): boolean {
-  return (
-    e.code === atajo.code &&
-    !!atajo.ctrl === (e.ctrlKey || e.metaKey) &&
-    !!atajo.shift === e.shiftKey &&
-    !!atajo.alt === e.altKey
-  );
+  if (e.code !== atajo.code || !!atajo.shift !== e.shiftKey) return false;
+  if (atajo.altGr) return conAltGr(e);
+  if (conAltGr(e)) return false;
+  return !!atajo.ctrl === (e.ctrlKey || e.metaKey) && !!atajo.alt === e.altKey;
 }
 
 /** ¿Son el mismo atajo? (Para detectar dos comandos con la misma tecla.) */
 export function mismoAtajo(a: Atajo, b: Atajo): boolean {
-  return a.code === b.code && !!a.ctrl === !!b.ctrl && !!a.shift === !!b.shift && !!a.alt === !!b.alt;
+  if (a.code !== b.code || !!a.shift !== !!b.shift || !!a.altGr !== !!b.altGr) return false;
+  return !!a.altGr || (!!a.ctrl === !!b.ctrl && !!a.alt === !!b.alt);
 }
 
 // ── las teclas válidas ─────────────────────────────────────────────────────
@@ -143,19 +163,24 @@ export function nombreTecla(code: string, distribucion?: Distribucion): string {
  * EE. UU.; con ella, con el carácter del teclado del usuario.
  */
 export function textoAtajo(a: Atajo, distribucion?: Distribucion): string {
-  return [a.ctrl && "Ctrl", a.alt && "Alt", a.shift && "Shift", nombreTecla(a.code, distribucion)]
-    .filter(Boolean)
-    .join("+");
+  const mods = a.altGr ? ["AltGr"] : [a.ctrl && "Ctrl", a.alt && "Alt"];
+  return [...mods, a.shift && "Shift", nombreTecla(a.code, distribucion)].filter(Boolean).join("+");
 }
 
 /** Una clave de texto única por atajo, para guardarlo o compararlo: «ctrl+shift+KeyP». */
 export function claveAtajo(a: Atajo): string {
-  return [a.ctrl && "ctrl", a.alt && "alt", a.shift && "shift", a.code].filter(Boolean).join("+");
+  const mods = a.altGr ? ["altgr"] : [a.ctrl && "ctrl", a.alt && "alt"];
+  return [...mods, a.shift && "shift", a.code].filter(Boolean).join("+");
 }
 
 /** El atajo con solo las claves encendidas, para guardarlo limpio. */
 export function atajoLimpio(a: Atajo): Atajo {
   const limpio: Atajo = { code: a.code };
+  if (a.altGr) {
+    limpio.altGr = true;
+    if (a.shift) limpio.shift = true;
+    return limpio;
+  }
   if (a.ctrl) limpio.ctrl = true;
   if (a.alt) limpio.alt = true;
   if (a.shift) limpio.shift = true;
@@ -167,7 +192,13 @@ export function atajoValido(crudo: unknown): Atajo | null {
   if (crudo === null || typeof crudo !== "object") return null;
   const o = crudo as Record<string, unknown>;
   if (typeof o.code !== "string" || !CODES_VALIDOS.has(o.code)) return null;
-  return atajoLimpio({ code: o.code, ctrl: o.ctrl === true, alt: o.alt === true, shift: o.shift === true });
+  return atajoLimpio({
+    code: o.code,
+    ctrl: o.ctrl === true,
+    alt: o.alt === true,
+    shift: o.shift === true,
+    altGr: o.altGr === true,
+  });
 }
 
 // ── grabar un atajo ────────────────────────────────────────────────────────
@@ -199,6 +230,7 @@ export const esModificador = (code: string) => MODIFICADORES.has(code);
  */
 export function atajoDeEvento(e: EventoTecla): Atajo | null {
   if (esModificador(e.code) || !CODES_VALIDOS.has(e.code)) return null;
+  if (conAltGr(e)) return atajoLimpio({ code: e.code, altGr: true, shift: e.shiftKey });
   return atajoLimpio({ code: e.code, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey, shift: e.shiftKey });
 }
 
@@ -219,6 +251,11 @@ export const teclaEscribe = (code: string) =>
  */
 export function problemaDeAtajo(a: Atajo): string | null {
   if (!CODES_VALIDOS.has(a.code)) return "Esa tecla no se puede usar en un atajo.";
+  if (a.altGr) {
+    return teclaEscribe(a.code)
+      ? "AltGr con una letra, un número o un signo escribe un carácter (@, €, #). Usa AltGr con una flecha u otra tecla que no escriba."
+      : null;
+  }
   if (!a.ctrl && !a.alt && !esTeclaF(a.code)) {
     return teclaEscribe(a.code)
       ? "Una letra, un número o un signo sin Ctrl ni Alt escribiría en el documento. Agrega Ctrl o Alt (las teclas F sí pueden ir solas)."

@@ -72,6 +72,25 @@ button {
   outline-offset: -1px;
 }
 
+/* La sección SELECCIONADA (rediseño por niveles, 2026-11-06): el foco en el
+   contenedor de la sección, el nivel de arriba (Alt+flechas pasa a la sección
+   vecina, Ctrl+Enter entra). Más marcada que la zona activa: borde de 2px y un
+   velo del acento por encima del contenido, que si no la tapa (como al
+   documento). `:where` deja la especificidad en cero: un módulo que ya
+   posiciona la zona manda. */
+:where([data-zona]) {
+  position: relative;
+}
+:root[data-teclado] [data-zona][data-zona-seleccionada]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  border: 2px solid var(--mic-zona-activa);
+  background: color-mix(in srgb, var(--mic-zona-activa) 8%, transparent);
+}
+
 /* Seleccionado (navegar): punteado y más grueso; escribiendo, sin contorno
    propio (la señal es el cursor y el borde de la zona). */
 [data-documento]:focus {

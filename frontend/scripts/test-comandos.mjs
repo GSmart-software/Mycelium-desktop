@@ -82,6 +82,9 @@ const reg = await import(REGISTRO);
 const { COMANDOS_APP } = await import(APP);
 const { ATMOSFERAS: LISTA_ATMOSFERAS } = await import(ATMOSFERAS);
 
+/** AltGr en Windows: Ctrl+Alt, y `getModifierState("AltGraph")`. */
+const ALTGR = { ctrlKey: true, altKey: true, getModifierState: (k) => k === "AltGraph" };
+
 const tecla = (code, mods = {}) => ({
   code,
   ctrlKey: false,
@@ -280,8 +283,20 @@ test("el despachador encuentra el comando de cada atajo global", () => {
     [tecla("Tab", { ctrlKey: true, shiftKey: true }), "pestana.anterior"],
     [tecla("KeyW", { ctrlKey: true }), "pestana.cerrar"],
     [tecla("KeyT", { ctrlKey: true, shiftKey: true }), "pestana.reabrir"],
-    [tecla("ArrowLeft", { altKey: true }), "historial.atras"],
-    [tecla("ArrowRight", { altKey: true }), "historial.adelante"],
+    // AltGr+←/→ (en Windows llega como Ctrl+Alt con AltGraph): el historial.
+    [tecla("ArrowLeft", ALTGR), "historial.atras"],
+    [tecla("ArrowRight", ALTGR), "historial.adelante"],
+    // Los niveles: Alt+flechas se mueve, Ctrl+Enter entra, Ctrl+Num salta.
+    [tecla("ArrowLeft", { altKey: true }), "nivel.izquierda"],
+    [tecla("ArrowRight", { altKey: true }), "nivel.derecha"],
+    [tecla("ArrowUp", { altKey: true }), "nivel.arriba"],
+    [tecla("ArrowDown", { altKey: true }), "nivel.abajo"],
+    [tecla("Enter", { ctrlKey: true }), "nivel.entrar"],
+    [tecla("Numpad1", { ctrlKey: true }), "zona.rail"],
+    [tecla("Numpad2", { ctrlKey: true }), "zona.izquierda"],
+    [tecla("Numpad3", { ctrlKey: true }), "zona.pestanas"],
+    [tecla("Numpad4", { ctrlKey: true }), "zona.enlaces"],
+    [tecla("Numpad5", { ctrlKey: true }), "zona.estado"],
     // Crear y mostrar/ocultar (Parte 4).
     [tecla("KeyN", { ctrlKey: true }), "nota.nueva"],
     [tecla("KeyN", { ctrlKey: true, shiftKey: true }), "crear.nuevo"],
@@ -293,6 +308,12 @@ test("el despachador encuentra el comando de cada atajo global", () => {
 
 test("el despachador no toca las teclas de los manejadores propios ni las sueltas", () => {
   for (const e of [
+    // Esc lo atiende `useTecladoZonas` (salir un nivel); Tab ya no recorre.
+    tecla("Escape"),
+    tecla("Tab"),
+    // Ctrl+Alt+← (sin AltGr) ya no es de nadie: los paneles contiguos van por la paleta.
+    tecla("ArrowLeft", { ctrlKey: true, altKey: true }),
+    tecla("ArrowRight", { ctrlKey: true, altKey: true }),
     tecla("F1"),
     tecla("F12"),
     tecla("KeyI", { ctrlKey: true, shiftKey: true }),
@@ -305,8 +326,16 @@ test("el despachador no toca las teclas de los manejadores propios ni las suelta
   }
 });
 
-test("Alt+←/→ respetan lo que el editor ya consumió", () => {
-  for (const id of ["historial.atras", "historial.adelante"]) {
+test("el historial y los niveles respetan lo que el editor o un componente ya consumió", () => {
+  for (const id of [
+    "historial.atras",
+    "historial.adelante",
+    "nivel.izquierda",
+    "nivel.derecha",
+    "nivel.arriba",
+    "nivel.abajo",
+    "nivel.entrar",
+  ]) {
     assert.equal(COMANDOS_APP.find((c) => c.id === id).ignorarSiPrevenido, true, id);
   }
 });

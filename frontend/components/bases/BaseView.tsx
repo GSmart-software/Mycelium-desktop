@@ -48,6 +48,7 @@ import {
 } from "@/lib/bases";
 import { formatearFecha } from "@/lib/markdown";
 import { pasoDeLista, pasoDePestanas } from "@/lib/teclado/navegacion";
+import { dentroDeDocumento, flechaDelComponente } from "@/lib/teclado/niveles";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -500,7 +501,7 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
             aria-label="Vistas"
             // Una parada de Tab y ← → / Inicio / Fin (`FUN-XL-04`, Parte 7).
             onKeyDown={(e) => {
-              if (e.ctrlKey || e.altKey || e.metaKey) return;
+              if (!flechaDelComponente(e, dentroDeDocumento(e.currentTarget))) return;
               const j = pasoDePestanas(iVista, base.vistas.length, e.key);
               if (j === null) return;
               e.preventDefault();
@@ -709,10 +710,12 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter") {
+                        // Atendido: Ctrl+Enter (entrar) no la abre dos veces.
+                        e.preventDefault();
                         abrir(nota.id);
                         return;
                       }
-                      if (e.ctrlKey || e.altKey || e.metaKey) return;
+                      if (!flechaDelComponente(e, dentroDeDocumento(e.currentTarget))) return;
                       const filas = e.currentTarget.parentElement?.children;
                       if (!filas) return;
                       const i = Array.prototype.indexOf.call(filas, e.currentTarget);

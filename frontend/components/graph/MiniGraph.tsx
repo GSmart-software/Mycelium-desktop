@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
 import { desplazamientoParaVer, direccionDeTecla, masCercano, vecinoEnDireccion } from "@/lib/teclado/navegacion";
+import { dentroDeDocumento, flechaDelComponente } from "@/lib/teclado/niveles";
 import { registrarObjetivosVirtuales, type ObjetivoVirtual } from "@/lib/teclado/pistasDom";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
@@ -816,7 +817,10 @@ export function MiniGraph({
       anunciar(n);
     };
     const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.ctrlKey || ev.metaKey || ev.altKey || fase !== "vivo") return;
+      // En la pestaña del grafo, Alt+flechas también pasa entre nodos (la
+      // regla de los niveles); en el mini-grafo del panel de enlaces, es de la
+      // sección: pasa al elemento vecino.
+      if (!flechaDelComponente(ev, dentroDeDocumento(canvas)) || fase !== "vivo") return;
       if (ev.key === "Enter") {
         if (nodoTeclado && revealed(nodoTeclado)) {
           ev.preventDefault();

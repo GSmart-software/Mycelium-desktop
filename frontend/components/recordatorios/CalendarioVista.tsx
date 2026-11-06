@@ -3,6 +3,7 @@
 import { Check, ChevronLeft, ChevronRight, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { pasoDeCalendario } from "@/lib/teclado/navegacion";
+import { dentroDeDocumento, flechaDelComponente } from "@/lib/teclado/niveles";
 import {
   nombreDelMes,
   ocurrenciasEnRango,
@@ -144,8 +145,9 @@ export function CalendarioVista() {
   const diaEnfocable = semanas.some((s) => s.includes(fecha))
     ? fecha
     : `${anio}-${mesTexto}-01`;
-  const alTeclaDia = (e: React.KeyboardEvent, dia: string, columna: number) => {
-    if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const alTeclaDia = (e: React.KeyboardEvent<HTMLElement>, dia: string, columna: number) => {
+    // Alt+flechas, igual que las flechas dentro de la pestaña (niveles).
+    if (!flechaDelComponente(e, dentroDeDocumento(e.currentTarget))) return;
     const paso = pasoDeCalendario(e.key, columna, e.shiftKey);
     if (paso === null) return;
     e.preventDefault();

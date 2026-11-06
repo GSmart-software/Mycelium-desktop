@@ -1,4 +1,6 @@
 .pane {
+  /* La sección seleccionada dibuja su borde en un `::after` (globals.css). */
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;

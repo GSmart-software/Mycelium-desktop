@@ -445,3 +445,21 @@ test("comandoDeMacro arma el comando de la macro", () => {
   assert.equal(c.categoria, "macros");
   assert.deepEqual(reg.validarComandos([c]), []);
 });
+
+// ── el rediseño por niveles (2026-11-06) ──────────────────────────────────
+
+test("los comandos que cambiaron de atajo conservan su id: las macros que los usan siguen andando", () => {
+  // El historial pasó a AltGr+←/→ y los paneles contiguos quedaron sin atajo,
+  // pero con el mismo id; una macro guardada con ellos no necesita migrarse.
+  for (const id of ["historial.atras", "historial.adelante", "panel.izquierda", "panel.derecha", "zona.siguiente"]) {
+    assert.ok(idsRegistrados.has(id), id);
+  }
+  const macro = { id: "m1", nombre: "Volver", pasos: [{ tipo: "comando", comando: "historial.atras" }] };
+  assert.deepEqual(mac.invocacionDePaso(macro.pasos[0]), { comando: "historial.atras", args: undefined });
+});
+
+test("moverse y entrar (Alt+flechas, Ctrl+Enter) no se graban en una macro", () => {
+  for (const id of ["nivel.izquierda", "nivel.derecha", "nivel.arriba", "nivel.abajo", "nivel.entrar"]) {
+    assert.equal(COMANDOS_APP.find((x) => x.id === id)?.noSeGraba, true, id);
+  }
+});
