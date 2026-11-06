@@ -15,7 +15,7 @@ import {
   type TemaDrawio,
 } from "@/lib/drawio";
 import { EVENTO_RECARGA } from "@/lib/eventos";
-import { salirDeMarco } from "@/lib/teclado/focoDom";
+import { registrarMarcos, salirDeMarco } from "@/lib/teclado/focoDom";
 import { pistasDesdeMarco } from "@/lib/teclado/pistasDom";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { olvidarGuardadoPendiente, registrarGuardadoPendiente } from "@/lib/guardadoPendiente";
@@ -111,6 +111,18 @@ type Instancia = {
 };
 
 const instancias = new Map<string, Instancia>();
+
+// Enter sobre un diagrama seleccionado (`FUN-XL-04`, Parte 7): el marco vive en
+// `body`, fuera del documento del panel, así que `focoDom` pregunta acá cuál es
+// el de ese documento: el de la instancia cuyo hueco (`ancla`) está adentro.
+if (typeof window !== "undefined") {
+  registrarMarcos((doc) => {
+    for (const inst of instancias.values()) {
+      if (inst.ancla !== null && inst.ilegible === null && doc.contains(inst.ancla)) return inst.iframe;
+    }
+    return null;
+  });
+}
 let sincronizando = 0;
 /** La poda que agenda `desadjuntar` (ver ahí por qué no es inmediata). */
 let podaDiferida: ReturnType<typeof setTimeout> | null = null;

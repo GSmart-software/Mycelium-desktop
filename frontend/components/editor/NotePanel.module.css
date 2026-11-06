@@ -26,8 +26,13 @@
   touch-action: none;
 }
 
-.resize:hover {
+.resize:hover,
+.resize:focus-visible {
   background: color-mix(in srgb, var(--mic-glow) 35%, transparent);
+}
+
+.resize:focus-visible {
+  outline-offset: -2px;
 }
 
 .tabs {
@@ -479,4 +484,10 @@
   left: 0.1rem;
   font-weight: 700;
   color: var(--mic-aviso-propiedad);
+}
+
+/* El nombre de la propiedad, con el foco, se distingue del puntero encima
+   (`FUN-XL-04`, Parte 7). */
+.propClave:focus {
+  border-color: var(--mic-glow);
 }

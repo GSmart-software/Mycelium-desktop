@@ -217,3 +217,18 @@ select option:disabled {
   background: color-mix(in srgb, var(--mic-marca) 12%, transparent);
   transition: box-shadow 300ms ease, background 300ms ease;
 }
+
+/* Texto solo para lectores de pantalla (`FUN-XL-04`, Parte 7): ocupa un píxel
+   fuera de la vista, pero se lee. Lo usa el grafo para anunciar el nodo elegido
+   con el teclado. No es para estilar: ocultarlo de otra forma lo silencia. */
+.mic-solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

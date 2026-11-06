@@ -19,8 +19,10 @@
  * - Una consola es **un** objetivo (`.xterm`): entrar a escribir en ella.
  * - Un iframe (draw.io, PDF) es **un** objetivo: el foco al marco.
  * - Una tarjeta de un lienzo (`[data-nodo]`) se selecciona como con el puntero.
- * - El grafo es un `<canvas>` sin nodos en el DOM: **un** objetivo que
- *   selecciona su documento. Los nodos como objetivos quedan para la Parte 7.
+ * - El grafo es un `<canvas>` sin nodos en el DOM: el lienzo es un objetivo
+ *   (lo enfoca) y además cada nodo visible, que el grafo informa con
+ *   `registrarObjetivosVirtuales` (Parte 7): posiciones del motor, no
+ *   elementos. Se toman los `MAX_VIRTUALES` de más conexiones.
  * - `data-pista="clic|foco|…"` en cualquier elemento lo vuelve objetivo con esa
  *   acción.
  *
@@ -170,8 +172,37 @@ function raizDeBusqueda(): ParentNode {
   return modales.at(-1) ?? document;
 }
 
+// ── objetivos virtuales (los nodos del grafo) ─────────────────────────────
+
+/**
+ * Un objetivo que no es un elemento: un punto dentro de un `<canvas>` (un nodo
+ * del grafo). `x`/`y` en píxeles relativos al lienzo; `peso` decide cuáles
+ * entran si son muchos; `activar(soloElegir)` hace lo del clic (con Shift,
+ * `soloElegir`: elegirlo sin abrirlo).
+ */
+export type ObjetivoVirtual = {
+  x: number;
+  y: number;
+  peso: number;
+  describir: () => string;
+  activar: (soloElegir: boolean) => void;
+};
+
+/** Cuántos objetivos virtuales por lienzo, como mucho: más letras serían ruido. */
+const MAX_VIRTUALES = 60;
+
+const proveedores = new Map<HTMLElement, () => ObjetivoVirtual[]>();
+
+/** Lo llama el grafo al montarse; devuelve con qué darse de baja. */
+export function registrarObjetivosVirtuales(el: HTMLElement, proveedor: () => ObjetivoVirtual[]): () => void {
+  proveedores.set(el, proveedor);
+  return () => {
+    if (proveedores.get(el) === proveedor) proveedores.delete(el);
+  };
+}
+
 /** Lo que se pone en la capa: el objetivo, su caja visible y qué hacer. */
-type Objetivo = { el: HTMLElement; caja: CajaPista; marca: string | null };
+type Objetivo = { el: HTMLElement; caja: CajaPista; marca: string | null; virtual?: ObjetivoVirtual };
 
 /** La marca que deduce el DOM para los casos aparte, o la de `data-pista`. */
 function marcaDe(el: HTMLElement): string | null {
@@ -180,7 +211,9 @@ function marcaDe(el: HTMLElement): string | null {
   if (el.classList.contains("cm-content")) return "foco";
   if (el.classList.contains("excalidraw-container")) return "foco";
   if (el.hasAttribute("data-nodo") && !el.matches(SEL_OBJETIVO)) return "puntero";
-  if (el instanceof HTMLCanvasElement) return "documento";
+  // Un lienzo enfocable (el grafo, Parte 7) recibe el foco; si no, se
+  // selecciona su documento.
+  if (el instanceof HTMLCanvasElement) return el.tabIndex >= 0 ? "foco" : "documento";
   return null;
 }
 
@@ -202,7 +235,45 @@ export function buscarObjetivos(): Objetivo[] {
     if (!punto) continue;
     salida.push({ el, caja, marca: marcaDe(el) });
   }
+  if (!(raiz instanceof HTMLElement)) salida.push(...objetivosVirtuales(cortes));
   return ordenarPorPosicion(salida);
+}
+
+/** Los nodos visibles de cada grafo registrado, como objetivos. Fuera de un modal. */
+function objetivosVirtuales(cortes: Map<Element, boolean>): Objetivo[] {
+  const salida: Objetivo[] = [];
+  for (const [el, proveedor] of proveedores) {
+    if (!el.isConnected || descartado(el)) continue;
+    const visibleDelLienzo = cajaVisible(el, cortes);
+    if (!visibleDelLienzo) continue;
+    const r = el.getBoundingClientRect();
+    // Primero los de más peso, y `elementFromPoint` (lo caro) solo hasta juntar
+    // `MAX_VIRTUALES`: un grafo grande tiene cientos de nodos a la vista.
+    const ordenados = proveedor()
+      .map((v) => ({ v, x: r.left + v.x, y: r.top + v.y }))
+      .filter(
+        (p) =>
+          p.x >= visibleDelLienzo.left &&
+          p.x <= visibleDelLienzo.right &&
+          p.y >= visibleDelLienzo.top &&
+          p.y <= visibleDelLienzo.bottom,
+      )
+      .sort((a, b) => b.v.peso - a.v.peso);
+    const puntos: typeof ordenados = [];
+    for (const p of ordenados) {
+      if (puntos.length >= MAX_VIRTUALES) break;
+      if (document.elementFromPoint(p.x, p.y) === el) puntos.push(p);
+    }
+    for (const p of puntos) {
+      salida.push({
+        el,
+        caja: { left: p.x - 6, top: p.y - 6, right: p.x + 6, bottom: p.y + 6 },
+        marca: null,
+        virtual: p.v,
+      });
+    }
+  }
+  return salida;
 }
 
 // ── activar ───────────────────────────────────────────────────────────────
@@ -293,7 +364,7 @@ function dibujar(a: Abiertas) {
     const marca = document.createElement("span");
     marca.className = "mic-pista";
     marca.dataset.etiqueta = a.etiquetas[i];
-    marca.dataset.objetivo = describir(o.el);
+    marca.dataset.objetivo = o.virtual ? o.virtual.describir() : describir(o.el);
     marca.style.left = `${Math.round(o.caja.left)}px`;
     marca.style.top = `${Math.round(o.caja.top)}px`;
     a.capa.appendChild(marca);
@@ -386,7 +457,15 @@ export function abrirPistas() {
         pintarEscrito(a);
         return;
       }
-      const { el, marca } = a.objetivos[paso.indice];
+      const { el, marca, virtual } = a.objetivos[paso.indice];
+      if (virtual) {
+        // Un nodo del grafo: lo elige (y con las letras solas, lo abre).
+        const soloElegir = a.conShift;
+        cerrarPistas();
+        if (el.isConnected) virtual.activar(soloElegir);
+        document.documentElement.setAttribute("data-teclado", "");
+        return;
+      }
       const accion = accionDePista(
         {
           etiqueta: el.tagName,

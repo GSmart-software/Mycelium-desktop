@@ -1,11 +1,14 @@
 "use client";
 
 import { Check, ChevronLeft, ChevronRight, PanelRightClose, PanelRightOpen, Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { pasoDeCalendario } from "@/lib/teclado/navegacion";
 import {
   nombreDelMes,
   ocurrenciasEnRango,
   semanasDelMes,
+  sumarDias,
+  sumarMeses,
   varColor,
   type Ocurrencia,
   type Periodo,
@@ -73,6 +76,16 @@ export function CalendarioVista() {
   // de React para derivar de algo que cambió) y después se consume el pedido,
   // para que otra pestaña del calendario —o esta, al remontarse— no vuelva a
   // saltar a ese día.
+  /** El día al que hay que llevar el foco tras moverse con las flechas. */
+  const diaAEnfocar = useRef<string | null>(null);
+  const grillaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const dia = diaAEnfocar.current;
+    if (dia === null) return;
+    diaAEnfocar.current = null;
+    grillaRef.current?.querySelector<HTMLElement>(`[data-dia="${dia}"]`)?.focus();
+  });
+
   const [focoVisto, setFocoVisto] = useState(0);
   if (foco && foco.n !== focoVisto) {
     setFocoVisto(foco.n);
@@ -125,6 +138,24 @@ export function CalendarioVista() {
   const hoyTexto = hoy();
   const mesTexto = `${String(mes).padStart(2, "0")}`;
 
+  // La grilla es UNA parada de Tab (`FUN-XL-04`, Parte 7, patrón «grid» de
+  // ARIA): el número del día elegido si se ve en la grilla, y si no el día 1
+  // del mes. Las flechas mueven la fecha y el foco la sigue (ver el efecto).
+  const diaEnfocable = semanas.some((s) => s.includes(fecha))
+    ? fecha
+    : `${anio}-${mesTexto}-01`;
+  const alTeclaDia = (e: React.KeyboardEvent, dia: string, columna: number) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const paso = pasoDeCalendario(e.key, columna, e.shiftKey);
+    if (paso === null) return;
+    e.preventDefault();
+    const nueva = "dias" in paso ? sumarDias(dia, paso.dias) : sumarMeses(dia, paso.meses);
+    elegirDia(nueva);
+    const m = mesDe(nueva);
+    if (m.anio !== anio || m.mes !== mes) setMes(m);
+    diaAEnfocar.current = nueva;
+  };
+
   return (
     <div className={styles.vista}>
       <div className={styles.cabecera}>
@@ -174,10 +205,10 @@ export function CalendarioVista() {
               <span key={d}>{d.slice(0, 3)}</span>
             ))}
           </div>
-          <div className={styles.semanas} role="grid" aria-label={`${nombreDelMes(mes)} ${anio}`}>
+          <div ref={grillaRef} className={styles.semanas} role="grid" aria-label={`${nombreDelMes(mes)} ${anio}`}>
             {semanas.map((semana) => (
               <div key={semana[0]} className={styles.semana} role="row">
-                {semana.map((dia) => {
+                {semana.map((dia, columna) => {
                   const ocurrencias = porDia.get(dia) ?? [];
                   const visibles =
                     ocurrencias.length > CHIPS_POR_DIA
@@ -208,6 +239,9 @@ export function CalendarioVista() {
                       <button
                         type="button"
                         className={styles.numeroDia}
+                        data-dia={dia}
+                        tabIndex={dia === diaEnfocable ? 0 : -1}
+                        onKeyDown={(e) => alTeclaDia(e, dia, columna)}
                         aria-label={`${fechaCompleta(dia)}${ocurrencias.length ? `, ${ocurrencias.length} recordatorio${ocurrencias.length === 1 ? "" : "s"}` : ""}`}
                         aria-current={dia === hoyTexto ? "date" : undefined}
                         onClick={() => elegirDia(dia, true)}
@@ -221,6 +255,9 @@ export function CalendarioVista() {
                           <button
                             key={clave}
                             type="button"
+                            // Fuera del orden de Tab: se llega con Enter sobre el día (la
+                            // lista) o con las pistas (F10).
+                            tabIndex={-1}
                             className={`${styles.chip} ${seleccionado === clave ? styles.seleccionado : ""}`}
                             data-completada={completada || undefined}
                             style={{ "--rec": varColor(o.recordatorio.color, completada) } as React.CSSProperties}
@@ -236,7 +273,7 @@ export function CalendarioVista() {
                         );
                       })}
                       {resto > 0 && (
-                        <button type="button" className={styles.mas} onClick={() => elegirDia(dia, true)}>
+                        <button type="button" tabIndex={-1} className={styles.mas} onClick={() => elegirDia(dia, true)}>
                           +{resto} más
                         </button>
                       )}

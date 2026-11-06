@@ -99,7 +99,14 @@ export function entrarAEscribir(doc: HTMLElement): boolean {
     doc.querySelector<HTMLElement>(".xterm-helper-textarea"),
     visibleONull(doc.querySelector<HTMLElement>(".cm-content")),
     destinoEnLectura(doc),
-    primerEnfocable(doc, "tbody tr[tabindex]"),
+    // Una tabla `.base`: la fila que es su parada de Tab (la última elegida).
+    primerEnfocable(doc, "tbody tr[tabindex='0']"),
+    // Un lienzo: la tarjeta que es su parada de Tab (la última seleccionada).
+    primerEnfocable(doc, "[data-nodo][tabindex='0']"),
+    // draw.io: su marco no vive en el panel sino en `body` (ver `marcoDe`).
+    marcoDe(doc),
+    // El grafo: su lienzo (flechas entre nodos, Enter abre).
+    primerEnfocable(doc, "canvas[tabindex='0']"),
     // Excalidraw atiende el teclado en su contenedor (`tabIndex=0`): su lienzo.
     primerEnfocable(doc, ".excalidraw-container"),
     primerEnfocable(doc),
@@ -111,6 +118,30 @@ export function entrarAEscribir(doc: HTMLElement): boolean {
 }
 
 const visibleONull = (el: HTMLElement | null) => (el && visible(el) ? el : null);
+
+/**
+ * Los marcos que se muestran sobre un documento sin vivir adentro de él
+ * (`FUN-XL-04`, Parte 7). El editor de draw.io es un `iframe` colgado de `body`
+ * con `position: fixed` sobre el rectángulo del panel (`drawioInstancias.ts`:
+ * moverlo lo recargaría), así que `doc.querySelector("iframe")` no lo encuentra
+ * y Enter no entraba (o entraba solo si el último foco había quedado
+ * registrado). Quien maneja esos marcos registra acá cómo encontrar el de un
+ * documento; se registra en vez de importarse para no hacer un ciclo entre
+ * módulos (`drawioInstancias` ya importa este).
+ */
+const buscadoresDeMarco = new Set<(doc: HTMLElement) => HTMLElement | null>();
+export function registrarMarcos(buscar: (doc: HTMLElement) => HTMLElement | null): () => void {
+  buscadoresDeMarco.add(buscar);
+  return () => buscadoresDeMarco.delete(buscar);
+}
+/** El marco que se muestra sobre `doc`, si hay uno visible. */
+export function marcoDe(doc: HTMLElement): HTMLElement | null {
+  for (const buscar of buscadoresDeMarco) {
+    const marco = buscar(doc);
+    if (marco && marco.style.display !== "none") return marco;
+  }
+  return null;
+}
 
 /** En la vista de lectura: el primer enlace o casilla; si no hay, la lectura entera. */
 function destinoEnLectura(doc: HTMLElement): HTMLElement | null {

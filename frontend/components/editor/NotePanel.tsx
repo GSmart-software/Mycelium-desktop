@@ -1,14 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MiniGraph, type GraphEdge, type GraphNode } from "@/components/graph/MiniGraph";
 import { api } from "@/lib/api";
 import { CacheLru } from "@/lib/cacheLru";
 import { mismoGrafo } from "@/lib/grafoEquivalente";
 import { folderPath } from "@/lib/search";
 import { useAuthStore } from "@/stores/authStore";
-import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { propsDeSeparador } from "@/components/workspace/separador";
+import { pasoDePestanas } from "@/lib/teclado/navegacion";
+import { RIGHT_MAX_WIDTH, RIGHT_MIN_WIDTH, usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA, type DetalleNotaGuardada } from "@/lib/eventos";
@@ -30,6 +32,8 @@ type Conexiones = {
 };
 
 type Tab = "propiedades" | "grafo" | "salientes" | "retro";
+/** En el orden en que se ven, para las flechas. */
+const PESTANAS: Tab[] = ["propiedades", "grafo", "salientes", "retro"];
 
 // Cache en memoria por nota (stale-while-revalidate): al volver a una nota ya
 // vista, el panel aparece al instante mientras se refresca en segundo plano.
@@ -91,6 +95,7 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
   );
 
   const [tab, setTab] = useState<Tab>("grafo");
+  const idPestanas = useId();
   const [data, setData] = useState<Conexiones | null>(null);
   const [showSalientes, setShowSalientes] = useState(true);
   const [showRetro, setShowRetro] = useState(true);
@@ -188,9 +193,19 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
   const resizeHandle = (
     <div
       className={styles.resize}
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Redimensionar panel"
+      // Con el teclado (`FUN-XL-04`, Parte 7): el borde está a la izquierda
+      // del panel, así que ← lo agranda.
+      {...propsDeSeparador({
+        etiqueta: "Ancho del panel de enlaces",
+        valor: width,
+        min: RIGHT_MIN_WIDTH,
+        max: RIGHT_MAX_WIDTH,
+        orientacion: "vertical",
+        invertido: true,
+        paso: 10,
+        pasoGrande: 50,
+        alCambiar: (v) => usePanelLayoutStore.getState().setRightWidth(v),
+      })}
       onPointerDown={(e) => {
         resizeEdge.current = panelRef.current?.getBoundingClientRect().right ?? window.innerWidth;
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -218,22 +233,37 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
   return (
     <div className={styles.panel} ref={panelRef} style={{ width }} data-zona="lateral">
       {resizeHandle}
-      <div className={styles.tabs} role="tablist">
-        <TabButton active={tab === "propiedades"} onClick={() => setTab("propiedades")}>
+      {/* Pestañas con el patrón de ARIA (`FUN-XL-04`, Parte 7): una sola
+          parada de Tab (la elegida) y ← → / Inicio / Fin para cambiar. */}
+      <div
+        className={styles.tabs}
+        role="tablist"
+        aria-label="Panel de enlaces"
+        onKeyDown={(e) => {
+          if (e.ctrlKey || e.altKey || e.metaKey) return;
+          const i = PESTANAS.indexOf(tab);
+          const j = pasoDePestanas(i, PESTANAS.length, e.key);
+          if (j === null) return;
+          e.preventDefault();
+          setTab(PESTANAS[j]);
+          e.currentTarget.querySelectorAll<HTMLElement>("[role='tab']")[j]?.focus();
+        }}
+      >
+        <TabButton id={`${idPestanas}-propiedades`} active={tab === "propiedades"} onClick={() => setTab("propiedades")}>
           PROPIEDADES
         </TabButton>
-        <TabButton active={tab === "grafo"} onClick={() => setTab("grafo")}>
+        <TabButton id={`${idPestanas}-grafo`} active={tab === "grafo"} onClick={() => setTab("grafo")}>
           GRAFO
         </TabButton>
-        <TabButton active={tab === "salientes"} onClick={() => setTab("salientes")}>
+        <TabButton id={`${idPestanas}-salientes`} active={tab === "salientes"} onClick={() => setTab("salientes")}>
           SALIENTES ({data.salientes.length})
         </TabButton>
-        <TabButton active={tab === "retro"} onClick={() => setTab("retro")}>
+        <TabButton id={`${idPestanas}-retro`} active={tab === "retro"} onClick={() => setTab("retro")}>
           RETRO ({data.retro.length})
         </TabButton>
       </div>
 
-      <div className={styles.tabBody}>
+      <div className={styles.tabBody} role="tabpanel" aria-labelledby={`${idPestanas}-${tab}`}>
         {tab === "propiedades" && <PropiedadesTab notaId={notaId} paneId={paneId} />}
 
         {tab === "grafo" && (
@@ -329,10 +359,12 @@ export function NotePanel({ notaId, paneId }: { notaId: string; paneId: string }
 }
 
 function TabButton({
+  id,
   active,
   onClick,
   children,
 }: {
+  id: string;
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -341,7 +373,9 @@ function TabButton({
     <button
       type="button"
       role="tab"
+      id={id}
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       className={`${styles.tab} ${active ? styles.tabActive : ""}`}
       onClick={onClick}
     >

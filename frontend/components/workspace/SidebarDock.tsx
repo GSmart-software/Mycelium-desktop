@@ -11,6 +11,7 @@ import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { propsDeSeparador } from "./separador";
 import styles from "./SidebarDock.module.css";
 
 /**
@@ -220,9 +221,19 @@ export function SidebarDock({
         <>
           <div
             className={styles.divisor}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Ajustar el tamaño del visor"
+            // Con el teclado (`FUN-XL-04`, Parte 7): ↑ agranda el visor, como
+            // arrastrar hacia arriba. El máximo deja lugar a la sección.
+            {...propsDeSeparador({
+              etiqueta: "Ajustar el tamaño del visor",
+              valor: docsHeight,
+              min: 120,
+              max: Math.max(120, (typeof window === "undefined" ? 800 : window.innerHeight) - 200),
+              orientacion: "horizontal",
+              invertido: true,
+              paso: 10,
+              pasoGrande: 50,
+              alCambiar: (v) => useSidebarViewerStore.getState().setDocsHeight(v),
+            })}
             onPointerDown={onDivisorDown}
           />
           <div className={styles.docsRegion} style={{ height: `${docsHeight}px` }}>

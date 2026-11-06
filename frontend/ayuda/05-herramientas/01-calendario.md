@@ -24,8 +24,9 @@ es una nota: no aparece en el explorador, en la búsqueda ni en el grafo.
    un día para crearlo en esa fecha. La
    repetición puede ser cada día, cada semana, cada mes o cada año.
 3. La lista muestra **Día**, **Semana** o **Mes**. Su casilla marca un recordatorio como
-   completado (se ve más oscuro), y un clic en él muestra el detalle, para editarlo o
-   eliminarlo.
+. Con el teclado, en la grilla de la pestaña: las **flechas** cambian de día y de semana,
+   **RePág** y **AvPág** de mes, y **Enter** muestra el día en la lista.
+   Detalle en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 
 ## Los avisos
 
