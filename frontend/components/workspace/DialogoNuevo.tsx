@@ -71,7 +71,12 @@ function Dialogo({ pasoInicial }: { pasoInicial: "tipos" | "esporas" }) {
   // Al cambiar de paso, el foco sigue en la lista (sin Esporas, en el aviso).
   useEffect(() => {
     const destino = dialogoRef.current?.querySelector<HTMLElement>("[role='listbox'], p[tabindex]");
-    if (destino && dialogoRef.current?.contains(document.activeElement) && document.activeElement !== destino) {
+    // Al cambiar de paso, la lista que tenía el foco puede desmontarse (sin
+    // Esporas se reemplaza por el aviso) y el foco cae en `body` antes de este
+    // efecto: también ahí se recupera (visto en la prueba en vivo, 2026-11-06).
+    const activo = document.activeElement;
+    const focoPerdido = !activo || activo === document.body;
+    if (destino && (focoPerdido || dialogoRef.current?.contains(activo)) && activo !== destino) {
       destino.focus();
     }
   }, [estado.paso]);

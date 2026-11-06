@@ -164,6 +164,13 @@ export function enfocarSeccionIzquierda(preferirCampo = false, intentos = 30) {
         : null;
     if (destino) destino.focus();
     else if (intentos > 0) enfocarSeccionIzquierda(preferirCampo, intentos - 1);
+    else if (region && visible(region)) {
+      // Una sección sin nada enfocable (la papelera vacía, visto en la prueba
+      // en vivo): el foco va a la sección misma, para que quede en su zona y
+      // F6 siga desde ahí, en vez de volver a donde estaba.
+      if (!region.hasAttribute("tabindex")) region.setAttribute("tabindex", "-1");
+      region.focus();
+    }
   });
 }
 
