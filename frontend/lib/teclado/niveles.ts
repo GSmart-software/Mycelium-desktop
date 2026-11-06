@@ -141,8 +141,13 @@ export function vecinoPorCajas<T extends { caja: Caja }>(
     // que apenas toca el borde (la barra de estado, bajo el rail) no gana por eso.
     const solapeX = Math.min(k.right, origen.right) - Math.max(k.left, origen.left);
     const solapeY = Math.min(k.bottom, origen.bottom) - Math.max(k.top, origen.top);
-    if (solapeX <= 0.5 || solapeY <= 0.5) avance = Math.max(0, avance);
-    else {
+    if (solapeX <= 0.5 || solapeY <= 0.5) {
+      // Sin superponerse, tiene que estar de verdad más allá del borde: un
+      // panel al lado, apenas más corto, tiene el centro un poco más arriba y
+      // ganaba «arriba» a la barra superior (prueba en vivo del 2026-11-06).
+      if (avance < -2) continue;
+      avance = Math.max(0, avance);
+    } else {
       // Uno dentro del otro: solo en la dirección en que está corrido (el
       // panel de enlaces está a la derecha de su panel, no abajo).
       const dPrincipal = horizontal ? Math.abs(cx(k) - cx(origen)) : Math.abs(cy(k) - cy(origen));
