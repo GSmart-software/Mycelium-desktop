@@ -504,6 +504,10 @@ async function informar() {
     join(SALIDA, "cobertura.json"),
     JSON.stringify({ fecha: new Date().toISOString(), total, alcanzados, porcentaje, huecos, pasos }, null, 2),
   );
+  // Una celda de tabla Markdown: primero las barras invertidas, después `|`
+  // (escapar solo `|` dejaba un `\|` del texto convertido en `\\|`, que cierra la
+  // celda; CodeQL js/incomplete-sanitization).
+  const celda = (t) => String(t).replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
   const lineas = [
     `# Cobertura del teclado`,
     ``,
@@ -511,7 +515,7 @@ async function informar() {
     ``,
     `| Zona | Elemento | Texto | Captura |`,
     `|---|---|---|---|`,
-    ...huecos.map((h) => `| ${h.zona} | \`${h.selector.replace(/\|/g, "\\|")}\` | ${h.texto.replace(/\|/g, "\\|")} | ${h.captura ?? (h.enPantalla ? "" : "(ya no se ve)")} |`),
+    ...huecos.map((h) => `| ${h.zona} | \`${celda(h.selector)}\` | ${celda(h.texto)} | ${h.captura ?? (h.enPantalla ? "" : "(ya no se ve)")} |`),
   ];
   await writeFile(join(SALIDA, "cobertura.md"), lineas.join("\n"));
   console.log(`cobertura: ${alcanzados}/${total} (${porcentaje} %), ${huecos.length} huecos, ${capturas} capturas en ${SALIDA}`);
