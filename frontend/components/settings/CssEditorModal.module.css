@@ -199,3 +199,8 @@
   filter: var(--aurora-hover);
   transform: var(--aurora-elevar);
 }
+
+/* Señal de foco del texto de muestra (`FUN-XL-04`, Parte 7). */
+.sample:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--mic-focus);
+}

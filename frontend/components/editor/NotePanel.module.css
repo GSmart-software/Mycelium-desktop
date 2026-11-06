@@ -485,3 +485,9 @@
   font-weight: 700;
   color: var(--mic-aviso-propiedad);
 }
+
+/* El nombre de la propiedad, con el foco, se distingue del puntero encima
+   (`FUN-XL-04`, Parte 7). */
+.propClave:focus {
+  border-color: var(--mic-glow);
+}
