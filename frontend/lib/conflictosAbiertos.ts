@@ -135,7 +135,7 @@ export async function cerrarPestanaSinPerder(paneId: string, tabId: string): Pro
  * Atrás (`-1`) o adelante (`+1`) en el historial de la pestaña activa del
  * panel, con la misma pregunta que al cerrarla si tiene un conflicto: navegar
  * reemplaza la pestaña, y con ella lo escrito (`DEF-177`). Devuelve si navegó.
- * Las flechas de la barra de pestañas y Alt+←/→ pasan por acá y no por
+ * Las flechas de la barra de pestañas y AltGr+←/→ pasan por acá y no por
  * `navegarHistorial` directo.
  */
 export async function navegarHistorialSinPerder(paneId: string, delta: -1 | 1): Promise<boolean> {

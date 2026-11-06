@@ -246,7 +246,7 @@ function WorkspaceShell() {
   // Los comandos de la app y sus atajos (`FUN-XL-04`, Parte 1): el catálogo
   // único que lista la paleta. El despachador dispara los atajos globales
   // —Ctrl+O, Ctrl+P, Ctrl+,, Ctrl+F, Ctrl+\, Ctrl+Tab, Ctrl+W, Ctrl+Shift+T,
-  // Alt+←/→— desde el registro (HU-25 CA4/CA7, HU-29, DEF-040).
+  // AltGr+←/→— desde el registro (HU-25 CA4/CA7, HU-29, DEF-040).
   const navegar = useCallback((url: string) => router.replace(url), [router]);
   useRegistrarComandos(COMANDOS_APP);
   // Las macros (`FUN-XL-04`, Parte 6): los comandos con datos de sus pasos y un

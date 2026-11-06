@@ -14,8 +14,13 @@
  *   escribiendo → el documento seleccionado → la sección seleccionada; de un
  *   elemento de una sección → la sección. **Enter** sobre un documento
  *   seleccionado vuelve a escribir.
+ * - **Alt solo** (el izquierdo, apretado y soltado sin otra tecla ni clic en
+ *   el medio) hace lo mismo que Esc: se le manda un Esc a lo que tiene el
+ *   foco, así primero cierra lo abierto y después sale con la misma regla. En
+ *   la consola y en Excalidraw, donde Esc es de ellos, sale directo al
+ *   documento: Alt solo no les sirve.
  * - **Tab** no recorre controles en el workspace (`tabRecorre`): se navega
- *   con Alt+flechas. Sí en los diálogos, el editor (sangría) y la consola.
+ *   con Ctrl+flechas. Sí en los diálogos, el editor (sangría) y la consola.
  * - La sección con el foco en su contenedor lleva `data-zona-seleccionada`.
  * - En una lista (el árbol, los resultados, una tabla), teclear el comienzo
  *   de un nombre salta a ese elemento (`tecleoDom.ts`).
@@ -24,6 +29,7 @@
  * repintar el workspace por eso sería caro. React no los toca (no los maneja).
  */
 import { useEffect } from "react";
+import { grabandoAtajo } from "@/lib/comandos/grabacion";
 import {
   documentoDe,
   documentoDeMarco,
@@ -34,7 +40,7 @@ import {
   seleccionarSeccion,
   zonaDe,
 } from "./focoDom";
-import { destinoDeEsc, tabRecorre } from "./niveles";
+import { altSoloAlBajar, altSoloAlSoltar, destinoDeEsc, tabRecorre, type TeclaAlt } from "./niveles";
 import { entrarEnNivel, recordarElemento, ubicar } from "./nivelesDom";
 import { pistasVisibles } from "./pistasDom";
 import { atenderTecleo } from "./tecleoDom";
@@ -57,6 +63,14 @@ const SEL_DIALOGO = "[aria-modal='true'], [role='dialog'], [role='alertdialog'],
 /** Los componentes que usan Tab para otra cosa: la sangría del editor, la shell, Excalidraw. */
 const SEL_CON_TAB = ".cm-editor, .xterm, .excalidraw";
 
+const teclaAlt = (e: KeyboardEvent): TeclaAlt => ({
+  code: e.code,
+  ctrlKey: e.ctrlKey,
+  shiftKey: e.shiftKey,
+  metaKey: e.metaKey,
+  altGr: e.getModifierState("AltGraph"),
+});
+
 function foto(): FotoEsc {
   const foco = document.activeElement;
   const valor =
@@ -69,6 +83,8 @@ export function useTecladoZonas() {
     const raiz = document.documentElement;
     let zonaMarcada: HTMLElement | null = null;
     let docMarcado: HTMLElement | null = null;
+    /** Alt solo sigue siendo posible: el Alt izquierdo está apretado y nada más pasó. */
+    let altSolo = false;
 
     function marcar() {
       const foco = document.activeElement as HTMLElement | null;
@@ -132,6 +148,7 @@ export function useTecladoZonas() {
 
     function alPulsar(e: KeyboardEvent) {
       if (!raiz.hasAttribute("data-teclado")) raiz.setAttribute("data-teclado", "");
+      altSolo = altSoloAlBajar(teclaAlt(e));
       if (e.key !== "Escape" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
       // Con las pistas a la vista (F10), Esc solo las cierra.
       if (pistasVisibles()) return;
@@ -167,7 +184,7 @@ export function useTecladoZonas() {
 
     /**
      * Tab en el workspace no recorre controles (rediseño por niveles,
-     * 2026-11-06): se navega con Alt+flechas. Se mira en burbuja, después de
+     * 2026-11-06): se navega con Ctrl+flechas. Se mira en burbuja, después de
      * que el editor (sangría), la consola, la captura rápida y los demás
      * atiendan la tecla; mover el foco es la acción por defecto de Tab, así
      * que basta con `preventDefault`.
@@ -201,11 +218,57 @@ export function useTecladoZonas() {
       if (entrarEnNivel()) e.preventDefault();
     }
 
-    const alApuntar = () => raiz.removeAttribute("data-teclado");
+    /**
+     * **Alt solo** sale un nivel, como Esc (segunda vuelta tras probar los
+     * niveles, 2026-11-06). Se arma con el `keydown` del Alt izquierdo sin otros
+     * modificadores (`alPulsar`, en captura: llega aunque la consola se quede
+     * con la tecla) y lo desarma cualquier otra tecla, un clic o perder la
+     * ventana. Al soltarlo armado, `preventDefault`: que WebView2 no haga nada
+     * con el Alt suelto (en Windows, entrar al menú de la ventana).
+     */
+    function alSoltar(e: KeyboardEvent) {
+      if (e.code !== "AltLeft") return;
+      const fue = altSoloAlSoltar(altSolo, teclaAlt(e));
+      altSolo = false;
+      if (!fue) return;
+      e.preventDefault();
+      salirConAlt();
+    }
+
+    function salirConAlt() {
+      // Grabando un atajo en Configuración, Alt es parte de lo que se graba.
+      if (grabandoAtajo()) return;
+      const foco = document.activeElement as HTMLElement | null;
+      if (!foco || foco === document.body || foco instanceof HTMLIFrameElement) return;
+      if (foco.closest(SEL_ESC_PROPIO)) {
+        // La consola y Excalidraw: Esc es de ellos (vim, deseleccionar) y no se
+        // les manda; Alt solo no les sirve para nada, así que sale directo.
+        if (hayModalAbierto()) return;
+        const doc = documentoDe(foco);
+        if (doc) seleccionarDocumento(doc);
+        return;
+      }
+      // El mismo camino que Esc: quien tenga algo abierto lo cierra (y
+      // `alPulsar` no sale); si no, `alPulsar` sale un nivel.
+      foco.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }),
+      );
+    }
+
+    const desarmarAlt = () => {
+      altSolo = false;
+    };
+    const alApuntar = () => {
+      altSolo = false;
+      raiz.removeAttribute("data-teclado");
+    };
 
     document.addEventListener("focusin", alCambiarFoco);
     document.addEventListener("focusout", alCambiarFoco);
     window.addEventListener("keydown", alPulsar, true);
+    window.addEventListener("keyup", alSoltar, true);
+    window.addEventListener("blur", desarmarAlt);
+    window.addEventListener("wheel", desarmarAlt, { capture: true, passive: true });
     window.addEventListener("keydown", alPulsarEnBurbuja);
     window.addEventListener("keydown", alPulsarTab);
     window.addEventListener("keydown", atenderTecleo);
@@ -214,6 +277,9 @@ export function useTecladoZonas() {
       document.removeEventListener("focusin", alCambiarFoco);
       document.removeEventListener("focusout", alCambiarFoco);
       window.removeEventListener("keydown", alPulsar, true);
+      window.removeEventListener("keyup", alSoltar, true);
+      window.removeEventListener("blur", desarmarAlt);
+      window.removeEventListener("wheel", desarmarAlt, { capture: true });
       window.removeEventListener("keydown", alPulsarEnBurbuja);
       window.removeEventListener("keydown", alPulsarTab);
       window.removeEventListener("keydown", atenderTecleo);

@@ -458,7 +458,7 @@ test("los comandos que cambiaron de atajo conservan su id: las macros que los us
   assert.deepEqual(mac.invocacionDePaso(macro.pasos[0]), { comando: "historial.atras", args: undefined });
 });
 
-test("moverse y entrar (Alt+flechas, Ctrl+Enter) no se graban en una macro", () => {
+test("moverse y entrar (Ctrl+flechas, Enter) no se graban en una macro", () => {
   for (const id of ["nivel.izquierda", "nivel.derecha", "nivel.arriba", "nivel.abajo", "nivel.entrar"]) {
     assert.equal(COMANDOS_APP.find((x) => x.id === id)?.noSeGraba, true, id);
   }

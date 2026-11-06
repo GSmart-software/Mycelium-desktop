@@ -47,7 +47,13 @@ import { EVENTO_RECARGA } from "@/lib/eventos";
 import { htmlDeTarjeta } from "@/lib/canvasRender";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { notaDeRuta, rutaDeNota } from "@/lib/rutasNotas";
-import { desplazamientoParaVer, direccionDeTecla, vecinoEnDireccion } from "@/lib/teclado/navegacion";
+import {
+  desplazamientoParaVer,
+  direccionDeTecla,
+  pasoDeTarjeta,
+  teclaDeTarjeta,
+  vecinoEnDireccion,
+} from "@/lib/teclado/navegacion";
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -625,11 +631,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
       ?.focus({ preventScroll: true });
 
   /**
-   * Las teclas con el foco en una tarjeta: las flechas —y Alt+flechas, la
+   * Las teclas con el foco en una tarjeta: las flechas —y Ctrl+flechas, la
    * regla de los niveles— pasan a la tarjeta más cercana en esa dirección (por
-   * su centro); Ctrl+flechas la mueven (mover es una acción: de a 10, con
-   * Shift de a 50; cada pulsación es un paso de deshacer; hasta el rediseño
-   * del 2026-11-06 era Alt+flechas). Enter edita el texto o abre la nota. Supr
+   * su centro); Ctrl+Shift+flechas la mueven (`pasoDeTarjeta`: de a 10; cada
+   * pulsación es un paso de deshacer, y mantenerla apretada repite). Hasta la
+   * segunda vuelta del 2026-11-06 mover era Ctrl+flechas (y antes, Alt). Con
+   * Alt no hace nada: Alt solo sale. Enter edita el texto o abre la nota. Supr
    * la borra (el manejador de arriba) y Esc deja el lienzo seleccionado.
    */
   const alTeclaEnTarjeta = (n: Nodo, e: React.KeyboardEvent<HTMLDivElement>, notaDestino: string | null) => {
@@ -646,12 +653,11 @@ export function CanvasView({ notaId }: { notaId: string }) {
       return;
     }
     const dir = direccionDeTecla(e.key);
-    if (dir === null || (e.ctrlKey && e.altKey)) return;
+    const accion = teclaDeTarjeta(e);
+    if (dir === null || accion === null) return;
     e.preventDefault();
-    if (e.ctrlKey) {
-      const paso = e.shiftKey ? 50 : 10;
-      const dx = dir === "derecha" ? paso : dir === "izquierda" ? -paso : 0;
-      const dy = dir === "abajo" ? paso : dir === "arriba" ? -paso : 0;
+    if (accion === "mover") {
+      const { dx, dy } = pasoDeTarjeta(dir);
       const movido = { ...n, x: n.x + dx, y: n.y + dy };
       cambiar((c) => ({ ...c, nodos: c.nodos.map((x) => (x.id === n.id ? movido : x)) }));
       asegurarVisible(movido);

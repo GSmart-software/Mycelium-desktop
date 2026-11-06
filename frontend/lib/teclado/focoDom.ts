@@ -197,7 +197,7 @@ export function seleccionarSeccion(zona: HTMLElement) {
 
 /**
  * F6 / Shift+F6 llegan a una zona: queda **seleccionada**, como con
- * Alt+flechas en el nivel de secciones; Enter entra.
+ * Ctrl+flechas en el nivel de secciones; Enter entra.
  */
 export const enfocarZona = seleccionarSeccion;
 

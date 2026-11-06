@@ -18,7 +18,7 @@
 //   --sin-pestanas       No recorre las pestañas abiertas con Ctrl+Tab.
 //   --max-capturas <n>   Cuántos huecos se fotografían (por defecto 40).
 //
-// Qué teclas usa: las de la navegación por niveles —Alt+flechas (moverse),
+// Qué teclas usa: las de la navegación por niveles —Ctrl+flechas (moverse),
 // Enter (entrar) y Esc (salir)—, F6 para ir de sección en sección, las
 // flechas solas dentro de las listas, F10 (contar lo que tiene pista) y
 // Ctrl+Tab (para pasar de pestaña). **No usa Tab**: desde el rediseño, Tab no
@@ -29,8 +29,10 @@
 // - **Enter solo sobre una sección elegida o un documento seleccionado**
 //   (entrar, que no modifica nada). Nunca sobre un botón, una fila del árbol
 //   ni una opción: ahí Enter los ejecutaría.
-// - **Alt+flechas nunca en un editor** (sube o baja la línea) ni en una
-//   consola, un `select` o un campo que no sea de texto.
+// - **Ctrl+flechas nunca en un editor** (es suyo: saltar de palabra) ni en una
+//   consola, un `select` o un campo que no sea de texto. En un campo de texto,
+//   Ctrl+←/→ salta de palabra (no mueve el foco) y Ctrl+↑/↓ sale del campo.
+// - **Nunca Ctrl+Shift+flechas**: en un lienzo mueve la tarjeta.
 // - **Las flechas solo donde mueven el foco o la vista**: filas del árbol,
 //   pestañas, días del calendario, filas de una tabla, tarjetas del lienzo, el
 //   grafo, botones de una lista. Nunca en un `select`, un `radio`, un campo
@@ -55,8 +57,8 @@ const SALIDA = resolve(opcion("--salida", "cobertura-teclado"));
 const CDP = opcion("--cdp", "http://localhost:9222");
 const MAX_CAPTURAS = Number(opcion("--max-capturas", "40"));
 const CON_PESTANAS = !args.includes("--sin-pestanas");
-/** Cuántos pasos de Alt+flecha en una dirección, como mucho, en un barrido. */
-const MAX_ALT = 60;
+/** Cuántos pasos de Ctrl+flecha en una dirección, como mucho, en un barrido. */
+const MAX_PASOS = 60;
 /** Cuántas filas baja un barrido, como mucho. */
 const MAX_FILAS = 80;
 const MAX_FLECHAS = 25;
@@ -285,8 +287,8 @@ async function tecla(t) {
 
 /** Tipos de foco donde una flecha no cambia nada del vault. */
 const FLECHAS_SEGURAS = new Set(["otro", "documento"]);
-/** Tipos de foco donde Alt+flechas solo mueve el foco (es la navegación por niveles). */
-const ALT_SEGURO = new Set(["otro", "documento", "seccion", "separador", "input:text", "input:search", "input:checkbox"]);
+/** Tipos de foco donde Ctrl+flechas solo mueve el foco (es la navegación por niveles). */
+const CTRL_SEGURO = new Set(["otro", "documento", "seccion", "separador", "input:text", "input:search", "input:checkbox"]);
 /** Tipos de foco donde no hay que quedarse. */
 const TRAMPAS = new Set(["editor", "consola", "marco", "texto"]);
 
@@ -316,20 +318,20 @@ async function explorarConFlechas() {
 }
 
 /**
- * Alt+`dir` mientras mueva el foco (y sea seguro). Devuelve si se movió al
+ * Ctrl+`dir` mientras mueva el foco (y sea seguro). Devuelve si se movió al
  * menos una vez. En cada elemento nuevo prueba las flechas solas (listas) y,
  * sobre un documento, entra y lo recorre.
  */
 async function avanzar(dir, unaVez = false) {
   let movido = false;
-  for (let i = 0; i < (unaVez ? 1 : MAX_ALT); i++) {
+  for (let i = 0; i < (unaVez ? 1 : MAX_PASOS); i++) {
     const f = await foco();
     if (TRAMPAS.has(f.tipo)) {
       await salirDeTrampa(f);
       return movido;
     }
-    if (!ALT_SEGURO.has(f.tipo) || f.modal) return movido;
-    const g = await tecla(`Alt+${dir}`);
+    if (!CTRL_SEGURO.has(f.tipo) || f.modal) return movido;
+    const g = await tecla(`Control+${dir}`);
     await inventariar();
     if (g.selector === f.selector) return movido;
     movido = true;
@@ -341,7 +343,7 @@ async function avanzar(dir, unaVez = false) {
 /**
  * Barre el nivel actual como se lee una página: arriba a la izquierda, después
  * cada «renglón» hacia la derecha y de vuelta, y un paso hacia abajo, hasta
- * que ya no baja. Solo con Alt+flechas.
+ * que ya no baja. Solo con Ctrl+flechas.
  */
 async function barrer() {
   await avanzar("ArrowUp");
@@ -391,7 +393,7 @@ async function probarDocumento() {
     return;
   }
   // Adentro de un lienzo, una tabla, el calendario o el grafo: las flechas,
-  // y Alt+flechas entre lo que haya (botones de la vista, tarjetas).
+  // y Ctrl+flechas entre lo que haya (botones de la vista, tarjetas).
   await explorarConFlechas();
   for (const dir of ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"]) await avanzar(dir);
   await tecla("Escape");
@@ -413,7 +415,7 @@ async function recorrerZonas() {
     if (!(await irAZona(z))) continue;
     await recorrerZona();
   }
-  // Y las secciones con Alt+flechas, desde la última elegida.
+  // Y las secciones con Ctrl+flechas, desde la última elegida.
   await irAZona(0);
   for (const dir of ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"]) await avanzar(dir);
 }

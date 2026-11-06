@@ -4,11 +4,14 @@
  * niveles anidados de selección. La prueba `scripts/test-teclado-zonas.mjs`;
  * lo que toca el DOM está en `nivelesDom.ts`.
  *
- * **La regla, con tres teclas en todos los niveles**:
- * - **Alt+flechas**: moverse **espacialmente** dentro del nivel actual (hacia
- *   lo que está en esa dirección), sin salir de él.
+ * **La regla, con tres teclas en todos los niveles** (segunda vuelta tras
+ * probarlo, 2026-11-06: «Ctrl para todo»):
+ * - **Ctrl+flechas**: moverse **espacialmente** dentro del nivel actual (hacia
+ *   lo que está en esa dirección), sin salir de él. Hasta esa vuelta era
+ *   Alt+flechas.
  * - **Enter**: entrar a lo elegido (un nivel más adentro).
- * - **Esc**: salir un nivel; si hay algo abierto, primero lo cierra.
+ * - **Alt solo** (el izquierdo, apretado y soltado sin otra tecla) o **Esc**:
+ *   salir un nivel; si hay algo abierto, primero lo cierra.
  *
  * **Los niveles**:
  * 1. **Secciones**: la barra superior, el rail, el panel izquierdo, cada panel
@@ -187,7 +190,7 @@ export type ContextoTab = {
 
 /**
  * ¿Tab sigue recorriendo controles? En el workspace **no**: se navega con
- * Alt+flechas (decisión del usuario, 2026-11-06). Sí en los diálogos
+ * Ctrl+flechas (decisión del usuario, 2026-11-06). Sí en los diálogos
  * (Configuración, la paleta, los menús) y en lo que fuera del workspace no
  * tiene otra forma de recorrerse (un aviso). Los componentes que usan Tab
  * para otra cosa (la sangría del editor, la shell) la atienden antes.
@@ -197,23 +200,86 @@ export function tabRecorre(ctx: ContextoTab): boolean {
   return !ctx.enWorkspace;
 }
 
+// ── Ctrl+flechas ───────────────────────────────────────────────────────────
+
+/** Dónde se pulsó Ctrl+flecha, para decidir si se mueve en el nivel. */
+export type ContextoCtrlFlecha = {
+  /**
+   * Escribiendo en algo que se queda con Ctrl+flechas: el editor de notas
+   * (saltar palabra, y lo que le den sus atajos), la consola, Excalidraw.
+   */
+  escribiendo: boolean;
+  /** En un campo de texto (`input` de texto, `textarea`, `contenteditable`) fuera del editor. */
+  enCampoDeTexto: boolean;
+};
+
+/**
+ * ¿Ctrl+flecha se mueve en el nivel? Mientras se escribe, **no**: Ctrl+flechas
+ * es del editor (y de la consola, de Excalidraw). En un campo de texto,
+ * Ctrl+←/→ sigue siendo del campo (saltar palabra) y Ctrl+↑/↓ **sale** al
+ * elemento vecino (un campo de una línea no los usa). En lo demás, sí.
+ */
+export function ctrlFlechaMueve(ctx: ContextoCtrlFlecha, dir: Direccion): boolean {
+  if (ctx.escribiendo) return false;
+  if (ctx.enCampoDeTexto) return dir === "arriba" || dir === "abajo";
+  return true;
+}
+
+// ── Alt solo ─────────────────────────────────────────────────────────────
+
+/**
+ * Lo que se mira de cada tecla para reconocer **Alt solo**: el Alt izquierdo
+ * apretado y soltado sin ninguna otra tecla (ni un clic) en el medio. Sale un
+ * nivel, como Esc (segunda vuelta, 2026-11-06). El Alt derecho no cuenta: en
+ * los teclados europeos y latinoamericanos es AltGr, que escribe (@, #) y es el
+ * historial (AltGr+←/→).
+ */
+export type TeclaAlt = {
+  code: string;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+  /** `getModifierState("AltGraph")`: en Windows, AltGr llega como Ctrl+Alt. */
+  altGr?: boolean;
+};
+
+/** El estado entre teclas: `true` mientras Alt solo sigue siendo posible. */
+export type EstadoAltSolo = boolean;
+
+/**
+ * Un `keydown`: arma Alt solo si es el Alt izquierdo sin otros modificadores;
+ * cualquier otra tecla lo desarma. La repetición de Alt (mantenerlo apretado)
+ * lo deja armado.
+ */
+export function altSoloAlBajar(e: TeclaAlt): EstadoAltSolo {
+  return e.code === "AltLeft" && !e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altGr;
+}
+
+/**
+ * Un `keyup`: ¿fue Alt solo? Solo si se suelta el Alt izquierdo con Alt solo
+ * armado y sin otros modificadores apretados.
+ */
+export function altSoloAlSoltar(estado: EstadoAltSolo, e: TeclaAlt): boolean {
+  return estado && e.code === "AltLeft" && !e.ctrlKey && !e.shiftKey && !e.metaKey && !e.altGr;
+}
+
 // ── las flechas dentro de un componente ─────────────────────────────────
 
 /**
  * ¿Un componente con flechas propias (el grafo, las tarjetas de un lienzo, la
  * grilla del calendario, las filas de una tabla) atiende esta tecla como una
- * flecha? Las flechas solas siempre; con **Alt**, solo si el componente está
- * dentro de un documento (`dentroDeDocumento`): ahí Alt+flechas también navega,
- * para que la regla sea la misma en todos los niveles. En una sección (el
- * mini-grafo del panel de enlaces), Alt+flechas es de la sección: pasa al
- * elemento vecino.
+ * flecha? Las flechas solas siempre; con **Ctrl** (Cmd en macOS), solo si el
+ * componente está dentro de un documento (`dentroDeDocumento`): ahí
+ * Ctrl+flechas también navega, para que la regla sea la misma en todos los
+ * niveles. En una sección (el mini-grafo del panel de enlaces), Ctrl+flechas es
+ * de la sección: pasa al elemento vecino. Con Alt, nunca (Alt solo sale).
  */
 export function flechaDelComponente(
   e: { ctrlKey: boolean; altKey: boolean; metaKey: boolean },
   dentroDeDocumento: boolean,
 ): boolean {
-  if (e.ctrlKey || e.metaKey) return false;
-  return !e.altKey || dentroDeDocumento;
+  if (e.altKey) return false;
+  return !(e.ctrlKey || e.metaKey) || dentroDeDocumento;
 }
 
 /**

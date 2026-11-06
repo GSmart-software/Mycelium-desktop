@@ -437,7 +437,7 @@ const ROLES_DE_LISTA: ReadonlySet<string> = new Set(["treeitem", "tab", "option"
  * pestañas, resultados, filas, días, tarjetas, nodos y las entradas de las
  * listas de los paneles **no llevan pista** desde el rediseño (pregunta del
  * usuario: «¿realmente es necesario mostrar una etiqueta para todo?»): a esos
- * se llega con Alt+flechas, y en una lista larga se salta tecleando el
+ * se llega con Ctrl+flechas, y en una lista larga se salta tecleando el
  * comienzo del nombre (`tecleo.ts`).
  */
 export function esElementoDeLista(d: DescriptorLista): boolean {

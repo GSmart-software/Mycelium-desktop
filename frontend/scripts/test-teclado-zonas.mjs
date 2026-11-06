@@ -197,6 +197,9 @@ test("la consola se queda con lo de la shell: Ctrl+W, Ctrl+Shift+T, Ctrl+C, Ctrl
     tecla("Tab"),
     tecla("KeyP"),
     tecla("ArrowLeft", { altKey: true }),
+    // Ctrl+flechas (moverse en el nivel) son de la shell: saltar de palabra.
+    tecla("ArrowLeft", { ctrlKey: true }),
+    tecla("ArrowUp", { ctrlKey: true }),
     tecla("ArrowUp", { ctrlKey: true, altKey: true }),
   ]) {
     assert.equal(consola.teclaSaleDeLaConsola(e), false, JSON.stringify(e));
@@ -235,10 +238,13 @@ test("los comandos de zonas y paneles existen, con su atajo", () => {
   const atajo = (id) => at.textoAtajo(COMANDOS_APP.find((c) => c.id === id).atajos[0]);
   assert.equal(atajo("zona.siguiente"), "F6");
   assert.equal(atajo("zona.anterior"), "Shift+F6");
-  assert.equal(atajo("nivel.izquierda"), "Alt+←");
-  assert.equal(atajo("nivel.abajo"), "Alt+↓");
+  assert.equal(atajo("nivel.izquierda"), "Ctrl+←");
+  assert.equal(atajo("nivel.abajo"), "Ctrl+↓");
   assert.equal(atajo("nivel.entrar"), "Enter");
-  assert.equal(atajo("nivel.salir"), "Esc");
+  // Salir: Alt solo o Esc (los dos para la hoja).
+  const salir = COMANDOS_APP.find((c) => c.id === "nivel.salir");
+  assert.deepEqual(salir.atajos.map((a) => at.textoAtajo(a)), ["Alt", "Esc"]);
+  assert.equal(salir.manejadorPropio, true);
   assert.equal(atajo("zona.rail"), "Ctrl+Num 1");
   assert.equal(atajo("zona.estado"), "Ctrl+Num 5");
   // Los paneles contiguos quedan sin atajo (chocaban con AltGr), en la paleta.
@@ -264,11 +270,11 @@ test("ningún atajo nuevo es una tecla reservada ni una letra o un dígito sin C
   }
 });
 
-test("F6 y Shift+F6 se atienden en captura; Alt+flechas, en burbuja", () => {
+test("F6 y Shift+F6 se atienden en captura; Ctrl+flechas, en burbuja", () => {
   assert.equal(reg.comandoParaTecla(tecla("F6"), COMANDOS_APP, false, "captura")?.id, "zona.siguiente");
   assert.equal(reg.comandoParaTecla(tecla("F6", { shiftKey: true }), COMANDOS_APP, false, "captura")?.id, "zona.anterior");
   assert.equal(reg.comandoParaTecla(tecla("F6"), COMANDOS_APP, false, "burbuja"), null);
-  const izq = tecla("ArrowLeft", { altKey: true });
+  const izq = tecla("ArrowLeft", { ctrlKey: true });
   assert.equal(reg.comandoParaTecla(izq, COMANDOS_APP, false)?.id, "nivel.izquierda");
   assert.equal(reg.comandoParaTecla(izq, COMANDOS_APP, false, "captura"), null);
   // En captura no se cuela ningún atajo de burbuja.
@@ -296,7 +302,7 @@ test("Esc sale un nivel: escribiendo → documento → sección; en las seccione
   assert.equal(niv.destinoDeEsc("fuera"), null);
 });
 
-test("Ctrl+Enter entra un nivel según dónde esté el foco", () => {
+test("Enter entra un nivel según dónde esté el foco", () => {
   assert.equal(niv.entradaDe("seccion", false), "a-la-seccion");
   assert.equal(niv.entradaDe("documento", false), "al-documento");
   assert.equal(niv.entradaDe("elemento", true), "pestana");
@@ -313,12 +319,99 @@ test("Tab no recorre el workspace; sí los diálogos y lo que usa Tab", () => {
   assert.equal(niv.tabRecorre({ enDialogo: false, enComponenteConTab: false, enWorkspace: false }), true);
 });
 
-test("las flechas de un componente: Alt cuenta solo dentro de un documento; Ctrl nunca", () => {
+test("las flechas de un componente: Ctrl cuenta solo dentro de un documento; Alt nunca", () => {
   const e = (m = {}) => ({ ctrlKey: false, altKey: false, metaKey: false, ...m });
   assert.equal(niv.flechaDelComponente(e(), false), true);
-  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), true);
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), true);
+  assert.equal(niv.flechaDelComponente(e({ metaKey: true }), true), true);
+  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), false), false);
+  assert.equal(niv.flechaDelComponente(e({ altKey: true }), true), false);
   assert.equal(niv.flechaDelComponente(e({ altKey: true }), false), false);
-  assert.equal(niv.flechaDelComponente(e({ ctrlKey: true }), true), false);
+});
+
+// ── las teclas de la segunda vuelta (2026-11-06): Ctrl+flechas y Alt solo ──
+
+test("Ctrl+flechas se mueve en el nivel; Alt+flechas ya no", () => {
+  for (const [code, id] of [
+    ["ArrowLeft", "nivel.izquierda"],
+    ["ArrowRight", "nivel.derecha"],
+    ["ArrowUp", "nivel.arriba"],
+    ["ArrowDown", "nivel.abajo"],
+  ]) {
+    assert.equal(reg.comandoParaTecla(tecla(code, { ctrlKey: true }), COMANDOS_APP, false)?.id, id);
+    assert.equal(reg.comandoParaTecla(tecla(code, { altKey: true }), COMANDOS_APP, false), null, "Alt+" + code);
+    // Ctrl+Shift+flechas (seleccionar de a palabra, mover una tarjeta) no es moverse.
+    assert.equal(reg.comandoParaTecla(tecla(code, { ctrlKey: true, shiftKey: true }), COMANDOS_APP, false), null);
+  }
+  // Ningún otro comando de la app usa Ctrl+flechas.
+  for (const c of COMANDOS_APP) {
+    if (c.id.startsWith("nivel.")) continue;
+    for (const a of c.atajos ?? []) {
+      assert.ok(!(a.ctrl && !a.alt && !a.shift && a.code.startsWith("Arrow")), c.id + ": " + at.textoAtajo(a));
+    }
+  }
+});
+
+test("Ctrl+flechas: escribiendo es del editor; en un campo, ←/→ es del campo y ↑/↓ sale", () => {
+  const ctx = (m = {}) => ({ escribiendo: false, enCampoDeTexto: false, ...m });
+  for (const dir of ["izquierda", "derecha", "arriba", "abajo"]) {
+    assert.equal(niv.ctrlFlechaMueve(ctx(), dir), true, dir);
+    // El editor, la consola, Excalidraw (el `contenteditable` del editor no cuenta como campo).
+    assert.equal(niv.ctrlFlechaMueve(ctx({ escribiendo: true }), dir), false, dir);
+    assert.equal(niv.ctrlFlechaMueve(ctx({ escribiendo: true, enCampoDeTexto: true }), dir), false, dir);
+  }
+  assert.equal(niv.ctrlFlechaMueve(ctx({ enCampoDeTexto: true }), "izquierda"), false);
+  assert.equal(niv.ctrlFlechaMueve(ctx({ enCampoDeTexto: true }), "derecha"), false);
+  assert.equal(niv.ctrlFlechaMueve(ctx({ enCampoDeTexto: true }), "arriba"), true);
+  assert.equal(niv.ctrlFlechaMueve(ctx({ enCampoDeTexto: true }), "abajo"), true);
+});
+
+/** Pasa una secuencia de teclas por la máquina de Alt solo; devuelve si al final salió. */
+function altSolo(pasos) {
+  let estado = false;
+  let salio = false;
+  for (const [tipo, code, mods = {}] of pasos) {
+    const e = { code, ctrlKey: false, shiftKey: false, metaKey: false, altGr: false, ...mods };
+    if (tipo === "baja") estado = niv.altSoloAlBajar(e);
+    else if (code === "AltLeft") {
+      salio = niv.altSoloAlSoltar(estado, e);
+      estado = false;
+    }
+  }
+  return salio;
+}
+
+test("Alt solo sale; Alt con otra tecla en el medio, no; AltGr y el Alt derecho, tampoco", () => {
+  assert.equal(altSolo([["baja", "AltLeft"], ["sube", "AltLeft"]]), true);
+  // Mantenerlo apretado (la repetición) sigue siendo Alt solo.
+  assert.equal(altSolo([["baja", "AltLeft"], ["baja", "AltLeft"], ["sube", "AltLeft"]]), true);
+  // Alt+Tab, Alt+flecha, Alt+F4, Alt+Shift (cambiar el idioma), Alt+código numérico: no.
+  for (const otra of ["Tab", "ArrowLeft", "F4", "ShiftLeft", "KeyD", "Numpad6"]) {
+    assert.equal(altSolo([["baja", "AltLeft"], ["baja", otra], ["sube", "AltLeft"]]), false, otra);
+  }
+  // Ctrl apretado antes (Ctrl+Alt) o Shift al soltar: no.
+  assert.equal(
+    altSolo([["baja", "ControlLeft"], ["baja", "AltLeft", { ctrlKey: true }], ["sube", "AltLeft", { ctrlKey: true }]]),
+    false,
+  );
+  assert.equal(altSolo([["baja", "AltLeft"], ["sube", "AltLeft", { shiftKey: true }]]), false);
+  // AltGr (en Windows: ControlLeft + AltRight, con AltGraph) y el Alt derecho solo: no.
+  assert.equal(
+    altSolo([
+      ["baja", "ControlLeft"],
+      ["baja", "AltRight", { ctrlKey: true, altGr: true }],
+      ["sube", "AltRight", { altGr: true }],
+    ]),
+    false,
+  );
+  assert.equal(altSolo([["baja", "AltRight"], ["sube", "AltRight"]]), false);
+  assert.equal(altSolo([["baja", "AltLeft", { altGr: true }], ["sube", "AltLeft", { altGr: true }]]), false);
+});
+
+test("Alt solo no es un atajo que se pueda grabar ni guardar", () => {
+  assert.equal(at.atajoDeEvento(tecla("AltLeft", { altKey: true })), null);
+  assert.equal(at.atajoValido({ code: "AltLeft" }), null);
+  assert.equal(at.textoAtajo({ code: "AltLeft" }), "Alt");
 });
 
 // La ventana de prueba: barra superior, rail, panel izquierdo, dos paneles
@@ -338,7 +431,7 @@ const lista = (excepto) =>
     .map(([id, c]) => ({ id, caja: c }));
 const ir = (desde, dir) => niv.vecinoPorCajas(SECCIONES[desde], lista(desde), dir)?.id ?? null;
 
-test("Alt+flechas entre secciones: a la más cercana en esa dirección", () => {
+test("Ctrl+flechas entre secciones: a la más cercana en esa dirección", () => {
   assert.equal(ir("rail", "derecha"), "izquierda");
   assert.equal(ir("izquierda", "izquierda"), "rail");
   assert.equal(ir("izquierda", "derecha"), "panelA");
@@ -356,7 +449,7 @@ test("Alt+flechas entre secciones: a la más cercana en esa dirección", () => {
   assert.equal(ir("panelB", "derecha"), null);
 });
 
-test("Alt+flechas dentro de una sección: del primer archivo a los botones de arriba, y de vuelta", () => {
+test("Ctrl+flechas dentro de una sección: del primer archivo a los botones de arriba, y de vuelta", () => {
   // El explorador: una barra con tres botones chicos y filas anchas debajo.
   const botones = [
     { id: "nueva", caja: caja(50, 40, 74, 64) },
@@ -369,9 +462,9 @@ test("Alt+flechas dentro de una sección: del primer archivo a los botones de ar
     const o = todos.find((x) => x.id === id);
     return niv.vecinoPorCajas(o.caja, todos.filter((x) => x !== o), dir)?.id ?? null;
   };
-  // Alt+↑ desde la primera fila sube a un botón (no se queda en la fila).
+  // Ctrl+↑ desde la primera fila sube a un botón (no se queda en la fila).
   assert.ok(botones.some((b) => b.id === desde("fila0", "arriba")));
-  // Desde cualquier botón, Alt+↓ va a la PRIMERA fila, no a una más abajo
+  // Desde cualquier botón, Ctrl+↓ va a la PRIMERA fila, no a una más abajo
   // (con centros, desde el botón de la derecha se iba a la quinta).
   for (const b of botones) assert.equal(desde(b.id, "abajo"), "fila0", b.id);
   assert.equal(desde("fila2", "abajo"), "fila3");

@@ -214,3 +214,36 @@ export function valorDeSeparador(s: Separador, key: string, shift = false): numb
   if (s.invertido) signo = -signo;
   return limitar(s.valor + signo * (shift ? s.pasoGrande : s.paso));
 }
+
+// ── las tarjetas de un lienzo ───────────────────────────────────────────
+
+/**
+ * Qué hace una flecha con el foco en una tarjeta de un lienzo (segunda vuelta
+ * de los niveles, 2026-11-06: «Ctrl para todo»):
+ * - sola o con **Ctrl**: **pasar** a la tarjeta vecina (Ctrl+flechas es
+ *   moverse en el nivel, y adentro del lienzo el nivel son las tarjetas);
+ * - con **Ctrl+Shift**: **mover** la tarjeta (mover es una acción);
+ * - con **Alt**: nada (Alt solo sale un nivel; Ctrl+Alt+flechas es de Windows).
+ */
+export function teclaDeTarjeta(e: { ctrlKey: boolean; shiftKey: boolean; altKey: boolean }): "pasar" | "mover" | null {
+  if (e.altKey) return null;
+  if (e.ctrlKey && e.shiftKey) return "mover";
+  return "pasar";
+}
+
+/** Lo que se mueve una tarjeta con Ctrl+Shift+flecha, en unidades del lienzo. */
+export const PASO_DE_TARJETA = 10;
+
+/**
+ * El desplazamiento de una tarjeta con Ctrl+Shift+flecha. Un solo paso, de a
+ * 10: hasta la segunda vuelta había uno grande (de a 50, con Shift) pero Shift
+ * ya es parte de mover, y sumarle Alt chocaría con «Alt solo sale». Para ir
+ * lejos, mantener la tecla apretada (la repetición mueve de a 10).
+ */
+export function pasoDeTarjeta(dir: Direccion): { dx: number; dy: number } {
+  const p = PASO_DE_TARJETA;
+  return {
+    dx: dir === "derecha" ? p : dir === "izquierda" ? -p : 0,
+    dy: dir === "abajo" ? p : dir === "arriba" ? -p : 0,
+  };
+}

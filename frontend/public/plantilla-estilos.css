@@ -1019,9 +1019,9 @@
 
 
 /* ============================================================================
-   20) LAS SECCIONES Y LOS NIVELES DEL TECLADO   (Alt+flechas, Ctrl+Enter, Esc)
+   20) LAS SECCIONES Y LOS NIVELES DEL TECLADO   (Ctrl+flechas, Enter, Alt o Esc)
    ----------------------------------------------------------------------------
-   Alt+flechas recorre las secciones de la ventana (y F6, en orden). Cada
+   Ctrl+flechas recorre las secciones de la ventana (y F6, en orden). Cada
    sección lleva data-zona con su nombre:
      data-zona='superior'    la barra superior
      data-zona='rail'        el rail de íconos
