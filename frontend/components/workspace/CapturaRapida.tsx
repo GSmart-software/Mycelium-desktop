@@ -1,20 +1,13 @@
 "use client";
 
-import { Inbox, Plus, UserRound } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
-import {
-  destinoInicial,
-  esCapturaDeTarea,
-  interpretarCaptura,
-  otroDestino,
-  recordarDestino,
-  textoAvisoCaptura,
-  type DestinoCaptura,
-} from "@/lib/bandeja";
+import { useEffect } from "react";
+import { CajaCaptura } from "@/components/captura/CajaCaptura";
+import { interpretarCaptura, textoAvisoCaptura } from "@/lib/bandeja";
 import { anotarEnBandejaPersonal } from "@/lib/bandejaPersonal";
 import { anotarEnBandeja } from "@/lib/bandejaVault";
 import { mensajeDeError } from "@/lib/mensajeError";
 import { nombreDeVault } from "@/lib/vaultMode";
+import { enTauri } from "@/lib/ventana";
 import { avisar } from "@/stores/avisosStore";
 import { grabandoAtajo } from "@/lib/comandos/grabacion";
 import { useUiStore } from "@/stores/uiStore";
@@ -30,6 +23,31 @@ export function esAtajoCaptura(e: KeyboardEvent): boolean {
   return (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.code === "Space" || e.key === " ");
 }
 
+/** Un segundo alternado antes de esto se descarta (ver `alternarCaptura`). */
+const ANTIREBOTE_MS = 250;
+let ultimoAlternado = -Infinity;
+
+/**
+ * Abre o cierra la cajita. Llega por dos caminos: la tecla en la página y, con
+ * la captura global registrada (`FUN-L-33`, Parte C), el evento de Rust
+ * `captura-rapida-alternar` cuando esta ventana tiene el foco. Un atajo global
+ * de Windows se consume —la página no ve la tecla—, así que no llegan los dos;
+ * por las dudas, un segundo alternado en menos de `ANTIREBOTE_MS` no cuenta
+ * (abriría y cerraría la cajita en el mismo instante).
+ */
+function alternarCaptura(): void {
+  const ahora = performance.now();
+  if (ahora - ultimoAlternado < ANTIREBOTE_MS) return;
+  ultimoAlternado = ahora;
+  const ui = useUiStore.getState();
+  ui.setCaptura(!ui.capturaAbierta);
+}
+
+/** El pedido de la ventana flotante: anotar este texto en la Bandeja de este vault. */
+type PedidoAnotar = { id: string; texto: string };
+
+type Invocar = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+
 /**
  * La captura rápida (`FUN-L-33`): una cajita que flota arriba, sobre lo que
  * esté abierto, para anotar algo sin decidir dónde va. Enter lo agrega al
@@ -40,77 +58,87 @@ export function esAtajoCaptura(e: KeyboardEvent): boolean {
  * El pie tiene el **destino** (Parte B): la Bandeja del vault abierto o la
  * Bandeja personal, la misma desde todos los vaults. **Tab** lo alterna sin
  * salir del campo, y también un clic; se recuerda el último elegido (a nivel de
- * usuario), salvo que en Configuración → Vault se haya fijado uno.
+ * usuario), salvo que en Configuración → Vault se haya fijado uno. La cajita
+ * en sí es `CajaCaptura`.
+ *
+ * Con Mycelium en segundo plano, el atajo lo atiende Rust y abre la cajita en
+ * su propia ventana flotante (Parte C, `src-tauri/src/captura_global.rs` y
+ * `components/captura/CapturaFlotante.tsx`). Si el destino es el vault de esta
+ * ventana, la flotante le pide a ESTA que anote (`captura-anotar`): se atiende
+ * acá, con el mismo `anotarEnBandeja` de la cajita, así que el contador y la
+ * pestaña abierta de la Bandeja se enteran como siempre.
  */
 export function CapturaRapida() {
   const abierta = useUiStore((s) => s.capturaAbierta);
   // El atajo se escucha siempre, en captura: así llega antes que CodeMirror,
-  // la consola o un lienzo, que podrían quedarse con la tecla.
+  // la consola o un lienzo, que podrían quedarse con la tecla. Con la captura
+  // global registrada no llega (Windows la consume) y alterna Rust.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!esAtajoCaptura(e) || grabandoAtajo()) return;
       e.preventDefault();
       e.stopPropagation();
-      const ui = useUiStore.getState();
-      ui.setCaptura(!ui.capturaAbierta);
+      alternarCaptura();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, []);
-  return abierta ? <Cajita /> : null;
-}
 
-function Cajita() {
-  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
-  const [texto, setTexto] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [anotando, setAnotando] = useState(false);
-  const [destino, setDestinoEstado] = useState<DestinoCaptura>(() =>
-    destinoInicial(typeof window === "undefined" ? null : window.localStorage),
-  );
-  const campoRef = useRef<HTMLInputElement>(null);
-  const idAyuda = useId();
-  const tarea = esCapturaDeTarea(texto);
-
-  // Al cerrarse, el foco vuelve adonde estaba (el editor, la consola…): la
-  // captura no tiene que sacar al usuario de lo que hacía.
+  // La captura global: alternar desde Rust, anotar lo que manda la flotante, y
+  // el aviso si el atajo no se pudo registrar (una sola vez, en la primera
+  // ventana que lo pide).
   useEffect(() => {
-    const previo = document.activeElement as HTMLElement | null;
-    campoRef.current?.focus();
+    if (!enTauri()) return;
+    let vivo = true;
+    const soltar: (() => void)[] = [];
+    void (async () => {
+      const [{ getCurrentWebviewWindow }, { invoke }] = await Promise.all([
+        import("@tauri-apps/api/webviewWindow"),
+        import("@tauri-apps/api/core"),
+      ]);
+      // Solo los dirigidos a ESTA ventana: el `listen` global recibe también
+      // los de las otras, y cada vault anotaría o abriría su cajita (`DEF-158`).
+      const ventana = getCurrentWebviewWindow();
+      const listen = ventana.listen.bind(ventana);
+      const escuchas = await Promise.all([
+        listen("captura-rapida-alternar", () => alternarCaptura()),
+        listen<PedidoAnotar>("captura-anotar", ({ payload }) => void atenderPedido(payload, invoke)),
+      ]);
+      if (!vivo) {
+        escuchas.forEach((f) => f());
+        return;
+      }
+      soltar.push(...escuchas);
+      const aviso = await invoke<string | null>("captura_global_aviso").catch(() => null);
+      if (vivo && aviso) avisar(aviso, undefined, { duracionMs: 15000 });
+    })();
     return () => {
-      if (previo && previo.isConnected && previo !== document.body) previo.focus();
+      vivo = false;
+      soltar.forEach((f) => f());
     };
   }, []);
 
-  const cerrar = () => useUiStore.getState().setCaptura(false);
+  return abierta ? <Cajita /> : null;
+}
 
-  /** Elige el destino y lo recuerda; el foco sigue en el campo. */
-  const elegirDestino = (d: DestinoCaptura) => {
-    setDestinoEstado(d);
-    recordarDestino(window.localStorage, d);
-    setError(null);
-    campoRef.current?.focus();
-  };
-
-  const anotar = async () => {
-    if (anotando) return;
+/** Anota lo que mandó la flotante en la Bandeja de este vault y le contesta a Rust. */
+async function atenderPedido({ id, texto }: PedidoAnotar, invoke: Invocar): Promise<void> {
+  let error: string | null = null;
+  try {
+    // Se vuelve a interpretar acá: lo que llega es texto, no una captura armada.
     const captura = interpretarCaptura(texto);
-    if (captura === null) return;
-    setAnotando(true);
-    setError(null);
-    try {
-      if (destino === "personal") await anotarEnBandejaPersonal(captura);
-      else await anotarEnBandeja(captura);
-      cerrar();
-      avisar(textoAvisoCaptura(captura, destino));
-    } catch (e) {
-      // Lo escrito se queda en la cajita: un fallo no se lleva la nota.
-      setError(`No se pudo anotar: ${mensajeDeError(e)}`);
-      setAnotando(false);
-      campoRef.current?.focus();
-    }
-  };
+    if (captura === null) throw new Error("No hay nada que anotar.");
+    await anotarEnBandeja(captura);
+  } catch (e) {
+    error = mensajeDeError(e);
+  }
+  await invoke("captura_anotada", { id, error }).catch(() => undefined);
+}
 
+/** La cajita adentro de la app: sobre un velo, con el vault de esta ventana. */
+function Cajita() {
+  const rutaVault = useVaultSessionStore((s) => s.rutaActual);
+  const cerrar = () => useUiStore.getState().setCaptura(false);
   return (
     <div
       className={`${styles.velo} mic-captura-velo`}
@@ -118,104 +146,16 @@ function Cajita() {
         if (e.target === e.currentTarget) cerrar();
       }}
     >
-      <form
-        className={`${styles.captura} mic-captura`}
-        role="dialog"
-        aria-label="Captura rápida"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void anotar();
+      <CajaCaptura
+        nombreVault={rutaVault ? nombreDeVault(rutaVault) : ""}
+        cerrar={cerrar}
+        anotar={async (captura, destino) => {
+          if (destino === "personal") await anotarEnBandejaPersonal(captura);
+          else await anotarEnBandeja(captura);
+          cerrar();
+          avisar(textoAvisoCaptura(captura, destino));
         }}
-      >
-        <div className={styles.fila}>
-          <Plus size={18} className={styles.icono} aria-hidden />
-          <input
-            ref={campoRef}
-            className={styles.campo}
-            value={texto}
-            disabled={anotando}
-            autoComplete="off"
-            spellCheck
-            placeholder="Anotar algo… ([] al principio para una tarea)"
-            aria-label={`Qué anotar (en la Bandeja ${destino === "personal" ? "personal" : "del vault"})`}
-            aria-describedby={idAyuda}
-            onChange={(e) => {
-              setTexto(e.target.value);
-              setError(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                // Que no lo vea nadie más: cerraría también otra cosa.
-                e.preventDefault();
-                e.stopPropagation();
-                cerrar();
-              } else if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                // Tab (y Mayús+Tab) cambia el destino sin salir de la cajita:
-                // hay solo dos, así que las dos direcciones alternan.
-                e.preventDefault();
-                e.stopPropagation();
-                elegirDestino(otroDestino(destino));
-              } else if (e.key === "Enter" && e.nativeEvent.isComposing) {
-                e.preventDefault();
-              }
-            }}
-          />
-          <span className={`${styles.tipo} mic-captura-tipo`} data-tipo={tarea ? "tarea" : "nota"}>
-            {tarea ? "tarea" : "nota"}
-          </span>
-        </div>
-        {error && (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        )}
-        <div className={styles.pie} id={idAyuda}>
-          <span>
-            <kbd>Enter</kbd> anotar
-          </span>
-          <span>
-            <kbd>Esc</kbd> cerrar
-          </span>
-          <span>
-            <kbd>Tab</kbd> destino
-          </span>
-          {/* El destino: dos botones con el elegido marcado. Fuera del orden de
-              Tab (`tabIndex={-1}`): Tab en el campo ya alterna, y salir de la
-              cajita con Tab la dejaría abierta sin foco. */}
-          <span
-            className={`${styles.destinos} mic-captura-destinos`}
-            role="group"
-            aria-label="Destino de la captura"
-          >
-            <button
-              type="button"
-              tabIndex={-1}
-              className={`${styles.destino} mic-captura-destino`}
-              data-destino="vault"
-              aria-pressed={destino === "vault"}
-              title="Se anota al final de la Bandeja de este vault"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => elegirDestino("vault")}
-            >
-              <Inbox size={14} aria-hidden />
-              Vault · {rutaVault ? nombreDeVault(rutaVault) : ""}
-            </button>
-            <button
-              type="button"
-              tabIndex={-1}
-              className={`${styles.destino} mic-captura-destino`}
-              data-destino="personal"
-              aria-pressed={destino === "personal"}
-              title="Se anota en tu Bandeja personal: la misma desde todos los vaults, fuera de ellos"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => elegirDestino("personal")}
-            >
-              <UserRound size={14} aria-hidden />
-              Personal
-            </button>
-          </span>
-        </div>
-      </form>
+      />
     </div>
   );
 }

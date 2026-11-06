@@ -49,7 +49,7 @@ lateral (la posición de la `\` en un teclado de EE. UU.) se ve como **Ctrl+Ç**
 | {{atajo:nota.nueva|Ctrl+N}} | Nueva nota en la carpeta seleccionada del explorador (o en la raíz), con el título listo para escribir. |
 | {{atajo:crear.nuevo|Ctrl+Shift+N}} | El menú **Nuevo…**: nota, carpeta, canvas, base, dibujo, diagrama o una nota desde una Espora. |
 | {{atajo:busqueda.vault|Ctrl+Shift+F}} | La búsqueda global, con el cursor en su campo. |
-| **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault o en tu Bandeja personal sin cambiar de pestaña; en la cajita, **Tab** cambia el destino. |
+| **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault o en tu Bandeja personal sin cambiar de pestaña; en la cajita, **Tab** cambia el destino. Funciona también **desde cualquier programa**, con Mycelium minimizado. |
 | {{atajo:configuracion.abrir|Ctrl+,}} | Configuración. |
 | {{atajo:atajos.hoja|Ctrl+Shift+/}} | La hoja de atajos. |
 | {{atajo:pistas.mostrar|F10}} | Las **pistas**: una letra sobre cada cosa que se puede pulsar; escribirla es el clic (más abajo). |

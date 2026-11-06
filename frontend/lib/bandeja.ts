@@ -301,3 +301,22 @@ export const MOTIVO_PERSONAL_FUERA_DEL_VAULT = "La Bandeja personal no es parte 
 export const MOTIVO_PERSONAL_NO_RENOMBRA = "La Bandeja personal no se renombra";
 /** … al intentar mandarla a la papelera. */
 export const MOTIVO_PERSONAL_NO_ELIMINA = "La Bandeja personal no se elimina";
+
+/**
+ * Lo escrito en la cajita que da `captura` al interpretarlo (`interpretarCaptura`):
+ * `[] texto` para una tarea. La captura global (`FUN-L-33`, Parte C) manda el
+ * texto así a la ventana del vault, que lo vuelve a interpretar con la misma
+ * función: la ventana destino no confía en una `Captura` ya armada.
+ */
+export function capturaComoTexto(captura: Captura): string {
+  return captura.tipo === "tarea" ? `[] ${captura.texto}` : captura.texto;
+}
+
+/**
+ * El destino con que abre la cajita flotante: el de siempre (`destinoInicial`),
+ * salvo que no haya ninguna ventana con un vault abierto: entonces la personal,
+ * sin olvidar lo recordado (la próxima vez, con un vault, vuelve a «Vault»).
+ */
+export function destinoDisponible(destino: DestinoCaptura, hayVault: boolean): DestinoCaptura {
+  return hayVault ? destino : "personal";
+}
