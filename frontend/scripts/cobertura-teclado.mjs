@@ -52,6 +52,8 @@ const MAX_CAPTURAS = Number(opcion("--max-capturas", "40"));
 const CON_PESTANAS = !args.includes("--sin-pestanas");
 const MAX_TAB_POR_ZONA = 120;
 const MAX_FLECHAS = 25;
+/** En listas de una sola parada (árbol, pestañas, filas, grillas), hasta el final. */
+const MAX_FLECHAS_LISTA = 300;
 
 // ── conexión ──────────────────────────────────────────────────────────────
 
@@ -76,11 +78,13 @@ async function conectar() {
 /**
  * Instala el registro en la página: un `focusin` que anota cada elemento que
  * tuvo el foco, y el inventario de lo interactivo visible. Todo vive en
- * `window.__cobertura` y se puede volver a instalar sin perder lo anotado.
+ * `window.__cobertura`. Cada corrida lo reinstala desde cero.
  */
 function instalar() {
   const w = window;
-  if (w.__cobertura) return;
+  // Cada corrida empieza de cero: reusar la instalación de una corrida anterior
+  // en la misma página arrastraba lo anotado y las funciones viejas.
+  w.__cobertura?.detener?.();
   const SEL = [
     "a[href]",
     "button",
@@ -112,13 +116,10 @@ function instalar() {
     el.closest?.(".cm-content") ?? el.closest?.(".xterm") ?? el;
   const alcanzados = new Set();
   const inventario = new Map();
-  document.addEventListener(
-    "focusin",
-    (e) => {
-      if (e.target instanceof Element) alcanzados.add(representante(e.target));
-    },
-    true,
-  );
+  const alEnfocar = (e) => {
+    if (e.target instanceof Element) alcanzados.add(representante(e.target));
+  };
+  document.addEventListener("focusin", alEnfocar, true);
   if (document.activeElement && document.activeElement !== document.body) {
     alcanzados.add(representante(document.activeElement));
   }
@@ -130,7 +131,18 @@ function instalar() {
     if (r.width < 2 || r.height < 2) return false;
     if (r.right < 0 || r.bottom < 0 || r.left > innerWidth || r.top > innerHeight) return false;
     const s = getComputedStyle(el);
-    return s.visibility !== "hidden" && s.display !== "none";
+    if (s.visibility === "hidden" || s.display === "none") return false;
+    // Que se vea de verdad, como hacen las pistas: algo de él tiene que estar en
+    // el punto. Sin esto contaban los paneles de las pestañas en segundo plano,
+    // que siguen en el DOM tapados por la visible, y lo recortado por un scroll.
+    const puntos = [[0.5, 0.5], [0.2, 0.5], [0.8, 0.5], [0.5, 0.2], [0.5, 0.8]];
+    return puntos.some(([fx, fy]) => {
+      const x = r.left + r.width * fx;
+      const y = r.top + r.height * fy;
+      if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return false;
+      const e = document.elementFromPoint(x, y);
+      return !!e && (e === el || el.contains(e));
+    });
   };
   const describir = (el) => {
     let s = el.tagName.toLowerCase();
@@ -151,6 +163,13 @@ function instalar() {
 
   w.__cobertura = {
     representante,
+    detener() {
+      document.removeEventListener("focusin", alEnfocar, true);
+    },
+    /** Con las pistas abiertas (F10): lo que tiene una cuenta como alcanzado. */
+    sumarPistas() {
+      for (const el of document.querySelectorAll("[data-con-pista]")) alcanzados.add(representante(el));
+    },
     /** Suma al inventario lo interactivo visible de ahora. */
     inventariar() {
       for (const cand of document.querySelectorAll(SEL)) {
@@ -271,7 +290,8 @@ async function salirDeTrampa(f) {
 async function explorarConFlechas() {
   for (const t of ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"]) {
     let previo = (await foco()).selector;
-    for (let i = 0; i < MAX_FLECHAS; i++) {
+    const enLista = await pagina.evaluate(() => !!document.activeElement?.closest("[role=tree],[role=tablist],[role=listbox],[role=grid],tbody,[role=menu]"));
+    for (let i = 0; i < (enLista ? MAX_FLECHAS_LISTA : MAX_FLECHAS); i++) {
       const f = await foco();
       if (!FLECHAS_SEGURAS.has(f.tipo) || f.modal) return;
       // Un documento seleccionado no reacciona a las flechas; solo su contenido.
@@ -335,8 +355,12 @@ async function probarDocumento() {
 async function recorrerZonas() {
   await tecla("Escape");
   await tecla("Escape");
-  await tecla("F6");
-  const { totalZonas } = await foco();
+  // F6 hasta caer en una zona: si el foco arrancó dentro de un marco (draw.io),
+  // el primer F6 puede dejarlo en `body`, sin zona, y `totalZonas` saldría
+  // vacío, salteando todo el recorrido (visto en la primera corrida).
+  let f0 = await tecla("F6");
+  for (let i = 0; i < 8 && (!f0.zona || f0.zona === "-" || !f0.totalZonas); i++) f0 = await tecla("F6");
+  const { totalZonas } = f0;
   for (let z = 0; z < totalZonas; z++) {
     if (!(await irAZona(z))) continue;
     await inventariar();
@@ -346,6 +370,34 @@ async function recorrerZonas() {
   }
   // Y hacia atrás, por si F6 y Tab dejaron algo de lado.
   for (let i = 0; i < totalZonas; i++) await tecla("Shift+F6");
+}
+
+/**
+ * Una vuelta completa con Tab desde el principio de la ventana: alcanza lo que
+ * queda entre zonas (los divisores) y lo que F6 no visita. Sale de las trampas
+ * igual que el recorrido por zonas.
+ */
+async function vueltaConTab() {
+  await pagina.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
+  const vistos = new Set();
+  for (let i = 0; i < MAX_TAB_POR_ZONA * 4; i++) {
+    const f = await tecla("Tab");
+    if (TRAMPAS.has(f.tipo)) {
+      await salirDeTrampa(f);
+      continue;
+    }
+    if (vistos.has(f.selector)) break;
+    vistos.add(f.selector);
+  }
+  await inventariar();
+}
+
+/** F10: lo que tiene una pista (`data-con-pista`) se alcanza con el teclado. */
+async function contarPistas() {
+  await tecla("F10");
+  await pausa(400);
+  await pagina.evaluate(() => window.__cobertura.sumarPistas());
+  await tecla("Escape");
 }
 
 async function recorrerPestanas() {
@@ -360,6 +412,8 @@ async function recorrerPestanas() {
     await tecla("Control+Tab");
     await pausa(400); // que monte la pestaña
     await inventariar();
+    // Lo de cada pestaña (su panel de enlaces, sus barras) que tiene pista.
+    await contarPistas();
     const f = await foco();
     const z = f.indiceZona;
     await probarDocumento();
@@ -411,7 +465,10 @@ try {
   await pagina.evaluate(instalar);
   await inventariar();
   await recorrerZonas();
+  await contarPistas();
+  await vueltaConTab();
   if (CON_PESTANAS) await recorrerPestanas();
+  await contarPistas();
   await informar();
 } finally {
   // Solo se desconecta: la app sigue abierta.

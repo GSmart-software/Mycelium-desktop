@@ -6,10 +6,11 @@
  * lo que toca el DOM está en `focoDom.ts`.
  *
  * **Las zonas.** La app se parte en zonas, marcadas en el DOM con `data-zona`:
- * el rail, el panel izquierdo (la sección del rail que esté abierta), cada
+ * la barra superior (nombre, vaults, buscador y controles de la ventana; desde
+ * la prueba de cobertura del 2026-11-06, que la encontró fuera de F6), el rail, el panel izquierdo (la sección del rail que esté abierta), cada
  * panel de la pantalla dividida (barra de pestañas + documento), el panel de
  * enlaces de un panel si está abierto y la barra de estado. F6 / Shift+F6 las
- * recorren en el **orden del documento**, que es el visual: el rail, el panel
+ * recorren en el **orden del documento**, que es el visual: la barra superior, el rail, el panel
  * izquierdo, los paneles de izquierda a derecha y de arriba abajo —cada uno
  * seguido de su panel de enlaces— y la barra de estado.
  *
@@ -20,7 +21,7 @@
  */
 
 /** Las zonas, en el orden en que aparecen en la ventana. */
-export const ZONAS = ["rail", "izquierda", "panel", "lateral", "estado"] as const;
+export const ZONAS = ["superior", "rail", "izquierda", "panel", "lateral", "estado"] as const;
 export type Zona = (typeof ZONAS)[number];
 
 /**

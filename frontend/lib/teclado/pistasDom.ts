@@ -518,6 +518,17 @@ export function abrirPistas() {
     capa.remove();
   };
 
+  // Mientras se ven, cada objetivo real lleva `data-con-pista`: lo lee el
+  // recorrido de cobertura (`scripts/cobertura-teclado.mjs`) para contar lo que
+  // se alcanza con F10, y se quita al cerrar.
+  const marcados = objetivos.filter((o) => !o.virtual).map((o) => o.el);
+  for (const el of marcados) el.setAttribute("data-con-pista", "");
+  const limpiarCapa = a.limpiar;
+  a.limpiar = () => {
+    limpiarCapa();
+    for (const el of marcados) el.removeAttribute("data-con-pista");
+  };
+
   abiertas = a;
   dibujar(a);
 }

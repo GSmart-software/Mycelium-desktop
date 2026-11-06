@@ -86,7 +86,7 @@ test("F6 recorre las zonas con vuelta; desde fuera de todas, a la primera o la �
 });
 
 test("las zonas, en el orden de la ventana", () => {
-  assert.deepEqual([...z.ZONAS], ["rail", "izquierda", "panel", "lateral", "estado"]);
+  assert.deepEqual([...z.ZONAS], ["superior", "rail", "izquierda", "panel", "lateral", "estado"]);
 });
 
 // ── Ctrl+Alt+←/→: el panel contiguo ────────────────────────────────────────

@@ -38,7 +38,7 @@ export function AppTopbar() {
   }
 
   return (
-    <header className={styles.topbar} data-tauri-drag-region>
+    <header className={styles.topbar} data-tauri-drag-region data-zona="superior">
       <button
         type="button"
         className={styles.logo}

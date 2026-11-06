@@ -65,7 +65,7 @@ en el grupo **Macros**, y también en Configuración → Atajos de teclado.
 
 ## Moverse sin el mouse
 
-La ventana se divide en **zonas**: el rail, el panel lateral, cada panel del área de
+La ventana se divide en **zonas**: la barra superior, el rail, el panel lateral, cada panel del área de
 trabajo (su barra de pestañas y su documento), el panel de enlaces si está abierto y la
 barra de estado. La zona donde estás lleva un **borde** del color de acento mientras usas
 el teclado.

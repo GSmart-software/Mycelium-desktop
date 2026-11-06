@@ -106,7 +106,7 @@ abre el panel de enlaces), cuántas palabras lleva y cuándo se guardó por últ
 
 ## Con el teclado
 
-**F6** recorre las zonas —el rail, el panel lateral, cada panel del área de trabajo, el
+**F6** recorre las zonas —la barra superior, el rail, el panel lateral, cada panel del área de trabajo, el
 panel de enlaces y la barra de estado— y **Shift+F6** va al revés; la zona donde estás
 lleva un borde del color de acento. Con la vista dividida, **Ctrl+Alt+←** y **Ctrl+Alt+→**
 pasan de un panel a otro, y el panel al que llegas con el teclado queda como el activo.
