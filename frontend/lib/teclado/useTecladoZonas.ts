@@ -17,6 +17,8 @@
  * - **Tab** no recorre controles en el workspace (`tabRecorre`): se navega
  *   con Alt+flechas. Sí en los diálogos, el editor (sangría) y la consola.
  * - La sección con el foco en su contenedor lleva `data-zona-seleccionada`.
+ * - En una lista (el árbol, los resultados, una tabla), teclear el comienzo
+ *   de un nombre salta a ese elemento (`tecleoDom.ts`).
  *
  * Los atributos se ponen a mano, sin estado de React: cambian en cada foco y
  * repintar el workspace por eso sería caro. React no los toca (no los maneja).
@@ -35,6 +37,7 @@ import {
 import { destinoDeEsc, tabRecorre } from "./niveles";
 import { recordarElemento, ubicar } from "./nivelesDom";
 import { pistasVisibles } from "./pistasDom";
+import { atenderTecleo } from "./tecleoDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
 
 /**
@@ -194,6 +197,7 @@ export function useTecladoZonas() {
     window.addEventListener("keydown", alPulsar, true);
     window.addEventListener("keydown", alPulsarEnBurbuja);
     window.addEventListener("keydown", alPulsarTab);
+    window.addEventListener("keydown", atenderTecleo);
     window.addEventListener("pointerdown", alApuntar, true);
     return () => {
       document.removeEventListener("focusin", alCambiarFoco);
@@ -201,6 +205,7 @@ export function useTecladoZonas() {
       window.removeEventListener("keydown", alPulsar, true);
       window.removeEventListener("keydown", alPulsarEnBurbuja);
       window.removeEventListener("keydown", alPulsarTab);
+      window.removeEventListener("keydown", atenderTecleo);
       window.removeEventListener("pointerdown", alApuntar, true);
       if (rescate !== null) clearTimeout(rescate);
       zonaMarcada?.removeAttribute("data-zona-activa");

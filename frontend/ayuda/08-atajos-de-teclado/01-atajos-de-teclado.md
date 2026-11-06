@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, niveles, secciones, Alt+flechas, Ctrl+Enter, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
+sinonimos: [teclas, saltar tecleando, buscar tecleando, escribir el nombre en una lista, niveles, secciones, Alt+flechas, Ctrl+Enter, entrar, salir un nivel, AltGr, historial, Tab, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -132,9 +132,19 @@ sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda selecc
 
 ## Hacer clic con el teclado: las pistas
 
-**{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una letra, o dos— sobre cada botón,
-enlace, pestaña, fila, campo y documento que se ve en la ventana. Escribir esas letras es como
-hacer clic ahí, sin el mouse.
+**{{atajo:pistas.mostrar|F10}}** muestra una **pista** —casi siempre una letra— sobre los
+**controles de la sección donde estás**: sus botones, íconos, casillas, campos y menús.
+Escribir esas letras es como hacer clic ahí, sin el mouse.
+
+- **En el nivel de secciones** (con una sección elegida), F10 muestra **una pista por
+  sección** —«**V** Ventana», «**R** Rail», «**E** Explorador», el nombre de la pestaña de
+  cada panel, «**C** Conexiones», «**B** Barra de estado»—: escribirla deja esa sección
+  elegida. Desde ahí, **Ctrl+Enter** entra y **F10** muestra sus controles.
+- **Los elementos de una lista no llevan pista**: archivos y carpetas, pestañas, resultados
+  de la búsqueda, filas de una tabla, días del calendario, tarjetas de un lienzo, nodos del
+  grafo y las entradas de las Esporas, la papelera, la actividad y la salud. A esos se llega
+  con **Alt+flechas** (o con las flechas, dentro de la lista) y, en una lista larga,
+  **tecleando el comienzo del nombre** (más abajo, «Saltar tecleando»).
 
 - **Las letras salen del nombre** de lo que señalan: el Explorador lleva la **E**; Buscar, la
   **B**. Si dos nombres empiezan igual, los dos llevan una segunda letra —la inicial de la
@@ -144,10 +154,9 @@ hacer clic ahí, sin el mouse.
   pantalla da siempre las mismas letras, y ninguna pista es el comienzo de otra: al completar
   una, se activa enseguida.
 - **Los botones de solo ícono muestran también su nombre** junto a la letra, por ejemplo
-  «**E** Explorador» en el rail. Lo que ya muestra su texto (un archivo del árbol, una
-  pestaña, una fila) y los nodos del grafo llevan solo la letra. Si el nombre taparía otra
-  pista, se ve solo la letra; al escribir la primera, las que quedan en juego tienen más lugar
-  y muestran su nombre.
+  «**E** Explorador» en el rail. Lo que ya muestra su texto (un botón con su rótulo) lleva
+  solo la letra. Si el nombre taparía otra pista, se ve solo la letra; al escribir la
+  primera, las que quedan en juego tienen más lugar y muestran su nombre.
 
 | Atajo | Qué hace |
 |---|---|
@@ -160,14 +169,24 @@ hacer clic ahí, sin el mouse.
   tecla. Las pistas te muestran la letra de tu teclado.
 - Con un diálogo abierto —la paleta, Configuración, un aviso—, las pistas son las del
   diálogo.
-- El texto de una nota es **una** pista (el cursor vuelve donde estaba), no una por renglón.
-  En el grafo, el lienzo lleva una pista y además cada nodo a la vista (hasta 60, los de más
-  conexiones): sus letras abren la nota y, con **Shift**, solo lo eligen. En un lienzo, cada
-  tarjeta lleva la suya y la letra la selecciona.
+- El texto de una nota es **una** pista (el cursor vuelve donde estaba), no una por renglón;
+  el grafo y un lienzo, también: adentro, sus notas y tarjetas se recorren con las flechas.
+- Con un menú abierto, las pistas son las del menú. Los divisores de la vista dividida, que no
+  son de ninguna sección, llevan pista en el nivel de secciones.
 - Las pistas se van solas si mueves el mouse para hacer clic o si se desplaza lo que hay
   debajo; si la ventana cambia de tamaño, se vuelven a calcular.
 - Funcionan también desde una consola y desde un diagrama de draw.io (ahí siempre con
   **F10**, aunque le hayas dado otro atajo).
+
+## Saltar tecleando en una lista
+
+Con el foco en un elemento de una lista —el árbol del explorador, los resultados de la
+búsqueda, las Esporas, la papelera, la actividad, la salud, las filas de una tabla—,
+**escribe el comienzo de un nombre** y el foco salta al siguiente que empieza así, como en el
+Explorador de Windows. Si escribes rápido, las letras se suman («not» lleva a «Notas»); si
+esperas un momento, se empieza de nuevo. Repetir la misma letra recorre todos los que
+empiezan con ella. No importan las tildes ni las mayúsculas. En un campo de texto o en el
+texto de una nota, las letras se escriben como siempre.
 
 ## Pestañas y paneles
 
@@ -243,6 +262,7 @@ Con el foco en el árbol de archivos:
 | Atajo | Qué hace |
 |---|---|
 | **↑** / **↓**, **Inicio** / **Fin** | Recorren las filas. |
+| Las letras de un nombre | Saltan al archivo o carpeta que empieza así. |
 | **→** / **←** | Abren / cierran la carpeta. |
 | **Enter** o **Espacio** | Abre el archivo o pliega la carpeta. |
 | **F2** | Renombra. |

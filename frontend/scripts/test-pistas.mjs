@@ -344,3 +344,76 @@ test("pistas.mostrar: F10, en captura, sin tecla reservada, y sale de la consola
   assert.ok(consola.FIJOS_EN_LA_CONSOLA.has("pistas.mostrar"));
   assert.deepEqual(reg.validarComandos(COMANDOS_APP), []);
 });
+
+// ── F10 por sección y saltar tecleando (rediseño del 2026-11-06) ──────────
+
+const tecleo = await import(await fuente("../lib/teclado/tecleo.ts"));
+
+test("qué pistas muestra F10 según dónde esté el foco", () => {
+  const base = { hayModal: false, enEmergente: false, nivelDeSecciones: false, enSeccion: false };
+  assert.equal(p.alcanceDePistas({ ...base, hayModal: true, nivelDeSecciones: true }), "modal");
+  assert.equal(p.alcanceDePistas({ ...base, enEmergente: true, enSeccion: true }), "emergente");
+  assert.equal(p.alcanceDePistas({ ...base, nivelDeSecciones: true }), "secciones");
+  assert.equal(p.alcanceDePistas({ ...base, enSeccion: true }), "seccion");
+  assert.equal(p.alcanceDePistas(base), "global");
+});
+
+test("los elementos de una lista no llevan pista; los controles sí", () => {
+  for (const rol of ["treeitem", "tab", "option", "row", "gridcell"]) assert.equal(p.esElementoDeLista({ rol }), true, rol);
+  assert.equal(p.esElementoDeLista({ rol: null, enLista: true }), true, "resultados, Esporas, papelera");
+  assert.equal(p.esElementoDeLista({ enGrilla: true }), true, "días del calendario");
+  assert.equal(p.esElementoDeLista({ enFilaDeTabla: true }), true, "filas de una tabla");
+  assert.equal(p.esElementoDeLista({ tarjeta: true }), true, "tarjetas del lienzo");
+  assert.equal(p.esElementoDeLista({ nodo: true }), true, "nodos del grafo");
+  for (const rol of [null, "button", "checkbox", "switch", "menuitem", "separator"]) {
+    assert.equal(p.esElementoDeLista({ rol }), false, String(rol));
+  }
+});
+
+test("una pista por sección, con su nombre: casi todas de una letra", () => {
+  const nombres = [
+    p.nombreDeSeccion({ zona: "superior" }),
+    p.nombreDeSeccion({ zona: "rail" }),
+    p.nombreDeSeccion({ zona: "izquierda", titulo: "Explorador" }),
+    p.nombreDeSeccion({ zona: "panel", titulo: "  Ideas  " }),
+    p.nombreDeSeccion({ zona: "panel", titulo: "Mapa de documentacion" }),
+    p.nombreDeSeccion({ zona: "lateral" }),
+    p.nombreDeSeccion({ zona: "estado" }),
+  ];
+  assert.deepEqual(nombres, ["Ventana", "Rail", "Explorador", "Ideas", "Mapa de documentacion", "Conexiones", "Barra de estado"]);
+  assert.equal(p.nombreDeSeccion({ zona: "izquierda" }), "Panel izquierdo");
+  assert.equal(p.nombreDeSeccion({ zona: "panel", titulo: "" }), "Panel vacío");
+  const etiquetas = p.etiquetasPorNombre(nombres);
+  assert.equal(new Set(etiquetas).size, etiquetas.length);
+  assert.equal(etiquetas.filter((e) => e.length === 1).length, nombres.length, etiquetas.join(" "));
+  // Elegir una sección es su propia acción.
+  assert.equal(p.accionDePista({ etiqueta: "section", marca: "seccion" }), "seccion");
+  assert.equal(p.accionDePista({ etiqueta: "section", marca: "seccion" }, true), "seccion");
+});
+
+test("saltar tecleando: acumula si se teclea rápido, sin tildes ni mayúsculas", () => {
+  const t1 = tecleo.acumularTecleo(null, "N", 1000);
+  assert.deepEqual(t1, { texto: "n", momento: 1000 });
+  const t2 = tecleo.acumularTecleo(t1, "o", 1000 + tecleo.ESPERA_TECLEO);
+  assert.equal(t2.texto, "no");
+  const t3 = tecleo.acumularTecleo(t2, "x", t2.momento + tecleo.ESPERA_TECLEO + 1);
+  assert.equal(t3.texto, "x", "pasado el tiempo, empieza de nuevo");
+  assert.equal(tecleo.normalizarNombre("  Índice"), "indice");
+});
+
+test("saltar tecleando: al siguiente que empieza así, con vuelta", () => {
+  const nombres = ["Bandeja", "Notas", "nube", "Índice", "Norte", "Zeta"];
+  // Una letra: desde el siguiente al actual; repetida, recorre.
+  assert.equal(tecleo.saltoPorTecleo(nombres, 0, "n"), 1);
+  assert.equal(tecleo.saltoPorTecleo(nombres, 1, "n"), 2);
+  assert.equal(tecleo.saltoPorTecleo(nombres, 4, "n"), 1, "con vuelta");
+  assert.equal(tecleo.saltoPorTecleo(nombres, 1, "nn"), 2, "la misma letra repetida recorre");
+  // Varias letras: desde el actual, que sirve si ya coincide.
+  assert.equal(tecleo.saltoPorTecleo(nombres, 1, "no"), 1);
+  assert.equal(tecleo.saltoPorTecleo(nombres, 1, "nor"), 4);
+  assert.equal(tecleo.saltoPorTecleo(nombres, 0, "ind"), 3, "sin tildes");
+  assert.equal(tecleo.saltoPorTecleo(nombres, 0, "q"), null);
+  assert.equal(tecleo.saltoPorTecleo([], 0, "a"), null);
+  // Sin elemento actual (-1): desde el primero.
+  assert.equal(tecleo.saltoPorTecleo(nombres, -1, "b"), 0);
+});

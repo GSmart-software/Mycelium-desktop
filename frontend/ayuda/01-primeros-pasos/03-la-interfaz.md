@@ -124,10 +124,12 @@ al rail, al panel lateral, a las pestañas, al panel de enlaces y a la barra de 
 **F6** y **Shift+F6** también recorren las secciones. Detalle en [Atajos de
 teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 
-Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una
-letra o dos— sobre cada botón, enlace, pestaña y campo a la vista: escribir esas letras es
-el clic. Las letras salen del nombre (el Explorador lleva la **E**) y los botones de solo
-ícono muestran además su nombre. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
+Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —casi
+siempre una letra— sobre los botones y campos de la sección donde estás (con una sección
+elegida, una pista por sección): escribir esas letras es el clic. Las letras salen del
+nombre (el Explorador lleva la **E**) y los botones de solo ícono muestran además su nombre.
+En una lista —el árbol, los resultados— no hay pistas: escribe el comienzo de un nombre y
+el foco salta ahí. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
 **F10** las cierran sin hacer nada.
 
 Los atajos de cada zona están en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).

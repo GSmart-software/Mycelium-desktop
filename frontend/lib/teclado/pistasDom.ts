@@ -26,6 +26,14 @@
  * - `data-pista="clic|foco|…"` en cualquier elemento lo vuelve objetivo con esa
  *   acción.
  *
+ * **Por sección** (rediseño del 2026-11-06, `alcanceDePistas`): en el nivel
+ * de secciones, F10 muestra **una pista por sección** (elegirla la deja
+ * elegida) más los controles sueltos entre secciones (los divisores de la
+ * vista dividida); dentro de una sección, **solo sus controles**. Los
+ * elementos de una lista —archivos, pestañas, resultados, filas, días,
+ * tarjetas, nodos— no llevan pista (`esElementoDeLista`): con menos pistas
+ * por pantalla, casi todas son de una letra y entran sus nombres.
+ *
  * **F10 y Windows.** F10 sin consumir activa el «modo menú» de Win32 (la
  * siguiente tecla se la come el menú de la ventana). El despachador hace
  * `preventDefault()` siempre que la atiende. Si en WebView2 eso no alcanzara,
@@ -39,10 +47,14 @@
  */
 import { useTabsStore } from "@/stores/tabsStore";
 import { distribucionActual } from "@/lib/comandos/distribucion";
-import { documentoDe, documentoDelPanel, seleccionarDocumento } from "./focoDom";
+import { documentoDe, documentoDelPanel, seleccionarDocumento, seleccionarSeccion, zonaDe } from "./focoDom";
+import { seccionesVisibles, ubicar as ubicarFoco } from "./nivelesDom";
 import {
   ALFABETO_NOMBRES,
   accionDePista,
+  alcanceDePistas,
+  esElementoDeLista,
+  nombreDeSeccion,
   borrarLetra,
   escribirLetra,
   etiquetasPorNombre,
@@ -205,8 +217,11 @@ export function registrarObjetivosVirtuales(el: HTMLElement, proveedor: () => Ob
   };
 }
 
-/** Lo que se pone en la capa: el objetivo, su caja visible y qué hacer. */
-type Objetivo = { el: HTMLElement; caja: CajaPista; marca: string | null; virtual?: ObjetivoVirtual };
+/**
+ * Lo que se pone en la capa: el objetivo, su caja visible y qué hacer.
+ * `nombre`: el de una sección (las demás lo sacan del DOM, `nombreDe`).
+ */
+type Objetivo = { el: HTMLElement; caja: CajaPista; marca: string | null; virtual?: ObjetivoVirtual; nombre?: string };
 
 /** La marca que deduce el DOM para los casos aparte, o la de `data-pista`. */
 function marcaDe(el: HTMLElement): string | null {
@@ -221,10 +236,68 @@ function marcaDe(el: HTMLElement): string | null {
   return null;
 }
 
-/** Los objetivos visibles, en el orden de lectura (arriba-izquierda primero). */
+/** Los menús y listas emergentes: con el foco ahí, las pistas son las suyas. */
+const SEL_EMERGENTE = "[role='menu'], [role='listbox'], [role='dialog']";
+
+/** ¿Es un elemento de una lista y no un control? (Ver `esElementoDeLista`.) */
+function deLista(el: HTMLElement): boolean {
+  return esElementoDeLista({
+    rol: el.getAttribute("role"),
+    enLista: el.closest("[data-lista]") !== null,
+    enGrilla: el.closest("[role='grid']") !== null,
+    enFilaDeTabla: el.closest("tbody tr") !== null,
+    tarjeta: el.hasAttribute("data-nodo"),
+  });
+}
+
+/**
+ * Los objetivos visibles, en el orden de lectura (arriba-izquierda primero),
+ * según dónde esté el foco (`alcanceDePistas`).
+ */
 export function buscarObjetivos(): Objetivo[] {
-  const raiz = raizDeBusqueda();
+  const modal = raizDeBusqueda();
+  const foco = document.activeElement as HTMLElement | null;
+  const emergente = foco?.closest<HTMLElement>(SEL_EMERGENTE) ?? null;
+  const { lugar, zona } = ubicarFoco(foco);
+  const alcance = alcanceDePistas({
+    hayModal: modal !== document,
+    enEmergente: emergente !== null && zonaDe(emergente) === null,
+    nivelDeSecciones: lugar === "seccion" || !foco || foco === document.body,
+    enSeccion: zona !== null,
+  });
   const cortes = new Map<Element, boolean>();
+  switch (alcance) {
+    case "modal":
+      return ordenarPorPosicion(objetivosEn(modal, cortes));
+    case "emergente":
+      return ordenarPorPosicion(objetivosEn(emergente!, cortes));
+    case "secciones":
+      // Una por sección, y los controles que no son de ninguna (los divisores
+      // de la vista dividida), para que también se alcancen.
+      return ordenarPorPosicion([
+        ...objetivosDeSecciones(cortes),
+        // Los marcos de draw.io cuelgan de `body` pero son del documento de
+        // un panel: no son controles sueltos (sumaban pistas sin nombre y les
+        // quitaban lugar a los nombres de las secciones; prueba en vivo del
+        // 2026-11-06).
+        ...objetivosEn(document, cortes, (el) => zonaDe(el) === null && !deLista(el) && !(el instanceof HTMLIFrameElement)),
+      ]);
+    case "seccion":
+      // Solo los controles de esta sección: ni los de una sección anidada (el
+      // panel de enlaces vive dentro del documento), ni los elementos de una
+      // lista, ni los nodos del grafo.
+      return ordenarPorPosicion(objetivosEn(zona!, cortes, (el) => zonaDe(el) === zona && !deLista(el)));
+    default:
+      return ordenarPorPosicion([...objetivosEn(document, cortes), ...objetivosVirtuales(cortes)]);
+  }
+}
+
+/** Lo interactivo visible y no tapado dentro de `raiz` que cumple `filtro`. */
+function objetivosEn(
+  raiz: ParentNode,
+  cortes: Map<Element, boolean>,
+  filtro: (el: HTMLElement) => boolean = () => true,
+): Objetivo[] {
   const vistos = new Set<HTMLElement>();
   const salida: Objetivo[] = [];
   for (const cand of raiz.querySelectorAll<HTMLElement>(SEL_CANDIDATO)) {
@@ -232,15 +305,36 @@ export function buscarObjetivos(): Objetivo[] {
     const el = objetivoDe(cand);
     if (el !== cand || vistos.has(el)) continue;
     vistos.add(el);
-    if (el.closest(".mic-pistas") || descartado(el)) continue;
+    if (el.closest(".mic-pistas") || descartado(el) || !filtro(el)) continue;
     const caja = cajaVisible(el, cortes);
     if (!caja) continue;
     const punto = puntoLibre(el, caja);
     if (!punto) continue;
     salida.push({ el, caja, marca: marcaDe(el) });
   }
-  if (!(raiz instanceof HTMLElement)) salida.push(...objetivosVirtuales(cortes));
-  return ordenarPorPosicion(salida);
+  return salida;
+}
+
+/**
+ * Una pista por sección, en su esquina de arriba a la izquierda (`dibujar`
+ * la pone ahí). La sección no pasa por `puntoLibre`: lo que la tapa son sus
+ * propios hijos.
+ */
+function objetivosDeSecciones(cortes: Map<Element, boolean>): Objetivo[] {
+  const salida: Objetivo[] = [];
+  for (const zona of seccionesVisibles()) {
+    const caja = cajaVisible(zona, cortes);
+    if (!caja) continue;
+    const tipo = zona.dataset.zona ?? "";
+    const titulo =
+      tipo === "panel"
+        ? zona.querySelector("[role='tab'][aria-selected='true']")?.textContent
+        : tipo === "izquierda"
+          ? zona.querySelector("[data-titulo-seccion]")?.getAttribute("data-titulo-seccion")
+          : null;
+    salida.push({ el: zona, caja, marca: "seccion", nombre: nombreDeSeccion({ zona: tipo, titulo }) });
+  }
+  return salida;
 }
 
 /** Los nodos visibles de cada grafo registrado, como objetivos. Fuera de un modal. */
@@ -311,6 +405,9 @@ export function activarObjetivo(el: HTMLElement, accion: AccionPista) {
       if (doc) seleccionarDocumento(doc);
       else enfocar(el);
       break;
+    case "seccion":
+      seleccionarSeccion(el);
+      break;
     case "puntero": {
       // Las tarjetas de un lienzo se seleccionan en `pointerdown`.
       const r = el.getBoundingClientRect();
@@ -362,6 +459,7 @@ function letraVisible(letra: string): string {
 function nombreDe(o: Objetivo): string {
   // El `describir()` de un objetivo virtual lleva delante su clase («nodo: …»).
   if (o.virtual) return o.virtual.describir().replace(/^[^:]{1,16}:\s*/, "");
+  if (o.nombre) return o.nombre;
   const el = o.el;
   if (el.classList.contains("cm-content")) return "Editor";
   if (el.classList.contains("xterm")) return "Consola";
@@ -390,6 +488,8 @@ function nombreDe(o: Objetivo): string {
  * contenido ya está a la vista.
  */
 function llevaNombre(o: Objetivo): boolean {
+  // Una sección: su nombre siempre (no tiene un texto propio que se lea).
+  if (o.marca === "seccion") return true;
   if (o.virtual || o.marca) return false;
   const el = o.el;
   if (el instanceof HTMLIFrameElement || el instanceof HTMLCanvasElement || el instanceof HTMLSelectElement) return false;

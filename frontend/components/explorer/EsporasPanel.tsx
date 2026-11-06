@@ -170,6 +170,8 @@ export function EsporasPanel() {
           <ul
             className={styles.lista}
             // ↑ ↓ entre las Esporas, ← → entre sus acciones (`FUN-XL-04`, Parte 7).
+            // `data-lista`: teclear el comienzo de un nombre salta a esa Espora.
+            data-lista="li"
             onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
           >
             {esporas.map((espora) => (

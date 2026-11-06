@@ -243,6 +243,14 @@ export function ubicarNombres(pistas: readonly PistaParaUbicar[]): (number | nul
     if (!p.activa) return null;
     const k = p.alternativas.findIndex((caja) => !ocupadas.some((o) => o.de !== i && sePisan(caja, o.caja)));
     if (k < 0) return null;
+    // Si se ubica más abajo, el código se mueve con el nombre: su caja vieja
+    // dejaba un hueco fantasma que escondía nombres que sí cabían (los de las
+    // secciones de una vista dividida; prueba en vivo del 2026-11-06).
+    const dy = p.alternativas[k].top - p.alternativas[0].top;
+    if (dy !== 0) {
+      const propia = ocupadas.find((o) => o.de === i);
+      if (propia) propia.caja = { ...propia.caja, top: propia.caja.top + dy, bottom: propia.caja.bottom + dy };
+    }
     ocupadas.push({ caja: p.alternativas[k], de: i });
     return k;
   });
@@ -342,10 +350,11 @@ export type DescriptorPista = {
  * - `consola`: entrar a escribir en una consola.
  * - `documento`: seleccionar el documento que lo contiene (el grafo).
  * - `puntero`: una tarjeta de un lienzo, que se selecciona con el puntero.
+ * - `seccion`: una sección entera (en el nivel de secciones): queda elegida.
  */
-export type AccionPista = "clic" | "foco" | "marco" | "consola" | "documento" | "puntero";
+export type AccionPista = "clic" | "foco" | "marco" | "consola" | "documento" | "puntero" | "seccion";
 
-const MARCAS: ReadonlySet<string> = new Set(["clic", "foco", "marco", "consola", "documento", "puntero"]);
+const MARCAS: ReadonlySet<string> = new Set(["clic", "foco", "marco", "consola", "documento", "puntero", "seccion"]);
 
 /** Los `<input>` que se usan con un clic; el resto son campos de texto. */
 const INPUT_DE_CLIC: ReadonlySet<string> = new Set([
@@ -374,4 +383,100 @@ export function accionDePista(d: DescriptorPista, shift = false): AccionPista {
   if (d.editable || etiqueta === "textarea" || etiqueta === "select") return "foco";
   if (etiqueta === "input") return INPUT_DE_CLIC.has((d.tipo ?? "text").toLowerCase()) && !shift ? "clic" : "foco";
   return shift ? "foco" : "clic";
+}
+
+
+// ── F10 por sección (rediseño del 2026-11-06) ─────────────────────────────
+
+/**
+ * Qué pistas muestra F10 según dónde esté el foco:
+ * - `modal`: un diálogo modal abierto (la paleta, Configuración): todo lo de
+ *   adentro, como siempre.
+ * - `emergente`: el foco en un menú o una lista emergente: lo de adentro.
+ * - `secciones`: el nivel de secciones (una sección elegida, o el foco en
+ *   ningún lado): **una pista por sección**, que la deja elegida.
+ * - `seccion`: el foco dentro de una sección: **solo sus controles**.
+ * - `global`: el foco fuera de las secciones en otra cosa (un aviso): todo.
+ */
+export type AlcancePistas = "modal" | "emergente" | "secciones" | "seccion" | "global";
+
+export function alcanceDePistas(d: {
+  hayModal: boolean;
+  enEmergente: boolean;
+  /** El foco está en el contenedor de una sección, o en `body`. */
+  nivelDeSecciones: boolean;
+  /** El foco está dentro de una sección. */
+  enSeccion: boolean;
+}): AlcancePistas {
+  if (d.hayModal) return "modal";
+  if (d.enEmergente) return "emergente";
+  if (d.nivelDeSecciones) return "secciones";
+  return d.enSeccion ? "seccion" : "global";
+}
+
+/** Lo que se sabe de un objetivo para saber si es un elemento de una lista. */
+export type DescriptorLista = {
+  /** El atributo `role`. */
+  rol?: string | null;
+  /** Está dentro de una lista de un panel (`[data-lista]`: resultados, Esporas, papelera…). */
+  enLista?: boolean;
+  /** Está dentro de una grilla (los días del calendario). */
+  enGrilla?: boolean;
+  /** Es (o está en) una fila del cuerpo de una tabla. */
+  enFilaDeTabla?: boolean;
+  /** Es una tarjeta de un lienzo. */
+  tarjeta?: boolean;
+  /** Es un nodo del grafo (un objetivo virtual). */
+  nodo?: boolean;
+};
+
+const ROLES_DE_LISTA: ReadonlySet<string> = new Set(["treeitem", "tab", "option", "row", "gridcell"]);
+
+/**
+ * ¿Es un elemento de una lista y no un control? Archivos y carpetas del árbol,
+ * pestañas, resultados, filas, días, tarjetas, nodos y las entradas de las
+ * listas de los paneles **no llevan pista** desde el rediseño (pregunta del
+ * usuario: «¿realmente es necesario mostrar una etiqueta para todo?»): a esos
+ * se llega con Alt+flechas, y en una lista larga se salta tecleando el
+ * comienzo del nombre (`tecleo.ts`).
+ */
+export function esElementoDeLista(d: DescriptorLista): boolean {
+  if (d.rol && ROLES_DE_LISTA.has(d.rol)) return true;
+  return !!(d.enLista || d.enGrilla || d.enFilaDeTabla || d.tarjeta || d.nodo);
+}
+
+/** Lo que se sabe de una sección para nombrarla en su pista. */
+export type DescriptorSeccion = {
+  /** El `data-zona`: superior, rail, izquierda, panel, lateral, estado. */
+  zona: string;
+  /** El título de lo que muestra: la sección del panel izquierdo, la pestaña activa de un panel. */
+  titulo?: string | null;
+};
+
+/**
+ * El nombre de una sección en su pista (de ahí sale la letra). Elegidos para
+ * que empiecen distinto y casi todas las pistas sean de una letra: la barra
+ * superior es la «Ventana» (V; «Barra superior» chocaba con «Barra de
+ * estado»), el panel izquierdo se nombra por lo que muestra («Explorador»), un
+ * panel de pestañas por su pestaña activa («Ideas») y el panel de enlaces es
+ * «Conexiones» (C; «Enlaces» chocaba con «Explorador»).
+ */
+export function nombreDeSeccion(d: DescriptorSeccion): string {
+  const titulo = d.titulo?.replace(/\s+/g, " ").trim();
+  switch (d.zona) {
+    case "superior":
+      return "Ventana";
+    case "rail":
+      return "Rail";
+    case "izquierda":
+      return titulo || "Panel izquierdo";
+    case "panel":
+      return titulo || "Panel vacío";
+    case "lateral":
+      return "Conexiones";
+    case "estado":
+      return "Barra de estado";
+    default:
+      return titulo || d.zona;
+  }
 }
