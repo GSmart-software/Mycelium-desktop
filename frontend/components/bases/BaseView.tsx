@@ -47,6 +47,7 @@ import {
   type Vista,
 } from "@/lib/bases";
 import { formatearFecha } from "@/lib/markdown";
+import { pasoDeLista, pasoDePestanas } from "@/lib/teclado/navegacion";
 import { useAuthStore } from "@/stores/authStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -164,6 +165,12 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
     previo?.busqueda ?? { texto: "", exacta: false },
   );
   const scrollRef = useRef<HTMLDivElement>(null);
+  /**
+   * La fila que es la parada de Tab de la tabla (`FUN-XL-04`, Parte 7): las
+   * filas son UNA parada y se recorren con ↑ ↓, Inicio / Fin y RePág / AvPág.
+   * `null` (o una fila que ya no está): la primera.
+   */
+  const [filaActiva, setFilaActiva] = useState<string | null>(null);
   const scrollTopRef = useRef(previo?.scrollTop ?? 0);
   // Anchos de columna (`FUN-M-25`). Se leen del vault y se escriben ahí; durante
   // el arrastre NO pasan por React —se tocan los `<col>` directamente— para no
@@ -402,6 +409,8 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
 
   // Las columnas que se están dibujando; vacío si la tabla no se pudo construir.
   const refsColumnas = tabla.ok ? tabla.columnas : [];
+  const idFilaActiva =
+    tabla.ok && tabla.filas.some((f) => f.nota.id === filaActiva) ? filaActiva : tabla.ok ? (tabla.filas[0]?.nota.id ?? null) : null;
 
   /** Guarda (o borra, con `null`) los anchos de ESTA base, sin tocar los demás. */
   const guardarAnchos = (nuevos: Record<string, number> | null) => {
@@ -485,13 +494,27 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
       <header className={styles.cabecera} ref={panelRef}>
         <Table2 size={15} aria-hidden />
         {base.vistas.length > 1 ? (
-          <div className={styles.vistas} role="tablist">
+          <div
+            className={styles.vistas}
+            role="tablist"
+            aria-label="Vistas"
+            // Una parada de Tab y ← → / Inicio / Fin (`FUN-XL-04`, Parte 7).
+            onKeyDown={(e) => {
+              if (e.ctrlKey || e.altKey || e.metaKey) return;
+              const j = pasoDePestanas(iVista, base.vistas.length, e.key);
+              if (j === null) return;
+              e.preventDefault();
+              setVistaActiva(j);
+              e.currentTarget.querySelectorAll<HTMLElement>("[role='tab']")[j]?.focus();
+            }}
+          >
             {base.vistas.map((v, i) => (
               <button
                 key={`${v.nombre}-${i}`}
                 type="button"
                 role="tab"
                 aria-selected={i === iVista}
+                tabIndex={i === iVista ? 0 : -1}
                 className={i === iVista ? styles.vistaActiva : styles.vista}
                 onClick={() => setVistaActiva(i)}
               >
@@ -680,10 +703,23 @@ export function BaseView({ notaId, instanceId = notaId }: { notaId: string; inst
                 {tabla.filas.map(({ nota, celdas }) => (
                   <tr
                     key={nota.id}
-                    tabIndex={0}
+                    tabIndex={nota.id === idFilaActiva ? 0 : -1}
+                    onFocus={() => setFilaActiva(nota.id)}
                     onClick={() => abrir(nota.id)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") abrir(nota.id);
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter") {
+                        abrir(nota.id);
+                        return;
+                      }
+                      if (e.ctrlKey || e.altKey || e.metaKey) return;
+                      const filas = e.currentTarget.parentElement?.children;
+                      if (!filas) return;
+                      const i = Array.prototype.indexOf.call(filas, e.currentTarget);
+                      const j = pasoDeLista(i, filas.length, e.key);
+                      if (j === null) return;
+                      e.preventDefault();
+                      (filas[j] as HTMLElement).focus();
                     }}
                   >
                     {celdas.map((valores, i) => (
