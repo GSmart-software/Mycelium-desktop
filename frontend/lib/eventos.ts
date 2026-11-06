@@ -106,3 +106,11 @@ export function avisarAliasCambiados(aliases: Record<string, string[]>): void {
  * `lib/esquemasVault.ts` para releer `esquemas.yml` al guardarlo.
  */
 export const EVENTO_ARCHIVO_GUARDADO = "micelio:archivo-guardado";
+
+/**
+ * La captura rápida acaba de anotar en la Bandeja del vault (`FUN-L-33`):
+ * `detail.ruta` dice en qué archivo. Lo escucha el contador de la sección
+ * «Bandeja» del explorador. Los editores abiertos se enteran por
+ * `EVENTO_RECARGA` (con esa ruta), como de cualquier cambio externo.
+ */
+export const EVENTO_BANDEJA = "micelio:bandeja-anotada";

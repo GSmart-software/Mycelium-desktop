@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { CARPETA_ESPORAS_DEFECTO, normalizarCarpetaEsporas } from "@/lib/esporas";
 import { CARPETA_INFORMES_DEFECTO } from "@/lib/informeSalud";
+import { RUTA_BANDEJA_DEFECTO, normalizarRutaBandeja } from "@/lib/bandeja";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
 import {
   type AccionClaudeMd,
@@ -342,6 +343,25 @@ export function VaultSection() {
         Las notas de esta carpeta son <strong>Esporas</strong>: plantillas de notas.
       </CampoCarpeta>
 
+      {/* La Bandeja del vault (FUN-L-33): dónde anota la captura rápida. */}
+      <CampoCarpeta
+        id="mic-ruta-bandeja"
+        etiqueta="Bandeja del vault"
+        clave="rutaBandeja"
+        defecto={RUTA_BANDEJA_DEFECTO}
+        normalizar={normalizarRutaBandeja}
+        mensajeError={ERROR_BANDEJA}
+        detalle={
+          <>
+            La captura rápida (<kbd>Ctrl+Shift+Espacio</kbd>) agrega cada apunte al final, bajo
+            el encabezado del día. Se crea con la primera captura. Cambiar la ruta{" "}
+            <strong>no mueve el archivo</strong>: la Bandeja pasa a ser la nota de la ruta nueva.
+          </>
+        }
+      >
+        La nota donde anota la <strong>captura rápida</strong>. No se renombra ni se elimina.
+      </CampoCarpeta>
+
       {/* Informe de salud (FUN-L-32): dónde se guardan los informes como nota. */}
       <CampoCarpeta
         id="mic-carpeta-informes"
@@ -619,10 +639,13 @@ export function VaultSection() {
 }
 
 const ERROR_CARPETA = "Tiene que ser una carpeta DENTRO del vault: sin rutas absolutas ni «..».";
+const ERROR_BANDEJA =
+  "Tiene que ser una nota .md DENTRO del vault: sin rutas absolutas, sin «..» y sin carpetas que empiecen con punto.";
 
 /**
  * Un campo con una carpeta del vault guardada en las preferencias: la de
- * Esporas (`FUN-M-03`) y la de los informes de salud (`FUN-L-32`). Borrador
+ * Esporas (`FUN-M-03`) y la de los informes de salud (`FUN-L-32`); con
+ * `normalizar`, también la ruta de la Bandeja (`FUN-L-33`). Borrador
  * local (se teclea libre) + el error de validación; se confirma al salir del
  * campo o con Enter, y Escape deshace lo tecleado.
  */
@@ -633,11 +656,16 @@ function CampoCarpeta({
   defecto,
   detalle,
   children,
+  normalizar = normalizarCarpetaEsporas,
+  mensajeError = ERROR_CARPETA,
 }: {
   id: string;
   etiqueta: string;
-  clave: "carpetaEsporas" | "carpetaInformes";
+  clave: "carpetaEsporas" | "carpetaInformes" | "rutaBandeja";
   defecto: string;
+  /** Valida y limpia lo escrito (`null`: no sirve). Por defecto, una carpeta. */
+  normalizar?: (valor: string) => string | null;
+  mensajeError?: string;
   detalle: ReactNode;
   children: ReactNode;
 }) {
@@ -662,15 +690,15 @@ function CampoCarpeta({
    */
   const escribir = (valor: string) => {
     setBorrador(valor);
-    setError(normalizarCarpetaEsporas(valor) === null ? ERROR_CARPETA : null);
+    setError(normalizar(valor) === null ? mensajeError : null);
   };
 
   /** Confirma la carpeta: si la ruta no es válida, no se guarda. */
   const confirmar = () => {
     if (borrador === pref) return;
-    const limpia = normalizarCarpetaEsporas(borrador);
+    const limpia = normalizar(borrador);
     if (limpia === null) {
-      setError(ERROR_CARPETA);
+      setError(mensajeError);
       return;
     }
     setError(null);

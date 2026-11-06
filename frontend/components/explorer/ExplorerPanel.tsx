@@ -77,6 +77,9 @@ import {
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { DialogoMoverA } from "./DialogoMoverA";
 import { MenuNuevo, type ItemNuevo } from "./MenuNuevo";
+import { SeccionBandeja } from "./SeccionBandeja";
+import { RUTA_BANDEJA_DEFECTO, esRutaBandeja, normalizarRutaBandeja } from "@/lib/bandeja";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
 import { pedirEdicionDeTitulo, soltarFoco } from "@/lib/editor/tituloPendiente";
@@ -313,15 +316,21 @@ export function ExplorerPanel() {
     return map;
   }, [otros]);
 
+  // La Bandeja del vault (`FUN-L-33`) tiene su propia sección: no se repite en
+  // el árbol. Sigue siendo una nota del vault (búsqueda, enlaces, grafo); solo
+  // no se lista acá.
+  const rutaBandejaPref = usePreferencesStore((s) => s.prefs.rutaBandeja);
+  const rutaBandeja = normalizarRutaBandeja(rutaBandejaPref ?? "") ?? RUTA_BANDEJA_DEFECTO;
   const notasPorCarpeta = useMemo(() => {
     const map = new Map<string | null, TreeNota[]>();
     for (const nota of store.notas) {
+      if (esRutaBandeja(nota.id, rutaBandeja)) continue;
       const list = map.get(nota.carpetaId) ?? [];
       list.push(nota);
       map.set(nota.carpetaId, list);
     }
     return map;
-  }, [store.notas]);
+  }, [store.notas, rutaBandeja]);
 
   const carpetasById = useMemo(
     () => new Map(store.carpetas.map((c) => [c.id, c])),
@@ -1226,6 +1235,8 @@ export function ExplorerPanel() {
           limpiarDragNota();
         }}
       >
+        {/* La Bandeja (`FUN-L-33`): arriba de «Archivos», plegable como ella. */}
+        <SeccionBandeja />
         {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}
         <div className={styles.paneArchivos}>
           <SectionHeader
