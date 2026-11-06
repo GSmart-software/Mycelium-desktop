@@ -8,6 +8,7 @@ import { AvanzadoSection } from "@/components/settings/AvanzadoSection";
 import { CustomCssSection } from "@/components/settings/CustomCssSection";
 import { EditorSection } from "@/components/settings/EditorSection";
 import { GraphSection } from "@/components/settings/GraphSection";
+import { MacrosSection } from "@/components/settings/MacrosSection";
 import { LicenciasTerceros } from "@/components/settings/LicenciasTerceros";
 import { TerminalSection } from "@/components/settings/TerminalSection";
 import { TypographySection } from "@/components/settings/TypographySection";
@@ -41,6 +42,7 @@ type CategoriaId =
   | "grafo"
   | "consolas"
   | "atajos"
+  | "macros"
   | "vault"
   | "actualizaciones"
   | "avanzado";
@@ -170,6 +172,17 @@ const CATEGORIAS: Categoria[] = [
     ],
   },
   {
+    id: "macros",
+    nombre: "Macros",
+    descripcion: "Secuencias de pasos que se ejecutan desde la paleta o con un atajo. Son tuyas: valen en todos los vaults.",
+    grupo: "Trabajo",
+    ajustes: [
+      { rotulo: "Macros", alias: ["macro", "secuencia", "automatizar", "snippet", "insertar texto", "pasos"] },
+      { rotulo: "Grabar una macro", alias: ["grabar", "grabación"] },
+      { rotulo: "Restaurar las macros de fábrica", alias: ["macros de fábrica", "nota del día", "bandeja"] },
+    ],
+  },
+  {
     id: "vault",
     nombre: "Vault",
     descripcion: "La carpeta abierta: qué se indexa, qué se exporta y qué sabe la IA de ella.",
@@ -246,6 +259,8 @@ function contenido(id: CategoriaId) {
       return <TerminalSection />;
     case "atajos":
       return <AtajosSection />;
+    case "macros":
+      return <MacrosSection />;
     case "vault":
       return <VaultSection />;
     case "actualizaciones":

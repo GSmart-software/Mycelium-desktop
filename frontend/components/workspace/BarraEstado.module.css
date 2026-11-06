@@ -68,3 +68,35 @@ button.item[aria-pressed="true"] {
 .avisos {
   color: var(--mic-diagnostico);
 }
+
+/* Grabando una macro (`FUN-XL-04`, Parte 6): a la izquierda y en el color de
+   alerta, con un punto que late, para que no se olvide encendida. Pulsarla la
+   detiene. */
+.grabando {
+  margin-right: auto;
+  color: var(--mic-sync-warn);
+}
+
+.grabando + .item::before {
+  content: none;
+}
+
+.punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: latido 1.2s ease-in-out infinite;
+}
+
+@keyframes latido {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .punto {
+    animation: none;
+  }
+}

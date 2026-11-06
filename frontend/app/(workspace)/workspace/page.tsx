@@ -25,6 +25,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { COMANDOS_APP } from "@/lib/comandos/comandosApp";
+import { COMANDOS_MACROS, useRegistrarMacros } from "@/lib/comandos/comandosMacros";
 import { sincronizarUrl } from "@/lib/comandos/navegar";
 import { useDespachadorAtajos, useRegistrarComandos } from "@/lib/comandos/useComandos";
 import { useTecladoZonas } from "@/lib/teclado/useTecladoZonas";
@@ -230,6 +231,10 @@ function WorkspaceShell() {
   // Alt+←/→— desde el registro (HU-25 CA4/CA7, HU-29, DEF-040).
   const navegar = useCallback((url: string) => router.replace(url), [router]);
   useRegistrarComandos(COMANDOS_APP);
+  // Las macros (`FUN-XL-04`, Parte 6): los comandos con datos de sus pasos y un
+  // comando `macro.<id>` por macro del usuario.
+  useRegistrarComandos(COMANDOS_MACROS);
+  useRegistrarMacros();
   useDespachadorAtajos(navegar);
   // Las zonas del teclado, su resaltado y los dos modos de los documentos
   // (navegar / escribir, Esc y Enter) (`FUN-XL-04`, Parte 2).

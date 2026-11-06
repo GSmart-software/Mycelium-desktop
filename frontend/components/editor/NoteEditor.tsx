@@ -880,7 +880,7 @@ export function NoteEditor({
         }),
       });
 
-      registerView(paneId, viewRef.current);
+      registerView(paneId, viewRef.current, notaId);
 
       // Título inicial dentro del documento (se lee del store para evitar
       // closures obsoletos; los cambios posteriores los aplica un efecto).

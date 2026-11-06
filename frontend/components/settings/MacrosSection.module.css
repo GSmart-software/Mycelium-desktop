@@ -1,0 +1,250 @@
+/* Configuración → Macros (`FUN-XL-04`, Parte 6): la lista de macros, cada una
+   desplegable con su nombre, su atajo y sus pasos. */
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 720px;
+}
+
+.barra {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.barra > input {
+  flex: 1;
+  max-width: 420px;
+}
+
+.aviso {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.grabada {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--mic-accent);
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-accent) 8%, transparent);
+}
+
+.resumen {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fila {
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 14%, transparent);
+}
+
+.fila:first-child {
+  border-top: 0;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  min-height: 32px;
+  padding: 0.3rem 0.25rem;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.cabecera:hover {
+  background: var(--mic-bg-hover);
+}
+
+.cabecera:focus-visible,
+.icono:focus-visible,
+.casilla:focus-visible,
+.paso:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
+.nombre {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.detalle {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem 1rem 1.4rem;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.campo > input {
+  max-width: 420px;
+}
+
+.rotulo {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mic-text-muted);
+}
+
+.pasos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.paso {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+.paso:focus-within {
+  border-color: var(--mic-accent);
+}
+
+.pasoCabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.numero {
+  color: var(--mic-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pasoTipo {
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.acciones {
+  display: flex;
+  gap: 0.15rem;
+  margin-left: auto;
+}
+
+.icono {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.icono:hover:not(:disabled) {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.icono:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.texto {
+  resize: vertical;
+  font-family: var(--mic-font-mono, monospace);
+}
+
+.casillaFila {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.casilla {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--mic-accent);
+}
+
+.numeroMs {
+  width: 7rem;
+}
+
+.agregar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.selectTipo {
+  max-width: 240px;
+}
+
+.selector {
+  position: relative;
+}
+
+.opciones {
+  max-height: 220px;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-bg-base);
+}
+
+.opcion {
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.opcionActiva {
+  background: color-mix(in srgb, var(--mic-accent) 16%, transparent);
+}

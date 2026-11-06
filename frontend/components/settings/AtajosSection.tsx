@@ -48,8 +48,12 @@ type Pendiente = { id: string; indice: number | null; atajo: Atajo; otro: string
  *
  * Los atajos son del usuario: los mismos en todos los vaults
  * (`preferenciasAtajos.ts`).
+ *
+ * Con `soloComando`, muestra solo la fila de ese comando, con el mismo
+ * grabador, conflictos y reservadas: es como Configuración → Macros le da un
+ * atajo a una macro (`FUN-XL-04`, Parte 6).
  */
-export function AtajosSection() {
+export function AtajosSection({ soloComando }: { soloComando?: string } = {}) {
   const comandos = useComandos();
   const prefs = usePreferenciasAtajos();
   const dev = useUpdaterStore((s) => s.estado?.dev ?? false);
@@ -175,6 +179,68 @@ export function AtajosSection() {
 
   const personalizados = Object.keys(prefs.atajos).length;
 
+  const conflicto = pendiente && (
+    <div className={`${styles.conflicto} mic-ajustes-atajos-conflicto`} role="alertdialog" aria-live="assertive">
+      <p className={styles.aviso}>
+        {textoAtajo(pendiente.atajo, distribucion)} ya es de «{tituloDe(pendiente.otro)}». ¿Se lo das a «
+        {tituloDe(pendiente.id)}»?
+      </p>
+      <div className={settings.btnRow}>
+        <button
+          type="button"
+          className={settings.primaryBtn}
+          autoFocus
+          onClick={() => {
+            asignar(pendiente.id, pendiente.indice, pendiente.atajo);
+            setPendiente(null);
+          }}
+        >
+          Reemplazar
+        </button>
+        <button type="button" className={settings.secondaryBtn} onClick={() => setPendiente(null)}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+
+  const fila = (comando: Comando, titulo: string, atajos: readonly Atajo[]) => (
+    <FilaComando
+      key={comando.id}
+      comando={comando}
+      titulo={titulo}
+      atajos={atajos}
+      personalizado={estaPersonalizado(comando.id, prefs.atajos)}
+      grabando={grabando?.id === comando.id ? grabando : null}
+      parcial={parcial}
+      mensaje={mensaje?.id === comando.id ? mensaje.texto : null}
+      grabadorRef={grabadorRef}
+      alPulsar={alPulsar}
+      empezar={empezar}
+      cancelar={terminar}
+      restaurar={() => {
+        setMensaje(null);
+        guardarSobreescrituras(restaurarAtajo(prefs.atajos, comandos, comando.id));
+      }}
+    />
+  );
+
+  if (soloComando) {
+    const comando = comandos.find((c) => c.id === soloComando);
+    return (
+      <div ref={seccionRef} className={`${styles.seccion} mic-ajustes-atajos`}>
+        {conflicto}
+        {comando ? (
+          <ul className={styles.lista}>
+            {fila(comando, resolverTexto(comando.titulo) ?? comando.id, efectivos.porId.get(comando.id) ?? [])}
+          </ul>
+        ) : (
+          <p className={settings.hint}>Este comando todavía no está registrado.</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div ref={seccionRef} className={`${styles.seccion} mic-ajustes-atajos`}>
       <div className={settings.field}>
@@ -225,30 +291,7 @@ export function AtajosSection() {
         </div>
       )}
 
-      {pendiente && (
-        <div className={`${styles.conflicto} mic-ajustes-atajos-conflicto`} role="alertdialog" aria-live="assertive">
-          <p className={styles.aviso}>
-            {textoAtajo(pendiente.atajo, distribucion)} ya es de «{tituloDe(pendiente.otro)}». ¿Se lo das a «
-            {tituloDe(pendiente.id)}»?
-          </p>
-          <div className={settings.btnRow}>
-            <button
-              type="button"
-              className={settings.primaryBtn}
-              autoFocus
-              onClick={() => {
-                asignar(pendiente.id, pendiente.indice, pendiente.atajo);
-                setPendiente(null);
-              }}
-            >
-              Reemplazar
-            </button>
-            <button type="button" className={settings.secondaryBtn} onClick={() => setPendiente(null)}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+      {conflicto}
 
       {grupos.length === 0 && <p className={settings.hint}>Ningún comando coincide con «{consulta.trim()}».</p>}
 
@@ -258,26 +301,7 @@ export function AtajosSection() {
             {g.nombre}
           </h4>
           <ul className={styles.lista}>
-            {g.comandos.map(({ comando, titulo, atajos }) => (
-              <FilaComando
-                key={comando.id}
-                comando={comando}
-                titulo={titulo}
-                atajos={atajos}
-                personalizado={estaPersonalizado(comando.id, prefs.atajos)}
-                grabando={grabando?.id === comando.id ? grabando : null}
-                parcial={parcial}
-                mensaje={mensaje?.id === comando.id ? mensaje.texto : null}
-                grabadorRef={grabadorRef}
-                alPulsar={alPulsar}
-                empezar={empezar}
-                cancelar={terminar}
-                restaurar={() => {
-                  setMensaje(null);
-                  guardarSobreescrituras(restaurarAtajo(prefs.atajos, comandos, comando.id));
-                }}
-              />
-            ))}
+            {g.comandos.map(({ comando, titulo, atajos }) => fila(comando, titulo, atajos))}
           </ul>
         </section>
       ))}
