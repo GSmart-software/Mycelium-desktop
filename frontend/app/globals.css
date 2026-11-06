@@ -130,6 +130,18 @@ button {
 .mic-pista-escrito {
   opacity: 0.45;
 }
+/* El nombre de un botón de solo ícono, junto al código: en peso normal y en la
+   letra de la interfaz, para que el código siga siendo lo que salta a la vista. */
+.mic-pista-nombre {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid color-mix(in srgb, var(--mic-raw-canvas) 40%, transparent);
+  font: 400 11px/1.25 var(--mic-font-sans);
+  letter-spacing: normal;
+}
+.mic-pista-nombre[hidden] {
+  display: none;
+}
 .mic-pista-atenuada {
   opacity: 0.25;
 }
