@@ -152,6 +152,20 @@ export function irAZona(delta: 1 | -1) {
   if (i >= 0) enfocarZona(zonas[i]);
 }
 
+/**
+ * F6 / Shift+F6 desde un marco de otro origen (draw.io): las teclas no llegan a
+ * la app, así que el marco avisa por mensaje (`drawio/guarda.js`). Se sale
+ * como si F6 se hubiera pulsado sobre el documento del panel `paneId`: queda
+ * seleccionado y el foco pasa a la zona vecina.
+ */
+export function salirDeMarco(paneId: string | null, delta: 1 | -1) {
+  if (document.querySelector('[aria-modal="true"]')) return;
+  if (paneId) useTabsStore.getState().setActivePane(paneId);
+  const doc = documentoDelPanel(paneId ?? useTabsStore.getState().activePaneId);
+  if (doc) seleccionarDocumento(doc);
+  irAZona(delta);
+}
+
 // ── el foco tras cambiar de pestaña o de panel ───────────────────────────
 
 /** Mientras se acomoda el foco, una consola que se monta no lo toma sola. */

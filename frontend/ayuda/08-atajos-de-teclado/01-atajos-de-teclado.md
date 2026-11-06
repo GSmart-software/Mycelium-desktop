@@ -78,8 +78,8 @@ consola…— tiene **dos modos**:
 
 En una **consola** y en un **dibujo de Excalidraw**, **Esc** es suyo (lo usan la shell, vim
 o la herramienta de dibujo): de ahí se sale con **F6**. En un **diagrama de draw.io** el
-teclado lo tiene el editor de diagramas y ningún atajo de Mycelium llega mientras escribes
-ahí: sal con un clic fuera del diagrama.
+teclado lo tiene el editor de diagramas y los demás atajos de Mycelium no llegan mientras
+escribes ahí: también se sale con **F6** (o **Shift+F6**, hacia atrás).
 
 Después de **Ctrl+Tab**, **Ctrl+W** o **Ctrl+Shift+T**, el documento que queda a la vista
 queda seleccionado; si venías escribiendo en una nota y la que queda también es una nota,
