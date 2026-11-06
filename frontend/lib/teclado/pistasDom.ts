@@ -41,13 +41,17 @@ import { useTabsStore } from "@/stores/tabsStore";
 import { distribucionActual } from "@/lib/comandos/distribucion";
 import { documentoDe, documentoDelPanel, seleccionarDocumento } from "./focoDom";
 import {
+  ALFABETO_NOMBRES,
   accionDePista,
   borrarLetra,
   escribirLetra,
-  etiquetasPistas,
+  etiquetasPorNombre,
   filtrarPorPrefijo,
   letraDeCode,
+  muestraTexto,
   ordenarPorPosicion,
+  recortarNombre,
+  ubicarNombres,
   type AccionPista,
   type CajaPista,
 } from "./pistas";
@@ -328,7 +332,10 @@ type Abiertas = {
   capa: HTMLDivElement;
   objetivos: Objetivo[];
   etiquetas: string[];
+  /** El nombre de cada objetivo (de ahí salen las letras). */
+  nombres: string[];
   marcas: HTMLSpanElement[];
+  medidas: Medida[];
   escrito: string;
   /** Alguna letra se escribió con Shift: enfocar sin clic. */
   conShift: boolean;
@@ -346,17 +353,69 @@ function letraVisible(letra: string): string {
   return visto && visto.trim() ? visto.toLocaleUpperCase("es") : letra;
 }
 
-/** Un breve texto del objetivo, para quien lea la capa (las pruebas por CDP). */
-function describir(el: HTMLElement): string {
+/**
+ * El nombre del objetivo, como lo diría un lector de pantalla: `aria-label`,
+ * lo que nombra `aria-labelledby`, `title`, el `alt` de una imagen, el
+ * `placeholder` de un campo vacío o su texto. Los casos aparte tienen el suyo.
+ * De acá salen las letras de la pista y el nombre que se ve junto al código.
+ */
+function nombreDe(o: Objetivo): string {
+  // El `describir()` de un objetivo virtual lleva delante su clase («nodo: …»).
+  if (o.virtual) return o.virtual.describir().replace(/^[^:]{1,16}:\s*/, "");
+  const el = o.el;
+  if (el.classList.contains("cm-content")) return "Editor";
+  if (el.classList.contains("xterm")) return "Consola";
+  const etiquetadoPor = el
+    .getAttribute("aria-labelledby")
+    ?.split(/\s+/)
+    .map((id) => document.getElementById(id)?.textContent ?? "")
+    .join(" ");
   const texto =
-    el.getAttribute("aria-label") ??
-    el.getAttribute("title") ??
-    (el instanceof HTMLIFrameElement ? el.title : null) ??
-    (el.classList.contains("cm-content") ? "editor" : el.classList.contains("xterm") ? "consola" : null) ??
-    el.textContent ??
+    el.getAttribute("aria-label") ||
+    etiquetadoPor ||
+    el.getAttribute("title") ||
+    el.querySelector("img[alt]")?.getAttribute("alt") ||
+    ((el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) && !el.value ? el.placeholder : "") ||
+    el.textContent ||
     "";
-  return `${el.tagName.toLowerCase()}: ${texto.replace(/\s+/g, " ").trim().slice(0, 60)}`;
+  return texto.replace(/\s+/g, " ").trim();
 }
+
+/**
+ * ¿Hay que mostrar el nombre junto al código? Solo en lo que no muestra su
+ * propio texto (un botón de solo ícono: el rail, las barras de herramientas,
+ * una casilla). Lo que ya se lee —un archivo del árbol, una pestaña, una fila,
+ * un campo con texto— lleva solo el código (`muestraTexto`). Los nodos del
+ * grafo, el editor, las consolas, los marcos y los lienzos, tampoco: su
+ * contenido ya está a la vista.
+ */
+function llevaNombre(o: Objetivo): boolean {
+  if (o.virtual || o.marca) return false;
+  const el = o.el;
+  if (el instanceof HTMLIFrameElement || el instanceof HTMLCanvasElement || el instanceof HTMLSelectElement) return false;
+  if (el instanceof HTMLTextAreaElement || el.isContentEditable) return false;
+  if (el instanceof HTMLInputElement) {
+    if (["checkbox", "radio", "range", "color", "file"].includes(el.type)) return true;
+    return !muestraTexto(el.value || el.placeholder);
+  }
+  return !muestraTexto(el.innerText);
+}
+
+/** Un breve texto del objetivo, para quien lea la capa (las pruebas por CDP). */
+function describir(o: Objetivo): string {
+  if (o.virtual) return o.virtual.describir();
+  return `${o.el.tagName.toLowerCase()}: ${nombreDe(o).slice(0, 60)}`;
+}
+
+/** Lo que se mide de cada pista al dibujarla, para ubicar los nombres. */
+type Medida = {
+  /** La caja con el código solo, en su lugar. */
+  codigo: CajaPista;
+  /** La caja con el nombre, en su lugar; `null` si no lleva nombre. */
+  conNombre: CajaPista | null;
+  /** El `top` de cada lugar posible: en la esquina de arriba, o debajo del objetivo. */
+  tops: number[];
+};
 
 function dibujar(a: Abiertas) {
   a.capa.replaceChildren();
@@ -364,17 +423,44 @@ function dibujar(a: Abiertas) {
     const marca = document.createElement("span");
     marca.className = "mic-pista";
     marca.dataset.etiqueta = a.etiquetas[i];
-    marca.dataset.objetivo = o.virtual ? o.virtual.describir() : describir(o.el);
+    marca.dataset.objetivo = describir(o);
     marca.style.left = `${Math.round(o.caja.left)}px`;
     marca.style.top = `${Math.round(o.caja.top)}px`;
+    const codigo = document.createElement("span");
+    codigo.className = "mic-pista-codigo";
+    marca.appendChild(codigo);
+    const nombre = a.nombres[i];
+    if (nombre && llevaNombre(o)) {
+      const texto = document.createElement("span");
+      texto.className = "mic-pista-nombre";
+      texto.textContent = recortarNombre(nombre);
+      marca.appendChild(texto);
+    }
     a.capa.appendChild(marca);
     return marca;
   });
-  pintarEscrito(a);
+  pintarCodigos(a);
+  // Se mide una vez, con todos los nombres a la vista; después solo se
+  // esconden o se mueven, y el código no cambia de ancho.
+  a.medidas = a.marcas.map((marca, i) => {
+    const r = marca.getBoundingClientRect();
+    const caja = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    const nombre = marca.querySelector<HTMLElement>(".mic-pista-nombre");
+    if (!nombre) return { codigo: caja, conNombre: null, tops: [] };
+    const fin = marca.querySelector(".mic-pista-codigo")!.getBoundingClientRect().right;
+    const relleno = r.right - nombre.getBoundingClientRect().right;
+    const objetivo = a.objetivos[i].caja;
+    return {
+      codigo: { ...caja, right: fin + relleno },
+      conNombre: caja,
+      tops: [Math.round(objetivo.top), Math.round(objetivo.bottom) + 3],
+    };
+  });
+  ubicar(a);
 }
 
-/** Marca lo escrito en cada etiqueta y atenúa las que ya no coinciden. */
-function pintarEscrito(a: Abiertas) {
+/** Las letras de cada etiqueta, con lo escrito marcado; atenúa las que ya no coinciden. */
+function pintarCodigos(a: Abiertas) {
   const coinciden = new Set(filtrarPorPrefijo(a.etiquetas, a.escrito));
   a.marcas.forEach((marca, i) => {
     const etiqueta = a.etiquetas[i];
@@ -384,14 +470,51 @@ function pintarEscrito(a: Abiertas) {
     const escrito = document.createElement("span");
     escrito.className = "mic-pista-escrito";
     escrito.textContent = [...etiqueta.slice(0, n)].map(letraVisible).join("");
-    marca.replaceChildren(escrito, [...etiqueta.slice(n)].map(letraVisible).join(""));
+    marca
+      .querySelector(".mic-pista-codigo")!
+      .replaceChildren(escrito, [...etiqueta.slice(n)].map(letraVisible).join(""));
   });
+}
+
+/**
+ * Qué nombres se ven y dónde: uno que pisaría otra pista prueba debajo del
+ * objetivo y, si tampoco cabe, se esconde (queda el código). Las atenuadas no
+ * estorban, así que al escribir la primera letra aparecen más nombres.
+ */
+function ubicar(a: Abiertas) {
+  const coinciden = new Set(filtrarPorPrefijo(a.etiquetas, a.escrito));
+  const elegidas = ubicarNombres(
+    a.medidas.map((m, i) => {
+      const caja = m.conNombre;
+      const alternativas = caja
+        ? m.tops.map((top) => {
+            const dy = top - m.tops[0];
+            return { ...caja, top: caja.top + dy, bottom: caja.bottom + dy };
+          })
+        : [];
+      return { codigo: m.codigo, alternativas, activa: coinciden.has(i) };
+    }),
+  );
+  a.marcas.forEach((marca, i) => {
+    const nombre = marca.querySelector<HTMLElement>(".mic-pista-nombre");
+    if (!nombre) return;
+    const k = elegidas[i];
+    nombre.hidden = k === null;
+    marca.style.top = `${a.medidas[i].tops[k ?? 0]}px`;
+  });
+}
+
+/** Repinta tras una letra: lo escrito, las atenuadas y los nombres. */
+function pintarEscrito(a: Abiertas) {
+  pintarCodigos(a);
+  ubicar(a);
 }
 
 /** Vuelve a buscar los objetivos (la ventana cambió de tamaño). */
 function recalcular(a: Abiertas) {
   a.objetivos = buscarObjetivos();
-  a.etiquetas = etiquetasPistas(a.objetivos.length);
+  a.nombres = a.objetivos.map(nombreDe);
+  a.etiquetas = etiquetasPorNombre(a.nombres);
   a.escrito = "";
   a.conShift = false;
   if (a.objetivos.length === 0) {
@@ -411,11 +534,14 @@ export function abrirPistas() {
   capa.setAttribute("aria-hidden", "true");
   document.body.appendChild(capa);
 
+  const nombres = objetivos.map(nombreDe);
   const a: Abiertas = {
     capa,
     objetivos,
-    etiquetas: etiquetasPistas(objetivos.length),
+    etiquetas: etiquetasPorNombre(nombres),
+    nombres,
     marcas: [],
+    medidas: [],
     escrito: "",
     conShift: false,
     limpiar: () => {},
@@ -446,7 +572,7 @@ export function abrirPistas() {
       pintarEscrito(a);
       return;
     }
-    const letra = letraDeCode(e.code);
+    const letra = letraDeCode(e.code, ALFABETO_NOMBRES);
     if (letra) {
       consumir(e);
       const paso = escribirLetra(a.etiquetas, a.escrito, letra);

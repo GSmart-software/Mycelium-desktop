@@ -1086,9 +1086,17 @@
    Con F10, una capa .mic-pistas tapa la ventana (sin recibir el puntero) y
    cada pista es un .mic-pista, ubicado en la esquina de lo que señala.
      .mic-pista            la etiqueta: fondo --mic-accent, texto --mic-raw-canvas
+     .mic-pista-codigo     las letras de la etiqueta (salen del nombre: Explorador → E)
      .mic-pista-escrito    las letras ya escritas de una etiqueta
+     .mic-pista-nombre     el nombre junto al código, en los botones de solo ícono
      .mic-pista-atenuada   las que ya no coinciden con lo escrito
    ========================================================================== */
+
+/* Solo el código, sin el nombre junto a los íconos:
+.mic-pista-nombre {
+  display: none;
+}
+*/
 
 /* Pistas más grandes y en el color del brillo, para verlas de lejos:
 .mic-pista {

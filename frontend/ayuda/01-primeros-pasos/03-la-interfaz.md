@@ -115,7 +115,8 @@ pasan de un panel a otro, y el panel al que llegas con el teclado queda como el 
 
 Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una
 letra o dos— sobre cada botón, enlace, pestaña y campo a la vista: escribir esas letras es
-el clic. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
+el clic. Las letras salen del nombre (el Explorador lleva la **E**) y los botones de solo
+ícono muestran además su nombre. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
 **F10** las cierran sin hacer nada.
 
 Los atajos de cada zona están en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).

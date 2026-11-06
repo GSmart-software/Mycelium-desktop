@@ -112,6 +112,128 @@ test("muchísimas: tres letras", () => {
   assert.equal(new Set(l).size, l.length);
 });
 
+// ── las etiquetas por nombre ──────────────────────────────────────────────
+
+test("las palabras de un nombre: sin tildes, sin vacías, sin signos ni el atajo", () => {
+  assert.deepEqual(p.palabrasDeNombre("Abrir el panel de búsqueda"), ["ABRIR", "PANEL", "BUSQUEDA"]);
+  assert.deepEqual(p.palabrasDeNombre("Árbol"), ["ARBOL"]);
+  assert.deepEqual(p.palabrasDeNombre("Año nuevo"), ["ANO", "NUEVO"]);
+  assert.deepEqual(p.palabrasDeNombre("Buscar (Ctrl+Shift+F)"), ["BUSCAR"]);
+  assert.deepEqual(p.palabrasDeNombre("Estado del proyecto.md"), ["ESTADO", "PROYECTO", "MD"]);
+  assert.deepEqual(p.palabrasDeNombre("2026-11-06"), []);
+  assert.deepEqual(p.palabrasDeNombre("× ⋯ +"), []);
+  // Si todas son vacías, se quedan.
+  assert.deepEqual(p.palabrasDeNombre("A"), ["A"]);
+});
+
+test("una inicial sola es la etiqueta: Explorador E, Buscar B", () => {
+  assert.deepEqual(p.etiquetasPorNombre(["Explorador", "Buscar", "Calendario"]), ["E", "B", "C"]);
+});
+
+test("si chocan, una segunda letra significativa y ninguna se queda con la sola", () => {
+  assert.deepEqual(p.etiquetasPorNombre(["Explorador", "Esporas", "Buscar"]), ["EX", "ES", "B"]);
+  // La inicial de la segunda palabra va primero.
+  assert.deepEqual(p.etiquetasPorNombre(["Nueva nota", "Nueva carpeta"]), ["NN", "NC"]);
+  // Los artículos no cuentan: «el panel» da la P.
+  assert.deepEqual(p.etiquetasPorNombre(["Abrir el panel", "Abrir la ayuda"]), ["AP", "AA"]);
+  // Nombres iguales: cada uno toma la siguiente letra libre.
+  assert.deepEqual(p.etiquetasPorNombre(["Cerrar", "Cerrar", "Cerrar"]), ["CE", "CR", "CA"]);
+});
+
+test("las tildes no cambian la letra y se usan la I y la O", () => {
+  assert.deepEqual(p.etiquetasPorNombre(["Índice", "Órbita", "Ñandú"]), ["I", "O", "N"]);
+  assert.ok(p.ALFABETO_NOMBRES.includes("I") && p.ALFABETO_NOMBRES.includes("O"));
+  assert.equal(p.letraDeCode("KeyI", p.ALFABETO_NOMBRES), "I");
+  assert.equal(new Set(p.ALFABETO_NOMBRES).size, 26);
+});
+
+test("sin nombre útil: las iniciales que nadie usó, con el esquema de siempre", () => {
+  const l = p.etiquetasPorNombre(["Explorador", "", null, "×", "Buscar"]);
+  assert.equal(l[0], "E");
+  assert.equal(l[4], "B");
+  for (const e of l.slice(1, 4)) assert.ok(!"EB".includes(e[0]), e);
+  assert.deepEqual(l.slice(1, 4), ["A", "S", "D"]);
+  assert.ok(sinPrefijos(l));
+  // Todo sin nombre: igual que antes.
+  assert.deepEqual(p.etiquetasPorNombre(["", "", ""]), ["A", "S", "D"]);
+});
+
+test("sin iniciales libres para los sin nombre: todas al esquema de siempre", () => {
+  const nombres = [...p.ALFABETO_NOMBRES].map((c) => c + "x");
+  const l = p.etiquetasPorNombre([...nombres, "", ""]);
+  assert.deepEqual(l, p.etiquetasPistas(nombres.length + 2));
+});
+
+test("muchos nombres: únicas, sin prefijos y estables", () => {
+  const palabras = ["Explorador", "Esporas", "Estado", "Buscar", "Bandeja", "Calendario", "Cerrar", "Cerrar",
+    "Nueva nota", "Nueva carpeta", "", "Índice", "Archivo", "Árbol", "Abrir el panel de búsqueda", "×"];
+  const nombres = Array.from({ length: 300 }, (_, i) => palabras[i % palabras.length] + (i % 7 ? "" : " extra"));
+  for (const lista of [palabras, nombres, nombres.slice(0, 60)]) {
+    const l = p.etiquetasPorNombre(lista);
+    assert.equal(l.length, lista.length);
+    assert.equal(new Set(l).size, l.length, "repetidas");
+    assert.ok(sinPrefijos(l), "prefijos");
+    assert.ok(l.every((e) => /^[A-Z]+$/.test(e)));
+    assert.deepEqual(p.etiquetasPorNombre(lista), l, "no es estable");
+  }
+  // Un grupo más grande que el alfabeto: tres letras, todas con su inicial.
+  const muchas = Array.from({ length: 40 }, () => "Explorador");
+  const l = p.etiquetasPorNombre(muchas);
+  assert.ok(l.every((e) => e.length === 3 && e[0] === "E"));
+  assert.ok(sinPrefijos(l));
+});
+
+// ── el nombre junto al código ─────────────────────────────────────────────
+
+test("muestra texto: dos letras o números; un ícono, un signo o una letra suelta, no", () => {
+  for (const t of ["Estado del proyecto", "Ir", "12", "Nota 1"]) assert.equal(p.muestraTexto(t), true, t);
+  for (const t of ["", null, undefined, "  ", "×", "+", "⋯", "🔍", "B", "▸ ", "· ·"]) {
+    assert.equal(p.muestraTexto(t), false, String(t));
+  }
+});
+
+test("el nombre se limpia y se recorta con «…»", () => {
+  assert.equal(p.recortarNombre("Buscar (Ctrl+Shift+F)"), "Buscar");
+  assert.equal(p.recortarNombre("  Explorador  "), "Explorador");
+  const largo = p.recortarNombre("Abrir el panel de búsqueda global del vault");
+  assert.equal([...largo].length <= p.LARGO_NOMBRE_PISTA, true);
+  assert.ok(largo.endsWith("…"));
+  assert.equal(p.recortarNombre("(solo paréntesis)"), "(solo paréntesis)");
+});
+
+const caja = (left, top, right, bottom) => ({ left, top, right, bottom });
+
+test("ubicar nombres: arriba si cabe, abajo si no, y si no, solo el código", () => {
+  // Dos íconos en fila: el nombre del primero pisaría el código del segundo.
+  const pistas = [
+    { codigo: caja(0, 0, 20, 16), alternativas: [caja(0, 0, 90, 16), caja(0, 30, 90, 46)], activa: true },
+    { codigo: caja(40, 0, 60, 16), alternativas: [caja(40, 0, 130, 16), caja(40, 30, 130, 46)], activa: true },
+  ];
+  // El primero baja; el segundo arriba cabe (su nombre no pisa nada).
+  assert.deepEqual(p.ubicarNombres(pistas), [1, 0]);
+  // Sin lugar en ninguna parte: solo el código.
+  const tapada = [
+    { codigo: caja(0, 0, 20, 16), alternativas: [caja(0, 0, 90, 16)], activa: true },
+    { codigo: caja(30, 0, 50, 16), alternativas: [], activa: true },
+  ];
+  assert.deepEqual(p.ubicarNombres(tapada), [null, null]);
+  // La que estorbaba se atenúa (ya no coincide): ahora cabe.
+  tapada[1].activa = false;
+  assert.deepEqual(p.ubicarNombres(tapada), [0, null]);
+  // Una atenuada no muestra su nombre.
+  assert.deepEqual(p.ubicarNombres([{ ...tapada[0], activa: false }]), [null]);
+});
+
+test("ubicar nombres: dos nombres no se pisan entre sí", () => {
+  const pistas = [
+    { codigo: caja(0, 0, 20, 16), alternativas: [caja(0, 0, 100, 16)], activa: true },
+    { codigo: caja(0, 100, 20, 116), alternativas: [caja(0, 100, 100, 116), caja(0, 8, 100, 24)], activa: true },
+  ];
+  assert.deepEqual(p.ubicarNombres(pistas), [0, 0]);
+  pistas[1].alternativas = [caja(0, 8, 100, 24)];
+  assert.deepEqual(p.ubicarNombres(pistas), [0, null]);
+});
+
 // ── el orden ──────────────────────────────────────────────────────────────
 
 const en = (id, left, top) => ({ id, caja: { left, top, right: left + 20, bottom: top + 20 } });

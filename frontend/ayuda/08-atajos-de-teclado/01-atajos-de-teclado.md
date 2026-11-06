@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
+sinonimos: [teclas, letras de las pistas, nombre de los íconos, macros, atajo de una macro, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones, grafo con el teclado, calendario con el teclado, tabla con el teclado, tarjetas del lienzo, divisores, redimensionar paneles, cambiar el ancho del panel]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -100,13 +100,26 @@ sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda selecc
 
 ## Hacer clic con el teclado: las pistas
 
-**{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una letra, o dos si hay muchas
-cosas a la vista— sobre cada botón, enlace, pestaña, fila, campo y documento que se ve en la
-ventana. Escribir esas letras es como hacer clic ahí, sin el mouse.
+**{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una letra, o dos— sobre cada botón,
+enlace, pestaña, fila, campo y documento que se ve en la ventana. Escribir esas letras es como
+hacer clic ahí, sin el mouse.
+
+- **Las letras salen del nombre** de lo que señalan: el Explorador lleva la **E**; Buscar, la
+  **B**. Si dos nombres empiezan igual, los dos llevan una segunda letra —la inicial de la
+  segunda palabra o la letra siguiente—: Explorador **EX**, Esporas **ES**, Nueva nota **NN**.
+  No cuentan los artículos ni las preposiciones («Abrir **el** panel» da **AP**) ni las
+  tildes (Índice da **I**). Lo que no tiene nombre usa las letras que quedan libres. La misma
+  pantalla da siempre las mismas letras, y ninguna pista es el comienzo de otra: al completar
+  una, se activa enseguida.
+- **Los botones de solo ícono muestran también su nombre** junto a la letra, por ejemplo
+  «**E** Explorador» en el rail. Lo que ya muestra su texto (un archivo del árbol, una
+  pestaña, una fila) y los nodos del grafo llevan solo la letra. Si el nombre taparía otra
+  pista, se ve solo la letra; al escribir la primera, las que quedan en juego tienen más lugar
+  y muestran su nombre.
 
 | Atajo | Qué hace |
 |---|---|
-| Las letras de una pista | Hace clic en lo que señala. En un campo de texto, en el texto de una nota o en una consola, pone el cursor ahí para escribir; en un diagrama o un PDF, entra en él. Al escribir la primera letra de un par, las pistas que no empiezan así se apagan. |
+| Las letras de una pista | Hace clic en lo que señala. En un campo de texto, en el texto de una nota o en una consola, pone el cursor ahí para escribir; en un diagrama o un PDF, entra en él. Al escribir la primera letra de un par, las pistas que no empiezan así se atenúan. |
 | **Shift** + las letras | Solo pone el foco ahí, sin hacer clic: para seguir con el teclado desde ese lugar. |
 | **Retroceso** | Borra la última letra escrita. |
 | **Esc** o {{atajo:pistas.mostrar|F10}} | Cierra las pistas sin hacer nada. |
