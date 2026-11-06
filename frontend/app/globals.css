@@ -77,9 +77,28 @@ button {
 [data-documento]:focus {
   outline: none;
 }
-:root[data-teclado] [data-documento][data-modo='navegar'] {
-  outline: 2px dashed var(--mic-documento-seleccionado);
-  outline-offset: -3px;
+/* El contorno del documento va en una capa (`::before`) por encima del
+   contenido: como `outline` hacia adentro lo tapaban el editor y el panel de
+   enlaces, que pintan su propio fondo (visto en la prueba en vivo del
+   2026-11-06). `[data-documento]` es `position: relative` (`.paneBody`), y su
+   `::after` ya lo usan Arrecife, GSmart y la atmósfera Aurora. Escribiendo, el
+   panel activo lleva un borde fino continuo: la zona de un panel es su
+   `<section>`, cuyo `outline` también queda debajo del contenido. */
+:root[data-teclado] [data-documento][data-modo='navegar']::before,
+:root[data-teclado] [data-zona-activa] [data-documento][data-modo='escribir']::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: var(--mic-radius-sm);
+}
+:root[data-teclado] [data-documento][data-modo='navegar']::before {
+  border: 2px dashed var(--mic-documento-seleccionado);
+}
+:root[data-teclado] [data-zona-activa] [data-documento][data-modo='escribir']::before {
+  inset: 1px;
+  border: 1px solid var(--mic-zona-activa);
 }
 
 /* ── Controles nativos: la lista de un <select> y los popups ─────

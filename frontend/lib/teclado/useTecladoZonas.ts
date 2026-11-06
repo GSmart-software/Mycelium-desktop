@@ -17,7 +17,7 @@
  * repintar el workspace por eso sería caro. React no los toca (no los maneja).
  */
 import { useEffect } from "react";
-import { documentoDe, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
+import { documentoDe, enfocarDocumentoActivo, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
 
 /**
@@ -68,8 +68,31 @@ export function useTecladoZonas() {
       }
     }
 
+    // Red para que el foco no se pierda (visto en la prueba en vivo del
+    // 2026-11-06): cuando lo que tenía el foco desaparece —el editor al pasar a
+    // Lectura con Ctrl+3, el menú contextual tras «Abrir al lado»—, el navegador
+    // lo deja en `body` y Esc, Enter y los atajos de zona dejan de tener dónde
+    // actuar. Si se está usando el teclado, no hay un diálogo abierto y un
+    // momento después sigue en `body`, el documento del panel activo queda
+    // seleccionado. Con el puntero no se toca: un clic en un hueco es del usuario.
+    let rescate: ReturnType<typeof setTimeout> | null = null;
+    function rescatarFoco() {
+      if (rescate !== null) return;
+      rescate = setTimeout(() => {
+        rescate = null;
+        if (document.activeElement && document.activeElement !== document.body) return;
+        if (!raiz.hasAttribute("data-teclado")) return;
+        if (document.querySelector('[aria-modal="true"]')) return;
+        enfocarDocumentoActivo(false);
+      }, 150);
+    }
+
     // `focusout` también: si el foco se va a ningún lado (body), se desmarca.
-    const alCambiarFoco = () => queueMicrotask(marcar);
+    const alCambiarFoco = () =>
+      queueMicrotask(() => {
+        marcar();
+        if (!document.activeElement || document.activeElement === document.body) rescatarFoco();
+      });
 
     function alPulsar(e: KeyboardEvent) {
       if (!raiz.hasAttribute("data-teclado")) raiz.setAttribute("data-teclado", "");
@@ -108,6 +131,7 @@ export function useTecladoZonas() {
       window.removeEventListener("keydown", alPulsar, true);
       window.removeEventListener("keydown", alPulsarEnBurbuja);
       window.removeEventListener("pointerdown", alApuntar, true);
+      if (rescate !== null) clearTimeout(rescate);
       zonaMarcada?.removeAttribute("data-zona-activa");
       docMarcado?.removeAttribute("data-modo");
       raiz.removeAttribute("data-teclado");
