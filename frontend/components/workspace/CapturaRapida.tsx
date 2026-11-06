@@ -7,6 +7,7 @@ import { anotarEnBandeja } from "@/lib/bandejaVault";
 import { mensajeDeError } from "@/lib/mensajeError";
 import { nombreDeVault } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
+import { grabandoAtajo } from "@/lib/comandos/grabacion";
 import { useUiStore } from "@/stores/uiStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import styles from "./CapturaRapida.module.css";
@@ -37,7 +38,7 @@ export function CapturaRapida() {
   // la consola o un lienzo, que podrían quedarse con la tecla.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!esAtajoCaptura(e)) return;
+      if (!esAtajoCaptura(e) || grabandoAtajo()) return;
       e.preventDefault();
       e.stopPropagation();
       const ui = useUiStore.getState();

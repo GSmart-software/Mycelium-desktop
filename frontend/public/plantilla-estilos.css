@@ -1038,3 +1038,34 @@
   --mic-documento-seleccionado: var(--mic-glow);
 }
 */
+
+
+/* ============================================================================
+   21) LOS ATAJOS DE TECLADO   (la hoja con Ctrl+Shift+/ y Configuración)
+   ----------------------------------------------------------------------------
+   Un atajo se dibuja como teclas: .mic-atajo envuelve la combinación y cada
+   tecla es un .mic-tecla («Ctrl», «Shift», «P»). Se ven así en la hoja de
+   atajos y en Configuración → Atajos de teclado.
+     .mic-hoja-atajos            la ventana de la hoja de atajos
+     .mic-hoja-atajos-fila       cada comando de la hoja
+     .mic-ajustes-atajos         la sección de Configuración
+     .mic-ajustes-atajos-fila    cada comando de la sección
+     .mic-ajustes-atajos-consola cada tecla de la lista de la consola
+   ========================================================================== */
+
+/* Teclas más redondas y en el color de acento:
+.mic-tecla {
+  border-radius: 6px;
+  border-color: color-mix(in srgb, var(--mic-accent) 40%, transparent);
+  color: var(--mic-accent);
+}
+*/
+
+/* La hoja de atajos más ancha y con las filas más separadas:
+.mic-hoja-atajos {
+  width: min(1040px, 100%);
+}
+.mic-hoja-atajos-fila {
+  padding-block: 0.45rem;
+}
+*/

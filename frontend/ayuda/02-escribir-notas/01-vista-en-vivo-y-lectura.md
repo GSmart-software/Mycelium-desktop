@@ -17,14 +17,15 @@ el texto tal cual está en el archivo.
 
 | Modo | Atajo | Qué ves |
 |---|---|---|
-| En vivo | **Ctrl+1** | El texto ya formateado, y editable. Los símbolos aparecen solo en la línea donde está el cursor. |
-| Dividido | **Ctrl+2** | A la izquierda el texto para editar; a la derecha, la nota como en lectura. Las dos mitades se desplazan juntas. |
-| Lectura | **Ctrl+3** | La nota terminada, sin editor ni barra de formato. |
-| Crudo | **Ctrl+4** | El Markdown sin ocultar nada, para editar a mano. |
+| En vivo | {{atajo:editor.vista-en-vivo|Ctrl+1}} | El texto ya formateado, y editable. Los símbolos aparecen solo en la línea donde está el cursor. |
+| Dividido | {{atajo:editor.vista-dividido|Ctrl+2}} | A la izquierda el texto para editar; a la derecha, la nota como en lectura. Las dos mitades se desplazan juntas. |
+| Lectura | {{atajo:editor.vista-lectura|Ctrl+3}} | La nota terminada, sin editor ni barra de formato. |
+| Crudo | {{atajo:editor.vista-crudo|Ctrl+4}} | El Markdown sin ocultar nada, para editar a mano. |
 
 ## Cómo se usa
 
-1. Elige el modo con los botones de la derecha de la barra del editor, o con su atajo.
+1. Elige el modo con los botones de la derecha de la barra del editor, o con su atajo. El
+   atajo es la fila de números de arriba del teclado, no el teclado numérico.
 2. Escribe en vivo: al salir de una línea, sus `**`, `#` o `[[ ]]` se esconden y queda el
    formato. Vuelve a la línea con el cursor y reaparecen para que los edites. Lo mismo el
    `-` de una lista, que fuera de la línea se ve como viñeta (•); en una tarea queda solo

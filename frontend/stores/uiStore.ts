@@ -21,6 +21,13 @@ type UiState = {
    * cierra sola con Esc o un clic afuera. Abrirla cierra la paleta.
    */
   capturaAbierta: boolean;
+  /** La hoja de atajos (`FUN-XL-04`, Parte 3, Ctrl+Shift+/). Ventana modal. */
+  hojaAtajos: boolean;
+  /** La categoría de Configuración que se pidió al abrirla; `null` = la última. */
+  ajustesCategoria: string | null;
+  setHojaAtajos: (abierta: boolean) => void;
+  /** Abre Configuración en una categoría («atajos»). */
+  abrirAjustes: (categoria?: string) => void;
   setCaptura: (abierta: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   setSearchInNoteOpen: (open: boolean) => void;
@@ -46,16 +53,27 @@ export const useUiStore = create<UiState>((set) => ({
   ayudaAbierta: false,
   ayudaPagina: null,
   capturaAbierta: false,
+  hojaAtajos: false,
+  ajustesCategoria: null,
+  setHojaAtajos: (abierta) =>
+    set(
+      abierta
+        ? { hojaAtajos: true, paleta: null, settingsOpen: false, ayudaAbierta: false, capturaAbierta: false }
+        : { hojaAtajos: false },
+    ),
+  abrirAjustes: (categoria) =>
+    set({ settingsOpen: true, ajustesCategoria: categoria ?? null, ayudaAbierta: false, paleta: null, hojaAtajos: false }),
   setCaptura: (abierta) => set(abierta ? { capturaAbierta: true, paleta: null } : { capturaAbierta: false }),
-  setSettingsOpen: (open) => set(open ? { settingsOpen: true, ayudaAbierta: false } : { settingsOpen: false }),
+  setSettingsOpen: (open) =>
+    set(open ? { settingsOpen: true, ayudaAbierta: false, hojaAtajos: false } : { settingsOpen: false }),
   setSearchInNoteOpen: (open) => set({ searchInNoteOpen: open }),
   setLiveTables: (on) => {
     if (typeof window !== "undefined") localStorage.setItem("mic-live-tables", on ? "1" : "0");
     set({ liveTables: on });
   },
   setPaleta: (modo) =>
-    set(modo ? { paleta: modo, ayudaAbierta: false, capturaAbierta: false } : { paleta: null }),
+    set(modo ? { paleta: modo, ayudaAbierta: false, capturaAbierta: false, hojaAtajos: false } : { paleta: null }),
   abrirAyuda: (pagina) =>
-    set({ ayudaAbierta: true, ayudaPagina: pagina ?? null, settingsOpen: false, paleta: null }),
+    set({ ayudaAbierta: true, ayudaPagina: pagina ?? null, settingsOpen: false, paleta: null, hojaAtajos: false }),
   cerrarAyuda: () => set({ ayudaAbierta: false, ayudaPagina: null }),
 }));

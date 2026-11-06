@@ -59,7 +59,12 @@ async function fuente(ruta, mapa = {}, { falsos = false } = {}) {
 
 const MODO_DEV = await fuente("../lib/modoDev.ts");
 const ATAJOS = await fuente("../lib/comandos/atajos.ts");
-const REGISTRO = await fuente("../lib/comandos/registro.ts", { "@/lib/modoDev": MODO_DEV, "./atajos": ATAJOS });
+const PERSONALIZAR = await fuente("../lib/comandos/personalizar.ts", { "./atajos": ATAJOS });
+const REGISTRO = await fuente("../lib/comandos/registro.ts", {
+  "@/lib/modoDev": MODO_DEV,
+  "./atajos": ATAJOS,
+  "./personalizar": PERSONALIZAR,
+});
 const ATMOSFERAS = await fuente("../lib/atmosferas.ts");
 const APP = await fuente(
   "../lib/comandos/comandosApp.ts",
@@ -192,9 +197,15 @@ test("la paleta lista los mismos comandos que antes, en el mismo orden y con el 
   ]);
   // El del cambio de modo (dinámico), Configuración, Ayuda y las atmósferas.
   assert.match(titulos[11], /^Cambiar a modo (claro|oscuro)$/);
-  assert.deepEqual(titulos.slice(12, 14), ["Abrir la configuración (Ctrl+,)", "Ayuda"]);
+  assert.deepEqual(titulos.slice(12, 16), [
+    "Abrir la configuración (Ctrl+,)",
+    "Ayuda",
+    // La hoja de atajos y Configuración → Atajos de teclado (Parte 3).
+    "Ver los atajos de teclado",
+    "Cambiar los atajos de teclado",
+  ]);
   assert.deepEqual(
-    titulos.slice(14),
+    titulos.slice(16),
     LISTA_ATMOSFERAS.map((a) => `Atmósfera: ${a.nombre}`),
   );
   const detalle = (id) => paleta.find((p) => p.id === id).detalle;
