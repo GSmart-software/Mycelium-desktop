@@ -20,3 +20,9 @@
 .right {
   left: calc(var(--mic-panel-handle-width) * -0.5);
 }
+
+/* Con el teclado (`FUN-XL-04`): la barra es fina, así que el anillo de foco va
+   hacia adentro y se suma el color del arrastre. */
+.handle:focus-visible {
+  outline-offset: -2px;
+}

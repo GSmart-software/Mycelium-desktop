@@ -29,7 +29,8 @@
  *   (sin distinguir mayúsculas). Con tipos distintos no hay ambigüedad: un
  *   `[[Plan]]` prefiere la nota y `[[Plan.canvas]]` nombra el lienzo. Cada grupo
  *   trae los **enlaces ambiguos**: los que tienen más de un candidato.
- * - **Fuera de los chequeos**: las **Esporas** (moldes, no memoria: sus
+ * - **Fuera de los chequeos**: la **Bandeja** del vault (`FUN-L-33`: material sin
+ *   procesar, que no se enlaza ni es huérfana por diseño), las **Esporas** (moldes, no memoria: sus
  *   `[[{{titulo}}]]` no son enlaces rotos ni ellas huérfanas) y los archivos de
  *   **instrucciones para agentes** en la raíz (`CLAUDE.md`, `AGENTS.md`), que
  *   no son conocimiento del vault. Las Esporas sí cuentan para los títulos
@@ -104,6 +105,8 @@ export type EntradaSalud = {
   otros: readonly string[];
   /** Carpeta de Esporas (normalizada), o `null` si no hay. */
   carpetaEsporas: string | null;
+  /** Ruta de la Bandeja del vault (`FUN-L-33`), o `null`/ausente si no se excluye. */
+  rutaBandeja?: string | null;
   alcance?: Alcance;
 };
 
@@ -118,9 +121,22 @@ export function esEspora(nota: { carpetaId: string | null }, carpetaEsporas: str
   return nota.carpetaId === carpetaEsporas || nota.carpetaId.startsWith(`${carpetaEsporas}/`);
 }
 
-/** ¿Queda fuera de los chequeos (Espora o instrucciones de agentes)? */
-export function excluida(nota: { id: string; carpetaId: string | null }, carpetaEsporas: string | null): boolean {
-  return esEspora(nota, carpetaEsporas) || (nota.carpetaId === null && INSTRUCCIONES_DE_AGENTES.has(nota.id.toLowerCase()));
+/** ¿Es la Bandeja del vault (`FUN-L-33`)? Sin distinguir mayúsculas, como `esRutaBandeja`. */
+export function esLaBandeja(nota: { id: string }, rutaBandeja: string | null | undefined): boolean {
+  return !!rutaBandeja && nota.id.toLowerCase() === rutaBandeja.toLowerCase();
+}
+
+/** ¿Queda fuera de los chequeos (Bandeja, Espora o instrucciones de agentes)? */
+export function excluida(
+  nota: { id: string; carpetaId: string | null },
+  carpetaEsporas: string | null,
+  rutaBandeja: string | null = null,
+): boolean {
+  return (
+    esLaBandeja(nota, rutaBandeja) ||
+    esEspora(nota, carpetaEsporas) ||
+    (nota.carpetaId === null && INSTRUCCIONES_DE_AGENTES.has(nota.id.toLowerCase()))
+  );
 }
 
 /** ¿Cae `ruta` dentro del alcance? */
@@ -169,11 +185,12 @@ const porRuta = <T extends { ruta?: string; desde?: string }>(a: T, b: T) => {
 export function calcularSalud(entrada: EntradaSalud): InformeSalud {
   const alcance = entrada.alcance ?? { tipo: "vault" };
   const { notas, carpetas, filas, carpetaEsporas } = entrada;
+  const rutaBandeja = entrada.rutaBandeja ?? null;
   const porId = new Map(notas.map((n) => [n.id, n]));
   const otros = indexarOtros(entrada.otros);
   const fuera = (id: string) => {
     const n = porId.get(id);
-    return n === undefined || excluida(n, carpetaEsporas);
+    return n === undefined || excluida(n, carpetaEsporas, rutaBandeja);
   };
 
   const rotos: Problema[] = [];
@@ -230,7 +247,7 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
     .filter((d) => d.rutas.some((r) => enAlcance(r, alcance)) || d.ambiguos.some((a) => enAlcance(a.desde, alcance)))
     .sort((a, b) => a.titulo.localeCompare(b.titulo, "es") || a.tipo.localeCompare(b.tipo));
 
-  const consideradas = notas.filter((n) => !excluida(n, carpetaEsporas) && enAlcance(n.id, alcance));
+  const consideradas = notas.filter((n) => !excluida(n, carpetaEsporas, rutaBandeja) && enAlcance(n.id, alcance));
   const ref = (n: NotaEnlazable): NotaRef => ({ ruta: n.id, titulo: n.titulo });
   const markdown = consideradas.filter((n) => n.tipo === "markdown");
 
@@ -266,6 +283,7 @@ export type EntradaProblemasDeNota = {
   filas: readonly FilaEnlace[];
   otros: readonly string[];
   carpetaEsporas: string | null;
+  rutaBandeja?: string | null;
 };
 
 /**
@@ -348,7 +366,7 @@ export function problemasDeNota(entrada: EntradaProblemasDeNota): ProblemasDeNot
   const nota = porId.get(notaId);
   // Una nota que no está (en el índice, antes; en el árbol, ahora) no tiene problemas.
   if (nota === undefined) return { rotos: [], embedsRotos: [], duplicados: [] };
-  const fuera = excluida(nota, carpetaEsporas);
+  const fuera = excluida(nota, carpetaEsporas, entrada.rutaBandeja ?? null);
 
   const rotos: Problema[] = [];
   const embedsRotos: Problema[] = [];
@@ -483,7 +501,11 @@ const describir = (p: Problema) =>
  * título único, enlaces que resuelven, alguien la enlaza. Una Espora o un archivo
  * de instrucciones no se juzgan como memoria: lo dice y pasa.
  */
-export function chequeosBasicos(ctx: Omit<ContextoValidacion, "contenido">, carpetaEsporas: string | null): Chequeo[] {
+export function chequeosBasicos(
+  ctx: Omit<ContextoValidacion, "contenido">,
+  carpetaEsporas: string | null,
+  rutaBandeja: string | null = null,
+): Chequeo[] {
   const { nota, informe, backlinks } = ctx;
   const dup = informe.duplicados.find((d) => d.rutas.includes(nota.id));
   const chequeos: Chequeo[] = [
@@ -494,11 +516,15 @@ export function chequeosBasicos(ctx: Omit<ContextoValidacion, "contenido">, carp
       detalle: dup ? [`Hay ${dup.rutas.length} con el título «${dup.titulo}»: ${dup.rutas.join(", ")}.`] : [],
     },
   ];
-  if (excluida(nota, carpetaEsporas)) {
+  if (excluida(nota, carpetaEsporas, rutaBandeja)) {
     chequeos.push({
       id: "excluida",
       ok: true,
-      titulo: esEspora(nota, carpetaEsporas) ? "Es una Espora (plantilla)" : "Es un archivo de instrucciones",
+      titulo: esLaBandeja(nota, rutaBandeja)
+        ? "Es la Bandeja del vault"
+        : esEspora(nota, carpetaEsporas)
+          ? "Es una Espora (plantilla)"
+          : "Es un archivo de instrucciones",
       detalle: ["No es memoria: sus enlaces y sus backlinks no se juzgan."],
     });
     return chequeos;

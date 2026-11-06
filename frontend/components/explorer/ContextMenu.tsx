@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import styles from "./ContextMenu.module.css";
 
@@ -96,6 +96,54 @@ export function ContextMenu({
   const cerrar = useCallback(() => onCloseRef.current(), []);
   useMenuEmergente({ abierto: true, cerrar, contenedorRef: ref, menuRef: ref, disparadorRef: origenRef });
 
+  // Submenús con el teclado (`FUN-XL-04`, Parte 4): → (o Enter) sobre una fila
+  // con submenú lo abre y lleva el foco a su primera entrada; ← o Esc lo
+  // cierran y devuelven el foco a la fila; ↑/↓ recorren solo el submenú. Se
+  // atiende acá, antes que `useMenuEmergente` (que escucha en `window`), y no
+  // se deja seguir: si no, Esc cerraría el menú entero y las flechas saltarían
+  // a las entradas del menú de afuera.
+  const enfocarSubRef = useRef(false);
+  useEffect(() => {
+    if (!abierto || !enfocarSubRef.current) return;
+    enfocarSubRef.current = false;
+    ref.current?.querySelector<HTMLElement>("[data-submenu] button:not(:disabled)")?.focus();
+  }, [abierto]);
+
+  const abrirConTeclado = (label: string) => {
+    enfocarSubRef.current = true;
+    setAbierto(label);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const foco = document.activeElement as HTMLElement | null;
+    const sub = foco?.closest<HTMLElement>("[data-submenu]");
+    if (sub) {
+      const items = [...sub.querySelectorAll<HTMLElement>("button:not(:disabled)")];
+      const i = items.indexOf(foco!);
+      let destino: HTMLElement | undefined;
+      if (e.key === "ArrowLeft" || e.key === "Escape") {
+        const disparador = sub.parentElement?.querySelector<HTMLElement>("[aria-haspopup='menu']");
+        setAbierto(null);
+        disparador?.focus();
+      } else if (e.key === "ArrowDown") destino = items[(i + 1) % items.length];
+      else if (e.key === "ArrowUp") destino = items[(i - 1 + items.length) % items.length];
+      else if (e.key === "Home") destino = items[0];
+      else if (e.key === "End") destino = items[items.length - 1];
+      else return;
+      destino?.focus();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    const fila = foco?.closest<HTMLElement>("[data-con-submenu]");
+    if (fila && e.key === "ArrowRight") {
+      e.preventDefault();
+      e.stopPropagation();
+      const label = fila.dataset.conSubmenu!;
+      if (!(fila as HTMLButtonElement).disabled) abrirConTeclado(label);
+    }
+  };
+
   // Cerca del borde derecho, el submenú se despliega hacia la izquierda para no
   // quedar fuera de la ventana.
   const haciaLaIzquierda =
@@ -114,7 +162,13 @@ export function ContextMenu({
       .join(" ");
 
   return (
-    <div ref={ref} className={styles.menu} style={{ left: pos.x, top: pos.y }} role="menu">
+    <div
+      ref={ref}
+      className={styles.menu}
+      style={{ left: pos.x, top: pos.y }}
+      role="menu"
+      onKeyDown={onKeyDown}
+    >
       {items.map((item) =>
         item.submenu ? (
           <div
@@ -131,7 +185,14 @@ export function ContextMenu({
               disabled={item.disabled}
               title={item.title}
               className={clase(item)}
-              onClick={() => !item.disabled && setAbierto(item.label)}
+              data-con-submenu={item.label}
+              // Con Enter o Espacio (un clic sin puntero, `detail` 0), el foco
+              // entra al submenú; con el mouse, se queda donde está.
+              onClick={(e) => {
+                if (item.disabled) return;
+                if (e.detail === 0) abrirConTeclado(item.label);
+                else setAbierto(item.label);
+              }}
             >
               <span className={styles.conIcono}>
                 {item.icono}
@@ -143,6 +204,7 @@ export function ContextMenu({
               <div
                 className={`${styles.submenu} ${haciaLaIzquierda ? styles.submenuIzq : ""}`}
                 role="menu"
+                data-submenu
               >
                 {item.submenu.map((sub) => (
                   <button

@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault } from "@/stores/prefsVaultStore";
+import { desplazamientoParaVer, direccionDeTecla, masCercano, vecinoEnDireccion } from "@/lib/teclado/navegacion";
+import { dentroDeDocumento, flechaDelComponente } from "@/lib/teclado/niveles";
+import { registrarObjetivosVirtuales, type ObjetivoVirtual } from "@/lib/teclado/pistasDom";
 import { ALPHA_CACHE, ALPHA_NUEVOS, sembrarFilotaxis } from "./cicloFisica";
 import { type EstadoFisica, constantesCumulo, crearEstado } from "./fisica";
 import { MIN_NODOS_WORKER, type MotorFisica, crearMotor } from "./motorFisica";
@@ -224,6 +227,8 @@ export function MiniGraph({
     wakeRef.current?.();
   }, [edgeDirection, hoverGlow, nodeColors, revealCount, modoNombres]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** Donde se anuncia el nodo elegido con el teclado (`aria-live`). */
+  const vivoRef = useRef<HTMLSpanElement>(null);
   // Las callbacks/datos viven en refs para no reiniciar la simulación en cada render.
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
@@ -255,6 +260,9 @@ export function MiniGraph({
     const colCenter = "#eafff8";
     // Segundo color: nodos que REFERENCIAN al nodo en foco (centro u hover).
     const colAccent = styles.getPropertyValue("--mic-accent").trim() || "#19E6FF";
+    // El anillo del nodo elegido con el teclado (`FUN-XL-04`, Parte 7): el mismo
+    // color que el anillo de foco del resto de la app.
+    const colFoco = styles.getPropertyValue("--mic-focus").trim() || "#ffd27a";
     const colEdge = "rgba(160, 224, 208, 0.22)";
     const colEdgeLit = colGlow;
     const colText = "rgba(206, 232, 224, 0.82)";
@@ -469,6 +477,9 @@ export function MiniGraph({
     let ox = v0?.ox ?? 0;
     let oy = v0?.oy ?? 0;
     let hover: SimNode | null = null;
+    /** El nodo elegido con el teclado (`FUN-XL-04`, Parte 7) y si el lienzo tiene el foco. */
+    let nodoTeclado: SimNode | null = null;
+    let focoEnLienzo = false;
     let dragNode: SimNode | null = null;
     /**
      * Fase del cúmulo (`FUN-L-25` · Parte E). Sin caché de posiciones el grafo
@@ -480,6 +491,8 @@ export function MiniGraph({
      * sea parcial) se arranca directo en `vivo`, sin fundido.
      */
     let fase: "precalculo" | "revelado" | "vivo" = "vivo";
+    /** Lo que hace el teclado cuando el grafo termina de aparecer (ver `onFocus`). */
+    let alQuedarVivo: (() => void) | null = null;
     /** Cuándo empezó el fundido (tras pintar la capa), o `null` si todavía no. */
     let inicioRevelado: number | null = null;
     let panning = false;
@@ -762,6 +775,127 @@ export function MiniGraph({
       // paneo ensucia las capas (Parte E; ya no se copian escaladas).
       wake();
     };
+
+    // ── Teclado (`FUN-XL-04`, Parte 7). El lienzo es una parada de Tab. Al
+    //    enfocarlo se elige el nodo central (o el más cercano al centro de la
+    //    vista); las flechas pasan al nodo visible más cercano en esa dirección
+    //    (en pantalla), Inicio vuelve al de partida y Enter abre la nota. Esc no
+    //    se atiende acá: la regla general deja el documento seleccionado. El
+    //    nodo elegido se resalta como el apuntado, con un anillo del color del
+    //    foco, la vista se mueve para que se vea y su nombre se anuncia
+    //    (`aria-live`). ──
+    const aPantalla = (n: SimNode) => ({
+      x: n.x * scale + ox + canvas.clientWidth / 2,
+      y: n.y * scale + oy + canvas.clientHeight / 2,
+    });
+    const nodoDePartida = (): SimNode | null => {
+      if (centerNode && revealed(centerNode)) return centerNode;
+      const medio = { x: -ox / scale, y: -oy / scale };
+      return masCercano(medio, sim.filter(revealed));
+    };
+    const anunciar = (n: SimNode) => {
+      const vivo = vivoRef.current;
+      if (vivo) vivo.textContent = `${n.titulo}, ${n.conexiones} ${n.conexiones === 1 ? "conexión" : "conexiones"}`;
+    };
+    const elegirConTeclado = (n: SimNode | null) => {
+      if (n === null) return;
+      nodoTeclado = n;
+      hover = n;
+      computeRefs(n);
+      const p = aPantalla(n);
+      const r = n.r * scale + 6;
+      const { dx, dy } = desplazamientoParaVer(
+        { left: p.x - r, top: p.y - r, right: p.x + r, bottom: p.y + r + 16 },
+        canvas.clientWidth,
+        canvas.clientHeight,
+        40,
+      );
+      ox += dx;
+      oy += dy;
+      ensuciar();
+      wake();
+      anunciar(n);
+    };
+    const onKeyDown = (ev: KeyboardEvent) => {
+      // En la pestaña del grafo, Ctrl+flechas también pasa entre nodos (la
+      // regla de los niveles); en el mini-grafo del panel de enlaces, es de la
+      // sección: pasa al elemento vecino.
+      if (!flechaDelComponente(ev, dentroDeDocumento(canvas)) || fase !== "vivo") return;
+      if (ev.key === "Enter") {
+        if (nodoTeclado && revealed(nodoTeclado)) {
+          ev.preventDefault();
+          onOpenRef.current(nodoTeclado.id);
+        }
+        return;
+      }
+      if (ev.key === "Home") {
+        ev.preventDefault();
+        elegirConTeclado(nodoDePartida());
+        return;
+      }
+      const dir = direccionDeTecla(ev.key);
+      if (dir === null) return;
+      ev.preventDefault();
+      const actual = nodoTeclado;
+      if (actual === null || !revealed(actual)) {
+        elegirConTeclado(nodoDePartida());
+        return;
+      }
+      const candidatos = sim
+        .filter((n) => n !== actual && revealed(n))
+        .map((n) => ({ n, ...aPantalla(n) }));
+      elegirConTeclado(vecinoEnDireccion(aPantalla(actual), candidatos, dir)?.n ?? null);
+    };
+    const onFocus = () => {
+      focoEnLienzo = true;
+      if (fase === "vivo" && document.documentElement.hasAttribute("data-teclado")) {
+        elegirConTeclado(nodoTeclado && revealed(nodoTeclado) ? nodoTeclado : nodoDePartida());
+      }
+    };
+    // Si se entró con Enter mientras el grafo todavía aparecía (recién abierto),
+    // el nodo de partida se elige al terminar: si no, el anillo y el anuncio
+    // esperaban a la primera flecha (prueba en vivo del 2026-11-06).
+    alQuedarVivo = () => {
+      if (focoEnLienzo && nodoTeclado === null && document.documentElement.hasAttribute("data-teclado")) {
+        elegirConTeclado(nodoDePartida());
+      }
+    };
+    const onBlur = () => {
+      focoEnLienzo = false;
+      if (hover === nodoTeclado) {
+        hover = null;
+        computeRefs(centerNode);
+      }
+      ensuciar();
+      wake();
+    };
+    canvas.addEventListener("keydown", onKeyDown);
+    canvas.addEventListener("focus", onFocus);
+    canvas.addEventListener("blur", onBlur);
+    // Para el modo pistas (F10): los nodos visibles como objetivos.
+    const quitarObjetivos = registrarObjetivosVirtuales(canvas, () => {
+      if (fase !== "vivo") return [];
+      const salida: ObjetivoVirtual[] = [];
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      for (const n of sim) {
+        if (!revealed(n)) continue;
+        const p = aPantalla(n);
+        if (p.x < 0 || p.y < 0 || p.x > w || p.y > h) continue;
+        salida.push({
+          x: p.x,
+          y: p.y,
+          peso: n.conexiones,
+          describir: () => `nodo: ${n.titulo}`,
+          activar: (soloElegir) => {
+            canvas.focus({ preventScroll: true });
+            elegirConTeclado(n);
+            if (!soloElegir) onOpenRef.current(n.id);
+          },
+        });
+      }
+      return salida;
+    });
 
     canvas.addEventListener("mousedown", onMouseDown);
     window.addEventListener("mousemove", onMouseMove);
@@ -1126,6 +1260,16 @@ export function MiniGraph({
           c.fill();
         }
       }
+      // El nodo elegido con el teclado, mientras el grafo tiene el foco: un
+      // anillo del color del foco, a un par de píxeles del disco.
+      const elegido = nodoTeclado;
+      if (elegido && focoEnLienzo && revealed(elegido)) {
+        c.strokeStyle = colFoco;
+        c.lineWidth = 2.5 / scale;
+        c.beginPath();
+        c.arc(elegido.x, elegido.y, elegido.r + 4 / scale, 0, Math.PI * 2);
+        c.stroke();
+      }
     };
 
     // ── Nombres (`FUN-M-21`; Parte C de `FUN-L-25`; `DEF-149`). Mientras el
@@ -1464,6 +1608,7 @@ export function MiniGraph({
       if (informar) console.info("grafo: revelado");
       fase = "vivo";
       inicioRevelado = null;
+      alQuedarVivo?.();
       lienzoAlDia = false;
       // El grafo sigue apenas vivo (movimiento residual casi imperceptible).
       if (revealCountRef.current == null) aResidual(ALPHA_CACHE);
@@ -1627,6 +1772,10 @@ export function MiniGraph({
       // Conservar el zoom/pan para el próximo (re)montaje o recálculo.
       guardarVista?.({ scale, ox, oy });
 
+      canvas.removeEventListener("keydown", onKeyDown);
+      canvas.removeEventListener("focus", onFocus);
+      canvas.removeEventListener("blur", onBlur);
+      quitarObjetivos();
       canvas.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
@@ -1637,5 +1786,19 @@ export function MiniGraph({
     };
   }, [nodes, edges, centerId, continuousSim, tema, modoOscuro]);
 
-  return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />;
+  return (
+    <>
+      <canvas
+        ref={canvasRef}
+        style={{ display: "block", width: "100%", height: "100%" }}
+        // Con el teclado (`FUN-XL-04`, Parte 7): una parada de Tab; flechas,
+        // Inicio y Enter (ver el efecto).
+        tabIndex={0}
+        role="application"
+        aria-roledescription="grafo"
+        aria-label="Grafo de conexiones. Flechas: pasar al nodo vecino; Inicio: el nodo de partida; Enter: abrir la nota."
+      />
+      <span ref={vivoRef} className="mic-solo-lectores" aria-live="polite" />
+    </>
+  );
 }

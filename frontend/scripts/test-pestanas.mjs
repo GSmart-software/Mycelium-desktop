@@ -31,7 +31,7 @@ const ZUSTAND = pathToFileURL(require.resolve("zustand")).href;
 const ZUSTAND_MW = pathToFileURL(require.resolve("zustand/middleware")).href;
 
 const ICONOS = aUrl(
-  ["ICONO_CALENDARIO", "ICONO_CONSOLA", "ICONO_GRAFO", "ICONO_OTRO_ARCHIVO", "ICONO_REFERENCIAS", "ICONO_SALUD"]
+  ["ICONO_BANDEJA", "ICONO_CALENDARIO", "ICONO_CONSOLA", "ICONO_GRAFO", "ICONO_OTRO_ARCHIVO", "ICONO_REFERENCIAS", "ICONO_SALUD"]
     .map((n) => `export const ${n} = {};`)
     .join("\n") + "\nexport const ICONO_POR_TIPO = {};",
 );

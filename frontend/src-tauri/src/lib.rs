@@ -4,7 +4,9 @@ use tauri::Manager;
 
 mod actualizador;
 mod archivos;
+mod bandeja_personal;
 mod bienvenida;
+mod captura_global;
 mod config_local;
 mod control;
 mod devtools;
@@ -81,11 +83,15 @@ fn ventana_para_abrir<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Option<tauri::WebviewWindow<R>> {
     let ventanas = app.webview_windows();
+    // Solo ventanas de vault: la de la captura rápida (`captura_global.rs`)
+    // no importa archivos.
+    let de_app = |w: &&tauri::WebviewWindow<R>| captura_global::es_ventana_de_app(w.label());
     ventanas
         .values()
+        .filter(de_app)
         .find(|w| w.is_focused().unwrap_or(false))
         .or_else(|| ventanas.get("main"))
-        .or_else(|| ventanas.values().next())
+        .or_else(|| ventanas.values().find(de_app))
         .cloned()
 }
 
@@ -175,6 +181,9 @@ pub fn run() {
         .manage(dialogos::ElegidasState::default())
         // La escucha del MCP de control, una por ventana (`FUN-L-09`).
         .manage(control::ControlState::default())
+        // La captura global (`FUN-L-33`, Parte C): el historial de foco, el
+        // aviso del registro y los pedidos a la ventana del vault.
+        .manage(captura_global::CapturaState::default())
         // Al cerrarse una ventana hay que soltar lo suyo (`FUN-L-16`): su
         // watcher, sus terminales y el vault que tenía abierto. Sin esto el vault
         // quedaría marcado como abierto para siempre —no se podría reabrir en
@@ -182,6 +191,8 @@ pub fn run() {
         .on_window_event(|ventana, evento| {
             // Minimizada, el WebView2 deja de dibujar (`DEF-174`).
             reposo::al_evento(ventana, evento);
+            // La última ventana usada y la flotante de la captura (`FUN-L-33`).
+            captura_global::al_evento(ventana, evento);
             if matches!(evento, tauri::WindowEvent::Destroyed) {
                 ventanas::al_cerrar(ventana.app_handle(), ventana.label());
             }
@@ -246,6 +257,16 @@ pub fn run() {
             vault_config::get_abrir_ultimo,
             vault_config::set_abrir_ultimo,
             vault_config::marcar_acceso,
+            // La Bandeja personal (`FUN-L-33`): un único archivo fuera de los
+            // vaults, sin ruta desde la interfaz (`bandeja_personal.rs`).
+            bandeja_personal::bandeja_personal_leer,
+            bandeja_personal::bandeja_personal_guardar,
+            // La captura global (`FUN-L-33`, Parte C, `captura_global.rs`).
+            captura_global::captura_flotante_destinos,
+            captura_global::captura_flotante_ocultar,
+            captura_global::captura_flotante_anotar_vault,
+            captura_global::captura_anotada,
+            captura_global::captura_global_aviso,
             vault_fs::escribir_nota,
             vault_fs::guardar_nota,
             vault_fs::mover_ruta,
@@ -283,6 +304,8 @@ pub fn run() {
             }
             // Antes de que se pueda vincular un vault nuevo (`config_local.rs`).
             config_local::migrar_al_arrancar(app.handle());
+            // Ctrl+Shift+Espacio desde cualquier programa (`FUN-L-33`, Parte C).
+            captura_global::registrar(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

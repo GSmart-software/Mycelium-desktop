@@ -136,6 +136,8 @@
   --mic-glow-texto:     var(--mic-glow);     /* texto e íconos sobre el contenido */
   --mic-enlace:         var(--mic-accent);   /* enlaces en el texto de una nota */
   --mic-focus:          var(--mic-glow);     /* anillo de foco con teclado */
+  --mic-zona-activa:    var(--mic-focus);    /* borde de la zona con el foco (F6) */
+  --mic-documento-seleccionado: var(--mic-focus); /* contorno del documento seleccionado (modo navegar) */
   --mic-marca:          var(--mic-accent);   /* «es este»: lo que señala algo sin enfocarlo */
   --mic-marco-glow:     var(--mic-glow);     /* íconos y texto sobre el marco */
   --mic-marco-acento:   var(--mic-accent);   /* segundo color del logo */
@@ -314,29 +316,31 @@
 }
 
 /* ── Tema GSmart (`FUN-M-52`, solo con el modo dev) — modo claro ──
-   La marca personal del usuario: azul (siempre como degradado, #2b4aa6 → #12a8e8)
-   sobre grises fríos. Fuente única: la skill `gsmart-marca` (tokens.css). La
+   La marca GSmart v3: el degradado del logo (índigo #2b4aa6 → azul #1f6fd0 →
+   celeste #12a8e8) con la aguamarina de apoyo, sobre fondos azulados. Fuente
+   única: la skill `gsmart-marca` (tokens.css, `:root[data-theme="light"]`). La
    tabla de correspondencia y el contraste medido están en
    docs/features/tema-gsmart.md. Como Arrecife, no admite atmósferas y su forma
    —radios, letras, degradado— vive en styles/gsmart.css.
 
-   - mist es el panel (#ffffff) y base, el fondo 2 (#e8ecf1): el marco es CLARO.
-     Al revés que en oscuro, porque el acento (#1f6fc4) da 4.29:1 sobre el fondo
-     2 y no alcanza como texto de un panel; sobre blanco da 5.09.
-   - glow: el aguamarina de la marca (#a3ece2) no se lee sobre claro (1.2:1). Se
-     usa oscurecido conservando su tono y saturación (HSL 172°, 66%, L 25%):
-     #166A5E, 5.9 / 6.5 / 5.4 sobre fondo / panel / fondo 2.
-   - base-deep: el tinte de sombras y velos, el de la sombra de la marca
-     (rgba(20,30,60,.09)). */
+   - canvas es el fondo (#f5f8fc), mist la hoja (#ffffff) y base el tinte
+     (#e8f0fb): el marco es CLARO. El acento (#1f6fd0) da 4.65:1 sobre el fondo y
+     4.95 sobre la hoja; sobre el tinte del marco, 4.31, pero ahí solo pinta
+     íconos (≥3:1).
+   - glow: el resalte claro de la marca (#0b7d70, la aguamarina legible sobre
+     claro): 4.71 / 5.02 sobre fondo / hoja. Sobre el marco (4.37) solo es el
+     segundo color del logo, un objeto gráfico.
+   - base-deep: el tinte de sombras y velos, el color de la sombra de la marca
+     (rgba(13,30,70,.5) → #0D1E46). */
 [data-theme='gsmart'] {
-  --mic-raw-base:       #E8ECF1;   /* fondo 2: rail / topbar */
-  --mic-raw-base-deep:  #141E3C;   /* tinte de sombras y velos */
-  --mic-raw-accent:     #1F6FC4;   /* acento claro de la marca: 4.7:1 sobre el fondo */
-  --mic-raw-glow:       #166A5E;   /* aguamarina legible (derivado, ver arriba) */
-  --mic-raw-mist:       #FFFFFF;   /* panel: paneles laterales, pestañas */
-  --mic-raw-canvas:     #F3F5F8;   /* fondo: editor / fondo principal */
-  --mic-raw-ink:        #1B1F24;   /* texto */
-  --mic-raw-ink-muted:  #4A525B;   /* texto secundario */
+  --mic-raw-base:       #E8F0FB;   /* tinte: rail / topbar */
+  --mic-raw-base-deep:  #0D1E46;   /* tinte de sombras y velos */
+  --mic-raw-accent:     #1F6FD0;   /* acento (enlaces) de la marca: 4.65:1 sobre el fondo */
+  --mic-raw-glow:       #0B7D70;   /* resalte (aguamarina legible) de la marca */
+  --mic-raw-mist:       #FFFFFF;   /* hoja: paneles laterales, pestañas */
+  --mic-raw-canvas:     #F5F8FC;   /* fondo: editor / fondo principal */
+  --mic-raw-ink:        #0D1220;   /* texto */
+  --mic-raw-ink-muted:  #4A5468;   /* texto secundario */
 
   --mic-amber-icon:     #E0A63A;   /* aviso de la marca */
 }
@@ -447,31 +451,39 @@
   --mic-marco-acento:   var(--mic-raw-glow);
 }
 
-/* GSmart oscuro (`FUN-M-52`): el preferido de la marca. Los valores van tal
-   cual, sin derivar: todos pasan como texto. El orden de los fondos es el de un
-   editor: la nota en el fondo (#1e2023), los paneles laterales un tono más
-   claros (fondo 2, #25282b) y el marco —rail y barra— en el panel (#2e3134).
-   El acento sobre el marco da 4.39:1, pero ahí solo pinta íconos (≥3:1); como
-   texto va sobre la nota (5.5) y los paneles (5.0).
-   - glow: el aguamarina de las líneas de la G (#a3ece2), 12.2:1 sobre la nota.
-     El cian (#12a8e8) quedaba demasiado cerca del acento para ser «el otro
-     color»; el cian sigue en el degradado. */
+/* GSmart oscuro (`FUN-M-52`): el predeterminado de la marca v3. Los valores
+   van tal cual, sin derivar: todos pasan como texto. La nota en el fondo de la
+   marca (#060b18), los paneles en la hoja (#0e1730) y el marco —rail y barra—
+   en la noche (#0a1532), entre los dos.
+   - accent: el cielo (#6fb4ff), el acento de los enlaces de la marca: 9.0:1
+     sobre la nota.
+   - glow: la aguamarina de las líneas de la G (#a3ece2), 14.7:1 sobre la nota.
+     El celeste del logo sigue en el degradado y en los H3.
+   - base-deep: la marca no tiene un fondo más hondo que el suyo; para el código
+     y los velos se usa el fondo oscurecido sin perder el tono azul (#040812,
+     mismo matiz de 223°, ~70 % de su luz) para velos y sombras; un negro neutro
+     rompía la familia. El código no lo usa: va en la hoja (ver abajo). */
 [data-theme='gsmart'][data-dark='true'] {
-  --mic-raw-base:       #2E3134;   /* panel: rail / topbar */
-  --mic-raw-base-deep:  #18191B;   /* código de la marca: bloques, velos, sombras */
-  --mic-raw-accent:     #3B9BE8;   /* acento de la marca */
+  --mic-raw-base:       #0A1532;   /* noche: rail / topbar */
+  --mic-raw-base-deep:  #040812;   /* código, velos, sombras (derivado) */
+  --mic-raw-accent:     #6FB4FF;   /* cielo: el acento de enlaces de la marca */
   --mic-raw-glow:       #A3ECE2;   /* aguamarina de la marca */
-  --mic-raw-canvas:     #1E2023;   /* fondo */
-  --mic-raw-mist:       #25282B;   /* fondo 2: paneles laterales, pestañas */
-  --mic-raw-ink:        #ECEFF2;   /* texto */
-  --mic-raw-ink-muted:  #B3B9C0;   /* texto secundario */
+  --mic-raw-canvas:     #060B18;   /* fondo */
+  --mic-raw-mist:       #0E1730;   /* hoja: paneles laterales, pestañas */
+  --mic-raw-ink:        #EEF3FC;   /* texto */
+  --mic-raw-ink-muted:  #B3C0DA;   /* texto secundario */
 }
 
 [data-theme='gsmart'][data-dark='true'] {
-  --mic-border:         #44484D;
-  --mic-bg-hover:       rgba(236, 239, 242, 0.06);
-  /* Foco en el acento (5.5:1 sobre la nota): «bordes activos» en la marca. */
-  --mic-focus:          #3B9BE8;
+  --mic-border:         #1D2945;   /* línea de la marca */
+  --mic-bg-hover:       rgba(238, 243, 252, 0.06);
+  /* El código va en la hoja, no en base-deep: #040812 contra la nota #060B18 da
+     1.02:1 y los bloques de código no tienen borde, así que no se distinguían.
+     Ningún color más hondo que la nota pasa de ~1.07; la hoja sí se separa, como
+     las tarjetas de la marca. base-deep queda para velos y sombras. */
+  --mic-bg-code:        var(--mic-raw-mist);
+  /* Foco en el acento (9.0:1 sobre la nota): «bordes activos» en la marca. */
+  --mic-focus:          #6FB4FF;
   /* El marco: íconos en el acento, el segundo color del logo en aguamarina. */
   --mic-marco-glow:     var(--mic-raw-accent);
   --mic-marco-acento:   var(--mic-raw-glow);
@@ -489,10 +501,10 @@
   --mic-marco-inactivo: 0.75;
 }
 
-/* GSmart claro (`FUN-M-52`): el marco también es claro (fondo 2 #e8ecf1), así
+/* GSmart claro (`FUN-M-52`): el marco también es claro (el tinte #e8f0fb), así
    que lleva las mismas fórmulas de marco claro que Arrecife. Medido sobre el
-   fondo 2: íconos en el acento 4.29:1 (≥3:1 de un objeto gráfico), texto de la
-   barra de estado 6.68:1. */
+   tinte: íconos en el acento 4.31:1 (≥3:1 de un objeto gráfico), texto de la
+   barra de estado 6.63:1. */
 [data-theme='gsmart']:not([data-dark='true']) {
   --mic-marco-glow:     var(--mic-raw-accent);
   --mic-marco-acento:   var(--mic-raw-glow);
@@ -666,8 +678,8 @@
    de la marca, iguales en claro y en oscuro; los callouts que la marca no define
    (info, question, caution) quedan los de Mycelium. */
 [data-theme='gsmart'] {
-  --mic-border:                   #D3D9E0;
-  --mic-bg-hover:                 rgba(27, 31, 36, 0.06);
+  --mic-border:                   #E1E7F0;   /* línea de la marca */
+  --mic-bg-hover:                 rgba(13, 18, 32, 0.06);
   --mic-callout-success-border:   #34C38F;
   --mic-callout-error-border:     #E5534B;
   --mic-callout-danger-border:    #E5534B;

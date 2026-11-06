@@ -59,6 +59,145 @@ button {
   outline-offset: 2px;
 }
 
+/* ── Zonas y modos del teclado (`FUN-XL-04`, Parte 2) ─────────────
+   La zona con el foco (rail, panel izquierdo, cada panel de la división, panel
+   de enlaces, barra de estado) lleva `data-zona-activa`; el documento de un
+   panel, `data-modo="navegar"` cuando está seleccionado (el foco en él mismo)
+   y `"escribir"` cuando el foco está adentro. Solo se dibuja mientras se usa
+   el teclado (`data-teclado` en <html>, que se va con el puntero), como
+   `:focus-visible`. El contorno va hacia adentro para que ningún
+   `overflow: hidden` lo corte. */
+:root[data-teclado] [data-zona][data-zona-activa] {
+  outline: 1px solid var(--mic-zona-activa);
+  outline-offset: -1px;
+}
+
+/* La sección SELECCIONADA (rediseño por niveles, 2026-11-06): el foco en el
+   contenedor de la sección, el nivel de arriba (Ctrl+flechas pasa a la sección
+   vecina, Enter entra). Más marcada que la zona activa: borde de 2px y un
+   velo del acento por encima del contenido, que si no la tapa (como al
+   documento). `:where` deja la especificidad en cero: un módulo que ya
+   posiciona la zona manda. */
+:where([data-zona]) {
+  position: relative;
+}
+:root[data-teclado] [data-zona][data-zona-seleccionada]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  border: 2px solid var(--mic-zona-activa);
+  background: color-mix(in srgb, var(--mic-zona-activa) 8%, transparent);
+}
+
+/* Los GRUPOS de una sección (2026-11-06; en el explorador, la barra de
+   botones, la Bandeja y Archivos): el grupo ELEGIDO (el foco en su título, o
+   en él mismo si no tiene) lleva `data-grupo-seleccionado`, con el mismo
+   borde y velo que una sección pero más finos; el que tiene el foco adentro,
+   `data-grupo-activo`, solo un borde tenue que muestra hasta dónde llega
+   Ctrl+flechas. El título elegido, además, con el texto pleno. */
+:where([data-grupo]) {
+  position: relative;
+}
+:root[data-teclado] [data-grupo][data-grupo-seleccionado]::after,
+:root[data-teclado] [data-grupo][data-grupo-activo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 44;
+  pointer-events: none;
+  border-radius: var(--mic-radius-sm);
+}
+:root[data-teclado] [data-grupo][data-grupo-seleccionado]::after {
+  border: 1px solid var(--mic-zona-activa);
+  background: color-mix(in srgb, var(--mic-zona-activa) 6%, transparent);
+}
+:root[data-teclado] [data-grupo][data-grupo-activo]::after {
+  border: 1px dashed color-mix(in srgb, var(--mic-zona-activa) 55%, transparent);
+}
+:root[data-teclado] [data-grupo-seleccionado] [data-grupo-titulo]:focus-visible {
+  color: var(--mic-text-primary);
+}
+/* El grupo sin título recibe el foco él mismo: su borde ya lo marca. */
+[data-grupo]:focus {
+  outline: none;
+}
+
+/* Seleccionado (navegar): punteado y más grueso; escribiendo, sin contorno
+   propio (la señal es el cursor y el borde de la zona). */
+[data-documento]:focus {
+  outline: none;
+}
+/* El contorno del documento va en una capa (`::before`) por encima del
+   contenido: como `outline` hacia adentro lo tapaban el editor y el panel de
+   enlaces, que pintan su propio fondo (visto en la prueba en vivo del
+   2026-11-06). `[data-documento]` es `position: relative` (`.paneBody`), y su
+   `::after` ya lo usan Arrecife, GSmart y la atmósfera Aurora. Escribiendo, el
+   panel activo lleva un borde fino continuo: la zona de un panel es su
+   `<section>`, cuyo `outline` también queda debajo del contenido. */
+:root[data-teclado] [data-documento][data-modo='navegar']::before,
+:root[data-teclado] [data-zona-activa] [data-documento][data-modo='escribir']::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: var(--mic-radius-sm);
+}
+:root[data-teclado] [data-documento][data-modo='navegar']::before {
+  border: 2px dashed var(--mic-documento-seleccionado);
+}
+:root[data-teclado] [data-zona-activa] [data-documento][data-modo='escribir']::before {
+  inset: 1px;
+  border: 1px solid var(--mic-zona-activa);
+}
+
+/* ── El modo pistas (`FUN-XL-04`, Parte 5) ─────────────────────────
+   F10: una etiqueta sobre cada cosa clicable (`lib/teclado/pistasDom.ts`). La
+   capa va encima de todo y no recibe el puntero ni mueve el layout. La
+   etiqueta usa el acento con el texto del fondo de la nota, como los botones
+   primarios: legible en todos los temas y atmósferas. Lo ya escrito se apaga y
+   las que dejaron de coincidir se atenúan. */
+.mic-pistas {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  contain: layout style;
+}
+.mic-pista {
+  position: absolute;
+  transform: translate(-2px, -2px);
+  padding: 1px 4px;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-raw-canvas) 45%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  font: 700 11px/1.25 var(--mic-font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.mic-pista-escrito {
+  opacity: 0.45;
+}
+/* El nombre de un botón de solo ícono, junto al código: en peso normal y en la
+   letra de la interfaz, para que el código siga siendo lo que salta a la vista. */
+.mic-pista-nombre {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid color-mix(in srgb, var(--mic-raw-canvas) 40%, transparent);
+  font: 400 11px/1.25 var(--mic-font-sans);
+  letter-spacing: normal;
+}
+.mic-pista-nombre[hidden] {
+  display: none;
+}
+.mic-pista-atenuada {
+  opacity: 0.25;
+}
+
 /* ── Controles nativos: la lista de un <select> y los popups ─────
    Un <select> tiene DOS partes y solo una está en el documento. La cerrada se
    estila como cualquier caja; la lista desplegada la dibuja el navegador fuera
@@ -141,4 +280,19 @@ select option:disabled {
   box-shadow: 0 0 0 2px var(--mic-marca);
   background: color-mix(in srgb, var(--mic-marca) 12%, transparent);
   transition: box-shadow 300ms ease, background 300ms ease;
+}
+
+/* Texto solo para lectores de pantalla (`FUN-XL-04`, Parte 7): ocupa un píxel
+   fuera de la vista, pero se lee. Lo usa el grafo para anunciar el nodo elegido
+   con el teclado. No es para estilar: ocultarlo de otra forma lo silencia. */
+.mic-solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

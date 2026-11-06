@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
+import { ContextMenu, type MenuItem } from "@/components/explorer/ContextMenu";
+import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
+import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useMenuEmergente } from "@/lib/useMenuEmergente";
 import { rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import { iconoDePestana, seDuplicaAlDividir, tipoDePestana, tituloDePestana } from "@/lib/pestanas";
@@ -41,6 +44,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   );
   const iconosEnPestanas = usePreferencesStore((s) => s.prefs.iconosEnPestanas);
   const [menuOpen, setMenuOpen] = useState(false);
+  /** El menú contextual de una pestaña (clic derecho, Shift+F10 o la tecla Menú). */
+  const [menuPestana, setMenuPestana] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
@@ -176,6 +181,58 @@ export function TabBar({ pane }: { pane: LeafPane }) {
   const duplicarAlDividir =
     activeNotaId !== undefined && seDuplicaAlDividir(activeNotaId, activeNota?.tipo);
 
+  /**
+   * El menú contextual de una pestaña (`FUN-XL-04`, Parte 4): cerrar, fijar,
+   * dividir, anclar en el panel lateral y exportar. Se abre con el clic derecho
+   * y, con el foco en la pestaña, con Shift+F10 o la tecla Menú, como en el
+   * árbol del explorador.
+   */
+  function itemsDePestana(tab: Tab): MenuItem[] {
+    const nota = notas.find((n) => n.id === tab.notaId) ?? null;
+    const activarla = () => {
+      store.activateTab(pane.id, tab.id);
+      pushUrl();
+    };
+    const dividir = (lado: "right" | "bottom") => {
+      activarla();
+      store.splitActivePane(pane.id, lado, seDuplicaAlDividir(tab.notaId, nota?.tipo));
+      pushUrl();
+    };
+    const items: MenuItem[] = [
+      {
+        label: "Cerrar",
+        onClick: () => void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => cerrada && pushUrl()),
+      },
+    ];
+    if (tab.preview) items.push({ label: "Fijar la pestaña", onClick: () => store.pinTab(pane.id, tab.id) });
+    items.push(
+      { label: "Dividir a la derecha", separadorAntes: true, onClick: () => dividir("right") },
+      { label: "Dividir hacia abajo", onClick: () => dividir("bottom") },
+      {
+        label: "Anclar en el panel lateral",
+        title: "Se ve debajo de la sección del panel izquierdo",
+        onClick: () =>
+          void cerrarPestanaSinPerder(pane.id, tab.id).then((cerrada) => {
+            if (!cerrada) return;
+            useSidebarViewerStore.getState().dock(tab.notaId);
+            if (usePanelLayoutStore.getState().activeSection === null) usePanelLayoutStore.getState().toggleLeft();
+            pushUrl();
+          }),
+      },
+    );
+    if (nota && nota.tipo === "markdown") {
+      items.push(
+        {
+          label: "Exportar como .md",
+          separadorAntes: true,
+          onClick: () => void exportNoteMd(nota.id, nota.titulo),
+        },
+        { label: "Exportar como PDF…", onClick: () => exportNotePdfActive(nota.id, nota.titulo) },
+      );
+    }
+    return items;
+  }
+
   return (
     <div className={styles.tabBar} role="tablist" ref={tabBarRef}>
       {/* Atrás/adelante del historial de la pestaña activa (DEF-040). */}
@@ -224,6 +281,9 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             tabIndex={isActiveTab ? 0 : -1}
             data-tab-id={tab.id}
             onKeyDown={(e) => {
+              // Ctrl+flechas es moverse en la sección (pasa a los botones de la
+              // barra o al documento); Alt solo sale (`niveles.ts`).
+              if (e.altKey || e.ctrlKey || e.metaKey) return;
               const i = pane.tabs.findIndex((t) => t.id === tab.id);
               const destino =
                 e.key === "ArrowRight" ? pane.tabs[(i + 1) % pane.tabs.length]
@@ -238,6 +298,11 @@ export function TabBar({ pane }: { pane: LeafPane }) {
                 tabBarRef.current
                   ?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(destino.id)}"]`)
                   ?.focus();
+              } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+                // El menú contextual por teclado, anclado bajo la pestaña.
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                setMenuPestana({ x: r.left + 12, y: r.bottom, items: itemsDePestana(tab) });
               } else if (e.key === "Delete") {
                 e.preventDefault();
                 // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
@@ -271,6 +336,10 @@ export function TabBar({ pane }: { pane: LeafPane }) {
             }}
             // Doble clic fija la pestaña de preview como permanente (Obsidian).
             onDoubleClick={() => store.pinTab(pane.id, tab.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuPestana({ x: e.clientX, y: e.clientY, items: itemsDePestana(tab) });
+            }}
             onDragStart={(e) => {
               e.dataTransfer.setData("text/plain", tab.id);
               e.dataTransfer.effectAllowed = "move";
@@ -299,7 +368,8 @@ export function TabBar({ pane }: { pane: LeafPane }) {
               <Icono size={13} className={styles.tabIcono} aria-hidden />
             )}
             <span className={styles.tabTitle}>{titleOf(tab)}</span>
-            {tipoDePestana(tab.notaId) === "nota" && sync !== "synced" && (
+            {(tipoDePestana(tab.notaId) === "nota" || tipoDePestana(tab.notaId) === "bandeja") &&
+              sync !== "synced" && (
               <span
                 className={`${styles.tabDot} ${styles[`dot_${sync}`]}`}
                 aria-hidden
@@ -466,6 +536,7 @@ export function TabBar({ pane }: { pane: LeafPane }) {
           </div>
         )}
       </div>
+      {menuPestana && <ContextMenu {...menuPestana} onClose={() => setMenuPestana(null)} />}
     </div>
   );
 }

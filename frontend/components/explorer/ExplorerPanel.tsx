@@ -48,10 +48,8 @@ import {
   renombrarOtro,
 } from "@/lib/accionesOtroArchivo";
 import { revelarEnSistema } from "@/lib/db/vaultFs";
-import { api } from "@/lib/api";
-import { baseInicial } from "@/lib/bases";
-import { canvasInicial } from "@/lib/canvas";
-import { diagramaInicial } from "@/lib/drawio";
+import { opcionDe, tituloConDetalle } from "@/lib/comandos/nuevo";
+import { crearDocumento, pedirYCrearCarpeta, type TipoDocumento } from "@/lib/crear";
 // La extensión que se lee en cada fila (`FUN-S-03`) sale del mismo mapa que usa
 // `extDeTipo` para nombrar el archivo en disco: eran dos copias, y agregar
 // `.drawio` tocó solo una —el diagrama se creaba bien y se listaba sin extensión.
@@ -74,9 +72,14 @@ import {
   type TreeCarpeta,
   type TreeNota,
 } from "@/stores/vaultStore";
+import { comandosExplorador } from "@/lib/comandos/comandosExplorador";
+import { useRegistrarComandos } from "@/lib/comandos/useComandos";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { DialogoMoverA } from "./DialogoMoverA";
 import { MenuNuevo, type ItemNuevo } from "./MenuNuevo";
+import { SeccionBandeja } from "./SeccionBandeja";
+import { RUTA_BANDEJA_DEFECTO, esRutaBandeja, normalizarRutaBandeja } from "@/lib/bandeja";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import styles from "./ExplorerPanel.module.css";
 import { confirmar } from "@/lib/confirmar";
 import { pedirEdicionDeTitulo, soltarFoco } from "@/lib/editor/tituloPendiente";
@@ -136,6 +139,29 @@ const dropMasProfundo: CollisionDetection = (args) => {
 };
 
 type MenuState = { x: number; y: number; items: MenuItem[] } | null;
+
+/** El elemento seleccionado del árbol, con su dato (`FUN-XL-04`, Parte 4). */
+type SeleccionArbol =
+  | { tipo: "nota"; nota: TreeNota }
+  | { tipo: "carpeta"; carpeta: TreeCarpeta }
+  | { tipo: "otro"; otro: OtroArchivo };
+
+/** Lo que el explorador hace con el elemento seleccionado (los comandos lo llaman por ref). */
+type AccionesArbol = {
+  seleccion: () => SeleccionArbol | null;
+  hayCarpetaEnDisco: () => boolean;
+} & Record<
+  | "renombrar"
+  | "mover"
+  | "duplicar"
+  | "copiarEnlace"
+  | "abrirAlLado"
+  | "exportarMd"
+  | "exportarPdf"
+  | "mostrarEnSistema"
+  | "eliminar",
+  (sel: SeleccionArbol) => void
+>;
 type RenameState = { type: "carpeta" | "nota" | "otro"; id: string; valor: string } | null;
 
 /**
@@ -202,7 +228,7 @@ export function ExplorerPanel() {
     });
   // El árbol de «Archivos»: una sola parada de Tab y navegación con flechas.
   const arbolRef = useRef<HTMLDivElement | null>(null);
-  const onFocusFila = useFocoItineranteArbol(arbolRef);
+  const { onFocusFila, ultimaFilaRef } = useFocoItineranteArbol(arbolRef);
   // Al terminar un renombrado (F2 o doble clic), el foco vuelve al árbol: el
   // campo desaparece y, sin esto, caía al <body> y el teclado tenía que
   // empezar de nuevo desde arriba. Se busca la fila por su id de antes (sirve
@@ -227,6 +253,44 @@ export function ExplorerPanel() {
   const importTargetRef = useRef<string | null>(null);
 
   const vaultId = vaults[0]?.id;
+
+  // El archivo abierto, para el elemento seleccionado de los comandos.
+  const activoRef = useRef(activeNoteId);
+  activoRef.current = activeNoteId;
+
+  // Las acciones del menú del explorador como comandos de la paleta, mientras
+  // el explorador está montado (`FUN-XL-04`, Parte 4). La lista se arma una
+  // vez y lee las acciones del último render por ref (`accionesRef`, que se
+  // llena más abajo, cuando las acciones ya están definidas).
+  const accionesRef = useRef<AccionesArbol | null>(null);
+  const comandosDelExplorador = useMemo(() => {
+    const a = () => accionesRef.current;
+    const con = (hacer: (acc: AccionesArbol, sel: SeleccionArbol) => void) => () => {
+      const acc = a();
+      const sel = acc?.seleccion();
+      if (acc && sel) hacer(acc, sel);
+    };
+    return comandosExplorador({
+      seleccion: () => {
+        const sel = a()?.seleccion();
+        if (!sel) return null;
+        if (sel.tipo === "nota") return { tipo: "nota", nombre: sel.nota.titulo, markdown: sel.nota.tipo === "markdown" };
+        if (sel.tipo === "carpeta") return { tipo: "carpeta", nombre: sel.carpeta.nombre };
+        return { tipo: "otro", nombre: sel.otro.nombre };
+      },
+      hayCarpetaEnDisco: () => a()?.hayCarpetaEnDisco() ?? false,
+      renombrar: con((acc, s) => acc.renombrar(s)),
+      mover: con((acc, s) => acc.mover(s)),
+      duplicar: con((acc, s) => acc.duplicar(s)),
+      copiarEnlace: con((acc, s) => acc.copiarEnlace(s)),
+      abrirAlLado: con((acc, s) => acc.abrirAlLado(s)),
+      exportarMd: con((acc, s) => acc.exportarMd(s)),
+      exportarPdf: con((acc, s) => acc.exportarPdf(s)),
+      mostrarEnSistema: con((acc, s) => acc.mostrarEnSistema(s)),
+      eliminar: con((acc, s) => acc.eliminar(s)),
+    });
+  }, []);
+  useRegistrarComandos(comandosDelExplorador);
 
   useEffect(() => {
     if (vaultId) void store.loadTree(vaultId);
@@ -313,15 +377,21 @@ export function ExplorerPanel() {
     return map;
   }, [otros]);
 
+  // La Bandeja del vault (`FUN-L-33`) tiene su propia sección: no se repite en
+  // el árbol. Sigue siendo una nota del vault (búsqueda, enlaces, grafo); solo
+  // no se lista acá.
+  const rutaBandejaPref = usePreferencesStore((s) => s.prefs.rutaBandeja);
+  const rutaBandeja = normalizarRutaBandeja(rutaBandejaPref ?? "") ?? RUTA_BANDEJA_DEFECTO;
   const notasPorCarpeta = useMemo(() => {
     const map = new Map<string | null, TreeNota[]>();
     for (const nota of store.notas) {
+      if (esRutaBandeja(nota.id, rutaBandeja)) continue;
       const list = map.get(nota.carpetaId) ?? [];
       list.push(nota);
       map.set(nota.carpetaId, list);
     }
     return map;
-  }, [store.notas]);
+  }, [store.notas, rutaBandeja]);
 
   const carpetasById = useMemo(
     () => new Map(store.carpetas.map((c) => [c.id, c])),
@@ -586,91 +656,58 @@ export function ExplorerPanel() {
   }
 
   /**
-   * Crea un `.base` con una vista mínima ya escrita. Una base vacía no mostraría
-   * nada y parecería rota; con esto se abre mostrando el vault entero, que es de
-   * donde el usuario va a partir para filtrar.
+   * Crea un documento (`lib/crear.ts`, la misma lógica que el menú «Nuevo…» y
+   * los comandos `crear.*`) y lo abre. Una nota abre con el título en edición.
    */
-  async function crearBase(carpetaId: string | null) {
-    const id = await store.createNota(carpetaId, "base");
-    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
-      method: "PUT",
-      token: useAuthStore.getState().accessToken,
-      body: { contenido: baseInicial() },
-    });
-    openNota(id);
+  function crearYAbrir(tipo: TipoDocumento, carpetaId: string | null, que: string) {
+    void crearDocumento(tipo, carpetaId)
+      .then(tipo === "nota" ? abrirNueva : openNota)
+      .catch(avisarFallo(`crear ${que}`));
   }
 
-  /** Crea un `.canvas` vacío pero válido, para que abra sin caso especial. */
-  async function crearCanvas(carpetaId: string | null) {
-    const id = await store.createNota(carpetaId, "canvas");
-    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
-      method: "PUT",
-      token: useAuthStore.getState().accessToken,
-      body: { contenido: canvasInicial() },
-    });
-    openNota(id);
-  }
-
-  /**
-   * Crea un `.drawio` con una página vacía ya escrita (`FUN-L-20`). Un archivo
-   * de cero bytes no es un diagrama válido: el editor lo trataría como corrupto.
-   */
-  async function crearDiagrama(carpetaId: string | null) {
-    const id = await store.createNota(carpetaId, "drawio");
-    await api(`/notas/${encodeURIComponent(id)}/contenido`, {
-      method: "PUT",
-      token: useAuthStore.getState().accessToken,
-      body: { contenido: diagramaInicial() },
-    });
-    openNota(id);
+  function crearCarpeta(padreId: string | null) {
+    void pedirYCrearCarpeta(padreId).catch(avisarFallo("crear la carpeta"));
   }
 
   function carpetaMenu(carpeta: TreeCarpeta): MenuItem[] {
     return [
       {
-        label: "Nueva nota",
+        label: opcionDe("nota").titulo,
         icono: ico(IconoNota),
-        onClick: () => void store.createNota(carpeta.id).then(abrirNueva).catch(avisarFallo("crear la nota")),
+        onClick: () => crearYAbrir("nota", carpeta.id, "la nota"),
       },
       {
-        label: "Nuevo dibujo Excalidraw",
+        label: opcionDe("dibujo").titulo,
         icono: ico(IconoDibujo),
-        onClick: () =>
-          void store
-            .createNota(carpeta.id, "excalidraw")
-            .then(openNota)
-            .catch(avisarFallo("crear el dibujo")),
+        onClick: () => crearYAbrir("dibujo", carpeta.id, "el dibujo"),
       },
       // Base (FUN-L-03): una tabla que agrega notas por sus propiedades. Se crea
       // con una vista mínima ya escrita, para que muestre algo desde el principio.
       {
-        label: "Nueva base",
+        label: opcionDe("tabla").titulo,
         icono: ico(IconoBase),
-        onClick: () => void crearBase(carpeta.id).catch(avisarFallo("crear la base")),
+        onClick: () => crearYAbrir("tabla", carpeta.id, "la base"),
       },
       {
-        label: "Nuevo canvas",
+        label: opcionDe("lienzo").titulo,
         icono: ico(IconoCanvas),
-        onClick: () => void crearCanvas(carpeta.id).catch(avisarFallo("crear el canvas")),
+        onClick: () => crearYAbrir("lienzo", carpeta.id, "el canvas"),
       },
       // draw.io (`FUN-L-20`): el diagrama formal, el que se retoca dentro de seis
       // meses moviendo una caja y que las flechas la sigan.
       {
-        label: "Nuevo diagrama draw.io",
+        label: opcionDe("diagrama").titulo,
         icono: ico(IconoDiagrama),
-        onClick: () => void crearDiagrama(carpeta.id).catch(avisarFallo("crear el diagrama")),
+        onClick: () => crearYAbrir("diagrama", carpeta.id, "el diagrama"),
       },
       // Plantillas (FUN-M-03): crea EN ESTA carpeta, no en la activa. Sin
       // Esporas la entrada queda deshabilitada con el motivo, nunca oculta: es
       // la forma de que la funcionalidad se descubra.
       esporasMenu(carpeta.id),
       {
-        label: "Nueva carpeta",
+        label: opcionDe("carpeta").titulo,
         icono: ico(FolderPlus),
-        onClick: () => {
-          const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-          if (nombre) void store.createCarpeta(nombre, carpeta.id).catch(avisarFallo("crear la carpeta"));
-        },
+        onClick: () => crearCarpeta(carpeta.id),
       },
       // Grupos (`FUN-S-28`): crear · traer al vault · organizar · eliminar.
       {
@@ -733,19 +770,7 @@ export function ExplorerPanel() {
         icono: ico(Trash2),
         separadorAntes: true,
         danger: true,
-        onClick: () => {
-          const subtree = store.subtreeIds(carpeta.id);
-          const count = store.notas.filter(
-            (n) => n.carpetaId !== null && subtree.has(n.carpetaId),
-          ).length;
-          const message =
-            count > 0
-              ? `Eliminar "${carpeta.nombre}" mandará ${count} nota(s) a la papelera. ¿Continuar?`
-              : `¿Eliminar la carpeta "${carpeta.nombre}"?`;
-          void confirmar(message, "Eliminar").then((ok) => {
-            if (ok) void store.deleteCarpeta(carpeta.id).catch(avisarFallo(`eliminar «${carpeta.nombre}»`));
-          });
-        },
+        onClick: () => eliminarCarpeta(carpeta),
       },
     ];
   }
@@ -812,21 +837,7 @@ export function ExplorerPanel() {
         // Sin preguntar, pero con vuelta atrás: la nota va a la papelera y el
         // aviso ofrece traerla de nuevo (crítica del cascarón, 2026-09-20).
         // Preguntar antes de cada borrado enseña a decir que sí sin leer.
-        onClick: () => {
-          const titulo = nota.titulo;
-          const id = nota.id;
-          useTabsStore.getState().closeNotaEverywhere(id);
-          void store
-            .deleteNota(id)
-            .then(() =>
-              avisar(`«${titulo}» fue a la papelera`, {
-                etiqueta: "Deshacer",
-                hacer: () =>
-                  void useVaultStore.getState().restoreNota(id).catch(avisarFallo(`restaurar «${titulo}»`)),
-              }),
-            )
-            .catch(avisarFallo(`mandar «${titulo}» a la papelera`));
-        },
+        onClick: () => eliminarNota(nota),
       },
     ];
   }
@@ -888,13 +899,7 @@ export function ExplorerPanel() {
         danger: true,
         // A la papelera del sistema, no a la de Mycelium (ver `eliminarOtro`):
         // como desde la app no se puede deshacer, se pregunta antes.
-        onClick: () =>
-          void confirmar(
-            `¿Mandar «${otro.nombre}» a la papelera de reciclaje del sistema? Se recupera desde ahí.`,
-            "Eliminar",
-          ).then((ok) => {
-            if (ok) void eliminarOtro(vault, otro).catch(fallo("eliminar"));
-          }),
+        onClick: () => eliminarOtroArchivo(otro),
       },
     ];
   }
@@ -904,6 +909,160 @@ export function ExplorerPanel() {
     useTabsStore.getState().openNote(tabId);
     router.replace(`/workspace?note=${tabId}`);
   }
+
+  function eliminarCarpeta(carpeta: TreeCarpeta) {
+    const subtree = store.subtreeIds(carpeta.id);
+    const count = store.notas.filter((n) => n.carpetaId !== null && subtree.has(n.carpetaId)).length;
+    const message =
+      count > 0
+        ? `Eliminar "${carpeta.nombre}" mandará ${count} nota(s) a la papelera. ¿Continuar?`
+        : `¿Eliminar la carpeta "${carpeta.nombre}"?`;
+    void confirmar(message, "Eliminar").then((ok) => {
+      if (ok) void store.deleteCarpeta(carpeta.id).catch(avisarFallo(`eliminar «${carpeta.nombre}»`));
+    });
+  }
+
+  function eliminarNota(nota: TreeNota) {
+    const titulo = nota.titulo;
+    const id = nota.id;
+    useTabsStore.getState().closeNotaEverywhere(id);
+    void store
+      .deleteNota(id)
+      .then(() =>
+        avisar(`«${titulo}» fue a la papelera`, {
+          etiqueta: "Deshacer",
+          hacer: () => void useVaultStore.getState().restoreNota(id).catch(avisarFallo(`restaurar «${titulo}»`)),
+        }),
+      )
+      .catch(avisarFallo(`mandar «${titulo}» a la papelera`));
+  }
+
+  function eliminarOtroArchivo(otro: OtroArchivo) {
+    if (!rutaVault) return;
+    const vault = rutaVault;
+    void confirmar(
+      `¿Mandar «${otro.nombre}» a la papelera de reciclaje del sistema? Se recupera desde ahí.`,
+      "Eliminar",
+    ).then((ok) => {
+      if (ok) {
+        void eliminarOtro(vault, otro).catch((e) =>
+          avisar(`No se pudo eliminar «${otro.nombre}»: ${(e as Error)?.message ?? e}`),
+        );
+      }
+    });
+  }
+
+  // ── El elemento seleccionado y sus comandos (`FUN-XL-04`, Parte 4) ──
+
+  /**
+   * El elemento seleccionado del árbol: la última fila que tuvo el foco (con
+   * el teclado o con el mouse) y, si ninguna lo tuvo o ya no existe, el
+   * archivo abierto. Se lee de los stores en el momento: los comandos lo
+   * piden al mostrarse en la paleta y al ejecutarse.
+   */
+  function seleccionDelArbol(): SeleccionArbol | null {
+    const vs = useVaultStore.getState();
+    const buscar = (clave: string | null): SeleccionArbol | null => {
+      if (!clave) return null;
+      const i = clave.indexOf(":");
+      const tipo = clave.slice(0, i);
+      const id = clave.slice(i + 1);
+      if (tipo === "nota") {
+        const nota = vs.notas.find((n) => n.id === id);
+        return nota ? { tipo: "nota", nota } : null;
+      }
+      if (tipo === "carpeta") {
+        const carpeta = vs.carpetas.find((c) => c.id === id);
+        return carpeta ? { tipo: "carpeta", carpeta } : null;
+      }
+      if (tipo === "otro") {
+        const otro = vs.otros.find((o) => o.ruta === id);
+        return otro ? { tipo: "otro", otro } : null;
+      }
+      return null;
+    };
+    const activo = activoRef.current;
+    const otroActivo = activo ? vs.otros.find((o) => tabIdDeArchivo(o.ruta) === activo) : undefined;
+    return (
+      buscar(ultimaFilaRef.current) ??
+      buscar(activo ? `nota:${activo}` : null) ??
+      (otroActivo ? { tipo: "otro", otro: otroActivo } : null)
+    );
+  }
+
+  /** Despliega las carpetas que llevan a `carpetaId` (y «Archivos»), para que su fila exista. */
+  function revelarCarpeta(carpetaId: string | null) {
+    const vs = useVaultStore.getState();
+    const porId = new Map(vs.carpetas.map((c) => [c.id, c]));
+    const cadena: string[] = [];
+    for (let c = carpetaId; c !== null && !cadena.includes(c); c = porId.get(c)?.padreId ?? null) cadena.push(c);
+    vs.expandirCarpetas(cadena);
+    if (archivosCollapsed) toggleArchivos();
+  }
+
+  /** Lo que hacen los comandos del explorador. Se rehace en cada render; los comandos lo leen por ref. */
+  const acciones = {
+    renombrar(sel: SeleccionArbol) {
+      if (sel.tipo === "carpeta") {
+        revelarCarpeta(sel.carpeta.padreId);
+        setRenaming({ type: "carpeta", id: sel.carpeta.id, valor: sel.carpeta.nombre });
+      } else if (sel.tipo === "nota") {
+        revelarCarpeta(sel.nota.carpetaId);
+        setRenaming({ type: "nota", id: sel.nota.id, valor: sel.nota.titulo });
+      } else {
+        revelarCarpeta(sel.otro.carpetaId);
+        setRenaming({ type: "otro", id: sel.otro.ruta, valor: nombreSinExtension(sel.otro) });
+      }
+    },
+    mover(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") {
+        setMoverA({ tipo: "nota", id: sel.nota.id, nombre: sel.nota.titulo, actual: sel.nota.carpetaId });
+      } else if (sel.tipo === "carpeta") {
+        setMoverA({
+          tipo: "carpeta",
+          id: sel.carpeta.id,
+          nombre: sel.carpeta.nombre,
+          actual: sel.carpeta.padreId,
+          excluir: store.subtreeIds(sel.carpeta.id),
+        });
+      }
+    },
+    duplicar(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") {
+        void store.duplicateNota(sel.nota.id).catch(avisarFallo(`duplicar «${sel.nota.titulo}»`));
+      } else if (sel.tipo === "otro" && rutaVault) {
+        void duplicarOtro(rutaVault, sel.otro).catch(avisarFallo(`duplicar «${sel.otro.nombre}»`));
+      }
+    },
+    copiarEnlace(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") copiarEnlace(sel.nota);
+    },
+    abrirAlLado(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") abrirAlLado(sel.nota.id);
+      else if (sel.tipo === "otro") abrirAlLado(tabIdDeArchivo(sel.otro.ruta));
+    },
+    exportarMd(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") {
+        void exportNoteMd(sel.nota.id, sel.nota.titulo).catch(avisarFallo(`exportar «${sel.nota.titulo}»`));
+      }
+    },
+    exportarPdf(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") exportNotePdfActive(sel.nota.id, sel.nota.titulo);
+    },
+    mostrarEnSistema(sel: SeleccionArbol) {
+      if (!rutaVault) return;
+      const ruta = sel.tipo === "nota" ? sel.nota.id : sel.tipo === "carpeta" ? sel.carpeta.id : sel.otro.ruta;
+      void revelarEnSistema(rutaVault, ruta).catch(avisarFallo("mostrarlo en el explorador del sistema"));
+    },
+    eliminar(sel: SeleccionArbol) {
+      if (sel.tipo === "nota") eliminarNota(sel.nota);
+      else if (sel.tipo === "carpeta") eliminarCarpeta(sel.carpeta);
+      else eliminarOtroArchivo(sel.otro);
+    },
+    seleccion: seleccionDelArbol,
+    hayCarpetaEnDisco: () => !!rutaVault,
+  };
+  accionesRef.current = acciones;
 
   /**
    * `conservarAlias` (`FUN-M-47`): con Mayús+Enter, el nombre anterior de la
@@ -1076,39 +1235,33 @@ export function ExplorerPanel() {
       .catch((e) => avisar(`No se pudo leer lo que se soltó: ${(e as Error)?.message ?? e}`));
   };
 
-  // Lo que se crea desde el explorador, además de «Nueva nota».
+  // Lo que se crea desde el explorador, además de «Nueva nota». Los textos y
+  // la lógica son los del menú «Nuevo…» (`lib/comandos/nuevo.ts`, `lib/crear.ts`).
   const accionesNuevo: ItemNuevo[] = [
     {
-      label: "Nuevo dibujo Excalidraw",
+      label: tituloConDetalle(opcionDe("dibujo")),
       icono: IconoDibujo,
-      onClick: () =>
-        void store
-          .createNota(store.activeFolderId, "excalidraw")
-          .then(openNota)
-          .catch(avisarFallo("crear el dibujo")),
+      onClick: () => crearYAbrir("dibujo", store.activeFolderId, "el dibujo"),
     },
     {
-      label: "Nueva base (tabla de notas)",
+      label: tituloConDetalle(opcionDe("tabla")),
       icono: IconoBase,
-      onClick: () => void crearBase(store.activeFolderId).catch(avisarFallo("crear la base")),
+      onClick: () => crearYAbrir("tabla", store.activeFolderId, "la base"),
     },
     {
-      label: "Nuevo canvas (notas en el espacio)",
+      label: tituloConDetalle(opcionDe("lienzo")),
       icono: IconoCanvas,
-      onClick: () => void crearCanvas(store.activeFolderId).catch(avisarFallo("crear el canvas")),
+      onClick: () => crearYAbrir("lienzo", store.activeFolderId, "el canvas"),
     },
     {
-      label: "Nuevo diagrama draw.io (figuras y conectores)",
+      label: tituloConDetalle(opcionDe("diagrama")),
       icono: IconoDiagrama,
-      onClick: () => void crearDiagrama(store.activeFolderId).catch(avisarFallo("crear el diagrama")),
+      onClick: () => crearYAbrir("diagrama", store.activeFolderId, "el diagrama"),
     },
     {
-      label: "Nueva carpeta",
+      label: opcionDe("carpeta").titulo,
       icono: FolderPlus,
-      onClick: () => {
-        const nombre = window.prompt("Nombre de la carpeta:", "Nueva carpeta");
-        if (nombre) void store.createCarpeta(nombre, store.activeFolderId).catch(avisarFallo("crear la carpeta"));
-      },
+      onClick: () => crearCarpeta(store.activeFolderId),
     },
     {
       label: "Importar archivos…",
@@ -1156,7 +1309,10 @@ export function ExplorerPanel() {
           e.target.value = "";
         }}
       />
-      <div className={styles.actions}>
+      {/* Grupos del teclado (`FUN-XL-04`, 2026-11-06): la barra de botones, la
+          Bandeja y Archivos. Enter sobre el explorador elige uno (Archivos la
+          primera vez) y Enter entra; adentro, Ctrl+flechas no sale del grupo. */}
+      <div className={styles.actions} data-grupo="Herramientas">
         <button
           type="button"
           className={styles.actionButton}
@@ -1166,7 +1322,7 @@ export function ExplorerPanel() {
             // `DEF-135`: el botón no se queda con el foco, o el espacio y el
             // Enter que se tecleen para la nota nueva crearían otra.
             soltarFoco(e.currentTarget);
-            void store.createNota(store.activeFolderId).then(abrirNueva).catch(avisarFallo("crear la nota"));
+            crearYAbrir("nota", store.activeFolderId, "la nota");
           }}
         >
           <FilePlus size={16} aria-hidden />
@@ -1226,8 +1382,10 @@ export function ExplorerPanel() {
           limpiarDragNota();
         }}
       >
+        {/* La Bandeja (`FUN-L-33`): arriba de «Archivos», plegable como ella. */}
+        <SeccionBandeja />
         {/* Panel "Archivos": ocupa el espacio libre y tiene su propio scroll. */}
-        <div className={styles.paneArchivos}>
+        <div className={styles.paneArchivos} data-grupo="Archivos" data-grupo-principal>
           <SectionHeader
             title="Archivos"
             collapsed={archivosCollapsed}
@@ -1287,7 +1445,11 @@ export function ExplorerPanel() {
   );
 }
 
-/** Cabecera colapsable de una sección del explorador (estilo paneles de VSCode). */
+/**
+ * Cabecera colapsable de una sección del explorador (estilo paneles de VSCode).
+ * Es el título de su grupo del teclado (`data-grupo-titulo`): con el foco ahí,
+ * ← la pliega, → la despliega y Enter entra (`lib/teclado/nivelesDom.ts`).
+ */
 export function SectionHeader({
   title,
   collapsed,
@@ -1298,7 +1460,13 @@ export function SectionHeader({
   onToggle: () => void;
 }) {
   return (
-    <button type="button" className={styles.sectionHeader} onClick={onToggle}>
+    <button
+      type="button"
+      className={styles.sectionHeader}
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      data-grupo-titulo
+    >
       {collapsed ? (
         <ChevronRight size={13} aria-hidden />
       ) : (
@@ -1675,6 +1843,10 @@ function navegarArbol(e: React.KeyboardEvent<HTMLElement>) {
   // Solo cuando el foco está en la FILA: dentro del campo de renombrar, las
   // flechas y el Enter son del campo.
   if (fila.getAttribute("role") !== "treeitem") return;
+  // Ctrl+flechas es moverse en la sección: desde la primera fila, Ctrl+↑ sube
+  // a los botones de arriba (`niveles.ts`). Con Alt, nada: Alt solo sale un
+  // nivel. Ctrl+Z, deshacer.
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
   const filas = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')];
   const i = filas.indexOf(fila);
   const nivel = Number(fila.getAttribute("aria-level"));
@@ -1757,7 +1929,7 @@ function useFocoItineranteArbol(arbolRef: React.MutableRefObject<HTMLDivElement 
 
   // Se engancha como `onFocus` del árbol (en React burbujea, como `focusin`):
   // la fila que recibe el foco —por teclado o por clic— pasa a ser la parada.
-  return useCallback(
+  const onFocusFila = useCallback(
     (e: React.FocusEvent<HTMLElement>) => {
       const fila = e.target as HTMLElement;
       if (fila.getAttribute("role") !== "treeitem") return;
@@ -1768,6 +1940,9 @@ function useFocoItineranteArbol(arbolRef: React.MutableRefObject<HTMLDivElement 
     },
     [arbolRef],
   );
+  // La última fila que tuvo el foco es también el «elemento seleccionado» de
+  // los comandos del explorador (`FUN-XL-04`, Parte 4).
+  return { onFocusFila, ultimaFilaRef: ultimaRef };
 }
 
 /** Zona raíz: soltar aquí mueve a la raíz del vault; clic limpia la carpeta activa. */

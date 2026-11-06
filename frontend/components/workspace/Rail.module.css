@@ -85,14 +85,14 @@
    ícono en el acento. */
 :global(:root[data-theme='gsmart']) .button[aria-pressed='true'] {
   background-image: var(--gsmart-degradado-suave);
-  background-color: rgba(59, 155, 232, 0.08);
+  background-color: color-mix(in srgb, var(--mic-accent) 8%, transparent);
   color: var(--mic-accent);
 }
 
-/* GSmart (`FUN-M-52`): el rail lleva un lavado vertical de la marca, azul
-   profundo arriba y cian abajo, sobre su fondo. */
+/* GSmart (`FUN-M-52`): el rail lleva un lavado vertical de la marca, índigo
+   arriba y celeste abajo, sobre su fondo. */
 :global(:root[data-theme='gsmart']) .rail {
-  background-image: linear-gradient(180deg, rgba(43, 74, 166, 0.16), rgba(18, 168, 232, 0.10));
+  background-image: linear-gradient(180deg, rgba(43, 74, 166, 0.16), rgba(31, 111, 208, 0.12), rgba(18, 168, 232, 0.10));
 }
 
 /* Aurora (`FUN-M-54`): la barra de la sección activa, en el degradado del

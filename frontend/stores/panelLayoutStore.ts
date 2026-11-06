@@ -50,8 +50,8 @@ const clamp = (width: number) =>
 
 // El panel derecho (metadatos/conexiones) admite más ancho: tiene grafo, listas
 // y metadatos que necesitan espacio para no recortarse.
-const RIGHT_MIN_WIDTH = 240;
-const RIGHT_MAX_WIDTH = 680;
+export const RIGHT_MIN_WIDTH = 240;
+export const RIGHT_MAX_WIDTH = 680;
 const clampRight = (width: number) =>
   Math.min(RIGHT_MAX_WIDTH, Math.max(RIGHT_MIN_WIDTH, width));
 

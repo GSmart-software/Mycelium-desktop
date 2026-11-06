@@ -11,6 +11,7 @@ import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTerminalStore, varColorConsola } from "@/stores/terminalStore";
 import { useVaultStore } from "@/stores/vaultStore";
+import { propsDeSeparador } from "./separador";
 import styles from "./SidebarDock.module.css";
 
 /**
@@ -140,6 +141,14 @@ export function SidebarDock({
         .filter(Boolean)
         .join(" ")}
       title={tituloDe(notaId)}
+      // Con el teclado (`FUN-XL-04`, Parte 5): se enfoca —con Tab la mostrada,
+      // las demás con las pistas (F10)— y Enter o Espacio la muestran.
+      tabIndex={docMostrado === notaId ? 0 : -1}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        activar(notaId);
+      }}
       onClick={() => activar(notaId)}
       // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
       onDragStart={(e) => {
@@ -198,7 +207,14 @@ export function SidebarDock({
       )}
 
       {/* Sección activa: siempre montada; oculta si no toca mostrarla. */}
-      <div className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}>
+      {/* `data-seccion-izquierda`: donde los comandos que abren una sección
+          ponen el foco (`FUN-XL-04`, Parte 4). `data-titulo-seccion`: el
+          nombre de la pista de F10 de esta sección («Explorador»). */}
+      <div
+        className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}
+        data-seccion-izquierda
+        data-titulo-seccion={label}
+      >
         {children}
       </div>
 
@@ -207,9 +223,19 @@ export function SidebarDock({
         <>
           <div
             className={styles.divisor}
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Ajustar el tamaño del visor"
+            // Con el teclado (`FUN-XL-04`, Parte 7): ↑ agranda el visor, como
+            // arrastrar hacia arriba. El máximo deja lugar a la sección.
+            {...propsDeSeparador({
+              etiqueta: "Ajustar el tamaño del visor",
+              valor: docsHeight,
+              min: 120,
+              max: Math.max(120, (typeof window === "undefined" ? 800 : window.innerHeight) - 200),
+              orientacion: "horizontal",
+              invertido: true,
+              paso: 10,
+              pasoGrande: 50,
+              alCambiar: (v) => useSidebarViewerStore.getState().setDocsHeight(v),
+            })}
             onPointerDown={onDivisorDown}
           />
           <div className={styles.docsRegion} style={{ height: `${docsHeight}px` }}>

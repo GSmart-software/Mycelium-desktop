@@ -1,7 +1,7 @@
 ---
 titulo: La interfaz
 tema: Primeros pasos
-sinonimos: [pantalla, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión]
+sinonimos: [pantalla, zonas, secciones, niveles, Ctrl+flechas, Alt+flechas, Alt solo, salir un nivel, Enter, Enter del teclado numérico, teclado numérico, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
 ---
 
 La ventana de Mycelium tiene cinco zonas: la **barra superior**, el **rail** de íconos a la
@@ -57,6 +57,10 @@ El clic derecho sobre una nota (o un lienzo, una base, un dibujo, un diagrama) o
 Sobre una carpeta, el menú también tiene **Mover a…**, que la lleva con todo lo que
 contiene y actualiza los enlaces. Arrastrar en el árbol hace lo mismo.
 
+Arriba de **Archivos**, la sección **Bandeja** lleva a la Bandeja del vault y a tu Bandeja
+personal (la misma desde todos los vaults), donde anota la
+[captura rápida](ayuda:herramientas/bandeja-y-captura-rapida) (**Ctrl+Shift+Espacio**).
+
 ## El panel lateral
 
 Además de su sección (el explorador, la búsqueda…), el panel lateral admite pestañas
@@ -100,5 +104,38 @@ Debajo, la fecha de creación y de modificación, la ruta y el tamaño del archi
 
 Con una nota abierta, el pie dice cuántos enlaces tiene y cuántas notas la citan (un clic
 abre el panel de enlaces), cuántas palabras lleva y cuándo se guardó por última vez.
+
+## Con el teclado
+
+La ventana se recorre con **tres teclas** y por **niveles**: arriba, las **secciones** —la
+barra superior, el rail, el panel lateral, cada panel del área de trabajo, el panel de
+enlaces y la barra de estado—; dentro de cada una, sus botones, pestañas y filas; y dentro
+de un documento, lo que escribes.
+
+- **{{atajo:nivel.derecha|Ctrl+→}}** (y las otras flechas con **Ctrl**) se mueve hacia lo
+  que está en esa dirección, sin salir del nivel en el que estás.
+- **{{atajo:nivel.entrar|Enter}}** entra a lo elegido: a la sección, al documento, a la
+  pestaña; sobre un botón o una fila, lo ejecuta.
+- **Alt** —la de la izquierda, apretada y soltada sola— o **Esc** sale un nivel (si hay algo
+  abierto, primero lo cierra).
+
+Algunas secciones agrupan lo suyo: en el **explorador**, los botones de arriba, la
+**Bandeja** y **Archivos** son tres grupos. Se elige uno con **Ctrl+↑** / **Ctrl+↓**,
+**Enter** entra (y lo despliega si estaba plegado), **←** / **→** lo pliegan y despliegan, y
+adentro **Ctrl+flechas** no sale del grupo: **Alt** o **Esc** vuelve a su título.
+
+La sección elegida lleva un borde y un velo del color de acento. Con el **teclado
+numérico**, **{{atajo:zona.rail|Ctrl+Num 1}}** a **{{atajo:zona.estado|Ctrl+Num 5}}** saltan
+al rail, al panel lateral, a las pestañas, al panel de enlaces y a la barra de estado.
+**F6** y **Shift+F6** también recorren las secciones. Detalle en [Atajos de
+teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
+
+Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —casi
+siempre una letra— sobre los botones y campos de la sección donde estás (con una sección
+elegida, una pista por sección): escribir esas letras es el clic. Las letras salen del
+nombre (el Explorador lleva la **E**) y los botones de solo ícono muestran además su nombre.
+En una lista —el árbol, los resultados— no hay pistas: escribe el comienzo de un nombre y
+el foco salta ahí. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
+**F10** las cierran sin hacer nada.
 
 Los atajos de cada zona están en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).

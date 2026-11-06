@@ -21,3 +21,13 @@ export const DIRECCIONES = [
 ] as const;
 
 export type Direccion = (typeof DIRECCIONES)[number];
+
+/**
+ * ¿Es la ventana flotante de la captura global (`FUN-L-33`, Parte C)? Su página
+ * es `/captura` en desarrollo y `captura.html` empaquetada. Ahí no van los
+ * bordes de redimensionado ni la ayuda (F1): es una ventana de una línea.
+ */
+export function esVentanaCaptura(): boolean {
+  if (typeof window === "undefined") return false;
+  return /\/captura(?:\.html)?\/?$/.test(window.location.pathname);
+}

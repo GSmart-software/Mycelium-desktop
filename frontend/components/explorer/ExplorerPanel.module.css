@@ -153,6 +153,48 @@
 .paneCompartidos {
   min-height: 0;
 }
+
+/* La sección «Bandeja» (`FUN-L-33`): arriba de «Archivos», del alto de lo que
+   tiene (una o dos filas), sin scroll propio. */
+.paneBandeja {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.listaBandejas {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cada bandeja es un botón con el aspecto de una fila del árbol. */
+.filaBandeja {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  padding-left: 22px;
+}
+.bandejaDetalle {
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+}
+
+/* Cuántas entradas sin procesar tiene. Estilable con `.mic-bandeja-cuenta`
+   (plantilla de snippets). */
+.bandejaCuenta {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 1.25rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mic-text-primary);
+  background: color-mix(in srgb, var(--mic-glow) 28%, transparent);
+}
 .divisor {
   flex: 0 0 auto;
   height: 7px;
@@ -424,13 +466,13 @@
   color: var(--mic-glow);
 }
 
-/* GSmart (`FUN-M-52`): las cabeceras de sección («ARCHIVOS»…) en Michroma, en mayúsculas y con el espaciado
-   amplio de la marca (styles/gsmart.css). Michroma es ancha: va un punto más
-   chica para que entre en el mismo lugar. */
+/* GSmart (`FUN-M-52`): las cabeceras de sección («ARCHIVOS»…) como etiquetas de la marca: JetBrains Mono, en
+   mayúsculas y con +0,14 em (styles/gsmart.css), a 11px para que entren en el
+   mismo lugar. */
 :global(:root[data-theme='gsmart']) .sectionHeader {
-  font-family: var(--gsmart-letra-titulo);
+  font-family: var(--gsmart-letra-etiqueta);
   font-weight: 400;
-  font-size: 0.625rem;
+  font-size: var(--gsmart-tamano-etiqueta);
   letter-spacing: var(--gsmart-espaciado-etiqueta);
 }
 

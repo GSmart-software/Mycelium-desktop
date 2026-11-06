@@ -147,13 +147,14 @@
   border-image: var(--arrecife-gradiente) 1;
 }
 
-/* GSmart (`FUN-M-52`): el nombre en Michroma y en el degradado de la marca
-   —en sus tintas legibles como texto, `--gsmart-degradado-texto`— y un filete
-   de 2px del degradado bajo la barra, de punta a punta. */
+/* GSmart (`FUN-M-52`): el nombre en Archivo ancha —el título de la marca— y en
+   su degradado —en sus tintas legibles como texto, `--gsmart-degradado-texto`—
+   y un filete de 2px del degradado bajo la barra, de punta a punta. */
 :global(:root[data-theme='gsmart']) .logoFull {
   font-family: var(--gsmart-letra-titulo);
-  font-weight: 400;
-  letter-spacing: 0.08em;
+  font-stretch: var(--gsmart-ancho-titulo);
+  font-weight: var(--gsmart-peso-titulo);
+  letter-spacing: var(--gsmart-interletra-titulo);
   background: var(--gsmart-degradado-texto);
   -webkit-background-clip: text;
   background-clip: text;

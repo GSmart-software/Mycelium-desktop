@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DIRECCIONES, enTauri, type Direccion } from "@/lib/ventana";
+import { DIRECCIONES, enTauri, esVentanaCaptura, type Direccion } from "@/lib/ventana";
 import styles from "./BordesRedimensionado.module.css";
 
 /**
@@ -18,8 +18,9 @@ export function BordesRedimensionado() {
   const [visible, setVisible] = useState(false);
 
   // Solo en Tauri, y recién tras montar: en el render del servidor no hay
-  // ventana y el HTML exportado se sirve igual en los dos lados.
-  useEffect(() => setVisible(enTauri()), []);
+  // ventana y el HTML exportado se sirve igual en los dos lados. La ventana de
+  // la captura global no se redimensiona (`FUN-L-33`, Parte C).
+  useEffect(() => setVisible(enTauri() && !esVentanaCaptura()), []);
 
   if (!visible) return null;
 

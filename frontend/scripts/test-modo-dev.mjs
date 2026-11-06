@@ -68,7 +68,8 @@ test("el aviso dice el estado nuevo", () => {
 });
 
 test("la paleta declara sus comandos de desarrollador con `soloDev: true`", async () => {
-  const paleta = await readFile(join(FRONTEND, "components/workspace/PaletaComandos.tsx"), "utf8");
+  // Desde `FUN-XL-04` los comandos viven en el catálogo único, no en la paleta.
+  const paleta = await readFile(join(FRONTEND, "lib/comandos/comandosApp.ts"), "utf8");
   for (const titulo of ["Desactivar el modo desarrollador", "Abrir las herramientas de desarrollador"]) {
     const i = paleta.indexOf(`titulo: "${titulo}"`);
     assert.ok(i >= 0, `falta el comando «${titulo}»`);

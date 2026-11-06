@@ -13,6 +13,7 @@
  */
 import type { Atendido } from "@/lib/actividadIa";
 import { contenidosDe, filasHacia } from "@/lib/db/indiceIa";
+import { rutaBandeja } from "@/lib/bandejaRuta";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import { FalloIndice, notaDelIndice } from "@/lib/mcpIndice";
 import { normalizarObjetivo } from "@/lib/mcpControlLogica";
@@ -105,7 +106,7 @@ export async function validarNota(args: Record<string, unknown>): Promise<Atendi
   ]);
   const backlinks = [...new Set(entrantes.map((f) => f.desde))];
   const contexto = { nota, informe, backlinks, contenido: contenidos.get(nota.id) ?? "" };
-  const chequeos: Chequeo[] = chequeosBasicos(contexto, carpetaEsporas());
+  const chequeos: Chequeo[] = chequeosBasicos(contexto, carpetaEsporas(), rutaBandeja());
   for (const v of validadoresNota()) {
     try {
       chequeos.push(...(await v(contexto)));

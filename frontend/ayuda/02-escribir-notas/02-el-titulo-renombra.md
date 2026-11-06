@@ -32,7 +32,8 @@ la coincidencia y escribe con su ruta los enlaces que, si no, cambiarían de not
 
 > [!tip] Una nota nueva ya abre con el título listo para escribir
 > Al crear una nota con **Nueva nota** (el botón del explorador, el clic derecho en una
-> carpeta o **Ctrl+P** → «Nueva nota») o desde una Espora, la nota se abre con el título
+> carpeta, **{{atajo:nota.nueva|Ctrl+N}}** o el menú **Nuevo…** de
+> **{{atajo:crear.nuevo|Ctrl+Shift+N}}**) o desde una Espora, la nota se abre con el título
 > en edición y el nombre seleccionado: lo primero que escribas lo reemplaza. **Enter** la
 > nombra y pasa al cuerpo, vacío y listo para escribir; **Esc** le deja el nombre con el que se creó («Sin título», o el de la Espora).
 

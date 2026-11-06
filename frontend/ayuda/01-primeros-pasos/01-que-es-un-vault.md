@@ -19,7 +19,7 @@ Si algún día dejas de usar Mycelium, tus notas siguen siendo tuyas y legibles.
 
 1. Al abrir Mycelium, elige una carpeta: una vacía para empezar de cero o una que ya tenga
    notas, como una que usabas con Obsidian.
-2. Crea una nota con **Ctrl+P** → «Nueva nota», o desde el explorador. El
+2. Crea una nota con **{{atajo:nota.nueva|Ctrl+N}}**, con **Ctrl+P** → «Nueva nota» o desde el explorador. El
    nombre del archivo es su título: [cambiar uno cambia el otro](ayuda:escribir-notas/el-titulo-renombra).
 3. Enlaza notas escribiendo `[[` y el título de otra. Esos enlaces son la red.
 

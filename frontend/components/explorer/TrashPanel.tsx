@@ -1,5 +1,6 @@
 "use client";
 
+import { navegarFilas } from "@/lib/teclado/listaDom";
 import { Trash2, Undo2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -178,7 +179,13 @@ export function TrashPanel() {
       </div>
       {aviso && <p className={styles.aviso}>{aviso}</p>}
 
-      <ul className={styles.list}>
+      <ul
+        className={styles.list}
+        // ↑ ↓ entre los elementos, ← → entre la casilla y sus botones (`FUN-XL-04`, Parte 7).
+        // `data-lista`: teclear el comienzo de un nombre salta a ese elemento.
+        data-lista="li"
+        onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
+      >
         {papelera.map((item) => {
           const eliminado = new Date(item.eliminadoEn);
           const diasPasados = Math.floor(

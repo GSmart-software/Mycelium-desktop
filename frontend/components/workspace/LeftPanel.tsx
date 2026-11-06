@@ -66,11 +66,13 @@ const SECTION_ICONS: Record<RailSection, LucideIcon> = {
 export function LeftPanel() {
   const activeSection = usePanelLayoutStore((s) => s.activeSection);
   const setLeftWidth = usePanelLayoutStore((s) => s.setLeftWidth);
+  const leftWidth = usePanelLayoutStore((s) => s.leftWidth);
 
   return (
     <aside
       className={`${styles.panel} ${styles.panelLeft}`}
       aria-hidden={activeSection === null}
+      data-zona="izquierda"
     >
       {activeSection !== null && (
         <>
@@ -93,7 +95,7 @@ export function LeftPanel() {
               )}
             </SidebarDock>
           </div>
-          <ResizeHandle side="left" onResize={setLeftWidth} />
+          <ResizeHandle side="left" width={leftWidth} onResize={setLeftWidth} />
         </>
       )}
     </aside>

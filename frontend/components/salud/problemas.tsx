@@ -1,5 +1,6 @@
 "use client";
 
+import { navegarFilas } from "@/lib/teclado/listaDom";
 import { CircleAlert, Info, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -233,7 +234,13 @@ export function ListaProblemas({ informe, tope = TOPE_VISIBLE }: { informe: Info
     });
 
   return (
-    <div className={styles.problemas}>
+    <div
+      className={styles.problemas}
+      // ↑ ↓ entre las clases y sus problemas (`FUN-XL-04`, Parte 7).
+      // `data-lista`: teclear el comienzo de un nombre salta a ese problema.
+      data-lista="button"
+      onKeyDown={(e) => navegarFilas(e, e.currentTarget, "button")}
+    >
       {informe.avisosEsquemas.length > 0 && (
         <div className={styles.error} role="status">
           <p>

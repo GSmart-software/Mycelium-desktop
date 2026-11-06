@@ -178,6 +178,12 @@ import { FRAMEWORK_IA_VERSION } from "./versionFramework";
  *   los **diagnósticos del editor** (`FUN-M-44`): `mycelium_diagnosticos` en
  *   `mycelium-operar`.
  *   **Minor**: la IA gana una validación y una herramienta nuevas.
+ * - 2.5.0 — **la Bandeja del vault** (`FUN-L-33`): `Bandeja.md` (o la ruta
+ *   configurada), donde anota la captura rápida. Su formato, qué hacer con ella
+ *   y que no se renombra, mueve ni borra —las herramientas del MCP la
+ *   rechazan—, en la regla 12 del núcleo, en `mycelium-vault` («La Bandeja del
+ *   vault» y «Qué ve el usuario») y en `mycelium-operar`.
+ *   **Minor**: la IA conoce una nota con reglas propias.
  */
 // El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
 // cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.
@@ -218,7 +224,8 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 10. **Lo que lleva prefijo \`mycelium\`** (este bloque, \`.claude/**/mycelium*\`) no se
     edita: lo regenera Mycelium. Lo demás de \`CLAUDE.md\` y \`.claude/\` es del usuario.
 11. **\`.mycignore\`** oculta de la app: no escondas ahí lo que el usuario deba ver.
-12. **Esporas**: son moldes, no memoria. No consolides ni cites ahí.
+12. **Esporas**: son moldes, no memoria. No consolides ni cites ahí. La **Bandeja**
+    (\`Bandeja.md\`, la de la captura rápida) se edita, pero no se renombra, mueve ni borra.
 
 ## Skills: cargá la que toque
 
@@ -478,6 +485,31 @@ directamente en \`Esporas/\` (o la carpeta configurada) y sus variables son \`{{
 desde la app**. Si vas a crear una nota de un tipo que ya tiene Espora, **partí de ella** y
 expandí vos las variables —copiarla deja \`{{fecha}}\` escrito—: skill \`mycelium-esporas\`.
 
+### La Bandeja del vault
+
+\`Bandeja.md\` en la raíz (o la ruta configurada en Configuración → Vault: leé
+\`"rutaBandeja"\` de \`.mycelium/preferencias.json\`, sin tocarlo) es donde la **captura
+rápida** del usuario (Ctrl+Shift+Espacio) anota lo que no quiere olvidar. Cada día abre su
+encabezado y cada entrada es un ítem con la hora; \`- [ ]\` es una tarea:
+
+\`\`\`markdown
+## 2026-11-05
+- 09:40 La panadería prefiere hablar por la tarde
+- [ ] 10:05 Renovar el dominio antes del 15
+\`\`\`
+
+- Es **material en crudo**, sin procesar: no la cites como conocimiento consolidado. Si
+  el usuario pide «procesá la Bandeja», llevá cada entrada a su nota (creándola o
+  ampliándola, con enlaces) y después marcá la tarea (\`[x]\`) o quitá la línea.
+- Si agregás algo, **al final**, con el mismo formato (encabezado \`## AAAA-MM-DD\` si el
+  del día no es el último). No reordenes ni reformatees lo que ya está.
+- **No se renombra, no se mueve, no se borra** (ni se borra la carpeta que la contiene;
+  renombrar o mover esa carpeta sí, y la Bandeja la sigue): la app la protege y
+  \`mycelium_renombrar\`, \`mycelium_mover\` y \`mycelium_borrar\` la rechazan. Con \`mv\` o
+  \`rm\` la romperías: Mycelium la recrearía vacía en su ruta.
+- No aparece en el árbol de «Archivos» del explorador: tiene su propia sección,
+  «Bandeja», con la cuenta de entradas sin procesar.
+
 ## \`.mycignore\`: qué ve Mycelium
 
 Archivo opcional en la raíz, sintaxis tipo \`.gitignore\`:
@@ -508,7 +540,9 @@ el efecto de lo que escribís: editor Markdown con vista en vivo y de lectura; c
 (los diez tipos de la tabla, plegables con \`[!tipo]-\`), incluso anidados; **listas de
 tareas con estados** según el símbolo de la casilla; **propiedades** del frontmatter como
 tarjeta arriba de la nota y como pestaña editable en el panel; **Esporas** en su propio
-panel del rail, en la barra del editor y en el clic derecho de una carpeta; **tablas**
+panel del rail, en la barra del editor y en el clic derecho de una carpeta; la **captura
+rápida** (Ctrl+Shift+Espacio), que anota en la **Bandeja** del vault, con su sección
+arriba de «Archivos» en el explorador; **tablas**
 \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`; **diagramas** \`.drawio\`
 con el editor de draw.io y **dibujos** \`.excalidraw\`, en su pestaña o embebidos en una
 nota; un **calendario** con recordatorios (fecha, hora, repetición y avisos) en su panel

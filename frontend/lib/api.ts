@@ -12,6 +12,8 @@
  * snippets CSS se guardan directo en `.mycelium/` del vault, sin pasar por acá
  * (`FUN-L-24`). Las rutas no implementadas devuelven 501.
  */
+import { MOTIVO_PERSONAL_FUERA_DEL_VAULT } from "@/lib/bandeja";
+import { guardarBandejaPersonal, leerBandejaPersonal } from "@/lib/bandejaPersonal";
 import { buscar } from "@/lib/db/buscar";
 import { crearCarpeta, renombrarCarpeta, moverCarpeta, borrarCarpeta } from "@/lib/db/carpetas";
 import { getContenido, leerContenidoEnDisco, putContenido } from "@/lib/db/contenido";
@@ -23,6 +25,7 @@ import { clavesDelVault, notasConPropiedad, propiedadesDeNota } from "@/lib/db/p
 import { notasParaTabla } from "@/lib/db/tabla";
 import { tree } from "@/lib/db/tree";
 import { mensajeDeError } from "@/lib/mensajeError";
+import { BANDEJA_PERSONAL_ID } from "@/lib/pestanas";
 
 export class ApiError extends Error {
   status: number;
@@ -113,6 +116,33 @@ async function dispatch(
     if (c === "mover" && method === "POST") {
       return moverCarpeta(b, s(body.destinoId));
     }
+  }
+
+  // ── /notas/bandeja:personal/contenido (`FUN-L-33`, Parte B) ────────────────
+  // La Bandeja personal se edita con el editor de notas, pero no es una nota del
+  // vault: su contenido va y viene por los comandos de Rust de ese único
+  // archivo, con el mismo contrato que una nota (`esperado` → 409 si cambió).
+  // Todo lo demás —renombrar, mover, borrar, conexiones, propiedades— no aplica.
+  if (a === "notas" && b === BANDEJA_PERSONAL_ID) {
+    if (c === "contenido" && !d && method === "GET") {
+      // Del disco (`?origen=disco`, `DEF-138`): `null` si no está, que
+      // `decidirAnteCambioExterno` entiende como «se borró por fuera». Para
+      // cargar el editor, se recrea vacía si falta: «se recrea al abrirla».
+      const disco = q.get("origen") === "disco";
+      const r = await leerBandejaPersonal(!disco);
+      return { contenido: disco && !r.existe ? null : r.contenido };
+    }
+    if (c === "contenido" && !d && method === "PUT") {
+      const texto = s(body.contenido) ?? "";
+      await guardarBandejaPersonal(texto, body.esperado === undefined ? undefined : s(body.esperado));
+      return {
+        actualizadoEn: new Date().toISOString(),
+        tamanoBytes: new TextEncoder().encode(texto).length,
+        // No tiene enlaces que el grafo dibuje: no es parte del vault.
+        enlacesCambiaron: false,
+      };
+    }
+    throw new DbError(400, `${MOTIVO_PERSONAL_FUERA_DEL_VAULT}.`);
   }
 
   // ── /notas/:id/... ────────────────────────────────────────────────────────

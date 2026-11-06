@@ -1,0 +1,182 @@
+/* La hoja de atajos: una ventana centrada, más alta que ancha, con los grupos
+   en columnas cuando hay sitio. Plana con sombra, como la paleta. */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: calc(var(--mic-topbar-height) + 1.5rem) 1rem 1.5rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 45%, transparent);
+}
+
+.hoja {
+  width: min(880px, 100%);
+  max-height: calc(100vh - var(--mic-topbar-height) - 3rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  overflow: hidden;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.icono {
+  color: var(--mic-accent);
+  flex-shrink: 0;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+  white-space: nowrap;
+}
+
+.buscador {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  padding: 0 0.55rem;
+  background: var(--mic-bg-base);
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+}
+
+.buscador:focus-within {
+  border-color: var(--mic-focus);
+}
+
+.lupa {
+  color: var(--mic-text-muted);
+  flex-shrink: 0;
+}
+
+.campo {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.cerrar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.cerrar:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.cerrar:focus-visible,
+.enlace:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
+.cuerpo {
+  overflow-y: auto;
+  padding: 0.75rem 1rem 1rem;
+  columns: 2 340px;
+  column-gap: 2rem;
+}
+
+.grupo {
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+.grupoTitulo {
+  margin: 0 0 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+.lista {
+  margin: 0;
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 14%, transparent);
+}
+
+.fila:first-child {
+  border-top: 0;
+}
+
+.nombre {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.teclas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.vacio {
+  margin: 1rem 0;
+  font-size: 0.8125rem;
+  color: var(--mic-text-muted);
+}
+
+.pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--mic-border);
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.enlace {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--mic-accent);
+  cursor: pointer;
+}
+
+.enlace:hover {
+  text-decoration: underline;
+}

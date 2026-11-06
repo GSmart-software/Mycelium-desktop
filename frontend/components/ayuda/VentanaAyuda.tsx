@@ -14,6 +14,10 @@ import {
 } from "@/lib/ayuda/indice";
 import type { PaginaAyuda } from "@/lib/ayuda/paginasGeneradas";
 import { htmlDePagina } from "@/lib/ayuda/render";
+import { textoAtajo } from "@/lib/comandos/atajos";
+import { useDistribucion } from "@/lib/comandos/distribucion";
+import { atajosDe, comandoPorId } from "@/lib/comandos/registro";
+import { useVersionAtajos } from "@/lib/comandos/useComandos";
 import { addCodeCopyButtons } from "@/lib/codeCopy";
 import { manejarClicDeEnlace } from "@/lib/enlacesExternos";
 import { renderMermaidIn } from "@/lib/mermaid";
@@ -110,7 +114,18 @@ export function VentanaAyuda() {
     }
   }
 
-  const html = useMemo(() => (pagina.pendiente ? "" : htmlDePagina(pagina.cuerpo)), [pagina]);
+  // Los atajos que el usuario puede cambiar (`{{atajo:…}}`) se muestran como
+  // los tiene hoy y con las teclas de su teclado (`FUN-XL-04`, Parte 3).
+  const versionAtajos = useVersionAtajos();
+  const distribucion = useDistribucion();
+  const html = useMemo(() => {
+    if (pagina.pendiente) return "";
+    return htmlDePagina(pagina.cuerpo, (id) => {
+      const c = comandoPorId(id);
+      return c ? atajosDe(c).map((a) => textoAtajo(a, distribucion)) : undefined;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagina, versionAtajos, distribucion]);
 
   // Al cambiar de página: arriba de todo, recordarla, y lo que el HTML no trae
   // hecho (Mermaid y el «Copiar» de los bloques de código), como en la nota.

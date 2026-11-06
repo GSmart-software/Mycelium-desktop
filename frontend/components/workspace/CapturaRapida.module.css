@@ -1,0 +1,174 @@
+/* La captura rápida (`FUN-L-33`): la misma piel que la paleta de comandos
+   —flota arriba al centro, plana con sombra—, pero más baja: es una línea.
+   Estilable con `.mic-captura`, `.mic-captura-tipo` y `.mic-captura-destino`
+   (plantilla de snippets). */
+.velo {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: calc(var(--mic-topbar-height) + 3rem) 1rem 1rem;
+  background: color-mix(in srgb, var(--mic-bg-canvas) 35%, transparent);
+}
+
+.captura {
+  width: min(580px, 100%);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--mic-raw-base-deep) 35%, transparent);
+  overflow: hidden;
+  animation: aparecer 120ms ease-out;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .captura {
+    animation: none;
+  }
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.85rem;
+  border-bottom: 1px solid var(--mic-border);
+}
+
+.fila:focus-within {
+  border-bottom-color: var(--mic-focus);
+}
+
+.icono {
+  flex-shrink: 0;
+  color: var(--mic-glow-texto);
+}
+
+.campo {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--mic-text-primary);
+}
+
+.campo::placeholder {
+  color: var(--mic-text-muted);
+}
+
+/* Si entra como nota o como tarea, mientras se escribe. */
+.tipo {
+  flex-shrink: 0;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--mic-border);
+  border-radius: 999px;
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  color: var(--mic-text-muted);
+}
+
+.tipo[data-tipo="tarea"] {
+  color: var(--mic-glow-texto);
+  border-color: color-mix(in srgb, var(--mic-glow) 45%, transparent);
+  background: color-mix(in srgb, var(--mic-glow) 10%, transparent);
+}
+
+.error {
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.75rem;
+  color: var(--mic-callout-error-border);
+}
+
+.pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  background: var(--mic-bg-canvas);
+}
+
+.pie kbd {
+  padding: 0 0.3rem;
+  border: 1px solid var(--mic-border);
+  border-bottom-width: 2px;
+  border-radius: var(--mic-radius-sm);
+  font-family: var(--mic-font-mono);
+  font-size: 0.6875rem;
+  color: var(--mic-text-primary);
+}
+
+/* El selector de destino (`FUN-L-33`, Parte B): dos botones, el elegido
+   marcado. `.mic-captura-destinos` es el grupo; `.mic-captura-destino` cada
+   botón, con `data-destino="vault|personal"` y `aria-pressed`. */
+.destinos {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--mic-border);
+  border-radius: var(--mic-radius-sm);
+  overflow: hidden;
+}
+
+.destino {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.55rem;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.destino + .destino {
+  border-left: 1px solid var(--mic-border);
+}
+
+.destino:hover {
+  color: var(--mic-text-primary);
+}
+
+.destino[aria-pressed="true"] {
+  color: var(--mic-glow-texto);
+  background: color-mix(in srgb, var(--mic-glow) 12%, transparent);
+}
+
+/* La captura global (`FUN-L-33`, Parte C): la misma cajita en su propia
+   ventana, que la ventana mide entera (la sombra y el borde los pone el
+   sistema). `.mic-captura-flotante` es el contenedor; la cajita lleva además
+   `.mic-captura[data-flotante]`. */
+.contenedorFlotante {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.captura.flotante {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}

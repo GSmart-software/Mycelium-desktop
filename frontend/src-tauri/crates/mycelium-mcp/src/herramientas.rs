@@ -225,7 +225,7 @@ pub fn definiciones() -> Vec<Value> {
         json!({
             "name": "mycelium_renombrar",
             "title": "Renombrar una nota o carpeta",
-            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Úsala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. Se deshace desde el registro de actividad de Mycelium."#,
+            "description": r#"Renombra una nota o una carpeta del vault REPARANDO LOS ENLACES que llegaban a ella, con el mismo código que usa Mycelium cuando el usuario renombra desde el explorador o el título. Úsala en vez de `mv`. Devuelve la ruta nueva y en qué notas se reescribieron enlaces (y si alguna quedó sin reparar). Si reescribiría enlaces en más de 5 notas, Mycelium le pregunta al usuario y esta llamada espera su respuesta (hasta 2 minutos): si dice que no, RECHAZADO, que es una respuesta, no un error para reintentar: no lo pidas de nuevo en partes más chicas ni lo hagas con `mv`. El nombre no puede llevar ? : * | " < > \ /. La Bandeja del vault (`Bandeja.md` o la ruta configurada) no se renombra: INVALIDO. Se deshace desde el registro de actividad de Mycelium."#,
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -250,7 +250,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Mueve una nota o una carpeta a otra carpeta que ya exista (no crea carpetas), REPARANDO LOS \
                 ENLACES que la nombraban con su carpeta (`[[Carpeta/Nota]]`; los enlaces por título siguen andando solos). \
                 Úsala en vez de `mv`. Pregunta al usuario igual que mycelium_renombrar si reescribe enlaces en más de 5 \
-                notas. Se deshace desde el registro de actividad.",
+                notas. La Bandeja del vault no se mueve (INVALIDO); su carpeta sí, y la Bandeja la sigue. Se deshace \
+                desde el registro de actividad.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -269,7 +270,8 @@ pub fn definiciones() -> Vec<Value> {
                 para siempre. Úsala en vez de `rm`. Una nota no pregunta (el usuario ve un aviso con Deshacer); una \
                 carpeta SIEMPRE le pregunta al usuario y esta llamada espera su respuesta. Devuelve con qué id se \
                 restaura (mycelium_papelera) y qué pestañas se cerraron. Una nota con cambios sin guardar no se borra: \
-                CAMBIOS_SIN_GUARDAR.",
+                CAMBIOS_SIN_GUARDAR. La Bandeja del vault (`Bandeja.md` o la ruta configurada) no se borra, ni la \
+                carpeta que la contiene: INVALIDO.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

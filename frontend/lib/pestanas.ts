@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  ICONO_BANDEJA,
   ICONO_CALENDARIO,
   ICONO_CONSOLA,
   ICONO_GRAFO,
@@ -48,7 +49,33 @@ export const CALENDAR_TAB_ID = "calendario:global";
  */
 export const SALUD_TAB_ID = "salud:global";
 
-export type TipoDePestana = "nota" | "grafo" | "enlaces" | "calendario" | "salud" | "terminal" | "archivo";
+/**
+ * Pestaña de la **Bandeja personal** (`FUN-L-33`, Parte B): un archivo fuera de
+ * todo vault (en la carpeta de datos de la app), el mismo desde todas las
+ * ventanas. Se edita con el editor de notas, pero no es una nota del vault: no
+ * tiene fila en `notas`, y el dispatcher local (`lib/api.ts`) lleva su lectura
+ * y su guardado a los comandos de Rust de ese único archivo. Como el resto de
+ * los sentinela, nunca es de vista previa, no entra en el historial de una
+ * pestaña ni se descarta al reconciliar contra el índice: al reabrir la app,
+ * vuelve.
+ */
+export const BANDEJA_PERSONAL_ID = "bandeja:personal";
+
+/** El título de la Bandeja personal: en su pestaña, su documento y el explorador. */
+export const TITULO_BANDEJA_PERSONAL = "Bandeja personal";
+
+/** ¿Es la pestaña (o el «id de nota») de la Bandeja personal? */
+export const esBandejaPersonal = (notaId: string | null | undefined) => notaId === BANDEJA_PERSONAL_ID;
+
+export type TipoDePestana =
+  | "nota"
+  | "grafo"
+  | "enlaces"
+  | "calendario"
+  | "salud"
+  | "bandeja"
+  | "terminal"
+  | "archivo";
 
 /** Qué es la pestaña con ese `notaId`. Lo que no es sentinela es una nota del vault. */
 export function tipoDePestana(notaId: string): TipoDePestana {
@@ -56,6 +83,7 @@ export function tipoDePestana(notaId: string): TipoDePestana {
   if (notaId === ENLACES_TAB_ID) return "enlaces";
   if (notaId === CALENDAR_TAB_ID) return "calendario";
   if (notaId === SALUD_TAB_ID) return "salud";
+  if (notaId === BANDEJA_PERSONAL_ID) return "bandeja";
   if (esTabTerminal(notaId)) return "terminal";
   if (esTabArchivo(notaId)) return "archivo";
   return "nota";
@@ -81,6 +109,7 @@ export const PESTANA_SENTINELA: Record<
   enlaces: { titulo: "Referencias del vault", icono: ICONO_REFERENCIAS },
   calendario: { titulo: "Calendario", icono: ICONO_CALENDARIO },
   salud: { titulo: "Salud del vault", icono: ICONO_SALUD },
+  bandeja: { titulo: TITULO_BANDEJA_PERSONAL, icono: ICONO_BANDEJA },
   terminal: { titulo: "Terminal", icono: ICONO_CONSOLA },
   archivo: { titulo: "Archivo", icono: ICONO_OTRO_ARCHIVO },
 };

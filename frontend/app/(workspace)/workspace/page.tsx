@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
 import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
@@ -11,6 +11,9 @@ import { Avisos } from "@/components/workspace/Avisos";
 import { BarraEstado } from "@/components/workspace/BarraEstado";
 import { DialogoConfirmar } from "@/components/workspace/DialogoConfirmar";
 import { PaletaComandos } from "@/components/workspace/PaletaComandos";
+import { HojaAtajos } from "@/components/workspace/HojaAtajos";
+import { DialogoNuevo } from "@/components/workspace/DialogoNuevo";
+import { CapturaRapida } from "@/components/workspace/CapturaRapida";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
 import { Rail } from "@/components/workspace/Rail";
@@ -19,8 +22,14 @@ import { useAuthStore } from "@/stores/authStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useUiStore } from "@/stores/uiStore";
-import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
-import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
+import { useTabsStore } from "@/stores/tabsStore";
+import { escucharBandejaPersonal } from "@/lib/bandejaPersonal";
+import { navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
+import { COMANDOS_APP } from "@/lib/comandos/comandosApp";
+import { COMANDOS_MACROS, useRegistrarMacros } from "@/lib/comandos/comandosMacros";
+import { sincronizarUrl } from "@/lib/comandos/navegar";
+import { useDespachadorAtajos, useRegistrarComandos } from "@/lib/comandos/useComandos";
+import { useTecladoZonas } from "@/lib/teclado/useTecladoZonas";
 import { useRecientesStore } from "@/stores/recientesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { AperturaVault } from "@/components/vault/AperturaVault";
@@ -119,7 +128,6 @@ function WorkspaceShell() {
   // nota— volvía a dibujar el shell y todo lo que cuelga de él.
   const activeSection = usePanelLayoutStore((s) => s.activeSection);
   const leftWidth = usePanelLayoutStore((s) => s.leftWidth);
-  const toggleLeft = usePanelLayoutStore((s) => s.toggleLeft);
   const vaultId = useAuthStore((s) => s.vaults[0]?.id) ?? null;
   const notas = useVaultStore((s) => s.notas);
   const reconciledRef = useRef(false);
@@ -144,6 +152,23 @@ function WorkspaceShell() {
       dispose?.();
     };
   }, [rutaVault]);
+
+  // La Bandeja personal (`FUN-L-33`, Parte B) está fuera del vault: el watcher
+  // no la ve. Rust avisa a todas las ventanas cuando la app la escribe, y acá
+  // se reparte como un cambio externo de su pestaña y un apunte para el
+  // contador del explorador.
+  useEffect(() => {
+    let dispose: (() => void) | null = null;
+    let vigente = true;
+    void escucharBandejaPersonal().then((unlisten) => {
+      if (vigente) dispose = unlisten;
+      else unlisten();
+    });
+    return () => {
+      vigente = false;
+      dispose?.();
+    };
+  }, []);
 
   // Comprobación de actualizaciones (FUN-L-14). Va acá, en el shell ya montado,
   // y no en el arranque de la app: así el diálogo solo puede aparecer cuando
@@ -218,90 +243,20 @@ function WorkspaceShell() {
     useRecientesStore.getState().recordar(activeNoteId);
   }, [activeNoteId]);
 
-  // Atajos de paneles (HU-29) y de pestañas (HU-25 CA4/CA7)
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      // Ctrl+O: ir a una nota. Ctrl+P / Ctrl+Shift+P: paleta de comandos
-      // (rediseño del cascarón): los dos atajos de la categoría, Obsidian y VS
-      // Code. Antes no hacían nada, o imprimían la página.
-      if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-        const tecla = event.key.toLowerCase();
-        if (!event.shiftKey && tecla === "o") {
-          event.preventDefault();
-          useUiStore.getState().setPaleta("notas");
-          return;
-        }
-        if (tecla === "p") {
-          event.preventDefault();
-          useUiStore.getState().setPaleta("comandos");
-          return;
-        }
-      }
-      // Ctrl+, abre Configuración: el atajo que traen VS Code y Obsidian. Hasta
-      // ahora la única puerta era el engranaje del rail y el comando de la
-      // paleta (crítica de Configuración, 2026-09-20).
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key === ",") {
-        event.preventDefault();
-        useUiStore.getState().setSettingsOpen(true);
-        return;
-      }
-      // Ctrl/Cmd+F abre la búsqueda en la nota, no el buscador del navegador.
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        useUiStore.getState().setSearchInNoteOpen(true);
-        return;
-      }
-      if (event.ctrlKey && event.code === "Backslash") {
-        event.preventDefault();
-        // El panel derecho es de cada pane (`DEF-060`), así que el atajo actúa
-        // sobre el que tiene el foco, no sobre todos.
-        if (event.shiftKey) {
-          const { activePaneId, togglePanelMeta } = useTabsStore.getState();
-          togglePanelMeta(activePaneId);
-        } else {
-          toggleLeft();
-        }
-        return;
-      }
-      // Ctrl+Tab / Ctrl+Shift+Tab: ciclar las pestañas del pane activo, en el
-      // orden en que están. Es el atajo que trae quien viene de VS Code.
-      if (event.ctrlKey && event.key === "Tab") {
-        event.preventDefault();
-        ciclarPestana(event.shiftKey ? -1 : 1);
-        return;
-      }
-      if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "w") {
-        event.preventDefault();
-        // Sin perder lo de una nota en conflicto con el disco (`DEF-138`).
-        const { activePaneId, root } = useTabsStore.getState();
-        const activa = findLeaf(root, activePaneId)?.activeTabId;
-        if (activa) {
-          void cerrarPestanaSinPerder(activePaneId, activa).then((cerrada) => cerrada && syncUrlWithTabs());
-        }
-        return;
-      }
-      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
-        event.preventDefault();
-        useTabsStore.getState().reopenLastClosed();
-        syncUrlWithTabs();
-        return;
-      }
-      // Alt+←/→: historial de la pestaña activa (DEF-040). Si el editor ya
-      // consumió la pulsación, no se duplica la acción.
-      if (event.altKey && !event.ctrlKey && !event.shiftKey && !event.defaultPrevented) {
-        if (event.key === "ArrowLeft") {
-          event.preventDefault();
-          navegarHistorialActivo(-1);
-        } else if (event.key === "ArrowRight") {
-          event.preventDefault();
-          navegarHistorialActivo(1);
-        }
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toggleLeft]);
+  // Los comandos de la app y sus atajos (`FUN-XL-04`, Parte 1): el catálogo
+  // único que lista la paleta. El despachador dispara los atajos globales
+  // —Ctrl+O, Ctrl+P, Ctrl+,, Ctrl+F, Ctrl+\, Ctrl+Tab, Ctrl+W, Ctrl+Shift+T,
+  // AltGr+←/→— desde el registro (HU-25 CA4/CA7, HU-29, DEF-040).
+  const navegar = useCallback((url: string) => router.replace(url), [router]);
+  useRegistrarComandos(COMANDOS_APP);
+  // Las macros (`FUN-XL-04`, Parte 6): los comandos con datos de sus pasos y un
+  // comando `macro.<id>` por macro del usuario.
+  useRegistrarComandos(COMANDOS_MACROS);
+  useRegistrarMacros();
+  useDespachadorAtajos(navegar);
+  // Las zonas del teclado, su resaltado y los dos modos de los documentos
+  // (navegar / escribir, Esc y Enter) (`FUN-XL-04`, Parte 2).
+  useTecladoZonas();
 
   /**
    * Botones auxiliares del ratón (DEF-040): 3 = atrás, 4 = adelante. Hasta
@@ -315,7 +270,11 @@ function WorkspaceShell() {
     function onMouseDown(event: MouseEvent) {
       if (event.button !== 3 && event.button !== 4) return;
       event.preventDefault();
-      navegarHistorialActivo(event.button === 3 ? -1 : 1);
+      const { activePaneId } = useTabsStore.getState();
+      // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
+      void navegarHistorialSinPerder(activePaneId, event.button === 3 ? -1 : 1).then(
+        (navego) => navego && sincronizarUrl(navegar),
+      );
     }
     function onAuxClick(event: MouseEvent) {
       if (event.button === 3 || event.button === 4) event.preventDefault();
@@ -326,32 +285,7 @@ function WorkspaceShell() {
       window.removeEventListener("mousedown", onMouseDown, { capture: true });
       window.removeEventListener("auxclick", onAuxClick, { capture: true });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Pasa a la pestaña siguiente (o anterior) del pane activo, con vuelta. */
-  function ciclarPestana(delta: -1 | 1) {
-    const { root, activePaneId, activateTab } = useTabsStore.getState();
-    const pane = allLeaves(root).find((l) => l.id === activePaneId);
-    if (!pane || pane.tabs.length < 2) return;
-    const i = pane.tabs.findIndex((t) => t.id === pane.activeTabId);
-    const destino = pane.tabs[(i + delta + pane.tabs.length) % pane.tabs.length];
-    activateTab(pane.id, destino.id);
-    router.replace("/workspace?note=" + encodeURIComponent(destino.notaId));
-  }
-
-  function navegarHistorialActivo(delta: -1 | 1) {
-    // Sin perder lo de una nota en conflicto con el disco (`DEF-177`).
-    const { activePaneId } = useTabsStore.getState();
-    void navegarHistorialSinPerder(activePaneId, delta).then((navego) => navego && syncUrlWithTabs());
-  }
-
-  // `replace` y no `push` (DEF-040): con historial propio por pestaña, la pila
-  // del WebView solo compite y confunde. La URL sigue reflejando la nota activa.
-  function syncUrlWithTabs() {
-    const nid = useTabsStore.getState().activeNotaId();
-    router.replace(nid ? `/workspace?note=${nid}` : "/workspace");
-  }
+  }, [navegar]);
 
   return (
     <div
@@ -376,6 +310,12 @@ function WorkspaceShell() {
       <ImportDialogs />
       <UpdateDialog />
       <PaletaComandos />
+      {/* La hoja de atajos (FUN-XL-04, Parte 3): Ctrl+Shift+/. */}
+      <HojaAtajos />
+      {/* El menú «Nuevo…» (FUN-XL-04, Parte 4): Ctrl+Shift+N. */}
+      <DialogoNuevo />
+      {/* La captura rápida (FUN-L-33): Ctrl+Shift+Espacio. */}
+      <CapturaRapida />
       <Avisos />
       {/* Tarjetas de aviso y modal del calendario (FUN-L-22). */}
       <Recordatorios />

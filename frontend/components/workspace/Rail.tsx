@@ -96,7 +96,7 @@ export function Rail() {
   );
 
   return (
-    <nav className={styles.rail} aria-label="Navegación principal">
+    <nav className={styles.rail} aria-label="Navegación principal" data-zona="rail">
       <div className={styles.group}>
         {TOP_ITEMS.map((item) => renderButton(item))}
         <button

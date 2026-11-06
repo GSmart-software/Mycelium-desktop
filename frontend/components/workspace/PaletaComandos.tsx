@@ -1,41 +1,22 @@
 "use client";
 
-import {
-  BellPlus,
-  BookOpen,
-  CalendarDays,
-  FilePlus,
-  FileText,
-  HeartPulse,
-  Palette,
-  PanelLeft,
-  Search,
-  Settings,
-  SunMoon,
-  Terminal,
-  ToggleLeft,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { FilePlus, Search, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ICONO_POR_TIPO, ICONO_SALUD } from "@/lib/iconosDeTipo";
+import { alternarModoDev } from "@/lib/comandos/comandosApp";
+import { abrirNota as abrirNotaEn } from "@/lib/comandos/navegar";
+import { anotarPaso } from "@/lib/comandos/preferenciasMacros";
+import { comandosDePaleta, textoEnPaleta, type IconoComando } from "@/lib/comandos/registro";
+import { ejecutarComando, useComandos, useVersionAtajos } from "@/lib/comandos/useComandos";
+import { textoAtajoVisible, useDistribucion } from "@/lib/comandos/distribucion";
+import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
 import { useDialogoModal } from "@/lib/useDialogoModal";
-import { pedirEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
-import { ATMOSFERAS } from "@/lib/atmosferas";
-import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useRecientesStore } from "@/stores/recientesStore";
-import { usePreferencesStore } from "@/stores/preferencesStore";
-import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
-import { abrirPestanaSalud } from "@/lib/saludPestana";
-import { useTabsStore } from "@/stores/tabsStore";
-import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { useUiStore } from "@/stores/uiStore";
-import { avisar, avisarFallo } from "@/stores/avisosStore";
+import { avisarFallo } from "@/stores/avisosStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
-import { avisoModoDev, comandosDisponibles, esConsultaDev } from "@/lib/modoDev";
+import { esConsultaDev } from "@/lib/modoDev";
 import { useVaultStore, type TreeCarpeta } from "@/stores/vaultStore";
-import { IconoGrafo } from "./IconoGrafo";
 import styles from "./PaletaComandos.module.css";
 
 /**
@@ -53,14 +34,19 @@ import styles from "./PaletaComandos.module.css";
  * comando **oculto** —no es una opción, así que no aparece listado ni en
  * ninguna búsqueda— y lo resuelve `esConsultaDev` antes que nada. Con el modo
  * encendido existen además los comandos marcados `soloDev`; para agregar uno,
- * sumarlo a `comandos` con `soloDev: true` (ver `docs/features/modo-dev.md`).
+ * sumarlo a `lib/comandos/comandosApp.ts` con `soloDev: true` (ver
+ * `docs/features/modo-dev.md`).
+ *
+ * Los comandos salen del catálogo único (`FUN-XL-04`, `lib/comandos/`): la
+ * paleta lista los registrados, en su orden, y el atajo que muestra se deriva
+ * del atajo del comando.
  */
 
 type Opcion = {
   id: string;
   titulo: string;
   detalle?: string;
-  icono: LucideIcon | typeof IconoGrafo;
+  icono: LucideIcon | IconoComando;
   ejecutar: () => unknown;
   /** Comando de desarrollador: solo existe con el modo dev (`FUN-S-36`). */
   soloDev?: boolean;
@@ -100,41 +86,6 @@ function rutaDe(carpetaId: string | null, porId: Map<string, TreeCarpeta>): stri
 
 const MAX_RESULTADOS = 50;
 
-/**
- * Enciende o apaga el modo desarrollador y lo confirma con un aviso. El estado
- * se relee de Rust si todavía no se cargó (se carga unos segundos después de
- * arrancar), para no «apagar» un modo que en realidad estaba encendido.
- */
-async function alternarModoDev(activar?: boolean) {
-  const store = useUpdaterStore.getState();
-  const actual = (store.estado ?? (await store.cargarEstado()))?.dev ?? false;
-  const destino = activar ?? !actual;
-  await store.setDev(destino);
-  avisar(avisoModoDev(destino));
-}
-
-/**
- * Tras abrir una nota desde la paleta, el foco va a la nota y no vuelve a lo que
- * estaba enfocado antes (el diálogo lo devuelve al cerrar): si era otra
- * pestaña, quedaba un anillo sobre algo que ya no está activo. Se espera a que
- * el pane activo monte el documento, unos cuadros como máximo.
- */
-function enfocarNota(notaId: string, intentos = 30) {
-  requestAnimationFrame(() => {
-    const { activePaneId, activeNotaId } = useTabsStore.getState();
-    const cuerpo = document.querySelector(`[data-pane-id="${CSS.escape(activePaneId)}"]`);
-    const destino =
-      cuerpo?.querySelector<HTMLElement>(".cm-content") ??
-      cuerpo?.querySelector<HTMLElement>(".mic-preview");
-    if (activeNotaId() === notaId && destino) {
-      if (!destino.isContentEditable && !destino.hasAttribute("tabindex")) destino.tabIndex = -1;
-      destino.focus();
-    } else if (intentos > 0) {
-      enfocarNota(notaId, intentos - 1);
-    }
-  });
-}
-
 export function PaletaComandos() {
   const modo = useUiStore((s) => s.paleta);
   const setPaleta = useUiStore((s) => s.setPaleta);
@@ -166,160 +117,27 @@ export function PaletaComandos() {
     if (!updater.estado) void updater.cargarEstado();
   }, [abierto, modo]);
 
-  const abrirNota = useCallback(
-    (id: string, { editarTitulo = false }: { editarTitulo?: boolean } = {}) => {
-      // Nota recién creada «Sin título» (`DEF-135`): el foco lo pone el editor
-      // en el título, y `enfocarNota` no debe llevárselo al cuerpo después.
-      if (editarTitulo) pedirEdicionDeTitulo(id);
-      useTabsStore.getState().openNote(id);
-      router.replace(`/workspace?note=${encodeURIComponent(id)}`);
-      if (!editarTitulo) enfocarNota(id);
-    },
-    [router],
-  );
+  const navegar = useCallback((url: string) => router.replace(url), [router]);
+  const abrirNota = useCallback((id: string) => abrirNotaEn(navegar, id), [navegar]);
+  const registrados = useComandos();
+  // Los atajos que muestra, con las personalizaciones y el teclado del usuario.
+  const versionAtajos = useVersionAtajos();
+  const distribucion = useDistribucion();
 
-  const comandos: Opcion[] = useMemo(
-    () => [
-      {
-        id: "cmd-nueva-nota",
-        titulo: "Nueva nota",
-        detalle: "En la carpeta seleccionada",
-        icono: FilePlus,
-        ejecutar: async () => {
-          const v = useVaultStore.getState();
-          abrirNota(await v.createNota(v.activeFolderId), { editarTitulo: true });
-        },
-      },
-      {
-        id: "cmd-buscar",
-        titulo: "Buscar en el contenido del vault",
-        icono: Search,
-        ejecutar: () => usePanelLayoutStore.setState({ activeSection: "search", lastSection: "search" }),
-      },
-      {
-        id: "cmd-grafo",
-        titulo: "Abrir el grafo de conexiones",
-        icono: IconoGrafo,
-        ejecutar: () => abrirNota(GRAPH_TAB_ID),
-      },
-      {
-        id: "cmd-calendario",
-        titulo: "Abrir el calendario",
-        icono: CalendarDays,
-        ejecutar: () => abrirNota(CALENDAR_TAB_ID),
-      },
-      // Salud del vault (FUN-L-30): el mismo panel que el ícono del rail.
-      {
-        id: "cmd-salud",
-        titulo: "Revisar la salud del vault",
-        detalle: "Enlaces rotos, huérfanas y títulos duplicados",
-        icono: HeartPulse,
-        ejecutar: () => usePanelLayoutStore.setState({ activeSection: "salud", lastSection: "salud" }),
-      },
-      // La pestaña de salud (FUN-L-32): el tablero con las gráficas. Cierra el
-      // panel de salud si es el que está a la vista.
-      {
-        id: "cmd-salud-pestana",
-        titulo: "Abrir la salud del vault en una pestaña",
-        detalle: "El tablero: qué hay, qué pesa, la red y los problemas",
-        icono: ICONO_SALUD,
-        ejecutar: () => abrirPestanaSalud((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`)),
-      },
-      // El informe como nota (FUN-L-32): revisa, lo guarda en la carpeta de
-      // informes y lo abre. Los fallos los avisa `generarInformeSalud`.
-      {
-        id: "cmd-informe-salud",
-        titulo: "Generar informe de salud del vault",
-        detalle: "Una nota con los problemas y las gráficas",
-        icono: FileText,
-        ejecutar: async () => {
-          const { generarInformeSalud } = await import("@/lib/informeSaludVault");
-          await generarInformeSalud({
-            navegar: (id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`),
-          }).catch(() => undefined);
-        },
-      },
-      {
-        id: "cmd-recordatorio",
-        titulo: "Nuevo recordatorio",
-        detalle: "Para hoy, en el calendario",
-        icono: BellPlus,
-        ejecutar: () => nuevoRecordatorio(hoy()),
-      },
-      {
-        id: "cmd-explorador",
-        titulo: "Mostrar u ocultar el explorador",
-        detalle: "Ctrl+\\",
-        icono: PanelLeft,
-        ejecutar: () => usePanelLayoutStore.getState().toggleSection("explorer"),
-      },
-      {
-        id: "cmd-consola",
-        titulo: "Nueva consola",
-        icono: Terminal,
-        ejecutar: async () => {
-          const { crearTerminal } = await import("@/lib/terminal");
-          router.replace(`/workspace?note=${encodeURIComponent(crearTerminal())}`);
-        },
-      },
-      {
-        id: "cmd-modo",
-        titulo: usePreferencesStore.getState().modoOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro",
-        icono: SunMoon,
-        ejecutar: () => usePreferencesStore.getState().toggleDark(),
-      },
-      {
-        id: "cmd-config",
-        titulo: "Abrir la configuración (Ctrl+,)",
-        icono: Settings,
-        ejecutar: () => useUiStore.getState().setSettingsOpen(true),
-      },
-      // La ayuda integrada (`FUN-L-27`): el mismo destino que F1.
-      {
-        id: "cmd-ayuda",
-        titulo: "Ayuda",
-        detalle: "F1 · Cómo se usa Mycelium",
-        icono: BookOpen,
-        ejecutar: () => useUiStore.getState().abrirAyuda(),
-      },
-      // Atmósfera del modo en uso (la del otro modo se cambia en Configuración).
-      ...ATMOSFERAS.map((a) => {
-        const { modoOscuro, prefs } = usePreferencesStore.getState();
-        const clave = modoOscuro ? "atmosferaOscuro" : "atmosferaClaro";
-        return {
-          id: `cmd-atmosfera-${a.id}`,
-          titulo: `Atmósfera: ${a.nombre}`,
-          detalle: prefs[clave] === a.id ? `En uso en modo ${modoOscuro ? "oscuro" : "claro"}` : a.descripcion,
-          icono: Palette,
-          ejecutar: () => usePreferencesStore.getState().setPref(clave, a.id),
-        };
-      }),
-      // ── Comandos de desarrollador (`FUN-S-36`): solo con el modo dev ──
-      {
-        id: "cmd-dev-apagar",
-        titulo: "Desactivar el modo desarrollador",
-        icono: ToggleLeft,
-        soloDev: true,
-        ejecutar: () => alternarModoDev(false),
-      },
-      {
-        id: "cmd-dev-devtools",
-        titulo: "Abrir las herramientas de desarrollador",
-        detalle: "F12",
-        icono: Wrench,
-        soloDev: true,
-        // El mismo comando que F12 y Ctrl+Shift+I (`DevToolsHotkey`).
-        ejecutar: async () => {
-          const { invoke } = await import("@tauri-apps/api/core");
-          // `forzar`: este comando no depende del interruptor del vault.
-          await invoke("alternar_devtools", { forzar: true });
-        },
-      },
-    ],
-    // El título del cambio de modo se recalcula en cada apertura.
+  // Los comandos del catálogo, con el título y el detalle de este momento: el
+  // del cambio de modo y el de la atmósfera en uso se recalculan en cada
+  // apertura.
+  const comandos: Opcion[] = useMemo(() => {
+    const ctx = { navegar, dev };
+    return comandosDePaleta(registrados, ctx).map((c) => ({
+      id: c.id,
+      ...textoEnPaleta(c, registrados, textoAtajoVisible),
+      icono: c.icono,
+      soloDev: c.soloDev,
+      ejecutar: () => ejecutarComando(c, ctx),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [abrirNota, router, abierto],
-  );
+  }, [registrados, navegar, dev, abierto, versionAtajos, distribucion]);
 
   const enComandos = texto.startsWith(">");
   const consulta = (enComandos ? texto.slice(1) : texto).trim();
@@ -331,7 +149,7 @@ export function PaletaComandos() {
     if (enComandos) {
       // El comando oculto se comporta como una consulta sin coincidencias.
       if (esConsultaDev(texto)) return [];
-      return comandosDisponibles(comandos, dev)
+      return comandos
         .map((c) => ({ c, p: puntaje(c.titulo, consulta) }))
         .filter((x) => x.p !== null)
         .sort((a, b) => a.p! - b.p!)
@@ -343,7 +161,11 @@ export function PaletaComandos() {
       titulo: n.titulo,
       detalle: rutaDe(n.carpetaId, porId),
       icono: ICONO_POR_TIPO[n.tipo] ?? ICONO_POR_TIPO.markdown,
-      ejecutar: () => abrirNota(n.id),
+      ejecutar: () => {
+        // Si se graba una macro (`FUN-XL-04`, Parte 6), ir a una nota es un paso.
+        anotarPaso({ tipo: "abrir", nota: n.id });
+        abrirNota(n.id);
+      },
     });
 
     // Sin consulta: las últimas notas que se miraron. Listar el vault entero en
@@ -376,7 +198,7 @@ export function PaletaComandos() {
       });
     }
     return halladas;
-  }, [enComandos, texto, consulta, comandos, dev, notas, carpetas, recientes, abrirNota]);
+  }, [enComandos, texto, consulta, comandos, notas, carpetas, recientes, abrirNota]);
 
   // La opción activa siempre existe y se ve.
   useEffect(() => setActiva(0), [texto]);

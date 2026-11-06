@@ -19,7 +19,7 @@ el texto se escribe en Markdown y sus `[[enlaces]]` navegan al hacer clic.
 ## Cómo se usa
 
 1. En el explorador, **Nuevo canvas**: con el botón de la barra o con clic derecho en una
-   carpeta.
+   carpeta, o con el menú **Nuevo…** (**{{atajo:crear.nuevo|Ctrl+Shift+N}}**).
 2. **Tarjeta de texto** agrega una tarjeta y la deja lista para escribir; **doble clic**
    en una tarjeta de texto la vuelve a editar. **Tarjeta de nota** busca una nota por el
    principio de su nombre y la pone en el lienzo. La tarjeta nueva aparece en el centro de
@@ -32,6 +32,11 @@ a la derecha. El texto de una tarjeta se lee con la fuente del preview y se escr
 del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te mueves por el lienzo, y la rueda del mouse
 acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
+
+Con el teclado, las tarjetas se recorren con las **flechas** (o **Ctrl**+flechas),
+**Ctrl+Shift**+flechas las mueve, **Enter** edita el texto o abre la nota y **Esc** vuelve a
+la tarjeta.
+Detalle en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 
 **Ctrl+Z** deshace el último cambio del lienzo y **Ctrl+Y** (o **Ctrl+Shift+Z**) lo rehace;
 también están los botones de flecha de la barra. Se deshace todo lo que cambia el archivo:

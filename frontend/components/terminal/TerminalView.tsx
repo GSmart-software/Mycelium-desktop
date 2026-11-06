@@ -9,6 +9,8 @@ import {
   getInstancia,
   ocultarPestanas,
 } from "@/lib/terminal";
+import { autoFocoPermitido } from "@/lib/teclado/focoDom";
+import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import styles from "./TerminalView.module.css";
 
@@ -92,7 +94,13 @@ export function TerminalView({ termId }: { termId: string }) {
     cont.addEventListener("paste", alPegar, true);
 
     void abrirPty(termId).then(() => ajustar());
-    inst.term.focus();
+    // Al abrirla, el teclado va a la shell; salvo que se haya llegado con
+    // Ctrl+Tab, Ctrl+W o cambiando de panel (`FUN-XL-04`): ahí la consola queda
+    // seleccionada y Enter entra, porque xterm se queda con casi todas las
+    // teclas. Tampoco si su panel no es el activo: el foco activaría ese panel.
+    const panel = cont.closest<HTMLElement>("[data-pane-id]")?.dataset.paneId;
+    const enPanelActivo = !panel || panel === useTabsStore.getState().activePaneId;
+    if (autoFocoPermitido() && enPanelActivo) inst.term.focus();
 
     return () => {
       observer.disconnect();

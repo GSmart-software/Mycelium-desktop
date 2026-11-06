@@ -1,0 +1,333 @@
+"use client";
+
+/**
+ * El resaltado y los dos modos de los documentos (`FUN-XL-04`, Parte 2), desde
+ * el workspace:
+ *
+ * - En cada `focusin` marca la zona con el foco (`data-zona-activa`) y el modo
+ *   de cada documento (`data-modo="navegar|escribir"`), y recuerda el último
+ *   elemento enfocado de cada documento.
+ * - `data-teclado` en `<html>` mientras se usa el teclado (se va con el
+ *   puntero): el borde de la zona solo se dibuja con el teclado, como
+ *   `:focus-visible`.
+ * - **Esc** sale un nivel (`niveles.ts`) si no había nada que cerrar:
+ *   escribiendo → el documento seleccionado → la sección seleccionada; de un
+ *   elemento de una sección → la sección. **Enter** sobre un documento
+ *   seleccionado vuelve a escribir.
+ * - **Alt solo** (el izquierdo, apretado y soltado sin otra tecla ni clic en
+ *   el medio) hace lo mismo que Esc: se le manda un Esc a lo que tiene el
+ *   foco, así primero cierra lo abierto y después sale con la misma regla. En
+ *   la consola y en Excalidraw, donde Esc es de ellos, sale directo al
+ *   documento: Alt solo no les sirve.
+ * - **Tab** no recorre controles en el workspace (`tabRecorre`): se navega
+ *   con Ctrl+flechas. Sí en los diálogos, el editor (sangría) y la consola.
+ * - La sección con el foco en su contenedor lleva `data-zona-seleccionada`.
+ * - **Grupos** dentro de una sección (`data-grupo`, 2026-11-06): el grupo con
+ *   el foco en su título lleva `data-grupo-seleccionado`; el que tiene el foco
+ *   adentro, `data-grupo-activo`. Esc sale de un grupo a su título; ← y → sobre
+ *   el título lo pliegan y despliegan, y Enter entra.
+ * - En una lista (el árbol, los resultados, una tabla), teclear el comienzo
+ *   de un nombre salta a ese elemento (`tecleoDom.ts`).
+ *
+ * Los atributos se ponen a mano, sin estado de React: cambian en cada foco y
+ * repintar el workspace por eso sería caro. React no los toca (no los maneja).
+ */
+import { useEffect } from "react";
+import { grabandoAtajo } from "@/lib/comandos/grabacion";
+import {
+  documentoDe,
+  documentoDeMarco,
+  enfocarDocumentoActivo,
+  hayModalAbierto,
+  recordarFoco,
+  seleccionarDocumento,
+  seleccionarSeccion,
+  zonaDe,
+} from "./focoDom";
+import { altSoloAlBajar, altSoloAlSoltar, destinoDeEsc, tabRecorre, type TeclaAlt } from "./niveles";
+import {
+  entrarEnNivel,
+  flechaSobreGrupo,
+  grupoDe,
+  grupoDeAsa,
+  recordarElemento,
+  seleccionarGrupo,
+  ubicar,
+} from "./nivelesDom";
+import { pistasVisibles } from "./pistasDom";
+import { atenderTecleo } from "./tecleoDom";
+import { escSaleDeEscribir, type FotoEsc } from "./zonas";
+
+/**
+ * Lo que se cierra con Esc y avisa con su desaparición: menús, listas,
+ * diálogos, el autocompletado y los paneles de CodeMirror.
+ */
+const SEL_EMERGENTES = "[role='menu'], [role='listbox'], [role='dialog'], .cm-tooltip, .cm-panel";
+
+/**
+ * Donde Esc es del documento y no sale: la consola (vim, la shell) y
+ * Excalidraw (deselecciona, cancela la herramienta). De ahí se sale con F6.
+ */
+const SEL_ESC_PROPIO = ".xterm, .excalidraw, [data-esc-propio]";
+
+/** Donde Tab sigue recorriendo controles: los diálogos y los menús. */
+const SEL_DIALOGO = "[aria-modal='true'], [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']";
+/** Los componentes que usan Tab para otra cosa: la sangría del editor, la shell, Excalidraw. */
+const SEL_CON_TAB = ".cm-editor, .xterm, .excalidraw";
+
+const teclaAlt = (e: KeyboardEvent): TeclaAlt => ({
+  code: e.code,
+  ctrlKey: e.ctrlKey,
+  shiftKey: e.shiftKey,
+  metaKey: e.metaKey,
+  altGr: e.getModifierState("AltGraph"),
+});
+
+function foto(): FotoEsc {
+  const foco = document.activeElement;
+  const valor =
+    foco instanceof HTMLInputElement || foco instanceof HTMLTextAreaElement ? foco.value : null;
+  return { foco, valor, emergentes: document.querySelectorAll(SEL_EMERGENTES).length };
+}
+
+export function useTecladoZonas() {
+  useEffect(() => {
+    const raiz = document.documentElement;
+    let zonaMarcada: HTMLElement | null = null;
+    let docMarcado: HTMLElement | null = null;
+    let grupoElegido: HTMLElement | null = null;
+    let grupoActivo: HTMLElement | null = null;
+    /** Alt solo sigue siendo posible: el Alt izquierdo está apretado y nada más pasó. */
+    let altSolo = false;
+
+    function marcar() {
+      const foco = document.activeElement as HTMLElement | null;
+      // Con el foco en el marco de draw.io (colgado de `body`), la zona y el
+      // documento son los del panel que lo muestra.
+      const deMarco = documentoDeMarco(foco);
+      const zona = zonaDe(deMarco ?? foco);
+      if (zona !== zonaMarcada) {
+        zonaMarcada?.removeAttribute("data-zona-activa");
+        zonaMarcada?.removeAttribute("data-zona-seleccionada");
+        zona?.setAttribute("data-zona-activa", "");
+        zonaMarcada = zona;
+      }
+      // La sección seleccionada (el foco en su contenedor): el nivel de arriba.
+      if (zona) {
+        if (foco === zona) zona.setAttribute("data-zona-seleccionada", "");
+        else zona.removeAttribute("data-zona-seleccionada");
+      }
+      if (foco && !deMarco) recordarElemento(foco);
+      // El grupo elegido (el foco en su título) y el grupo con el foco adentro.
+      const elegido = deMarco ? null : grupoDeAsa(foco);
+      const activo = deMarco || elegido ? null : grupoDe(foco);
+      if (elegido !== grupoElegido) {
+        grupoElegido?.removeAttribute("data-grupo-seleccionado");
+        elegido?.setAttribute("data-grupo-seleccionado", "");
+        grupoElegido = elegido;
+      }
+      if (activo !== grupoActivo) {
+        grupoActivo?.removeAttribute("data-grupo-activo");
+        activo?.setAttribute("data-grupo-activo", "");
+        grupoActivo = activo;
+      }
+      const doc = deMarco ?? documentoDe(foco);
+      if (doc !== docMarcado) {
+        docMarcado?.removeAttribute("data-modo");
+        docMarcado = doc;
+      }
+      if (deMarco) deMarco.setAttribute("data-modo", "escribir");
+      else if (doc && foco) {
+        // El panel de enlaces vive dentro del documento pero es otra zona: con
+        // el foco ahí, el documento no está «escribiendo».
+        if (doc === foco) doc.setAttribute("data-modo", "navegar");
+        else if (zonaDe(foco) === zonaDe(doc)) doc.setAttribute("data-modo", "escribir");
+        else doc.removeAttribute("data-modo");
+        recordarFoco(foco);
+      }
+    }
+
+    // Red para que el foco no se pierda (visto en la prueba en vivo del
+    // 2026-11-06): cuando lo que tenía el foco desaparece —el editor al pasar a
+    // Lectura con Ctrl+3, el menú contextual tras «Abrir al lado»—, el navegador
+    // lo deja en `body` y Esc, Enter y los atajos de zona dejan de tener dónde
+    // actuar. Si se está usando el teclado, no hay un diálogo abierto y un
+    // momento después sigue en `body`, el documento del panel activo queda
+    // seleccionado. Con el puntero no se toca: un clic en un hueco es del usuario.
+    let rescate: ReturnType<typeof setTimeout> | null = null;
+    function rescatarFoco() {
+      if (rescate !== null) return;
+      rescate = setTimeout(() => {
+        rescate = null;
+        if (document.activeElement && document.activeElement !== document.body) return;
+        if (!raiz.hasAttribute("data-teclado")) return;
+        if (document.querySelector('[aria-modal="true"]')) return;
+        enfocarDocumentoActivo(false);
+      }, 150);
+    }
+
+    // `focusout` también: si el foco se va a ningún lado (body), se desmarca.
+    const alCambiarFoco = () =>
+      queueMicrotask(() => {
+        marcar();
+        if (!document.activeElement || document.activeElement === document.body) rescatarFoco();
+      });
+
+    function alPulsar(e: KeyboardEvent) {
+      if (!raiz.hasAttribute("data-teclado")) raiz.setAttribute("data-teclado", "");
+      altSolo = altSoloAlBajar(teclaAlt(e));
+      if (e.key !== "Escape" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      // Con las pistas a la vista (F10), Esc solo las cierra.
+      if (pistasVisibles()) return;
+      const foco = document.activeElement as HTMLElement | null;
+      if (!foco || foco.closest(SEL_ESC_PROPIO)) return;
+      const { lugar, zona, doc, grupo } = ubicar(foco);
+      const destino = destinoDeEsc(lugar, grupo !== null);
+      if (destino === null) return;
+      // El contenido de una pestaña (el panel de la nota: propiedades,
+      // mini-grafo, enlaces): Esc vuelve a esa pestaña, un nivel arriba. Sin
+      // esto, en el mini-grafo del panel lateral Esc no hacía nada (prueba en
+      // vivo del 2026-11-06).
+      const pestana =
+        destino === "pestana"
+          ? document.getElementById(
+              foco.closest("[role='tabpanel'][aria-labelledby]")?.getAttribute("aria-labelledby") ?? "",
+            )
+          : null;
+      const aDonde =
+        destino === "documento" ? doc : destino === "pestana" ? pestana : destino === "grupo" ? grupo : zona;
+      if (!aDonde) return;
+      // Se decide después de que todos atiendan la tecla: si alguien cerró
+      // algo con ella (sugerencias, un menú, vaciar un buscador), este Esc ya
+      // se usó y el siguiente sale.
+      const antes = foto();
+      setTimeout(() => {
+        if (!aDonde.isConnected) return;
+        if (!escSaleDeEscribir(e.defaultPrevented, antes, foto())) return;
+        if (destino === "documento") seleccionarDocumento(aDonde);
+        else if (destino === "pestana") aDonde.focus();
+        else if (destino === "grupo") seleccionarGrupo(aDonde);
+        else seleccionarSeccion(aDonde);
+      }, 0);
+    }
+
+    /**
+     * Tab en el workspace no recorre controles (rediseño por niveles,
+     * 2026-11-06): se navega con Ctrl+flechas. Se mira en burbuja, después de
+     * que el editor (sangría), la consola, la captura rápida y los demás
+     * atiendan la tecla; mover el foco es la acción por defecto de Tab, así
+     * que basta con `preventDefault`.
+     */
+    function alPulsarTab(e: KeyboardEvent) {
+      if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+      const foco = document.activeElement as HTMLElement | null;
+      const recorre = tabRecorre({
+        enDialogo: !!foco?.closest(SEL_DIALOGO) || document.querySelector("[aria-modal='true']") !== null,
+        enComponenteConTab: !!foco?.closest(SEL_CON_TAB),
+        enWorkspace: !foco || foco === document.body || zonaDe(foco) !== null,
+      });
+      if (!recorre) e.preventDefault();
+    }
+
+    /**
+     * Enter solo también entra (pedido del usuario al probar los niveles, 2026-11-06:
+     * Ctrl+Enter «parece un control innecesario»), en los lugares donde Enter no
+     * tenía otro uso: una sección seleccionada, el documento seleccionado y una
+     * pestaña de la barra (un `div`, que no se activa sola). Los botones, las
+     * filas, los campos y el editor ya tienen su Enter y no se tocan. `e.key`
+     * es «Enter» también con el Enter del teclado numérico.
+     */
+    function alPulsarEnBurbuja(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      // ← y → sobre el título de un grupo: plegar, desplegar o entrar, como en
+      // una carpeta del árbol.
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        if (flechaSobreGrupo(e.key === "ArrowLeft" ? "izquierda" : "derecha")) e.preventDefault();
+        return;
+      }
+      if (e.key !== "Enter") return;
+      if (hayModalAbierto()) return;
+      const foco = document.activeElement as HTMLElement | null;
+      const { lugar } = ubicar(foco);
+      const pestanaSola = lugar === "elemento" && !!foco?.matches("[role='tab']:not(button)");
+      // El título de un grupo es un botón: Enter entra al grupo en vez de plegarlo.
+      if (lugar !== "seccion" && lugar !== "documento" && lugar !== "grupo" && !pestanaSola) return;
+      if (entrarEnNivel()) e.preventDefault();
+    }
+
+    /**
+     * **Alt solo** sale un nivel, como Esc (segunda vuelta tras probar los
+     * niveles, 2026-11-06). Se arma con el `keydown` del Alt izquierdo sin otros
+     * modificadores (`alPulsar`, en captura: llega aunque la consola se quede
+     * con la tecla) y lo desarma cualquier otra tecla, un clic o perder la
+     * ventana. Al soltarlo armado, `preventDefault`: que WebView2 no haga nada
+     * con el Alt suelto (en Windows, entrar al menú de la ventana).
+     */
+    function alSoltar(e: KeyboardEvent) {
+      if (e.code !== "AltLeft") return;
+      const fue = altSoloAlSoltar(altSolo, teclaAlt(e));
+      altSolo = false;
+      if (!fue) return;
+      e.preventDefault();
+      salirConAlt();
+    }
+
+    function salirConAlt() {
+      // Grabando un atajo en Configuración, Alt es parte de lo que se graba.
+      if (grabandoAtajo()) return;
+      const foco = document.activeElement as HTMLElement | null;
+      if (!foco || foco === document.body || foco instanceof HTMLIFrameElement) return;
+      if (foco.closest(SEL_ESC_PROPIO)) {
+        // La consola y Excalidraw: Esc es de ellos (vim, deseleccionar) y no se
+        // les manda; Alt solo no les sirve para nada, así que sale directo.
+        if (hayModalAbierto()) return;
+        const doc = documentoDe(foco);
+        if (doc) seleccionarDocumento(doc);
+        return;
+      }
+      // El mismo camino que Esc: quien tenga algo abierto lo cierra (y
+      // `alPulsar` no sale); si no, `alPulsar` sale un nivel.
+      foco.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }),
+      );
+    }
+
+    const desarmarAlt = () => {
+      altSolo = false;
+    };
+    const alApuntar = () => {
+      altSolo = false;
+      raiz.removeAttribute("data-teclado");
+    };
+
+    document.addEventListener("focusin", alCambiarFoco);
+    document.addEventListener("focusout", alCambiarFoco);
+    window.addEventListener("keydown", alPulsar, true);
+    window.addEventListener("keyup", alSoltar, true);
+    window.addEventListener("blur", desarmarAlt);
+    window.addEventListener("wheel", desarmarAlt, { capture: true, passive: true });
+    window.addEventListener("keydown", alPulsarEnBurbuja);
+    window.addEventListener("keydown", alPulsarTab);
+    window.addEventListener("keydown", atenderTecleo);
+    window.addEventListener("pointerdown", alApuntar, true);
+    return () => {
+      document.removeEventListener("focusin", alCambiarFoco);
+      document.removeEventListener("focusout", alCambiarFoco);
+      window.removeEventListener("keydown", alPulsar, true);
+      window.removeEventListener("keyup", alSoltar, true);
+      window.removeEventListener("blur", desarmarAlt);
+      window.removeEventListener("wheel", desarmarAlt, { capture: true });
+      window.removeEventListener("keydown", alPulsarEnBurbuja);
+      window.removeEventListener("keydown", alPulsarTab);
+      window.removeEventListener("keydown", atenderTecleo);
+      window.removeEventListener("pointerdown", alApuntar, true);
+      if (rescate !== null) clearTimeout(rescate);
+      zonaMarcada?.removeAttribute("data-zona-activa");
+      zonaMarcada?.removeAttribute("data-zona-seleccionada");
+      docMarcado?.removeAttribute("data-modo");
+      grupoElegido?.removeAttribute("data-grupo-seleccionado");
+      grupoActivo?.removeAttribute("data-grupo-activo");
+      raiz.removeAttribute("data-teclado");
+    };
+  }, []);
+}

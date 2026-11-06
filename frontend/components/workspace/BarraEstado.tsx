@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ConteoConexionesDto } from "@/lib/db/grafo";
 import { nextDiagnostic } from "@codemirror/lint";
+import { EditorView } from "@codemirror/view";
 import { resumenDiagnosticos } from "@/lib/diagnosticos";
 import { useDiagnosticos } from "@/lib/diagnosticosVault";
 import { getView } from "@/lib/editor/viewRegistry";
+import { alternarGrabacion } from "@/lib/comandos/comandosMacros";
+import { useMacros } from "@/lib/comandos/preferenciasMacros";
 import { EVENTO_NOTA_GUARDADA, EVENTO_RECARGA } from "@/lib/eventos";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -38,6 +41,7 @@ const hora = (ms: number) => {
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 export function BarraEstado() {
+  const { grabacion } = useMacros();
   const notaId = useTabsStore((s) => s.activeNotaId());
   const paneId = useTabsStore((s) => s.activePaneId);
   const panelAbierto = useTabsStore((s) => panelMetaAbierto(s.root, s.activePaneId));
@@ -118,7 +122,20 @@ export function BarraEstado() {
           : "Guardado";
 
   return (
-    <footer className={styles.barra} aria-label="Barra de estado">
+    <footer className={styles.barra} aria-label="Barra de estado" data-zona="estado">
+      {grabacion && (
+        // Mientras se graba una macro (`FUN-XL-04`, Parte 6): se ve siempre, y
+        // pulsarla detiene la grabación.
+        <button
+          type="button"
+          className={`${styles.item} ${styles.grabando} mic-grabando-macro`}
+          title="Detener la grabación y guardarla como macro"
+          onClick={alternarGrabacion}
+        >
+          <span className={styles.punto} aria-hidden />
+          Grabando macro · {plural(grabacion.length, "paso", "pasos")}
+        </button>
+      )}
       {esNota && (
         <>
           {conteo && (
@@ -146,6 +163,12 @@ export function BarraEstado() {
                 const view = getView(paneId);
                 if (!view) return;
                 nextDiagnostic(view);
+                // DEF-179: `nextDiagnostic` desplaza lo mínimo (`scrollIntoView: true`)
+                // y la línea del aviso quedaba pegada al borde de abajo. Se centra,
+                // como los demás saltos del editor (DEF-056).
+                view.dispatch({
+                  effects: EditorView.scrollIntoView(view.state.selection.main.head, { y: "center" }),
+                });
                 view.focus();
               }}
             >

@@ -21,6 +21,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { etiquetasDelIndice, fechasDeCreacion } from "@/lib/db/indiceIa";
 import { getVaultActual } from "@/lib/db/vaultContext";
+import { rutaBandeja } from "@/lib/bandejaRuta";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import {
   calcularEstadisticas,
@@ -63,7 +64,8 @@ export async function revisarVault(): Promise<RevisionVault> {
     invoke<RecorridoConTamanos>("recorrer_vault", { origen: getVaultActual() }),
     fechasDeCreacion(),
   ]);
-  const fuera = (n: { id: string; carpetaId: string | null }) => excluida(n, esporas);
+  const bandeja = rutaBandeja();
+  const fuera = (n: { id: string; carpetaId: string | null }) => excluida(n, esporas, bandeja);
   const excluidas = datos.notas.filter(fuera).map((n) => n.id);
   const [informe, etiquetas] = await Promise.all([
     informeConDatos(datos),

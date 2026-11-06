@@ -1,0 +1,159 @@
+/* Configuración → Atajos de teclado: una lista por categoría, el nombre del
+   comando a la izquierda y sus teclas a la derecha. */
+.seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 720px;
+}
+
+.barra {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.barra > input {
+  flex: 1;
+  max-width: 420px;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.grupoTitulo {
+  margin: 0.5rem 0 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mic-text-muted);
+}
+
+.lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fila {
+  padding: 0.3rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--mic-text-muted) 14%, transparent);
+}
+
+.fila:first-child {
+  border-top: 0;
+}
+
+.cabeceraFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 28px;
+}
+
+.nombre {
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+}
+
+.marca {
+  color: var(--mic-accent);
+  font-size: 0.75rem;
+}
+
+.atajos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  font: inherit;
+  color: var(--mic-text-primary);
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--mic-bg-hover);
+  border-color: var(--mic-border);
+}
+
+.chip:focus-visible,
+.icono:focus-visible,
+.casilla:focus-visible {
+  outline: 2px solid var(--mic-focus);
+  outline-offset: 1px;
+}
+
+/* Grabando: el botón espera la combinación. */
+.grabando {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  color: var(--mic-accent);
+  border-color: var(--mic-accent);
+  background: color-mix(in srgb, var(--mic-accent) 10%, transparent);
+}
+
+.icono {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--mic-radius-sm);
+  background: transparent;
+  color: var(--mic-text-muted);
+  cursor: pointer;
+}
+
+.icono:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.sinAtajo {
+  font-size: 0.75rem;
+  color: var(--mic-text-muted);
+}
+
+.fijo {
+  opacity: 0.8;
+}
+
+.mensaje {
+  margin: 0.25rem 0 0;
+}
+
+.aviso {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.conflicto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--mic-sync-warn);
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-sync-warn) 8%, transparent);
+}
+
+.casilla {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--mic-accent);
+}
