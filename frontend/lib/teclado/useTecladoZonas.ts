@@ -18,6 +18,7 @@
  */
 import { useEffect } from "react";
 import { documentoDe, enfocarDocumentoActivo, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
+import { pistasVisibles } from "./pistasDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
 
 /**
@@ -97,6 +98,8 @@ export function useTecladoZonas() {
     function alPulsar(e: KeyboardEvent) {
       if (!raiz.hasAttribute("data-teclado")) raiz.setAttribute("data-teclado", "");
       if (e.key !== "Escape" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      // Con las pistas a la vista (F10), Esc solo las cierra.
+      if (pistasVisibles()) return;
       const foco = document.activeElement as HTMLElement | null;
       const doc = documentoDe(foco);
       if (!doc || !foco || foco === doc) return;

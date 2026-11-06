@@ -394,8 +394,8 @@ function FilaComando({
 
 /**
  * Las teclas que salen de una consola: con el foco en una terminal, la shell
- * recibe casi todo; estos atajos llegan a Mycelium. F6 y Shift+F6 no se
- * pueden apagar (son la salida).
+ * recibe casi todo; estos atajos llegan a Mycelium. F6, Shift+F6 y las
+ * pistas (F10) no se pueden apagar: se atienden antes que la consola.
  */
 function ConsolaAtajos({ comandos }: { comandos: readonly Comando[] }) {
   const prefs = usePreferenciasAtajos();
@@ -414,7 +414,7 @@ function ConsolaAtajos({ comandos }: { comandos: readonly Comando[] }) {
       </h4>
       <p className={settings.hint}>
         Con el foco en una consola, la shell recibe casi todas las teclas. Las marcadas llegan a Mycelium y la shell
-        ya no las recibe (por ejemplo, Ctrl+P es «comando anterior» en bash). F6 siempre sale.
+        ya no las recibe (por ejemplo, Ctrl+P es «comando anterior» en bash). F6 y las pistas (F10) siempre salen.
       </p>
       <ul className={styles.lista}>
         {filas.map((f) => (

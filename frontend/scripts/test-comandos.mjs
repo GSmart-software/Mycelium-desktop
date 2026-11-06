@@ -222,15 +222,17 @@ test("la paleta lista los comandos en su orden y con su texto", () => {
   const i = titulos.indexOf("Nueva consola");
   assert.ok(i >= primeros.length);
   assert.match(titulos[i + 1], /^Cambiar a modo (claro|oscuro)$/);
-  assert.deepEqual(titulos.slice(i + 2, i + 6), [
+  assert.deepEqual(titulos.slice(i + 2, i + 7), [
     "Abrir la configuración (Ctrl+,)",
     "Ayuda",
     // La hoja de atajos y Configuración → Atajos de teclado (Parte 3).
     "Ver los atajos de teclado",
     "Cambiar los atajos de teclado",
+    // El modo pistas (Parte 5).
+    "Mostrar las pistas para hacer clic con el teclado",
   ]);
   assert.deepEqual(
-    titulos.slice(i + 6),
+    titulos.slice(i + 7),
     LISTA_ATMOSFERAS.map((a) => `Atmósfera: ${a.nombre}`),
   );
   const detalle = (id) => paleta.find((p) => p.id === id).detalle;
@@ -241,6 +243,7 @@ test("la paleta lista los comandos en su orden y con su texto", () => {
   assert.match(detalle("crear.nuevo"), /^Ctrl\+Shift\+N · /);
   assert.equal(detalle("busqueda.vault"), "Ctrl+Shift+F");
   assert.equal(detalle("configuracion.abrir"), undefined);
+  assert.equal(detalle("pistas.mostrar"), "F10");
 });
 
 test("sin el modo dev, sus comandos no están en la paleta; con él, al final y con F12", () => {
