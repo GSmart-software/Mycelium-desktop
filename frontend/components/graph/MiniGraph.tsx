@@ -490,6 +490,8 @@ export function MiniGraph({
      * sea parcial) se arranca directo en `vivo`, sin fundido.
      */
     let fase: "precalculo" | "revelado" | "vivo" = "vivo";
+    /** Lo que hace el teclado cuando el grafo termina de aparecer (ver `onFocus`). */
+    let alQuedarVivo: (() => void) | null = null;
     /** Cuándo empezó el fundido (tras pintar la capa), o `null` si todavía no. */
     let inicioRevelado: number | null = null;
     let panning = false;
@@ -844,6 +846,14 @@ export function MiniGraph({
       focoEnLienzo = true;
       if (fase === "vivo" && document.documentElement.hasAttribute("data-teclado")) {
         elegirConTeclado(nodoTeclado && revealed(nodoTeclado) ? nodoTeclado : nodoDePartida());
+      }
+    };
+    // Si se entró con Enter mientras el grafo todavía aparecía (recién abierto),
+    // el nodo de partida se elige al terminar: si no, el anillo y el anuncio
+    // esperaban a la primera flecha (prueba en vivo del 2026-11-06).
+    alQuedarVivo = () => {
+      if (focoEnLienzo && nodoTeclado === null && document.documentElement.hasAttribute("data-teclado")) {
+        elegirConTeclado(nodoDePartida());
       }
     };
     const onBlur = () => {
@@ -1594,6 +1604,7 @@ export function MiniGraph({
       if (informar) console.info("grafo: revelado");
       fase = "vivo";
       inicioRevelado = null;
+      alQuedarVivo?.();
       lienzoAlDia = false;
       // El grafo sigue apenas vivo (movimiento residual casi imperceptible).
       if (revealCountRef.current == null) aResidual(ALPHA_CACHE);

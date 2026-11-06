@@ -1,14 +1,18 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, ExternalLink, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  nombreDelMes,
   ocurrenciasEnRango,
   semanasDelMes,
+  sumarDias,
+  sumarMeses,
   varColor,
   type ColorRecordatorio,
   type Periodo,
 } from "@/lib/recordatorios";
+import { pasoDeCalendario } from "@/lib/teclado/navegacion";
 import { hoy, nuevoRecordatorio, useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { fechaCompleta, INICIALES_SEMANA, useAbrirCalendario } from "./comun";
 import { ListaRecordatorios } from "./ListaRecordatorios";
@@ -65,6 +69,33 @@ export function CalendarioPanel() {
   const hoyTexto = hoy();
   const mesTexto = String(mes).padStart(2, "0");
 
+  // La grilla es UNA parada de Tab (`FUN-XL-04`, patrón «grid» de ARIA, como
+  // la del calendario en pestaña): el día elegido si se ve, y si no el 1 del
+  // mes. Las flechas mueven el día (y el mes, si se sale de él); RePág / AvPág,
+  // de a un mes (con Shift, un año); Inicio / Fin, al lunes y al domingo. Antes
+  // eran 42 paradas de Tab, una por día.
+  const diaAEnfocar = useRef<string | null>(null);
+  const grillaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const dia = diaAEnfocar.current;
+    if (dia === null) return;
+    diaAEnfocar.current = null;
+    grillaRef.current?.querySelector<HTMLElement>(`[data-dia="${dia}"]`)?.focus();
+  });
+  const diaEnfocable = semanas.some((s) => s.includes(fecha)) ? fecha : `${anio}-${mesTexto}-01`;
+  const alTeclaDia = (e: React.KeyboardEvent, dia: string, columna: number) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    const paso = pasoDeCalendario(e.key, columna, e.shiftKey);
+    if (paso === null) return;
+    e.preventDefault();
+    const nueva = "dias" in paso ? sumarDias(dia, paso.dias) : sumarMeses(dia, paso.meses);
+    setFecha(nueva);
+    setPeriodo("dia");
+    const [a, m] = nueva.split("-").map(Number);
+    if (a !== anio || m !== mes) setMesVisible({ anio: a, mes: m });
+    diaAEnfocar.current = nueva;
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.panelAcciones}>
@@ -111,13 +142,13 @@ export function CalendarioPanel() {
             <ChevronRight size={16} aria-hidden />
           </button>
         </div>
-        <div className={styles.compactoGrilla}>
+        <div ref={grillaRef} className={styles.compactoGrilla} role="grid" aria-label={`${nombreDelMes(mes)} ${anio}`}>
           {INICIALES_SEMANA.map((l) => (
             <span key={l} className={styles.compactoInicial} aria-hidden>
               {l}
             </span>
           ))}
-          {semanas.flat().map((dia) => {
+          {semanas.flat().map((dia, i) => {
             const deDia = colores.get(dia) ?? [];
             const clases = [
               styles.compactoDia,
@@ -130,6 +161,9 @@ export function CalendarioPanel() {
                 key={dia}
                 type="button"
                 className={clases}
+                data-dia={dia}
+                tabIndex={dia === diaEnfocable ? 0 : -1}
+                onKeyDown={(e) => alTeclaDia(e, dia, i % 7)}
                 aria-pressed={dia === fecha}
                 aria-current={dia === hoyTexto ? "date" : undefined}
                 aria-label={`${fechaCompleta(dia)}${deDia.length ? ", con recordatorios" : ""}`}

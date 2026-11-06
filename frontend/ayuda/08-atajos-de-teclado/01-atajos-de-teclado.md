@@ -236,12 +236,13 @@ mini-grafo, la nota abierta) o la más cercana al centro de la vista, con un **a
 | **←** **→** **↑** **↓** | Pasa a la nota más cercana en esa dirección; la vista la sigue. |
 | **Inicio** | Vuelve a la nota de partida. |
 | **Enter** | Abre la nota elegida. |
-| **Esc** | Deja la pestaña del grafo seleccionada. |
+| **Esc** | Deja la pestaña del grafo seleccionada; en el mini-grafo, vuelve a la pestaña **Grafo** del panel. |
 
 ## Calendario
 
-En el [calendario](ayuda:herramientas/calendario), la grilla de días es **una** parada de
-**Tab** (el día elegido):
+En el [calendario](ayuda:herramientas/calendario) —la pestaña y el calendario chico del
+panel—, la grilla de días es **una** parada de **Tab** (el día elegido), y **Enter** sobre la
+pestaña del calendario entra directo a ella:
 
 | Atajo | Qué hace |
 |---|---|
@@ -291,7 +292,8 @@ con **Tab**:
 | **Inicio** / **Fin** | El tamaño mínimo / máximo. |
 
 Las pestañas del **panel de enlaces** (Propiedades, Grafo, Salientes, Retro) son una parada
-de **Tab**: **←** y **→** cambian de pestaña.
+de **Tab**: **←** y **→** cambian de pestaña. Con el foco dentro de una de ellas, **Esc**
+vuelve a su pestaña (si había una lista de sugerencias abierta, el primer **Esc** la cierra).
 
 ## Archivos con un visor propio
 

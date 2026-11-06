@@ -103,6 +103,9 @@ export function entrarAEscribir(doc: HTMLElement): boolean {
     primerEnfocable(doc, "tbody tr[tabindex='0']"),
     // Un lienzo: la tarjeta que es su parada de Tab (la última seleccionada).
     primerEnfocable(doc, "[data-nodo][tabindex='0']"),
+    // El calendario: el día que es la parada de Tab de su grilla (sin esto,
+    // Enter caía en «Mes anterior» y las flechas no movían el día).
+    primerEnfocable(doc, "[role='grid'] [tabindex='0']"),
     // draw.io: su marco no vive en el panel sino en `body` (ver `marcoDe`).
     marcoDe(doc),
     // El grafo: su lienzo (flechas entre nodos, Enter abre).
@@ -143,9 +146,28 @@ export function marcoDe(doc: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** En la vista de lectura: el primer enlace o casilla; si no hay, la lectura entera. */
+/**
+ * El documento sobre el que se muestra un marco (draw.io), o `null`. El marco
+ * vive en `body`, así que el foco dentro de él no tiene zona ni documento por
+ * `closest`: con esto se marca el panel que lo muestra como «escribiendo».
+ */
+export function documentoDeMarco(marco: Element | null): HTMLElement | null {
+  if (!(marco instanceof HTMLIFrameElement)) return null;
+  for (const doc of document.querySelectorAll<HTMLElement>(SEL_DOCUMENTO)) if (marcoDe(doc) === marco) return doc;
+  return null;
+}
+
+/**
+ * En la vista de lectura: el primer enlace o casilla; si no hay, la lectura
+ * entera. El texto de una tarjeta de lienzo también se dibuja con
+ * `.mic-preview`, pero no es la lectura de una nota: entrar ahí dejaba el foco
+ * dentro de la tarjeta y las flechas no la movían (prueba en vivo del
+ * 2026-11-06). Esa la resuelve el candidato del lienzo.
+ */
 function destinoEnLectura(doc: HTMLElement): HTMLElement | null {
-  const lectura = visibleONull(doc.querySelector<HTMLElement>(".mic-preview"));
+  const lectura = visibleONull(
+    [...doc.querySelectorAll<HTMLElement>(".mic-preview")].find((el) => el.closest("[data-nodo]") === null) ?? null,
+  );
   if (!lectura) return null;
   const primero = primerEnfocable(lectura, "a[href], input[type='checkbox']");
   if (primero) return primero;

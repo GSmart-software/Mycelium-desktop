@@ -31,3 +31,22 @@
     true,
   );
 })();
+
+// draw.io se enfoca solo al arrancar y al cargar un diagrama. Dentro de
+// Mycelium eso le robaba el foco a la app: el renderizador oculto de las vistas
+// previas y el editor de un panel que no era el activo se lo llevaban al
+// terminar de cargar, y el teclado quedaba dentro de un marco invisible o
+// ajeno (prueba en vivo de `FUN-XL-04`, 2026-11-06). Regla: un marco que no
+// tiene el foco no lo toma por código. El clic del usuario y el `focus()` con
+// que Mycelium entra al marco (Enter) se lo dan antes, así que esos siguen.
+(function () {
+  if (window.top === window) return;
+  var enfocar = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function () {
+    if (document.hasFocus()) return enfocar.apply(this, arguments);
+  };
+  var enfocarVentana = window.focus;
+  window.focus = function () {
+    if (document.hasFocus()) return enfocarVentana.apply(this, arguments);
+  };
+})();

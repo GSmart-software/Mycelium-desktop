@@ -17,7 +17,7 @@
  * repintar el workspace por eso sería caro. React no los toca (no los maneja).
  */
 import { useEffect } from "react";
-import { documentoDe, enfocarDocumentoActivo, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
+import { documentoDe, documentoDeMarco, enfocarDocumentoActivo, entrarAEscribir, recordarFoco, seleccionarDocumento, zonaDe } from "./focoDom";
 import { pistasVisibles } from "./pistasDom";
 import { escSaleDeEscribir, type FotoEsc } from "./zonas";
 
@@ -48,18 +48,22 @@ export function useTecladoZonas() {
 
     function marcar() {
       const foco = document.activeElement as HTMLElement | null;
-      const zona = zonaDe(foco);
+      // Con el foco en el marco de draw.io (colgado de `body`), la zona y el
+      // documento son los del panel que lo muestra.
+      const deMarco = documentoDeMarco(foco);
+      const zona = zonaDe(deMarco ?? foco);
       if (zona !== zonaMarcada) {
         zonaMarcada?.removeAttribute("data-zona-activa");
         zona?.setAttribute("data-zona-activa", "");
         zonaMarcada = zona;
       }
-      const doc = documentoDe(foco);
+      const doc = deMarco ?? documentoDe(foco);
       if (doc !== docMarcado) {
         docMarcado?.removeAttribute("data-modo");
         docMarcado = doc;
       }
-      if (doc && foco) {
+      if (deMarco) deMarco.setAttribute("data-modo", "escribir");
+      else if (doc && foco) {
         // El panel de enlaces vive dentro del documento pero es otra zona: con
         // el foco ahí, el documento no está «escribiendo».
         if (doc === foco) doc.setAttribute("data-modo", "navegar");
@@ -102,8 +106,14 @@ export function useTecladoZonas() {
       if (pistasVisibles()) return;
       const foco = document.activeElement as HTMLElement | null;
       const doc = documentoDe(foco);
-      if (!doc || !foco || foco === doc) return;
-      if (zonaDe(foco) !== zonaDe(doc)) return; // en el panel de enlaces
+      if (!foco) return;
+      // Fuera de un documento, o en el panel de enlaces (que vive dentro del
+      // documento del panel pero es otra zona).
+      if (!doc || zonaDe(foco) !== zonaDe(doc)) {
+        escEnPanelDePestana(e, foco);
+        return;
+      }
+      if (foco === doc) return;
       if (foco.closest(SEL_ESC_PROPIO)) return;
       // Se decide después de que todos atiendan la tecla: si alguien cerró
       // algo con ella, este Esc ya se usó.
@@ -111,6 +121,25 @@ export function useTecladoZonas() {
       setTimeout(() => {
         if (!doc.isConnected) return;
         if (escSaleDeEscribir(e.defaultPrevented, antes, foto())) seleccionarDocumento(doc);
+      }, 0);
+    }
+
+    /**
+     * Fuera de un documento, dentro del contenido de una pestaña (el panel de
+     * la nota: propiedades, mini-grafo, enlaces): Esc vuelve a esa pestaña, un
+     * nivel arriba. Sin esto, en el mini-grafo del panel lateral Esc no hacía
+     * nada (prueba en vivo del 2026-11-06). Como en el documento, solo si nadie
+     * usó la tecla para cerrar algo (una lista de sugerencias, un menú).
+     */
+    function escEnPanelDePestana(e: KeyboardEvent, foco: HTMLElement) {
+      const panel = foco.closest<HTMLElement>("[role='tabpanel'][aria-labelledby]");
+      if (!panel || foco.closest(SEL_ESC_PROPIO)) return;
+      const pestana = document.getElementById(panel.getAttribute("aria-labelledby") ?? "");
+      if (!pestana) return;
+      const antes = foto();
+      setTimeout(() => {
+        if (!pestana.isConnected) return;
+        if (escSaleDeEscribir(e.defaultPrevented, antes, foto())) pestana.focus();
       }, 0);
     }
 
