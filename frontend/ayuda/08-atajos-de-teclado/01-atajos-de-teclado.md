@@ -82,7 +82,8 @@ Todo Mycelium se recorre con **tres teclas**, siempre las mismas:
    usaste en ella (o a la primera).
 2. **Dentro de una sección**: sus botones, campos, pestañas, filas del árbol… y, en un panel,
    la barra de la nota y el **documento** como un elemento más. **Ctrl+flechas** se mueve entre
-   ellos: en el explorador, **Ctrl+↑** desde el primer archivo sube a los botones de arriba.
+   ellos: en el explorador, **Ctrl+↑** desde el primer archivo sube a los botones de arriba, y
+   desde la barra de la nota (formato, modo de vista) **Ctrl+↓** te pone a escribir.
    **Enter** ejecuta el botón o la fila; sobre una pestaña, la abre y entra a su
    documento. **Alt** o **Esc** vuelve a la sección.
 3. **Dentro del documento**: escribir en una nota, o moverse por un lienzo, una tabla, el

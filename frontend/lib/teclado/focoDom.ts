@@ -93,7 +93,14 @@ export function seleccionarDocumento(doc: HTMLElement) {
 export function entrarAEscribir(doc: HTMLElement): boolean {
   const ultimo = ultimoFoco.get(doc);
   const candidatos: (HTMLElement | null)[] = [
-    ultimo && ultimo.isConnected && doc.contains(ultimo) && visible(ultimo) && !ultimo.classList.contains("mic-preview")
+    // Un botón de la barra de la nota no es «adentro»: entrar desde ella
+    // volvía a la barra en lugar de ir a escribir (prueba en vivo, 2026-11-06).
+    ultimo &&
+    ultimo.isConnected &&
+    doc.contains(ultimo) &&
+    visible(ultimo) &&
+    !ultimo.classList.contains("mic-preview") &&
+    !ultimo.closest("[data-barra-documento]")
       ? ultimo
       : null,
     doc.querySelector<HTMLElement>(".xterm-helper-textarea"),

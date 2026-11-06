@@ -211,6 +211,14 @@ export function moverEnNivel(dir: Direccion) {
     if (destino) seleccionarSeccion(destino.el);
     return;
   }
+  // Desde la barra de la nota (formato, modo de vista), Ctrl+↓ va a escribir:
+  // la barra está dibujada dentro de la caja del documento, así que por
+  // geometría el documento no queda «abajo» y no había forma de llegar sin
+  // elegir una opción de la barra (pedido del usuario, 2026-11-06).
+  if (dir === "abajo" && doc && foco?.closest(SEL_BARRA)) {
+    entrarAEscribir(doc);
+    return;
+  }
   const contenedor = lugar === "dentro" ? doc : zona;
   if (!contenedor || !foco) return;
   const candidatos = elementosDe(contenedor)
