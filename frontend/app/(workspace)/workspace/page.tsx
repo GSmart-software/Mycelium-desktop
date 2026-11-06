@@ -12,6 +12,7 @@ import { BarraEstado } from "@/components/workspace/BarraEstado";
 import { DialogoConfirmar } from "@/components/workspace/DialogoConfirmar";
 import { PaletaComandos } from "@/components/workspace/PaletaComandos";
 import { HojaAtajos } from "@/components/workspace/HojaAtajos";
+import { DialogoNuevo } from "@/components/workspace/DialogoNuevo";
 import { CapturaRapida } from "@/components/workspace/CapturaRapida";
 import { FileOpenBridge } from "@/components/workspace/FileOpenBridge";
 import { LeftPanel } from "@/components/workspace/LeftPanel";
@@ -288,6 +289,8 @@ function WorkspaceShell() {
       <PaletaComandos />
       {/* La hoja de atajos (FUN-XL-04, Parte 3): Ctrl+Shift+/. */}
       <HojaAtajos />
+      {/* El menú «Nuevo…» (FUN-XL-04, Parte 4): Ctrl+Shift+N. */}
+      <DialogoNuevo />
       {/* La captura rápida (FUN-L-33): Ctrl+Shift+Espacio. */}
       <CapturaRapida />
       <Avisos />

@@ -66,13 +66,18 @@ const REGISTRO = await fuente("../lib/comandos/registro.ts", {
   "./personalizar": PERSONALIZAR,
 });
 const ATMOSFERAS = await fuente("../lib/atmosferas.ts");
+const NUEVO = await fuente("../lib/comandos/nuevo.ts");
 const APP = await fuente(
   "../lib/comandos/comandosApp.ts",
-  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS },
+  { "@/lib/modoDev": MODO_DEV, "@/lib/atmosferas": ATMOSFERAS, "./nuevo": NUEVO },
   { falsos: true },
 );
 
+const EXPLORADOR = await fuente("../lib/comandos/comandosExplorador.ts", {}, { falsos: true });
+
 const at = await import(ATAJOS);
+const nuevo = await import(NUEVO);
+const { comandosExplorador } = await import(EXPLORADOR);
 const reg = await import(REGISTRO);
 const { COMANDOS_APP } = await import(APP);
 const { ATMOSFERAS: LISTA_ATMOSFERAS } = await import(ATMOSFERAS);
@@ -176,14 +181,22 @@ test("ningún comando usa una tecla reservada que no es suya", () => {
   assert.ok(captura?.manejadorPropio);
 });
 
-test("la paleta lista los mismos comandos que antes, en el mismo orden y con el mismo texto", () => {
+test("la paleta lista los comandos en su orden y con su texto", () => {
   const paleta = reg.comandosDePaleta(COMANDOS_APP, ctx(false)).map((c) => ({
     id: c.id,
     ...reg.textoEnPaleta(c, COMANDOS_APP),
   }));
   const titulos = paleta.map((p) => p.titulo);
-  assert.deepEqual(titulos.slice(0, 11), [
+  const primeros = [
     "Nueva nota",
+    // Crear (Parte 4): el menú «Nuevo…» y cada tipo.
+    "Nuevo…",
+    "Nueva carpeta",
+    "Nuevo canvas",
+    "Nueva base",
+    "Nuevo dibujo Excalidraw",
+    "Nuevo diagrama draw.io",
+    "Nueva desde Espora…",
     "Captura rápida",
     "Buscar en el contenido del vault",
     "Abrir el grafo de conexiones",
@@ -193,11 +206,23 @@ test("la paleta lista los mismos comandos que antes, en el mismo orden y con el 
     "Generar informe de salud del vault",
     "Nuevo recordatorio",
     "Mostrar u ocultar el explorador",
-    "Nueva consola",
-  ]);
+    // Las secciones del rail y los paneles (Parte 4).
+    "Abrir el explorador",
+    "Abrir el panel de Esporas",
+    "Abrir el panel del calendario",
+    "Abrir el panel de consolas",
+    "Abrir la actividad de la IA",
+    "Abrir la papelera",
+    // Sin pestañas ni vista dividida ni ancladas (los stores son falsos en
+    // esta prueba), dividir, cerrar el panel y anclar dependen de
+    // `disponible`: se comprueban en vivo.
+  ];
+  assert.deepEqual(titulos.slice(0, primeros.length), primeros);
   // El del cambio de modo (dinámico), Configuración, Ayuda y las atmósferas.
-  assert.match(titulos[11], /^Cambiar a modo (claro|oscuro)$/);
-  assert.deepEqual(titulos.slice(12, 16), [
+  const i = titulos.indexOf("Nueva consola");
+  assert.ok(i >= primeros.length);
+  assert.match(titulos[i + 1], /^Cambiar a modo (claro|oscuro)$/);
+  assert.deepEqual(titulos.slice(i + 2, i + 6), [
     "Abrir la configuración (Ctrl+,)",
     "Ayuda",
     // La hoja de atajos y Configuración → Atajos de teclado (Parte 3).
@@ -205,14 +230,16 @@ test("la paleta lista los mismos comandos que antes, en el mismo orden y con el 
     "Cambiar los atajos de teclado",
   ]);
   assert.deepEqual(
-    titulos.slice(16),
+    titulos.slice(i + 6),
     LISTA_ATMOSFERAS.map((a) => `Atmósfera: ${a.nombre}`),
   );
   const detalle = (id) => paleta.find((p) => p.id === id).detalle;
   assert.equal(detalle("bandeja.capturar"), "Ctrl+Shift+Espacio · anotar en la Bandeja del vault");
-  assert.equal(detalle("explorador.alternar"), "Ctrl+\\");
+  assert.equal(detalle("explorador.alternar"), "Ctrl+Shift+E");
   assert.equal(detalle("ayuda.abrir"), "F1 · Cómo se usa Mycelium");
-  assert.equal(detalle("nota.nueva"), "En la carpeta seleccionada");
+  assert.equal(detalle("nota.nueva"), "Ctrl+N · En la carpeta seleccionada");
+  assert.match(detalle("crear.nuevo"), /^Ctrl\+Shift\+N · /);
+  assert.equal(detalle("busqueda.vault"), "Ctrl+Shift+F");
   assert.equal(detalle("configuracion.abrir"), undefined);
 });
 
@@ -252,6 +279,11 @@ test("el despachador encuentra el comando de cada atajo global", () => {
     [tecla("KeyT", { ctrlKey: true, shiftKey: true }), "pestana.reabrir"],
     [tecla("ArrowLeft", { altKey: true }), "historial.atras"],
     [tecla("ArrowRight", { altKey: true }), "historial.adelante"],
+    // Crear y mostrar/ocultar (Parte 4).
+    [tecla("KeyN", { ctrlKey: true }), "nota.nueva"],
+    [tecla("KeyN", { ctrlKey: true, shiftKey: true }), "crear.nuevo"],
+    [tecla("KeyE", { ctrlKey: true, shiftKey: true }), "explorador.alternar"],
+    [tecla("KeyF", { ctrlKey: true, shiftKey: true }), "busqueda.vault"],
   ];
   for (const [e, id] of casos) assert.equal(reg.comandoParaTecla(e, COMANDOS_APP, false)?.id, id, id);
 });
@@ -303,4 +335,118 @@ test("alta y baja: la baja saca solo lo suyo y un id repetido no pisa al primero
   } finally {
     console.error = original;
   }
+});
+
+// ── crear y mostrar/ocultar (Parte 4) ──────────────────────────────────────
+
+test("cada opción de «Nuevo…» es un comando del catálogo", () => {
+  const ids = new Set(COMANDOS_APP.map((c) => c.id));
+  for (const o of nuevo.OPCIONES_NUEVO) assert.ok(ids.has(o.comando), o.comando);
+  for (const id of ["crear.carpeta", "crear.lienzo", "crear.tabla", "crear.dibujo", "crear.diagrama", "crear.desde-espora"]) {
+    assert.ok(ids.has(id), id);
+  }
+  // Los textos del explorador salen de acá: «Nueva base (tabla de notas)».
+  assert.equal(nuevo.tituloConDetalle(nuevo.opcionDe("tabla")), "Nueva base (tabla de notas)");
+  assert.equal(nuevo.tituloConDetalle(nuevo.opcionDe("dibujo")), "Nuevo dibujo Excalidraw");
+});
+
+test("los atajos nuevos: con Ctrl, sin letra sola, sin reservadas ni CodeMirror", async () => {
+  const nuevos = {
+    "nota.nueva": { ctrl: true, code: "KeyN" },
+    "crear.nuevo": { ctrl: true, shift: true, code: "KeyN" },
+    "explorador.alternar": { ctrl: true, shift: true, code: "KeyE" },
+    "busqueda.vault": { ctrl: true, shift: true, code: "KeyF" },
+  };
+  for (const [id, atajo] of Object.entries(nuevos)) {
+    const c = COMANDOS_APP.find((x) => x.id === id);
+    assert.deepEqual(c.atajos, [atajo], id);
+    assert.equal(at.problemaDeAtajo(atajo), null, id);
+    assert.equal(at.reservaQueChoca(atajo, id), null, id);
+  }
+  // Si Excalidraw ya usó Ctrl+Shift+E (exportar), el explorador no actúa.
+  assert.equal(COMANDOS_APP.find((c) => c.id === "explorador.alternar").ignorarSiPrevenido, true);
+  // CodeMirror no las usa en Windows ni Linux (`Ctrl-n` del estilo Emacs es
+  // solo de macOS, donde Ctrl no es Cmd).
+  const { defaultKeymap, historyKeymap, standardKeymap } = await import("@codemirror/commands");
+  const { searchKeymap } = await import("@codemirror/search");
+  const teclas = new Set(["mod-n", "shift-mod-n", "mod-shift-n", "mod-shift-e", "shift-mod-e", "mod-shift-f", "shift-mod-f"]);
+  for (const b of [...defaultKeymap, ...historyKeymap, ...standardKeymap, ...searchKeymap]) {
+    const k = (b.win ?? b.key ?? "").toLowerCase();
+    if (!k) continue;
+    assert.ok(!teclas.has(k), `CodeMirror usa ${k}`);
+    assert.ok(!/^ctrl-(shift-)?[nef]$/.test(k), `CodeMirror usa ${k}`);
+  }
+});
+
+test("el menú «Nuevo…» con el teclado: flechas con vuelta, Enter, → a las Esporas, ← y Esc vuelven", () => {
+  const n = nuevo.OPCIONES_NUEVO.length;
+  const ini = nuevo.ESTADO_INICIAL_NUEVO;
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "ArrowDown", n), { accion: "mover", estado: { paso: "tipos", activa: 1 } });
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "ArrowUp", n), { accion: "mover", estado: { paso: "tipos", activa: n - 1 } });
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "End", n), { accion: "mover", estado: { paso: "tipos", activa: n - 1 } });
+  assert.equal(nuevo.teclaEnNuevo({ paso: "tipos", activa: 3 }, "Home", n).estado.activa, 0);
+  assert.deepEqual(nuevo.teclaEnNuevo({ paso: "tipos", activa: 2 }, "Enter", n), { accion: "elegir", indice: 2 });
+  // → solo entra si la opción abre otro paso.
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "ArrowRight", n, false), { accion: "nada" });
+  const espora = nuevo.OPCIONES_NUEVO.findIndex((o) => o.tipo === "espora");
+  assert.deepEqual(nuevo.teclaEnNuevo({ paso: "tipos", activa: espora }, "ArrowRight", n, true), {
+    accion: "elegir",
+    indice: espora,
+  });
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "Escape", n), { accion: "cerrar" });
+  const enEsporas = { paso: "esporas", activa: 0 };
+  for (const k of ["ArrowLeft", "Backspace", "Escape"]) {
+    assert.deepEqual(nuevo.teclaEnNuevo(enEsporas, k, 3), { accion: "volver" }, k);
+  }
+  // Sin Esporas, las flechas y Enter no hacen nada; ← vuelve igual.
+  assert.deepEqual(nuevo.teclaEnNuevo(enEsporas, "Enter", 0), { accion: "nada" });
+  assert.deepEqual(nuevo.teclaEnNuevo(enEsporas, "ArrowDown", 0), { accion: "nada" });
+  // Una letra no hace nada (no hay atajos de letra sola).
+  assert.deepEqual(nuevo.teclaEnNuevo(ini, "n", n), { accion: "nada" });
+});
+
+test("los comandos del explorador: ids únicos, sin atajos, y según lo seleccionado", () => {
+  let sel = null;
+  let disco = true;
+  const hechos = [];
+  const acciones = {
+    seleccion: () => sel,
+    hayCarpetaEnDisco: () => disco,
+  };
+  for (const k of ["renombrar", "mover", "duplicar", "copiarEnlace", "abrirAlLado", "exportarMd", "exportarPdf", "mostrarEnSistema", "eliminar"]) {
+    acciones[k] = () => hechos.push(k);
+  }
+  const lista = comandosExplorador(acciones);
+  // Juntos con los de la app, sin problemas (ids, títulos, atajos).
+  assert.deepEqual(reg.validarComandos([...COMANDOS_APP, ...lista]), []);
+  for (const c of lista) {
+    assert.match(c.id, /^explorador\./);
+    assert.equal(c.atajos, undefined, c.id);
+    assert.equal(c.categoria, "explorador");
+  }
+  const disponibles = () => reg.comandosDePaleta(lista, ctx(false)).map((c) => c.id);
+  // Sin selección, ninguno.
+  assert.deepEqual(disponibles(), []);
+  sel = { tipo: "nota", nombre: "Ideas", markdown: true };
+  assert.equal(disponibles().length, 9);
+  const renombrar = lista.find((c) => c.id === "explorador.renombrar");
+  assert.equal(reg.resolverTexto(renombrar.titulo), "Renombrar «Ideas»");
+  renombrar.ejecutar(ctx());
+  assert.deepEqual(hechos, ["renombrar"]);
+  // Una carpeta no se duplica, ni se copia su enlace, ni se exporta.
+  sel = { tipo: "carpeta", nombre: "Proyectos" };
+  assert.deepEqual(disponibles(), [
+    "explorador.renombrar",
+    "explorador.mover",
+    "explorador.mostrar-en-sistema",
+    "explorador.eliminar",
+  ]);
+  // Un lienzo no se exporta como .md; sin vault de carpeta, no se muestra en el sistema.
+  sel = { tipo: "nota", nombre: "Mapa", markdown: false };
+  disco = false;
+  const d = disponibles();
+  assert.ok(!d.includes("explorador.exportar-md") && !d.includes("explorador.mostrar-en-sistema"));
+  // Ejecutar uno que no vale para lo seleccionado no hace nada.
+  lista.find((c) => c.id === "explorador.exportar-md").ejecutar(ctx());
+  assert.deepEqual(hechos, ["renombrar"]);
 });

@@ -198,7 +198,12 @@ export function SidebarDock({
       )}
 
       {/* Sección activa: siempre montada; oculta si no toca mostrarla. */}
-      <div className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}>
+      {/* `data-seccion-izquierda`: donde los comandos que abren una sección
+          ponen el foco (`FUN-XL-04`, Parte 4). */}
+      <div
+        className={`${styles.sectionRegion} ${seccionVisible ? "" : styles.sectionOculta}`}
+        data-seccion-izquierda
+      >
         {children}
       </div>
 

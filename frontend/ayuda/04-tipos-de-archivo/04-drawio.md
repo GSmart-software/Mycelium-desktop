@@ -20,7 +20,7 @@ alzada, mejor un [dibujo de Excalidraw](ayuda:tipos-de-archivo/excalidraw).
 ## Cómo se usa
 
 1. En el explorador, **Nuevo diagrama draw.io**: con el botón de la barra o con clic
-   derecho en una carpeta.
+   derecho en una carpeta, o con el menú **Nuevo…** (**{{atajo:crear.nuevo|Ctrl+Shift+N}}**).
 2. Se abre en su pestaña con el editor completo de draw.io. Los cambios se guardan solos en
    el archivo, y el editor sigue el modo claro u oscuro de Mycelium.
 3. Para mostrarlo dentro de una nota, escribe su embed:
