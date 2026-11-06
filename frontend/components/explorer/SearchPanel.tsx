@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { setPendingMatch } from "@/lib/editor/pendingMatch";
 import { ICONO_POR_TIPO } from "@/lib/iconosDeTipo";
+import { navegarFilas, primerControl } from "@/lib/teclado/listaDom";
 import {
   agruparEnArbol,
   firstSearchTerm,
@@ -83,6 +84,15 @@ const siguienteCampo = (actual: CampoBusqueda): CampoBusqueda =>
 export function SearchPanel() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultadosRef = useRef<HTMLDivElement>(null);
+  const alTeclaEnResultados = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      inputRef.current?.focus();
+      return;
+    }
+    navegarFilas(e, e.currentTarget, "button", () => inputRef.current?.focus());
+  };
   // Un texto pedido desde otra vista (una etiqueta de la salud del vault).
   const [query, setQuery] = useState(() => verBusquedaPendiente() ?? "");
   const [resultados, setResultados] = useState<Resultado[]>([]);
@@ -183,6 +193,16 @@ export function SearchPanel() {
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // ↓ baja a los resultados (`FUN-XL-04`, Parte 7); ahí, ↑ ↓ los recorren,
+    // Enter abre y Esc o ↑ en el primero vuelven al campo.
+    if (event.key === "ArrowDown" && !event.altKey && !event.ctrlKey) {
+      const primero = primerControl(resultadosRef.current);
+      if (primero) {
+        event.preventDefault();
+        primero.focus();
+      }
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       if (query.length > 0) {
@@ -279,6 +299,8 @@ export function SearchPanel() {
         </p>
       )}
 
+      {/* `display: contents`: solo escucha las teclas, no cambia el layout. */}
+      <div ref={resultadosRef} style={{ display: "contents" }} onKeyDown={alTeclaEnResultados}>
       {arbol ? (
         <div className={styles.results}>
           <Rama
@@ -305,6 +327,7 @@ export function SearchPanel() {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

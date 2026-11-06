@@ -1,5 +1,6 @@
 "use client";
 
+import { navegarFilas } from "@/lib/teclado/listaDom";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -57,7 +58,11 @@ export function ActividadPanel() {
           del vault— aparece aquí, con <strong>Deshacer</strong> donde se pueda.
         </p>
       ) : (
-        <div className={styles.grupos}>
+        <div
+          className={styles.grupos}
+          // ↑ ↓ entre las entradas, ← → entre sus botones (`FUN-XL-04`, Parte 7).
+          onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
+        >
           {grupos.map((g) => (
             <Grupo key={g.clave} grupo={g} />
           ))}

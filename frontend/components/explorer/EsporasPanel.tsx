@@ -1,4 +1,5 @@
 "use client";
+import { navegarFilas } from "@/lib/teclado/listaDom";
 import { CircleDot, FolderPlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -166,7 +167,11 @@ export function EsporasPanel() {
         </div>
       ) : (
         <>
-          <ul className={styles.lista}>
+          <ul
+            className={styles.lista}
+            // ↑ ↓ entre las Esporas, ← → entre sus acciones (`FUN-XL-04`, Parte 7).
+            onKeyDown={(e) => navegarFilas(e, e.currentTarget, "li")}
+          >
             {esporas.map((espora) => (
               <li key={espora.id} className={styles.fila}>
                 {renombrando?.id === espora.id ? (
