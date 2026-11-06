@@ -48,10 +48,13 @@ import {
   editarTitulo,
   enfocarTrasTitulo,
   renombrarPorTitulo,
+  motivoTituloFijo,
   salirDelTitulo,
   setDocTitle,
 } from "@/lib/editor/docTitle";
 import { tomarEdicionDeTitulo } from "@/lib/editor/tituloPendiente";
+import { MOTIVO_NO_RENOMBRA } from "@/lib/bandeja";
+import { esBandeja } from "@/lib/bandejaRuta";
 import { attachHeadingFolds, headingFoldService } from "@/lib/editor/headingFold";
 import { markMissingWikilinks, wikilinkCompletions } from "@/lib/editor/wikilink";
 import { registerView, unregisterView } from "@/lib/editor/viewRegistry";
@@ -785,6 +788,9 @@ export function NoteEditor({
                 .renameNota(notaIdRef.current, titulo, opciones)
                 .then(() => {}),
             ),
+            // La Bandeja del vault no se renombra (`FUN-L-33`): su título no
+            // abre el campo. Por referencia, como el de arriba.
+            motivoTituloFijo.of(() => (esBandeja(notaIdRef.current) ? MOTIVO_NO_RENOMBRA : null)),
             // Desde qué carpeta se resuelve `![](foto.png)` en la vista en vivo
             // (`DEF-126`). Por referencia, como el de arriba.
             carpetaDeLaNota.of(() => carpetaDeNota(notaIdRef.current)),

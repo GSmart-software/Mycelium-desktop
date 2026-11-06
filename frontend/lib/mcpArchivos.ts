@@ -56,6 +56,8 @@ import {
 } from "@/lib/repararEnlaces";
 import { motivoNombreInvalido } from "@/lib/tituloEditable";
 import { avisarRecarga } from "@/lib/eventos";
+import { carpetaConBandeja, esBandeja, rutaBandeja } from "@/lib/bandejaRuta";
+import { MOTIVO_NO_ELIMINA, MOTIVO_NO_MUEVE, MOTIVO_NO_RENOMBRA } from "@/lib/bandeja";
 import { useAuthStore } from "@/stores/authStore";
 import { avisar } from "@/stores/avisosStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -206,12 +208,42 @@ async function conAlcance(
   return hacer();
 }
 
+// ── la Bandeja ──────────────────────────────────────────────────────────────
+
+/**
+ * La Bandeja del vault (`FUN-L-33`) no se renombra, no se mueve y no va a la
+ * papelera. El store ya lo impide (es el lugar común), pero se rechaza acá,
+ * antes de medir el alcance, para que la IA reciba el motivo y no una pregunta
+ * de confirmación que terminaría en error.
+ */
+function rechazarBandeja(
+  a: { clase: "nota"; nota: { id: string } } | { clase: "carpeta"; carpeta: { id: string } },
+  accion: "renombrar" | "mover" | "borrar",
+): void {
+  if (a.clase === "nota" && esBandeja(a.nota.id)) {
+    const motivo = accion === "renombrar" ? MOTIVO_NO_RENOMBRA : accion === "mover" ? MOTIVO_NO_MUEVE : MOTIVO_NO_ELIMINA;
+    throw fallo(
+      "INVALIDO",
+      `«${a.nota.id}» es la Bandeja del vault, donde anota la captura rápida. ${motivo}. ` +
+        "Se edita como cualquier nota (procesar, ordenar, marcar tareas), pero el archivo se queda donde está.",
+    );
+  }
+  if (accion === "borrar" && a.clase === "carpeta" && carpetaConBandeja(a.carpeta.id)) {
+    throw fallo(
+      "INVALIDO",
+      `La carpeta «${a.carpeta.id}» contiene la Bandeja del vault (${rutaBandeja()}), que no se elimina. ` +
+        "El usuario puede cambiar su ubicación en Configuración → Vault.",
+    );
+  }
+}
+
 // ── renombrar ───────────────────────────────────────────────────────────────
 
 export async function renombrar(args: Record<string, unknown>, confirmado = false): Promise<Atendible> {
   const { objetivo, nombre, conservarAlias } = exigir(validarRenombrar(args));
   const { notas, carpetas, otros } = useVaultStore.getState();
   const a = exigir(resolverAfectado(objetivo, notas, carpetas, otros));
+  rechazarBandeja(a, "renombrar");
 
   let plan: Plan;
   let nombreNuevo: string;
@@ -303,6 +335,7 @@ export async function mover(args: Record<string, unknown>, confirmado = false): 
   const { objetivo, carpeta } = exigir(validarMover(args));
   const { notas, carpetas, otros } = useVaultStore.getState();
   const a = exigir(resolverAfectado(objetivo, notas, carpetas, otros));
+  rechazarBandeja(a, "mover");
   const destino = exigir(resolverDestino(carpeta, carpetas));
   const destinoId = destino?.id ?? null;
 
@@ -381,6 +414,7 @@ export async function borrar(args: Record<string, unknown>, confirmado = false):
   const { objetivo } = exigir(validarBorrar(args));
   const { notas, carpetas, otros } = useVaultStore.getState();
   const a = exigir(resolverAfectado(objetivo, notas, carpetas, otros));
+  rechazarBandeja(a, "borrar");
 
   if (a.clase === "nota") {
     const id = a.nota.id;

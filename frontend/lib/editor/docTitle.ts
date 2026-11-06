@@ -56,6 +56,16 @@ export const renombrarPorTitulo = Facet.define<
  */
 export type RenombrarPorTitulo = (titulo: string, opciones?: { conservarAlias?: boolean }) => Promise<void>;
 
+/**
+ * Por qué el título de esta nota NO se puede editar, o `null` si se puede
+ * (`FUN-L-33`): la Bandeja del vault no se renombra. Una función que se
+ * consulta al pintar —por referencia, como `renombrarPorTitulo`—, porque el id
+ * de la nota cambia sin que la vista se reconfigure.
+ */
+export const motivoTituloFijo = Facet.define<() => string | null, (() => string | null) | null>({
+  combine: (valores) => valores[0] ?? null,
+});
+
 /** Adónde va el foco al salir del título (`DEF-139`). */
 export type DestinoTrasTitulo =
   /** Al principio del cuerpo: se confirmó el nombre y lo que sigue es escribir. */
@@ -106,10 +116,17 @@ function pintarLectura(cont: HTMLElement, titulo: string, view: EditorView) {
   cont.textContent = "";
 
   const texto = document.createElement("div");
-  texto.className = "mic-doc-title-texto mic-doc-title-editable";
   texto.textContent = titulo;
-  texto.title = "Clic para renombrar el archivo";
-  texto.addEventListener("click", () => pintarEdicion(cont, titulo, view));
+  // Un título fijo (la Bandeja, `FUN-L-33`) no abre el campo: dice por qué.
+  const fijo = view.state.facet(motivoTituloFijo)?.() ?? null;
+  if (fijo !== null) {
+    texto.className = "mic-doc-title-texto mic-doc-title-fijo";
+    texto.title = fijo;
+  } else {
+    texto.className = "mic-doc-title-texto mic-doc-title-editable";
+    texto.title = "Clic para renombrar el archivo";
+    texto.addEventListener("click", () => pintarEdicion(cont, titulo, view));
+  }
   cont.appendChild(texto);
 
   view.requestMeasure();

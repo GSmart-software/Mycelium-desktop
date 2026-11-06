@@ -35,6 +35,9 @@ import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
 import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
+import { rutaTrasMoverCarpeta } from "@/lib/bandeja";
+import { protegerBandeja, protegerCarpetaConBandeja, rutaBandeja } from "@/lib/bandejaRuta";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 
 /**
  * Marca el grafo como desactualizado y redispara el live preview tras un cambio
@@ -211,6 +214,17 @@ function avisarReescritas(r: Reparacion): void {
   // Solo esas notas (`FUN-M-58`): sin rutas, todos los editores abiertos
   // volvían a leer su archivo para comparar.
   avisarRecarga(r.reescritas);
+}
+
+/**
+ * La Bandeja del vault sigue a su carpeta (`FUN-L-33`): si se renombró o se
+ * movió la carpeta que la contiene, la preferencia apunta a la ruta nueva. Sin
+ * esto, la próxima captura crearía otra Bandeja vacía en la ruta vieja.
+ */
+function seguirCarpetaDeBandeja(de: string, a: string): void {
+  if (de === a) return;
+  const nueva = rutaTrasMoverCarpeta(rutaBandeja(), de, a);
+  if (nueva !== null) usePreferencesStore.getState().setPref("rutaBandeja", nueva);
 }
 
 /** El vault después de que `movidos` cambien de ruta. */
@@ -458,6 +472,7 @@ export const useVaultStore = create<VaultState>()(
         // Modo carpeta: renombrar la carpeta cambia su ruta y la de todo su
         // subárbol; reapuntar las pestañas de las notas que colgaban de ella.
         if (res.id !== id) {
+          seguirCarpetaDeBandeja(id, res.id);
           useTabsStore.getState().remapCarpeta(id, res.id);
           const movidos = movidosPorCarpeta(notas, id, res.id);
           reparacion = await repararTrasOperacion(previa, movidos, [], token());
@@ -473,6 +488,8 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async deleteCarpeta(id) {
+        // La Bandeja no se elimina (`FUN-L-33`), tampoco con su carpeta.
+        protegerCarpetaConBandeja(id);
         await api(`/carpetas/${encodeURIComponent(id)}`, { method: "DELETE", token: token() });
         await get().loadTree(get().vaultId!);
       },
@@ -500,6 +517,7 @@ export const useVaultStore = create<VaultState>()(
         // Modo carpeta: mover la carpeta cambia su ruta (id) y la de su subárbol
         // (las pestañas ya las siguió `moverConReparacion`).
         if (res.id !== id) {
+          seguirCarpetaDeBandeja(id, res.id);
           set((s) => ({
             lastMove:
               s.lastMove && s.lastMove.type === "carpeta" && s.lastMove.id === id
@@ -534,6 +552,10 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async renameNota(id, titulo, opciones) {
+        // La Bandeja del vault no se renombra (`FUN-L-33`). Acá y no en cada
+        // botón: el explorador, el título de la nota, las Esporas y el MCP
+        // pasan todos por este método.
+        protegerBandeja(id, "renombrar");
         // FUN-M-08: los `[[enlaces]]` resuelven por titulo, asi que renombrar
         // los rompe todos. Se leen los retroenlaces ANTES de renombrar —despues
         // ya no apuntan a nada y el indice no los encuentra— y se reescriben
@@ -612,6 +634,7 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async deleteNota(id) {
+        protegerBandeja(id, "eliminar"); // `FUN-L-33`, como `renameNota`
         await api(`/notas/${encodeURIComponent(id)}`, { method: "DELETE", token: token() });
         await get().loadTree(get().vaultId!);
         markGraphStale();
@@ -638,6 +661,12 @@ export const useVaultStore = create<VaultState>()(
       },
 
       async moveNota(id, destinoId) {
+        // `FUN-L-33`: no lanza, como el resto de este método (ver `ResultadoMover`).
+        try {
+          protegerBandeja(id, "mover");
+        } catch (e) {
+          return { ok: false, error: (e as Error).message };
+        }
         const prev = get().notas.find((n) => n.id === id)?.carpetaId ?? null;
         const notas = get().notas;
         // Optimista: mover la nota en el árbol al instante (no esperar la red).
