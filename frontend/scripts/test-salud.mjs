@@ -162,6 +162,25 @@ test("las instrucciones de agentes en la raíz no se juzgan; un CLAUDE.md en una
   assert.ok(rutas(i.huerfanas).includes("docs/CLAUDE.md"));
 });
 
+test("la Bandeja del vault (FUN-L-33) queda fuera: ni huérfana, ni sin salientes, ni con rotos", () => {
+  const notas = [...NOTAS, nota("Bandeja.md", "## 2026-11-06\n- 10:00 Llamar por [[No existe]]\n")];
+  const carpetas = carpetasDe(notas);
+  const i = S.calcularSalud({
+    notas,
+    carpetas,
+    filas: S.filasComoElIndice(notas, carpetas),
+    otros: OTROS,
+    carpetaEsporas: "Esporas",
+    rutaBandeja: "bandeja.md",
+  });
+  const todo = JSON.stringify([i.rotos, i.embedsRotos, i.huerfanas, i.sinSalientes]);
+  assert.ok(!todo.includes("Bandeja.md"), todo);
+  const sinRuta = S.calcularSalud({ notas, carpetas, filas: S.filasComoElIndice(notas, carpetas), otros: OTROS, carpetaEsporas: "Esporas" });
+  assert.ok(rutas(sinRuta.huerfanas).includes("Bandeja.md"), "sin la ruta, es una nota más");
+  assert.equal(S.excluida({ id: "Bandeja.md", carpetaId: null }, "Esporas", "Bandeja.md"), true);
+  assert.equal(S.excluida({ id: "Otra.md", carpetaId: null }, "Esporas", "Bandeja.md"), false);
+});
+
 test("huérfanas y sin salientes: solo notas markdown; un lienzo que la tiene como tarjeta la enlaza", () => {
   const i = informe();
   assert.deepEqual(rutas(i.huerfanas), ["Suelta.md", "docs/CLAUDE.md"], "Mapa la enlaza Plan; proyectos/Plan, la pista de Mapa");

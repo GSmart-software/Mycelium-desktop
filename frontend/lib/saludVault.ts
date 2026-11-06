@@ -25,6 +25,7 @@ import {
 } from "@/lib/db/indiceIa";
 import { notasQueNoCumplen } from "@/lib/esquemas";
 import { asegurarEsquemas } from "@/lib/esquemasVault";
+import { rutaBandeja } from "@/lib/bandejaRuta";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import {
   calcularSalud,
@@ -65,6 +66,7 @@ export async function informeConDatos(
     filas,
     otros: useVaultStore.getState().otros.map((o) => o.ruta),
     carpetaEsporas: carpetaEsporas(),
+    rutaBandeja: rutaBandeja(),
     alcance,
   });
   const ids = notasConProblemas(informe);
@@ -79,7 +81,7 @@ export async function informeConDatos(
   const esporas = carpetaEsporas();
   const candidatas = notas
     .filter((n) => n.tipo === "markdown" && enAlcance(n.id, alcance))
-    .map((n) => ({ ...n, excluida: excluida(n, esporas) }));
+    .map((n) => ({ ...n, excluida: excluida(n, esporas, rutaBandeja()) }));
   const enJuego = new Set(candidatas.map((n) => n.id));
   const aLeer = esquemas.length > 0 ? [...enJuego] : (await notasConValorAlmohadilla()).filter((id) => enJuego.has(id));
   if (aLeer.length > 0) {

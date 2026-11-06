@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from "react";
 import { diagnosticosDeNota, type Diagnostico } from "@/lib/diagnosticos";
 import { filasDelIndice } from "@/lib/db/indiceIa";
+import { rutaBandeja } from "@/lib/bandejaRuta";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import { asegurarEsquemas, avisosDeNota } from "@/lib/esquemasVault";
 import { problemasDeNota, type ProblemasDeNota } from "@/lib/salud";
@@ -103,6 +104,7 @@ export async function consultarParaDiagnosticos(notaId: string): Promise<Problem
     filas,
     otros: otros.map((o) => o.ruta),
     carpetaEsporas: carpetaEsporas(),
+    rutaBandeja: rutaBandeja(),
   });
 }
 
