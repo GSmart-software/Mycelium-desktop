@@ -18,6 +18,7 @@ import { useSyncExternalStore } from "react";
 import { leerArchivoTexto } from "@/lib/db/vaultFs";
 import { getVaultActual } from "@/lib/db/vaultContext";
 import { refreshAllLiveViews } from "@/lib/editor/refrescoVivo";
+import { rutaBandeja } from "@/lib/bandejaRuta";
 import { carpetaEsporas } from "@/lib/esporasVault";
 import {
   RUTA_ESQUEMAS,
@@ -157,7 +158,7 @@ function notaEsquema(id: string): NotaEsquema & { excluida: boolean } {
     carpetaId: n ? n.carpetaId : barra < 0 ? null : id.slice(0, barra),
     tipo: n?.tipo ?? (/\.md$/i.test(id) || !/\.[a-z0-9]+$/i.test(id) ? "markdown" : "otro"),
   };
-  return { ...nota, excluida: excluida(nota, carpetaEsporas()) };
+  return { ...nota, excluida: excluida(nota, carpetaEsporas(), rutaBandeja()) };
 }
 
 /**

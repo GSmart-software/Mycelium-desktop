@@ -68,7 +68,9 @@ esa parte se ignora y lo demás se aplica.
 > [!info] Lo que no se revisa
 > Las [Esporas](ayuda:enlazar-y-organizar/esporas) son plantillas: sus `[[{{titulo}}]]` no son
 > enlaces rotos ni ellas huérfanas. Tampoco se revisan `CLAUDE.md` ni `AGENTS.md` de la raíz,
-> que son instrucciones para agentes de IA y no notas del vault. Lo que oculta `.mycignore`
+> que son instrucciones para agentes de IA y no notas del vault, ni la
+> [Bandeja](ayuda:herramientas/bandeja-y-captura-rapida): es material sin procesar, que no se
+> enlaza ni es huérfana por diseño. Lo que oculta `.mycignore`
 > no está en el índice, así que tampoco aparece.
 
 ## La pestaña con las gráficas
