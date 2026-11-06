@@ -1069,3 +1069,28 @@
   padding-block: 0.45rem;
 }
 */
+
+
+/* ============================================================================
+   22) LAS PISTAS   (F10: una letra sobre cada cosa clicable)
+   ----------------------------------------------------------------------------
+   Con F10, una capa .mic-pistas tapa la ventana (sin recibir el puntero) y
+   cada pista es un .mic-pista, ubicado en la esquina de lo que señala.
+     .mic-pista            la etiqueta: fondo --mic-accent, texto --mic-raw-canvas
+     .mic-pista-escrito    las letras ya escritas de una etiqueta
+     .mic-pista-atenuada   las que ya no coinciden con lo escrito
+   ========================================================================== */
+
+/* Pistas más grandes y en el color del brillo, para verlas de lejos:
+.mic-pista {
+  font-size: 13px;
+  padding: 2px 6px;
+  background: var(--mic-glow);
+}
+*/
+
+/* Esconder del todo las que ya no coinciden, en vez de atenuarlas:
+.mic-pista-atenuada {
+  visibility: hidden;
+}
+*/

@@ -16,6 +16,7 @@ import {
 } from "@/lib/drawio";
 import { EVENTO_RECARGA } from "@/lib/eventos";
 import { salirDeMarco } from "@/lib/teclado/focoDom";
+import { pistasDesdeMarco } from "@/lib/teclado/pistasDom";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { olvidarGuardadoPendiente, registrarGuardadoPendiente } from "@/lib/guardadoPendiente";
 import { useAuthStore } from "@/stores/authStore";
@@ -266,6 +267,13 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
     if (msg.event === "mycelium-zona") {
       const hoja = allLeaves(useTabsStore.getState().root).find((h) => h.activeTabId === inst.clave);
       salirDeMarco(hoja?.id ?? null, (msg as { atras?: unknown }).atras === true ? -1 : 1);
+      return;
+    }
+    // F10 con el foco dentro del editor (`FUN-XL-04`, Parte 5): las pistas.
+    // Igual que F6, el mensaje no lleva datos y solo se acepta de este marco.
+    if (msg.event === "mycelium-pistas") {
+      const hoja = allLeaves(useTabsStore.getState().root).find((h) => h.activeTabId === inst.clave);
+      pistasDesdeMarco(hoja?.id ?? null);
       return;
     }
 

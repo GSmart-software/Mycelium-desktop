@@ -49,6 +49,7 @@ import {
   Bot,
   Trash2,
   FolderPlus,
+  MousePointerClick,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
@@ -76,6 +77,7 @@ import {
   irAPanelContiguo,
   irAZona,
 } from "@/lib/teclado/focoDom";
+import { abrirPistas, cerrarPistas, pistasVisibles } from "@/lib/teclado/pistasDom";
 import { EVENTO_VISTA_NOTA } from "./eventos";
 import { abrirNota, sincronizarUrl, urlDeNota } from "./navegar";
 import { OPCIONES_NUEVO, type OpcionNuevo } from "./nuevo";
@@ -496,6 +498,26 @@ export const COMANDOS_APP: readonly Comando[] = [
     icono: Keyboard,
     categoria: "app",
     ejecutar: () => useUiStore.getState().abrirAjustes("atajos"),
+  },
+  // F10: el modo pistas (`FUN-XL-04`, Parte 5): una letra sobre cada cosa
+  // clicable; escribirla es el clic. En captura, como F6, para que funcione
+  // desde la consola y desde CodeMirror; y siempre con `preventDefault`, que
+  // F10 suelta abre el «modo menú» de Windows. Con un diálogo abierto, las
+  // pistas son las de adentro del diálogo.
+  {
+    id: "pistas.mostrar",
+    titulo: "Mostrar las pistas para hacer clic con el teclado",
+    icono: MousePointerClick,
+    categoria: "navegacion",
+    atajos: [{ code: "F10" }],
+    enCaptura: true,
+    // Se abren dos cuadros después: desde la paleta, que se cierra antes de
+    // ejecutar, hay que esperar a que React la desmonte; si no, las pistas
+    // serían las de la paleta.
+    ejecutar: () => {
+      if (pistasVisibles()) cerrarPistas();
+      else requestAnimationFrame(() => requestAnimationFrame(abrirPistas));
+    },
   },
   ...ATMOSFERAS.map(
     (a): Comando => ({

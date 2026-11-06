@@ -140,6 +140,14 @@ export function SidebarDock({
         .filter(Boolean)
         .join(" ")}
       title={tituloDe(notaId)}
+      // Con el teclado (`FUN-XL-04`, Parte 5): se enfoca —con Tab la mostrada,
+      // las demás con las pistas (F10)— y Enter o Espacio la muestran.
+      tabIndex={docMostrado === notaId ? 0 : -1}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        activar(notaId);
+      }}
       onClick={() => activar(notaId)}
       // Arrastrar la pestaña de vuelta al área de trabajo (DEF-023 P3).
       onDragStart={(e) => {

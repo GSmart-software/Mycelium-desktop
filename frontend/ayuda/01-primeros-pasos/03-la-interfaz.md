@@ -1,7 +1,7 @@
 ---
 titulo: La interfaz
 tema: Primeros pasos
-sinonimos: [pantalla, zonas, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión]
+sinonimos: [pantalla, zonas, F6, rail, explorador, pestañas, paneles, dividir, panel de enlaces, barra de estado, barra superior, licencias, licencias de terceros, versión, pistas, F10, sin mouse]
 ---
 
 La ventana de Mycelium tiene cinco zonas: la **barra superior**, el **rail** de íconos a la
@@ -111,5 +111,10 @@ panel de enlaces y la barra de estado— y **Shift+F6** va al revés; la zona do
 lleva un borde del color de acento. Con la vista dividida, **Ctrl+Alt+←** y **Ctrl+Alt+→**
 pasan de un panel a otro, y el panel al que llegas con el teclado queda como el activo.
 **Esc** sale de escribir en un documento y lo deja seleccionado; **Enter** vuelve a entrar.
+
+Para pulsar algo sin el mouse, **{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una
+letra o dos— sobre cada botón, enlace, pestaña y campo a la vista: escribir esas letras es
+el clic. Con **Shift** y las letras solo se pone el foco ahí, sin hacer clic; **Esc** o
+**F10** las cierran sin hacer nada.
 
 Los atajos de cada zona están en [Atajos de teclado](ayuda:atajos-de-teclado/atajos-de-teclado).

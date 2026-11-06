@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir]
+sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir, cambiar atajos, personalizar atajos, hoja de atajos, teclado numérico, crear, nueva nota, nuevo, menú contextual, dividir, pistas, F10, hacer clic con el teclado, letras sobre los botones]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -52,6 +52,7 @@ lateral (la posición de la `\` en un teclado de EE. UU.) se ve como **Ctrl+Ç**
 | **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault sin cambiar de pestaña. |
 | {{atajo:configuracion.abrir|Ctrl+,}} | Configuración. |
 | {{atajo:atajos.hoja|Ctrl+Shift+/}} | La hoja de atajos. |
+| {{atajo:pistas.mostrar|F10}} | Las **pistas**: una letra sobre cada cosa que se puede pulsar; escribirla es el clic (más abajo). |
 | **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollo, si las encendiste para este vault en Configuración → Avanzado. |
 
 ## Moverse sin el mouse
@@ -88,6 +89,31 @@ Después de **Ctrl+Tab**, **Ctrl+W** o **Ctrl+Shift+T**, el documento que queda 
 queda seleccionado; si venías escribiendo en una nota y la que queda también es una nota,
 sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda seleccionada y
 **Enter** entra.
+
+## Hacer clic con el teclado: las pistas
+
+**{{atajo:pistas.mostrar|F10}}** muestra una **pista** —una letra, o dos si hay muchas
+cosas a la vista— sobre cada botón, enlace, pestaña, fila, campo y documento que se ve en la
+ventana. Escribir esas letras es como hacer clic ahí, sin el mouse.
+
+| Atajo | Qué hace |
+|---|---|
+| Las letras de una pista | Hace clic en lo que señala. En un campo de texto, en el texto de una nota o en una consola, pone el cursor ahí para escribir; en un diagrama o un PDF, entra en él. Al escribir la primera letra de un par, las pistas que no empiezan así se apagan. |
+| **Shift** + las letras | Solo pone el foco ahí, sin hacer clic: para seguir con el teclado desde ese lugar. |
+| **Retroceso** | Borra la última letra escrita. |
+| **Esc** o {{atajo:pistas.mostrar|F10}} | Cierra las pistas sin hacer nada. |
+
+- Las letras funcionan igual con cualquier idioma del teclado: cuenta la **posición** de la
+  tecla. Las pistas te muestran la letra de tu teclado.
+- Con un diálogo abierto —la paleta, Configuración, un aviso—, las pistas son las del
+  diálogo.
+- El texto de una nota es **una** pista (el cursor vuelve donde estaba), no una por renglón.
+  El grafo también es una sola: selecciona la pestaña. En un lienzo, cada tarjeta lleva la
+  suya y la letra la selecciona.
+- Las pistas se van solas si mueves el mouse para hacer clic o si se desplaza lo que hay
+  debajo; si la ventana cambia de tamaño, se vuelven a calcular.
+- Funcionan también desde una consola y desde un diagrama de draw.io (ahí siempre con
+  **F10**, aunque le hayas dado otro atajo).
 
 ## Pestañas y paneles
 
@@ -194,7 +220,7 @@ Después de tocar el lienzo, con el foco fuera del texto de una tarjeta:
 | **F6** / **Shift+F6** | Sale de la consola a la zona siguiente / anterior. |
 
 Con el foco en una consola, la shell recibe casi todas las teclas. De fábrica llegan a
-Mycelium **F1**, **F6**, **Ctrl+P**, **Ctrl+Shift+P**, **Ctrl+O**, **Ctrl+Tab**,
+Mycelium **F1**, **F6**, **F10**, **Ctrl+P**, **Ctrl+Shift+P**, **Ctrl+O**, **Ctrl+Tab**,
 **Ctrl+Shift+Tab**, **Ctrl+\\**, **Ctrl+,**, **Ctrl+Shift+/** y **Ctrl+Alt+←**/**→**; la
 shell ya no las recibe (para el comando anterior, usa **↑** en vez de **Ctrl+P**). **Ctrl+W**
 sigue siendo de la shell (borra la palabra anterior): para cerrar la consola, sal con **F6**
@@ -202,4 +228,5 @@ y pulsa **Ctrl+W**.
 
 La lista se cambia en **Configuración → Atajos de teclado → Teclas que salen de una
 consola**: por ejemplo, devuélvele **Ctrl+P** a la shell o deja que **Ctrl+W** cierre la
-consola. **F6** y **Shift+F6** salen siempre: son la salida.
+consola. **F6** y **Shift+F6** salen siempre: son la salida. Las pistas (**F10**) también
+llegan siempre.

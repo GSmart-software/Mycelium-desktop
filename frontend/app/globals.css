@@ -101,6 +101,39 @@ button {
   border: 1px solid var(--mic-zona-activa);
 }
 
+/* ── El modo pistas (`FUN-XL-04`, Parte 5) ─────────────────────────
+   F10: una etiqueta sobre cada cosa clicable (`lib/teclado/pistasDom.ts`). La
+   capa va encima de todo y no recibe el puntero ni mueve el layout. La
+   etiqueta usa el acento con el texto del fondo de la nota, como los botones
+   primarios: legible en todos los temas y atmósferas. Lo ya escrito se apaga y
+   las que dejaron de coincidir se atenúan. */
+.mic-pistas {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  contain: layout style;
+}
+.mic-pista {
+  position: absolute;
+  transform: translate(-2px, -2px);
+  padding: 1px 4px;
+  border-radius: var(--mic-radius-sm);
+  background: var(--mic-accent);
+  color: var(--mic-raw-canvas);
+  border: 1px solid color-mix(in srgb, var(--mic-raw-canvas) 45%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  font: 700 11px/1.25 var(--mic-font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.mic-pista-escrito {
+  opacity: 0.45;
+}
+.mic-pista-atenuada {
+  opacity: 0.25;
+}
+
 /* ── Controles nativos: la lista de un <select> y los popups ─────
    Un <select> tiene DOS partes y solo una está en el documento. La cerrada se
    estila como cualquier caja; la lista desplegada la dibuja el navegador fuera

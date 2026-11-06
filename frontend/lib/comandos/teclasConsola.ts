@@ -13,7 +13,8 @@
  * cada comando (`PrefsConsola`, guardadas con los atajos en
  * `preferenciasAtajos.ts`): por ejemplo, devolverle Ctrl+P a la shell o dejar
  * que Ctrl+W cierre la consola. F6 y Shift+F6 no se pueden apagar: son la
- * salida. Si el usuario cambia el atajo de un comando que sale de la consola,
+ * salida; tampoco las pistas (F10), que como F6 se atienden en captura, antes
+ * que la consola. Si el usuario cambia el atajo de un comando que sale de la consola,
  * el atajo nuevo también sale.
  *
  * Lo que **no** sale de fábrica, a propósito, porque es de la shell:
@@ -35,6 +36,7 @@ import { efectivosDe, listarComandos, type Comando } from "./registro";
 export const TECLAS_QUE_SALEN_DE_LA_CONSOLA: readonly { atajo: Atajo; para: string }[] = [
   { atajo: { code: "F6" }, para: "zona.siguiente" },
   { atajo: { shift: true, code: "F6" }, para: "zona.anterior" },
+  { atajo: { code: "F10" }, para: "pistas.mostrar" },
   { atajo: { code: "F1" }, para: "ayuda.abrir" },
   { atajo: { ctrl: true, code: "KeyP" }, para: "paleta.comandos" },
   { atajo: { ctrl: true, shift: true, code: "KeyP" }, para: "paleta.comandos" },
@@ -48,8 +50,8 @@ export const TECLAS_QUE_SALEN_DE_LA_CONSOLA: readonly { atajo: Atajo; para: stri
   { atajo: { ctrl: true, shift: true, code: "Slash" }, para: "atajos.hoja" },
 ];
 
-/** Los comandos que siempre salen de la consola: la salida misma. */
-export const FIJOS_EN_LA_CONSOLA: ReadonlySet<string> = new Set(["zona.siguiente", "zona.anterior"]);
+/** Los comandos que siempre salen de la consola: la salida misma y las pistas (en captura). */
+export const FIJOS_EN_LA_CONSOLA: ReadonlySet<string> = new Set(["zona.siguiente", "zona.anterior", "pistas.mostrar"]);
 
 /** Lo que el usuario decidió por cada fila: `clave de la fila → sale`. Lo que falta, de fábrica. */
 export type PrefsConsola = Readonly<Record<string, boolean>>;
