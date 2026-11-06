@@ -17,8 +17,14 @@ import { useEffect, useId, type RefObject } from "react";
  */
 const EVENTO_MENU_ABIERTO = "mic-menu-abierto";
 
-/** Lo que dentro del menú puede recibir el foco con las flechas. */
-const ITEMS = "button:not(:disabled), input:not(:disabled), [role='menuitem']:not([aria-disabled='true'])";
+/**
+ * Lo que dentro del menú puede recibir el foco con las flechas. `DEF-180`: un
+ * `<button role="menuitem" disabled>` entraba por la tercera parte (tiene el
+ * rol y no `aria-disabled`) y, como no puede recibir el foco, la flecha se
+ * trababa en la entrada anterior: `:not(:disabled)` también ahí.
+ */
+const ITEMS =
+  "button:not(:disabled), input:not(:disabled), [role='menuitem']:not([aria-disabled='true']):not(:disabled)";
 
 export function useMenuEmergente({
   abierto,
