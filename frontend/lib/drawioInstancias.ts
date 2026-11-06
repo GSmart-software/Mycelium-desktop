@@ -15,6 +15,7 @@ import {
   type TemaDrawio,
 } from "@/lib/drawio";
 import { EVENTO_RECARGA } from "@/lib/eventos";
+import { salirDeMarco } from "@/lib/teclado/focoDom";
 import { avisoTocaA, hayQueRecargar } from "@/lib/recargaExterna";
 import { olvidarGuardadoPendiente, registrarGuardadoPendiente } from "@/lib/guardadoPendiente";
 import { useAuthStore } from "@/stores/authStore";
@@ -258,6 +259,15 @@ function crear(clave: string, notaId: string, tema: TemaDrawio): Instancia {
     if (!esMensajeDeDrawio(ev, inst.iframe.contentWindow, inst.origen)) return;
     const msg = leerEvento(ev.data);
     if (msg === null) return;
+
+    // F6 / Shift+F6 con el foco dentro del editor (`FUN-XL-04`): el marco es
+    // otro origen y la tecla no llega; avisa `guarda.js` y se sale desde acá,
+    // por el panel que muestra este diagrama.
+    if (msg.event === "mycelium-zona") {
+      const hoja = allLeaves(useTabsStore.getState().root).find((h) => h.activeTabId === inst.clave);
+      salirDeMarco(hoja?.id ?? null, (msg as { atras?: unknown }).atras === true ? -1 : 1);
+      return;
+    }
 
     if (msg.event === "init") {
       inst.cargado = true;
