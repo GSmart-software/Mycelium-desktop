@@ -105,6 +105,8 @@ export function entrarAEscribir(doc: HTMLElement): boolean {
     primerEnfocable(doc, "[data-nodo][tabindex='0']"),
     // draw.io: su marco no vive en el panel sino en `body` (ver `marcoDe`).
     marcoDe(doc),
+    // El grafo: su lienzo (flechas entre nodos, Enter abre).
+    primerEnfocable(doc, "canvas[tabindex='0']"),
     // Excalidraw atiende el teclado en su contenedor (`tabIndex=0`): su lienzo.
     primerEnfocable(doc, ".excalidraw-container"),
     primerEnfocable(doc),
