@@ -1,7 +1,7 @@
 ---
 titulo: Atajos de teclado
 tema: Atajos de teclado
-sinonimos: [teclas, shortcuts, combinaciones, teclado]
+sinonimos: [teclas, shortcuts, combinaciones, teclado, F6, zonas, sin mouse, salir del editor, salir de la consola, modo navegar, modo escribir]
 ---
 
 Los atajos que Mycelium entiende, agrupados por dónde funcionan. Algunos solo actúan con
@@ -17,6 +17,41 @@ el foco en un lugar —el texto de una nota, el explorador, una consola—: cada
 | **Ctrl+Shift+Espacio** | La [captura rápida](ayuda:herramientas/bandeja-y-captura-rapida): anota en la Bandeja del vault sin cambiar de pestaña. |
 | **Ctrl+,** | Configuración. |
 | **F12** o **Ctrl+Shift+I** | Las herramientas de desarrollo, si las encendiste para este vault en Configuración → Avanzado. |
+
+## Moverse sin el mouse
+
+La ventana se divide en **zonas**: el rail, el panel lateral, cada panel del área de
+trabajo (su barra de pestañas y su documento), el panel de enlaces si está abierto y la
+barra de estado. La zona donde estás lleva un **borde** del color de acento mientras usas
+el teclado.
+
+| Atajo | Qué hace |
+|---|---|
+| **F6** / **Shift+F6** | Pasa a la zona siguiente / anterior. Funciona desde cualquier lado, también desde una consola y desde el texto de una nota. |
+| **Ctrl+Alt+←** / **Ctrl+Alt+→** | Pasa al panel de la izquierda / de la derecha cuando la vista está dividida. |
+
+Cada documento abierto en una pestaña —una nota, un lienzo, una tabla, el calendario, una
+consola…— tiene **dos modos**:
+
+- **Escribiendo**: el foco está dentro del documento y las teclas son suyas. Solo actúan
+  los atajos con **Ctrl**, **Alt** o una tecla **F**, así que escribir nunca dispara nada.
+- **Seleccionado**: el documento entero tiene el foco, con un **contorno punteado**. Desde
+  ahí te mueves por la app.
+
+| Atajo | Qué hace |
+|---|---|
+| **Esc** | Sale de escribir y deja el documento seleccionado. Si hay algo abierto —las sugerencias de `[[`, la búsqueda en la nota, un menú, el texto de una tarjeta—, el primer **Esc** lo cierra y el segundo sale. |
+| **Enter** | Sobre un documento seleccionado, vuelve a escribir donde estabas: en una nota, con el cursor donde lo dejaste; en la lectura, en el primer enlace o casilla; en una tabla, en la primera fila. |
+
+En una **consola** y en un **dibujo de Excalidraw**, **Esc** es suyo (lo usan la shell, vim
+o la herramienta de dibujo): de ahí se sale con **F6**. En un **diagrama de draw.io** el
+teclado lo tiene el editor de diagramas y ningún atajo de Mycelium llega mientras escribes
+ahí: sal con un clic fuera del diagrama.
+
+Después de **Ctrl+Tab**, **Ctrl+W** o **Ctrl+Shift+T**, el documento que queda a la vista
+queda seleccionado; si venías escribiendo en una nota y la que queda también es una nota,
+sigues escribiendo en ella. Una consola nunca toma el teclado sola: queda seleccionada y
+**Enter** entra.
 
 ## Pestañas y paneles
 
@@ -84,3 +119,10 @@ Después de tocar el lienzo, con el foco fuera del texto de una tarjeta:
 |---|---|
 | **Ctrl+C** | Con texto seleccionado, lo copia; sin selección, interrumpe el programa, como siempre. |
 | **Ctrl+V** | Pega. |
+| **F6** / **Shift+F6** | Sale de la consola a la zona siguiente / anterior. |
+
+Con el foco en una consola, la shell recibe casi todas las teclas. Llegan a Mycelium
+**F1**, **F6**, **Ctrl+P**, **Ctrl+Shift+P**, **Ctrl+O**, **Ctrl+Tab**, **Ctrl+Shift+Tab**,
+**Ctrl+\\**, **Ctrl+,** y **Ctrl+Alt+←**/**→**; la shell ya no las recibe (para el comando
+anterior, usa **↑** en vez de **Ctrl+P**). **Ctrl+W** sigue siendo de la shell (borra la
+palabra anterior): para cerrar la consola, sal con **F6** y pulsa **Ctrl+W**.
