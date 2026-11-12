@@ -42,7 +42,29 @@ export type Recordatorio = {
    * antes de que existiera. Opcional para tolerar archivos escritos a mano.
    */
   vigenteDesde?: string;
+  /**
+   * Solo en los **personales** (`FUN-M-60`): la ruta del vault donde se creó.
+   * Sus `[[enlaces]]` se resuelven contra ese vault; mirado desde otro, el
+   * enlace ofrece abrir el vault de origen.
+   */
+  vaultOrigen?: string;
 };
+
+/**
+ * Dónde vive un recordatorio (`FUN-M-60`): en el vault (`.mycelium/recordatorios.json`)
+ * o en los **personales**, en la carpeta de datos de la app, que se ven y
+ * avisan desde todos los vaults. El archivo no lo guarda: lo dice en cuál está.
+ */
+export type Alcance = "vault" | "personal";
+
+/** El filtro del calendario: todos, solo los del vault o solo los personales. */
+export type FiltroAlcance = "todos" | Alcance;
+
+export const FILTROS_ALCANCE: { valor: FiltroAlcance; nombre: string }[] = [
+  { valor: "todos", nombre: "Todos" },
+  { valor: "vault", nombre: "Del vault" },
+  { valor: "personal", nombre: "Personales" },
+];
 
 /** Lo que el usuario hizo con una ocurrencia. */
 export type EstadoOcurrencia = {
@@ -459,6 +481,71 @@ export function restaurarRecordatorio(
 }
 
 /**
+ * Pone un recordatorio en un archivo: lo reemplaza si ya está (por `id`), o lo
+ * agrega al final. No toca el estado de sus ocurrencias.
+ */
+export function ponerRecordatorio(archivo: ArchivoRecordatorios, r: Recordatorio): ArchivoRecordatorios {
+  const esta = archivo.recordatorios.some((x) => x.id === r.id);
+  return {
+    ...archivo,
+    recordatorios: esta ? archivo.recordatorios.map((x) => (x.id === r.id ? r : x)) : [...archivo.recordatorios, r],
+  };
+}
+
+/** Saca un recordatorio de un archivo, con el estado de sus ocurrencias (la serie entera). */
+export function quitarRecordatorio(archivo: ArchivoRecordatorios, id: string): ArchivoRecordatorios {
+  const prefijo = `${id}@`;
+  const ocurrencias: Record<string, EstadoOcurrencia> = {};
+  for (const [clave, estado] of Object.entries(archivo.ocurrencias)) {
+    if (!clave.startsWith(prefijo)) ocurrencias[clave] = estado;
+  }
+  return { ...archivo, recordatorios: archivo.recordatorios.filter((r) => r.id !== id), ocurrencias };
+}
+
+/**
+ * El recordatorio como queda al pasar a `alcance` (`FUN-M-60`): uno personal
+ * recuerda el vault donde se creó —o al que se lo pasó—; uno del vault no
+ * necesita recordarlo.
+ */
+export function conAlcance(r: Recordatorio, alcance: Alcance, vaultActual: string | null): Recordatorio {
+  const copia: Recordatorio = { ...r };
+  if (alcance === "vault") delete copia.vaultOrigen;
+  else if (!copia.vaultOrigen && vaultActual) copia.vaultOrigen = vaultActual;
+  return copia;
+}
+
+/**
+ * Los dos alcances juntos, como los muestra el calendario (`FUN-M-60`). Los
+ * ids son UUID, así que las claves de ocurrencia no chocan.
+ */
+export function combinarAlcances(
+  delVault: ArchivoRecordatorios,
+  personal: ArchivoRecordatorios,
+): ArchivoRecordatorios {
+  return {
+    version: delVault.version,
+    recordatorios: [...delVault.recordatorios, ...personal.recordatorios],
+    ocurrencias: { ...delVault.ocurrencias, ...personal.ocurrencias },
+  };
+}
+
+/** Los recordatorios que deja ver el filtro. `personales`: los ids que son personales. */
+export function filtrarPorAlcance(
+  recordatorios: readonly Recordatorio[],
+  personales: ReadonlySet<string>,
+  filtro: FiltroAlcance,
+): Recordatorio[] {
+  if (filtro === "todos") return [...recordatorios];
+  return recordatorios.filter((r) => personales.has(r.id) === (filtro === "personal"));
+}
+
+/** El id de recordatorio de una clave de ocurrencia (`id@fecha`). */
+export function idDeClave(clave: string): string {
+  const i = clave.lastIndexOf("@");
+  return i < 0 ? clave : clave.slice(0, i);
+}
+
+/**
  * El título como se guarda: una línea, sin espacios en los bordes. El
  * formulario junta los renglones que se hayan pegado; el MCP, en cambio,
  * rechaza un título multilínea (`lib/mcpCalendarioLogica.ts`).
@@ -599,6 +686,7 @@ function leerRecordatorio(x: unknown): Recordatorio | null {
     detalle: typeof o.detalle === "string" ? o.detalle : "",
   };
   if (typeof o.vigenteDesde === "string") r.vigenteDesde = o.vigenteDesde;
+  if (typeof o.vaultOrigen === "string" && o.vaultOrigen !== "") r.vaultOrigen = o.vaultOrigen;
   return r;
 }
 
