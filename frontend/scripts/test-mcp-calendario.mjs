@@ -310,3 +310,40 @@ test("el estado del canal: conectado es que habló hace poco", () => {
   assert.equal(act.estadoCanal(true, null, t - 60_000, t), "conectado");
   assert.equal(act.estadoCanal(true, null, t - act.VENTANA_CONECTADO_MS - 1, t), "encendido");
 });
+
+// ── El alcance (`FUN-M-60`) ─────────────────────────────────────────────────
+
+test("alcance: se separa de los argumentos y se valida", () => {
+  assert.deepEqual(cal.separarAlcance({ titulo: "X" }), { ok: true, valor: { alcance: null, resto: { titulo: "X" } } });
+  assert.deepEqual(cal.separarAlcance({ alcance: "Personal", id: "a" }).valor, { alcance: "personal", resto: { id: "a" } });
+  assert.equal(cal.separarAlcance({ alcance: "vault" }).valor.alcance, "vault");
+  assert.equal(cal.separarAlcance({ alcance: "todos" }).ok, false, "todos solo vale al leer");
+  assert.equal(cal.separarAlcance({ alcance: "todos" }, true).valor.alcance, null);
+  const malo = cal.separarAlcance({ alcance: "global" });
+  assert.equal(malo.error.codigo, "INVALIDO");
+  assert.deepEqual(malo.error.datos, { campo: "alcance" });
+});
+
+test("alcance: pedir uno que no es dice dónde está", () => {
+  assert.equal(cal.comprobarAlcance("r1", null, "personal").ok, true);
+  assert.equal(cal.comprobarAlcance("r1", "personal", "personal").ok, true);
+  const e = cal.comprobarAlcance("r1", "vault", "personal");
+  assert.equal(e.error.codigo, "NO_ENCONTRADO");
+  assert.match(e.error.mensaje, /alcance: personal/);
+});
+
+test("alcance: cada ocurrencia dice si es del vault o personal", () => {
+  const a = archivo([r({ id: "v" }), r({ id: "p" })]);
+  const ocs = cal.ocurrenciasParaIa(a, "2026-10-03", "2026-10-03", new Set(["p"]));
+  assert.deepEqual(ocs.map((o) => [o.id, o.alcance]), [["v", "vault"], ["p", "personal"]]);
+  // Sin el conjunto, todo es del vault (como antes).
+  assert.ok(cal.ocurrenciasParaIa(a, "2026-10-03", "2026-10-03").every((o) => o.alcance === "vault"));
+});
+
+test("alcance: el efecto de crear y de mover lo dice", () => {
+  assert.match(cal.efectoCrear(r(), AHORA, "personal"), /personal: se ve y avisa desde todos los vaults/);
+  assert.doesNotMatch(cal.efectoCrear(r(), AHORA), /personal/);
+  const mover = cal.efectoEditar(r(), r(), AHORA, { antes: "vault", despues: "personal" });
+  assert.match(mover, /ahora es personal/);
+  assert.match(cal.efectoEditar(r(), r(), AHORA, { antes: "vault", despues: "vault" }), /no cambié nada/);
+});
