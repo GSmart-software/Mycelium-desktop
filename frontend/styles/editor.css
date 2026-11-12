@@ -1030,6 +1030,18 @@
   border-radius: var(--mic-radius-sm);
 }
 
+/* `DEF-186`: los temas que pintan los títulos con degradado (Aurora, Arrecife,
+   GSmart: `background-clip: text` y `-webkit-text-fill-color: transparent`)
+   hacen que todo lo de adentro herede el relleno transparente, y ese relleno
+   manda sobre `color`. Un elemento con FONDO PROPIO —el código en línea, una
+   etiqueta, un resaltado, una tecla— tapa el degradado con su fondo y su texto
+   queda invisible: una caja vacía (se vio en una tarjeta de nota del lienzo,
+   que dibuja con `.mic-preview`). Se le devuelve el relleno a su propio color.
+   El texto suelto, la negrita y la cursiva del título siguen en el degradado. */
+.mic-preview :is(h1, h2, h3, h4, h5, h6) :is(code, kbd, mark, .mic-tag-pill) {
+  -webkit-text-fill-color: currentColor;
+}
+
 /* Bloque de código: posición relativa para el botón de copiar. El texto base se
    hereda de .mic-preview y el resaltado lo dan las reglas `.hljs-*` de abajo. */
 .mic-preview pre {
