@@ -141,6 +141,7 @@ const PREFS_VAULT = await fuente("../stores/prefsVaultStore.ts", {
   zustand: ZUSTAND,
   "@tauri-apps/api/core": TAURI,
   "@/lib/temas": TEMAS,
+  "@/lib/lienzoBloqueo": await fuente("../lib/lienzoBloqueo.ts"),
   "@/stores/configLocalStore": CONFIG_LOCAL,
 });
 const CSS = await fuente("../stores/cssStore.ts", {
@@ -209,6 +210,13 @@ test("un vault sin preferencias arranca con la apariencia de siempre", () => {
   assert.equal(p.modoOscuro, true);
   assert.deepEqual(p.preferencias, {});
   assert.equal(p.numerosDeLinea, false);
+  assert.deepEqual(p.lienzosBloqueados, []);
+});
+
+test("los lienzos bloqueados se leen saneados (`FUN-S-39`)", () => {
+  const p = prefsVault.normalizar({ lienzosBloqueados: ["Mapas/A.canvas", 7, "", "Mapas/A.canvas"] });
+  assert.deepEqual(p.lienzosBloqueados, ["Mapas/A.canvas"]);
+  assert.deepEqual(prefsVault.normalizar({ lienzosBloqueados: "A.canvas" }).lienzosBloqueados, []);
 });
 
 test("normalizar conserva la apariencia válida y descarta la inválida", () => {

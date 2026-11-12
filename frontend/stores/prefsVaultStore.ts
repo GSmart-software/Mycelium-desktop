@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { temaValido, TEMA_DEFECTO, type Tema } from "@/lib/temas";
+import { normalizarLienzosBloqueados } from "@/lib/lienzoBloqueo";
 import { useConfigLocalStore } from "@/stores/configLocalStore";
 
 /**
@@ -93,6 +94,13 @@ export type PrefsVault = {
    * borra cuando queda vacío; si era del usuario, solo se quita nuestra entrada.
    */
   settingsCreado: boolean;
+  /**
+   * Rutas de los lienzos `.canvas` en «Solo lectura» (`FUN-S-39`). Acá y no
+   * en el archivo, por lo mismo que `anchosTabla`: el `.canvas` es formato de
+   * Obsidian. La entrada sigue al lienzo si se renombra o se mueve
+   * (`vaultStore`, con `lib/lienzoBloqueo.ts`).
+   */
+  lienzosBloqueados: string[];
 };
 
 /**
@@ -113,6 +121,7 @@ export const POR_DEFECTO: PrefsVault = {
   controlIa: false,
   mcpJsonCreado: false,
   settingsCreado: false,
+  lienzosBloqueados: [],
 };
 
 /** Si `v` es un objeto plano (no `null`, no una lista). */
@@ -154,6 +163,7 @@ export function normalizar(crudo: unknown): PrefsVault {
     controlIa: o.controlIa === true,
     mcpJsonCreado: o.mcpJsonCreado === true,
     settingsCreado: o.settingsCreado === true,
+    lienzosBloqueados: normalizarLienzosBloqueados(o.lienzosBloqueados),
   };
 }
 

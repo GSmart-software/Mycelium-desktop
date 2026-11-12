@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, FileText, Maximize2, Redo2, Save, Trash2, Type, Undo2 } from "lucide-react";
+import { Ban, FileText, Lock, LockOpen, Maximize2, Redo2, Save, Trash2, Type, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
@@ -57,7 +57,9 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { useTabsStore } from "@/stores/tabsStore";
+import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useVaultStore, type TreeCarpeta, type TreeNota } from "@/stores/vaultStore";
+import { estaBloqueado, fijarBloqueo } from "@/lib/lienzoBloqueo";
 import styles from "./CanvasView.module.css";
 
 /** Milisegundos de calma antes de guardar (mismo criterio que el editor). */
@@ -180,6 +182,23 @@ export function CanvasView({ notaId }: { notaId: string }) {
   }, []);
   const yoRef = useRef<symbol>(Symbol("lienzo"));
 
+  /**
+   * «Solo lectura» (`FUN-S-39`): se recuerda por lienzo en las preferencias del
+   * vault, con la ruta como clave (en desktop, `notaId` ES la ruta). Bloqueado
+   * se mira, se selecciona, se abre la nota de una tarjeta y se copia texto;
+   * nada que cambie el archivo. El candado está en `cambiar` y en cada gesto
+   * que empieza una edición, no solo en los botones: un atajo o un arrastre
+   * llegan por otro lado. La ref es para los manejadores fuera del render.
+   */
+  const lienzosBloqueados = usePrefVault("lienzosBloqueados");
+  const bloqueado = estaBloqueado(lienzosBloqueados, notaId);
+  const bloqueadoRef = useRef(bloqueado);
+  bloqueadoRef.current = bloqueado;
+  const alternarBloqueo = () => {
+    const prefs = usePrefsVaultStore.getState();
+    prefs.set("lienzosBloqueados", fijarBloqueo(prefs.prefs.lienzosBloqueados, notaId, !bloqueado));
+  };
+
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
 
@@ -281,7 +300,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const cambiar = useCallback(
     (fn: (c: Canvas) => Canvas, enGesto = false) => {
       const prev = canvasRef.current;
-      if (prev === null) return;
+      // Bloqueado, nada cambia el archivo (`FUN-S-39`).
+      if (prev === null || bloqueadoRef.current) return;
       const siguiente = fn(prev);
       if (siguiente === prev) return;
       if (!enGesto) historialRef.current = registrar(historialRef.current, prev, siguiente);
@@ -324,8 +344,9 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const moverEnHistorial = useCallback(
     (accion: "deshacer" | "rehacer") => {
       const actual = canvasRef.current;
-      // Mientras se escribe en una tarjeta, Ctrl+Z es el del texto.
-      if (actual === null || editandoRef.current !== null) return;
+      // Mientras se escribe en una tarjeta, Ctrl+Z es el del texto. Bloqueado,
+      // tampoco: deshacer también cambia el archivo (`FUN-S-39`).
+      if (actual === null || editandoRef.current !== null || bloqueadoRef.current) return;
       // A mitad de un arrastre no: el gesto seguiría moviendo sobre lo deshecho.
       if (arrastre.current !== null) return;
       const r = (accion === "deshacer" ? deshacer : rehacer)(historialRef.current, actual);
@@ -337,6 +358,20 @@ export function CanvasView({ notaId }: { notaId: string }) {
     },
     [aplicar, tocarHistorial],
   );
+
+  // Al bloquear (`FUN-S-39`) se corta lo que estuviera a medias: la edición de
+  // un texto se cierra como un paso y un arrastre de tarjeta o de flecha se
+  // suelta donde quedó. El selector de notas y la flecha provisional no se ven
+  // mientras dure el bloqueo (lo decide el render).
+  useEffect(() => {
+    if (!bloqueado) return;
+    if (editandoRef.current !== null) terminarEdicion();
+    const a = arrastre.current;
+    if (a !== null && a.tipo !== "lienzo") {
+      arrastre.current = null;
+      if (a.tipo === "nodo" || a.tipo === "tamano") cerrarGesto("arrastre");
+    }
+  }, [bloqueado, terminarEdicion, cerrarGesto]);
 
   // ── Cambios de afuera (`FUN-L-26`) ─────────────────────────────────────────
   //
@@ -532,7 +567,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
   // ── Teclado ────────────────────────────────────────────────────────────────
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (seleccion === null || editando !== null) return;
+      if (seleccion === null || editando !== null || bloqueado) return;
       const activo = document.activeElement as HTMLElement | null;
       // El editor de notas es un `contenteditable`, no un INPUT: sin esto, borrar
       // con Retroceso en una nota de otro panel borraba la tarjeta seleccionada.
@@ -549,7 +584,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [seleccion, editando, cambiar]);
+  }, [seleccion, editando, bloqueado, cambiar]);
 
   // Deshacer y rehacer (`DEF-137`). Se escucha en la fase de captura para
   // adelantarse al Ctrl+Z del explorador (deshacer el último movimiento de un
@@ -570,6 +605,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
       )
         return;
       if (editandoRef.current !== null) return;
+      // Bloqueado no hay nada que deshacer: la tecla queda para quien la quiera.
+      if (bloqueadoRef.current) return;
       e.preventDefault();
       moverEnHistorial(accion);
     }
@@ -607,6 +644,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const idNuevo = () => nuevoId((canvasRef.current?.nodos ?? []).map((n) => n.id));
 
   const agregarTexto = () => {
+    if (bloqueadoRef.current) return;
     const p = centro();
     const id = idNuevo();
     // Crear la tarjeta y escribir su texto es UN paso: el gesto se abre antes
@@ -623,6 +661,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
   };
 
   const agregarNota = (notaDestino: string) => {
+    if (bloqueadoRef.current) return;
     const p = centro();
     const id = idNuevo();
     setEligiendoNota(false);
@@ -709,6 +748,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     if (e.key === "Enter" && !e.altKey && !e.shiftKey && !e.ctrlKey) {
       if (n.tipo === "text") {
         e.preventDefault();
+        if (bloqueadoRef.current) return;
         abrirGesto(`texto:${n.id}`);
         setEditando(n.id);
       } else if (n.tipo === "file" && notaDestino !== null) {
@@ -722,6 +762,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     if (dir === null || accion === null) return;
     e.preventDefault();
     if (accion === "mover") {
+      if (bloqueadoRef.current) return;
       const { dx, dy } = pasoDeTarjeta(dir);
       const movido = { ...n, x: n.x + dx, y: n.y + dy };
       cambiar((c) => ({ ...c, nodos: c.nodos.map((x) => (x.id === n.id ? movido : x)) }));
@@ -759,6 +800,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     },
     seleccionar: (id) => setSeleccion(id),
     editar: (id) => {
+      if (bloqueadoRef.current) return;
       abrirGesto(`texto:${id}`);
       setEditando(id);
     },
@@ -773,19 +815,20 @@ export function CanvasView({ notaId }: { notaId: string }) {
       ),
     arrastrar: (id, e) => {
       const n = nodoPorId(id);
-      if (!n) return;
+      if (!n || bloqueadoRef.current) return;
       abrirGesto("arrastre");
       const p = enLienzo(e);
       arrastre.current = { tipo: "nodo", id, dx: p.x - n.x, dy: p.y - n.y };
     },
     redimensionar: (id, e) => {
       const n = nodoPorId(id);
-      if (!n) return;
+      if (!n || bloqueadoRef.current) return;
       abrirGesto("arrastre");
       const p = enLienzo(e);
       arrastre.current = { tipo: "tamano", id, x0: p.x, y0: p.y, w0: n.ancho, h0: n.alto };
     },
     conectar: (id, lado, e) => {
+      if (bloqueadoRef.current) return;
       const p = enLienzo(e);
       arrastre.current = { tipo: "arista", desde: id, lado, x: p.x, y: p.y };
     },
@@ -821,7 +864,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
   }
   if (canvas === null) return <p className={styles.aviso}>Cargando el canvas…</p>;
 
-  const provisional = arrastre.current?.tipo === "arista" ? arrastre.current : null;
+  const provisional = !bloqueado && arrastre.current?.tipo === "arista" ? arrastre.current : null;
   const nodoProvisional = provisional
     ? canvas.nodos.find((n) => n.id === provisional.desde)
     : undefined;
@@ -853,7 +896,18 @@ export function CanvasView({ notaId }: { notaId: string }) {
       <header className={styles.barra}>
         <button
           type="button"
+          className={`${styles.boton} ${bloqueado ? styles.botonActivo : ""}`}
+          title={bloqueado ? "Desbloquear la edición" : "Bloquear la edición (solo lectura)"}
+          aria-label={bloqueado ? "Desbloquear la edición" : "Bloquear la edición"}
+          aria-pressed={bloqueado}
+          onClick={alternarBloqueo}
+        >
+          {bloqueado ? <Lock size={14} aria-hidden /> : <LockOpen size={14} aria-hidden />}
+        </button>
+        <button
+          type="button"
           className={styles.boton}
+          disabled={bloqueado}
           onClick={(e) => {
             // El foco pasa al texto de la tarjeta nueva; el botón no se lo queda,
             // o un espacio tecleado para ella crearía otra (`DEF-135`).
@@ -866,6 +920,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
         <button
           type="button"
           className={styles.boton}
+          disabled={bloqueado}
           onClick={() => {
             setBusqueda("");
             setEligiendoNota((v) => !v);
@@ -887,7 +942,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
           className={styles.boton}
           title="Deshacer (Ctrl+Z)"
           aria-label="Deshacer"
-          disabled={!puede.deshacer}
+          disabled={bloqueado || !puede.deshacer}
           onClick={() => moverEnHistorial("deshacer")}
         >
           <Undo2 size={14} aria-hidden />
@@ -897,12 +952,12 @@ export function CanvasView({ notaId }: { notaId: string }) {
           className={styles.boton}
           title="Rehacer (Ctrl+Y)"
           aria-label="Rehacer"
-          disabled={!puede.rehacer}
+          disabled={bloqueado || !puede.rehacer}
           onClick={() => moverEnHistorial("rehacer")}
         >
           <Redo2 size={14} aria-hidden />
         </button>
-        {seleccion !== null && (
+        {seleccion !== null && !bloqueado && (
           <span className={styles.paleta} role="group" aria-label="Color de la tarjeta">
             <button
               type="button"
@@ -925,7 +980,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
             ))}
           </span>
         )}
-        {seleccion !== null && (
+        {seleccion !== null && !bloqueado && (
           <button
             type="button"
             className={styles.boton}
@@ -942,6 +997,11 @@ export function CanvasView({ notaId }: { notaId: string }) {
             <Trash2 size={14} aria-hidden /> Borrar
           </button>
         )}
+        {bloqueado && (
+          <span className={styles.soloLectura} title="El lienzo está bloqueado: se puede mirar, no cambiar">
+            <Lock size={11} aria-hidden /> Solo lectura
+          </span>
+        )}
         <span className={styles.estado}>
           {sucio ? (
             <>
@@ -951,7 +1011,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
             "guardado"
           )}
         </span>
-        {eligiendoNota && (
+        {eligiendoNota && !bloqueado && (
           <div className={styles.selector}>
             <input
               className={styles.buscador}
@@ -992,7 +1052,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
 
       <div
         ref={hostRef}
-        className={`${styles.lienzo} ${desplazando ? styles.desplazando : ""}`}
+        className={`${styles.lienzo} ${desplazando ? styles.desplazando : ""} ${bloqueado ? styles.bloqueado : ""}`}
         onWheel={onWheel}
         onPointerDown={(e) => {
           // El fondo es TODO lo que no sea una tarjeta. Antes se exigía que el
