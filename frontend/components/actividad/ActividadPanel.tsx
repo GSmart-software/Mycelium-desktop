@@ -306,6 +306,13 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
 
   const ir = (o: Objetivo) => {
     const tabs = useTabsStore.getState();
+    if (o.tipo === "bandeja_personal") {
+      // Fuera del vault (`FUN-S-40`): se abre en su pestaña, creándola si falta.
+      void import("@/lib/bandejaPersonalPestana")
+        .then(({ abrirBandejaPersonal }) => abrirBandejaPersonal())
+        .then((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`));
+      return;
+    }
     if (o.tipo === "papelera") {
       const layout = usePanelLayoutStore.getState();
       if (layout.activeSection !== "trash") layout.toggleSection("trash");

@@ -35,11 +35,14 @@
  *     abiertas, de solo lectura (`lib/mcpSalud.ts`).
  * 11. **Elegir el panel y dividir** (`FUN-M-59`): `abrir` en un panel pedido y
  *     `dividir`, con las mismas acciones de `tabsStore` que usa el usuario.
+ * 12. **Las bandejas** (`FUN-S-40`): leer la del vault y la personal, y quitar
+ *     entradas por el camino de la app (`lib/mcpBandeja.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { seRegistra, type Atendido, type Objetivo, type Resultado } from "@/lib/actividadIa";
 import { confirmarIa, retirarConfirmacion } from "@/lib/confirmar";
 import * as archivos from "@/lib/mcpArchivos";
+import { bandeja, FalloBandeja } from "@/lib/mcpBandeja";
 import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos";
 import * as calendario from "@/lib/mcpCalendario";
 import { FalloCalendario } from "@/lib/mcpCalendario";
@@ -169,7 +172,8 @@ async function contestar(pedido: Pedido): Promise<void> {
       e instanceof FalloArchivos ||
       e instanceof FalloDiccionario ||
       e instanceof FalloIndice ||
-      e instanceof FalloSesiones
+      e instanceof FalloSesiones ||
+      e instanceof FalloBandeja
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
@@ -263,6 +267,10 @@ async function atender(pedido: Pedido, sesionId: string | null): Promise<Atendid
       return conPermiso(pedido.op, await archivos.papelera(args), sesionId);
     case "diccionario":
       return diccionario(args);
+    case "bandeja":
+      // Quitar es reversible (Deshacer): no pregunta, pero pasa por el mismo
+      // circuito que las demás escrituras.
+      return conPermiso(pedido.op, await bandeja(args), sesionId);
     case "buscar":
       return indice.buscar(args);
     case "enlaces":

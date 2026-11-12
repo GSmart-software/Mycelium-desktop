@@ -17,6 +17,7 @@
  * descartable, perderlo no pierde nada del vault.
  */
 import type { DeshacerArchivos } from "@/lib/mcpArchivosLogica";
+import type { DeshacerBandeja } from "@/lib/mcpBandejaLogica";
 import type { DeshacerCalendario } from "@/lib/mcpCalendarioLogica";
 import type { DeshacerDiccionario } from "@/lib/mcpDiccionarioLogica";
 
@@ -24,7 +25,7 @@ import type { DeshacerDiccionario } from "@/lib/mcpDiccionarioLogica";
  * Lo que se guarda para deshacer: del calendario (Parte 2), de archivos
  * (Parte 3) o del diccionario del vault (Parte 4).
  */
-export type DeshacerIa = DeshacerCalendario | DeshacerArchivos | DeshacerDiccionario;
+export type DeshacerIa = DeshacerCalendario | DeshacerArchivos | DeshacerDiccionario | DeshacerBandeja;
 
 export const ARCHIVO_ACTIVIDAD = "actividad.jsonl";
 
@@ -49,7 +50,9 @@ export type Objetivo =
   | { tipo: "calendario" }
   | { tipo: "recordatorio"; id: string; fecha: string }
   | { tipo: "carpeta"; ruta: string }
-  | { tipo: "papelera" };
+  | { tipo: "papelera" }
+  /** La Bandeja personal (`FUN-S-40`): fuera del vault, sin ruta. */
+  | { tipo: "bandeja_personal" };
 
 export type Resultado = "hecho" | "fallo" | "rechazado";
 
@@ -138,6 +141,7 @@ function esObjetivo(x: unknown): x is Objetivo {
     case "grafo":
     case "calendario":
     case "papelera":
+    case "bandeja_personal":
       return true;
     case "recordatorio":
       return typeof o.id === "string" && typeof o.fecha === "string";
@@ -180,6 +184,9 @@ function esDeshacer(x: unknown): x is DeshacerIa {
     case "diccionario_quitar":
     case "diccionario_agregar":
       return Array.isArray(o.palabras) && o.palabras.length > 0 && o.palabras.every((p) => typeof p === "string");
+    // `FUN-S-40`: las bandejas.
+    case "bandeja_reponer":
+      return (o.bandeja === "vault" || o.bandeja === "personal") && s("ruta") && s("antes") && s("huella") && typeof o.cuantas === "number";
     default:
       return false;
   }
@@ -273,6 +280,7 @@ export const NOMBRE_OP: Record<string, string> = {
   reparar_renombre: "Reparar un renombre externo",
   sesion: "Declarar la tarea",
   reservar: "Reservar",
+  bandeja: "Bandeja",
 };
 
 /**

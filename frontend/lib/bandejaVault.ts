@@ -83,24 +83,34 @@ async function anotar(captura: Captura, ahora: Date): Promise<string> {
     const previo = (await leerArchivoTexto(vault, ruta)) ?? "";
     const nuevo = agregarEntrada(previo, captura, ahora);
     try {
-      await api(`/notas/${encodeURIComponent(ruta)}/contenido`, {
-        method: "PUT",
-        token: token(),
-        body: { contenido: nuevo, esperado: previo },
-      });
+      await reescribirBandeja(ruta, nuevo, previo);
     } catch (e) {
       // 409: el archivo cambió entre la lectura y la escritura. Se vuelve a
       // leer y a agregar sobre lo nuevo.
       if (e instanceof ApiError && e.status === 409) continue;
       throw e;
     }
-    avisarRecarga([ruta]);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(EVENTO_BANDEJA, { detail: { ruta } }));
-    }
     return ruta;
   }
   throw new Error("La Bandeja cambiaba mientras se anotaba. Vuelve a intentarlo.");
+}
+
+/**
+ * Escribe la Bandeja del vault entera con la base `esperado` (lo que se leyó):
+ * si el archivo ya no la tiene, Rust no escribe y lanza un 409 (`ApiError`).
+ * Después avisa como un cambio externo y al contador del explorador. Lo usan
+ * la captura y `mycelium_bandeja` (`FUN-S-40`, `lib/mcpBandeja.ts`).
+ */
+export async function reescribirBandeja(ruta: string, contenido: string, esperado: string): Promise<void> {
+  await api(`/notas/${encodeURIComponent(ruta)}/contenido`, {
+    method: "PUT",
+    token: token(),
+    body: { contenido, esperado },
+  });
+  avisarRecarga([ruta]);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(EVENTO_BANDEJA, { detail: { ruta } }));
+  }
 }
 
 /** Cuántas entradas sin procesar tiene la Bandeja; 0 si todavía no existe. */
