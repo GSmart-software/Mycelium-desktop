@@ -237,7 +237,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 - \`mycelium-drawio\`: diagramas \`.drawio\`.
 - \`mycelium-excalidraw\`: dibujos \`.excalidraw\`.
 - \`mycelium-esporas\`: notas desde una plantilla.
-- \`mycelium-calendario\`: agenda y recordatorios.
+- \`mycelium-calendario\`: agenda y recordatorios (los del vault y los personales).
 
 Comandos: \`/vault-buscar\`, \`/vault-recordar\`, \`/vault-nota\`, \`/vault-vincular\`,
 \`/vault-mapa\`, \`/vault-huerfanas\`.
@@ -545,8 +545,9 @@ rápida** (Ctrl+Shift+Espacio), que anota en la **Bandeja** del vault, con su se
 arriba de «Archivos» en el explorador; **tablas**
 \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`; **diagramas** \`.drawio\`
 con el editor de draw.io y **dibujos** \`.excalidraw\`, en su pestaña o embebidos en una
-nota; un **calendario** con recordatorios (fecha, hora, repetición y avisos) en su panel
-del rail; **grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
+nota; un **calendario** con recordatorios (fecha, hora, repetición y avisos) —los del
+vault y los **personales**, que se ven en todos los vaults— en su panel del rail;
+**grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
 búsqueda global —por nombre, por contenido o los dos, con \`clave:valor\` y \`tag:x\`, y con
 los resultados agrupables por carpeta—; un **visor** para los archivos que no son notas
 (PDF, imágenes, y código con resaltado de sintaxis, que además se puede editar); panel
