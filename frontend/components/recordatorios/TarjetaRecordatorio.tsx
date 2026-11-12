@@ -20,17 +20,13 @@ import styles from "./Recordatorios.module.css";
 const A_LA_VISTA = 3;
 
 /**
- * Lo del calendario que vive montado en el workspace: las tarjetas de aviso y el
- * modal de ver/editar. Va una vez, en el shell, y lo usan la pestaña, el panel y
- * las propias tarjetas.
+ * Lo del calendario que vive montado en el workspace: el modal de ver/editar.
+ * Va una vez, en el shell, y lo usan la pestaña, el panel y las tarjetas. Las
+ * tarjetas (`TarjetasRecordatorio`) van en la esquina de abajo a la derecha,
+ * que comparten con las exportaciones (`FUN-M-22`).
  */
 export function Recordatorios() {
-  return (
-    <>
-      <TarjetasRecordatorio />
-      <ModalRecordatorio />
-    </>
-  );
+  return <ModalRecordatorio />;
 }
 
 /**
@@ -39,7 +35,7 @@ export function Recordatorios() {
  * recordatorio que desaparece a los nueve segundos no sirve—. Se van con
  * Listo, Posponer o Abrir.
  */
-function TarjetasRecordatorio() {
+export function TarjetasRecordatorio() {
   const avisos = useRecordatoriosStore((s) => s.avisos);
   if (avisos.length === 0) return null;
   const visibles = avisos.slice(-A_LA_VISTA);

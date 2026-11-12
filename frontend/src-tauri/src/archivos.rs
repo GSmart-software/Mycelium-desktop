@@ -906,7 +906,7 @@ fn escribir_trozo(dir: &str, ruta: &str, desde: u64, bytes: &[u8]) -> Result<(),
 
 /// Decodifica un valor `encodeURIComponent`: los encabezados HTTP solo llevan
 /// ASCII, y las rutas tienen tildes y eñes. Un `%` mal formado es error.
-fn decodificar_uri(valor: &str) -> Result<String, String> {
+pub(crate) fn decodificar_uri(valor: &str) -> Result<String, String> {
     let entrada = valor.as_bytes();
     let mut out = Vec::with_capacity(entrada.len());
     let mut i = 0;

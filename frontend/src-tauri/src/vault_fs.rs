@@ -547,12 +547,56 @@ pub(crate) fn abrir_con_sistema_en(vault_ruta: String, ruta_rel: String) -> Resu
 /// pueda) el archivo/carpeta `ruta_rel` del vault. Solo tiene sentido en modo
 /// carpeta (los archivos existen en disco).
 pub(crate) fn revelar_en_sistema_en(vault_ruta: String, ruta_rel: String) -> Result<(), String> {
-    use std::process::Command;
     let base = base_vault(&vault_ruta)?;
     let destino = ruta_segura(&base, &ruta_rel)?;
     if !destino.exists() {
         return Err(format!("No existe en disco: {ruta_rel}"));
     }
+    seleccionar_en_explorador(&destino)
+}
+
+/// Lo que se acaba de exportar (`FUN-M-22`): una carpeta se **abre**; un
+/// archivo se muestra seleccionado en la suya. Sin validar la ruta: eso lo
+/// hace quien llama (`exportaciones::revelar_exportacion`).
+pub(crate) fn mostrar_en_explorador(destino: &Path) -> Result<(), String> {
+    use std::process::Command;
+    if !destino.is_dir() {
+        return seleccionar_en_explorador(destino);
+    }
+    // Windows: `explorer "<carpeta>"` la abre (ver el detalle de comillas abajo).
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        Command::new("explorer")
+            .raw_arg(format!("\"{}\"", destino.display()))
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el explorador: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(destino.as_os_str())
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir Finder: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(destino.as_os_str())
+            .spawn()
+            .map_err(|e| format!("No se pudo abrir el explorador: {e}"))?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("Plataforma no soportada.".to_string())
+}
+
+/// Abre el explorador del SO con `destino` (que existe) seleccionado en su
+/// carpeta, donde se pueda.
+fn seleccionar_en_explorador(destino: &Path) -> Result<(), String> {
+    use std::process::Command;
 
     #[cfg(target_os = "windows")]
     {
@@ -584,9 +628,9 @@ pub(crate) fn revelar_en_sistema_en(vault_ruta: String, ruta_rel: String) -> Res
         // No hay "seleccionar" universal en Linux: se abre la carpeta contenedora
         // (o la propia carpeta si el destino es un directorio).
         let dir = if destino.is_dir() {
-            destino.as_path()
+            destino
         } else {
-            destino.parent().unwrap_or(&base)
+            destino.parent().unwrap_or(destino)
         };
         Command::new("xdg-open")
             .arg(dir)

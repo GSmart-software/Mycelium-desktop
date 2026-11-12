@@ -45,9 +45,8 @@ export function PdfExportDialog() {
   const onExportar = () => {
     const { notaId, titulo } = solicitud;
     cerrar();
-    void exportNotePdf(notaId, titulo, pageSize, opts).catch((e) => {
-      if (typeof window !== "undefined") window.alert((e as Error).message);
-    });
+    // Avance y fallos, en la tarjeta de exportación (`FUN-M-22`).
+    void exportNotePdf(notaId, titulo, pageSize, opts);
   };
 
   return (

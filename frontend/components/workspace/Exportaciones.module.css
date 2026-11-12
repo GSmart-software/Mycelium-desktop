@@ -1,0 +1,154 @@
+/* Tarjetas de exportación (`FUN-M-22`): abajo a la DERECHA, encima de la barra
+   de estado. Los avisos (`Avisos.module.css`) van a la izquierda: así una
+   exportación larga y un «fue a la papelera» no se pisan. Mismo aspecto. */
+
+/* La esquina de abajo a la derecha, que comparten las exportaciones y los
+   recordatorios (`EsquinaDerecha`): una pila sobre la otra, sin encimarse. */
+.esquina {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(var(--mic-statusbar-height) + 0.75rem);
+  /* Como los avisos: por encima de la ventana de Configuración (z-70), desde
+     donde se exporta el vault, y del modal del calendario (z-75). */
+  z-index: 90;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+/* La región de las exportaciones está siempre (para que el lector de pantalla
+   anuncie lo que entra); vacía no ocupa lugar, y con tarjetas se separa de los
+   recordatorios de arriba. */
+.pila {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.pila:not(:empty) {
+  margin-top: 0.5rem;
+}
+
+.tarjeta {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  width: min(360px, calc(100vw - 2rem));
+  padding: 0.65rem 0.5rem 0.65rem 0.75rem;
+  border-radius: var(--mic-radius-md);
+  background: var(--mic-bg-surface);
+  border: 1px solid var(--mic-border);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--mic-raw-base-deep) 40%, transparent);
+  font-size: 0.8125rem;
+  color: var(--mic-text-primary);
+  animation: entrar 140ms ease-out;
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.icono {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  margin-top: 1px;
+  color: var(--mic-text-muted);
+}
+
+.tarjeta[data-estado="lista"] .icono {
+  color: var(--mic-sync-ok);
+}
+
+.tarjeta[data-estado="fallo"] .icono {
+  color: var(--mic-callout-error-border);
+}
+
+.tarjeta[data-estado="impresion"] .icono {
+  color: var(--mic-glow-texto);
+}
+
+/* Gira solo mientras exporta: la tarjeta cambia de ícono al terminar, así que
+   no queda nada en bucle en reposo (`DEF-174`). */
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarjeta,
+  .girando {
+    animation: none;
+  }
+}
+
+.cuerpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.titulo {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.detalle {
+  margin: 0;
+  color: var(--mic-text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* La acción es lo vivo de la tarjeta, como en los avisos: en Brote y con rótulo. */
+.accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.2rem 0 0 -0.45rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: var(--mic-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-glow-texto);
+}
+
+.accion:hover {
+  background: color-mix(in srgb, var(--mic-glow) 16%, transparent);
+}
+
+.cerrar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--mic-radius-sm);
+  color: var(--mic-text-muted);
+}
+
+.cerrar:hover {
+  background: var(--mic-bg-hover);
+  color: var(--mic-text-primary);
+}
+
+.accion:focus-visible,
+.cerrar:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+}
