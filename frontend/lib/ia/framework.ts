@@ -225,9 +225,8 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
     edita: lo regenera Mycelium. Lo demás de \`CLAUDE.md\` y \`.claude/\` es del usuario.
 11. **\`.mycignore\`** oculta de la app: no escondas ahí lo que el usuario deba ver.
 12. **Esporas**: son moldes, no memoria. No consolides ni cites ahí. La **Bandeja**
-    (\`Bandeja.md\`, la de la captura rápida) se edita, pero no se renombra, mueve ni borra.
-    Hay otra, la **personal**, fuera del vault: las dos se leen y se vacían con
-    \`mycelium_bandeja\` (skill \`mycelium-operar\`).
+    (\`Bandeja.md\`) no se renombra, mueve ni borra; ella y la **personal** (fuera del
+    vault) se procesan con \`mycelium_bandeja\`.
 
 ## Skills: cargá la que toque
 
@@ -239,7 +238,7 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
 - \`mycelium-drawio\`: diagramas \`.drawio\`.
 - \`mycelium-excalidraw\`: dibujos \`.excalidraw\`.
 - \`mycelium-esporas\`: notas desde una plantilla.
-- \`mycelium-calendario\`: agenda y recordatorios (los del vault y los personales).
+- \`mycelium-calendario\`: agenda y recordatorios.
 
 Comandos: \`/vault-buscar\`, \`/vault-recordar\`, \`/vault-nota\`, \`/vault-vincular\`,
 \`/vault-mapa\`, \`/vault-huerfanas\`.

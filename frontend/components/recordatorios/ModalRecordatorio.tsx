@@ -216,7 +216,7 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
 // ── Editar ──────────────────────────────────────────────────────────────────
 
 const OPCIONES_ALCANCE: { valor: Alcance; nombre: string; ayuda: string }[] = [
-  { valor: "vault", nombre: "Este vault", ayuda: "Se guarda en este vault: viaja con él y solo se ve y avisa acá" },
+  { valor: "vault", nombre: "Este vault", ayuda: "Se guarda en este vault: viaja con él y solo se ve y avisa aquí" },
   {
     valor: "personal",
     nombre: "Todos los vaults",
