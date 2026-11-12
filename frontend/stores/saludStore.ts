@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { RevisionVault } from "@/lib/estadisticasVault";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /**
@@ -34,9 +35,17 @@ type SaludState = {
   revisar: () => Promise<void>;
   /** Revisa solo si no hay una revisión de este vault de hace menos de `VIGENCIA_REVISION_MS`. */
   revisarSiHaceFalta: () => Promise<void>;
+  /**
+   * Alterna entre ocultar y mostrar las carpetas que empiezan con punto
+   * (`FUN-S-38`): guarda la preferencia del vault y vuelve a revisar.
+   */
+  alternarOcultas: () => Promise<void>;
 };
 
 let revisionEnCurso: Promise<void> | null = null;
+
+/** Lo que pide hoy la preferencia del vault: ¿afuera las carpetas ocultas? */
+const pideSinOcultas = () => usePreferencesStore.getState().prefs.saludMostrarOcultas !== true;
 
 export const useSaludStore = create<SaludState>()((set, get) => ({
   revision: null,
@@ -71,7 +80,16 @@ export const useSaludStore = create<SaludState>()((set, get) => ({
     const vigente =
       revision !== null &&
       revisionVaultId === vaultId &&
+      revision.sinOcultas === pideSinOcultas() &&
       Date.now() - Date.parse(revision.revisadoEn) < VIGENCIA_REVISION_MS;
     return vigente ? Promise.resolve() : get().revisar();
+  },
+
+  async alternarOcultas() {
+    const prefs = usePreferencesStore.getState();
+    prefs.setPref("saludMostrarOcultas", !prefs.prefs.saludMostrarOcultas);
+    // Una revisión en curso usa la preferencia de antes: se espera y se repite.
+    if (revisionEnCurso) await revisionEnCurso;
+    if (get().revision?.sinOcultas !== pideSinOcultas()) await get().revisar();
   },
 }));

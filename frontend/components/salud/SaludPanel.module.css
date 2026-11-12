@@ -53,6 +53,11 @@
   color: var(--mic-text-primary);
 }
 
+/* Un botón que alterna (carpetas ocultas, `FUN-S-38`), encendido: en el acento. */
+.icono[aria-pressed="true"] {
+  color: var(--mic-accent);
+}
+
 .icono:disabled {
   cursor: default;
   opacity: 0.55;

@@ -19,12 +19,14 @@ import { FalloIndice, notaDelIndice } from "@/lib/mcpIndice";
 import { normalizarObjetivo } from "@/lib/mcpControlLogica";
 import {
   chequeosBasicos,
+  enCarpetaOculta,
+  esCarpetaOculta,
   informeParaIa,
   validadoresNota,
   type Alcance,
   type Chequeo,
 } from "@/lib/salud";
-import { informeDeSalud } from "@/lib/saludVault";
+import { informeDeSalud, saludSinOcultas } from "@/lib/saludVault";
 import { diagnosticoParaIa, diagnosticosDeNota } from "@/lib/diagnosticos";
 import {
   consultarParaDiagnosticos,
@@ -88,7 +90,12 @@ export function resolverAlcance(pedido: string): Alcance {
 export async function salud(args: Record<string, unknown>): Promise<Atendido> {
   soloClaves(args, ["alcance"]);
   const alcance = resolverAlcance(textoOpcional(args, "alcance"));
-  const informe = await informeDeSalud(alcance);
+  // `FUN-S-38`: el vault con la preferencia del panel (mismas cifras); un
+  // alcance que el agente pidió adentro de una carpeta oculta se analiza igual.
+  const pedidoOculto =
+    (alcance.tipo === "carpeta" && esCarpetaOculta(alcance.ruta)) ||
+    (alcance.tipo === "nota" && enCarpetaOculta(alcance.ruta));
+  const informe = await informeDeSalud(alcance, pedidoOculto ? false : saludSinOcultas());
   return { resultado: informeParaIa(informe), sinRegistro: true };
 }
 
@@ -100,7 +107,8 @@ export async function validarNota(args: Record<string, unknown>): Promise<Atendi
   if (pedido === "") throw new FalloIndice("INVALIDO", "`ruta`: es un texto no vacío.", { campo: "ruta" });
   const nota = notaDelIndice(pedido);
   const [informe, entrantes, contenidos] = await Promise.all([
-    informeDeSalud({ tipo: "nota", ruta: nota.id }),
+    // Una nota se valida siempre, aunque esté en una carpeta oculta (`FUN-S-38`).
+    informeDeSalud({ tipo: "nota", ruta: nota.id }, false),
     filasHacia(nota.id),
     contenidosDe([nota.id]),
   ]);

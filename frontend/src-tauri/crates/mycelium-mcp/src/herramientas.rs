@@ -395,7 +395,9 @@ pub fn definiciones() -> Vec<Value> {
                 tarjeta sí cuenta), notas SIN ENLACES SALIENTES y PROPIEDADES que no cumplen los esquemas de \
                 `esquemas.yml` (o con un valor que empieza con # sin comillas, que YAML lee como comentario). Un [[enlace]] dentro de un bloque de código no cuenta, \
                 y un enlace a un archivo que existe pero no es nota (imagen, PDF) no está roto. Las Esporas (plantillas) y \
-                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Alcance: el vault entero, \
+                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Lo que está en carpetas que \
+                empiezan con punto (.claude/, .github/…) tampoco, salvo que el usuario las muestre en el panel de salud o \
+                el alcance esté dentro de una: sus enlaces no cuentan, pero un enlace hacia ellas no está roto. Alcance: el vault entero, \
                 una carpeta o una nota. Hasta 100 ítems por clase, con los totales.",
             "inputSchema": {
                 "type": "object",
@@ -1376,6 +1378,14 @@ pub fn redactar_salud(r: &Value) -> String {
         if notas == 1 { "nota" } else { "notas" },
         if total == 0 { "y ningún problema".to_string() } else { format!("y {total} {}", if total == 1 { "problema" } else { "problemas" }) }
     );
+    // `FUN-S-38`: lo de las carpetas que empiezan con punto queda afuera salvo
+    // que el usuario las muestre en el panel de salud (o el alcance esté adentro).
+    if s(r, "carpetas_ocultas") == "fuera" {
+        t.push_str(
+            " Tampoco lo que está en carpetas que empiezan con punto (.claude/, .github/…), como en el panel de salud: \
+             sus enlaces no cuentan, pero un enlace hacia ellas no está roto.",
+        );
+    }
     let tope = n(r, "tope");
     let mut recortado = false;
     let mut seccion = |titulo: &str, clave_conteo: &str, clave: &str, linea: &dyn Fn(&Value) -> String| {
@@ -1531,6 +1541,11 @@ mod tests_salud {
         let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
             "conteos": {"total": 0}}));
         assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");
+        assert!(!sano.contains("empiezan con punto"), "{sano}");
+        // `FUN-S-38`: si las carpetas ocultas quedaron afuera, lo dice.
+        let sin_ocultas = redactar_salud(&json!({"alcance": {"tipo": "vault"}, "carpetas_ocultas": "fuera", "notas": 1,
+            "tope": 100, "conteos": {"total": 0}}));
+        assert!(sin_ocultas.contains("Tampoco lo que está en carpetas que empiezan con punto"), "{sin_ocultas}");
     }
 
     #[test]

@@ -1,11 +1,12 @@
 "use client";
 
-import { ExternalLink, FilePlus2, RefreshCw } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, FilePlus2, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { CurvaMeses, Leyenda, Proporcion } from "@/components/salud/graficas";
 import type { RevisionVault } from "@/lib/estadisticasVault";
 import { cuandoSeReviso, plural } from "@/lib/graficas";
 import { entero, gravedades, pesoLegible } from "@/lib/informeSalud";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useSaludStore } from "@/stores/saludStore";
 import { useVaultStore } from "@/stores/vaultStore";
 import { useAbrirPestanaSalud, useGenerarInforme } from "./acciones";
@@ -34,6 +35,7 @@ export function SaludPanel() {
   const error = useSaludStore((s) => s.errorRevision);
   const abrirPestana = useAbrirPestanaSalud();
   const { generando, generar } = useGenerarInforme(revision);
+  const mostrarOcultas = usePreferencesStore((s) => s.prefs.saludMostrarOcultas === true);
 
   useEffect(() => {
     if (vaultId !== null) void useSaludStore.getState().revisarSiHaceFalta();
@@ -52,6 +54,13 @@ export function SaludPanel() {
           disabled={!revision || generando}
         >
           <FilePlus2 size={15} aria-hidden />
+        </BotonIcono>
+        <BotonIcono
+          etiqueta={mostrarOcultas ? "Ocultar las carpetas que empiezan con punto" : "Mostrar las carpetas que empiezan con punto"}
+          onClick={() => void useSaludStore.getState().alternarOcultas()}
+          presionado={mostrarOcultas}
+        >
+          {mostrarOcultas ? <Eye size={15} aria-hidden /> : <EyeOff size={15} aria-hidden />}
         </BotonIcono>
         <BotonIcono
           etiqueta={revisando ? "Revisando el vault…" : "Volver a revisar"}
@@ -165,15 +174,26 @@ function BotonIcono({
   etiqueta,
   onClick,
   disabled,
+  presionado,
   children,
 }: {
   etiqueta: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Un botón que alterna (`aria-pressed`); ausente, es un botón común. */
+  presionado?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <button type="button" className={styles.icono} onClick={onClick} disabled={disabled} title={etiqueta} aria-label={etiqueta}>
+    <button
+      type="button"
+      className={styles.icono}
+      onClick={onClick}
+      disabled={disabled}
+      title={etiqueta}
+      aria-label={etiqueta}
+      aria-pressed={presionado}
+    >
       {children}
     </button>
   );
