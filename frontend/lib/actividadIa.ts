@@ -297,7 +297,9 @@ export const SOLO_LECTURA: ReadonlySet<string> = new Set([
  * `Atendido.sinRegistro`).
  */
 export function seRegistra(op: string, resultado: Resultado): boolean {
-  if (op === "estado" || op === "ping") return false;
+  // `dividir` (`FUN-M-59`) tampoco: no toca archivos, y el usuario lo deshace
+  // cerrando el panel.
+  if (op === "estado" || op === "ping" || op === "dividir") return false;
   // Consultar o retirar una confirmación pendiente no es una operación: la
   // operación confirmada se registra sola, cuando el usuario contesta.
   if (op === "confirmacion" || op === "confirmacion_retirar") return false;

@@ -2,7 +2,7 @@
 titulo: Control de la IA (MCP)
 tema: IA
 solo: desktop
-sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones]
+sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones, paneles, dividir la pantalla]
 ---
 
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
@@ -35,7 +35,12 @@ herramienta: genéralas, o actualízalas si Configuración te ofrece una versió
 
 - **Mostrar**: abrir una nota u otro archivo —y llevarte a un encabezado o a una línea—, el
   grafo o el calendario. Sin sacarte de lo que estás escribiendo, salvo que haga falta.
-- **Saber qué tienes abierto**: tus pestañas y cuáles tienen cambios sin guardar.
+  Puede elegir **en qué panel** abrirlo y, si se lo pides, **dividir la pantalla** a la
+  derecha o abajo para mostrarte algo al lado, igual que cuando divides tú. Mover pestañas
+  entre paneles o cerrarlos sigue siendo cosa tuya; un panel que abrió la IA se cierra como
+  cualquier otro.
+- **Saber qué tienes abierto**: tus pestañas, en qué panel está cada una y cuáles tienen
+  cambios sin guardar.
 - **Calendario**: leer lo agendado, y crear, cambiar, completar o borrar
   [recordatorios](ayuda:herramientas/calendario).
 - **Renombrar y mover** notas y carpetas, reparando los enlaces que llegan a ellas.

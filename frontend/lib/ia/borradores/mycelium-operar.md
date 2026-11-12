@@ -1,6 +1,6 @@
 ---
 name: mycelium-operar
-description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, coordinarse con otras sesiones de IA del mismo vault (declarar la tarea, reservar notas o carpetas), renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar al empezar a trabajar en el vault, antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
+description: Operar la app Mycelium con las herramientas mycelium_* del MCP de control — qué va por los archivos y qué por la app, consultar su índice (buscar en las notas indexadas, enlaces y backlinks de una nota, filas de una tabla .base, salud del vault y validar una nota al cerrarla), mirar qué tiene abierto el usuario antes de escribir, mostrar algo en un panel elegido o dividir la pantalla, coordinarse con otras sesiones de IA del mismo vault (declarar la tarea, reservar notas o carpetas), renombrar/mover/borrar sin romper enlaces, qué hacer con RECHAZADO y los demás errores, el diccionario del vault, y cómo trabajar sin el MCP (mv, rm y los enlaces a mano). Usar al empezar a trabajar en el vault, antes de mostrarle algo al usuario, renombrar, mover o borrar notas o carpetas, tocar el calendario o el diccionario, o cuando las herramientas mycelium_* no respondan.
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # Operar Mycelium (herramientas `mycelium_*`)
@@ -63,6 +63,21 @@ vuelve a `grep`, sabiendo que no aplica el criterio del índice.
   que guarde después pisa lo tuyo.
 - `mycelium_abrir` **no le roba el foco** salvo que pidas `foco: true`: pedilo solo
   cuando tengas algo que mostrarle ahora («mirá esta nota»), no cada vez que abrís algo.
+
+## Paneles y pantalla dividida
+
+- Cada panel tiene un **número**, desde 1, que informan `mycelium_estado` y la respuesta
+  de `mycelium_abrir`. Con `panel`, `mycelium_abrir` abre en ese panel (sin él, en el que
+  tiene el foco). Si lo pedido ya estaba abierto en otro panel, queda en los dos, como
+  cuando lo hace el usuario. Un número que no existe contesta `PANEL_INEXISTENTE` con la
+  lista de paneles: no se crea ninguno.
+- `mycelium_dividir` parte un panel en dos (`direccion`: `derecha` o `abajo`) con el mismo
+  mecanismo que usa el usuario, y puede abrir un `objetivo` en el panel nuevo (con `ir_a`,
+  como `mycelium_abrir`). Devuelve el número del panel nuevo. No le roba el foco salvo
+  `foco: true`.
+- La disposición de la pantalla es **del usuario**: dividí cuando te lo pide o cuando
+  mostrar dos cosas lado a lado es justo lo que hace falta, no para acomodarte. Mover
+  pestañas entre paneles, cerrar o juntar paneles no se hace por el MCP.
 
 ## Varias sesiones a la vez
 
