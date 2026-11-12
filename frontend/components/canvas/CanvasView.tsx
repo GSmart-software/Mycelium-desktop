@@ -2,7 +2,7 @@
 
 import { Ban, FileText, Maximize2, Redo2, Save, Trash2, Type, Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import {
   ALTO_TARJETA,
@@ -63,8 +63,34 @@ import styles from "./CanvasView.module.css";
 /** Milisegundos de calma antes de guardar (mismo criterio que el editor). */
 const GUARDADO_MS = 700;
 const LADOS: Lado[] = ["top", "right", "bottom", "left"];
+/**
+ * Milisegundos de calma tras el último desplazamiento o zoom antes de soltar la
+ * capa compuesta del mundo (`DEF-183`): ver `marcarMovimiento`.
+ */
+const CALMA_MOVIMIENTO_MS = 160;
 
 type Vista = { x: number; y: number; escala: number };
+
+/**
+ * Lo que una tarjeta le pide al lienzo (`DEF-183`). Es UN objeto estable para
+ * todo el lienzo —delega en los manejadores del último render a través de una
+ * ref—, y las tarjetas lo reciben con su id en vez de un cierre propio por
+ * cada render. Así `NodoVista` puede ir memoizada: si sus props no cambian, no
+ * se vuelve a dibujar.
+ */
+type AccionesTarjeta = {
+  tecla: (id: string, e: React.KeyboardEvent<HTMLDivElement>, notaDestino: string | null) => void;
+  enfocar: (id: string) => void;
+  seleccionar: (id: string) => void;
+  editar: (id: string) => void;
+  terminarEdicion: () => void;
+  texto: (id: string, texto: string) => void;
+  arrastrar: (id: string, e: React.PointerEvent) => void;
+  redimensionar: (id: string, e: React.PointerEvent) => void;
+  conectar: (id: string, lado: Lado, e: React.PointerEvent) => void;
+  abrirTitulo: (titulo: string) => void;
+  abrirNota: (id: string) => void;
+};
 
 /** Qué se está arrastrando ahora mismo. */
 type Arrastre =
@@ -98,6 +124,16 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const [canvas, setCanvas] = useState<Canvas | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>({ x: 0, y: 0, escala: 1 });
+  /**
+   * Espejo de la cámara para los manejadores del puntero (`DEF-183`): con la
+   * vista como dependencia, `enLienzo` cambiaba en cada cuadro del
+   * desplazamiento y el efecto del puntero se desmontaba y volvía a montar
+   * sus escuchas de la ventana a cada movimiento.
+   */
+  const vistaRef = useRef(vista);
+  vistaRef.current = vista;
+  const mundoRef = useRef<HTMLDivElement>(null);
+  const calmaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [sucio, setSucio] = useState(false);
@@ -356,9 +392,33 @@ export function CanvasView({ notaId }: { notaId: string }) {
   useEffect(
     () => () => {
       if (guardadoRef.current) clearTimeout(guardadoRef.current);
+      if (calmaRef.current) clearTimeout(calmaRef.current);
     },
     [],
   );
+
+  /**
+   * Mientras la cámara se mueve, el mundo va en su propia capa compuesta
+   * (`will-change: transform`, `DEF-183`): el compositor lo traslada y escala
+   * sin volver a pintar las tarjetas en cada cuadro. Sin ella, cada cuadro del
+   * desplazamiento o del zoom repintaba el contenido entero —cien notas
+   * renderizadas—. Se suelta tras un momento de calma porque una capa compuesta
+   * conserva la resolución con la que se rasterizó: dejada fija, el texto
+   * quedaba borroso después de acercar. Al soltarla se repinta una sola vez,
+   * nítido, a la escala final.
+   */
+  const marcarMovimiento = useCallback(() => {
+    const mundo = mundoRef.current;
+    if (mundo === null) return;
+    if (mundo.style.willChange !== "transform") mundo.style.willChange = "transform";
+    if (calmaRef.current) clearTimeout(calmaRef.current);
+    calmaRef.current = setTimeout(() => {
+      calmaRef.current = null;
+      // Durante un arrastre del lienzo la capa se mantiene aunque se pare.
+      if (arrastre.current?.tipo === "lienzo") return;
+      if (mundoRef.current) mundoRef.current.style.willChange = "";
+    }, CALMA_MOVIMIENTO_MS);
+  }, []);
 
   // ── Coordenadas ────────────────────────────────────────────────────────────
   /** Punto del lienzo (no de la pantalla) bajo un evento del puntero. */
@@ -366,12 +426,13 @@ export function CanvasView({ notaId }: { notaId: string }) {
     (e: { clientX: number; clientY: number }): { x: number; y: number } => {
       const r = hostRef.current?.getBoundingClientRect();
       if (!r) return { x: 0, y: 0 };
+      const v = vistaRef.current;
       return {
-        x: (e.clientX - r.left - vista.x) / vista.escala,
-        y: (e.clientY - r.top - vista.y) / vista.escala,
+        x: (e.clientX - r.left - v.x) / v.escala,
+        y: (e.clientY - r.top - v.y) / v.escala,
       };
     },
-    [vista],
+    [],
   );
 
   // ── Puntero ────────────────────────────────────────────────────────────────
@@ -380,6 +441,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       const a = arrastre.current;
       if (a === null) return;
       if (a.tipo === "lienzo") {
+        marcarMovimiento();
         setVista((v) => ({ ...v, x: a.vx + (e.clientX - a.x0), y: a.vy + (e.clientY - a.y0) }));
         return;
       }
@@ -413,6 +475,8 @@ export function CanvasView({ notaId }: { notaId: string }) {
       const a = arrastre.current;
       arrastre.current = null;
       setDesplazando(false);
+      // Suelta la capa del mundo tras la calma (ver `marcarMovimiento`).
+      if (a?.tipo === "lienzo") marcarMovimiento();
       // Un arrastre entero —mover o redimensionar— es un solo paso.
       if (a?.tipo === "nodo" || a?.tipo === "tamano") cerrarGesto("arrastre");
       if (a?.tipo !== "arista") return;
@@ -438,7 +502,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [cambiar, cerrarGesto, enLienzo]);
+  }, [cambiar, cerrarGesto, enLienzo, marcarMovimiento]);
 
   /**
    * Zoom hacia el cursor: lo que está bajo el puntero no se mueve.
@@ -455,6 +519,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
     const r = hostRef.current?.getBoundingClientRect();
     if (!r) return;
     const factor = Math.exp(-e.deltaY * 0.0015);
+    marcarMovimiento();
     setVista((v) => {
       const escala = Math.min(3, Math.max(0.2, v.escala * factor));
       const k = escala / v.escala;
@@ -669,8 +734,87 @@ export function CanvasView({ notaId }: { notaId: string }) {
     if (destino) enfocarTarjeta(destino.id);
   };
 
+  // ── Acciones de las tarjetas (`DEF-183`) ──────────────────────────────────
+  //
+  // Un solo objeto estable para todas las tarjetas, que delega en los
+  // manejadores de ESTE render (la ref se reescribe en cada uno). Antes cada
+  // tarjeta recibía cierres nuevos en cada render, así que ninguna podía
+  // saltarse un render: un cuadro de desplazamiento o de zoom, un paso de un
+  // arrastre o una tecla en una tarjeta de texto volvían a dibujar las ~200
+  // tarjetas del lienzo, y con ellas a resolver la nota de cada una.
+  const nodoPorId = (id: string) => canvasRef.current?.nodos.find((x) => x.id === id);
+  const accionesRef = useRef<AccionesTarjeta | null>(null);
+  accionesRef.current = {
+    tecla: (id, e, notaDestino) => {
+      const n = nodoPorId(id);
+      if (n) alTeclaEnTarjeta(n, e, notaDestino);
+    },
+    enfocar: (id) => {
+      lienzoActivo = yoRef.current;
+      setSeleccion(id);
+      // Solo con el teclado: con el puntero, el clic que enfoca la tarjeta
+      // puede ser el comienzo de un arrastre, y mover la vista lo arruinaría.
+      const n = nodoPorId(id);
+      if (n && document.documentElement.hasAttribute("data-teclado")) asegurarVisible(n);
+    },
+    seleccionar: (id) => setSeleccion(id),
+    editar: (id) => {
+      abrirGesto(`texto:${id}`);
+      setEditando(id);
+    },
+    terminarEdicion,
+    texto: (id, texto) =>
+      cambiar(
+        (c) => ({
+          ...c,
+          nodos: c.nodos.map((x) => (x.id === id ? { ...x, texto } : x)),
+        }),
+        true,
+      ),
+    arrastrar: (id, e) => {
+      const n = nodoPorId(id);
+      if (!n) return;
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "nodo", id, dx: p.x - n.x, dy: p.y - n.y };
+    },
+    redimensionar: (id, e) => {
+      const n = nodoPorId(id);
+      if (!n) return;
+      abrirGesto("arrastre");
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "tamano", id, x0: p.x, y0: p.y, w0: n.ancho, h0: n.alto };
+    },
+    conectar: (id, lado, e) => {
+      const p = enLienzo(e);
+      arrastre.current = { tipo: "arista", desde: id, lado, x: p.x, y: p.y };
+    },
+    abrirTitulo: abrirPorTitulo,
+    abrirNota,
+  };
+  const acciones = useMemo<AccionesTarjeta>(
+    () => ({
+      tecla: (...a) => accionesRef.current?.tecla(...a),
+      enfocar: (...a) => accionesRef.current?.enfocar(...a),
+      seleccionar: (...a) => accionesRef.current?.seleccionar(...a),
+      editar: (...a) => accionesRef.current?.editar(...a),
+      terminarEdicion: () => accionesRef.current?.terminarEdicion(),
+      texto: (...a) => accionesRef.current?.texto(...a),
+      arrastrar: (...a) => accionesRef.current?.arrastrar(...a),
+      redimensionar: (...a) => accionesRef.current?.redimensionar(...a),
+      conectar: (...a) => accionesRef.current?.conectar(...a),
+      abrirTitulo: (...a) => accionesRef.current?.abrirTitulo(...a),
+      abrirNota: (...a) => accionesRef.current?.abrirNota(...a),
+    }),
+    [],
+  );
+
   // Las mismas flechas que dibuja la vista previa embebida (`FUN-S-19`).
   const aristas = useMemo(() => (canvas === null ? [] : aristasDibujables(canvas)), [canvas]);
+  // Grupos y tarjetas se pintan en capas separadas (`DEF-151`). Memoizado: el
+  // orden solo cambia si cambian los nodos, no con la cámara.
+  const nodos = canvas?.nodos;
+  const pintado = useMemo(() => ordenDePintado(nodos ?? []), [nodos]);
 
   if (error !== null && canvas === null) {
     return <p className={styles.aviso}>No se pudo abrir el canvas: {error}</p>;
@@ -682,67 +826,20 @@ export function CanvasView({ notaId }: { notaId: string }) {
     ? canvas.nodos.find((n) => n.id === provisional.desde)
     : undefined;
 
-  // Grupos y tarjetas se pintan en capas separadas (`DEF-151`).
-  const pintado = ordenDePintado(canvas.nodos);
   // La parada de Tab: la tarjeta seleccionada, o la primera del archivo.
   const idEnfocable =
     seleccion !== null && canvas.nodos.some((n) => n.id === seleccion) ? seleccion : (canvas.nodos[0]?.id ?? null);
   const vistaDe = (n: Nodo) => (
-  <NodoVista
-    key={n.id}
-    nodo={n}
-    seleccionado={seleccion === n.id}
-    editando={editando === n.id}
-    enfocable={idEnfocable === n.id}
-    onTecla={(e, notaDestino) => alTeclaEnTarjeta(n, e, notaDestino)}
-    onEnfocar={() => {
-      lienzoActivo = yoRef.current;
-      setSeleccion(n.id);
-      // Solo con el teclado: con el puntero, el clic que enfoca la tarjeta
-      // puede ser el comienzo de un arrastre, y mover la vista lo arruinaría.
-      if (document.documentElement.hasAttribute("data-teclado")) asegurarVisible(n);
-    }}
-    notas={notas}
-    carpetas={carpetas}
-    onSeleccionar={() => setSeleccion(n.id)}
-    onEditar={() => {
-      abrirGesto(`texto:${n.id}`);
-      setEditando(n.id);
-    }}
-    onTerminarEdicion={terminarEdicion}
-    onTexto={(texto) =>
-      cambiar(
-        (c) => ({
-          ...c,
-          nodos: c.nodos.map((x) => (x.id === n.id ? { ...x, texto } : x)),
-        }),
-        true,
-      )
-    }
-    onArrastrar={(e) => {
-      abrirGesto("arrastre");
-      const p = enLienzo(e);
-      arrastre.current = { tipo: "nodo", id: n.id, dx: p.x - n.x, dy: p.y - n.y };
-    }}
-    onRedimensionar={(e) => {
-      abrirGesto("arrastre");
-      const p = enLienzo(e);
-      arrastre.current = {
-        tipo: "tamano",
-        id: n.id,
-        x0: p.x,
-        y0: p.y,
-        w0: n.ancho,
-        h0: n.alto,
-      };
-    }}
-    onConectar={(lado, e) => {
-      const p = enLienzo(e);
-      arrastre.current = { tipo: "arista", desde: n.id, lado, x: p.x, y: p.y };
-    }}
-    onAbrirTitulo={abrirPorTitulo}
-    onAbrirNota={abrirNota}
-  />
+    <NodoVista
+      key={n.id}
+      nodo={n}
+      seleccionado={seleccion === n.id}
+      editando={editando === n.id}
+      enfocable={idEnfocable === n.id}
+      notas={notas}
+      carpetas={carpetas}
+      acciones={acciones}
+    />
   );
 
   return (
@@ -919,6 +1016,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
         }}
       >
         <div
+          ref={mundoRef}
           className={styles.mundo}
           style={{
             transform: `translate(${vista.x}px, ${vista.y}px) scale(${vista.escala})`,
@@ -1016,53 +1114,42 @@ function rotuloDeTarjeta(nodo: Nodo, tituloNota: string | undefined): string {
   }
 }
 
-function NodoVista({
+/**
+ * Memoizada (`DEF-183`): con ~200 tarjetas, dibujarlas todas por cada cuadro
+ * de desplazamiento, zoom o arrastre era lo que hacía ir el lienzo a tirones.
+ * Sus props son el nodo (un objeto que solo cambia si cambia esa tarjeta), unos
+ * booleanos, las listas del vault (que conservan su identidad, `FUN-M-58`) y
+ * las acciones, estables para todo el lienzo.
+ */
+const NodoVista = memo(function NodoVista({
   nodo,
   seleccionado,
   editando,
   notas,
   carpetas,
-  onSeleccionar,
-  onEditar,
-  onTerminarEdicion,
-  onTexto,
-  onArrastrar,
-  onRedimensionar,
-  onConectar,
-  onAbrirTitulo,
-  onAbrirNota,
   enfocable,
-  onTecla,
-  onEnfocar,
+  acciones,
 }: {
   nodo: Nodo;
   seleccionado: boolean;
   editando: boolean;
   /** La parada de Tab del lienzo (`tabindex` itinerante, `FUN-XL-04`, Parte 7). */
   enfocable: boolean;
-  /** Una tecla con el foco en la tarjeta misma (no en su texto ni en un botón). */
-  onTecla: (e: React.KeyboardEvent<HTMLDivElement>, notaId: string | null) => void;
-  /** La tarjeta recibió el foco (Tab, flechas, Enter sobre el lienzo, F10). */
-  onEnfocar: () => void;
   notas: TreeNota[];
   carpetas: TreeCarpeta[];
-  onSeleccionar: () => void;
-  onEditar: () => void;
-  onTerminarEdicion: () => void;
-  onTexto: (t: string) => void;
-  onArrastrar: (e: React.PointerEvent) => void;
-  onRedimensionar: (e: React.PointerEvent) => void;
-  onConectar: (lado: Lado, e: React.PointerEvent) => void;
-  onAbrirTitulo: (titulo: string) => void;
-  onAbrirNota: (id: string) => void;
+  acciones: AccionesTarjeta;
 }) {
+  const id = nodo.id;
+  const onSeleccionar = () => acciones.seleccionar(id);
+  const onEditar = () => acciones.editar(id);
+  const onTerminarEdicion = acciones.terminarEdicion;
   const cuerpoRef = useRef<HTMLDivElement>(null);
   // La tarjeta guarda una ruta; acá se traduce al id para encontrar la nota.
-  const notaId =
-    nodo.tipo === "file" && nodo.archivo !== undefined
-      ? notaDeRuta(nodo.archivo, notas)
-      : null;
-  const nota = notaId !== null ? notas.find((n) => n.id === notaId) : undefined;
+  const nota = useMemo(() => {
+    if (nodo.tipo !== "file" || nodo.archivo === undefined) return undefined;
+    const notaId = notaDeRuta(nodo.archivo, notas);
+    return notaId !== null ? notas.find((n) => n.id === notaId) : undefined;
+  }, [nodo.tipo, nodo.archivo, notas]);
   const [contenido, setContenido] = useState<string | null>(null);
 
   // Una tarjeta de nota muestra el archivo REAL: se lee su contenido, no se copia.
@@ -1130,10 +1217,10 @@ function NodoVista({
       tabIndex={enfocable ? 0 : -1}
       data-pista="foco"
       onFocus={(e) => {
-        if (e.target === e.currentTarget) onEnfocar();
+        if (e.target === e.currentTarget) acciones.enfocar(id);
       }}
       onKeyDown={(e) => {
-        if (e.target === e.currentTarget) onTecla(e, nota?.id ?? null);
+        if (e.target === e.currentTarget) acciones.tecla(id, e, nota?.id ?? null);
       }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -1159,7 +1246,7 @@ function NodoVista({
         onPointerDown={(e) => {
           e.stopPropagation();
           onSeleccionar();
-          onArrastrar(e);
+          acciones.arrastrar(id, e);
         }}
         onDoubleClick={() => nodo.tipo === "text" && onEditar()}
       >
@@ -1178,7 +1265,7 @@ function NodoVista({
             className={styles.abrir}
             title="Abrir la nota"
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onAbrirNota(nota.id)}
+            onClick={() => acciones.abrirNota(nota.id)}
           >
             Abrir
           </button>
@@ -1196,7 +1283,7 @@ function NodoVista({
             className={styles.editor}
             autoFocus
             value={nodo.texto ?? ""}
-            onChange={(e) => onTexto(e.target.value)}
+            onChange={(e) => acciones.texto(id, e.target.value)}
             onBlur={onTerminarEdicion}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
@@ -1220,7 +1307,7 @@ function NodoVista({
             onDoubleClick={() => nodo.tipo === "text" && onEditar()}
             // Un enlace web va al navegador (`FUN-S-20`), un wikilink abre la
             // nota y el resto no navega la webview nunca (`DEF-160`).
-            onClick={(e) => atenderClicEnEnlace(e, { abrirNota: onAbrirTitulo })}
+            onClick={(e) => atenderClicEnEnlace(e, { abrirNota: acciones.abrirTitulo })}
           />
         )}
       </div>
@@ -1233,7 +1320,7 @@ function NodoVista({
           title="Arrastra hasta otra tarjeta para conectarlas"
           onPointerDown={(e) => {
             e.stopPropagation();
-            onConectar(lado, e);
+            acciones.conectar(id, lado, e);
           }}
         />
       ))}
@@ -1243,9 +1330,9 @@ function NodoVista({
         title="Redimensionar"
         onPointerDown={(e) => {
           e.stopPropagation();
-          onRedimensionar(e);
+          acciones.redimensionar(id, e);
         }}
       />
     </div>
   );
-}
+});
