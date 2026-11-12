@@ -33,7 +33,7 @@ Escribe al menos dos caracteres. Con varias palabras, aparecen las notas que tie
 |---|---|
 | `reunión cliente` | Las notas que tienen las dos palabras. |
 | `"plan de lanzamiento"` | La frase exacta, entre comillas. |
-| `tag:proyecto` | Las notas con la etiqueta `#proyecto`, en el texto o en la propiedad `tags`. |
+| `#proyecto` o `tag:proyecto` | Las notas con la etiqueta `#proyecto`, en el texto o en la propiedad `tags`. |
 | `estado:activo` | Las notas cuya propiedad `estado` tiene la palabra «activo». |
 | `bancal:"Bancal 1"` | Las notas cuya propiedad `bancal` vale exactamente «Bancal 1». |
 
@@ -49,8 +49,9 @@ notas activas.
 `tag:` busca la **etiqueta**, no la palabra: `tag:riego` no trae una nota que solo dice
 «riego» en el texto. Trae también las etiquetas anidadas debajo —`tag:proyecto` encuentra
 `#proyecto/faro`, y `tag:proyecto/faro` solo esa—, pero no las que solo empiezan igual
-(`tag:proy` no encuentra `#proyecto`). El `#` delante es opcional: `tag:#proyecto` es lo
-mismo.
+(`tag:proy` no encuentra `#proyecto`). Escribir la etiqueta como en la nota es lo mismo:
+`#proyecto`, `#123` o `#HU-12` filtran por esa etiqueta, y `tag:#proyecto` también vale.
+Dentro de una frase entre comillas, el `#` es texto: `"#123 pendiente"` busca esas palabras.
 
 No importan las mayúsculas ni las tildes, tampoco en los filtros: «pulgon» encuentra
 «Pulgón», y `familia:solanaceas` encuentra las notas con `familia: Solanáceas`.

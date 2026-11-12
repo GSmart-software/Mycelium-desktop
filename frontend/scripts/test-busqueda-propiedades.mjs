@@ -314,6 +314,64 @@ test("tag: combinado con texto, con clave:valor y con otra etiqueta es AND", { s
   assert.deepEqual(porNombre.map((r) => r.titulo).sort(), ["Riego", "Riego goteo"]);
 });
 
+// --- `#x` es `tag:x` (`DEF-184`) --------------------------------------------
+// Antes `#123` iba al FTS como texto: el tokenizador tiraba el `#` y quedaba el
+// número `123` en cualquier lado, también en la nota que no tiene la etiqueta.
+
+const ISSUES = {
+  "Tarea.md": "Pendiente de la issue. #123 #HU-12\n",
+  "Otra.md": "Menciona el 123 y la HU-12 sin etiquetarlas.\n",
+  // Pegado a una palabra, `#123` no es etiqueta (`TAG_RE`), pero sí texto.
+  "Frase.md": "Texto literal: issue#123 pendiente.\n",
+};
+
+test("#x filtra por la etiqueta igual que tag:x (DEF-184)", { skip: sinSqlite }, async () => {
+  await abrir(ETIQUETAS);
+  for (const [con, sin] of [
+    ["#solanaceas", "tag:solanaceas"],
+    ["#SOLANÁCEAS", "tag:SOLANÁCEAS"],
+    ["#picante", "tag:picante"],
+    ["#cosecha", "tag:cosecha"],
+    ["#huerta", "tag:huerta"],
+    ["#huerta/riego", "tag:huerta/riego"],
+    ["#huert", "tag:huert"],
+    ["#huerta-urbana", "tag:huerta-urbana"],
+    ["#huerta goteo", "tag:huerta goteo"],
+    ["tags:picante #huerta", "tags:picante tag:huerta"],
+    ["#huerta #picante", "tag:huerta tag:picante"],
+  ]) {
+    assert.deepEqual(await titulos(con), await titulos(sin), con);
+  }
+  assert.deepEqual(await titulos("#huerta"), ["Ají", "Riego", "Riego goteo"]);
+  assert.deepEqual(await titulos("#huerta", true), ["Ají", "Riego", "Riego goteo"]);
+  assert.deepEqual(await titulos("#huerta goteo"), ["Riego goteo"]);
+  // El fragmento también es el de `tag:x`.
+  const frag = async (q) =>
+    Object.fromEntries((await buscar(LOCAL_VAULT_ID, q)).resultados.map((r) => [r.titulo, r.fragmento]));
+  assert.deepEqual(await frag("#huerta"), await frag("tag:huerta"));
+  // Solo por nombre: la etiqueta filtra y el texto se busca en el título.
+  const porNombre = (await buscar(LOCAL_VAULT_ID, "#huerta riego", false, "nombre")).resultados;
+  assert.deepEqual(porNombre.map((r) => r.titulo).sort(), ["Riego", "Riego goteo"]);
+});
+
+test("#123 y #HU-12, las etiquetas de una issue, filtran por etiqueta (DEF-184)", { skip: sinSqlite }, async () => {
+  await abrir(ISSUES);
+  assert.deepEqual(await titulos("#123"), ["Tarea"]);
+  assert.deepEqual(await titulos("#HU-12"), ["Tarea"]);
+  assert.deepEqual(await titulos("#hu-12 pendiente"), ["Tarea"]);
+  assert.deepEqual(await titulos("#12"), [], "no es por prefijo");
+  // Sin el `#`, el número es texto y aparece en las tres.
+  assert.deepEqual(await titulos("123"), ["Frase", "Otra", "Tarea"]);
+});
+
+test("un # dentro de una frase entre comillas sigue siendo texto (DEF-184)", { skip: sinSqlite }, async () => {
+  await abrir(ISSUES);
+  // Como frase: el `#` lo descarta el tokenizador y se busca «123 pendiente».
+  assert.deepEqual(await titulos('"#123 pendiente"'), ["Frase"]);
+  // Lo que el índice no guardaría como etiqueta tampoco filtra: `#` solo o `#x.`.
+  assert.deepEqual(await titulos("# literal"), ["Frase"]);
+});
+
 test("una nota en la papelera no sale por su etiqueta", { skip: sinSqlite }, async () => {
   const db = await abrir(ETIQUETAS);
   db.prepare(
