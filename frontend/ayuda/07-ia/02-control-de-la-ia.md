@@ -2,7 +2,7 @@
 titulo: Control de la IA (MCP)
 tema: IA
 solo: desktop
-sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones, paneles, dividir la pantalla]
+sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones, paneles, dividir la pantalla, bandeja, procesar la bandeja]
 ---
 
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
@@ -48,6 +48,8 @@ herramienta: genéralas, o actualízalas si Configuración te ofrece una versió
   Nunca borra para siempre.
 - **Diccionario**: agregar o quitar palabras del diccionario del vault del
   [corrector](ayuda:herramientas/corrector).
+- **Bandejas**: leer la [Bandeja](ayuda:herramientas/bandeja-y-captura-rapida) del vault y la
+  personal, y quitar los apuntes que ya llevó a sus notas, sin pisar una captura nueva.
 - **Consultar la memoria**, sin cambiar nada:
   - **buscar** con la misma [búsqueda](ayuda:enlazar-y-organizar/busqueda) de la app
     (nombre, contenido, frases, `clave:valor` y `tag:x`), solo en las notas que Mycelium

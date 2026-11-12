@@ -14,7 +14,8 @@ Hay dos bandejas:
 |---|---|---|
 | Qué es | La nota `Bandeja.md` del vault abierto | Un archivo de Mycelium **fuera de todo vault** |
 | Se ve desde | Ese vault | **Todos** tus vaults: es la misma, abras el que abras |
-| Búsqueda, enlaces, grafo, IA del vault | Sí: es una nota común | **No**: no es parte de ningún vault |
+| Búsqueda, enlaces, grafo | Sí: es una nota común | **No**: no es parte de ningún vault |
+| La IA, con el **control** (solo en la app de escritorio) encendido | La lee y la vacía | La lee y la vacía |
 
 ## Para qué sirve
 
@@ -102,8 +103,9 @@ sobre su entrada en el explorador.
 
 - Es **la misma desde todos tus vaults**, también con dos ventanas abiertas a la vez: lo
   que anotas en una aparece en la otra, y dos capturas al mismo tiempo no se pisan.
-- **No es parte de ningún vault**: no aparece en la búsqueda ni en el grafo, no se puede
-  enlazar y la IA del vault no la ve.
+- **No es parte de ningún vault**: no aparece en la búsqueda ni en el grafo y no se puede
+  enlazar. La IA no la encuentra entre los archivos del vault; solo la lee y la vacía con el
+  **control de la IA** encendido (ver abajo).
 - Se abre en su propia pestaña, **Bandeja personal**, con el mismo editor que una nota (vista
   en vivo, lectura, tareas). Lo que depende del vault no está: no hay autocompletado de
   `[[`, ni panel de enlaces, ni diagnósticos, ni se pueden insertar dibujos. Si la dejas
@@ -134,6 +136,18 @@ teclado](ayuda:atajos-de-teclado/atajos-de-teclado).
 También puedes abrirla desde la paleta (**Ctrl+P**): **Abrir la Bandeja del vault** y
 **Abrir la Bandeja personal**. Los dos sirven como paso de una
 [macro](ayuda:herramientas/macros).
+
+## Procesarla con la IA
+
+En la app de escritorio, con el **control de la IA** encendido (Configuración → Vault), puedes
+pedirle a Claude Code «revisa la bandeja»: lee **las dos** (o la que nombres), lleva cada
+apunte a su nota del vault y después lo **quita** de la bandeja. Si un día se queda sin
+apuntes, se va también su encabezado.
+
+- Quita por el mismo camino que la app: si anotas algo mientras tanto, o tienes la Bandeja
+  abierta con cambios, no se pisa nada; la IA vuelve a leerla antes de seguir.
+- Cada vez que quita algo queda en **Actividad de la IA** con **Deshacer**, que vuelve a
+  poner lo quitado si la bandeja no cambió después.
 
 ## No se renombran ni se eliminan
 

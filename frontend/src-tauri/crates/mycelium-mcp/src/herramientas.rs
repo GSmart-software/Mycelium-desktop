@@ -25,6 +25,9 @@
 //! en las notas abiertas (o en una), sin recalcular lo ya calculado.
 //! `FUN-M-59`: `mycelium_abrir` elige el panel (`panel`) y `mycelium_dividir`
 //! divide la pantalla, con las mismas acciones que la división del usuario.
+//! `FUN-S-40`: `mycelium_bandeja`, leer las dos bandejas (la del vault y la
+//! personal) y quitar entradas por número con la huella de la lectura; la app
+//! numera, compara y escribe por su camino (`lib/mcpBandeja.ts`).
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
@@ -49,7 +52,7 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 21] = [
+const NOMBRES: [&str; 22] = [
     "mycelium_estado",
     "mycelium_abrir",
     "mycelium_dividir",
@@ -71,6 +74,7 @@ const NOMBRES: [&str; 21] = [
     "mycelium_sesion",
     "mycelium_reservar",
     "mycelium_diagnosticos",
+    "mycelium_bandeja",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
@@ -479,7 +483,48 @@ pub fn definiciones() -> Vec<Value> {
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
         definicion_diagnosticos(),
+        definicion_bandeja(),
     ]
+}
+
+/// La definición de `mycelium_bandeja` (`FUN-S-40`), aparte para no alargar la
+/// lista de arriba.
+fn definicion_bandeja() -> Value {
+    json!({
+        "name": "mycelium_bandeja",
+        "title": "Las bandejas de captura",
+        "description": "Lee o vacía las BANDEJAS de la captura rápida de Mycelium: la del VAULT (`Bandeja.md` en la \
+            raíz, o la ruta configurada) y la PERSONAL (una sola para todos los vaults, fuera de ellos, en la carpeta \
+            de datos de la app: no la busques en el vault). `leer` devuelve, por bandeja, su ruta, sus entradas \
+            NUMERADAS (día, hora, texto, y si es tarea su estado) y una HUELLA de lo leído; sin `bandeja`, las dos. \
+            `quitar` saca entradas por número: pide la `bandeja`, la `huella` de la lectura y los números; si la \
+            bandeja cambió desde que la leíste (una captura nueva, una edición), contesta CAMBIO_CONCURRENTE sin \
+            escribir: vuelve a leerla. Si un día queda sin entradas, se va su encabezado. Escribe por el mismo camino \
+            que la app (no se pisa con una captura ni con el editor) y se deshace desde el registro de actividad. \
+            Para procesar una bandeja: leerla, llevar cada entrada a su nota del vault y después quitarla. No escribas \
+            las bandejas a mano para vaciarlas.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "accion": { "type": "string", "enum": ["leer", "quitar"], "description": "Por defecto leer." },
+                "bandeja": {
+                    "type": "string",
+                    "enum": ["vault", "personal"],
+                    "description": "Cuál. Al leer, sin ella, las dos; para quitar es obligatoria."
+                },
+                "huella": { "type": "string", "description": "Para quitar: la huella que dio la lectura de esa bandeja." },
+                "entradas": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 1 },
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "description": "Para quitar: los números de las entradas, como los dio la lectura."
+                }
+            },
+            "additionalProperties": false
+        },
+        "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false }
+    })
 }
 
 /// La definición de `mycelium_dividir` (`FUN-M-59`), aparte para no alargar la
@@ -584,6 +629,7 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_sesion" => herramienta_coordinacion(estado, vault, "sesion", args),
         "mycelium_reservar" => herramienta_coordinacion(estado, vault, "reservar", args),
         "mycelium_diagnosticos" => herramienta_consulta(estado, vault, "diagnosticos", args, redactar_diagnosticos),
+        "mycelium_bandeja" => herramienta_bandeja(estado, vault, args),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -986,6 +1032,123 @@ fn herramienta_dividir(estado: &Estado, vault: &VaultResuelto, args: &Value) -> 
     match pedir(estado, vault, "dividir", args) {
         Ok(r) => texto(redactar_dividir(&r), false),
         Err(SinResultado::NadieEscucha) => texto(sin_ventana(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+// ── mycelium_bandeja (`FUN-S-40`) ─────────────────────────────────────────
+
+/// Cuántas entradas se pueden quitar en una llamada.
+const TOPE_QUITAR_BANDEJA: usize = 500;
+
+/// Valida los argumentos de `mycelium_bandeja` antes de molestar a la app.
+pub fn validar_bandeja(args: &Value) -> Result<Value, String> {
+    let invalido = |m: &str| Err(format!("{}: {m}", codigo::INVALIDO));
+    if !(args.is_object() || args.is_null()) {
+        return invalido("los argumentos van en un objeto.");
+    }
+    let accion = match args.get("accion").filter(|v| !v.is_null()) {
+        None => "leer",
+        Some(v) => match v.as_str() {
+            Some(a @ ("leer" | "quitar")) => a,
+            _ => return invalido("`accion` es «leer» o «quitar»."),
+        },
+    };
+    let bandeja = match args.get("bandeja").filter(|v| !v.is_null()) {
+        None => Value::Null,
+        Some(v) => match v.as_str() {
+            Some(b @ ("vault" | "personal")) => json!(b),
+            _ => return invalido("`bandeja` es «vault» o «personal»."),
+        },
+    };
+    if accion == "leer" {
+        return Ok(json!({ "accion": "leer", "bandeja": bandeja }));
+    }
+    if bandeja.is_null() {
+        return invalido("para quitar, `bandeja` es obligatoria: «vault» o «personal».");
+    }
+    let Some(huella) = args.get("huella").and_then(Value::as_str).map(str::trim).filter(|h| !h.is_empty()) else {
+        return invalido("falta `huella`: la que dio la lectura (accion «leer»).");
+    };
+    let numeros: Option<Vec<u64>> = args
+        .get("entradas")
+        .and_then(Value::as_array)
+        .filter(|l| !l.is_empty() && l.len() <= TOPE_QUITAR_BANDEJA)
+        .and_then(|l| l.iter().map(|n| n.as_u64().filter(|n| *n >= 1)).collect());
+    let Some(numeros) = numeros else {
+        return invalido(&format!(
+            "`entradas` es una lista de números de entrada (desde 1, hasta {TOPE_QUITAR_BANDEJA} por llamada), como los dio la lectura."
+        ));
+    };
+    Ok(json!({ "accion": "quitar", "bandeja": bandeja, "huella": huella, "entradas": numeros }))
+}
+
+/// La lectura: por bandeja, la ruta, la huella y las entradas numeradas,
+/// agrupadas por día. O el efecto de quitar.
+pub fn redactar_bandeja(r: &Value) -> String {
+    if r.get("accion").and_then(Value::as_str) == Some("quitar") {
+        let mut t = s(r, "efecto").to_string();
+        let quedan = n(r, "quedan");
+        t.push_str(&format!(
+            "\nQuedan {quedan} {}. Los números cambiaron: para quitar más, vuelve a leerla.",
+            if quedan == 1 { "entrada" } else { "entradas" }
+        ));
+        return t;
+    }
+    let mut partes = Vec::new();
+    for b in r.get("bandejas").and_then(Value::as_array).into_iter().flatten() {
+        let nombre = if s(b, "bandeja") == "vault" { "Bandeja del vault" } else { "Bandeja personal" };
+        if b.get("existe").and_then(Value::as_bool) != Some(true) {
+            partes.push(format!("{nombre} — {}: todavía no existe (se crea con la primera captura).", s(b, "ruta")));
+            continue;
+        }
+        let entradas = b.get("entradas").and_then(Value::as_array).cloned().unwrap_or_default();
+        let cuantas = match entradas.len() {
+            0 => "vacía".to_string(),
+            1 => "1 entrada".to_string(),
+            k => format!("{k} entradas"),
+        };
+        let mut t = format!("{nombre} — {} · {cuantas} · huella {}", s(b, "ruta"), s(b, "huella"));
+        // Un renglón por día, cuando cambia (también el primero, aunque no tenga).
+        let mut dia_previo: Option<Option<String>> = None;
+        for e in &entradas {
+            let dia = e.get("dia").and_then(Value::as_str).map(str::to_string);
+            if dia_previo.as_ref() != Some(&dia) {
+                t.push_str(&format!("\n{}", dia.as_deref().map_or("(sin día)".to_string(), |d| format!("## {d}"))));
+                dia_previo = Some(dia);
+            }
+            let hora = e.get("hora").and_then(Value::as_str).map(|h| format!("{h} ")).unwrap_or_default();
+            let tarea = e.get("tarea").and_then(Value::as_str).map(|x| format!(" [tarea {x}]")).unwrap_or_default();
+            let debajo = n(e, "debajo");
+            let debajo = if debajo > 0 { format!(" (+{debajo} {} debajo)", if debajo == 1 { "línea" } else { "líneas" }) } else { String::new() };
+            t.push_str(&format!("\n  {}. {hora}{}{tarea}{debajo}", n(e, "numero"), s(e, "texto")));
+        }
+        partes.push(t);
+    }
+    if partes.is_empty() {
+        return "No hay bandejas que leer.".to_string();
+    }
+    let mut t = partes.join("\n\n");
+    t.push_str("\n\nPara quitar: accion «quitar» con la `bandeja`, su `huella` y los números de `entradas`.");
+    t
+}
+
+fn herramienta_bandeja(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Value {
+    let args = match validar_bandeja(args) {
+        Ok(a) => a,
+        Err(e) => return texto(e, true),
+    };
+    match pedir_con_permiso(estado, vault, "bandeja", args) {
+        Ok(r) => texto(redactar_bandeja(&r), false),
+        Err(SinResultado::NadieEscucha) => {
+            let mut t = sin_ventana_base(vault);
+            t.push_str(
+                "\nLas bandejas se leen y se vacían por Mycelium: sin la app, la del vault es `Bandeja.md` (o la ruta \
+                 `rutaBandeja` de .mycelium/preferencias.json) y se puede LEER como cualquier nota; no la vacíes a mano \
+                 ni toques la personal: díselo al usuario.",
+            );
+            texto(t, true)
+        }
         Err(SinResultado::Error(e)) => texto(e, true),
     }
 }

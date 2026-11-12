@@ -78,6 +78,7 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_sesion",
             "mycelium_reservar",
             "mycelium_diagnosticos",
+            "mycelium_bandeja",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {
@@ -442,4 +443,82 @@ fn los_argumentos_invalidos_de_panel_y_dividir_no_llegan_a_la_app() {
     // Bien formados, sin app: llegan al canal.
     let (t, _) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "panel": 2, "objetivo": "Plan", "ir_a": {"texto": "x"}}));
     assert!(t.starts_with("APP_CERRADA"), "{t}");
+}
+
+// ── Las bandejas (`FUN-S-40`) ──────────────────────────────────────────────
+
+/// Una app que atiende `bandeja` como la de verdad: numera, compara la huella
+/// y contesta el efecto ya redactado.
+fn app_bandeja(e: &Estado) -> crate::canal::falso::Servidor {
+    levantar(e.canal.clone(), move |p| {
+        let id = p["id"].clone();
+        let a = &p["args"];
+        Some(match (p["op"].as_str(), a["accion"].as_str()) {
+            (Some("bandeja"), Some("leer")) => json!({"id": id, "ok": true, "resultado": {"accion": "leer", "bandejas": [
+                {"bandeja": "vault", "ruta": "Bandeja.md", "existe": true, "huella": "abc123", "entradas": [
+                    {"numero": 1, "dia": "2026-11-05", "hora": "09:40", "texto": "La panadería", "tarea": null, "debajo": 0},
+                    {"numero": 2, "dia": "2026-11-05", "hora": "10:05", "texto": "Renovar el dominio", "tarea": "pendiente", "debajo": 1},
+                    {"numero": 3, "dia": "2026-11-06", "hora": null, "texto": "Sin hora", "tarea": "hecha", "debajo": 0}
+                ]},
+                {"bandeja": "personal", "ruta": "C:\\datos\\Bandeja personal.md", "existe": false, "huella": null, "entradas": []}
+            ]}}),
+            (Some("bandeja"), Some("quitar")) if a["huella"] != "abc123" => json!({"id": id, "ok": false, "error": {
+                "codigo": "CAMBIO_CONCURRENTE",
+                "mensaje": "la Bandeja del vault cambió desde que la leíste (una captura, una edición): los números ya no son los mismos. No se quitó nada: vuelve a leerla y elige de nuevo.",
+                "datos": null}}),
+            (Some("bandeja"), Some("quitar")) => json!({"id": id, "ok": true, "resultado": {
+                "accion": "quitar", "bandeja": a["bandeja"], "ruta": "Bandeja.md",
+                "efecto": "Quité 1 entrada de la Bandeja del vault: «Sin hora». El día 2026-11-06 quedó vacío y se fue su encabezado.",
+                "huella": "def456", "quedan": 2}}),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    })
+}
+
+#[test]
+fn la_bandeja_se_lee_numerada_por_dia_con_su_huella() {
+    let mut e = con_vault("bandeja-leer", Some(true));
+    let _app = app_bandeja(&e);
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Bandeja del vault — Bandeja.md · 3 entradas · huella abc123\n## 2026-11-05\n  1. 09:40 La panadería\n"), "{t}");
+    assert!(t.contains("\n  2. 10:05 Renovar el dominio [tarea pendiente] (+1 línea debajo)\n## 2026-11-06\n  3. Sin hora [tarea hecha]"), "{t}");
+    assert!(t.contains("Bandeja personal — C:\\datos\\Bandeja personal.md: todavía no existe"), "{t}");
+    assert!(t.ends_with("Para quitar: accion «quitar» con la `bandeja`, su `huella` y los números de `entradas`."), "{t}");
+}
+
+#[test]
+fn quitar_de_la_bandeja_dice_el_efecto_o_el_cambio_concurrente() {
+    let mut e = con_vault("bandeja-quitar", Some(true));
+    let _app = app_bandeja(&e);
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"accion": "quitar", "bandeja": "vault", "huella": "abc123", "entradas": [3]}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Quité 1 entrada de la Bandeja del vault: «Sin hora»."), "{t}");
+    assert!(t.ends_with("Quedan 2 entradas. Los números cambiaron: para quitar más, vuelve a leerla."), "{t}");
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"accion": "quitar", "bandeja": "vault", "huella": "vieja", "entradas": [1]}));
+    assert!(err && t.starts_with("CAMBIO_CONCURRENTE: "), "{t}");
+}
+
+#[test]
+fn los_argumentos_invalidos_de_la_bandeja_no_llegan_a_la_app() {
+    let mut e = con_vault("bandeja-invalidos", Some(true));
+    // Sin app: si llegaran al canal, el error sería APP_CERRADA.
+    for args in [
+        json!({"accion": "vaciar"}),
+        json!({"bandeja": "otra"}),
+        json!({"accion": "quitar", "huella": "abc", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "  ", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc"}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc", "entradas": []}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc", "entradas": [0]}),
+        json!({"accion": "quitar", "bandeja": "personal", "huella": "abc", "entradas": ["1"]}),
+        json!("leer"),
+    ] {
+        let (t, err) = llamar(&mut e, "mycelium_bandeja", args.clone());
+        assert!(err && t.starts_with("INVALIDO"), "{args} → {t}");
+    }
+    // Bien formado, sin app: dice qué hacer sin ella.
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"bandeja": "personal"}));
+    assert!(err && t.starts_with("APP_CERRADA") && t.contains("no la vacíes a mano"), "{t}");
 }

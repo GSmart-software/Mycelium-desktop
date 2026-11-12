@@ -371,7 +371,7 @@ export function efectoLiberar(liberadas: readonly Reserva[], ruta: string | null
 // ── Lo modificado recién ────────────────────────────────────────────────────
 
 /** Las operaciones del registro que cambian notas o carpetas. */
-const MODIFICAN: ReadonlySet<string> = new Set(["renombrar", "mover", "borrar", "papelera", "reparar_renombre"]);
+const MODIFICAN: ReadonlySet<string> = new Set(["renombrar", "mover", "borrar", "papelera", "reparar_renombre", "bandeja"]);
 
 export type Modificacion = { ruta: string; sesion: string; op: string; momento: number };
 
