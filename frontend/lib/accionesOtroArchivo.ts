@@ -18,7 +18,7 @@ import {
   unir,
 } from "@/lib/db/vaultFs";
 import { avisoCaracteresReemplazados } from "@/lib/db/nombres";
-import { downloadBlob } from "@/lib/export";
+import { exportarArchivo } from "@/lib/exportarConAviso";
 import { tabIdDeArchivo, urlDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
 import { avisar } from "@/stores/avisosStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -78,15 +78,22 @@ export async function duplicarOtro(vault: string, otro: OtroArchivo): Promise<st
 }
 
 /**
- * «Guardar una copia…»: el exportar de un archivo que no es nota. Se descarga
+ * «Guardar una copia…»: el exportar de un archivo que no es nota. Se guarda
  * tal cual —los bytes, sin conversión— por el mismo camino que «Exportar como
- * .md» (el diálogo de descarga del webview). Se leen por el protocolo de
- * archivos del vault, el mismo con el que el visor los muestra.
+ * .md»: «Guardar como» y la tarjeta de exportación (`FUN-M-22`). Se leen por el
+ * protocolo de archivos del vault, el mismo con el que el visor los muestra.
  */
 export async function guardarCopiaOtro(vault: string, otro: OtroArchivo): Promise<void> {
-  const respuesta = await fetch(urlDeArchivo(vault, otro.ruta));
-  if (!respuesta.ok) throw new Error(`No se pudo leer «${otro.nombre}» (${respuesta.status}).`);
-  downloadBlob(await respuesta.blob(), otro.nombre);
+  await exportarArchivo({
+    nombre: otro.nombre,
+    extension: otro.extension,
+    descripcion: otro.extension ? `Archivo .${otro.extension}` : "Archivo",
+    generar: async () => {
+      const respuesta = await fetch(urlDeArchivo(vault, otro.ruta));
+      if (!respuesta.ok) throw new Error(`No se pudo leer «${otro.nombre}» (${respuesta.status}).`);
+      return respuesta.blob();
+    },
+  });
 }
 
 /**

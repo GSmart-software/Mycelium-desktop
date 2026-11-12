@@ -13,6 +13,7 @@ mod devtools;
 mod dialogos;
 mod diccionarios;
 mod drawio_origen;
+mod exportaciones;
 mod indice;
 mod marco;
 mod mycignore;
@@ -180,6 +181,8 @@ pub fn run() {
         .manage(ventanas::VentanasState::default())
         // Carpetas de fuera del vault elegidas en el selector nativo (`DEF-161`).
         .manage(dialogos::ElegidasState::default())
+        // Archivos elegidos en «Guardar como» para exportar (`FUN-M-22`).
+        .manage(exportaciones::ExportadosState::default())
         // La escucha del MCP de control, una por ventana (`FUN-L-09`).
         .manage(control::ControlState::default())
         // La captura global (`FUN-L-33`, Parte C): el historial de foco, el
@@ -252,6 +255,9 @@ pub fn run() {
             vault_config::elegir_vault,
             dialogos::elegir_carpeta,
             dialogos::elegir_zip,
+            exportaciones::elegir_destino_exportacion,
+            exportaciones::escribir_exportacion,
+            exportaciones::revelar_exportacion,
             indice::abrir_indice_vault,
             indice::reconstruir_indice_vault,
             vault_config::desvincular_vault,

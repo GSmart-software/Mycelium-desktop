@@ -25,7 +25,7 @@
     14. Propiedades (la tarjeta del frontmatter)
     15. Diagramas, fórmulas y vídeos dentro de una nota
     16. Búsqueda, corrector ortográfico y avisos de la nota
-    17. Calendario y consolas
+    17. Calendario, consolas y exportaciones
     18. Lo que se estila solo con colores: bases, lienzos, draw.io, explorador,
         pestañas, grafo, la ayuda y la salud del vault
 
@@ -904,7 +904,7 @@
 
 
 /* ============================================================================
-   17) CALENDARIO Y CONSOLAS
+   17) CALENDARIO, CONSOLAS Y EXPORTACIONES
    ----------------------------------------------------------------------------
    Los ocho colores de los recordatorios tienen nombre (Hifa, Musgo, Liquen,
    Yesca, Amanita, Coral, Espora, Bruma) y una variable cada uno, del 1 al 8:
@@ -918,6 +918,10 @@
    una consola en su pestaña son
      --mic-consola-cian  --mic-consola-verde   --mic-consola-ambar
      --mic-consola-rosa  --mic-consola-violeta --mic-consola-azul
+
+   Las tarjetas de exportación (abajo a la derecha, al exportar una nota, el
+   vault o un dibujo) son .mic-exportacion, dentro de .mic-exportaciones, con
+   data-estado="en-curso", "lista", "fallo" o "impresion" (el PDF).
    ========================================================================== */
 
 /*
@@ -931,6 +935,12 @@
 :root[data-theme] {
   --mic-terminal-bg:   #1e1e1e;
   --mic-consola-verde: #22a05a;
+}
+*/
+
+/*
+.mic-exportacion[data-estado="lista"] {
+  border-color: var(--mic-sync-ok);
 }
 */
 

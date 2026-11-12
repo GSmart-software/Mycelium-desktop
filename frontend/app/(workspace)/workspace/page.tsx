@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ImportDialogs } from "@/components/explorer/ImportDialogs";
 import { PaneTree } from "@/components/panes/PaneTree";
-import { Recordatorios } from "@/components/recordatorios/TarjetaRecordatorio";
+import { Recordatorios, TarjetasRecordatorio } from "@/components/recordatorios/TarjetaRecordatorio";
+import { EsquinaDerecha, Exportaciones } from "@/components/workspace/Exportaciones";
 import { AppTopbar } from "@/components/workspace/AppTopbar";
 import { Avisos } from "@/components/workspace/Avisos";
 import { BarraEstado } from "@/components/workspace/BarraEstado";
@@ -317,7 +318,13 @@ function WorkspaceShell() {
       {/* La captura rápida (FUN-L-33): Ctrl+Shift+Espacio. */}
       <CapturaRapida />
       <Avisos />
-      {/* Tarjetas de aviso y modal del calendario (FUN-L-22). */}
+      {/* Abajo a la derecha: las exportaciones (FUN-M-22) y, encima, las
+          tarjetas del calendario (FUN-L-22). */}
+      <EsquinaDerecha>
+        <Exportaciones />
+        <TarjetasRecordatorio />
+      </EsquinaDerecha>
+      {/* El modal del calendario (FUN-L-22). */}
       <Recordatorios />
       <DialogoConfirmar />
     </div>

@@ -6,23 +6,14 @@ import { renderEmbedsIn } from "@/lib/embedsRender";
 import { carpetaDeNota, esperarImagenes, rellenarImagenesEn } from "@/lib/imagenesRender";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { armarDocumentoImpresion, type PdfPrintOpts } from "@/lib/printStyles";
+import { avisarImpresion, conTarjeta, exportarArchivo } from "@/lib/exportarConAviso";
 import { useAuthStore } from "@/stores/authStore";
 import { usePdfExportStore } from "@/stores/pdfExportStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /** Nombre de archivo seguro a partir del título de la nota. */
-function safeName(titulo: string): string {
+export function safeName(titulo: string): string {
   return titulo.replace(/[\\/:*?"<>|]/g, "_").trim() || "nota";
-}
-
-/** Descarga un Blob en el cliente (HU-08 CA4). */
-export function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 /**
@@ -41,10 +32,18 @@ export async function fetchNoteContent(notaId: string): Promise<string> {
   }
 }
 
-/** Exporta la nota activa como `.md` crudo, 100% en cliente (HU-08). */
+/**
+ * Exporta la nota como `.md` crudo (HU-08), donde el usuario elija en «Guardar
+ * como», con la tarjeta de exportación (`FUN-M-22`). Los fallos los cuenta la
+ * tarjeta.
+ */
 export async function exportNoteMd(notaId: string, titulo: string): Promise<void> {
-  const contenido = await fetchNoteContent(notaId);
-  downloadBlob(new Blob([contenido], { type: "text/markdown" }), `${safeName(titulo)}.md`);
+  await exportarArchivo({
+    nombre: `${safeName(titulo)}.md`,
+    extension: "md",
+    descripcion: "Markdown",
+    generar: () => fetchNoteContent(notaId),
+  });
 }
 
 /** Ruta de carpetas de una nota dentro del vault (sin el nombre del archivo). */
@@ -101,39 +100,59 @@ export async function recolectarArchivosVault(
  */
 export async function exportVaultZip(
   onProgress?: (done: number, total: number) => void,
-): Promise<void> {
+): Promise<boolean> {
   const { vaultId } = useVaultStore.getState();
   const vaultNombre = useAuthStore.getState().vaults.find((v) => v.id === vaultId)?.nombre ?? "vault";
-
-  // `jszip` (95 KB) se carga recién acá: el resto de este módulo entra con el
-  // menú de exportar del workspace, y el zip del vault se pide muy de vez en
-  // cuando (`FUN-M-58`, C-H4).
-  const { default: JSZip } = await import("jszip");
-  const zip = new JSZip();
-  for (const archivo of await recolectarArchivosVault(onProgress)) {
-    zip.file(archivo.rutaRelativa, archivo.contenido);
-  }
-
-  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   const fecha = new Date().toISOString().slice(0, 10);
-  downloadBlob(blob, `vault-${safeName(vaultNombre)}-${fecha}.zip`);
+
+  // Primero el destino (`FUN-M-22`): si el usuario cancela, no se arma nada.
+  return exportarArchivo({
+    nombre: `vault-${safeName(vaultNombre)}-${fecha}.zip`,
+    extension: "zip",
+    descripcion: "Archivo ZIP",
+    generar: async (alAvanzar) => {
+      // `jszip` (95 KB) se carga recién acá: el resto de este módulo entra con
+      // el menú de exportar del workspace, y el zip del vault se pide muy de vez
+      // en cuando (`FUN-M-58`, C-H4).
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const archivos = await recolectarArchivosVault((hechos, total) => {
+        onProgress?.(hechos, total);
+        alAvanzar(hechos, total);
+      });
+      for (const archivo of archivos) zip.file(archivo.rutaRelativa, archivo.contenido);
+      return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+    },
+  });
 }
 
 /**
  * Exporta todo el vault a una carpeta real del SO como árbol de `.md` (escritorio).
  * La escritura la hace el comando Rust `exportar_a_carpeta`, que valida que ninguna
- * ruta se salga del destino. Devuelve cuántos archivos se escribieron.
+ * ruta se salga del destino. Devuelve cuántos archivos se escribieron, o
+ * `undefined` si falló: el fallo lo cuenta la tarjeta de exportación
+ * (`FUN-M-22`), que al terminar ofrece abrir la carpeta.
  */
 export async function exportVaultACarpeta(
   destino: string,
   onProgress?: (done: number, total: number) => void,
-): Promise<number> {
-  const archivos = await recolectarArchivosVault(onProgress);
-  const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<number>("exportar_a_carpeta", {
+): Promise<number | undefined> {
+  return conTarjeta(
+    "el vault",
     destino,
-    archivos: archivos.map((a) => ({ ruta_relativa: a.rutaRelativa, contenido: a.contenido })),
-  });
+    async (alAvanzar) => {
+      const archivos = await recolectarArchivosVault((hechos, total) => {
+        onProgress?.(hechos, total);
+        alAvanzar(hechos, total);
+      });
+      const { invoke } = await import("@tauri-apps/api/core");
+      return invoke<number>("exportar_a_carpeta", {
+        destino,
+        archivos: archivos.map((a) => ({ ruta_relativa: a.rutaRelativa, contenido: a.contenido })),
+      });
+    },
+    true,
+  );
 }
 
 /**
@@ -215,6 +234,20 @@ export async function exportNotePdf(
   pageSize: "A4" | "Letter",
   opts: PdfPrintOpts,
 ): Promise<void> {
+  // La tarjeta de exportación (`FUN-M-22`): «exportando» mientras se arma, y
+  // qué elegir cuando se abre el diálogo de impresión. Los fallos, también ahí.
+  await avisarImpresion(`${safeName(titulo)}.pdf`, (alAbrirImpresion) =>
+    imprimirNota(notaId, titulo, pageSize, opts, alAbrirImpresion),
+  );
+}
+
+async function imprimirNota(
+  notaId: string,
+  titulo: string,
+  pageSize: "A4" | "Letter",
+  opts: PdfPrintOpts,
+  alAbrirImpresion: () => void,
+): Promise<void> {
   const { html, clases } = await renderNoteHtml(notaId, opts.fondoBlanco ? "imprimir" : "mycelium");
 
   const iframe = document.createElement("iframe");
@@ -261,6 +294,7 @@ export async function exportNotePdf(
   await esperarImagenes(doc);
   await new Promise((resolve) => setTimeout(resolve, 300));
   iframe.contentWindow?.focus();
+  alAbrirImpresion();
   iframe.contentWindow?.print();
   // Retirar el iframe tras cerrar el diálogo (no bloqueante).
   setTimeout(() => iframe.remove(), 1000);

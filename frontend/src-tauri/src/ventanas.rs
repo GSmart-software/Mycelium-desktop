@@ -299,6 +299,7 @@ pub fn al_cerrar(app: &AppHandle, label: &str) {
     crate::terminal::cerrar_de_ventana(&app.state::<crate::terminal::TerminalesState>(), label);
     crate::control::detener_de(&app.state::<crate::control::ControlState>(), label);
     crate::dialogos::olvidar_de(&app.state::<crate::dialogos::ElegidasState>(), label);
+    crate::exportaciones::olvidar_de(&app.state::<crate::exportaciones::ExportadosState>(), label);
     soltar_de(&app.state::<VentanasState>(), label);
     // Sale del historial de la captura global; si era la última ventana, se
     // cierra también la flotante (`FUN-L-33`, Parte C).

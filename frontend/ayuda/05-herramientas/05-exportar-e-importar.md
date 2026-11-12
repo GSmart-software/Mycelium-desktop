@@ -1,7 +1,7 @@
 ---
 titulo: Exportar e importar
 tema: Herramientas
-sinonimos: [pdf, respaldo, backup, obsidian, zip, markdown, migrar, imprimir]
+sinonimos: [pdf, respaldo, backup, obsidian, zip, markdown, migrar, imprimir, guardar como, descargar, dónde quedó, abrir la carpeta]
 ---
 
 **Exportar** saca una nota o el vault entero de Mycelium: una nota como Markdown o como PDF,
@@ -26,11 +26,29 @@ vault o mudarte desde Obsidian sin perder la estructura de carpetas.
 | **Estilar callouts** | Los callouts salen como cajas; si no, como cita simple. |
 | **Estilos de Mycelium** | La tipografía de Mycelium; si no, un documento plano. |
 
+El `.md` se guarda donde elijas: se abre el diálogo **Guardar como** con el nombre de la nota.
+El PDF lo guarda el diálogo de impresión: elige ahí **Guardar como PDF** y la carpeta.
+
 ## Exportar el vault
 
 En Configuración → **Vault** → **Exportar**: **Exportar vault como ZIP** guarda todas las
-notas con su estructura de carpetas en un solo archivo. En la app de escritorio también
-está **Exportar a carpeta…**, útil para tenerlo en git o en una carpeta sincronizada.
+notas con su estructura de carpetas en un solo archivo, donde elijas en **Guardar como**. En
+la app de escritorio también está **Exportar a carpeta…**, útil para tenerlo en git o en una
+carpeta sincronizada.
+
+## El aviso de la exportación
+
+Mientras se exporta, abajo a la derecha aparece una tarjeta que dice qué se está exportando
+(con el avance, si es el vault entero). Al terminar dice dónde quedó y ofrece **Abrir la
+carpeta**, que la muestra en el explorador del sistema con el archivo seleccionado. Se va
+sola a los 12 segundos, o antes con la ×. Si algo falla, la tarjeta dice qué.
+
+Vale para todo lo que sale de Mycelium: una nota como `.md` o PDF, el vault como ZIP o a una
+carpeta, un dibujo como PNG o SVG, **Guardar una copia…** de un archivo, un snippet de CSS y la
+plantilla de snippets. Si cancelas el diálogo para guardar, no aparece nada.
+
+Con el PDF, la tarjeta avisa cuando se abre el diálogo de impresión, pero no ofrece abrir la
+carpeta: ese diálogo es del sistema y no le cuenta a Mycelium dónde guardaste el archivo.
 
 ## Importar
 

@@ -355,8 +355,9 @@ export async function renderExcalidrawIn(container: HTMLElement): Promise<void> 
 }
 
 /**
- * Exporta como PNG o SVG el dibujo que nombra `ref` y dispara la descarga
- * (HU-17). El archivo descargado lleva el título del dibujo.
+ * Exporta como PNG o SVG el dibujo que nombra `ref` (HU-17), donde el usuario
+ * elija en «Guardar como», con la tarjeta de exportación (`FUN-M-22`). El
+ * archivo lleva el título del dibujo.
  */
 export async function exportDiagram(ref: string, format: "png" | "svg"): Promise<void> {
   const target = resolveExcalidrawTarget(ref);
@@ -368,30 +369,28 @@ export async function exportDiagram(ref: string, format: "png" | "svg"): Promise
     return; // ilegible (`DEF-119`): el embed ya lo dice y no hay nada que exportar
   }
   if (!scene) return;
+  const escena = scene;
 
-  let blob: Blob;
-  if (format === "png") {
-    const { exportToBlob } = await cargarExcalidraw();
-    blob = await exportToBlob({
-      elements: scene.elements as never,
-      appState: {
-        ...scene.appState,
-        exportWithDarkMode: exportDarkMode(),
-      } as never,
-      files: (scene.files ?? null) as never,
-      mimeType: "image/png",
-    });
-  } else {
-    const svg = await sceneToSvg(scene);
-    blob = new Blob([new XMLSerializer().serializeToString(svg)], {
-      type: "image/svg+xml",
-    });
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${target.titulo}.${format}`;
-  link.click();
-  URL.revokeObjectURL(url);
+  const { exportarArchivo } = await import("@/lib/exportarConAviso");
+  await exportarArchivo({
+    nombre: `${target.titulo.replace(/[\\/:*?"<>|]/g, "_")}.${format}`,
+    extension: format,
+    descripcion: format === "png" ? "Imagen PNG" : "Imagen SVG",
+    generar: async () => {
+      if (format === "png") {
+        const { exportToBlob } = await cargarExcalidraw();
+        return exportToBlob({
+          elements: escena.elements as never,
+          appState: {
+            ...escena.appState,
+            exportWithDarkMode: exportDarkMode(),
+          } as never,
+          files: (escena.files ?? null) as never,
+          mimeType: "image/png",
+        });
+      }
+      const svg = await sceneToSvg(escena);
+      return new XMLSerializer().serializeToString(svg);
+    },
+  });
 }

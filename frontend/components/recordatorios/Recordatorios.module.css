@@ -703,13 +703,10 @@
 /* ── Tarjetas de aviso ────────────────────────────────────────── */
 
 /* Abajo a la DERECHA: los avisos efímeros (`FUN-M-33`) ocupan la izquierda, y
-   así una tarjeta que no se va no tapa a los que sí. Por encima del modal del
-   calendario y de Configuración, como ellos. */
+   así una tarjeta que no se va no tapa a los que sí. La posición la pone la
+   esquina que comparte con las exportaciones (`FUN-M-22`,
+   `components/workspace/EsquinaDerecha`): así no se encima con ellas. */
 .pilaTarjetas {
-  position: fixed;
-  right: 1rem;
-  bottom: calc(var(--mic-statusbar-height) + 0.75rem);
-  z-index: 85;
   display: flex;
   flex-direction: column-reverse;
   gap: 0.5rem;
