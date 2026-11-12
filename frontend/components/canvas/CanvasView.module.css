@@ -209,6 +209,11 @@
   min-height: 0;
   overflow: auto;
   padding: 0.45rem 0.6rem;
+  /* `DEF-183`: el contenido de una tarjeta fuera de la vista no se dibuja. Una
+     tarjeta de nota muestra la nota entera, y con cien de ellas el navegador
+     pintaba también las que no se ven. El tamaño del cuerpo no depende de su
+     contenido (es el hueco que deja la tarjeta), así que saltarlo no mueve nada. */
+  content-visibility: auto;
 }
 
 .render {
