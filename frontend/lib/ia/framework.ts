@@ -184,6 +184,14 @@ import { FRAMEWORK_IA_VERSION } from "./versionFramework";
  *   rechazan—, en la regla 12 del núcleo, en `mycelium-vault` («La Bandeja del
  *   vault» y «Qué ve el usuario») y en `mycelium-operar`.
  *   **Minor**: la IA conoce una nota con reglas propias.
+ * - 2.6.0 — **paneles, bandejas y recordatorios personales** (app `2.9.0`):
+ *   `mycelium_abrir` recibe `panel` y `mycelium_dividir` divide la pantalla
+ *   (`FUN-M-59`); `mycelium_bandeja` lee y vacía la Bandeja del vault y la
+ *   personal (`FUN-S-40`, regla 12 del núcleo y `mycelium-operar`); las
+ *   herramientas del calendario reciben `alcance` para los recordatorios
+ *   personales (`FUN-M-60`, `mycelium-calendario`); `mycelium_salud` deja afuera
+ *   las carpetas que empiezan con punto, como el panel (`FUN-S-38`).
+ *   **Minor**: la IA gana herramientas y parámetros nuevos.
  */
 // El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
 // cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.

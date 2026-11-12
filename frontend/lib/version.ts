@@ -199,4 +199,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.8.1";
+export const APP_VERSION = "2.9.0";
