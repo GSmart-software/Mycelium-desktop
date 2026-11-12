@@ -2,15 +2,17 @@
 
 import { useMemo } from "react";
 import {
+  FILTROS_ALCANCE,
   fechaLarga,
   nombreDelMes,
   ocurrenciasEnRango,
   rangoDePeriodo,
   varColor,
+  type FiltroAlcance,
   type Ocurrencia,
   type Periodo,
 } from "@/lib/recordatorios";
-import { Check } from "lucide-react";
+import { Check, UserRound } from "lucide-react";
 import { useModalRecordatorioStore, useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { fechaCorta, horaDe } from "./comun";
 import styles from "./Recordatorios.module.css";
@@ -46,6 +48,44 @@ export function SelectorPeriodo({
   );
 }
 
+/**
+ * El filtro de alcance (`FUN-M-60`): todos, solo los del vault o solo los
+ * personales. Lo comparten la pestaña y el panel (vive en el store).
+ */
+export function SelectorAlcance() {
+  const filtro = useRecordatoriosStore((s) => s.filtro);
+  const setFiltro = useRecordatoriosStore((s) => s.setFiltro);
+  return (
+    <select
+      className={`${styles.entrada} ${styles.filtroAlcance}`}
+      aria-label="Qué recordatorios mostrar"
+      title="Qué recordatorios mostrar: los de este vault, los personales (de todos los vaults) o todos"
+      value={filtro}
+      onChange={(e) => setFiltro(e.target.value as FiltroAlcance)}
+    >
+      {FILTROS_ALCANCE.map((f) => (
+        <option key={f.valor} value={f.valor}>
+          {f.nombre}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** La marca de un recordatorio personal: el ícono de persona, como en la captura rápida. */
+export function MarcaPersonal({ size = 12 }: { size?: number }) {
+  return (
+    <span
+      className={styles.marcaPersonal}
+      role="img"
+      aria-label="Personal"
+      title="Personal: se ve en todos los vaults"
+    >
+      <UserRound size={size} aria-hidden />
+    </span>
+  );
+}
+
 /** Cómo se titula la lista según el período: «25 de septiembre», «Semana del 21», «septiembre 2026». */
 function tituloDelPeriodo(fecha: string, periodo: Periodo): string {
   const { desde } = rangoDePeriodo(fecha, periodo);
@@ -72,8 +112,9 @@ export function ListaRecordatorios({
   /** Clave `id@fecha` de la ocurrencia a resaltar («Abrir» desde un aviso). */
   seleccionado: string | null;
 }) {
-  const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
-  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
+  const recordatorios = useRecordatoriosStore((s) => s.visibles);
+  const estados = useRecordatoriosStore((s) => s.vista.ocurrencias);
+  const personales = useRecordatoriosStore((s) => s.personales);
   const alternar = useRecordatoriosStore((s) => s.alternarCompletada);
   const abrirModal = useModalRecordatorioStore((s) => s.abrir);
 
@@ -146,6 +187,7 @@ export function ListaRecordatorios({
                         <span className={styles.itemTitulo} title={o.recordatorio.titulo}>
                           {o.recordatorio.titulo}
                         </span>
+                        {personales.has(o.recordatorio.id) && <MarcaPersonal />}
                       </button>
                     </li>
                   );
