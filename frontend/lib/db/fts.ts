@@ -2,8 +2,9 @@
  * Construcción de la query FTS5 a partir del texto del usuario (HU-21 CA5/6/7).
  * Portado de `SearchEndpoints.BuildFtsQuery`: AND implícito, frases entre
  * comillas; cada término se entrecomilla para neutralizar operadores FTS y (en
- * modo coincidencia) se le añade `*` de prefijo. `tag:x` ya no llega al FTS: es
- * un filtro sobre la tabla `etiquetas` (`DEF-152`, ver `separarFiltrosPropiedad`).
+ * modo coincidencia) se le añade `*` de prefijo. `tag:x` (y `#x`, `DEF-184`) ya
+ * no llega al FTS: es un filtro sobre la tabla `etiquetas` (`DEF-152`, ver
+ * `separarFiltrosPropiedad`).
  */
 /**
  * Un filtro `clave:valor` sobre la tabla `propiedades` (FUN-M-04).
@@ -91,6 +92,15 @@ export function separadoresSql(columna: string): string {
 const FILTRO_RE = /^([\p{L}_][\p{L}\p{N}_-]*):([^/].*)$/u;
 
 /**
+ * Token que es una etiqueta escrita como en la nota: `#proyecto`, `#123`,
+ * `#HU-12`, `#huerta/riego` (`DEF-184`). Los caracteres son los de `TAG_RE` en
+ * `lib/frontmatter.ts`, el patrón con el que el índice reconoce un `#tag` del
+ * cuerpo: lo que el índice no guardaría como etiqueta (`#`, `##`, `#x.`) sigue
+ * siendo texto.
+ */
+const ETIQUETA_RE = /^#([\p{L}\p{N}_/-]+)$/u;
+
+/**
  * Separa los filtros de la consulta: los `clave:valor` sobre las propiedades y
  * los `tag:x` sobre las etiquetas; lo que queda es el texto libre.
  *
@@ -100,6 +110,12 @@ const FILTRO_RE = /^([\p{L}_][\p{L}\p{N}_-]*):([^/].*)$/u;
  * nota con `familia: solanáceas`, que no tiene esa etiqueta—. Ahora va a
  * `etiquetas`, ya plegado (`plegarEtiqueta`). Un `tag:` vacío (`tag:`, `tag:#`,
  * lo que se está escribiendo todavía) no filtra nada y se descarta.
+ *
+ * `#x` es lo mismo que `tag:x` (`DEF-184`; lo prometía el criterio 5 de la
+ * HU-21): hasta entonces iba al FTS como texto, el tokenizador tiraba el `#` y
+ * `#123` buscaba el número `123` en cualquier lado. Dentro de una frase entre
+ * comillas (`"#123 pendiente"`) el `#` sigue siendo texto literal: la frase es
+ * un solo token y no pasa por acá.
  */
 export function separarFiltrosPropiedad(raw: string): {
   filtros: FiltroPropiedad[];
@@ -111,10 +127,11 @@ export function separarFiltrosPropiedad(raw: string): {
   const resto: string[] = [];
 
   for (const texto of tokensDeConsulta(raw)) {
-    if (texto.toLowerCase().startsWith("tag:")) {
+    const conNumeral = ETIQUETA_RE.exec(texto);
+    if (texto.toLowerCase().startsWith("tag:") || conNumeral) {
       // Las comillas no hacen falta (una etiqueta no lleva espacios), pero
       // tampoco estorban: `tag:"x"` es `tag:x`.
-      const tag = plegarEtiqueta(texto.slice(4).replace(/^"|"$/g, ""));
+      const tag = plegarEtiqueta(conNumeral ? conNumeral[1] : texto.slice(4).replace(/^"|"$/g, ""));
       if (tag !== "" && !etiquetas.includes(tag)) etiquetas.push(tag);
       continue;
     }

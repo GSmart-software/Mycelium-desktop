@@ -278,7 +278,7 @@ export function SearchPanel() {
 
       <p className={styles.hint}>
         AND implícito · <code>&quot;frase exacta&quot;</code> ·{" "}
-        <code>tag:nombre</code> · <code>clave:valor</code>
+        <code>#etiqueta</code> · <code>clave:valor</code>
       </p>
 
       {query.trim().length > 0 && query.trim().length < MINIMO_CARACTERES && (

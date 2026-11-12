@@ -220,10 +220,40 @@ test("un tag: vacío (el que se está escribiendo) no filtra ni busca nada", sol
   }
 });
 
-test("un # suelto sigue siendo texto: solo tag: filtra por etiqueta", soloDesktop, () => {
-  const { etiquetas, resto } = separarFiltrosPropiedad("#idea");
-  assert.deepEqual(etiquetas, []);
-  assert.equal(resto, "#idea");
+// DEF-152 había dejado `#idea` como texto; DEF-184 lo hace igual a `tag:idea`,
+// como prometía el criterio 5 de la HU-21.
+test("#x es tag:x: va a la tabla de etiquetas, plegado (DEF-184)", soloDesktop, () => {
+  for (const [q, tag] of [
+    ["#idea", "idea"],
+    ["#Solanáceas", "solanaceas"],
+    ["#123", "123"],
+    ["#HU-12", "hu-12"],
+    ["#Huerta/Riego", "huerta/riego"],
+  ]) {
+    const r = separarFiltrosPropiedad(q);
+    assert.deepEqual([r.filtros, r.etiquetas, r.resto], [[], [tag], ""], q);
+    assert.deepEqual(r.etiquetas, separarFiltrosPropiedad(`tag:${q.slice(1)}`).etiquetas, q);
+  }
+  // Combinado con texto, con un filtro y con `tag:`, repetida una sola vez.
+  const c = separarFiltrosPropiedad("informe #123 estado:activo tag:123 #idea");
+  assert.deepEqual(c.etiquetas, ["123", "idea"]);
+  assert.equal(c.resto, "informe");
+  assert.equal(c.filtros.length, 1);
+});
+
+test("un # que no forma etiqueta, o dentro de una frase, sigue siendo texto (DEF-184)", soloDesktop, () => {
+  // Entre comillas la frase es un solo token: el `#` es literal.
+  assert.deepEqual(separarFiltrosPropiedad('"#123 pendiente"'), {
+    filtros: [],
+    etiquetas: [],
+    resto: '"#123 pendiente"',
+  });
+  // Lo que el índice no reconocería como etiqueta (`TAG_RE`): `#` solo, `##`,
+  // con puntuación al final, o pegado a una palabra.
+  for (const q of ["#", "##", "#idea.", "C#"]) {
+    const r = separarFiltrosPropiedad(q);
+    assert.deepEqual([r.etiquetas, r.resto], [[], q], q);
+  }
 });
 
 test("separar los filtros y armar la query FTS cortan los tokens igual", soloDesktop, () => {
