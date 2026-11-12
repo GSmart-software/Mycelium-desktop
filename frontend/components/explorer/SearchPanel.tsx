@@ -30,7 +30,23 @@ import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useVaultStore, type NotaTipo } from "@/stores/vaultStore";
+import { RenameInput, useAccionesArchivo, type RenameState } from "./useAccionesArchivo";
 import styles from "./SearchPanel.module.css";
+
+/** Lo que una fila de resultados necesita para su menú y su renombrado (`DEF-185`). */
+type AccionesFila = Pick<
+  ReturnType<typeof useAccionesArchivo>,
+  "renaming" | "cambiarRenombre" | "commitRename" | "setRenaming"
+> & {
+  /** Clic derecho (o tecla Menú) sobre una nota. */
+  menuNota: (e: React.MouseEvent, notaId: string) => void;
+  /** Clic derecho (o tecla Menú) sobre una carpeta. */
+  menuCarpeta: (e: React.MouseEvent, carpetaId: string) => void;
+};
+
+/** ¿Se está renombrando ESTE elemento? */
+const renombrando = (r: RenameState, type: "nota" | "carpeta", id: string | null) =>
+  r !== null && r.type === type && r.id === id;
 
 type Resultado = {
   nota_id: string;
@@ -86,6 +102,30 @@ export function SearchPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultadosRef = useRef<HTMLDivElement>(null);
   const alTeclaEnResultados = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // El campo de renombrar atiende sus propias teclas (Enter, Esc, flechas).
+    if ((e.target as HTMLElement).tagName === "INPUT") return;
+    // Tecla Menú o Shift+F10: el menú del resultado, como el clic derecho; F2,
+    // renombrar. Lo mismo que en el árbol del explorador (`DEF-185`).
+    const fila = e.target as HTMLElement;
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      const r = fila.getBoundingClientRect();
+      fila.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: r.left + 24, clientY: r.bottom }),
+      );
+      return;
+    }
+    if (e.key === "F2") {
+      const { notaId, carpetaId } = fila.dataset;
+      const vs = useVaultStore.getState();
+      const nota = notaId ? vs.notas.find((n) => n.id === notaId) : undefined;
+      const carpeta = carpetaId ? vs.carpetas.find((c) => c.id === carpetaId) : undefined;
+      if (nota) archivo.setRenaming({ type: "nota", id: nota.id, valor: nota.titulo });
+      else if (carpeta) archivo.setRenaming({ type: "carpeta", id: carpeta.id, valor: carpeta.nombre });
+      else return;
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       inputRef.current?.focus();
@@ -123,6 +163,65 @@ export function SearchPanel() {
   const notas = useVaultStore((s) => s.notas);
   const tipos = useMemo(() => new Map(notas.map((n) => [n.id, n.tipo])), [notas]);
   const vaultId = useVaultStore((s) => s.vaultId);
+
+  // El menú contextual del explorador, el mismo (`DEF-185`): renombrar, mover,
+  // duplicar o borrar desde un resultado sin ir a buscarlo al árbol.
+  const archivo = useAccionesArchivo();
+  const accionesFila: AccionesFila = {
+    renaming: archivo.renaming,
+    cambiarRenombre: archivo.cambiarRenombre,
+    commitRename: archivo.commitRename,
+    setRenaming: archivo.setRenaming,
+    menuNota: (e, notaId) => {
+      e.preventDefault();
+      // Una nota que la búsqueda encuentra pero el índice en memoria todavía
+      // no tiene: sin menú, que sus acciones no tendrían sobre qué operar.
+      const nota = useVaultStore.getState().notas.find((n) => n.id === notaId);
+      if (nota) archivo.abrirMenu(e, archivo.notaMenu(nota));
+    },
+    menuCarpeta: (e, carpetaId) => {
+      e.preventDefault();
+      const vs = useVaultStore.getState();
+      const carpeta = vs.carpetas.find((c) => c.id === carpetaId);
+      if (!carpeta) return;
+      // Como en el explorador: la carpeta del clic derecho pasa a ser el
+      // destino de «nota nueva» e importar.
+      vs.setActiveFolder(carpeta.id);
+      archivo.abrirMenu(e, archivo.carpetaMenu(carpeta));
+    },
+  };
+
+  /**
+   * Lo que cambia la lista de resultados sin cambiar la consulta: renombrar,
+   * mover, duplicar, crear o borrar desde el menú (`DEF-185`). Sin esto, la
+   * fila seguía mostrando el nombre viejo y apuntando a una ruta que ya no
+   * existe. Son los ids (la ruta) y los títulos: guardar una nota no la cambia,
+   * así que escribir no relanza la búsqueda.
+   */
+  const firmaVault = useMemo(
+    () => notas.map((n) => `${n.id}\u0000${n.titulo}`).join("\n") + "\n\n" + carpetas.map((c) => c.id).join("\n"),
+    [notas, carpetas],
+  );
+
+  // Al terminar un renombrado, el foco vuelve a los resultados: el campo
+  // desaparece y, sin esto, caía al <body>. Se busca la fila por su id de
+  // antes (sirve si se canceló); si ya no está, la primera, y si tampoco, el
+  // campo de búsqueda.
+  const renombradoAnteriorRef = useRef<RenameState>(null);
+  useEffect(() => {
+    const antes = renombradoAnteriorRef.current;
+    renombradoAnteriorRef.current = archivo.renaming;
+    if (!antes || archivo.renaming) return;
+    const cuadro = requestAnimationFrame(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const atributo = antes.type === "carpeta" ? "data-carpeta-id" : "data-nota-id";
+      const fila =
+        resultadosRef.current?.querySelector<HTMLElement>(`[${atributo}="${CSS.escape(antes.id)}"]`) ??
+        primerControl(resultadosRef.current);
+      (fila ?? inputRef.current)?.focus();
+    });
+    return () => cancelAnimationFrame(cuadro);
+  }, [archivo.renaming]);
 
   // Foco automático al activar la búsqueda (CA2)
   useEffect(() => {
@@ -175,7 +274,7 @@ export function SearchPanel() {
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [query, vaultId, exacto, campo]);
+  }, [query, vaultId, exacto, campo, firmaVault]);
 
   const restoreExplorer = () => {
     usePanelLayoutStore.getState().toggleSection("explorer");
@@ -309,6 +408,7 @@ export function SearchPanel() {
             raiz
             tipos={tipos}
             onAbrir={openResult}
+            acciones={accionesFila}
           />
         </div>
       ) : (
@@ -323,12 +423,15 @@ export function SearchPanel() {
                 // repetirlo en cada hoja sería la misma ruta cien veces.
                 ruta={folderPath(r.carpeta_id, carpetas)}
                 onAbrir={openResult}
+                acciones={accionesFila}
               />
             </li>
           ))}
         </ul>
       )}
       </div>
+      {/* El menú contextual, «Mover a…» y el selector de «Importar archivos…». */}
+      {archivo.capas}
     </div>
   );
 }
@@ -346,20 +449,43 @@ function Fila({
   ruta,
   tipo,
   onAbrir,
+  acciones,
 }: {
   resultado: Resultado;
   ruta: string;
   tipo: NotaTipo | undefined;
   onAbrir: (notaId: string) => void;
+  acciones: AccionesFila;
 }) {
   // Una nota que la búsqueda encuentra pero el índice en memoria todavía no
   // tiene: markdown, que es lo que casi siempre resulta ser.
   const Icono = ICONO_POR_TIPO[tipo ?? "markdown"];
+  // Renombrar desde el menú (`DEF-185`): el campo ocupa el lugar del título,
+  // como en el árbol del explorador. No va dentro del botón: un campo de texto
+  // dentro de un <button> no se puede editar.
+  if (renombrando(acciones.renaming, "nota", resultado.nota_id)) {
+    return (
+      <div className={styles.result}>
+        <span className={styles.resultHead}>
+          <Icono size={13} className={styles.resultIcon} aria-hidden />
+          <RenameInput
+            renameValue={acciones.renaming?.valor ?? ""}
+            onRenameChange={acciones.cambiarRenombre}
+            onRenameCommit={acciones.commitRename}
+            onRenameCancel={() => acciones.setRenaming(null)}
+            pistaAlias={(tipo ?? "markdown") === "markdown" ? resultado.titulo : undefined}
+          />
+        </span>
+      </div>
+    );
+  }
   return (
     <button
       type="button"
       className={styles.result}
       onClick={() => onAbrir(resultado.nota_id)}
+      onContextMenu={(e) => acciones.menuNota(e, resultado.nota_id)}
+      data-nota-id={resultado.nota_id}
     >
       <span className={styles.resultHead}>
         <Icono size={13} className={styles.resultIcon} aria-hidden />
@@ -400,11 +526,13 @@ function Rama({
   raiz = false,
   tipos,
   onAbrir,
+  acciones,
 }: {
   nodo: NodoResultados<Resultado>;
   raiz?: boolean;
   tipos: Map<string, NotaTipo>;
   onAbrir: (notaId: string) => void;
+  acciones: AccionesFila;
 }) {
   const [abierta, setAbierta] = useState(true);
 
@@ -417,33 +545,52 @@ function Rama({
           ruta=""
           tipo={tipos.get(r.nota_id)}
           onAbrir={onAbrir}
+          acciones={acciones}
         />
       ))}
       {nodo.hijos.map((h) => (
-        <Rama key={h.id} nodo={h} tipos={tipos} onAbrir={onAbrir} />
+        <Rama key={h.id} nodo={h} tipos={tipos} onAbrir={onAbrir} acciones={acciones} />
       ))}
     </>
   );
 
   if (raiz) return contenido;
 
+  const flecha = abierta ? (
+    <ChevronDown size={13} className={styles.carpetaFlecha} aria-hidden />
+  ) : (
+    <ChevronRight size={13} className={styles.carpetaFlecha} aria-hidden />
+  );
+
   return (
     <div>
-      <button
-        type="button"
-        className={styles.carpeta}
-        aria-expanded={abierta}
-        onClick={() => setAbierta((v) => !v)}
-      >
-        {abierta ? (
-          <ChevronDown size={13} className={styles.carpetaFlecha} aria-hidden />
-        ) : (
-          <ChevronRight size={13} className={styles.carpetaFlecha} aria-hidden />
-        )}
-        <Folder size={13} className={styles.carpetaIcono} aria-hidden />
-        <span className={styles.carpetaNombre}>{nodo.nombre}</span>
-        <span className={styles.carpetaCuenta}>{nodo.total}</span>
-      </button>
+      {renombrando(acciones.renaming, "carpeta", nodo.id) ? (
+        // Renombrar la carpeta (`DEF-185`), en el lugar de su nombre.
+        <div className={styles.carpeta}>
+          {flecha}
+          <Folder size={13} className={styles.carpetaIcono} aria-hidden />
+          <RenameInput
+            renameValue={acciones.renaming?.valor ?? ""}
+            onRenameChange={acciones.cambiarRenombre}
+            onRenameCommit={acciones.commitRename}
+            onRenameCancel={() => acciones.setRenaming(null)}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.carpeta}
+          aria-expanded={abierta}
+          onClick={() => setAbierta((v) => !v)}
+          onContextMenu={(e) => nodo.id !== null && acciones.menuCarpeta(e, nodo.id)}
+          data-carpeta-id={nodo.id ?? undefined}
+        >
+          {flecha}
+          <Folder size={13} className={styles.carpetaIcono} aria-hidden />
+          <span className={styles.carpetaNombre}>{nodo.nombre}</span>
+          <span className={styles.carpetaCuenta}>{nodo.total}</span>
+        </button>
+      )}
       {abierta && <div className={styles.rama}>{contenido}</div>}
     </div>
   );
