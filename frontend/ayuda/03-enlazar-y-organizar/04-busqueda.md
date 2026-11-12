@@ -24,6 +24,10 @@ frase que escribiste hace meses o todas las notas con una etiqueta o una propied
    abre la nota en la primera coincidencia. Con el teclado (**Ctrl+Shift+F**), **↓** baja
    del campo a los resultados, **↑** en el primero o **Esc** vuelven al campo, **Enter** abre
    el resultado, y teclear el comienzo de un nombre salta a ese resultado.
+4. El **clic derecho** sobre un resultado o sobre una carpeta de los resultados abre el
+   mismo menú que en el explorador: abrir al lado, renombrar, mover, duplicar, copiar el
+   enlace, exportar, eliminar y, en una carpeta, crear adentro. Con el teclado, la tecla
+   **Menú** o **Shift+F10** lo abren, y **F2** renombra.
 
 ## La búsqueda global
 
