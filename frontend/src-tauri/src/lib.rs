@@ -19,6 +19,7 @@ mod mycignore;
 mod navegacion;
 mod prefs_vault;
 mod recordatorios;
+mod recordatorios_personales;
 mod reposo;
 mod terminal;
 mod vault_config;
@@ -261,6 +262,12 @@ pub fn run() {
             // vaults, sin ruta desde la interfaz (`bandeja_personal.rs`).
             bandeja_personal::bandeja_personal_leer,
             bandeja_personal::bandeja_personal_guardar,
+            // Los recordatorios personales (`FUN-M-60`): un único archivo fuera
+            // de los vaults, sin ruta desde la interfaz, y el reparto de sus
+            // avisos entre ventanas (`recordatorios_personales.rs`).
+            recordatorios_personales::recordatorios_personales_leer,
+            recordatorios_personales::recordatorios_personales_guardar,
+            recordatorios_personales::recordatorios_personales_reclamar,
             // La captura global (`FUN-L-33`, Parte C, `captura_global.rs`).
             captura_global::captura_flotante_destinos,
             captura_global::captura_flotante_ocultar,

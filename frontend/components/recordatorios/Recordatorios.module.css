@@ -1067,3 +1067,30 @@
   filter: var(--aurora-hover);
   transform: var(--aurora-elevar);
 }
+
+/* ── Recordatorios personales (`FUN-M-60`) ─────────────────────────────────
+   La marca de un personal (el ícono de persona, como el destino «Personal» de
+   la captura rápida) y el filtro de alcance. Nombres nuevos: el módulo es uno
+   solo para la pestaña, el panel, el modal y la tarjeta (ver la lección de
+   `.casilla`). */
+
+.marcaPersonal {
+  flex: none;
+  color: var(--mic-text-muted);
+}
+
+.chip .marcaPersonal {
+  color: currentColor;
+  opacity: 0.8;
+}
+
+.filtroAlcance {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.alcanceRecordatorio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}

@@ -1,6 +1,6 @@
 ---
 name: mycelium-calendario
-description: El calendario de recordatorios del vault de Mycelium — consultar qué hay agendado hoy, esta semana, un día o un mes (con las repeticiones bien expandidas y lo completado) y agendar, cambiar, completar o borrar recordatorios. Leer, preferentemente con la herramienta mycelium_recordatorios (o el script de esta skill); modificar, SOLO con las herramientas mycelium_recordatorio_* del MCP, nunca escribiendo .mycelium/recordatorios.json. Usar cuando el usuario pregunte por su agenda, recordatorios, vencimientos o «qué tengo…», o pida «recordame…».
+description: El calendario de recordatorios de Mycelium —los del vault y los personales, que se ven en todos los vaults— — consultar qué hay agendado hoy, esta semana, un día o un mes (con las repeticiones bien expandidas y lo completado) y agendar, cambiar, completar o borrar recordatorios. Leer, preferentemente con la herramienta mycelium_recordatorios (o el script de esta skill); modificar, SOLO con las herramientas mycelium_recordatorio_* del MCP, nunca escribiendo .mycelium/recordatorios.json. Usar cuando el usuario pregunte por su agenda, recordatorios, vencimientos o «qué tengo…», o pida «recordame…».
 ---
 <!-- mycelium-ia v{{VERSION_IA}} -->
 # El calendario del vault
@@ -10,6 +10,17 @@ hora opcional, una repetición, un color y un detalle en markdown que puede tene
 `[[enlaces]]`. Vive en **`.mycelium/recordatorios.json`**. No son notas: no aparecen en
 el explorador, en la búsqueda ni en el grafo, así que un `grep` sobre `*.md` no los
 encuentra.
+
+> [!info] Dos alcances: los del vault y los personales
+> Además de los **del vault**, el usuario puede tener recordatorios **personales**: se
+> guardan fuera de los vaults (en la carpeta de datos de Mycelium, `Recordatorios
+> personales.json`) y se ven y avisan **desde todos sus vaults**. El calendario de la app
+> los muestra juntos, con una marca (el ícono de persona) y un filtro. Un personal
+> recuerda el vault donde se creó: sus `[[enlaces]]` son de **ese** vault, que puede no
+> ser este. Para vos, la diferencia está en el parámetro **`alcance`** de las
+> herramientas (`vault` o `personal`): por defecto, **lo que crees va al vault**. Creá
+> uno personal solo si el usuario lo pide así («en todos los vaults», «personal», «para
+> mí, no del proyecto»).
 
 > [!danger] Regla dura: el archivo se LEE; el calendario se modifica SOLO por MCP
 > **Nunca escribas en `.mycelium/`** — ni en `recordatorios.json` ni en ningún otro.
@@ -28,10 +39,12 @@ encuentra.
 
 ## Leer: primero `mycelium_recordatorios`
 
-Si tenés la herramienta **`mycelium_recordatorios({desde, hasta})`**, usala: devuelve las
-ocurrencias del rango (tope 366 días) **calculadas por la misma lógica que la app** —
-repeticiones expandidas, orden de la lista, color, ✓ completada, el **id** que necesitan
-las demás herramientas y el primer renglón del detalle—. Si contesta `APP_CERRADA` o
+Si tenés la herramienta **`mycelium_recordatorios({desde, hasta, alcance?})`**, usala:
+devuelve las ocurrencias del rango (tope 366 días) **calculadas por la misma lógica que la
+app** —repeticiones expandidas, orden de la lista, color, ✓ completada, el **id** que
+necesitan las demás herramientas y el primer renglón del detalle—, **de los dos
+alcances**: las personales llevan `· personal`. Con `alcance: "vault"` o `"personal"`
+trae solo esos. Si contesta `APP_CERRADA` o
 `MCP_DESACTIVADO`, o no la tenés, leé el archivo con el **script** de esta skill
 (§ «Cómo responder»). El formato y las reglas de abajo sirven para los dos caminos: el
 script las aplica igual, y para entender lo que te devuelve la herramienta.
@@ -40,13 +53,16 @@ script las aplica igual, y para entender lo que te devuelve la herramienta.
 
 | Querés… | Herramienta | Detalle |
 |---|---|---|
-| Agendar | `mycelium_recordatorio_crear({titulo, fecha, hora?, repeticion?, color?, detalle?})` | `fecha` AAAA-MM-DD local; `hora` HH:MM de 24 h, o sin hora = todo el día; `repeticion` `ninguna`·`dia`·`semana`·`mes`·`anio`; `color` **por nombre** (Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma; por defecto Hifa). Devuelve el id, la próxima ocurrencia y si va a avisar |
-| Cambiar | `mycelium_recordatorio_editar({id, ...campos})` | Solo los campos que mandes; `hora: null` lo pasa a todo el día |
-| Marcar hecho | `mycelium_recordatorio_completar({id, fecha, completado?})` | La **ocurrencia** de esa fecha (tiene que ser un día en que ocurre); `completado: false` la desmarca |
-| Borrar | `mycelium_recordatorio_borrar({id})` | Si se repite, la serie entera. No pregunta: el usuario lo restaura desde el registro de actividad |
+| Agendar | `mycelium_recordatorio_crear({titulo, fecha, hora?, repeticion?, color?, detalle?, alcance?})` | `fecha` AAAA-MM-DD local; `hora` HH:MM de 24 h, o sin hora = todo el día; `repeticion` `ninguna`·`dia`·`semana`·`mes`·`anio`; `color` **por nombre** (Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma; por defecto Hifa); `alcance` `vault` (por defecto) o `personal`. Devuelve el id, la próxima ocurrencia y si va a avisar |
+| Cambiar | `mycelium_recordatorio_editar({id, ...campos, alcance?})` | Solo los campos que mandes; `hora: null` lo pasa a todo el día. `alcance` **lo pasa** de un lado al otro (del vault a personal o al revés); sin él, queda donde está |
+| Marcar hecho | `mycelium_recordatorio_completar({id, fecha, completado?, alcance?})` | La **ocurrencia** de esa fecha (tiene que ser un día en que ocurre); `completado: false` la desmarca. En uno personal, vale en todos los vaults |
+| Borrar | `mycelium_recordatorio_borrar({id, alcance?})` | Si se repite, la serie entera; si es personal, de todos los vaults. No pregunta: el usuario lo restaura desde el registro de actividad |
 
 - **El id** sale de `mycelium_recordatorios` (o de la respuesta de crear). Si mandás un
   título en su lugar, `NO_ENCONTRADO` te ofrece los parecidos con su id.
+- **`alcance` al completar o borrar** es opcional: los ids no se repiten entre los dos
+  alcances, así que sin él se encuentra igual. Si lo mandás y el recordatorio está en el
+  otro, `NO_ENCONTRADO` te dice dónde está.
 - **Interpretá vos la fecha** antes de llamar («el viernes», «mañana a las 10»): sacá
   «hoy» como dice § «Rangos» y mandá AAAA-MM-DD. Si es ambigua, preguntá.
 - **Contale al usuario el efecto** con el texto que devuelve la herramienta («Creé
@@ -173,7 +189,9 @@ hora por título. Es el orden de la lista de la app.
 ## Cómo responder «¿qué tengo…?»
 
 1. **Con el MCP**, `mycelium_recordatorios` con el rango (decí cuál tomaste). **Sin el
-   MCP**, corré el script que viaja con esta skill, desde la raíz del vault. Solo lee, no
+   MCP**, corré el script que viaja con esta skill, desde la raíz del vault —que lee **solo
+   los del vault**: los personales viven fuera de él y sin el MCP no los ves; si importan
+   para la respuesta, decíselo al usuario—. Solo lee, no
    tiene dependencias y aplica exactamente las reglas de la app (descartes, repeticiones,
    orden, marcas):
 
@@ -192,7 +210,7 @@ hora por título. Es el orden de la lista de la app.
    Sin `node`, razoná con la tabla **día por día**, sin «saltar» semanas o meses a ojo.
 2. Si el script dice que no hay calendario, el vault no tiene recordatorios: decilo.
 3. Respondé por día, con hora (o «todo el día»), título, repetición si la tiene, «✓ hecha»
-   si está completada, y los `[[enlaces]]` del detalle **tal como están escritos** —con
+   si está completada, «personal» si lo es (solo cuando hay de los dos alcances), y los `[[enlaces]]` del detalle **tal como están escritos** —con
    su alias si lo tienen—, para que el usuario pueda seguirlos. Si el detalle enlaza una
    nota que te sirve para contestar (el orden del día, la lista de regalos), leéla y usala,
    citándola.
@@ -245,6 +263,10 @@ leé cada nota para ver si sigue abierta.
 
 ## Errores comunes
 
+- **Crear un recordatorio personal sin que el usuario lo pida**: por defecto van al vault.
+  Y un personal se borra de **todos** los vaults: confirmá que es ese antes de borrarlo.
+- **Seguir los `[[enlaces]]` de un personal como si fueran de este vault**: son del vault
+  donde se creó, que puede ser otro.
 - **Escribir en `.mycelium/`**. Nunca, ni para «marcar como hecho» algo que el usuario
   te pide: eso es `mycelium_recordatorio_completar`. Sin las herramientas, explicale
   dónde hacerlo en la app.

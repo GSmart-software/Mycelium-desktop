@@ -28,6 +28,7 @@ import {
   ocurrenciasEnRango,
   primerRenglon,
   sumarDias,
+  type Alcance,
   type ArchivoRecordatorios,
   type ColorRecordatorio,
   type EstadoOcurrencia,
@@ -127,6 +128,50 @@ function clavesConocidas(args: Record<string, unknown>, conocidas: string[]): Va
   return extra === undefined
     ? { ok: true, valor: null }
     : invalido(extra, `no es un campo de esta herramienta (son: ${conocidas.join(", ")}).`);
+}
+
+// ── El alcance (`FUN-M-60`) ─────────────────────────────────────────────────
+
+/**
+ * Saca `alcance` de los argumentos y devuelve el resto, para que cada
+ * herramienta valide lo suyo como siempre. `vault` o `personal`; ausente o
+ * `null`, `null` (cada herramienta decide qué significa: crear va al vault,
+ * leer trae los dos, editar no lo mueve). `todos` solo vale al leer.
+ */
+export function separarAlcance(
+  args: Record<string, unknown>,
+  aceptaTodos = false,
+): Validado<{ alcance: Alcance | null; resto: Record<string, unknown> }> {
+  const { alcance, ...resto } = args;
+  if (alcance === undefined || alcance === null || alcance === "") return { ok: true, valor: { alcance: null, resto } };
+  const a = typeof alcance === "string" ? alcance.trim().toLowerCase() : "";
+  if (a === "vault" || a === "personal") return { ok: true, valor: { alcance: a, resto } };
+  if (aceptaTodos && a === "todos") return { ok: true, valor: { alcance: null, resto } };
+  return invalido(
+    "alcance",
+    `«${String(alcance)}» no es un alcance; usa vault (los de este vault) o personal (los de todos los vaults)${aceptaTodos ? ", o todos" : ""}.`,
+  );
+}
+
+/** «personal» o «del vault», para los textos. */
+export function alcanceLegible(alcance: Alcance): string {
+  return alcance === "personal" ? "personal (se ve y avisa en todos los vaults)" : "de este vault";
+}
+
+/**
+ * Si se pidió un alcance y el recordatorio está en el otro: el error, que dice
+ * dónde está (los ids no se repiten entre los dos).
+ */
+export function comprobarAlcance(id: string, pedido: Alcance | null, real: Alcance | null): Validado<null> {
+  if (pedido === null || real === null || pedido === real) return { ok: true, valor: null };
+  return {
+    ok: false,
+    error: {
+      codigo: "NO_ENCONTRADO",
+      mensaje: `El recordatorio «${id}» no es ${pedido === "personal" ? "personal" : "de este vault"}: es ${alcanceLegible(real)}. Manda alcance: ${real}, u omítelo.`,
+      datos: { alcance: real },
+    },
+  };
 }
 
 // ── Lo que pide cada herramienta ────────────────────────────────────────────
@@ -307,6 +352,8 @@ export type OcurrenciaIa = {
   completada: boolean;
   /** El primer renglón del detalle, sin marcas y recortado. */
   detalle: string;
+  /** `vault` o `personal` (`FUN-M-60`). */
+  alcance: Alcance;
 };
 
 const DIAS_CORTOS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
@@ -322,8 +369,17 @@ function abreviar(detalle: string): string {
   return linea.length > LARGO_DETALLE ? `${linea.slice(0, LARGO_DETALLE - 1)}…` : linea;
 }
 
-/** Las ocurrencias entre dos fechas, en el orden de la lista de la app. */
-export function ocurrenciasParaIa(archivo: ArchivoRecordatorios, desde: string, hasta: string): OcurrenciaIa[] {
+/**
+ * Las ocurrencias entre dos fechas, en el orden de la lista de la app.
+ * `personales`: los ids de los recordatorios personales (`FUN-M-60`), para
+ * marcar cada ocurrencia con su alcance.
+ */
+export function ocurrenciasParaIa(
+  archivo: ArchivoRecordatorios,
+  desde: string,
+  hasta: string,
+  personales: ReadonlySet<string> = new Set(),
+): OcurrenciaIa[] {
   return ocurrenciasEnRango(archivo.recordatorios, desde, hasta).map(({ recordatorio: r, fecha }) => ({
     id: r.id,
     titulo: r.titulo,
@@ -334,6 +390,7 @@ export function ocurrenciasParaIa(archivo: ArchivoRecordatorios, desde: string, 
     repeticion: r.repeticion,
     completada: estaCompletada(archivo, claveOcurrencia(r.id, fecha)),
     detalle: abreviar(r.detalle),
+    alcance: personales.has(r.id) ? "personal" : "vault",
   }));
 }
 
@@ -391,8 +448,9 @@ function cuandoDe(r: Recordatorio, ahora: Date): string {
   return `${base} (${rep}${prox})`;
 }
 
-export function efectoCrear(r: Recordatorio, ahora: Date): string {
-  return `Creé «${r.titulo}» para ${cuandoDe(r, ahora)}, color ${nombreDeColor(r.color)}. ${fraseAviso(r, ahora)}`;
+export function efectoCrear(r: Recordatorio, ahora: Date, alcance: Alcance = "vault"): string {
+  const donde = alcance === "personal" ? " Es personal: se ve y avisa desde todos los vaults." : "";
+  return `Creé «${r.titulo}» para ${cuandoDe(r, ahora)}, color ${nombreDeColor(r.color)}. ${fraseAviso(r, ahora)}${donde}`;
 }
 
 const ETIQUETA_CAMPO: Record<keyof CamposRecordatorio, string> = {
@@ -426,12 +484,20 @@ export function camposCambiados(antes: Recordatorio, despues: Recordatorio): (ke
   return CAMPOS.filter((c) => antes[c] !== despues[c]);
 }
 
-export function efectoEditar(antes: Recordatorio, despues: Recordatorio, ahora: Date): string {
+export function efectoEditar(
+  antes: Recordatorio,
+  despues: Recordatorio,
+  ahora: Date,
+  alcance?: { antes: Alcance; despues: Alcance },
+): string {
   const cambiados = camposCambiados(antes, despues);
-  if (cambiados.length === 0) return `«${despues.titulo}» ya estaba así: no cambié nada.`;
-  const lista = cambiados
-    .map((c) => (c === "detalle" ? "el detalle" : `${ETIQUETA_CAMPO[c]} ${valorLegible(c, antes)} → ${valorLegible(c, despues)}`))
-    .join(", ");
+  const mueve = alcance !== undefined && alcance.antes !== alcance.despues;
+  if (cambiados.length === 0 && !mueve) return `«${despues.titulo}» ya estaba así: no cambié nada.`;
+  const partes = cambiados.map((c) =>
+    c === "detalle" ? "el detalle" : `${ETIQUETA_CAMPO[c]} ${valorLegible(c, antes)} → ${valorLegible(c, despues)}`,
+  );
+  if (mueve) partes.push(`ahora es ${alcanceLegible(alcance.despues)}`);
+  const lista = partes.join(", ");
   const cuando = cambiados.some((c) => c === "fecha" || c === "hora" || c === "repeticion")
     ? ` Queda para ${cuandoDe(despues, ahora)}. ${fraseAviso(despues, ahora)}`
     : "";
@@ -486,10 +552,13 @@ export function comprobarOcurrencia(r: Recordatorio, fecha: string): Validado<nu
 export type DeshacerCalendario =
   /** Deshacer un crear. `despues`: cómo quedó creado. */
   | { tipo: "borrar"; id: string; despues?: Recordatorio }
-  /** Deshacer un borrar: el recordatorio entero y el estado de sus ocurrencias. */
-  | { tipo: "restaurar"; recordatorio: Recordatorio; ocurrencias: Record<string, EstadoOcurrencia> }
-  /** Deshacer un editar: los valores de antes, y cómo quedó (`despues`). */
-  | { tipo: "reponer"; recordatorio: Recordatorio; despues?: Recordatorio }
+  /**
+   * Deshacer un borrar: el recordatorio entero, el estado de sus ocurrencias y
+   * dónde estaba (`FUN-M-60`; sin él, en el vault: los renglones de antes).
+   */
+  | { tipo: "restaurar"; recordatorio: Recordatorio; ocurrencias: Record<string, EstadoOcurrencia>; alcance?: Alcance }
+  /** Deshacer un editar: los valores de antes, dónde estaba, y cómo quedó (`despues`). */
+  | { tipo: "reponer"; recordatorio: Recordatorio; despues?: Recordatorio; alcance?: Alcance }
   /** Deshacer un completar: cómo estaba la ocurrencia (la operación la dejó en `!completado`). */
   | { tipo: "completar"; id: string; fecha: string; completado: boolean };
 

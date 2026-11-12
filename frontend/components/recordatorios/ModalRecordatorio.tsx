@@ -1,9 +1,8 @@
 "use client";
 
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, Inbox, Pencil, Trash2, UserRound, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmar } from "@/lib/confirmar";
-import { markMissingWikilinks } from "@/lib/editor/wikilink";
 import { renderMarkdown } from "@/lib/markdown";
 import {
   COLORES,
@@ -12,6 +11,7 @@ import {
   normalizarTitulo,
   REPETICIONES,
   varColor,
+  type Alcance,
   type Recordatorio,
   type Repeticion,
 } from "@/lib/recordatorios";
@@ -22,8 +22,10 @@ import {
   useRecordatoriosStore,
   type ModalRecordatorio as Modal,
 } from "@/stores/recordatoriosStore";
+import { nombreDeVault } from "@/lib/vaultMode";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { describirRepeticion, fechaCompleta, useEnlacesDelVault } from "./comun";
+import { describirRepeticion, fechaCompleta, marcarEnlaces, useEnlacesDelVault, vaultAjeno } from "./comun";
 import { EditorDetalle } from "./EditorDetalle";
 import styles from "./Recordatorios.module.css";
 
@@ -101,14 +103,17 @@ function Marco({
 
 function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
   const recordatorio = useRecordatoriosStore((s) =>
-    s.archivo.recordatorios.find((r) => r.id === modal.id),
+    s.vista.recordatorios.find((r) => r.id === modal.id),
   );
+  const personal = useRecordatoriosStore((s) => s.personales.has(modal.id));
+  const rutaActual = useVaultSessionStore((s) => s.rutaActual);
+  const ajeno = personal ? vaultAjeno(recordatorio, rutaActual) : null;
   const eliminar = useRecordatoriosStore((s) => s.eliminar);
   const alternar = useRecordatoriosStore((s) => s.alternarCompletada);
   const clave = `${modal.id}@${modal.fecha}`;
-  const completada = useRecordatoriosStore((s) => s.archivo.ocurrencias[clave]?.completada === true);
+  const completada = useRecordatoriosStore((s) => s.vista.ocurrencias[clave]?.completada === true);
   const { abrir, cerrar } = useModalRecordatorioStore();
-  const { onClicDetalle } = useEnlacesDelVault(cerrar);
+  const { onClicDetalle, vinculados } = useEnlacesDelVault(cerrar, ajeno);
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const detalleRef = useRef<HTMLDivElement>(null);
@@ -116,10 +121,11 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
   const detalle = recordatorio?.detalle ?? "";
   const html = useMemo(() => (detalle.trim() ? renderMarkdown(detalle) : ""), [detalle]);
 
-  // Enlaces rotos: el mismo tratamiento que en la lectura de una nota.
+  // Enlaces rotos: el mismo tratamiento que en la lectura de una nota (o, en
+  // un personal de otro vault, según siga vinculado ese vault).
   useEffect(() => {
-    if (detalleRef.current) markMissingWikilinks(detalleRef.current, notas, carpetas);
-  }, [html, notas, carpetas]);
+    if (detalleRef.current) marcarEnlaces(detalleRef.current, ajeno, vinculados, notas, carpetas);
+  }, [html, notas, carpetas, ajeno, vinculados]);
 
   // Si lo borraron (desde otra vista) mientras estaba abierto, no queda nada que ver.
   useEffect(() => {
@@ -183,6 +189,14 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
           {recordatorio.hora ?? "Todo el día"}
         </span>
         {repeticion && <span>{repeticion}</span>}
+        {personal && (
+          <span className={styles.alcanceRecordatorio}>
+            <UserRound size={13} aria-hidden />
+            {ajeno
+              ? `Personal · creado en el vault «${nombreDeVault(ajeno)}»: sus enlaces se abren allá`
+              : "Personal · se ve en todos los vaults"}
+          </span>
+        )}
       </div>
       {html ? (
         // El pipeline de markdown escapa el HTML del usuario: no puede inyectar.
@@ -201,12 +215,28 @@ function Ver({ modal }: { modal: Extract<Modal, { tipo: "ver" }> }) {
 
 // ── Editar ──────────────────────────────────────────────────────────────────
 
+const OPCIONES_ALCANCE: { valor: Alcance; nombre: string; ayuda: string }[] = [
+  { valor: "vault", nombre: "Este vault", ayuda: "Se guarda en este vault: viaja con él y solo se ve y avisa acá" },
+  {
+    valor: "personal",
+    nombre: "Todos los vaults",
+    ayuda: "Personal: se guarda fuera de los vaults y se ve y avisa desde todos",
+  },
+];
+
 function Editar({ modal }: { modal: Extract<Modal, { tipo: "editar" }> }) {
   const guardar = useRecordatoriosStore((s) => s.guardar);
   const { cerrar, abrir: abrirModal } = useModalRecordatorioStore();
+  // Dónde va: uno nuevo, en este vault por defecto; uno existente, donde está.
+  const alcanceInicial = useRecordatoriosStore((s): Alcance => s.alcanceDe(modal.borrador.id) ?? "vault");
+  const [alcance, setAlcance] = useState<Alcance>(alcanceInicial);
+  const rutaActual = useVaultSessionStore((s) => s.rutaActual);
+  // Un personal de otro vault sigue teniendo los enlaces de allá mientras sea
+  // personal; si pasa a este vault, sus enlaces pasan a ser de acá.
+  const ajeno = alcance === "personal" ? vaultAjeno(modal.borrador, rutaActual) : null;
   // Seguir un enlace desde el formulario abre la nota detrás y deja el
   // formulario abierto: cerrarlo perdería lo que se está escribiendo.
-  const { abrir, existe } = useEnlacesDelVault();
+  const { abrir, existe } = useEnlacesDelVault(undefined, ajeno);
 
   const [titulo, setTitulo] = useState(modal.borrador.titulo);
   const [fecha, setFecha] = useState(modal.borrador.fecha);
@@ -241,7 +271,7 @@ function Editar({ modal }: { modal: Extract<Modal, { tipo: "editar" }> }) {
       color,
       detalle: detalleRef.current,
     };
-    guardar(r);
+    guardar(r, alcance);
     // Al guardar se muestra lo guardado: así se ve cómo quedó el detalle.
     abrirModal({ tipo: "ver", id: r.id, fecha: r.fecha });
   };
@@ -360,6 +390,26 @@ function Editar({ modal }: { modal: Extract<Modal, { tipo: "editar" }> }) {
                 />
               ))}
             </div>
+          </div>
+        </div>
+
+        <div className={styles.campo}>
+          <span id="alcance-recordatorio">Dónde</span>
+          {/* Como el destino de la captura rápida: este vault o todos. */}
+          <div className={styles.segmentos} role="group" aria-labelledby="alcance-recordatorio">
+            {OPCIONES_ALCANCE.map((o) => (
+              <button
+                key={o.valor}
+                type="button"
+                className={`${styles.segmento} ${styles.alcanceRecordatorio}`}
+                aria-pressed={alcance === o.valor}
+                title={o.ayuda}
+                onClick={() => setAlcance(o.valor)}
+              >
+                {o.valor === "vault" ? <Inbox size={13} aria-hidden /> : <UserRound size={13} aria-hidden />}
+                {o.nombre}
+              </button>
+            ))}
           </div>
         </div>
 

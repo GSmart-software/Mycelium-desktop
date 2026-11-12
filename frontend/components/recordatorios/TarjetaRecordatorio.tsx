@@ -2,7 +2,6 @@
 
 import { BellRing } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { markMissingWikilinks } from "@/lib/editor/wikilink";
 import { renderMarkdown } from "@/lib/markdown";
 import {
   describirVencimiento,
@@ -11,8 +10,17 @@ import {
   type Aviso,
 } from "@/lib/recordatorios";
 import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
+import { useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
-import { fechaCorta, useAbrirCalendario, useEnlacesDelVault } from "./comun";
+import {
+  fechaCorta,
+  marcarEnlaces,
+  useAbrirCalendario,
+  useEnlacesDelVault,
+  useNotaPendienteDeOtroVault,
+  vaultAjeno,
+} from "./comun";
+import { MarcaPersonal } from "./ListaRecordatorios";
 import { ModalRecordatorio } from "./ModalRecordatorio";
 import styles from "./Recordatorios.module.css";
 
@@ -25,6 +33,9 @@ const A_LA_VISTA = 3;
  * las propias tarjetas.
  */
 export function Recordatorios() {
+  // Un enlace de un recordatorio personal seguido desde otro vault abre la
+  // nota acá (`FUN-M-60`).
+  useNotaPendienteDeOtroVault();
   return (
     <>
       <TarjetasRecordatorio />
@@ -64,7 +75,10 @@ function Tarjeta({ aviso }: { aviso: Aviso }) {
   const posponer = useRecordatoriosStore((s) => s.posponer);
   const enfocar = useRecordatoriosStore((s) => s.enfocar);
   const abrirCalendario = useAbrirCalendario();
-  const { onClicDetalle } = useEnlacesDelVault();
+  const personal = useRecordatoriosStore((s) => s.personales.has(r.id));
+  const rutaActual = useVaultSessionStore((s) => s.rutaActual);
+  const ajeno = personal ? vaultAjeno(r, rutaActual) : null;
+  const { onClicDetalle, vinculados } = useEnlacesDelVault(undefined, ajeno);
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
 
@@ -76,8 +90,8 @@ function Tarjeta({ aviso }: { aviso: Aviso }) {
   const html = useMemo(() => (r.detalle.trim() ? renderMarkdown(r.detalle) : ""), [r.detalle]);
 
   useEffect(() => {
-    if (detalleRef.current) markMissingWikilinks(detalleRef.current, notas, carpetas);
-  }, [html, notas, carpetas]);
+    if (detalleRef.current) marcarEnlaces(detalleRef.current, ajeno, vinculados, notas, carpetas);
+  }, [html, notas, carpetas, ajeno, vinculados]);
 
   // «Ver todo» solo si el detalle no entra: medirlo después de pintarlo.
   useLayoutEffect(() => {
@@ -106,7 +120,15 @@ function Tarjeta({ aviso }: { aviso: Aviso }) {
       <div className={styles.tarjetaCabecera}>
         <BellRing size={16} className={styles.tarjetaIcono} aria-hidden />
         <div>
-          <p className={styles.tarjetaTitulo}>{r.titulo}</p>
+          <p className={styles.tarjetaTitulo}>
+            {r.titulo}
+            {personal && (
+              <>
+                {" "}
+                <MarcaPersonal />
+              </>
+            )}
+          </p>
           <span className={styles.tarjetaCuando}>
             {cuando}
             {vencido && (

@@ -74,6 +74,11 @@ const NOMBRES: [&str; 20] = [
 /// descripciones (la validación es de la app: `lib/recordatorios.ts`).
 const PALETA: &str = "Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma";
 
+/// El `alcance` de las herramientas del calendario (`FUN-M-60`): los del vault
+/// o los personales, que se ven y avisan desde todos los vaults.
+const ALCANCE: &str = "`vault` (los de este vault, en .mycelium/recordatorios.json) o `personal` (los del usuario, \
+    fuera de los vaults: se ven y avisan desde todos)";
+
 /// Dónde enciende el usuario el control: se repite en varios mensajes.
 const DONDE_SE_ENCIENDE: &str = "Configuración → Vault → «Asistente IA (Claude Code)» → «Dejar que la IA controle Mycelium»";
 
@@ -131,12 +136,18 @@ pub fn definiciones() -> Vec<Value> {
             "description": "Las ocurrencias del calendario de recordatorios entre dos fechas (inclusive, tope 366 días), \
                 calculadas por la misma lógica que usa Mycelium: repeticiones expandidas, orden de la app (por día, los \
                 de todo el día primero), color, si cada ocurrencia está completada, el id y el primer renglón del \
-                detalle. Es la forma preferida de leer el calendario. Fechas locales AAAA-MM-DD.",
+                detalle. Trae los dos alcances —los del vault y los personales, que se ven en todos los vaults—, \
+                marcando cuál es cada uno. Es la forma preferida de leer el calendario. Fechas locales AAAA-MM-DD.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "desde": { "type": "string", "description": "Primer día, AAAA-MM-DD." },
-                    "hasta": { "type": "string", "description": "Último día, AAAA-MM-DD (incluido)." }
+                    "hasta": { "type": "string", "description": "Último día, AAAA-MM-DD (incluido)." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["todos", "vault", "personal"],
+                        "description": "Cuáles traer. Por defecto todos."
+                    }
                 },
                 "required": ["desde", "hasta"],
                 "additionalProperties": false
@@ -149,7 +160,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": format!("Crea un recordatorio en el calendario de Mycelium, como si el usuario lo hubiera \
                 creado en el formulario: aparece al instante y avisa a su hora (con Mycelium abierto). Devuelve el id, \
                 la próxima ocurrencia y si va a avisar. El usuario lo puede deshacer desde el registro de actividad. \
-                Colores: {PALETA}."),
+                Por defecto va al calendario de este vault; con alcance: personal, a los personales del usuario, que se \
+                ven y avisan desde todos los vaults (úsalo solo si lo pide así). Colores: {PALETA}."),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -162,7 +174,12 @@ pub fn definiciones() -> Vec<Value> {
                         "description": "Por defecto ninguna. Cada mes el 31 no cae en los meses sin 31; cada año el 29/02 solo en bisiestos."
                     },
                     "color": { "type": "string", "description": format!("Nombre de la paleta (sin distinguir mayúsculas ni tildes): {PALETA}. Por defecto Hifa.") },
-                    "detalle": { "type": "string", "description": "Markdown; puede tener [[enlaces]] a notas del vault." }
+                    "detalle": { "type": "string", "description": "Markdown; puede tener [[enlaces]] a notas del vault." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde va: {ALCANCE}. Por defecto vault.")
+                    }
                 },
                 "required": ["titulo", "fecha"],
                 "additionalProperties": false
@@ -173,7 +190,8 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_recordatorio_editar",
             "title": "Editar un recordatorio",
             "description": "Cambia los campos que mandes de un recordatorio existente (el resto queda igual). Si cambia \
-                cuándo ocurre, no avisa por lo que ya pasó. Devuelve qué cambió y la próxima ocurrencia. Se puede \
+                cuándo ocurre, no avisa por lo que ya pasó. Con alcance, lo pasa de un lado al otro (del vault a \
+                personal o al revés); sin él, queda donde está. Devuelve qué cambió y la próxima ocurrencia. Se puede \
                 deshacer desde el registro de actividad.",
             "inputSchema": {
                 "type": "object",
@@ -184,7 +202,12 @@ pub fn definiciones() -> Vec<Value> {
                     "hora": { "type": ["string", "null"], "description": "HH:MM; null pasa a todo el día." },
                     "repeticion": { "type": "string", "enum": ["ninguna", "dia", "semana", "mes", "anio"] },
                     "color": { "type": "string", "description": PALETA },
-                    "detalle": { "type": "string" }
+                    "detalle": { "type": "string" },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("A dónde pasarlo: {ALCANCE}. Omitido: queda donde está.")
+                    }
                 },
                 "required": ["id"],
                 "additionalProperties": false
@@ -202,7 +225,12 @@ pub fn definiciones() -> Vec<Value> {
                 "properties": {
                     "id": { "type": "string" },
                     "fecha": { "type": "string", "description": "AAAA-MM-DD: un día en que el recordatorio ocurre." },
-                    "completado": { "type": "boolean", "description": "Por defecto true." }
+                    "completado": { "type": "boolean", "description": "Por defecto true." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde está: {ALCANCE}. Omitido: se busca en los dos (los ids no se repiten).")
+                    }
                 },
                 "required": ["id", "fecha"],
                 "additionalProperties": false
@@ -213,10 +241,18 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_recordatorio_borrar",
             "title": "Borrar un recordatorio",
             "description": "Borra un recordatorio; si se repite, la serie entera. No pregunta: el usuario lo puede \
-                restaurar con el mismo id desde el registro de actividad de Mycelium (Deshacer).",
+                restaurar con el mismo id desde el registro de actividad de Mycelium (Deshacer). Uno personal se borra \
+                de todos los vaults.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "id": { "type": "string" } },
+                "properties": {
+                    "id": { "type": "string" },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde está: {ALCANCE}. Omitido: se busca en los dos (los ids no se repiten).")
+                    }
+                },
                 "required": ["id"],
                 "additionalProperties": false
             },
@@ -892,6 +928,10 @@ pub fn redactar_recordatorios(r: &Value) -> String {
         if o.get("completada").and_then(Value::as_bool) == Some(true) {
             t.push_str(" · ✓ completada");
         }
+        // Los personales se marcan (`FUN-M-60`); los del vault son el caso común.
+        if o.get("alcance").and_then(Value::as_str) == Some("personal") {
+            t.push_str(" · personal");
+        }
         t.push_str(&format!(" · id {}", s("id")));
         let detalle = s("detalle");
         if !detalle.is_empty() {
@@ -909,6 +949,41 @@ pub fn redactar_escritura(r: &Value) -> String {
         t.push_str(&format!("\nid: {id}"));
     }
     t
+}
+
+#[cfg(test)]
+mod tests_calendario_alcance {
+    use super::*;
+
+    /// `FUN-M-60`: los personales se marcan en el listado; los del vault no.
+    #[test]
+    fn el_listado_marca_los_personales() {
+        let t = redactar_recordatorios(&json!({
+            "desde": "2026-11-12", "hasta": "2026-11-12", "ocurrencias": [
+                {"id": "v1", "titulo": "Del vault", "fecha": "2026-11-12", "dia": "jue 12 nov", "hora": null,
+                 "color": "Hifa", "repeticion": "ninguna", "completada": false, "detalle": "", "alcance": "vault"},
+                {"id": "p1", "titulo": "Mío", "fecha": "2026-11-12", "dia": "jue 12 nov", "hora": "09:00",
+                 "color": "Coral", "repeticion": "ninguna", "completada": true, "detalle": "", "alcance": "personal"}
+            ]
+        }));
+        assert!(t.contains("«Del vault» · Hifa · id v1"), "{t}");
+        assert!(t.contains("«Mío» · Coral · ✓ completada · personal · id p1"), "{t}");
+    }
+
+    #[test]
+    fn las_herramientas_del_calendario_aceptan_alcance() {
+        let defs = definiciones();
+        for nombre in [
+            "mycelium_recordatorios",
+            "mycelium_recordatorio_crear",
+            "mycelium_recordatorio_editar",
+            "mycelium_recordatorio_completar",
+            "mycelium_recordatorio_borrar",
+        ] {
+            let d = defs.iter().find(|d| d["name"] == nombre).expect(nombre);
+            assert!(d.pointer("/inputSchema/properties/alcance").is_some(), "{nombre} sin alcance");
+        }
+    }
 }
 
 // ── Archivos (Parte 3) ─────────────────────────────────────────────────────
