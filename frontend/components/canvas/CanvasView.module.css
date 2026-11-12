@@ -35,6 +35,39 @@
   color: var(--mic-text-primary);
 }
 
+/* Lo que el lienzo bloqueado no deja hacer (`FUN-S-39`), y deshacer/rehacer sin
+   pasos: se ve apagado y no reacciona al pasar el puntero. */
+.boton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.boton:disabled:hover {
+  background: transparent;
+  color: var(--mic-text-muted);
+}
+
+/* El candado cerrado: el botón queda marcado mientras dura el bloqueo. */
+.botonActivo {
+  border-color: var(--mic-border);
+  color: var(--mic-accent);
+}
+
+/* La marca «Solo lectura» de la barra (`FUN-S-39`). */
+.soloLectura {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--mic-accent) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mic-accent) 12%, transparent);
+  color: var(--mic-accent);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .estado {
   display: inline-flex;
   align-items: center;
@@ -281,6 +314,16 @@
 .nodo:hover .ancla,
 .nodoSel .ancla {
   opacity: 1;
+}
+
+/* Bloqueado (`FUN-S-39`): sin anclas ni tirador, y el asa no promete mover. */
+.bloqueado .ancla,
+.bloqueado .tirador {
+  display: none;
+}
+
+.bloqueado .asa {
+  cursor: default;
 }
 
 .ancla_top {

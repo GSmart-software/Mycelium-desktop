@@ -38,6 +38,8 @@ import { TITULO_POR_DEFECTO } from "@/lib/extensionesDeTipo";
 import { rutaTrasMoverCarpeta } from "@/lib/bandeja";
 import { protegerBandeja, protegerCarpetaConBandeja, rutaBandeja } from "@/lib/bandejaRuta";
 import { usePreferencesStore } from "@/stores/preferencesStore";
+import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
+import { seguirCarpeta, seguirRenombre } from "@/lib/lienzoBloqueo";
 
 /**
  * Marca el grafo como desactualizado y redispara el live preview tras un cambio
@@ -227,6 +229,19 @@ function seguirCarpetaDeBandeja(de: string, a: string): void {
   if (nueva !== null) usePreferencesStore.getState().setPref("rutaBandeja", nueva);
 }
 
+/**
+ * Un lienzo bloqueado sigue bloqueado después de renombrarlo o moverlo, él o su
+ * carpeta (`FUN-S-39`): la preferencia se guarda por ruta, así que se reapunta
+ * como las pestañas abiertas.
+ */
+function seguirLienzosBloqueados(tipo: "nota" | "carpeta", de: string, a: string): void {
+  if (de === a) return;
+  const prefs = usePrefsVaultStore.getState();
+  const lista = prefs.prefs.lienzosBloqueados;
+  const nueva = tipo === "nota" ? seguirRenombre(lista, de, a) : seguirCarpeta(lista, de, a);
+  if (nueva !== lista) prefs.set("lienzosBloqueados", nueva);
+}
+
 /** El vault después de que `movidos` cambien de ruta. */
 function despuesDe(antes: readonly NotaRuta[], movidos: readonly Movido[]): NotaRuta[] {
   return trasTraslados(
@@ -301,6 +316,7 @@ async function moverConReparacion(
   if (res.id === id) return { id, ...SIN_REPARACION };
   if (tipo === "nota") useTabsStore.getState().remapNota(id, res.id);
   else useTabsStore.getState().remapCarpeta(id, res.id);
+  seguirLienzosBloqueados(tipo, id, res.id);
   const movidos: Movido[] =
     tipo === "nota"
       ? [
@@ -474,6 +490,7 @@ export const useVaultStore = create<VaultState>()(
         if (res.id !== id) {
           seguirCarpetaDeBandeja(id, res.id);
           useTabsStore.getState().remapCarpeta(id, res.id);
+          seguirLienzosBloqueados("carpeta", id, res.id);
           const movidos = movidosPorCarpeta(notas, id, res.id);
           reparacion = await repararTrasOperacion(previa, movidos, [], token());
           avisarCoincidencias(despuesDe(previa.antes, movidos), movidos.map((m) => m.idNuevo), reparacion, false);
@@ -603,7 +620,10 @@ export const useVaultStore = create<VaultState>()(
         }
         // Modo carpeta: renombrar cambia el id (=ruta). La pestaña abierta debe
         // seguir a la nota con su id nuevo antes de reconciliar el árbol.
-        if (res.id !== id) useTabsStore.getState().remapNota(id, res.id);
+        if (res.id !== id) {
+          useTabsStore.getState().remapNota(id, res.id);
+          seguirLienzosBloqueados("nota", id, res.id);
+        }
         await get().loadTree(get().vaultId!);
         markGraphStale();
         avisarReescritas(reparacion);
