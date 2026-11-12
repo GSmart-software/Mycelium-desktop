@@ -198,6 +198,12 @@ export type Preferencias = {
    */
   formaComposicionSalud: "anillos" | "barras";
   /**
+   * Salud del vault (`FUN-S-38`): si cuenta lo que está bajo carpetas que
+   * empiezan con punto (`.claude/`, `.github/`…). Por defecto no. Vale para el
+   * panel, la pestaña, el informe y `mycelium_salud`; nada más cambia.
+   */
+  saludMostrarOcultas: boolean;
+  /**
    * Atmósfera de cada modo (lib/atmosferas.ts): cómo se reparten los colores del
    * tema en fondos, marco y títulos. Una por modo, porque de noche y de día
    * conviene otra cosa.
@@ -230,6 +236,7 @@ const DEFAULT_PREFS: Preferencias = {
   carpetaInformes: CARPETA_INFORMES_DEFECTO,
   rutaBandeja: RUTA_BANDEJA_DEFECTO,
   formaComposicionSalud: "anillos",
+  saludMostrarOcultas: false,
   atmosferaOscuro: ATMOSFERA_OSCURO_DEFECTO,
   atmosferaClaro: ATMOSFERA_CLARO_DEFECTO,
 };

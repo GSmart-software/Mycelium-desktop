@@ -634,6 +634,7 @@ export function markdownInformeSalud(revision: RevisionVault, opciones: Opciones
     `Revisión ${opciones.vault ? `del vault ${codigo(opciones.vault)} ` : "del vault "}del ${fechaLarga(revisado)}: ` +
       `${plural(a.total.cantidad, "archivo", "archivos")}, ${pesoLegible(a.total.bytes)}` +
       (g.total > 0 ? `, ${plural(g.total, "problema", "problemas")}.` : ", sin problemas.") +
+      (revision.sinOcultas ? " No cuenta lo que está en carpetas que empiezan con punto." : "") +
       " Es una foto de ese momento: la salud al día está en el panel **Salud del vault**.",
     "",
     ...callouts(informe, enlace, tope),

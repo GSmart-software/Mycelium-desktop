@@ -505,23 +505,37 @@ export type EntradaEstadisticas = {
   /** Lo que ya agregó SQLite (`etiquetasDelIndice`). */
   etiquetas: EtiquetasVault;
   ahora: Date;
+  /**
+   * ¿Queda afuera esta ruta por estar bajo una carpeta oculta? (`FUN-S-38`,
+   * `enCarpetaOculta` de `lib/salud.ts` cuando las ocultas no se muestran).
+   * Esos archivos no cuentan, esas notas no son población y sus enlaces
+   * salientes no son aristas; pero siguen siendo destino, como en `calcularSalud`.
+   * Ausente: no se deja nada afuera.
+   */
+  oculta?: (ruta: string) => boolean;
 };
 
 export function calcularEstadisticas(e: EntradaEstadisticas): EstadisticasVault {
+  const oculta = e.oculta ?? (() => false);
   const ids = new Set(e.notas.map((n) => n.id));
-  const aristas = aristasDe(e.filas, ids);
+  const aristas = aristasDe(
+    e.filas.filter((f) => !oculta(f.desde)),
+    ids,
+  );
+  const excluida = (n: NotaDeLaRed) => e.excluida(n) || oculta(n.id);
+  const visibles = e.notas.reduce((s, n) => (oculta(n.id) ? s : s + 1), 0);
   // Crecimiento de la misma población que la red: notas markdown de memoria.
-  const enPoblacion = new Set(e.notas.filter((n) => n.tipo === "markdown" && !e.excluida(n)).map((n) => n.id));
+  const enPoblacion = new Set(e.notas.filter((n) => n.tipo === "markdown" && !excluida(n)).map((n) => n.id));
   const fechas = e.creacion.filter((c) => enPoblacion.has(c.id)).map((c) => c.creadoEn);
   return {
-    archivos: calcularComposicion(e.archivos),
-    red: calcularRed({ notas: e.notas, aristas, excluida: e.excluida }),
+    archivos: calcularComposicion(e.oculta ? e.archivos.filter((a) => !oculta(a.ruta)) : e.archivos),
+    red: calcularRed({ notas: e.notas, aristas, excluida }),
     crecimiento: calcularCrecimiento(fechas, e.ahora),
     etiquetas: e.etiquetas,
     enlaces: {
       total: aristas.length,
-      promedioPorNota: ids.size === 0 ? 0 : aristas.length / ids.size,
-      notasIndice: ids.size,
+      promedioPorNota: visibles === 0 ? 0 : aristas.length / visibles,
+      notasIndice: visibles,
     },
   };
 }
