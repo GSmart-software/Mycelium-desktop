@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, FileWarning, Maximize2, Minus, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
@@ -496,11 +496,43 @@ function VisorImagen({ ruta, vault }: { ruta: string; vault: string | null }) {
   const [roto, setRoto] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * El punto de la imagen que está en el centro del panel, en fracción del
+   * contenido, tomado justo antes de cambiar el zoom (`DEF-182`). Después del
+   * cambio se vuelve a llevar al centro: así acercar y alejar agrandan lo que
+   * se estaba mirando, en vez de dejar el scroll donde estaba —en píxeles— y
+   * mostrar de golpe otra parte de la imagen.
+   */
+  const anclaRef = useRef<{ fx: number; fy: number } | null>(null);
+
+  const cambiarZoom = (nuevo: number | null) => {
+    const p = panelRef.current;
+    if (p && p.scrollWidth > 0 && p.scrollHeight > 0) {
+      anclaRef.current = {
+        fx: (p.scrollLeft + p.clientWidth / 2) / p.scrollWidth,
+        fy: (p.scrollTop + p.clientHeight / 2) / p.scrollHeight,
+      };
+    }
+    setZoom(nuevo);
+  };
+
+  // Antes de pintar, con el tamaño nuevo ya maquetado (leer `scrollWidth` lo
+  // fuerza): no se ve el salto intermedio. El navegador acota el scroll a lo
+  // posible, así que el borde de la imagen nunca queda más allá del panel.
+  useLayoutEffect(() => {
+    const p = panelRef.current;
+    const ancla = anclaRef.current;
+    anclaRef.current = null;
+    if (!p || !ancla) return;
+    p.scrollLeft = ancla.fx * p.scrollWidth - p.clientWidth / 2;
+    p.scrollTop = ancla.fy * p.scrollHeight - p.clientHeight / 2;
+  }, [zoom]);
+
   const escalon = (delta: 1 | -1) => {
     const actual = zoom ?? 1;
     const i = ZOOMS.findIndex((z) => z >= actual - 0.001);
     const siguiente = ZOOMS[Math.min(Math.max((i < 0 ? 3 : i) + delta, 0), ZOOMS.length - 1)];
-    setZoom(siguiente);
+    cambiarZoom(siguiente);
   };
 
   // Arrastrar para desplazar: solo tiene sentido con la imagen ampliada, así
@@ -547,7 +579,7 @@ function VisorImagen({ ruta, vault }: { ruta: string; vault: string | null }) {
           type="button"
           className={styles.iconoZoom}
           title="Ajustar al panel"
-          onClick={() => setZoom(null)}
+          onClick={() => cambiarZoom(null)}
         >
           <Maximize2 size={14} aria-hidden />
         </button>
