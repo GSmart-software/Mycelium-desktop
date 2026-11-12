@@ -73,7 +73,10 @@ fn ruta(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join(ARCHIVO))
 }
 
-fn tomar_candado() -> std::sync::MutexGuard<'static, ()> {
+/// El candado lo comparten los demás archivos personales de la app (los
+/// recordatorios personales, `recordatorios_personales.rs`, `FUN-M-60`): son
+/// escrituras cortas y raras, y un solo candado no puede trabarse con otro.
+pub(crate) fn tomar_candado() -> std::sync::MutexGuard<'static, ()> {
     CANDADO.lock().unwrap_or_else(|e| e.into_inner())
 }
 
