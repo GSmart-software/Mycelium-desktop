@@ -28,4 +28,15 @@ ignore = [
   # y salta los enlaces simbólicos; y el updater solo abre un paquete ya
   # verificado con la firma minisign. Misma corrección pendiente (zip >= 9).
   "RUSTSEC-2026-0429",
+  # libsqlite3-sys 0.30 / SQLite < 3.54 (memoria sin inicializar del caché de
+  # páginas al abrir un par .db + -wal con tamaños de página distintos, armado
+  # por otro). Mycelium abre una sola base: su índice `index-<hash>.db`, que crea
+  # la propia app en `app_config_dir` con una ruta que arma Rust (`indice.rs`);
+  # no viaja en el vault, y desde `DEF-166` el frontend no puede abrir una base
+  # en otra ruta. Plantar ese par exige escribir en el AppData del usuario, que
+  # ya es controlar su cuenta. La corrección es libsqlite3-sys >= 0.39, y ni
+  # sqlx 0.8 (el de tauri-plugin-sql 2.x) ni sqlx 0.9.0 la admiten (piden
+  # < 0.38). Aceptado por el usuario el 2026-11-12. Revisar con cada versión
+  # nueva de sqlx / tauri-plugin-sql, y sacarlo apenas permitan >= 0.39.
+  "RUSTSEC-2026-0459",
 ]
