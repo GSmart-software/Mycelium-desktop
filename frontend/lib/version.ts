@@ -186,6 +186,10 @@
  *   F10 por sección, saltar tecleando; `DEF-179` y `DEF-180`.
  *
  *   **Minor, y uno solo**: hay capacidad nueva. Ver `docs/estado/Version 2.8.0.md`.
+ * - `2.8.1` — **actualizar con la IA conectada**: el instalador de Windows cierra
+ *   el MCP de la instalación antes de copiar (`DEF-181`). Patch: no hay nada
+ *   nuevo que hacer, solo una actualización que ya no se detiene. Ver
+ *   `docs/estado/Version 2.8.1.md`.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/versionFramework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
@@ -195,4 +199,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.8.0";
+export const APP_VERSION = "2.9.0";

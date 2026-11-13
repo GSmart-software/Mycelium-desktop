@@ -59,6 +59,7 @@ fn habla_mcp_de_punta_a_punta() {
         [
             "mycelium_estado",
             "mycelium_abrir",
+            "mycelium_dividir",
             "mycelium_recordatorios",
             "mycelium_recordatorio_crear",
             "mycelium_recordatorio_editar",
@@ -77,6 +78,7 @@ fn habla_mcp_de_punta_a_punta() {
             "mycelium_sesion",
             "mycelium_reservar",
             "mycelium_diagnosticos",
+            "mycelium_bandeja",
         ]
     );
     for t in lista["result"]["tools"].as_array().unwrap() {
@@ -342,4 +344,181 @@ fn el_calendario_sin_app_dice_que_no_se_escribe_a_mano() {
     // Lo único que valida el servidor: que los argumentos sean un objeto.
     let (t, err) = llamar(&mut e, "mycelium_recordatorio_borrar", json!("r1"));
     assert!(err && t.starts_with("INVALIDO"), "{t}");
+}
+
+// ── Elegir el panel y dividir (`FUN-M-59`) ─────────────────────────────────
+
+/// Una app con dos paneles que atiende `abrir` con `panel` y `dividir` como la
+/// de verdad: el panel que no existe es `PANEL_INEXISTENTE` con la lista.
+fn app_paneles(e: &Estado) -> crate::canal::falso::Servidor {
+    levantar(e.canal.clone(), move |p| {
+        let id = p["id"].clone();
+        let a = &p["args"];
+        let paneles = json!([
+            {"panel": 1, "activo": true, "pestanas": [
+                {"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota", "activa": true, "sin_guardar": false}
+            ]},
+            {"panel": 2, "activo": false, "pestanas": [
+                {"titulo": "Grafo de conexiones", "ruta": null, "tipo": "grafo", "activa": true, "sin_guardar": false}
+            ]}
+        ]);
+        Some(match p["op"].as_str() {
+            Some("abrir" | "dividir") if a["panel"].as_u64().is_some_and(|n| n > 2) => json!({"id": id, "ok": false, "error": {
+                "codigo": "PANEL_INEXISTENTE",
+                "mensaje": format!("No existe el panel {}: hay 2 paneles, del 1 al 2.", a["panel"]),
+                "datos": {"paneles": paneles}}}),
+            Some("abrir") => json!({"id": id, "ok": true, "resultado": {
+                "abierto": {"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota"},
+                "panel": a["panel"].as_u64().unwrap_or(1), "foco": false, "ya_estaba": false, "salto": null, "revelado": false,
+                "avisos": ["También estaba abierta en el panel 1: ahora está en los dos, como cuando el usuario la abre en otro panel."],
+                "paneles": paneles}}),
+            Some("dividir") => json!({"id": id, "ok": true, "resultado": {
+                "panel": 2, "dividido": a["panel"].as_u64().unwrap_or(1), "direccion": a["direccion"],
+                "abierto": if a["objetivo"].is_null() { Value::Null } else { json!({"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota"}) },
+                "foco": a["foco"], "salto": null, "avisos": [], "paneles": paneles}}),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "op desconocida", "datos": null}}),
+        })
+    })
+}
+
+#[test]
+fn abrir_en_un_panel_pasa_el_numero_y_dice_si_quedo_en_dos() {
+    let mut e = con_vault("abrir-panel", Some(true));
+    let _app = app_paneles(&e);
+    let (t, err) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": 2}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Abrí «Plan — docs/Plan.md» [nota] en el panel 2"), "{t}");
+    assert!(t.contains("Aviso: También estaba abierta en el panel 1"), "{t}");
+}
+
+#[test]
+fn un_panel_que_no_existe_trae_la_lista_de_paneles() {
+    let mut e = con_vault("panel-inexistente", Some(true));
+    let _app = app_paneles(&e);
+    for (nombre, args) in [
+        ("mycelium_abrir", json!({"objetivo": "Plan", "panel": 5})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "panel": 5})),
+    ] {
+        let (t, err) = llamar(&mut e, nombre, args);
+        assert!(err && t.starts_with("PANEL_INEXISTENTE: No existe el panel 5"), "{nombre}: {t}");
+        assert!(t.contains("Los paneles que hay:\nPanel 1 (activo):"), "{t}");
+        assert!(t.contains("Panel 2:\n  * Grafo de conexiones [grafo]"), "{t}");
+    }
+}
+
+#[test]
+fn dividir_dice_el_panel_nuevo_y_el_foco() {
+    let mut e = con_vault("dividir", Some(true));
+    let _app = app_paneles(&e);
+    let (t, err) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "derecha", "objetivo": "Plan"}));
+    assert!(!err, "{t}");
+    assert!(
+        t.starts_with("Dividí el panel 1: el panel nuevo es el 2, a la derecha, con «Plan — docs/Plan.md» [nota]; el foco quedó donde estaba."),
+        "{t}"
+    );
+    assert!(t.contains("Panel 2:"), "y los paneles: {t}");
+    let (t, err) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "foco": true}));
+    assert!(!err && t.contains(", abajo, vacío, con el foco"), "{t}");
+}
+
+#[test]
+fn los_argumentos_invalidos_de_panel_y_dividir_no_llegan_a_la_app() {
+    let mut e = con_vault("dividir-invalidos", Some(true));
+    // Sin app: si llegaran al canal, el error sería APP_CERRADA.
+    for (nombre, args) in [
+        ("mycelium_abrir", json!({"objetivo": "x", "panel": 0})),
+        ("mycelium_abrir", json!({"objetivo": "x", "panel": "2"})),
+        ("mycelium_abrir", json!({"objetivo": "x", "panel": 1.5})),
+        ("mycelium_dividir", json!({})),
+        ("mycelium_dividir", json!({"direccion": "izquierda"})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "objetivo": "  "})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "ir_a": {"linea": 3}})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "objetivo": "x", "ir_a": {"linea": 0}})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "foco": "si"})),
+        ("mycelium_dividir", json!({"direccion": "derecha", "panel": -1})),
+    ] {
+        let (t, err) = llamar(&mut e, nombre, args.clone());
+        assert!(err && t.starts_with("INVALIDO"), "{nombre} {args} → {t}");
+    }
+    // Bien formados, sin app: llegan al canal.
+    let (t, _) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "panel": 2, "objetivo": "Plan", "ir_a": {"texto": "x"}}));
+    assert!(t.starts_with("APP_CERRADA"), "{t}");
+}
+
+// ── Las bandejas (`FUN-S-40`) ──────────────────────────────────────────────
+
+/// Una app que atiende `bandeja` como la de verdad: numera, compara la huella
+/// y contesta el efecto ya redactado.
+fn app_bandeja(e: &Estado) -> crate::canal::falso::Servidor {
+    levantar(e.canal.clone(), move |p| {
+        let id = p["id"].clone();
+        let a = &p["args"];
+        Some(match (p["op"].as_str(), a["accion"].as_str()) {
+            (Some("bandeja"), Some("leer")) => json!({"id": id, "ok": true, "resultado": {"accion": "leer", "bandejas": [
+                {"bandeja": "vault", "ruta": "Bandeja.md", "existe": true, "huella": "abc123", "entradas": [
+                    {"numero": 1, "dia": "2026-11-05", "hora": "09:40", "texto": "La panadería", "tarea": null, "debajo": 0},
+                    {"numero": 2, "dia": "2026-11-05", "hora": "10:05", "texto": "Renovar el dominio", "tarea": "pendiente", "debajo": 1},
+                    {"numero": 3, "dia": "2026-11-06", "hora": null, "texto": "Sin hora", "tarea": "hecha", "debajo": 0}
+                ]},
+                {"bandeja": "personal", "ruta": "C:\\datos\\Bandeja personal.md", "existe": false, "huella": null, "entradas": []}
+            ]}}),
+            (Some("bandeja"), Some("quitar")) if a["huella"] != "abc123" => json!({"id": id, "ok": false, "error": {
+                "codigo": "CAMBIO_CONCURRENTE",
+                "mensaje": "la Bandeja del vault cambió desde que la leíste (una captura, una edición): los números ya no son los mismos. No se quitó nada: vuelve a leerla y elige de nuevo.",
+                "datos": null}}),
+            (Some("bandeja"), Some("quitar")) => json!({"id": id, "ok": true, "resultado": {
+                "accion": "quitar", "bandeja": a["bandeja"], "ruta": "Bandeja.md",
+                "efecto": "Quité 1 entrada de la Bandeja del vault: «Sin hora». El día 2026-11-06 quedó vacío y se fue su encabezado.",
+                "huella": "def456", "quedan": 2}}),
+            _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "?", "datos": null}}),
+        })
+    })
+}
+
+#[test]
+fn la_bandeja_se_lee_numerada_por_dia_con_su_huella() {
+    let mut e = con_vault("bandeja-leer", Some(true));
+    let _app = app_bandeja(&e);
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Bandeja del vault — Bandeja.md · 3 entradas · huella abc123\n## 2026-11-05\n  1. 09:40 La panadería\n"), "{t}");
+    assert!(t.contains("\n  2. 10:05 Renovar el dominio [tarea pendiente] (+1 línea debajo)\n## 2026-11-06\n  3. Sin hora [tarea hecha]"), "{t}");
+    assert!(t.contains("Bandeja personal — C:\\datos\\Bandeja personal.md: todavía no existe"), "{t}");
+    assert!(t.ends_with("Para quitar: accion «quitar» con la `bandeja`, su `huella` y los números de `entradas`."), "{t}");
+}
+
+#[test]
+fn quitar_de_la_bandeja_dice_el_efecto_o_el_cambio_concurrente() {
+    let mut e = con_vault("bandeja-quitar", Some(true));
+    let _app = app_bandeja(&e);
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"accion": "quitar", "bandeja": "vault", "huella": "abc123", "entradas": [3]}));
+    assert!(!err, "{t}");
+    assert!(t.starts_with("Quité 1 entrada de la Bandeja del vault: «Sin hora»."), "{t}");
+    assert!(t.ends_with("Quedan 2 entradas. Los números cambiaron: para quitar más, vuelve a leerla."), "{t}");
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"accion": "quitar", "bandeja": "vault", "huella": "vieja", "entradas": [1]}));
+    assert!(err && t.starts_with("CAMBIO_CONCURRENTE: "), "{t}");
+}
+
+#[test]
+fn los_argumentos_invalidos_de_la_bandeja_no_llegan_a_la_app() {
+    let mut e = con_vault("bandeja-invalidos", Some(true));
+    // Sin app: si llegaran al canal, el error sería APP_CERRADA.
+    for args in [
+        json!({"accion": "vaciar"}),
+        json!({"bandeja": "otra"}),
+        json!({"accion": "quitar", "huella": "abc", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "  ", "entradas": [1]}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc"}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc", "entradas": []}),
+        json!({"accion": "quitar", "bandeja": "vault", "huella": "abc", "entradas": [0]}),
+        json!({"accion": "quitar", "bandeja": "personal", "huella": "abc", "entradas": ["1"]}),
+        json!("leer"),
+    ] {
+        let (t, err) = llamar(&mut e, "mycelium_bandeja", args.clone());
+        assert!(err && t.starts_with("INVALIDO"), "{args} → {t}");
+    }
+    // Bien formado, sin app: dice qué hacer sin ella.
+    let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"bandeja": "personal"}));
+    assert!(err && t.starts_with("APP_CERRADA") && t.contains("no la vacíes a mano"), "{t}");
 }

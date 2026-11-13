@@ -359,6 +359,44 @@ test("calcularEstadisticas: coherente, enlaces y promedio, crecimiento de la pob
   assert.equal(e.red.notas, 2);
 });
 
+test("carpetas ocultas (FUN-S-38): archivos, población, aristas y huérfanas, iguales que calcularSalud", () => {
+  const notas = [n("A.md"), n("B.md"), n("C.md"), n(".claude/S.md"), n(".claude/T.md"), n("x/.y/Z.md")];
+  const filas = [
+    ["A.md", "B.md"],
+    [".claude/S.md", "C.md"], // C solo recibe desde .claude: huérfana
+    [".claude/S.md", ".claude/T.md"],
+    ["B.md", ".claude/T.md"], // hacia lo oculto: cuenta
+  ].map(([desde, destino]) => ({ desde, destino }));
+  const archivos = [
+    ...notas.map((x) => ({ ruta: x.id, bytes: 10 })),
+    { ruta: ".claude/settings.json", bytes: 99 },
+    { ruta: ".mycignore", bytes: 5 },
+  ];
+  const entrada = {
+    archivos, notas, filas, excluida: fuera,
+    creacion: notas.map((x) => ({ id: x.id, creadoEn: local(2026, 10) })),
+    etiquetas: { distintas: 0, notasConEtiqueta: 0, masUsadas: [] },
+    ahora: new Date(2026, 10, 2),
+  };
+  const e = E.calcularEstadisticas({ ...entrada, oculta: SALUD.enCarpetaOculta });
+  assert.deepEqual(E.incoherencias(e), []);
+  assert.equal(e.archivos.total.cantidad, 4, "A, B, C y .mycignore (un archivo suelto con punto sí cuenta)");
+  assert.ok(!e.archivos.carpetas.some((c) => c.carpeta.startsWith(".")));
+  assert.equal(e.red.notas, 3);
+  assert.deepEqual(e.enlaces, { total: 2, promedioPorNota: 2 / 3, notasIndice: 3 });
+  assert.equal(e.crecimiento.total, 3);
+  const informe = SALUD.calcularSalud({
+    notas, carpetas: [], otros: [], carpetaEsporas: "Esporas", sinOcultas: true,
+    filas: filas.map((f) => ({ ...f, texto: f.destino, tipo: "enlace", n: 1 })),
+  });
+  assert.equal(e.red.huerfanas, informe.huerfanas.length);
+  assert.deepEqual(informe.huerfanas.map((h) => h.ruta), ["A.md", "C.md"]);
+  // Sin `oculta`, todo cuenta como antes.
+  const todo = E.calcularEstadisticas(entrada);
+  assert.equal(todo.archivos.total.cantidad, 8);
+  assert.equal(todo.red.notas, 6);
+});
+
 // ── Contra el índice de verdad ──────────────────────────────────────────────
 
 const VAULT = {

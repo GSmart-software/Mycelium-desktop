@@ -68,6 +68,9 @@ const STUB = {
   authStore: aUrl(`export const useAuthStore = { getState: () => ({ accessToken: null, vaults: [{ id: "v" }] }) };`),
   graphStore: aUrl(`export const useGraphStore = { getState: () => ({ markStale() {} }) };`),
   tabsStore: aUrl(`export const useTabsStore = { getState: () => ({}) };`),
+  // Los lienzos bloqueados (`FUN-S-39`) siguen al lienzo al renombrarlo: acá no importan.
+  prefsVault: aUrl(`export const usePrefsVaultStore = { getState: () => ({ prefs: { lienzosBloqueados: [] }, set() {} }) };`),
+  lienzoBloqueo: aUrl(`export const seguirRenombre = (l) => l; export const seguirCarpeta = (l) => l;`),
   sesionStore: aUrl(`export const useVaultSessionStore = { getState: () => ({ rutaActual: "C:/vault" }) };`),
   sesionesIa: aUrl(`export const useSesionesIaStore = { getState: () => ({ anotarExternos() {} }) };`),
   vaultFs: aUrl(`export const esEscrituraPropia = () => false;`),
@@ -113,6 +116,8 @@ const VAULT_STORE = await fuente("../stores/vaultStore.ts", {
   "@/lib/bandeja": STUB.bandeja,
   "@/lib/bandejaRuta": STUB.bandeja,
   "@/stores/preferencesStore": STUB.bandeja,
+  "@/stores/prefsVaultStore": STUB.prefsVault,
+  "@/lib/lienzoBloqueo": STUB.lienzoBloqueo,
 });
 const { useVaultStore } = await import(VAULT_STORE);
 const { escucharCambiosVault, refrescarVault } = await import(

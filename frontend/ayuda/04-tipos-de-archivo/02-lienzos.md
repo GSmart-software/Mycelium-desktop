@@ -49,6 +49,23 @@ en cualquier campo. Se recuerdan los últimos 100 pasos.
 > Cuando otro programa —o la IA— modifica el archivo y el lienzo se recarga, lo que había
 > para deshacer se descarta: volver a un estado anterior mezclaría tu versión con la nueva.
 
+## Bloquear la edición
+
+Si quieres mirar un lienzo sin riesgo de moverle nada, pulsa el **candado** de su barra (o
+busca **Bloquear la edición del lienzo** en la paleta de comandos,
+**{{atajo:paleta.comandos|Ctrl+P}}**). El candado se cierra y aparece la marca
+**Solo lectura**.
+
+Bloqueado puedes desplazarte, acercar y alejar, seleccionar tarjetas, abrir la nota de una
+tarjeta y copiar su texto. Lo que cambiaría el archivo no se puede: crear o borrar tarjetas,
+moverlas, cambiarles el tamaño o el color, conectarlas, editar el texto ni deshacer o
+rehacer. Vuelve a pulsar el candado para desbloquearlo.
+
+El bloqueo se recuerda para cada lienzo, también al cerrar Mycelium, y lo sigue si lo
+renombras o lo mueves a otra carpeta. Se guarda en las preferencias del vault y no en el
+archivo, así que Obsidian no lo ve. Y es solo de esta ventana: si otro programa —o la IA—
+cambia el archivo, el lienzo bloqueado se actualiza igual.
+
 > [!info] La tarjeta de nota es la nota
 > No es una copia: muestra el contenido real del archivo, y su botón **Abrir** la abre en
 > una pestaña. Si la nota se borra, la tarjeta lo dice en vez de romper el lienzo.

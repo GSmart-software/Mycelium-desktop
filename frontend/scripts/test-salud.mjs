@@ -181,6 +181,52 @@ test("la Bandeja del vault (FUN-L-33) queda fuera: ni huérfana, ni sin saliente
   assert.equal(S.excluida({ id: "Otra.md", carpetaId: null }, "Esporas", "Bandeja.md"), false);
 });
 
+test("carpetas ocultas (FUN-S-38): fuera del análisis, sus enlaces no cuentan, pero siguen siendo destino", () => {
+  assert.equal(S.enCarpetaOculta(".claude/skills/a/SKILL.md"), true);
+  assert.equal(S.enCarpetaOculta("notas/.borradores/x.md"), true, "en cualquier nivel");
+  assert.equal(S.enCarpetaOculta(".mycignore"), false, "un archivo suelto con punto no");
+  assert.equal(S.enCarpetaOculta("notas/.x.md"), false);
+  assert.equal(S.esCarpetaOculta(".claude"), true);
+  assert.equal(S.esCarpetaOculta("docs/.ocultas/sub"), true);
+  assert.equal(S.esCarpetaOculta("docs"), false);
+
+  const notas = [
+    ...NOTAS,
+    nota("Solo desde claude.md", "Me enlazan solo desde una carpeta oculta."),
+    nota("Destino oculto.md", "Enlazo a [[Herramienta]], que vive en .claude."),
+    nota(".claude/skills/a/SKILL.md", "[[Solo desde claude]] [[Roto en claude]]"),
+    nota(".claude/skills/b/SKILL.md", "Sin enlaces."),
+    nota(".claude/Herramienta.md", "Nadie más me enlaza."),
+    nota("notas/.borradores/Borrador.md", "[[Otro roto oculto]]"),
+  ];
+  const carpetas = carpetasDe(notas);
+  const filas = S.filasComoElIndice(notas, carpetas);
+  const base = { notas, carpetas, filas, otros: OTROS, carpetaEsporas: "Esporas" };
+  const i = S.calcularSalud({ ...base, sinOcultas: true });
+  const todo = JSON.stringify([i.rotos, i.embedsRotos, i.huerfanas, i.sinSalientes, i.duplicados]);
+  assert.ok(!todo.includes(".claude/") && !todo.includes(".borradores/"), todo);
+  assert.ok(rutas(i.huerfanas).includes("Solo desde claude.md"), "solo la enlaza .claude: huérfana");
+  assert.ok(!textos(i.rotos).some((t) => t.includes("Herramienta")), "un enlace hacia .claude no está roto");
+  assert.ok(!rutas(i.sinSalientes).includes("Destino oculto.md"), "su enlace hacia .claude cuenta como saliente");
+  assert.ok(!i.duplicados.some((d) => d.titulo === "SKILL"), "homónimas todas ocultas: no se reportan");
+  assert.equal(i.notas, informe(undefined).notas + 2, "solo las dos visibles nuevas");
+  assert.equal(i.sinOcultas, true);
+
+  // Sin la opción, se analiza todo, como antes.
+  const todas = S.calcularSalud(base);
+  assert.ok(!rutas(todas.huerfanas).includes("Solo desde claude.md"));
+  assert.ok(textos(todas.rotos).includes(".claude/skills/a/SKILL.md:enlace:Roto en claude"));
+  assert.ok(todas.duplicados.some((d) => d.titulo === "SKILL"));
+  assert.equal(S.informeParaIa(i).carpetas_ocultas, "fuera");
+  assert.equal(S.informeParaIa(todas).carpetas_ocultas, "incluidas");
+
+  // Una homónima visible de una oculta sí es ambigua.
+  const conVisible = [...notas, nota("Herramienta.md", "La visible.")];
+  const c2 = carpetasDe(conVisible);
+  const j = S.calcularSalud({ notas: conVisible, carpetas: c2, filas: S.filasComoElIndice(conVisible, c2), otros: OTROS, carpetaEsporas: "Esporas", sinOcultas: true });
+  assert.ok(j.duplicados.some((d) => d.titulo === "Herramienta"));
+});
+
 test("huérfanas y sin salientes: solo notas markdown; un lienzo que la tiene como tarjeta la enlaza", () => {
   const i = informe();
   assert.deepEqual(rutas(i.huerfanas), ["Suelta.md", "docs/CLAUDE.md"], "Mapa la enlaza Plan; proyectos/Plan, la pista de Mapa");

@@ -21,7 +21,7 @@ import {
   useRecordatoriosStore,
 } from "@/stores/recordatoriosStore";
 import { DIAS_SEMANA, fechaCompleta } from "./comun";
-import { ListaRecordatorios } from "./ListaRecordatorios";
+import { ListaRecordatorios, MarcaPersonal, SelectorAlcance } from "./ListaRecordatorios";
 import styles from "./Recordatorios.module.css";
 import { SelectorMes } from "./SelectorMes";
 
@@ -43,8 +43,9 @@ const mesDe = (fecha: string) => {
  * lateral que se puede esconder.
  */
 export function CalendarioVista() {
-  const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
-  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
+  const recordatorios = useRecordatoriosStore((s) => s.visibles);
+  const estados = useRecordatoriosStore((s) => s.vista.ocurrencias);
+  const personales = useRecordatoriosStore((s) => s.personales);
   const foco = useRecordatoriosStore((s) => s.foco);
   const consumirFoco = useRecordatoriosStore((s) => s.consumirFoco);
   const abrirModal = useModalRecordatorioStore((s) => s.abrir);
@@ -184,6 +185,7 @@ export function CalendarioVista() {
           Hoy
         </button>
         <div className={styles.empuje} />
+        <SelectorAlcance />
         <button type="button" className={styles.botonPrimario} onClick={() => nuevoRecordatorio(fecha)}>
           <Plus size={15} aria-hidden />
           Nuevo recordatorio
@@ -253,6 +255,7 @@ export function CalendarioVista() {
                       {visibles.map((o) => {
                         const clave = `${o.recordatorio.id}@${o.fecha}`;
                         const completada = estados[clave]?.completada === true;
+                        const personal = personales.has(o.recordatorio.id);
                         return (
                           <button
                             key={clave}
@@ -263,7 +266,7 @@ export function CalendarioVista() {
                             className={`${styles.chip} ${seleccionado === clave ? styles.seleccionado : ""}`}
                             data-completada={completada || undefined}
                             style={{ "--rec": varColor(o.recordatorio.color, completada) } as React.CSSProperties}
-                            title={completada ? `${o.recordatorio.titulo} (completado)` : o.recordatorio.titulo}
+                            title={`${o.recordatorio.titulo}${personal ? " (personal)" : ""}${completada ? " (completado)" : ""}`}
                             onClick={() => abrirModal({ tipo: "ver", id: o.recordatorio.id, fecha: o.fecha })}
                           >
                             {completada && <Check size={11} strokeWidth={3} aria-hidden className={styles.chipCheck} />}
@@ -271,6 +274,7 @@ export function CalendarioVista() {
                               <span className={styles.chipHora}>{o.recordatorio.hora}</span>
                             )}
                             <span className={styles.chipTitulo}>{o.recordatorio.titulo}</span>
+                            {personal && <MarcaPersonal size={10} />}
                           </button>
                         );
                       })}

@@ -20,7 +20,10 @@ que lo resume, mirar una imagen, consultar un archivo de configuración o retoca
    - **Texto y código**: con números de línea, colores según el lenguaje y un buscador.
    - **PDF**: el documento, paginado. Mientras tiene el foco, sus teclas son del visor: **F6**, **Esc** y
      **F10** no llegan a Mycelium; **Tab** recorre sus botones y, al terminar, vuelve.
-   - **Imágenes**: con zoom; **Ajustar al panel** vuelve a encajarla.
+   - **Imágenes**: con zoom desde los botones **−** y **+**, o con el **pellizco del touchpad**:
+     separar dos dedos acerca y juntarlos aleja, hacia el punto que está bajo el puntero
+     (**Ctrl+rueda** del mouse hace lo mismo). Con la imagen ampliada, arrástrala para moverte;
+     **Ajustar al panel** vuelve a encajarla.
    - Lo que no es texto ni sabe dibujar, lo dice y ofrece **Abrir con el sistema**.
 2. Un archivo de texto se abre en solo lectura. Para cambiarlo, **Editar**; los cambios no se
    escriben hasta **Guardar** (o **Ctrl+S**), y **Salir de edición** vuelve a la lectura.

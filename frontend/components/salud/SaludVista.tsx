@@ -1,6 +1,6 @@
 "use client";
 
-import { FilePlus2, RefreshCw, TriangleAlert, CircleCheck } from "lucide-react";
+import { Eye, EyeOff, FilePlus2, RefreshCw, TriangleAlert, CircleCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -86,6 +86,7 @@ function Cabecera({ revision, revisando }: { revision: RevisionVault | null; rev
   const rutaVault = useVaultSessionStore((s) => s.rutaActual);
   const vault = rutaVault ? rutaVault.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : null;
   const { generando, generar } = useGenerarInforme(revision);
+  const mostrarOcultas = usePreferencesStore((s) => s.prefs.saludMostrarOcultas === true);
 
   const partes = [
     vault,
@@ -101,6 +102,20 @@ function Cabecera({ revision, revisando }: { revision: RevisionVault | null; rev
         {partes.length > 0 && <p className={styles.subtitulo}>{partes.join(" · ")}</p>}
       </div>
       <div className={styles.acciones}>
+        <button
+          type="button"
+          className={styles.boton}
+          onClick={() => void useSaludStore.getState().alternarOcultas()}
+          aria-pressed={mostrarOcultas}
+          title={
+            mostrarOcultas
+              ? "La revisión cuenta lo que está en carpetas que empiezan con punto (.claude, .github…)"
+              : "La revisión deja afuera las carpetas que empiezan con punto (.claude, .github…)"
+          }
+        >
+          {mostrarOcultas ? <Eye size={15} aria-hidden /> : <EyeOff size={15} aria-hidden />}
+          {mostrarOcultas ? "Ocultar carpetas con punto" : "Mostrar carpetas con punto"}
+        </button>
         <button type="button" className={styles.boton} onClick={() => void generar()} disabled={!revision || generando}>
           <FilePlus2 size={15} aria-hidden />
           {generando ? "Generando…" : "Generar informe como nota"}

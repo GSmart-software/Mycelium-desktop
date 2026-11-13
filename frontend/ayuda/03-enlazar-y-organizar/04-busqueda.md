@@ -24,6 +24,10 @@ frase que escribiste hace meses o todas las notas con una etiqueta o una propied
    abre la nota en la primera coincidencia. Con el teclado (**Ctrl+Shift+F**), **↓** baja
    del campo a los resultados, **↑** en el primero o **Esc** vuelven al campo, **Enter** abre
    el resultado, y teclear el comienzo de un nombre salta a ese resultado.
+4. El **clic derecho** sobre un resultado o sobre una carpeta de los resultados abre el
+   mismo menú que en el explorador: abrir al lado, renombrar, mover, duplicar, copiar el
+   enlace, exportar, eliminar y, en una carpeta, crear adentro. Con el teclado, la tecla
+   **Menú** o **Shift+F10** lo abren, y **F2** renombra.
 
 ## La búsqueda global
 
@@ -33,7 +37,7 @@ Escribe al menos dos caracteres. Con varias palabras, aparecen las notas que tie
 |---|---|
 | `reunión cliente` | Las notas que tienen las dos palabras. |
 | `"plan de lanzamiento"` | La frase exacta, entre comillas. |
-| `tag:proyecto` | Las notas con la etiqueta `#proyecto`, en el texto o en la propiedad `tags`. |
+| `#proyecto` o `tag:proyecto` | Las notas con la etiqueta `#proyecto`, en el texto o en la propiedad `tags`. |
 | `estado:activo` | Las notas cuya propiedad `estado` tiene la palabra «activo». |
 | `bancal:"Bancal 1"` | Las notas cuya propiedad `bancal` vale exactamente «Bancal 1». |
 
@@ -49,8 +53,9 @@ notas activas.
 `tag:` busca la **etiqueta**, no la palabra: `tag:riego` no trae una nota que solo dice
 «riego» en el texto. Trae también las etiquetas anidadas debajo —`tag:proyecto` encuentra
 `#proyecto/faro`, y `tag:proyecto/faro` solo esa—, pero no las que solo empiezan igual
-(`tag:proy` no encuentra `#proyecto`). El `#` delante es opcional: `tag:#proyecto` es lo
-mismo.
+(`tag:proy` no encuentra `#proyecto`). Escribir la etiqueta como en la nota es lo mismo:
+`#proyecto`, `#123` o `#HU-12` filtran por esa etiqueta, y `tag:#proyecto` también vale.
+Dentro de una frase entre comillas, el `#` es texto: `"#123 pendiente"` busca esas palabras.
 
 No importan las mayúsculas ni las tildes, tampoco en los filtros: «pulgon» encuentra
 «Pulgón», y `familia:solanaceas` encuentra las notas con `familia: Solanáceas`.

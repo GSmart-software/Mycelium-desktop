@@ -2,7 +2,7 @@
 titulo: Control de la IA (MCP)
 tema: IA
 solo: desktop
-sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones]
+sinonimos: [mcp, claude code, servidor, actividad de la ia, deshacer, robot, operar la app, sesiones, reservas, reservar, varias sesiones, paneles, dividir la pantalla, bandeja, procesar la bandeja]
 ---
 
 El **control de la IA** deja que Claude Code **opere Mycelium**, no solo sus archivos: que te
@@ -35,7 +35,12 @@ herramienta: genéralas, o actualízalas si Configuración te ofrece una versió
 
 - **Mostrar**: abrir una nota u otro archivo —y llevarte a un encabezado o a una línea—, el
   grafo o el calendario. Sin sacarte de lo que estás escribiendo, salvo que haga falta.
-- **Saber qué tienes abierto**: tus pestañas y cuáles tienen cambios sin guardar.
+  Puede elegir **en qué panel** abrirlo y, si se lo pides, **dividir la pantalla** a la
+  derecha o abajo para mostrarte algo al lado, igual que cuando divides tú. Mover pestañas
+  entre paneles o cerrarlos sigue siendo cosa tuya; un panel que abrió la IA se cierra como
+  cualquier otro.
+- **Saber qué tienes abierto**: tus pestañas, en qué panel está cada una y cuáles tienen
+  cambios sin guardar.
 - **Calendario**: leer lo agendado, y crear, cambiar, completar o borrar
   [recordatorios](ayuda:herramientas/calendario).
 - **Renombrar y mover** notas y carpetas, reparando los enlaces que llegan a ellas.
@@ -43,6 +48,8 @@ herramienta: genéralas, o actualízalas si Configuración te ofrece una versió
   Nunca borra para siempre.
 - **Diccionario**: agregar o quitar palabras del diccionario del vault del
   [corrector](ayuda:herramientas/corrector).
+- **Bandejas**: leer la [Bandeja](ayuda:herramientas/bandeja-y-captura-rapida) del vault y la
+  personal, y quitar los apuntes que ya llevó a sus notas, sin pisar una captura nueva.
 - **Consultar la memoria**, sin cambiar nada:
   - **buscar** con la misma [búsqueda](ayuda:enlazar-y-organizar/busqueda) de la app
     (nombre, contenido, frases, `clave:valor` y `tag:x`), solo en las notas que Mycelium
@@ -100,6 +107,12 @@ terminal. Mycelium las reconoce a todas:
 > sus reservas. Si cierras Mycelium, apagas el control o cambias de vault, se pierden todas:
 > al volver, cada sesión que siga abierta se reconecta sola en unos segundos, pero sin su
 > tarea ni sus reservas, que tiene que declarar de nuevo.
+
+> [!info] Al actualizar Mycelium en Windows
+> El servidor del control de la IA lo abre tu herramienta de IA, no Mycelium, y sigue
+> corriendo mientras dure su sesión. Para poder reemplazarlo, el instalador de la
+> actualización lo **cierra** antes de copiar los archivos. La sesión de IA pierde el control
+> de Mycelium hasta que lo reconectes: en Claude Code, con `/mcp`, o abriendo una sesión nueva.
 
 ## Lo que te pregunta antes
 

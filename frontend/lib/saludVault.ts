@@ -30,12 +30,14 @@ import { carpetaEsporas } from "@/lib/esporasVault";
 import {
   calcularSalud,
   enAlcance,
+  enCarpetaOculta,
   excluida,
   notasConProblemas,
   ponerLineas,
   type Alcance,
   type InformeSalud,
 } from "@/lib/salud";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useVaultStore } from "@/stores/vaultStore";
 
 /** Lo que el informe lee del índice: notas, carpetas y filas de `enlaces`. */
@@ -47,8 +49,24 @@ export async function datosDelIndice(): Promise<DatosDelIndice> {
   return { notas, carpetas, filas };
 }
 
-export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Promise<InformeSalud> {
-  return informeConDatos(await datosDelIndice(), alcance);
+/**
+ * ¿La salud deja afuera las carpetas que empiezan con punto? (`FUN-S-38`). Es
+ * la preferencia del vault que alterna el botón del panel y de la pestaña; por
+ * defecto, sí.
+ */
+export function saludSinOcultas(): boolean {
+  return usePreferencesStore.getState().prefs.saludMostrarOcultas !== true;
+}
+
+/**
+ * El informe del vault. `sinOcultas` (`FUN-S-38`) por defecto es la preferencia
+ * del vault: `mycelium_salud` da así las cifras del panel.
+ */
+export async function informeDeSalud(
+  alcance: Alcance = { tipo: "vault" },
+  sinOcultas: boolean = saludSinOcultas(),
+): Promise<InformeSalud> {
+  return informeConDatos(await datosDelIndice(), alcance, sinOcultas);
 }
 
 /**
@@ -59,6 +77,7 @@ export async function informeDeSalud(alcance: Alcance = { tipo: "vault" }): Prom
 export async function informeConDatos(
   { notas, carpetas, filas }: DatosDelIndice,
   alcance: Alcance = { tipo: "vault" },
+  sinOcultas: boolean = saludSinOcultas(),
 ): Promise<InformeSalud> {
   const informe = calcularSalud({
     notas,
@@ -68,6 +87,7 @@ export async function informeConDatos(
     carpetaEsporas: carpetaEsporas(),
     rutaBandeja: rutaBandeja(),
     alcance,
+    sinOcultas,
   });
   const ids = notasConProblemas(informe);
   if (ids.length > 0) {
@@ -80,7 +100,7 @@ export async function informeConDatos(
   informe.avisosEsquemas = avisos;
   const esporas = carpetaEsporas();
   const candidatas = notas
-    .filter((n) => n.tipo === "markdown" && enAlcance(n.id, alcance))
+    .filter((n) => n.tipo === "markdown" && enAlcance(n.id, alcance) && !(sinOcultas && enCarpetaOculta(n.id)))
     .map((n) => ({ ...n, excluida: excluida(n, esporas, rutaBandeja()) }));
   const enJuego = new Set(candidatas.map((n) => n.id));
   const aLeer = esquemas.length > 0 ? [...enJuego] : (await notasConValorAlmohadilla()).filter((id) => enJuego.has(id));

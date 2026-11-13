@@ -323,3 +323,63 @@ test("el primer renglón del detalle, sin marcas", () => {
   assert.equal(R.primerRenglon("- [ ] revisar **[[Presupuesto]]**"), "revisar Presupuesto");
   assert.equal(R.primerRenglon(""), "");
 });
+
+// ── Recordatorios personales (`FUN-M-60`) ──────────────────────────────────
+
+test("personales: los dos alcances se ven juntos y el filtro los separa", () => {
+  const delVault = archivo([rec({ id: "v1" })], { "v1@2026-01-01": { completada: true } });
+  const personal = archivo([rec({ id: "p1", vaultOrigen: "C:/Notas" })], { "p1@2026-01-01": { descartada: true } });
+  const vista = R.combinarAlcances(delVault, personal);
+  assert.deepEqual(vista.recordatorios.map((r) => r.id), ["v1", "p1"]);
+  assert.deepEqual(Object.keys(vista.ocurrencias).sort(), ["p1@2026-01-01", "v1@2026-01-01"]);
+  const personales = new Set(["p1"]);
+  assert.deepEqual(R.filtrarPorAlcance(vista.recordatorios, personales, "todos").map((r) => r.id), ["v1", "p1"]);
+  assert.deepEqual(R.filtrarPorAlcance(vista.recordatorios, personales, "vault").map((r) => r.id), ["v1"]);
+  assert.deepEqual(R.filtrarPorAlcance(vista.recordatorios, personales, "personal").map((r) => r.id), ["p1"]);
+});
+
+test("personales: el vault de origen se lee del archivo y se fija al pasar a personal", () => {
+  const leido = R.leerArchivo({ recordatorios: [rec({ vaultOrigen: "C:/Notas" }), rec({ id: "r2", vaultOrigen: "" })] });
+  assert.equal(leido.recordatorios[0].vaultOrigen, "C:/Notas");
+  assert.equal("vaultOrigen" in leido.recordatorios[1], false);
+
+  // Al pasar a personal recuerda el vault abierto; si ya tenía uno, lo conserva.
+  assert.equal(R.conAlcance(rec(), "personal", "C:/Trabajo").vaultOrigen, "C:/Trabajo");
+  assert.equal(R.conAlcance(rec({ vaultOrigen: "C:/Notas" }), "personal", "C:/Trabajo").vaultOrigen, "C:/Notas");
+  // Al pasar al vault, lo olvida.
+  assert.equal("vaultOrigen" in R.conAlcance(rec({ vaultOrigen: "C:/Notas" }), "vault", "C:/Trabajo"), false);
+});
+
+test("personales: mover de un archivo al otro lleva el estado de sus ocurrencias", () => {
+  const r = rec({ id: "r1", repeticion: "dia" });
+  const origen = archivo([r, rec({ id: "r2" })], {
+    "r1@2026-01-01": { completada: true },
+    "r1@2026-01-02": { descartada: true },
+    "r2@2026-01-01": { completada: true },
+  });
+  const ocurrencias = R.ocurrenciasDe(origen, "r1");
+  const destino = R.restaurarRecordatorio(archivo([]), R.conAlcance(r, "personal", "C:/Notas"), ocurrencias);
+  const quedan = R.quitarRecordatorio(origen, "r1");
+  assert.deepEqual(destino.recordatorios.map((x) => x.id), ["r1"]);
+  assert.deepEqual(Object.keys(destino.ocurrencias).sort(), ["r1@2026-01-01", "r1@2026-01-02"]);
+  assert.deepEqual(quedan.recordatorios.map((x) => x.id), ["r2"]);
+  assert.deepEqual(Object.keys(quedan.ocurrencias), ["r2@2026-01-01"]);
+});
+
+test("personales: poner reemplaza por id o agrega, y la clave dice de qué recordatorio es", () => {
+  const a = archivo([rec({ id: "r1", titulo: "Viejo" })]);
+  assert.equal(R.ponerRecordatorio(a, rec({ id: "r1", titulo: "Nuevo" })).recordatorios[0].titulo, "Nuevo");
+  assert.equal(R.ponerRecordatorio(a, rec({ id: "r2" })).recordatorios.length, 2);
+  assert.equal(R.idDeClave("abc-123@2026-01-01"), "abc-123");
+});
+
+test("personales: un cambio se puede reaplicar sobre lo que otra ventana escribió", () => {
+  // Lo que hace `modificarPersonales` al reintentar: el mismo cambio sobre una
+  // versión más nueva no pierde lo de la otra ventana.
+  const base = archivo([rec({ id: "r1" })]);
+  const otraVentana = R.ponerRecordatorio(base, rec({ id: "r2" }));
+  const cambio = (x) => R.fijarCompletada(x, "r1@2026-01-01", true);
+  const final = cambio(otraVentana);
+  assert.deepEqual(final.recordatorios.map((x) => x.id), ["r1", "r2"]);
+  assert.equal(R.estaCompletada(final, "r1@2026-01-01"), true);
+});

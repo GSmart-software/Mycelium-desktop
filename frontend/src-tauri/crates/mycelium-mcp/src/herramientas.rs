@@ -23,6 +23,11 @@
 //! (`lib/saludVault.ts`).
 //! `FUN-M-44`: `mycelium_diagnosticos`, lo que el editor de la app tiene marcado
 //! en las notas abiertas (o en una), sin recalcular lo ya calculado.
+//! `FUN-M-59`: `mycelium_abrir` elige el panel (`panel`) y `mycelium_dividir`
+//! divide la pantalla, con las mismas acciones que la división del usuario.
+//! `FUN-S-40`: `mycelium_bandeja`, leer las dos bandejas (la del vault y la
+//! personal) y quitar entradas por número con la huella de la lectura; la app
+//! numera, compara y escribe por su camino (`lib/mcpBandeja.ts`).
 //! Cada herramienta nueva se
 //! declara en [`definiciones`] y se atiende en [`llamar`]; la lógica de cada
 //! operación vive en la app (`lib/mcpControl.ts`), donde ya existe, y acá solo
@@ -47,9 +52,10 @@ use crate::servidor::Estado;
 use crate::vault::VaultResuelto;
 
 /// Los nombres de las herramientas que este servidor atiende.
-const NOMBRES: [&str; 20] = [
+const NOMBRES: [&str; 22] = [
     "mycelium_estado",
     "mycelium_abrir",
+    "mycelium_dividir",
     "mycelium_recordatorios",
     "mycelium_recordatorio_crear",
     "mycelium_recordatorio_editar",
@@ -68,11 +74,17 @@ const NOMBRES: [&str; 20] = [
     "mycelium_sesion",
     "mycelium_reservar",
     "mycelium_diagnosticos",
+    "mycelium_bandeja",
 ];
 
 /// Los nombres de los colores de la paleta del calendario, para las
 /// descripciones (la validación es de la app: `lib/recordatorios.ts`).
 const PALETA: &str = "Hifa, Musgo, Liquen, Yesca, Amanita, Coral, Espora, Bruma";
+
+/// El `alcance` de las herramientas del calendario (`FUN-M-60`): los del vault
+/// o los personales, que se ven y avisan desde todos los vaults.
+const ALCANCE: &str = "`vault` (los de este vault, en .mycelium/recordatorios.json) o `personal` (los del usuario, \
+    fuera de los vaults: se ven y avisan desde todos)";
 
 /// Dónde enciende el usuario el control: se repite en varios mensajes.
 const DONDE_SE_ENCIENDE: &str = "Configuración → Vault → «Asistente IA (Claude Code)» → «Dejar que la IA controle Mycelium»";
@@ -96,9 +108,13 @@ pub fn definiciones() -> Vec<Value> {
             "title": "Mostrar algo en Mycelium",
             "description": "Abre en Mycelium una nota o archivo del vault, el grafo o el calendario, en una \
                 pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pide \
-                `foco: true` solo si tienes algo que mostrarle ahora. En una nota puede saltar a un encabezado, \
-                una línea o un texto. Devuelve en qué panel quedó y qué pestañas hay. No crea nada: si el \
-                objetivo no existe, contesta NO_ENCONTRADO con las candidatas más parecidas.",
+                `foco: true` solo si tienes algo que mostrarle ahora. Por defecto abre en el panel con el foco; \
+                con `panel` (el número que informan mycelium_estado y esta misma respuesta), en ese: si el \
+                objetivo ya está abierto en otro panel, queda también en el pedido, como cuando lo hace el \
+                usuario. Un panel que no existe es PANEL_INEXISTENTE (no se crea: para eso, mycelium_dividir). \
+                En una nota puede saltar a un encabezado, una línea o un texto. Devuelve en qué panel quedó y \
+                qué pestañas hay. No crea nada: si el objetivo no existe, contesta NO_ENCONTRADO con las \
+                candidatas más parecidas.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -118,25 +134,33 @@ pub fn definiciones() -> Vec<Value> {
                         "additionalProperties": false
                     },
                     "revelar": { "type": "boolean", "description": "Mostrarla también en el explorador (abre su carpeta). Por defecto false." },
-                    "foco": { "type": "boolean", "description": "Activar la pestaña y llevar al usuario a ella. Por defecto false." }
+                    "foco": { "type": "boolean", "description": "Activar la pestaña y llevar al usuario a ella. Por defecto false." },
+                    "panel": { "type": "integer", "minimum": 1, "description": "En qué panel abrirla: su número, desde 1, como lo informa mycelium_estado. Por defecto, el del foco." }
                 },
                 "required": ["objetivo"],
                 "additionalProperties": false
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
+        definicion_dividir(),
         json!({
             "name": "mycelium_recordatorios",
             "title": "Leer el calendario",
             "description": "Las ocurrencias del calendario de recordatorios entre dos fechas (inclusive, tope 366 días), \
                 calculadas por la misma lógica que usa Mycelium: repeticiones expandidas, orden de la app (por día, los \
                 de todo el día primero), color, si cada ocurrencia está completada, el id y el primer renglón del \
-                detalle. Es la forma preferida de leer el calendario. Fechas locales AAAA-MM-DD.",
+                detalle. Trae los dos alcances —los del vault y los personales, que se ven en todos los vaults—, \
+                marcando cuál es cada uno. Es la forma preferida de leer el calendario. Fechas locales AAAA-MM-DD.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "desde": { "type": "string", "description": "Primer día, AAAA-MM-DD." },
-                    "hasta": { "type": "string", "description": "Último día, AAAA-MM-DD (incluido)." }
+                    "hasta": { "type": "string", "description": "Último día, AAAA-MM-DD (incluido)." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["todos", "vault", "personal"],
+                        "description": "Cuáles traer. Por defecto todos."
+                    }
                 },
                 "required": ["desde", "hasta"],
                 "additionalProperties": false
@@ -149,7 +173,8 @@ pub fn definiciones() -> Vec<Value> {
             "description": format!("Crea un recordatorio en el calendario de Mycelium, como si el usuario lo hubiera \
                 creado en el formulario: aparece al instante y avisa a su hora (con Mycelium abierto). Devuelve el id, \
                 la próxima ocurrencia y si va a avisar. El usuario lo puede deshacer desde el registro de actividad. \
-                Colores: {PALETA}."),
+                Por defecto va al calendario de este vault; con alcance: personal, a los personales del usuario, que se \
+                ven y avisan desde todos los vaults (úsalo solo si lo pide así). Colores: {PALETA}."),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -162,7 +187,12 @@ pub fn definiciones() -> Vec<Value> {
                         "description": "Por defecto ninguna. Cada mes el 31 no cae en los meses sin 31; cada año el 29/02 solo en bisiestos."
                     },
                     "color": { "type": "string", "description": format!("Nombre de la paleta (sin distinguir mayúsculas ni tildes): {PALETA}. Por defecto Hifa.") },
-                    "detalle": { "type": "string", "description": "Markdown; puede tener [[enlaces]] a notas del vault." }
+                    "detalle": { "type": "string", "description": "Markdown; puede tener [[enlaces]] a notas del vault." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde va: {ALCANCE}. Por defecto vault.")
+                    }
                 },
                 "required": ["titulo", "fecha"],
                 "additionalProperties": false
@@ -173,7 +203,8 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_recordatorio_editar",
             "title": "Editar un recordatorio",
             "description": "Cambia los campos que mandes de un recordatorio existente (el resto queda igual). Si cambia \
-                cuándo ocurre, no avisa por lo que ya pasó. Devuelve qué cambió y la próxima ocurrencia. Se puede \
+                cuándo ocurre, no avisa por lo que ya pasó. Con alcance, lo pasa de un lado al otro (del vault a \
+                personal o al revés); sin él, queda donde está. Devuelve qué cambió y la próxima ocurrencia. Se puede \
                 deshacer desde el registro de actividad.",
             "inputSchema": {
                 "type": "object",
@@ -184,7 +215,12 @@ pub fn definiciones() -> Vec<Value> {
                     "hora": { "type": ["string", "null"], "description": "HH:MM; null pasa a todo el día." },
                     "repeticion": { "type": "string", "enum": ["ninguna", "dia", "semana", "mes", "anio"] },
                     "color": { "type": "string", "description": PALETA },
-                    "detalle": { "type": "string" }
+                    "detalle": { "type": "string" },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("A dónde pasarlo: {ALCANCE}. Omitido: queda donde está.")
+                    }
                 },
                 "required": ["id"],
                 "additionalProperties": false
@@ -202,7 +238,12 @@ pub fn definiciones() -> Vec<Value> {
                 "properties": {
                     "id": { "type": "string" },
                     "fecha": { "type": "string", "description": "AAAA-MM-DD: un día en que el recordatorio ocurre." },
-                    "completado": { "type": "boolean", "description": "Por defecto true." }
+                    "completado": { "type": "boolean", "description": "Por defecto true." },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde está: {ALCANCE}. Omitido: se busca en los dos (los ids no se repiten).")
+                    }
                 },
                 "required": ["id", "fecha"],
                 "additionalProperties": false
@@ -213,10 +254,18 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_recordatorio_borrar",
             "title": "Borrar un recordatorio",
             "description": "Borra un recordatorio; si se repite, la serie entera. No pregunta: el usuario lo puede \
-                restaurar con el mismo id desde el registro de actividad de Mycelium (Deshacer).",
+                restaurar con el mismo id desde el registro de actividad de Mycelium (Deshacer). Uno personal se borra \
+                de todos los vaults.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "id": { "type": "string" } },
+                "properties": {
+                    "id": { "type": "string" },
+                    "alcance": {
+                        "type": "string",
+                        "enum": ["vault", "personal"],
+                        "description": format!("Dónde está: {ALCANCE}. Omitido: se busca en los dos (los ids no se repiten).")
+                    }
+                },
                 "required": ["id"],
                 "additionalProperties": false
             },
@@ -395,7 +444,9 @@ pub fn definiciones() -> Vec<Value> {
                 tarjeta sí cuenta), notas SIN ENLACES SALIENTES y PROPIEDADES que no cumplen los esquemas de \
                 `esquemas.yml` (o con un valor que empieza con # sin comillas, que YAML lee como comentario). Un [[enlace]] dentro de un bloque de código no cuenta, \
                 y un enlace a un archivo que existe pero no es nota (imagen, PDF) no está roto. Las Esporas (plantillas) y \
-                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Alcance: el vault entero, \
+                las instrucciones de agentes de la raíz (CLAUDE.md, AGENTS.md) no se juzgan. Lo que está en carpetas que \
+                empiezan con punto (.claude/, .github/…) tampoco, salvo que el usuario las muestre en el panel de salud o \
+                el alcance esté dentro de una: sus enlaces no cuentan, pero un enlace hacia ellas no está roto. Alcance: el vault entero, \
                 una carpeta o una nota. Hasta 100 ítems por clase, con los totales.",
             "inputSchema": {
                 "type": "object",
@@ -470,7 +521,90 @@ pub fn definiciones() -> Vec<Value> {
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false }
         }),
         definicion_diagnosticos(),
+        definicion_bandeja(),
     ]
+}
+
+/// La definición de `mycelium_bandeja` (`FUN-S-40`), aparte para no alargar la
+/// lista de arriba.
+fn definicion_bandeja() -> Value {
+    json!({
+        "name": "mycelium_bandeja",
+        "title": "Las bandejas de captura",
+        "description": "Lee o vacía las BANDEJAS de la captura rápida de Mycelium: la del VAULT (`Bandeja.md` en la \
+            raíz, o la ruta configurada) y la PERSONAL (una sola para todos los vaults, fuera de ellos, en la carpeta \
+            de datos de la app: no la busques en el vault). `leer` devuelve, por bandeja, su ruta, sus entradas \
+            NUMERADAS (día, hora, texto, y si es tarea su estado) y una HUELLA de lo leído; sin `bandeja`, las dos. \
+            `quitar` saca entradas por número: pide la `bandeja`, la `huella` de la lectura y los números; si la \
+            bandeja cambió desde que la leíste (una captura nueva, una edición), contesta CAMBIO_CONCURRENTE sin \
+            escribir: vuelve a leerla. Si un día queda sin entradas, se va su encabezado. Escribe por el mismo camino \
+            que la app (no se pisa con una captura ni con el editor) y se deshace desde el registro de actividad. \
+            Para procesar una bandeja: leerla, llevar cada entrada a su nota del vault y después quitarla. No escribas \
+            las bandejas a mano para vaciarlas.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "accion": { "type": "string", "enum": ["leer", "quitar"], "description": "Por defecto leer." },
+                "bandeja": {
+                    "type": "string",
+                    "enum": ["vault", "personal"],
+                    "description": "Cuál. Al leer, sin ella, las dos; para quitar es obligatoria."
+                },
+                "huella": { "type": "string", "description": "Para quitar: la huella que dio la lectura de esa bandeja." },
+                "entradas": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 1 },
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "description": "Para quitar: los números de las entradas, como los dio la lectura."
+                }
+            },
+            "additionalProperties": false
+        },
+        "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false }
+    })
+}
+
+/// La definición de `mycelium_dividir` (`FUN-M-59`), aparte para no alargar la
+/// lista de arriba.
+fn definicion_dividir() -> Value {
+    json!({
+        "name": "mycelium_dividir",
+        "title": "Dividir la pantalla",
+        "description": "Divide un panel de Mycelium en dos, hacia la derecha o hacia abajo, como cuando lo hace el \
+            usuario (menú de la barra de pestañas o paleta de comandos), y opcionalmente abre algo en el panel nuevo, \
+            con las mismas reglas que mycelium_abrir (ruta, título, `grafo`, `calendario`, e `ir_a`). Sin `objetivo`, \
+            el panel nuevo muestra lo mismo que el dividido (un lienzo, dibujo, diagrama, visor, consola o vista \
+            global no se duplica: pasa al panel nuevo). Por defecto NO le roba el foco al usuario; `foco: true` lo \
+            lleva al panel nuevo. Úsala cuando el usuario lo pida o cuando mostrar dos cosas lado a lado sea el \
+            objetivo: la disposición de la pantalla es suya. Devuelve el número del panel nuevo y los paneles. No \
+            toca archivos ni va al registro de actividad: se deshace cerrando el panel.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "direccion": { "type": "string", "enum": ["derecha", "abajo"], "description": "Dónde queda el panel nuevo respecto del dividido." },
+                "panel": { "type": "integer", "minimum": 1, "description": "Qué panel dividir: su número, desde 1, como lo informa mycelium_estado. Por defecto, el del foco." },
+                "objetivo": {
+                    "type": "string",
+                    "description": "Opcional: qué abrir en el panel nuevo. Ruta relativa al vault, título de una nota, `grafo` o `calendario`."
+                },
+                "ir_a": {
+                    "type": "object",
+                    "description": "Solo con un `objetivo` que sea nota markdown: a dónde saltar. Uno solo de los tres.",
+                    "properties": {
+                        "encabezado": { "type": "string" },
+                        "linea": { "type": "integer", "minimum": 1 },
+                        "texto": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                },
+                "foco": { "type": "boolean", "description": "Llevar al usuario al panel nuevo. Por defecto false." }
+            },
+            "required": ["direccion"],
+            "additionalProperties": false
+        },
+        "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false }
+    })
 }
 
 /// La definición de `mycelium_diagnosticos` (`FUN-M-44`), aparte para no
@@ -512,6 +646,7 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
     Some(match nombre {
         "mycelium_estado" => herramienta_estado(estado, vault),
         "mycelium_abrir" => herramienta_abrir(estado, vault, args),
+        "mycelium_dividir" => herramienta_dividir(estado, vault, args),
         "mycelium_recordatorios" => herramienta_calendario(estado, vault, "recordatorios", args, redactar_recordatorios),
         "mycelium_recordatorio_crear" => herramienta_calendario(estado, vault, "recordatorio_crear", args, redactar_escritura),
         "mycelium_recordatorio_editar" => herramienta_calendario(estado, vault, "recordatorio_editar", args, redactar_escritura),
@@ -532,6 +667,7 @@ pub fn llamar(estado: &Estado, nombre: &str, args: &Value) -> Option<Value> {
         "mycelium_sesion" => herramienta_coordinacion(estado, vault, "sesion", args),
         "mycelium_reservar" => herramienta_coordinacion(estado, vault, "reservar", args),
         "mycelium_diagnosticos" => herramienta_consulta(estado, vault, "diagnosticos", args, redactar_diagnosticos),
+        "mycelium_bandeja" => herramienta_bandeja(estado, vault, args),
         _ => unreachable!("nombre validado arriba"),
     })
 }
@@ -639,6 +775,11 @@ pub fn redactar_error(error: &Value) -> String {
     }
     if let Some(ms) = datos.get("reintentar_en_ms").and_then(Value::as_u64) {
         t.push_str(&format!(" Reintenta en {:.1} s.", ms as f64 / 1000.0));
+    }
+    // `PANEL_INEXISTENTE` (`FUN-M-59`): los paneles que sí hay.
+    if let Some(paneles) = datos.get("paneles").filter(|p| p.is_array()) {
+        t.push_str("\nLos paneles que hay:\n");
+        t.push_str(&redactar_paneles(paneles));
     }
     t
 }
@@ -760,6 +901,41 @@ pub fn validar_abrir(args: &Value) -> Result<Value, String> {
     let Some(objetivo) = args.get("objetivo").and_then(Value::as_str).map(str::trim).filter(|o| !o.is_empty()) else {
         return invalido("falta `objetivo` (una ruta, un título, `grafo` o `calendario`).");
     };
+    validar_ir_a(args)?;
+    for clave in ["revelar", "foco"] {
+        if let Some(v) = args.get(clave).filter(|v| !v.is_null()) {
+            if !v.is_boolean() {
+                return invalido(&format!("`{clave}` es true o false."));
+            }
+        }
+    }
+    Ok(json!({
+        "objetivo": objetivo,
+        "ir_a": args.get("ir_a").cloned().unwrap_or(Value::Null),
+        "revelar": args.get("revelar").and_then(Value::as_bool).unwrap_or(false),
+        "foco": args.get("foco").and_then(Value::as_bool).unwrap_or(false),
+        "panel": validar_panel(args)?,
+    }))
+}
+
+/// `panel` (`FUN-M-59`): un entero desde 1, o `null` si no vino. Si existe lo
+/// sabe la app (`PANEL_INEXISTENTE`).
+fn validar_panel(args: &Value) -> Result<Value, String> {
+    match args.get("panel").filter(|v| !v.is_null()) {
+        None => Ok(Value::Null),
+        Some(v) => match v.as_u64().filter(|n| *n >= 1) {
+            Some(n) => Ok(json!(n)),
+            None => Err(format!(
+                "{}: `panel` es el número de un panel, un entero desde 1 (los informa mycelium_estado).",
+                codigo::INVALIDO
+            )),
+        },
+    }
+}
+
+/// `ir_a`, si vino: exactamente uno de encabezado, línea o texto.
+fn validar_ir_a(args: &Value) -> Result<(), String> {
+    let invalido = |m: &str| Err(format!("{}: {m}", codigo::INVALIDO));
     if let Some(ir_a) = args.get("ir_a").filter(|v| !v.is_null()) {
         let Some(o) = ir_a.as_object() else {
             return invalido("`ir_a` tiene que ser un objeto: {encabezado}, {linea} o {texto}.");
@@ -778,19 +954,7 @@ pub fn validar_abrir(args: &Value) -> Result<Value, String> {
             _ => {}
         }
     }
-    for clave in ["revelar", "foco"] {
-        if let Some(v) = args.get(clave).filter(|v| !v.is_null()) {
-            if !v.is_boolean() {
-                return invalido(&format!("`{clave}` es true o false."));
-            }
-        }
-    }
-    Ok(json!({
-        "objetivo": objetivo,
-        "ir_a": args.get("ir_a").cloned().unwrap_or(Value::Null),
-        "revelar": args.get("revelar").and_then(Value::as_bool).unwrap_or(false),
-        "foco": args.get("foco").and_then(Value::as_bool).unwrap_or(false),
-    }))
+    Ok(())
 }
 
 /// El texto de un `abrir` que salió bien: qué se abrió, dónde, con o sin foco,
@@ -831,6 +995,198 @@ fn herramienta_abrir(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Va
     match pedir(estado, vault, "abrir", args) {
         Ok(r) => texto(redactar_abrir(&r), false),
         Err(SinResultado::NadieEscucha) => texto(sin_ventana(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+// ── mycelium_dividir (`FUN-M-59`) ─────────────────────────────────────────
+
+/// Valida los argumentos de `mycelium_dividir` antes de molestar a la app.
+pub fn validar_dividir(args: &Value) -> Result<Value, String> {
+    let invalido = |m: &str| Err(format!("{}: {m}", codigo::INVALIDO));
+    let direccion = match args.get("direccion").and_then(Value::as_str) {
+        Some(d @ ("derecha" | "abajo")) => d,
+        _ => return invalido("`direccion` es «derecha» o «abajo»."),
+    };
+    let objetivo = match args.get("objetivo").filter(|v| !v.is_null()) {
+        None => Value::Null,
+        Some(v) => match v.as_str().map(str::trim) {
+            Some(o) if !o.is_empty() => json!(o),
+            _ => return invalido("`objetivo` es una ruta, un título, `grafo` o `calendario` (o se omite)."),
+        },
+    };
+    validar_ir_a(args)?;
+    if objetivo.is_null() && args.get("ir_a").is_some_and(|v| !v.is_null()) {
+        return invalido("`ir_a` va con un `objetivo`: sin él, el panel nuevo muestra la pestaña del dividido.");
+    }
+    if let Some(v) = args.get("foco").filter(|v| !v.is_null()) {
+        if !v.is_boolean() {
+            return invalido("`foco` es true o false.");
+        }
+    }
+    Ok(json!({
+        "direccion": direccion,
+        "panel": validar_panel(args)?,
+        "objetivo": objetivo,
+        "ir_a": args.get("ir_a").cloned().unwrap_or(Value::Null),
+        "foco": args.get("foco").and_then(Value::as_bool).unwrap_or(false),
+    }))
+}
+
+/// El texto de una división que salió bien: el panel nuevo, qué muestra, el
+/// foco y los paneles que quedaron.
+pub fn redactar_dividir(r: &Value) -> String {
+    let panel = r.get("panel").and_then(Value::as_u64).unwrap_or(0);
+    let dividido = r.get("dividido").and_then(Value::as_u64).unwrap_or(0);
+    let lado = if r.get("direccion").and_then(Value::as_str) == Some("abajo") { "abajo" } else { "a la derecha" };
+    let foco = r.get("foco").and_then(Value::as_bool).unwrap_or(false);
+    let mut t = format!("Dividí el panel {dividido}: el panel nuevo es el {panel}, {lado}");
+    match r.get("abierto").filter(|a| a.is_object()) {
+        Some(a) => {
+            let tipo = a.get("tipo").and_then(Value::as_str).unwrap_or("?");
+            t.push_str(&format!(", con «{}» [{tipo}]", describir_ref(a)));
+        }
+        None => t.push_str(", vacío"),
+    }
+    t.push_str(if foco { ", con el foco: el usuario lo está viendo." } else { "; el foco quedó donde estaba." });
+    if let Some(s) = r.get("salto").and_then(Value::as_str) {
+        t.push_str(&format!(" {s}"));
+    }
+    for a in r.get("avisos").and_then(Value::as_array).into_iter().flatten() {
+        if let Some(a) = a.as_str() {
+            t.push_str(&format!("\nAviso: {a}"));
+        }
+    }
+    t.push('\n');
+    t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
+    t
+}
+
+fn herramienta_dividir(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Value {
+    let args = match validar_dividir(args) {
+        Ok(a) => a,
+        Err(e) => return texto(e, true),
+    };
+    match pedir(estado, vault, "dividir", args) {
+        Ok(r) => texto(redactar_dividir(&r), false),
+        Err(SinResultado::NadieEscucha) => texto(sin_ventana(vault), true),
+        Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+// ── mycelium_bandeja (`FUN-S-40`) ─────────────────────────────────────────
+
+/// Cuántas entradas se pueden quitar en una llamada.
+const TOPE_QUITAR_BANDEJA: usize = 500;
+
+/// Valida los argumentos de `mycelium_bandeja` antes de molestar a la app.
+pub fn validar_bandeja(args: &Value) -> Result<Value, String> {
+    let invalido = |m: &str| Err(format!("{}: {m}", codigo::INVALIDO));
+    if !(args.is_object() || args.is_null()) {
+        return invalido("los argumentos van en un objeto.");
+    }
+    let accion = match args.get("accion").filter(|v| !v.is_null()) {
+        None => "leer",
+        Some(v) => match v.as_str() {
+            Some(a @ ("leer" | "quitar")) => a,
+            _ => return invalido("`accion` es «leer» o «quitar»."),
+        },
+    };
+    let bandeja = match args.get("bandeja").filter(|v| !v.is_null()) {
+        None => Value::Null,
+        Some(v) => match v.as_str() {
+            Some(b @ ("vault" | "personal")) => json!(b),
+            _ => return invalido("`bandeja` es «vault» o «personal»."),
+        },
+    };
+    if accion == "leer" {
+        return Ok(json!({ "accion": "leer", "bandeja": bandeja }));
+    }
+    if bandeja.is_null() {
+        return invalido("para quitar, `bandeja` es obligatoria: «vault» o «personal».");
+    }
+    let Some(huella) = args.get("huella").and_then(Value::as_str).map(str::trim).filter(|h| !h.is_empty()) else {
+        return invalido("falta `huella`: la que dio la lectura (accion «leer»).");
+    };
+    let numeros: Option<Vec<u64>> = args
+        .get("entradas")
+        .and_then(Value::as_array)
+        .filter(|l| !l.is_empty() && l.len() <= TOPE_QUITAR_BANDEJA)
+        .and_then(|l| l.iter().map(|n| n.as_u64().filter(|n| *n >= 1)).collect());
+    let Some(numeros) = numeros else {
+        return invalido(&format!(
+            "`entradas` es una lista de números de entrada (desde 1, hasta {TOPE_QUITAR_BANDEJA} por llamada), como los dio la lectura."
+        ));
+    };
+    Ok(json!({ "accion": "quitar", "bandeja": bandeja, "huella": huella, "entradas": numeros }))
+}
+
+/// La lectura: por bandeja, la ruta, la huella y las entradas numeradas,
+/// agrupadas por día. O el efecto de quitar.
+pub fn redactar_bandeja(r: &Value) -> String {
+    if r.get("accion").and_then(Value::as_str) == Some("quitar") {
+        let mut t = s(r, "efecto").to_string();
+        let quedan = n(r, "quedan");
+        t.push_str(&format!(
+            "\nQuedan {quedan} {}. Los números cambiaron: para quitar más, vuelve a leerla.",
+            if quedan == 1 { "entrada" } else { "entradas" }
+        ));
+        return t;
+    }
+    let mut partes = Vec::new();
+    for b in r.get("bandejas").and_then(Value::as_array).into_iter().flatten() {
+        let nombre = if s(b, "bandeja") == "vault" { "Bandeja del vault" } else { "Bandeja personal" };
+        if b.get("existe").and_then(Value::as_bool) != Some(true) {
+            partes.push(format!("{nombre} — {}: todavía no existe (se crea con la primera captura).", s(b, "ruta")));
+            continue;
+        }
+        let entradas = b.get("entradas").and_then(Value::as_array).cloned().unwrap_or_default();
+        let cuantas = match entradas.len() {
+            0 => "vacía".to_string(),
+            1 => "1 entrada".to_string(),
+            k => format!("{k} entradas"),
+        };
+        let mut t = format!("{nombre} — {} · {cuantas} · huella {}", s(b, "ruta"), s(b, "huella"));
+        // Un renglón por día, cuando cambia (también el primero, aunque no tenga).
+        let mut dia_previo: Option<Option<String>> = None;
+        for e in &entradas {
+            let dia = e.get("dia").and_then(Value::as_str).map(str::to_string);
+            if dia_previo.as_ref() != Some(&dia) {
+                t.push_str(&format!("\n{}", dia.as_deref().map_or("(sin día)".to_string(), |d| format!("## {d}"))));
+                dia_previo = Some(dia);
+            }
+            let hora = e.get("hora").and_then(Value::as_str).map(|h| format!("{h} ")).unwrap_or_default();
+            let tarea = e.get("tarea").and_then(Value::as_str).map(|x| format!(" [tarea {x}]")).unwrap_or_default();
+            let debajo = n(e, "debajo");
+            let debajo = if debajo > 0 { format!(" (+{debajo} {} debajo)", if debajo == 1 { "línea" } else { "líneas" }) } else { String::new() };
+            t.push_str(&format!("\n  {}. {hora}{}{tarea}{debajo}", n(e, "numero"), s(e, "texto")));
+        }
+        partes.push(t);
+    }
+    if partes.is_empty() {
+        return "No hay bandejas que leer.".to_string();
+    }
+    let mut t = partes.join("\n\n");
+    t.push_str("\n\nPara quitar: accion «quitar» con la `bandeja`, su `huella` y los números de `entradas`.");
+    t
+}
+
+fn herramienta_bandeja(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Value {
+    let args = match validar_bandeja(args) {
+        Ok(a) => a,
+        Err(e) => return texto(e, true),
+    };
+    match pedir_con_permiso(estado, vault, "bandeja", args) {
+        Ok(r) => texto(redactar_bandeja(&r), false),
+        Err(SinResultado::NadieEscucha) => {
+            let mut t = sin_ventana_base(vault);
+            t.push_str(
+                "\nLas bandejas se leen y se vacían por Mycelium: sin la app, la del vault es `Bandeja.md` (o la ruta \
+                 `rutaBandeja` de .mycelium/preferencias.json) y se puede LEER como cualquier nota; no la vacíes a mano \
+                 ni toques la personal: díselo al usuario.",
+            );
+            texto(t, true)
+        }
         Err(SinResultado::Error(e)) => texto(e, true),
     }
 }
@@ -892,6 +1248,10 @@ pub fn redactar_recordatorios(r: &Value) -> String {
         if o.get("completada").and_then(Value::as_bool) == Some(true) {
             t.push_str(" · ✓ completada");
         }
+        // Los personales se marcan (`FUN-M-60`); los del vault son el caso común.
+        if o.get("alcance").and_then(Value::as_str) == Some("personal") {
+            t.push_str(" · personal");
+        }
         t.push_str(&format!(" · id {}", s("id")));
         let detalle = s("detalle");
         if !detalle.is_empty() {
@@ -909,6 +1269,41 @@ pub fn redactar_escritura(r: &Value) -> String {
         t.push_str(&format!("\nid: {id}"));
     }
     t
+}
+
+#[cfg(test)]
+mod tests_calendario_alcance {
+    use super::*;
+
+    /// `FUN-M-60`: los personales se marcan en el listado; los del vault no.
+    #[test]
+    fn el_listado_marca_los_personales() {
+        let t = redactar_recordatorios(&json!({
+            "desde": "2026-11-12", "hasta": "2026-11-12", "ocurrencias": [
+                {"id": "v1", "titulo": "Del vault", "fecha": "2026-11-12", "dia": "jue 12 nov", "hora": null,
+                 "color": "Hifa", "repeticion": "ninguna", "completada": false, "detalle": "", "alcance": "vault"},
+                {"id": "p1", "titulo": "Mío", "fecha": "2026-11-12", "dia": "jue 12 nov", "hora": "09:00",
+                 "color": "Coral", "repeticion": "ninguna", "completada": true, "detalle": "", "alcance": "personal"}
+            ]
+        }));
+        assert!(t.contains("«Del vault» · Hifa · id v1"), "{t}");
+        assert!(t.contains("«Mío» · Coral · ✓ completada · personal · id p1"), "{t}");
+    }
+
+    #[test]
+    fn las_herramientas_del_calendario_aceptan_alcance() {
+        let defs = definiciones();
+        for nombre in [
+            "mycelium_recordatorios",
+            "mycelium_recordatorio_crear",
+            "mycelium_recordatorio_editar",
+            "mycelium_recordatorio_completar",
+            "mycelium_recordatorio_borrar",
+        ] {
+            let d = defs.iter().find(|d| d["name"] == nombre).expect(nombre);
+            assert!(d.pointer("/inputSchema/properties/alcance").is_some(), "{nombre} sin alcance");
+        }
+    }
 }
 
 // ── Archivos (Parte 3) ─────────────────────────────────────────────────────
@@ -1376,6 +1771,14 @@ pub fn redactar_salud(r: &Value) -> String {
         if notas == 1 { "nota" } else { "notas" },
         if total == 0 { "y ningún problema".to_string() } else { format!("y {total} {}", if total == 1 { "problema" } else { "problemas" }) }
     );
+    // `FUN-S-38`: lo de las carpetas que empiezan con punto queda afuera salvo
+    // que el usuario las muestre en el panel de salud (o el alcance esté adentro).
+    if s(r, "carpetas_ocultas") == "fuera" {
+        t.push_str(
+            " Tampoco lo que está en carpetas que empiezan con punto (.claude/, .github/…), como en el panel de salud: \
+             sus enlaces no cuentan, pero un enlace hacia ellas no está roto.",
+        );
+    }
     let tope = n(r, "tope");
     let mut recortado = false;
     let mut seccion = |titulo: &str, clave_conteo: &str, clave: &str, linea: &dyn Fn(&Value) -> String| {
@@ -1531,6 +1934,11 @@ mod tests_salud {
         let sano = redactar_salud(&json!({"alcance": {"tipo": "carpeta", "ruta": "docs"}, "notas": 1, "tope": 100,
             "conteos": {"total": 0}}));
         assert!(sano.starts_with("Salud de la carpeta docs/: 1 nota y ningún problema."), "{sano}");
+        assert!(!sano.contains("empiezan con punto"), "{sano}");
+        // `FUN-S-38`: si las carpetas ocultas quedaron afuera, lo dice.
+        let sin_ocultas = redactar_salud(&json!({"alcance": {"tipo": "vault"}, "carpetas_ocultas": "fuera", "notas": 1,
+            "tope": 100, "conteos": {"total": 0}}));
+        assert!(sin_ocultas.contains("Tampoco lo que está en carpetas que empiezan con punto"), "{sin_ocultas}");
     }
 
     #[test]

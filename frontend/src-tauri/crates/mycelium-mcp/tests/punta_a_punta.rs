@@ -107,7 +107,7 @@ fn el_servidor_real_contra_una_app_falsa() {
     let ini = mcp.pedir("initialize", json!({"protocolVersion": "2025-06-18"}));
     assert!(ini["result"]["instructions"].as_str().unwrap().contains("«Vault de Prueba»"), "{ini}");
     let lista = mcp.pedir("tools/list", json!({}));
-    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 20);
+    assert_eq!(lista["result"]["tools"].as_array().unwrap().len(), 22);
 
     // ── App abierta ───────────────────────────────────────────────────────
     let vista = ruta_registrada.clone();

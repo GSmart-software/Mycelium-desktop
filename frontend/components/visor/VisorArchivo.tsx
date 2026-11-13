@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, FileWarning, Maximize2, Minus, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
@@ -484,6 +484,8 @@ function VisorPdf({ ruta, vault }: { ruta: string; vault: string | null }) {
 
 /** Pasos de zoom de la imagen, en fracción del tamaño original. */
 const ZOOMS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8];
+const ZOOM_MIN = ZOOMS[0];
+const ZOOM_MAX = ZOOMS[ZOOMS.length - 1];
 
 /**
  * Imagen: se pinta a tamaño real dentro de un panel desplazable. El zoom se
@@ -495,12 +497,99 @@ function VisorImagen({ ruta, vault }: { ruta: string; vault: string | null }) {
   const [zoom, setZoom] = useState<number | null>(null); // null = ajustar al panel
   const [roto, setRoto] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  /**
+   * El punto de la imagen que se está mirando, en fracción del contenido, y
+   * dónde está dentro del panel (`ox`, `oy`), tomados justo antes de cambiar el
+   * zoom. Con los botones es el centro del panel (`DEF-182`); con el pellizco,
+   * el punto bajo el puntero (`FUN-S-41`). Después del cambio ese punto se
+   * vuelve a llevar a su lugar: así acercar agranda lo que se miraba, en vez de
+   * dejar el scroll donde estaba —en píxeles— y mostrar otra parte de la imagen.
+   */
+  const anclaRef = useRef<{ fx: number; fy: number; ox: number; oy: number } | null>(null);
+
+  /**
+   * El zoom pedido más reciente, al día aunque React todavía no haya pintado.
+   * Un pellizco manda decenas de eventos seguidos: cada uno tiene que partir
+   * del anterior, no del `zoom` del último render.
+   */
+  const zoomVivoRef = useRef<number | null>(null);
+
+  // Solo usa refs y `setZoom`: el pellizco la puede llamar desde su escucha,
+  // instalada una sola vez, sin quedar con una versión vieja.
+  const cambiarZoom = (nuevo: number | null, punto?: { x: number; y: number }) => {
+    const p = panelRef.current;
+    if (p && p.scrollWidth > 0 && p.scrollHeight > 0) {
+      const ox = punto ? punto.x : p.clientWidth / 2;
+      const oy = punto ? punto.y : p.clientHeight / 2;
+      anclaRef.current = {
+        fx: (p.scrollLeft + ox) / p.scrollWidth,
+        fy: (p.scrollTop + oy) / p.scrollHeight,
+        ox,
+        oy,
+      };
+    }
+    zoomVivoRef.current = nuevo;
+    setZoom(nuevo);
+  };
+
+  // Antes de pintar, con el tamaño nuevo ya maquetado (leer `scrollWidth` lo
+  // fuerza): no se ve el salto intermedio. El navegador acota el scroll a lo
+  // posible, así que el borde de la imagen nunca queda más allá del panel.
+  useLayoutEffect(() => {
+    const p = panelRef.current;
+    const ancla = anclaRef.current;
+    anclaRef.current = null;
+    if (!p || !ancla) return;
+    p.scrollLeft = ancla.fx * p.scrollWidth - ancla.ox;
+    p.scrollTop = ancla.fy * p.scrollHeight - ancla.oy;
+  }, [zoom]);
+
+  // Pellizco del touchpad (`FUN-S-41`). En Windows, un touchpad de precisión no
+  // manda eventos táctiles: el pellizco llega como RUEDA con `ctrlKey`, igual
+  // que Ctrl+rueda del mouse, así que los dos hacen lo mismo. El zoom es
+  // continuo (no la escalera de `ZOOMS`, que daría saltos) y va hacia el punto
+  // bajo el puntero. La escucha va a mano, no con `onWheel`: React registra la
+  // rueda como pasiva y entonces no se podría impedir que se acerque la página
+  // entera en vez de la imagen. La rueda sola sigue desplazando.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    // Con «Ajustada» no hay número: el que se ve es el ancho de la imagen sobre
+    // el ancho útil del panel (el `width: N%` de la imagen se mide contra él).
+    const zoomEfectivo = (): number => {
+      if (zoomVivoRef.current !== null) return zoomVivoRef.current;
+      const img = imgRef.current;
+      if (!img) return 1;
+      const cs = getComputedStyle(panel);
+      const util = panel.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      return util > 0 ? img.getBoundingClientRect().width / util : 1;
+    };
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey || !panel) return;
+      e.preventDefault();
+      // El pellizco da muchos pasos chicos; una muesca de la rueda, uno grande
+      // (o en líneas). Se acota cada paso para que la rueda no salte de golpe.
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      const factor = Math.exp(-Math.max(-25, Math.min(25, delta)) * 0.01);
+      const nuevo = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomEfectivo() * factor));
+      if (zoomVivoRef.current !== null && Math.abs(nuevo - zoomVivoRef.current) < 1e-4) return;
+      const r = panel.getBoundingClientRect();
+      cambiarZoom(nuevo, { x: e.clientX - r.left, y: e.clientY - r.top });
+    }
+    panel.addEventListener("wheel", onWheel, { passive: false });
+    return () => panel.removeEventListener("wheel", onWheel);
+    // `cambiarZoom` solo toca refs y `setZoom`; el panel existe recién con la
+    // URL lista y la imagen sana, así que la escucha se reinstala con ellas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, roto]);
 
   const escalon = (delta: 1 | -1) => {
     const actual = zoom ?? 1;
     const i = ZOOMS.findIndex((z) => z >= actual - 0.001);
     const siguiente = ZOOMS[Math.min(Math.max((i < 0 ? 3 : i) + delta, 0), ZOOMS.length - 1)];
-    setZoom(siguiente);
+    cambiarZoom(siguiente);
   };
 
   // Arrastrar para desplazar: solo tiene sentido con la imagen ampliada, así
@@ -547,7 +636,7 @@ function VisorImagen({ ruta, vault }: { ruta: string; vault: string | null }) {
           type="button"
           className={styles.iconoZoom}
           title="Ajustar al panel"
-          onClick={() => setZoom(null)}
+          onClick={() => cambiarZoom(null)}
         >
           <Maximize2 size={14} aria-hidden />
         </button>
@@ -561,6 +650,7 @@ function VisorImagen({ ruta, vault }: { ruta: string; vault: string | null }) {
         {/* eslint-disable-next-line @next/next/no-img-element -- el optimizador de
             Next no puede tocar una URL del protocolo `asset:` del webview. */}
         <img
+          ref={imgRef}
           src={url}
           alt={nombreDeRuta(ruta)}
           className={zoom === null ? styles.imagenAjustada : styles.imagen}

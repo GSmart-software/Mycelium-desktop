@@ -29,8 +29,8 @@ import {
   type ArchivoDelVault,
   type EstadisticasVault,
 } from "@/lib/estadisticas";
-import { excluida, type InformeSalud } from "@/lib/salud";
-import { datosDelIndice, informeConDatos } from "@/lib/saludVault";
+import { enCarpetaOculta, excluida, type InformeSalud } from "@/lib/salud";
+import { datosDelIndice, informeConDatos, saludSinOcultas } from "@/lib/saludVault";
 
 /** Lo que devuelve `recorrer_vault` y usa la revisión (ver `RecorridoVault` en `archivos.rs`). */
 type RecorridoConTamanos = {
@@ -41,6 +41,8 @@ type RecorridoConTamanos = {
 export type RevisionVault = {
   informe: InformeSalud;
   estadisticas: EstadisticasVault;
+  /** Si dejó afuera lo de las carpetas que empiezan con punto (`FUN-S-38`). */
+  sinOcultas: boolean;
   /** Cuándo terminó la revisión (ISO). */
   revisadoEn: string;
   /** Cuánto tardó, en ms. */
@@ -66,9 +68,12 @@ export async function revisarVault(): Promise<RevisionVault> {
   ]);
   const bandeja = rutaBandeja();
   const fuera = (n: { id: string; carpetaId: string | null }) => excluida(n, esporas, bandeja);
-  const excluidas = datos.notas.filter(fuera).map((n) => n.id);
+  // `FUN-S-38`: lo de las carpetas ocultas, afuera salvo que el vault las muestre.
+  const sinOcultas = saludSinOcultas();
+  const oculta = sinOcultas ? enCarpetaOculta : undefined;
+  const excluidas = datos.notas.filter((n) => fuera(n) || (oculta?.(n.id) ?? false)).map((n) => n.id);
   const [informe, etiquetas] = await Promise.all([
-    informeConDatos(datos),
+    informeConDatos(datos, { tipo: "vault" }, sinOcultas),
     etiquetasDelIndice(excluidas, TOPE_ETIQUETAS),
   ]);
   const estadisticas = calcularEstadisticas({
@@ -79,10 +84,12 @@ export async function revisarVault(): Promise<RevisionVault> {
     creacion,
     etiquetas,
     ahora: new Date(),
+    oculta,
   });
   return {
     informe,
     estadisticas,
+    sinOcultas,
     revisadoEn: new Date().toISOString(),
     duracionMs: Math.round(performance.now() - inicio),
   };

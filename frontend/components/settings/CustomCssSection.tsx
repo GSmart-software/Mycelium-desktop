@@ -1,6 +1,7 @@
 "use client";
 
 import { confirmar } from "@/lib/confirmar";
+import { exportarArchivo } from "@/lib/exportarConAviso";
 import { avisar } from "@/stores/avisosStore";
 import { Download, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -68,15 +69,14 @@ export function CustomCssSection() {
     await importSnippet(file.name, contenido);
   };
 
-  const descargar = (nombre: string, contenido: string) => {
-    const blob = new Blob([contenido], { type: "text/css" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = nombre.endsWith(".css") ? nombre : `${nombre}.css`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Exportar un snippet: «Guardar como» y la tarjeta de exportación (`FUN-M-22`).
+  const descargar = (nombre: string, contenido: string) =>
+    void exportarArchivo({
+      nombre: nombre.endsWith(".css") ? nombre : `${nombre}.css`,
+      extension: "css",
+      descripcion: "Hoja de estilos CSS",
+      generar: () => contenido,
+    });
 
   // Crea un snippet nuevo (a partir de la plantilla) y lo abre en el editor.
   const nuevoSnippet = async () => {

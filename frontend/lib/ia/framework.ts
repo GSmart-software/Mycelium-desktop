@@ -184,6 +184,14 @@ import { FRAMEWORK_IA_VERSION } from "./versionFramework";
  *   rechazan—, en la regla 12 del núcleo, en `mycelium-vault` («La Bandeja del
  *   vault» y «Qué ve el usuario») y en `mycelium-operar`.
  *   **Minor**: la IA conoce una nota con reglas propias.
+ * - 2.6.0 — **paneles, bandejas y recordatorios personales** (app `2.9.0`):
+ *   `mycelium_abrir` recibe `panel` y `mycelium_dividir` divide la pantalla
+ *   (`FUN-M-59`); `mycelium_bandeja` lee y vacía la Bandeja del vault y la
+ *   personal (`FUN-S-40`, regla 12 del núcleo y `mycelium-operar`); las
+ *   herramientas del calendario reciben `alcance` para los recordatorios
+ *   personales (`FUN-M-60`, `mycelium-calendario`); `mycelium_salud` deja afuera
+ *   las carpetas que empiezan con punto, como el panel (`FUN-S-38`).
+ *   **Minor**: la IA gana herramientas y parámetros nuevos.
  */
 // El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
 // cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.
@@ -225,7 +233,8 @@ memoria de largo plazo, compartida con el usuario. Dos obligaciones:
     edita: lo regenera Mycelium. Lo demás de \`CLAUDE.md\` y \`.claude/\` es del usuario.
 11. **\`.mycignore\`** oculta de la app: no escondas ahí lo que el usuario deba ver.
 12. **Esporas**: son moldes, no memoria. No consolides ni cites ahí. La **Bandeja**
-    (\`Bandeja.md\`, la de la captura rápida) se edita, pero no se renombra, mueve ni borra.
+    (\`Bandeja.md\`) no se renombra, mueve ni borra; ella y la **personal** (fuera del
+    vault) se procesan con \`mycelium_bandeja\`.
 
 ## Skills: cargá la que toque
 
@@ -499,8 +508,15 @@ encabezado y cada entrada es un ítem con la hora; \`- [ ]\` es una tarea:
 \`\`\`
 
 - Es **material en crudo**, sin procesar: no la cites como conocimiento consolidado. Si
-  el usuario pide «procesá la Bandeja», llevá cada entrada a su nota (creándola o
-  ampliándola, con enlaces) y después marcá la tarea (\`[x]\`) o quitá la línea.
+  el usuario pide «revisá / procesá la bandeja», hay **dos**: la **del vault** y la
+  **personal** (una sola para todos los vaults, fuera de ellos, en la carpeta de datos de
+  la app: no la busques en el vault). Con el control de Mycelium encendido, leelas con
+  \`mycelium_bandeja\` (entradas numeradas y una huella), llevá cada entrada a su nota
+  (creándola o ampliándola, con enlaces) y después **quitala con la misma herramienta**
+  (\`accion: "quitar"\`, la huella de la lectura y los números): escribe por el camino de la
+  app, sin pisar una captura nueva, y se deshace. Si el usuario no nombró cuál, revisá las
+  dos. Sin el control, la del vault se lee como cualquier nota; no la vacíes a mano ni
+  toques la personal: decíselo.
 - Si agregás algo, **al final**, con el mismo formato (encabezado \`## AAAA-MM-DD\` si el
   del día no es el último). No reordenes ni reformatees lo que ya está.
 - **No se renombra, no se mueve, no se borra** (ni se borra la carpeta que la contiene;
@@ -545,8 +561,9 @@ rápida** (Ctrl+Shift+Espacio), que anota en la **Bandeja** del vault, con su se
 arriba de «Archivos» en el explorador; **tablas**
 \`.base\` con sus filtros, orden y buscador; **lienzos** \`.canvas\`; **diagramas** \`.drawio\`
 con el editor de draw.io y **dibujos** \`.excalidraw\`, en su pestaña o embebidos en una
-nota; un **calendario** con recordatorios (fecha, hora, repetición y avisos) en su panel
-del rail; **grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
+nota; un **calendario** con recordatorios (fecha, hora, repetición y avisos) —los del
+vault y los **personales**, que se ven en todos los vaults— en su panel del rail;
+**grafo de conexiones** global y mini-grafo por nota (tus enlaces se ven ahí);
 búsqueda global —por nombre, por contenido o los dos, con \`clave:valor\` y \`tag:x\`, y con
 los resultados agrupables por carpeta—; un **visor** para los archivos que no son notas
 (PDF, imágenes, y código con resaltado de sintaxis, que además se puede editar); panel

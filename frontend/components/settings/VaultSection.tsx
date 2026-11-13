@@ -172,8 +172,11 @@ export function VaultSection() {
     }
   };
 
+  // El destino se elige en «Guardar como»; el avance y el resultado, también en
+  // la tarjeta de exportación (`FUN-M-22`). Si se cancela, no pasa nada.
   const handleZip = async () => {
-    setProgreso({ done: 0, total: 1, titulo: T_ZIP });
+    setMensaje(null);
+    setError(null);
     try {
       await exportVaultZip((done, total) => setProgreso({ done, total, titulo: T_ZIP }));
     } finally {
@@ -201,10 +204,12 @@ export function VaultSection() {
       }
 
       setProgreso({ done: 0, total: 1, titulo: T_CARPETA });
+      // El resultado (y «Abrir la carpeta») lo cuenta la tarjeta de exportación
+      // (`FUN-M-22`); acá queda la cuenta de archivos.
       const escritos = await exportVaultACarpeta(destino, (done, total) =>
         setProgreso({ done, total, titulo: T_CARPETA }),
       );
-      informar(`Se escribieron ${escritos} archivos en ${destino}`);
+      if (escritos !== undefined) informar(`Se escribieron ${escritos} archivos en ${destino}`);
     } catch (e) {
       fallar((e as Error).message ?? String(e));
     } finally {

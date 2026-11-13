@@ -13,12 +13,14 @@ mod devtools;
 mod dialogos;
 mod diccionarios;
 mod drawio_origen;
+mod exportaciones;
 mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
 mod prefs_vault;
 mod recordatorios;
+mod recordatorios_personales;
 mod reposo;
 mod terminal;
 mod vault_config;
@@ -179,6 +181,8 @@ pub fn run() {
         .manage(ventanas::VentanasState::default())
         // Carpetas de fuera del vault elegidas en el selector nativo (`DEF-161`).
         .manage(dialogos::ElegidasState::default())
+        // Archivos elegidos en «Guardar como» para exportar (`FUN-M-22`).
+        .manage(exportaciones::ExportadosState::default())
         // La escucha del MCP de control, una por ventana (`FUN-L-09`).
         .manage(control::ControlState::default())
         // La captura global (`FUN-L-33`, Parte C): el historial de foco, el
@@ -251,6 +255,9 @@ pub fn run() {
             vault_config::elegir_vault,
             dialogos::elegir_carpeta,
             dialogos::elegir_zip,
+            exportaciones::elegir_destino_exportacion,
+            exportaciones::escribir_exportacion,
+            exportaciones::revelar_exportacion,
             indice::abrir_indice_vault,
             indice::reconstruir_indice_vault,
             vault_config::desvincular_vault,
@@ -261,6 +268,12 @@ pub fn run() {
             // vaults, sin ruta desde la interfaz (`bandeja_personal.rs`).
             bandeja_personal::bandeja_personal_leer,
             bandeja_personal::bandeja_personal_guardar,
+            // Los recordatorios personales (`FUN-M-60`): un único archivo fuera
+            // de los vaults, sin ruta desde la interfaz, y el reparto de sus
+            // avisos entre ventanas (`recordatorios_personales.rs`).
+            recordatorios_personales::recordatorios_personales_leer,
+            recordatorios_personales::recordatorios_personales_guardar,
+            recordatorios_personales::recordatorios_personales_reclamar,
             // La captura global (`FUN-L-33`, Parte C, `captura_global.rs`).
             captura_global::captura_flotante_destinos,
             captura_global::captura_flotante_ocultar,

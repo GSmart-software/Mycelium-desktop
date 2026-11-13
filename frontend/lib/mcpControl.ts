@@ -33,11 +33,16 @@
  *    actividad anota de qué sesión es cada entrada.
  * 10. **Los diagnósticos del editor** (`FUN-M-44`): lo marcado en las notas
  *     abiertas, de solo lectura (`lib/mcpSalud.ts`).
+ * 11. **Elegir el panel y dividir** (`FUN-M-59`): `abrir` en un panel pedido y
+ *     `dividir`, con las mismas acciones de `tabsStore` que usa el usuario.
+ * 12. **Las bandejas** (`FUN-S-40`): leer la del vault y la personal, y quitar
+ *     entradas por el camino de la app (`lib/mcpBandeja.ts`).
  */
 import { invoke } from "@tauri-apps/api/core";
-import { seRegistra, type Atendido, type Resultado } from "@/lib/actividadIa";
+import { seRegistra, type Atendido, type Objetivo, type Resultado } from "@/lib/actividadIa";
 import { confirmarIa, retirarConfirmacion } from "@/lib/confirmar";
 import * as archivos from "@/lib/mcpArchivos";
+import { bandeja, FalloBandeja } from "@/lib/mcpBandeja";
 import { FalloArchivos, mensajeRechazo, type Atendible } from "@/lib/mcpArchivos";
 import * as calendario from "@/lib/mcpCalendario";
 import { FalloCalendario } from "@/lib/mcpCalendario";
@@ -61,6 +66,7 @@ import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {
   CALENDAR_TAB_ID,
   GRAPH_TAB_ID,
+  seDuplicaAlDividir,
   tipoDePestana,
   tituloDePestana,
 } from "@/lib/pestanas";
@@ -70,7 +76,7 @@ import { useConfigLocalStore } from "@/stores/configLocalStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
-import { allLeaves, useTabsStore } from "@/stores/tabsStore";
+import { allLeaves, findLeaf, useTabsStore, type LeafPane, type SplitEdge } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
 import { ETIQUETA_ETAPA, useVaultSessionStore } from "@/stores/vaultSessionStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -166,7 +172,8 @@ async function contestar(pedido: Pedido): Promise<void> {
       e instanceof FalloArchivos ||
       e instanceof FalloDiccionario ||
       e instanceof FalloIndice ||
-      e instanceof FalloSesiones
+      e instanceof FalloSesiones ||
+      e instanceof FalloBandeja
         ? { ok: false, error: { codigo: e.codigo, mensaje: e.message, datos: e.datos } }
         : { ok: false, error: { codigo: "INVALIDO", mensaje: `Falló en Mycelium: ${String(e)}`, datos: null } };
   }
@@ -238,6 +245,8 @@ async function atender(pedido: Pedido, sesionId: string | null): Promise<Atendid
       return sesionesIa.reservar(args, sesionId);
     case "abrir":
       return abrir(args);
+    case "dividir":
+      return dividir(args);
     case "recordatorios":
       return calendario.recordatorios(args);
     case "recordatorio_crear":
@@ -258,6 +267,10 @@ async function atender(pedido: Pedido, sesionId: string | null): Promise<Atendid
       return conPermiso(pedido.op, await archivos.papelera(args), sesionId);
     case "diccionario":
       return diccionario(args);
+    case "bandeja":
+      // Quitar es reversible (Deshacer): no pregunta, pero pasa por el mismo
+      // circuito que las demás escrituras.
+      return conPermiso(pedido.op, await bandeja(args), sesionId);
     case "buscar":
       return indice.buscar(args);
     case "enlaces":
@@ -461,11 +474,16 @@ function irADe(args: Record<string, unknown>, ancla: string | null): IrA | null 
   return ancla ? { encabezado: ancla } : null;
 }
 
-/** El panel y la pestaña donde está abierto `id`; prefiere el panel activo. */
-function dondeEsta(id: string): { panel: number; hojaId: string; tabId: string; visible: boolean } | null {
+/**
+ * El panel y la pestaña donde está abierto `id`; prefiere el panel activo. Con
+ * `soloEn`, busca únicamente en ese panel (`FUN-M-59`).
+ */
+function dondeEsta(id: string, soloEn?: string): { panel: number; hojaId: string; tabId: string; visible: boolean } | null {
   const { root, activePaneId } = useTabsStore.getState();
   const hojas = allLeaves(root);
-  const orden = [...hojas].sort((a, b) => Number(b.id === activePaneId) - Number(a.id === activePaneId));
+  const orden = [...hojas]
+    .filter((h) => soloEn === undefined || h.id === soloEn)
+    .sort((a, b) => Number(b.id === activePaneId) - Number(a.id === activePaneId));
   for (const h of orden) {
     const t = h.tabs.find((x) => x.notaId === id);
     if (t) return { panel: hojas.indexOf(h) + 1, hojaId: h.id, tabId: t.id, visible: h.activeTabId === t.id };
@@ -491,43 +509,96 @@ function revelar(notaId: string): boolean {
   return true;
 }
 
+/**
+ * El panel que pidió el agente (`FUN-M-59`): la hoja con ese número —el mismo
+ * orden que informa `paneles()`—, `null` si no pidió ninguno, o
+ * `PANEL_INEXISTENTE` con la lista de paneles. Nunca crea uno.
+ */
+function hojaPedida(args: Record<string, unknown>): LeafPane | null {
+  const n = args.panel;
+  if (n === undefined || n === null) return null;
+  const hojas = allLeaves(useTabsStore.getState().root);
+  if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= hojas.length) return hojas[n - 1];
+  const hay = hojas.length === 1 ? "hay un solo panel, el 1" : `hay ${hojas.length} paneles, del 1 al ${hojas.length}`;
+  throw fallo(
+    "PANEL_INEXISTENTE",
+    `No existe el panel ${String(n)}: ${hay}. Para tener otro, divide la pantalla con mycelium_dividir.`,
+    { paneles: paneles() },
+  );
+}
+
+/** El número (desde 1) del panel `hojaId`, en el orden de `paneles()`. */
+function numeroDePanel(hojaId: string): number {
+  return allLeaves(useTabsStore.getState().root).findIndex((h) => h.id === hojaId) + 1;
+}
+
+/**
+ * Resuelve el salto contra el archivo ANTES de abrir: un encabezado que no
+ * existe es un error, y no conviene haber abierto la pestaña para nada.
+ */
+async function saltoDe(destino: Destino, irA: IrA | null): Promise<{ linea: number | null; descripcion: string | null }> {
+  if (!irA) return { linea: null, descripcion: null };
+  if (!destino.markdown) {
+    throw fallo("INVALIDO", `«ir_a» solo aplica a notas markdown; «${destino.titulo}» es ${destino.tipo}.`);
+  }
+  const ruta = useVaultSessionStore.getState().rutaActual!;
+  const contenido = await invoke<string | null>("leer_archivo_texto", { vaultRuta: ruta, rutaRel: destino.id });
+  const s = resolverSalto(contenido ?? "", irA);
+  if (!s.ok) throw fallo(s.codigo, s.mensaje, s.datos);
+  return { linea: s.linea, descripcion: s.descripcion };
+}
+
+/** El objetivo de la entrada del registro de actividad («Ir»). */
+function objetivoDeActividad(destino: Destino): Objetivo {
+  return destino.id === GRAPH_TAB_ID
+    ? { tipo: "grafo" }
+    : destino.id === CALENDAR_TAB_ID
+      ? { tipo: "calendario" }
+      : { tipo: "nota", ruta: destino.id };
+}
+
 async function abrir(args: Record<string, unknown>): Promise<Atendido> {
   const objetivo = typeof args.objetivo === "string" ? args.objetivo : "";
   const conFoco = args.foco === true;
+  const hoja = hojaPedida(args);
   const { destino, ancla } = destinoDe(objetivo);
   const irA = irADe(args, ancla);
   const avisos: string[] = [];
+  const { linea, descripcion: descripcionSalto } = await saltoDe(destino, irA);
 
-  // El salto se resuelve contra el archivo ANTES de abrir: un encabezado que
-  // no existe es un error, y no conviene haber abierto la pestaña para nada.
-  let linea: number | null = null;
-  let descripcionSalto: string | null = null;
-  if (irA) {
-    if (!destino.markdown) {
-      throw fallo("INVALIDO", `«ir_a» solo aplica a notas markdown; «${destino.titulo}» es ${destino.tipo}.`);
-    }
-    const ruta = useVaultSessionStore.getState().rutaActual!;
-    const contenido = await invoke<string | null>("leer_archivo_texto", { vaultRuta: ruta, rutaRel: destino.id });
-    const s = resolverSalto(contenido ?? "", irA);
-    if (!s.ok) throw fallo(s.codigo, s.mensaje, s.datos);
-    linea = s.linea;
-    descripcionSalto = s.descripcion;
-  }
-
-  const previa = dondeEsta(destino.id);
+  // Con `panel` (`FUN-M-59`) solo cuenta lo abierto EN ese panel. Si el
+  // objetivo está abierto en otro, se hace lo que hace la app cuando el usuario
+  // abre en un panel algo abierto en otro (clic en el explorador, arrastrarlo a
+  // la barra de pestañas de ese panel): una pestaña más en el panel pedido, y
+  // la del otro panel queda como estaba.
+  const previa = dondeEsta(destino.id, hoja?.id);
+  const enOtro = hoja && !previa ? dondeEsta(destino.id) : null;
   const tabs = useTabsStore.getState();
   if (conFoco) {
     if (previa) tabs.activateTab(previa.hojaId, previa.tabId);
+    else if (hoja) tabs.openNotaInPane(destino.id, hoja.id);
     else tabs.openNote(destino.id);
     navegar?.(destino.id);
   } else if (!previa) {
     // Sin robar el foco (spec § 3.5): pestaña permanente en segundo plano. Si
     // el panel estaba vacío, `openNoteBackground` la abre visible, porque no
     // hay nada que tapar; se refleja en la URL igual que un clic.
-    tabs.openNoteBackground(destino.id);
+    tabs.openNoteBackground(destino.id, hoja?.id);
   }
-  const ahora = dondeEsta(destino.id);
+  // Un panel de vista previa vinculada no recibe pestañas: la app la abre en
+  // uno editable (`abrirAparte`), y eso se dice.
+  const ahora = (hoja ? dondeEsta(destino.id, hoja.id) : null) ?? dondeEsta(destino.id);
   if (!ahora) throw fallo("INVALIDO", `No se pudo abrir «${destino.titulo}».`);
+  if (hoja && ahora.hojaId !== hoja.id) {
+    avisos.push(
+      `El panel ${numeroDePanel(hoja.id)} es una vista previa vinculada a otro: Mycelium no abre pestañas ahí, ` +
+        `así que quedó en el panel ${ahora.panel}.`,
+    );
+  } else if (enOtro && enOtro.hojaId !== ahora.hojaId) {
+    avisos.push(
+      `También estaba abierta en el panel ${enOtro.panel}: ahora está en los dos, como cuando el usuario la abre en otro panel.`,
+    );
+  }
   const enFoco = conFoco || (!previa && ahora.visible && useTabsStore.getState().activePaneId === ahora.hojaId);
   if (!conFoco && enFoco) navegar?.(destino.id);
 
@@ -570,15 +641,103 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
       avisos,
       paneles: paneles(),
     },
-    actividad: {
-      efecto,
-      objetivo:
-        destino.id === GRAPH_TAB_ID
-          ? { tipo: "grafo" }
-          : destino.id === CALENDAR_TAB_ID
-            ? { tipo: "calendario" }
-            : { tipo: "nota", ruta: destino.id },
+    actividad: { efecto, objetivo: objetivoDeActividad(destino) },
+  };
+}
+
+// ── dividir (`FUN-M-59`) ────────────────────────────────────────────────────
+
+/**
+ * Divide un panel con **las mismas acciones** que la división del usuario:
+ * sin objetivo, la del menú «⋯» de la barra de pestañas y la paleta
+ * (`splitActivePane`, con el mismo criterio de duplicar, `seDuplicaAlDividir`);
+ * con objetivo, la de soltar una nota del explorador en el borde de un panel
+ * (`splitPaneWithNota`). La app no limita la cantidad de paneles.
+ *
+ * Las dos acciones dejan el foco en el panel nuevo; sin `foco: true` se le
+ * devuelve al que lo tenía. No toca archivos: no va al registro de actividad.
+ */
+async function dividir(args: Record<string, unknown>): Promise<Atendido> {
+  const direccion = args.direccion;
+  if (direccion !== "derecha" && direccion !== "abajo") {
+    throw fallo("INVALIDO", "`direccion` es «derecha» o «abajo».");
+  }
+  const lado: SplitEdge = direccion === "derecha" ? "right" : "bottom";
+  const conFoco = args.foco === true;
+  const antes = useTabsStore.getState();
+  const hoja = hojaPedida(args) ?? findLeaf(antes.root, antes.activePaneId) ?? allLeaves(antes.root)[0];
+  const numero = numeroDePanel(hoja.id);
+  const objetivo = typeof args.objetivo === "string" ? args.objetivo.trim() : "";
+  const avisos: string[] = [];
+  let salto: string | null = null;
+  let abierto: Destino | null = null;
+
+  if (objetivo) {
+    const { destino, ancla } = destinoDe(objetivo);
+    const s = await saltoDe(destino, irADe(args, ancla));
+    // El editor del panel nuevo se monta al dividir y consume el salto.
+    if (s.linea !== null) {
+      setPendingMatch(destino.id, { linea: s.linea });
+      salto = `El cursor va a estar en ${s.descripcion}.`;
+    }
+    const enOtro = dondeEsta(destino.id);
+    if (enOtro) avisos.push(`También estaba abierta en el panel ${enOtro.panel}: ahora está en los dos.`);
+    antes.splitPaneWithNota(destino.id, hoja.id, lado);
+    abierto = destino;
+  } else {
+    if (args.ir_a !== undefined && args.ir_a !== null) {
+      throw fallo("INVALIDO", "`ir_a` va con un `objetivo`: sin él, el panel nuevo muestra la pestaña del panel dividido.");
+    }
+    const tab = hoja.tabs.find((t) => t.id === hoja.activeTabId);
+    if (!tab) {
+      throw fallo(
+        "INVALIDO",
+        `El panel ${numero} no tiene ninguna pestaña a la vista: no hay qué dividir (al usuario tampoco le deja). ` +
+          "Pasa un `objetivo` para abrirlo en el panel nuevo.",
+      );
+    }
+    const tipo = useVaultStore.getState().notas.find((n) => n.id === tab.notaId)?.tipo;
+    const duplicar = seDuplicaAlDividir(tab.notaId, tipo);
+    if (!duplicar && hoja.tabs.length > 1) {
+      avisos.push(
+        `La pestaña «${tituloDePestana(tab.notaId, useVaultStore.getState().notas, useTerminalStore.getState().sesiones)}» ` +
+          `pasó del panel ${numero} al nuevo: los lienzos, dibujos, diagramas, visores, consolas y vistas globales ` +
+          "no se duplican al dividir (igual que cuando divide el usuario).",
+      );
+    }
+    antes.splitActivePane(hoja.id, lado, duplicar);
+  }
+
+  const despues = useTabsStore.getState();
+  const nuevaId = despues.activePaneId;
+  if (nuevaId === antes.activePaneId && antes.root === despues.root) {
+    throw fallo("INVALIDO", `No se pudo dividir el panel ${numero}.`);
+  }
+  // Las dos acciones le dan el foco al panel nuevo: sin `foco`, vuelve al que
+  // lo tenía (si sigue existiendo).
+  if (!conFoco && findLeaf(despues.root, antes.activePaneId)) despues.setActivePane(antes.activePaneId);
+  // La URL sigue a la pestaña activa del panel con el foco, como tras la
+  // división del usuario (`sincronizarUrl`).
+  const activa = useTabsStore.getState().activeNotaId();
+  if (activa) navegar?.(activa);
+
+  const panel = numeroDePanel(nuevaId);
+  const lista = paneles();
+  const visible = lista[panel - 1]?.pestanas.find((p) => p.activa) ?? null;
+  return {
+    resultado: {
+      panel,
+      dividido: numeroDePanel(hoja.id) || numero,
+      direccion,
+      abierto: abierto
+        ? { titulo: abierto.titulo, ruta: abierto.ruta, tipo: abierto.tipo }
+        : visible && { titulo: visible.titulo, ruta: visible.ruta, tipo: visible.tipo },
+      foco: conFoco,
+      salto,
+      avisos,
+      paneles: lista,
     },
+    sinRegistro: true,
   };
 }
 

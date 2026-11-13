@@ -20,6 +20,7 @@ import {
   puedeDeshacerDiccionario,
   type DeshacerDiccionario,
 } from "@/lib/mcpDiccionarioLogica";
+import { describirDeshacerBandeja, type DeshacerBandeja } from "@/lib/mcpBandejaLogica";
 import type { ArchivoRecordatorios } from "@/lib/recordatorios";
 
 export function esDeArchivos(d: DeshacerIa): d is DeshacerArchivos {
@@ -30,9 +31,14 @@ export function esDelDiccionario(d: DeshacerIa): d is DeshacerDiccionario {
   return d.tipo.startsWith("diccionario_");
 }
 
+export function esDeLaBandeja(d: DeshacerIa): d is DeshacerBandeja {
+  return d.tipo.startsWith("bandeja_");
+}
+
 /** Qué hace el botón, en palabras. */
 export function describir(d: DeshacerIa): string {
   if (esDelDiccionario(d)) return describirDeshacerDiccionario(d);
+  if (esDeLaBandeja(d)) return describirDeshacerBandeja(d);
   return esDeArchivos(d) ? describirDeshacerArchivos(d) : describirDeshacer(d as DeshacerCalendario);
 }
 
@@ -48,6 +54,9 @@ export function motivoSinDeshacer(
   vault: EstadoVault,
   diccionario: ReadonlySet<string> | null = null,
 ): string | null {
+  // Las bandejas (`FUN-S-40`) se comprueban al deshacer, leyendo el archivo:
+  // se ofrece, y si cambió después, el aviso dice por qué no se hizo.
+  if (esDeLaBandeja(d)) return null;
   if (esDelDiccionario(d)) {
     if (diccionario === null) return null;
     const r = puedeDeshacerDiccionario(diccionario, d);
@@ -69,6 +78,9 @@ export async function deshacerEntrada(e: Entrada): Promise<{ ok: boolean; texto:
     if (esDelDiccionario(e.deshacer)) {
       const { deshacerDiccionario } = await import("@/lib/mcpDiccionario");
       texto = await deshacerDiccionario(e.deshacer);
+    } else if (esDeLaBandeja(e.deshacer)) {
+      const { deshacerBandeja } = await import("@/lib/mcpBandeja");
+      texto = await deshacerBandeja(e.deshacer);
     } else if (esDeArchivos(e.deshacer)) {
       const { deshacerArchivos } = await import("@/lib/mcpArchivos");
       texto = await deshacerArchivos(e.deshacer);

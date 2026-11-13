@@ -67,6 +67,11 @@
   background: color-mix(in srgb, var(--mic-glow) 15%, transparent);
 }
 
+/* Un botón que alterna (carpetas ocultas, `FUN-S-38`), encendido: borde en el acento. */
+.boton[aria-pressed="true"] {
+  border-color: var(--mic-accent);
+}
+
 .boton:disabled {
   cursor: default;
   color: var(--mic-text-muted);

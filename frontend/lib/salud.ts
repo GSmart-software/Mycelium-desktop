@@ -36,6 +36,10 @@
  *   no son conocimiento del vault. Las Esporas sí cuentan para los títulos
  *   duplicados: una Espora «Reunión» y una nota «Reunión» hacen ambiguo a
  *   `[[Reunión]]`.
+ * - **Carpetas ocultas** (`FUN-S-38`, con `sinOcultas`): lo que está bajo una
+ *   carpeta cuyo nombre empieza con punto no se analiza y sus enlaces salientes
+ *   no cuentan (una nota que solo enlaza `.claude/` es huérfana), pero sigue
+ *   siendo destino: un enlace hacia ahí no está roto.
  */
 import { cortesDeAncla, derivarEnlaces, lineasPorEnlace, resolverEnlace } from "@/lib/enlacesNota";
 import { indexarOtros, resolverArchivo } from "@/lib/mcpIndiceLogica";
@@ -95,6 +99,8 @@ export type InformeSalud = {
   propiedades: NotaConAvisos[];
   /** Problemas del propio `esquemas.yml` (vacía si no hay o está bien). */
   avisosEsquemas: { mensaje: string; linea?: number }[];
+  /** ¿Quedó afuera lo de las carpetas ocultas? (`FUN-S-38`) */
+  sinOcultas?: boolean;
 };
 
 export type EntradaSalud = {
@@ -108,6 +114,11 @@ export type EntradaSalud = {
   /** Ruta de la Bandeja del vault (`FUN-L-33`), o `null`/ausente si no se excluye. */
   rutaBandeja?: string | null;
   alcance?: Alcance;
+  /**
+   * Dejar afuera lo que está bajo una carpeta oculta (`FUN-S-38`,
+   * `enCarpetaOculta`). Ausente o `false`: se analiza todo, como antes.
+   */
+  sinOcultas?: boolean;
 };
 
 /** Archivos de instrucciones para agentes, en la raíz: no son conocimiento del vault. */
@@ -137,6 +148,22 @@ export function excluida(
     esEspora(nota, carpetaEsporas) ||
     (nota.carpetaId === null && INSTRUCCIONES_DE_AGENTES.has(nota.id.toLowerCase()))
   );
+}
+
+/**
+ * ¿Está `ruta` (de un archivo) debajo de una carpeta cuyo nombre empieza con
+ * punto, en cualquier nivel (`.claude/`, `notas/.borradores/`)? Solo cuentan
+ * las carpetas: un archivo suelto con punto (`.mycignore`) no (`FUN-S-38`).
+ */
+export function enCarpetaOculta(ruta: string): boolean {
+  const partes = ruta.split("/");
+  for (let i = 0; i < partes.length - 1; i++) if (partes[i].startsWith(".")) return true;
+  return false;
+}
+
+/** ¿Es oculta la carpeta `ruta` o alguna de las que la contienen? (`FUN-S-38`) */
+export function esCarpetaOculta(ruta: string): boolean {
+  return ruta !== "" && ruta.split("/").some((p) => p.startsWith("."));
 }
 
 /** ¿Cae `ruta` dentro del alcance? */
@@ -188,9 +215,12 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
   const rutaBandeja = entrada.rutaBandeja ?? null;
   const porId = new Map(notas.map((n) => [n.id, n]));
   const otros = indexarOtros(entrada.otros);
+  // Las notas de carpetas ocultas (`FUN-S-38`) no se analizan y sus enlaces
+  // salientes no cuentan, pero siguen en `porId`: un enlace hacia ellas no es roto.
+  const oculta = entrada.sinOcultas ? enCarpetaOculta : () => false;
   const fuera = (id: string) => {
     const n = porId.get(id);
-    return n === undefined || excluida(n, carpetaEsporas, rutaBandeja);
+    return n === undefined || excluida(n, carpetaEsporas, rutaBandeja) || oculta(id);
   };
 
   const rotos: Problema[] = [];
@@ -198,7 +228,7 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
   const entrantes = new Set<string>();
   const salientes = new Set<string>();
   for (const f of filas) {
-    if (!porId.has(f.desde)) continue;
+    if (!porId.has(f.desde) || oculta(f.desde)) continue;
     if (f.destino !== null) {
       if (f.destino !== f.desde && porId.has(f.destino)) {
         entrantes.add(f.destino);
@@ -243,11 +273,16 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
       if (cands.length > 1) ambiguosDe.get(f.destino)!.ambiguos.push(problema(f));
     }
   }
+  // Un grupo de homónimas todas ocultas (los `SKILL.md` de `.claude/`) no se
+  // reporta; con alguna visible sí, porque el enlace a ese título es ambiguo.
+  const visible = (r: string) => !oculta(r) && enAlcance(r, alcance);
   const duplicadosEnAlcance = duplicados
-    .filter((d) => d.rutas.some((r) => enAlcance(r, alcance)) || d.ambiguos.some((a) => enAlcance(a.desde, alcance)))
+    .filter((d) => d.rutas.some(visible) || d.ambiguos.some((a) => enAlcance(a.desde, alcance)))
     .sort((a, b) => a.titulo.localeCompare(b.titulo, "es") || a.tipo.localeCompare(b.tipo));
 
-  const consideradas = notas.filter((n) => !excluida(n, carpetaEsporas, rutaBandeja) && enAlcance(n.id, alcance));
+  const consideradas = notas.filter(
+    (n) => !excluida(n, carpetaEsporas, rutaBandeja) && !oculta(n.id) && enAlcance(n.id, alcance),
+  );
   const ref = (n: NotaEnlazable): NotaRef => ({ ruta: n.id, titulo: n.titulo });
   const markdown = consideradas.filter((n) => n.tipo === "markdown");
 
@@ -261,6 +296,7 @@ export function calcularSalud(entrada: EntradaSalud): InformeSalud {
     sinSalientes: markdown.filter((n) => !salientes.has(n.id)).map(ref).sort(porRuta),
     propiedades: [],
     avisosEsquemas: [],
+    sinOcultas: !!entrada.sinOcultas,
   };
 }
 
@@ -593,6 +629,8 @@ export function informeParaIa(informe: InformeSalud, tope = TOPE_SALUD) {
   const corte = <T>(l: T[]) => l.slice(0, tope);
   return {
     alcance: informe.alcance,
+    // `FUN-S-38`: si lo de las carpetas que empiezan con punto quedó afuera.
+    carpetas_ocultas: informe.sinOcultas ? "fuera" : "incluidas",
     notas: informe.notas,
     conteos: c,
     tope,

@@ -55,12 +55,14 @@ import {
   LogOut,
   PanelBottom,
   LayoutPanelLeft,
+  Lock,
 } from "lucide-react";
 import { IconoGrafo } from "@/components/workspace/IconoGrafo";
 import { ATMOSFERAS } from "@/lib/atmosferas";
 import { cerrarPestanaSinPerder, navegarHistorialSinPerder } from "@/lib/conflictosAbiertos";
 import { carpetaDestino, crearYAbrir, pedirYCrearCarpeta } from "@/lib/crear";
 import { ICONO_POR_TIPO, ICONO_SALUD } from "@/lib/iconosDeTipo";
+import { alternarBloqueo, estaBloqueado } from "@/lib/lienzoBloqueo";
 import { avisoModoDev } from "@/lib/modoDev";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID, seDuplicaAlDividir } from "@/lib/pestanas";
 import { abrirPestanaSalud } from "@/lib/saludPestana";
@@ -70,6 +72,7 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { hoy, nuevoRecordatorio } from "@/stores/recordatoriosStore";
 import { allLeaves, findLeaf, useTabsStore } from "@/stores/tabsStore";
 import { EXPLORER_TAB, useSidebarViewerStore } from "@/stores/sidebarViewerStore";
+import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useUpdaterStore } from "@/stores/updaterStore";
 import { useVaultStore } from "@/stores/vaultStore";
@@ -166,6 +169,20 @@ function ocultarPanelIzquierdo() {
   const teniaElFoco = focoEnElPanelIzquierdo();
   usePanelLayoutStore.setState({ activeSection: null });
   if (teniaElFoco) enfocarDocumentoActivo(false);
+}
+
+/** La ruta del lienzo de la pestaña activa, si lo que se ve es un `.canvas`. */
+function lienzoDeLaPestanaActiva(): string | null {
+  const notaId = useTabsStore.getState().activeNotaId();
+  if (!notaId) return null;
+  const tipo = useVaultStore.getState().notas.find((n) => n.id === notaId)?.tipo;
+  return tipo === "canvas" ? notaId : null;
+}
+
+/** ¿El lienzo de la pestaña activa está en «Solo lectura» (`FUN-S-39`)? */
+function lienzoActivoBloqueado(): boolean {
+  const ruta = lienzoDeLaPestanaActiva();
+  return ruta !== null && estaBloqueado(usePrefsVaultStore.getState().prefs.lienzosBloqueados, ruta);
 }
 
 /** ¿El panel activo tiene una pestaña a la vista? */
@@ -387,6 +404,23 @@ export const COMANDOS_APP: readonly Comando[] = [
     icono: BellPlus,
     categoria: "vault",
     ejecutar: () => nuevoRecordatorio(hoy()),
+  },
+  // Bloquear la edición del lienzo de la pestaña activa (`FUN-S-39`): lo mismo
+  // que el candado de su barra. Solo aparece con un lienzo a la vista.
+  {
+    id: "lienzo.bloqueo",
+    titulo: () => (lienzoActivoBloqueado() ? "Desbloquear la edición del lienzo" : "Bloquear la edición del lienzo"),
+    detalle: () =>
+      lienzoActivoBloqueado() ? "Vuelve a poder editarse" : "Solo lectura: se puede mirar, no cambiar",
+    icono: Lock,
+    categoria: "notas",
+    disponible: () => lienzoDeLaPestanaActiva() !== null,
+    ejecutar: () => {
+      const ruta = lienzoDeLaPestanaActiva();
+      if (ruta === null) return;
+      const prefs = usePrefsVaultStore.getState();
+      prefs.set("lienzosBloqueados", alternarBloqueo(prefs.prefs.lienzosBloqueados, ruta));
+    },
   },
   // Ctrl+Shift+E (`FUN-XL-04`, Parte 4), además de Ctrl+\ (el panel izquierdo
   // entero). Si el dibujo de Excalidraw ya usó la tecla (exportar), no actúa.

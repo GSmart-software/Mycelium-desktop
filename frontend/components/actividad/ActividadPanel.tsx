@@ -283,8 +283,9 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
   const [deshaciendo, setDeshaciendo] = useState(false);
   // Se recalcula con el calendario y el vault: si lo que dejó la operación
   // cambió después, deshacer pisaría ese cambio, así que el botón queda
-  // deshabilitado con el motivo.
-  const archivoCal = useRecordatoriosStore((s) => s.archivo);
+  // deshabilitado con el motivo. Con los dos alcances juntos (`FUN-M-60`): los
+  // ids no se repiten entre los del vault y los personales.
+  const archivoCal = useRecordatoriosStore((s) => s.vista);
   const notas = useVaultStore((s) => s.notas);
   const carpetas = useVaultStore((s) => s.carpetas);
   const papelera = useVaultStore((s) => s.papelera);
@@ -305,6 +306,13 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
 
   const ir = (o: Objetivo) => {
     const tabs = useTabsStore.getState();
+    if (o.tipo === "bandeja_personal") {
+      // Fuera del vault (`FUN-S-40`): se abre en su pestaña, creándola si falta.
+      void import("@/lib/bandejaPersonalPestana")
+        .then(({ abrirBandejaPersonal }) => abrirBandejaPersonal())
+        .then((id) => router.replace(`/workspace?note=${encodeURIComponent(id)}`));
+      return;
+    }
     if (o.tipo === "papelera") {
       const layout = usePanelLayoutStore.getState();
       if (layout.activeSection !== "trash") layout.toggleSection("trash");
@@ -326,7 +334,7 @@ function Fila({ entrada: e }: { entrada: EntradaVista }) {
       return;
     }
     if (o.tipo === "recordatorio") {
-      if (!useRecordatoriosStore.getState().archivo.recordatorios.some((r) => r.id === o.id)) {
+      if (!useRecordatoriosStore.getState().vista.recordatorios.some((r) => r.id === o.id)) {
         avisar("Ese recordatorio ya no está en el calendario.");
         return;
       }

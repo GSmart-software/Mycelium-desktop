@@ -15,7 +15,7 @@ import {
 import { pasoDeCalendario } from "@/lib/teclado/navegacion";
 import { hoy, nuevoRecordatorio, useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { fechaCompleta, INICIALES_SEMANA, useAbrirCalendario } from "./comun";
-import { ListaRecordatorios } from "./ListaRecordatorios";
+import { ListaRecordatorios, SelectorAlcance } from "./ListaRecordatorios";
 import styles from "./Recordatorios.module.css";
 import { SelectorMes } from "./SelectorMes";
 
@@ -28,8 +28,8 @@ const PUNTOS_POR_DIA = 3;
  * color— y abajo la lista. Tocar un día pone la lista en ese día.
  */
 export function CalendarioPanel() {
-  const recordatorios = useRecordatoriosStore((s) => s.archivo.recordatorios);
-  const estados = useRecordatoriosStore((s) => s.archivo.ocurrencias);
+  const recordatorios = useRecordatoriosStore((s) => s.visibles);
+  const estados = useRecordatoriosStore((s) => s.vista.ocurrencias);
   const abrirCalendario = useAbrirCalendario();
 
   const [fecha, setFecha] = useState(hoy);
@@ -104,6 +104,7 @@ export function CalendarioPanel() {
           Nuevo
         </button>
         <div className={styles.empuje} />
+        <SelectorAlcance />
         <button
           type="button"
           className={styles.botonIcono}

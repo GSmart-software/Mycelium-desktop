@@ -2,7 +2,7 @@
 titulo: Salud del vault
 tema: Enlazar y organizar
 solo: desktop
-sinonimos: [tablero, dashboard, gráficas, estadísticas, peso del vault, anillos, informe de salud, informe como nota, enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
+sinonimos: [carpetas ocultas, carpetas con punto, .claude, tablero, dashboard, gráficas, estadísticas, peso del vault, anillos, informe de salud, informe como nota, enlaces rotos, huérfanas, notas sueltas, títulos repetidos, duplicados, homónimas, auditoría, revisar el vault, esquemas, propiedades inválidas]
 ---
 
 La **salud del vault** muestra lo que va degradando la red de notas sin que se note: enlaces
@@ -31,8 +31,9 @@ En la nota abierta, los mismos problemas se ven además subrayados: ver
 
 El panel se queda abierto al costado mientras escribes. De arriba abajo:
 
-- **El título y tres botones**: abrir la salud en una pestaña (ver abajo), generar el informe
-  como nota y volver a revisar. Pasa el puntero por cada uno para ver qué hace.
+- **El título y cuatro botones**: abrir la salud en una pestaña (ver abajo), generar el informe
+  como nota, mostrar u ocultar las carpetas que empiezan con punto (el ojo, ver abajo) y volver
+  a revisar. Pasa el puntero por cada uno para ver qué hace.
 - **El resumen**: cuántos problemas hay y cuántos son graves; debajo, cuántos archivos tiene el
   vault, cuánto pesan y a qué hora se revisó.
 - **Tres cifras**: notas, enlaces y etiquetas.
@@ -73,14 +74,31 @@ esa parte se ignora y lo demás se aplica.
 > enlaza ni es huérfana por diseño. Lo que oculta `.mycignore`
 > no está en el índice, así que tampoco aparece.
 
+## Las carpetas que empiezan con punto
+
+Por defecto, la salud **deja afuera todo lo que está dentro de una carpeta cuyo nombre empieza
+con punto**, como `.claude/` o `.github/`, en cualquier nivel, aunque el `.mycignore` no la
+ignore. Suelen ser configuración de herramientas, no notas del vault, y sus enlaces no son algo
+que tengas que arreglar.
+
+- **No cuentan** en ninguna cifra: archivos, peso, notas, enlaces, etiquetas ni problemas.
+- **Sus enlaces no cuentan**: una nota que solo se enlaza desde `.claude/` aparece como huérfana.
+- **Siguen siendo destino**: un enlace desde una nota tuya hacia una de `.claude/` no está roto.
+- Un archivo suelto con punto, como `.mycignore`, no es una carpeta: cuenta como cualquier otro.
+
+Para incluirlas, usa el botón del ojo: en el título del panel, o **Mostrar carpetas con punto**
+arriba de la pestaña. Vuelve a revisar enseguida, y la elección se recuerda en cada vault. Solo
+cambia la salud: esas notas siguen en la [búsqueda](ayuda:enlazar-y-organizar/busqueda), el explorador
+y el grafo.
+
 ## La pestaña con las gráficas
 
 El botón **Abrir en una pestaña** del panel, o **Ctrl+P** → «Abrir la salud del vault en una pestaña», abre un tablero con todo lo que sabe la
 revisión, en una pestaña con el ícono de un pulso. Al abrirla se cierra el panel de salud del
 costado, para dejarle lugar.
 
-- **Arriba**: cuándo se revisó, cuántos archivos y en cuánto tiempo, y dos botones: «Generar
-  informe como nota» (ver abajo) y «Volver a revisar».
+- **Arriba**: cuándo se revisó, cuántos archivos y en cuánto tiempo, y tres botones: «Mostrar
+  carpetas con punto» (ver arriba), «Generar informe como nota» (ver abajo) y «Volver a revisar».
 - **El resumen**: problemas (y cuántos son graves), archivos, notas, peso en disco, enlaces (con
   el promedio por nota) y etiquetas.
 - **Qué hay en el vault**: los archivos agrupados en notas, imágenes, PDF, visuales (dibujos,
@@ -137,6 +155,7 @@ crea; cambiarla no mueve los informes que ya están.
 ## Con la IA
 
 Con el [control de la IA](ayuda:ia/control-de-la-ia) encendido, Claude Code puede pedir este
-mismo informe —del vault, de una carpeta o de una nota— y validar una nota que acaba de
+mismo informe —del vault, de una carpeta o de una nota, con la misma elección sobre las
+carpetas que empiezan con punto, salvo que pida una de ellas— y validar una nota que acaba de
 escribir antes de darla por terminada: que su título sea único, que sus enlaces lleguen a
 algún lado, que alguna nota la enlace y que sus propiedades cumplan los esquemas.
