@@ -156,11 +156,18 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # Fijada por SHA en vez de la rama móvil `stable`: la versión de Rust la
-      # sigue eligiendo `toolchain: stable`, que es lo que hacía esa rama.
+      # La acción va fijada por SHA, y la VERSIÓN de Rust también (2026-11-12).
+      # Con `toolchain: stable` el build de la 2.9.0 tomó solo Rust 1.100.0 (del
+      # 2026-11-09), cuyo Cargo cambió la carpeta `target/`: deja una CARPETA
+      # `target/release/mycelium-mcp`, con el mismo nombre que el sidecar, y
+      # tauri-build 2.6.3 (`copy_binaries`) entra en pánico al querer borrar ahí
+      # un archivo (`IsADirectory`). Windows se salvaba por el `.exe`. La 1.99.1
+      # es la que compiló las versiones publicadas. Subirla es una decisión: se
+      # prueba primero el build de las tres plataformas con la versión nueva
+      # (`workflow_dispatch`), y se sube junto con un tauri-build que la soporte.
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1 (master)
         with:
-          toolchain: stable
+          toolchain: 1.99.1
 
       # El sidecar `mycelium-mcp` lo compila `scripts/preparar-mcp.mjs` para el
       # triple del HOST y lo deja como `binaries/mycelium-mcp-<host>`; Tauri lo
