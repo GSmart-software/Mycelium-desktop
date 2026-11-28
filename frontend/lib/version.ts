@@ -186,10 +186,23 @@
  *   F10 por sección, saltar tecleando; `DEF-179` y `DEF-180`.
  *
  *   **Minor, y uno solo**: hay capacidad nueva. Ver `docs/estado/Version 2.8.0.md`.
- * - `2.8.1` — **actualizar con la IA conectada**: el instalador de Windows cierra
- *   el MCP de la instalación antes de copiar (`DEF-181`). Patch: no hay nada
- *   nuevo que hacer, solo una actualización que ya no se detiene. Ver
- *   `docs/estado/Version 2.8.1.md`.
+ * - `2.9.0` — **recordatorios personales y pulido**: los recordatorios que
+ *   aparecen en todos los vaults (`FUN-M-60`), bloquear un lienzo (`FUN-S-39`),
+ *   el pellizco en una imagen (`FUN-S-41`), el aviso al exportar (`FUN-M-22`),
+ *   la salud sin carpetas ocultas (`FUN-S-38`), paneles y bandejas para la IA
+ *   (`FUN-M-59`, `FUN-S-40`; framework de IA `2.6.0`) y `DEF-181` a `DEF-186`.
+ *   Absorbió la `2.8.1` (`DEF-181`), que se preparó y nunca se publicó.
+ *
+ *   **Minor**: los recordatorios personales son un concepto nuevo, con riesgo
+ *   de fondo (almacenamiento fuera del vault y coordinación entre ventanas).
+ *   Ver `docs/estado/Version 2.9.0.md`.
+ * - `2.9.1` — **el touchpad, el lienzo grande y la consola**: el pellizco del
+ *   touchpad, que en la `2.9.0` no llegaba a la página (`DEF-187`); el lienzo
+ *   grande con nivel de detalle (`DEF-183`, segunda parte); Shift+Enter y
+ *   soltar archivos en la consola (`FUN-S-42`, `FUN-S-43`).
+ *
+ *   **Patch**: correcciones y dos ajustes de algo que ya existe (la consola).
+ *   Ver `docs/estado/Version 2.9.1.md`.
  *
  * OJO: `FRAMEWORK_IA_VERSION` (`lib/ia/versionFramework.ts`) versiona las instrucciones
  * que se generan en el vault y es INDEPENDIENTE de esta versión. La deuda que
@@ -199,4 +212,4 @@
  * no se edita a mano. Con la `2.3.0` va por **1.7.0**: una skill por
  * herramienta y el MCP de control.
  */
-export const APP_VERSION = "2.9.0";
+export const APP_VERSION = "2.9.1";
