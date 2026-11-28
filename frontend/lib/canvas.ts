@@ -633,8 +633,17 @@ export function textoPlanoDeNota(contenido: string, max = 400): string {
     const fin = texto.indexOf("\n---", 4);
     texto = fin === -1 ? "" : texto.slice(fin + 4);
   }
-  // Comentarios `%%…%%` (también de varias líneas) y etiquetas HTML.
-  texto = texto.replace(/%%[\s\S]*?(%%|$)/g, "").replace(/<[^>\n]+>/g, "");
+  // Comentarios `%%…%%` (también de varias líneas) y etiquetas HTML. El
+  // resultado se muestra como texto (React lo escapa), así que esto no es una
+  // defensa sino limpieza; igual se repite hasta que no quede ninguna etiqueta,
+  // porque una pasada sola deja armada `<scr<b>ipt>` (CodeQL
+  // `js/incomplete-multi-character-sanitization`).
+  texto = texto.replace(/%%[\s\S]*?(%%|$)/g, "");
+  let previo: string;
+  do {
+    previo = texto;
+    texto = texto.replace(/<[^>\n]+>/g, "");
+  } while (texto !== previo);
   const lineas: string[] = [];
   for (const cruda of texto.split("\n")) {
     let l = cruda.trim();
