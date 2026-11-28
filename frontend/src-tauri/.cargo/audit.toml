@@ -28,6 +28,16 @@ ignore = [
   # y salta los enlaces simbólicos; y el updater solo abre un paquete ya
   # verificado con la firma minisign. Misma corrección pendiente (zip >= 9).
   "RUSTSEC-2026-0429",
+  # zip 4.6 (`ZipStreamReader` extrae con el nombre del encabezado local, que
+  # puede diferir del directorio central). Ni la app (`extraer_zip_en`) ni el
+  # updater (`ZipArchive::new`) usan `ZipStreamReader`. Misma corrección
+  # pendiente (zip >= 9). Aceptado por el usuario el 2026-11-28.
+  "RUSTSEC-2026-0548",
+  # zip 4.6 (entradas AES devueltas sin verificar su código de autenticación).
+  # El código AES de zip no se compila: ni la app ni el updater activan
+  # `aes-crypto` (`cargo tree -e features` solo muestra `deflate-flate2`).
+  # Misma corrección pendiente (zip >= 9). Aceptado por el usuario el 2026-11-28.
+  "RUSTSEC-2026-0545",
   # libsqlite3-sys 0.30 / SQLite < 3.54 (memoria sin inicializar del caché de
   # páginas al abrir un par .db + -wal con tamaños de página distintos, armado
   # por otro). Mycelium abre una sola base: su índice `index-<hash>.db`, que crea
