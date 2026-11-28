@@ -18,6 +18,7 @@ mod indice;
 mod marco;
 mod mycignore;
 mod navegacion;
+mod pellizco;
 mod prefs_vault;
 mod recordatorios;
 mod recordatorios_personales;
@@ -101,6 +102,12 @@ fn ventana_para_abrir<R: tauri::Runtime>(
 pub fn run() {
     let pendientes: Vec<String> = args_de_nota(&std::env::args().collect::<Vec<_>>());
 
+    // En Windows, las ventanas de `tauri.conf.json` nacen con el pellizco de
+    // WebView2 encendido: después de la primera navegación ya no rige
+    // (`DEF-187`, `pellizco.rs`).
+    let mut contexto = tauri::generate_context!();
+    pellizco::habilitar_en_config(&mut contexto);
+
     let mut builder = tauri::Builder::default();
 
     // Instancia única: un segundo lanzamiento (p. ej. doble clic en otro archivo)
@@ -163,6 +170,9 @@ pub fn run() {
         // Las DevTools nacen apagadas en cada webview y se encienden por vault;
         // en Windows, la puerta son los atajos y el menú contextual (`devtools.rs`).
         .plugin(devtools::init())
+        // El pellizco del touchpad llega a la página sin que vuelva el zoom del
+        // navegador (`DEF-187`, `pellizco.rs`).
+        .plugin(pellizco::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`
         // leyendo la config compilada, así que sin claves la app arranca igual
@@ -321,6 +331,6 @@ pub fn run() {
             captura_global::registrar(app.handle());
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(contexto)
         .expect("error while running tauri application");
 }
