@@ -18,19 +18,24 @@
 //!
 //! ## Convivencia con el IPC de Tauri
 //!
-//! wry ya tiene su manejador de `WebMessageReceived` (el `postMessage` del IPC).
-//! WebView2 llama a **todos** los manejadores registrados, así que los dos ven
-//! cada mensaje:
+//! wry ya tiene su manejador de `WebMessageReceived` (el `postMessage` del IPC),
+//! registrado antes que este, al crear el webview. Lee el mensaje con
+//! `TryGetWebMessageAsString`, que **falla** si el mensaje no es un texto, y
+//! **cuando un manejador falla, WebView2 no llama a los que siguen**: la primera
+//! versión mandaba un objeto (`{ mycelium, id }`) para que wry lo salteara, y
+//! este manejador nunca se ejecutaba. Medido en la app de desarrollo el
+//! 2026-11-27: de un texto y un objeto seguidos, solo el texto llegó acá.
 //!
-//! - El de wry lee el mensaje con `TryGetWebMessageAsString`, que **falla** si el
-//!   mensaje no es un texto. Por eso la página manda un **objeto**
-//!   (`{ mycelium: "rutas-soltadas", id }`) y no un JSON en texto: wry corta en
-//!   ese `?` y nunca llega a Tauri. Un texto sí llegaría, Tauri no lo podría
-//!   leer como invocación y dejaría un `console.error` en la página por cada
-//!   soltada.
-//! - Este lee con `WebMessageAsJson` y descarta en el acto lo que no lleve la
-//!   marca: los mensajes del IPC son textos (su JSON empieza con `"`), así que
-//!   ni se parsean.
+//! Por eso el pedido es un **texto**, `mycelium:rutas-soltadas:<id>`:
+//!
+//! - wry no falla y se lo pasa a Tauri, que no lo puede leer como invocación y
+//!   deja un `console.error` en la consola de desarrollador de la página (una
+//!   línea por soltada; el usuario no la ve). Es el costo aceptado. La otra
+//!   salida —un mensaje con forma de invocación y una clave falsa— Tauri la
+//!   descarta en silencio, pero imprime su clave de IPC real en la salida de
+//!   error: peor.
+//! - Este lo lee con `WebMessageAsJson` y descarta en el acto lo que no empiece
+//!   con la marca: los mensajes del IPC (`"{\"cmd\":…}"`) ni se parsean.
 //!
 //! ## Seguridad
 //!
@@ -59,18 +64,19 @@ struct RutasSoltadas {
     rutas: Vec<String>,
 }
 
+/// El prefijo del pedido: el mensaje es el texto `mycelium:rutas-soltadas:<id>`.
+const PREFIJO: &str = "mycelium:rutas-soltadas:";
+
 /// El `id` de un pedido de rutas, si el mensaje (su JSON, como lo da
-/// `WebMessageAsJson`) es `{"mycelium":"rutas-soltadas","id":<n>}`. Cualquier
-/// otra cosa —un mensaje del IPC, que es un texto— es `None` sin parsear.
+/// `WebMessageAsJson`: un texto llega entre comillas) es
+/// `"mycelium:rutas-soltadas:<n>"`. Cualquier otra cosa —un mensaje del IPC
+/// de Tauri, un objeto— es `None` sin parsear.
 pub fn id_del_pedido(json: &str) -> Option<u64> {
-    if !json.trim_start().starts_with('{') {
+    let resto = json.strip_prefix('"')?.strip_suffix('"')?.strip_prefix(PREFIJO)?;
+    if resto.is_empty() || !resto.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    let v: serde_json::Value = serde_json::from_str(json).ok()?;
-    if v.get("mycelium")?.as_str()? != MARCA {
-        return None;
-    }
-    v.get("id")?.as_u64()
+    resto.parse().ok()
 }
 
 /// ¿El mensaje viene de la app? En Windows la app se sirve por
@@ -195,15 +201,17 @@ mod tests {
 
     #[test]
     fn reconoce_solo_el_pedido_con_la_marca() {
-        assert_eq!(id_del_pedido(r#"{"mycelium":"rutas-soltadas","id":7}"#), Some(7));
-        assert_eq!(id_del_pedido(r#" {"id":3,"mycelium":"rutas-soltadas"}"#), Some(3));
-        // Lo que manda el IPC de Tauri es un texto: su JSON empieza con comillas.
+        assert_eq!(id_del_pedido(r#""mycelium:rutas-soltadas:7""#), Some(7));
+        assert_eq!(id_del_pedido(r#""mycelium:rutas-soltadas:12345""#), Some(12345));
+        // Lo que manda el IPC de Tauri: un texto con un JSON adentro.
         assert_eq!(id_del_pedido(r#""{\"cmd\":\"x\"}""#), None);
-        assert_eq!(id_del_pedido(r#"{"mycelium":"otra-cosa","id":1}"#), None);
-        assert_eq!(id_del_pedido(r#"{"mycelium":"rutas-soltadas"}"#), None, "sin id");
-        assert_eq!(id_del_pedido(r#"{"mycelium":"rutas-soltadas","id":-1}"#), None);
-        assert_eq!(id_del_pedido(r#"{"mycelium":"rutas-soltadas","id":"1"}"#), None);
-        assert_eq!(id_del_pedido("{roto"), None);
+        // La primera versión (un objeto) ya no vale: wry lo corta antes.
+        assert_eq!(id_del_pedido(r#"{"mycelium":"rutas-soltadas","id":7}"#), None);
+        assert_eq!(id_del_pedido(r#""mycelium:otra-cosa:1""#), None);
+        assert_eq!(id_del_pedido(r#""mycelium:rutas-soltadas:""#), None, "sin id");
+        assert_eq!(id_del_pedido(r#""mycelium:rutas-soltadas:-1""#), None);
+        assert_eq!(id_del_pedido(r#""mycelium:rutas-soltadas:1 ""#), None);
+        assert_eq!(id_del_pedido("mycelium:rutas-soltadas:1"), None, "sin comillas no es un texto JSON");
         assert_eq!(id_del_pedido(""), None);
     }
 

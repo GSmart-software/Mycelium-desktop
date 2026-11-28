@@ -149,9 +149,11 @@ function escucharRespuestas() {
  * `ICoreWebView2File::Path` de cada uno y las devuelve por el evento
  * `rutas-soltadas`, con el mismo `id` para no confundir dos soltadas seguidas.
  *
- * El mensaje es un **objeto** y no un texto a propósito: el manejador del IPC
- * de Tauri solo atiende mensajes de texto, así que un objeto lo saltea sin
- * dejar ruido en la consola (ver `rutas_soltadas.rs`).
+ * El mensaje es un **texto**, `mycelium:rutas-soltadas:<id>`, y no un objeto:
+ * el manejador del IPC de wry va primero y falla con un objeto, y cuando un
+ * manejador falla WebView2 no llama a los siguientes (el nuestro). El costo es
+ * un `console.error` de Tauri por soltada, en la consola de desarrollador (ver
+ * `rutas_soltadas.rs`).
  *
  * Sin puente, sin archivos o si el host no contesta a tiempo: `[]`.
  */
@@ -170,7 +172,7 @@ export async function rutasDeArchivosExternos(archivos: ArrayLike<File>): Promis
       resolver(rutas);
     });
     try {
-      puente.postMessageWithAdditionalObjects({ mycelium: EVENTO_RUTAS, id }, archivos);
+      puente.postMessageWithAdditionalObjects(`mycelium:${EVENTO_RUTAS}:${id}`, archivos);
     } catch {
       window.clearTimeout(vencer);
       pendientes.delete(id);
