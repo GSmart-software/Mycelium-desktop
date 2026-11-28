@@ -2,7 +2,7 @@
 titulo: Instrucciones de IA del vault
 tema: IA
 solo: desktop
-sinonimos: [claude, claude code, agente, memoria, asistente, CLAUDE.md, skills, comandos, hook, enlace markdown, referencias sin enlazar]
+sinonimos: [claude, claude code, agente, memoria, asistente, CLAUDE.md, skills, comandos, hook, enlace markdown, referencias sin enlazar, desactualizadas, actualizar instrucciones]
 ---
 
 Las **instrucciones de IA** son un conjunto de archivos que Mycelium escribe en tu vault para
@@ -26,6 +26,29 @@ instrucciones, la IA ve una carpeta de archivos sueltos; con ellas, ve una red.
 3. Cuando Mycelium trae instrucciones nuevas, el mismo bloque muestra la versión instalada
    y la disponible, y el botón pasa a «Actualizar a v…». Con todo al día, dice
    «Regenerar».
+
+## Cuando quedan desactualizadas
+
+Al actualizar Mycelium, las instrucciones de tu vault no cambian solas: siguen siendo las
+que generaste. Mientras no las actualices, la IA no conoce lo nuevo —una herramienta, un
+parámetro, una forma de trabajar— y puede hacer las cosas a la manera vieja.
+
+Por eso, al abrir un vault cuyas instrucciones son más viejas que las que trae Mycelium:
+
+- El ícono de **Actividad de la IA** (el robot del rail) lleva un **punto**, aunque el panel
+  esté cerrado.
+- Arriba del panel aparece el aviso, con la versión que tienes y la que trae Mycelium.
+  **Actualizar** hace lo mismo que el botón de Configuración; **Ver en Configuración** te
+  lleva a ese bloque. **Ahora no** lo esconde hasta la próxima vez que abras el vault.
+- Si la IA tiene el [control de Mycelium](ayuda:ia/control-de-la-ia) encendido, también se
+  entera: cuando mira el estado de la app, Mycelium le dice que sus instrucciones son viejas
+  para que te sugiera actualizarlas.
+
+Si los archivos tienen versiones distintas entre sí —por ejemplo, una actualización que se
+cortó a mitad—, cuenta la más vieja. Si el vault no tiene instrucciones, no hay aviso: solo
+se crean si las pides. Y si son **más nuevas** que las de tu Mycelium —el vault se actualizó
+desde una versión posterior, en otra computadora—, no hay punto ni botón, solo una nota en
+el panel: lo que conviene es actualizar Mycelium, no volver las instrucciones atrás.
 
 ## Qué escribe en el vault
 

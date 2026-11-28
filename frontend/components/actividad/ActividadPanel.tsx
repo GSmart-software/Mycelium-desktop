@@ -17,6 +17,7 @@ import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { CALENDAR_TAB_ID, GRAPH_TAB_ID } from "@/lib/pestanas";
 import { fechaLocal, horaLocal } from "@/lib/recordatorios";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
+import { hayAvisoInstrucciones, useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { avisar } from "@/stores/avisosStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
@@ -50,6 +51,7 @@ export function ActividadPanel() {
 
   return (
     <div className={styles.panel}>
+      <AvisoInstrucciones />
       <Canal />
       {vista.length === 0 ? (
         <p className={styles.vacio}>
@@ -71,6 +73,82 @@ export function ActividadPanel() {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Las instrucciones de IA desactualizadas (`FUN-S-45`) ────────────────────
+
+/**
+ * Arriba de todo, cuando las instrucciones de IA del vault son más viejas que
+ * las que trae Mycelium: la IA no conoce lo nuevo. «Actualizar» hace lo mismo
+ * que el botón de Configuración → Vault (el mismo store); «Ahora no» lo
+ * pospone hasta la próxima vez que se abra el vault. Si son MÁS NUEVAS (el
+ * vault se actualizó desde un Mycelium posterior), solo una nota, sin marca en
+ * el rail: regenerar desde acá las bajaría de versión, y lo que conviene es
+ * actualizar la app.
+ */
+function AvisoInstrucciones() {
+  const ruta = useInstruccionesIaStore((s) => s.ruta);
+  const estado = useInstruccionesIaStore((s) => s.estado);
+  const pospuesta = useInstruccionesIaStore((s) => s.pospuesta);
+  const actualizando = useInstruccionesIaStore((s) => s.actualizando);
+  const abrirAjustes = useUiStore((s) => s.abrirAjustes);
+
+  // Al abrir el panel se relee: pudieron cambiar por fuera.
+  useEffect(() => {
+    void useInstruccionesIaStore.getState().comprobar();
+  }, []);
+
+  if (estado?.situacion === "mas-nuevas") {
+    return (
+      <section className={styles.instruccionesNota} aria-label="Instrucciones de IA">
+        <p>
+          Las instrucciones de IA de este vault son de la v{estado.instalada}, más nuevas que las que trae
+          esta versión de Mycelium (v{estado.disponible}): se generaron con una posterior. Puede que la IA
+          mencione algo que esta app todavía no tiene; actualiza Mycelium para estar a la par.
+        </p>
+      </section>
+    );
+  }
+  if (!hayAvisoInstrucciones({ ruta, estado, pospuesta }) || !estado) return null;
+
+  const actualizar = async () => {
+    try {
+      avisar(await useInstruccionesIaStore.getState().actualizar());
+    } catch (e) {
+      avisar(`No se pudieron actualizar las instrucciones de IA: ${(e as Error)?.message ?? String(e)}`);
+    }
+  };
+
+  return (
+    <section className={styles.instrucciones} role="status" aria-labelledby="aviso-instrucciones-ia">
+      <p id="aviso-instrucciones-ia" className={styles.instruccionesTitulo}>
+        <span className={styles.punto} aria-hidden />
+        Instrucciones de IA desactualizadas
+      </p>
+      <p className={styles.canalDetalle}>
+        Las instrucciones de IA de este vault son de la v{estado.instalada}; Mycelium trae la v{estado.disponible}.
+        Hasta que las actualices, la IA no conoce lo nuevo: puede faltarle alguna herramienta o no saber usarla.
+        {estado.mezcladas ? " Los archivos tienen versiones mezcladas: se toma la más vieja." : ""}
+      </p>
+      <div className={styles.acciones}>
+        <button type="button" className={styles.boton} onClick={() => void actualizar()} disabled={actualizando}>
+          {actualizando ? "Actualizando…" : "Actualizar"}
+        </button>
+        <button
+          type="button"
+          className={styles.botonSecundario}
+          onClick={() => useInstruccionesIaStore.getState().posponer()}
+          disabled={actualizando}
+          title="Vuelve a avisar la próxima vez que abras este vault"
+        >
+          Ahora no
+        </button>
+        <button type="button" className={styles.enlace} onClick={() => abrirAjustes("vault")}>
+          Ver en Configuración
+        </button>
+      </div>
+    </section>
   );
 }
 

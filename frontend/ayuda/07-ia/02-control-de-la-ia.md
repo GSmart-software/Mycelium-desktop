@@ -78,6 +78,10 @@ apagado» (con un botón para encenderlo), «Control encendido» (esperando a Cl
 «Ir» te lleva a lo afectado y «Deshacer» lo revierte. Si después cambiaste eso mismo a mano,
 Deshacer se apaga y te dice por qué: deshacerlo pisaría tu cambio.
 
+Si las [instrucciones de IA](ayuda:ia/instrucciones-de-ia) del vault son más viejas que las
+que trae Mycelium, arriba de todo aparece un aviso con un botón **Actualizar**, y el ícono del
+robot lleva un punto mientras siga pendiente.
+
 Lo que hizo la IA se muestra **agrupado por sesión**: cada grupo lleva arriba la tarea que
 declaró esa sesión (o «Sin tarea declarada») y su identificador, con «conectada» si sigue
 abierta. Lo registrado antes de que existieran las sesiones aparece como «Sin sesión

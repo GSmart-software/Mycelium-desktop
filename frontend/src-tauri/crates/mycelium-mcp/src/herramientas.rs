@@ -831,6 +831,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             if etapa != "lista" {
                 t.push_str(&format!("\nLa app está ocupada: {etapa}."));
             }
+            t.push_str(&redactar_instrucciones(&r));
             t.push('\n');
             t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
             t.push_str(&redactar_coordinacion(&r));
@@ -852,6 +853,33 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             texto(t, false)
         }
         Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Si las instrucciones de IA del vault no son las de la app (`FUN-S-45`):
+/// una línea para la IA, justo debajo de la cabecera de `mycelium_estado`.
+/// Vacío si están al día, si el vault no las tiene o si la app no lo mandó
+/// (una versión vieja).
+pub fn redactar_instrucciones(r: &Value) -> String {
+    let Some(i) = r.get("instrucciones").filter(|i| i.is_object()) else {
+        return String::new();
+    };
+    let version = |clave: &str| i.get(clave).and_then(Value::as_str).unwrap_or("?");
+    let (instalada, disponible) = (version("instalada"), version("disponible"));
+    if i.get("desactualizadas").and_then(Value::as_bool) == Some(true) {
+        format!(
+            "\nLas instrucciones de IA de este vault son de la v{instalada} y Mycelium trae la v{disponible}: \
+             pueden faltarte herramientas o parámetros nuevos. Sugiérele al usuario actualizarlas \
+             (Configuración → Vault o el aviso en Actividad de la IA)."
+        )
+    } else if i.get("mas_nuevas").and_then(Value::as_bool) == Some(true) {
+        format!(
+            "\nLas instrucciones de IA de este vault son de la v{instalada}, más nuevas que las de esta app \
+             (v{disponible}): si mencionan una herramienta o un parámetro que no existe aquí, es eso. \
+             No le sugieras regenerarlas, sino actualizar Mycelium."
+        )
+    } else {
+        String::new()
     }
 }
 

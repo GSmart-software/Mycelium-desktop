@@ -11,18 +11,14 @@ import {
   type PreferenciaDestino,
 } from "@/lib/bandeja";
 import { exportVaultACarpeta, exportVaultZip } from "@/lib/export";
-import {
-  type AccionClaudeMd,
-  FRAMEWORK_IA_VERSION,
-  generarFramework,
-  versionInstalada,
-} from "@/lib/ia/framework";
+import { FRAMEWORK_IA_VERSION } from "@/lib/ia/versionFramework";
 import { elegirZip } from "@/lib/import";
-import { asegurarIntegracion, cambiarControl } from "@/lib/mcpControl";
+import { cambiarControl } from "@/lib/mcpControl";
 import { getAbrirUltimo, setAbrirUltimo } from "@/lib/vaultMode";
 import { avisar } from "@/stores/avisosStore";
 import { useExportStore } from "@/stores/exportStore";
 import { useImportStore } from "@/stores/importStore";
+import { useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { usePrefVault, usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useVaultSessionStore } from "@/stores/vaultSessionStore";
@@ -41,22 +37,6 @@ import { mensajeDeError } from "@/lib/mensajeError";
 // el botón correcto y la barra global.
 const T_ZIP = "Comprimiendo ZIP";
 const T_CARPETA = "Exportando a carpeta";
-
-/**
- * Qué le pasó a `CLAUDE.md` al generar las instrucciones IA (`FUN-L-29`): lo
- * de fuera del bloque de Mycelium es del usuario y nunca se toca.
- */
-const QUE_PASO_CON_CLAUDE_MD: Record<AccionClaudeMd, string> = {
-  creado: "se creó CLAUDE.md con el bloque de Mycelium.",
-  actualizado: "se actualizó el bloque de Mycelium en CLAUDE.md; lo demás del archivo no se tocó.",
-  insertado:
-    "el bloque de Mycelium quedó al principio de tu CLAUDE.md; lo tuyo sigue debajo, sin cambios.",
-  reemplazado: "el CLAUDE.md de la versión anterior se reemplazó por el bloque de Mycelium.",
-  "insertado-sobre-anterior":
-    "⚠ tu CLAUDE.md tenía las instrucciones de la versión anterior, editadas: el bloque nuevo " +
-    "quedó al principio y no se borró nada. Debajo siguen las viejas (empiezan en «# Este vault " +
-    "es tu memoria»): bórralas y deja solo lo tuyo.",
-};
 
 /**
  * Abre el selector de carpeta nativo del SO; `null` si el usuario cancela. Lo
@@ -99,8 +79,12 @@ export function VaultSection() {
   // Reconstrucción del índice (`FUN-S-23`): el avance sale del mismo store.
   const reconstruyendo = useVaultSessionStore((s) => s.reconstruyendo);
   const progresoIndice = useVaultSessionStore((s) => (s.reconstruyendo ? s.progreso : null));
-  const [versionIa, setVersionIa] = useState<string | null>(null);
-  const [generandoIa, setGenerandoIa] = useState(false);
+  // La versión instalada y la acción de generar o actualizar son las mismas
+  // del aviso de «Actividad de la IA» (`FUN-S-45`): un solo store.
+  const instrucciones = useInstruccionesIaStore((s) => s.estado);
+  const generandoIa = useInstruccionesIaStore((s) => s.actualizando);
+  const versionIa = instrucciones?.instalada ?? null;
+  const situacionIa = instrucciones?.situacion ?? "sin-instrucciones";
   // MCP de control (`FUN-L-09`): preferencia del vault, apagada por defecto.
   const controlIa = usePrefVault("controlIa");
   // El vault lo traía encendido de otra máquina (`DEF-169`): acá arranca apagado.
@@ -114,38 +98,19 @@ export function VaultSection() {
     void getAbrirUltimo().then(setAbrirUltimoState).catch(() => undefined);
   }, []);
 
+  // Al abrir Configuración se relee: pudo cambiar por fuera (otra ventana, la IA).
   useEffect(() => {
-    if (rutaVault) void versionInstalada(rutaVault).then(setVersionIa);
-    else setVersionIa(null);
+    if (rutaVault) void useInstruccionesIaStore.getState().comprobar();
   }, [rutaVault]);
 
   const handleGenerarIa = async () => {
     if (!rutaVault) return;
     setMensaje(null);
     setError(null);
-    setGenerandoIa(true);
     try {
-      const resultado = await generarFramework(rutaVault);
-      setVersionIa(FRAMEWORK_IA_VERSION);
-      // Con el control encendido, el framework también registra el servidor
-      // en `.mcp.json` y el hook de mv/rm en `.claude/settings.json` (spec
-      // § 4): regenerar deja todo lo de la IA al día.
-      if (controlIa) await asegurarIntegracion(rutaVault);
-      let texto = `Instrucciones IA v${FRAMEWORK_IA_VERSION}: ${QUE_PASO_CON_CLAUDE_MD[resultado.claudeMd]}`;
-      if (resultado.conservados.length > 0) {
-        texto +=
-          ` Quedaron como tuyos ${resultado.conservados.length} comando(s) de la versión anterior que ` +
-          `habías editado (${resultado.conservados.join(" · ")}); los de Mycelium están ahora en ` +
-          `.claude/commands/mycelium/.`;
-      }
-      // El aviso de referencias sin enlazar (`FUN-S-10`) no impide lo demás:
-      // si no se pudo instalar, se dice por qué.
-      if (resultado.avisoHook) texto += ` ${resultado.avisoHook}`;
-      informar(texto);
+      informar(await useInstruccionesIaStore.getState().actualizar());
     } catch (e) {
       fallar((e as Error).message ?? String(e));
-    } finally {
-      setGenerandoIa(false);
     }
   };
 
@@ -505,9 +470,16 @@ export function VaultSection() {
           {versionIa && (
             <>
               {" "}Instalado: <strong>v{versionIa}</strong>
-              {versionIa !== FRAMEWORK_IA_VERSION && (
+              {situacionIa === "desactualizadas" && (
                 <> · disponible: <strong>v{FRAMEWORK_IA_VERSION}</strong></>
               )}
+              {situacionIa === "mas-nuevas" && (
+                <>
+                  {" "}· más nuevas que las de esta versión de Mycelium (v{FRAMEWORK_IA_VERSION}): se
+                  generaron con una posterior
+                </>
+              )}
+              {instrucciones?.mezcladas && <> (los archivos tienen versiones mezcladas: vale la más vieja)</>}
             </>
           )}
         </Explicacion>
@@ -517,16 +489,22 @@ export function VaultSection() {
               type="button"
               className={versionIa ? styles.secondaryBtn : styles.primaryBtn}
               disabled={generandoIa}
-              title="Escribe el bloque de Mycelium en CLAUDE.md y sus archivos en .claude/; lo demás no se toca"
+              title={
+                situacionIa === "mas-nuevas"
+                  ? `Vuelve a escribir las instrucciones de la v${FRAMEWORK_IA_VERSION}, más viejas que las instaladas`
+                  : "Escribe el bloque de Mycelium en CLAUDE.md y sus archivos en .claude/; lo demás no se toca"
+              }
               onClick={() => void handleGenerarIa()}
             >
               {generandoIa
                 ? "Generando…"
                 : !versionIa
                   ? "Generar instrucciones IA"
-                  : versionIa !== FRAMEWORK_IA_VERSION
+                  : situacionIa === "desactualizadas"
                     ? `Actualizar a v${FRAMEWORK_IA_VERSION}`
-                    : "Regenerar"}
+                    : situacionIa === "mas-nuevas"
+                      ? `Volver a la v${FRAMEWORK_IA_VERSION}`
+                      : "Regenerar"}
             </button>
           </div>
         ) : (

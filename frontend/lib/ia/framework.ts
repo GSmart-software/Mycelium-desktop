@@ -3,6 +3,7 @@ import { HOOK_REFERENCIAS, MARCADOR_VERSION_IA, SKILLS_GENERADAS } from "./skill
 import { ARCHIVO_SETTINGS, fusionarSettings, scriptLibre } from "./hookMvRm";
 import { HOOK_REFERENCIAS_DEF, RUTA_HOOK_REFERENCIAS } from "./hookReferencias";
 import { FRAMEWORK_IA_VERSION } from "./versionFramework";
+import { RUTA_VERSION_IA } from "./instruccionesInstaladas";
 
 /**
  * Framework IA del vault (FUN-L-08, solo-desktop). Genera en el vault un conjunto
@@ -197,8 +198,8 @@ import { FRAMEWORK_IA_VERSION } from "./versionFramework";
 // cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.
 export { FRAMEWORK_IA_VERSION };
 
-/** Marcador de versión dentro del vault. */
-const RUTA_VERSION = ".claude/mycelium-ia.json";
+/** El marcador de versión: lo lee `instruccionesInstaladas.ts` (`FUN-S-45`). */
+const RUTA_VERSION = RUTA_VERSION_IA;
 
 /**
  * El NÚCLEO: lo único que va en `CLAUDE.md`, dentro del bloque gestionado
@@ -1085,17 +1086,6 @@ export function archivosFramework(): { ruta: string; contenido: string }[] {
 async function leerTexto(vaultRuta: string, rutaRel: string): Promise<string | null> {
   try {
     return await invoke<string | null>("leer_archivo_texto", { vaultRuta, rutaRel });
-  } catch {
-    return null;
-  }
-}
-
-/** Versión del framework instalada en el vault, o null si no está generado. */
-export async function versionInstalada(vaultRuta: string): Promise<string | null> {
-  const crudo = await leerTexto(vaultRuta, RUTA_VERSION);
-  if (!crudo) return null;
-  try {
-    return (JSON.parse(crudo) as { version?: string }).version ?? null;
   } catch {
     return null;
   }
