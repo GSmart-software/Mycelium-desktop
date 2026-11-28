@@ -918,6 +918,8 @@
    una consola en su pestaña son
      --mic-consola-cian  --mic-consola-verde   --mic-consola-ambar
      --mic-consola-rosa  --mic-consola-violeta --mic-consola-azul
+   Al arrastrar un archivo sobre una consola, el aviso «Soltar para escribir
+   la ruta» es .mic-consola-soltar (el velo con el borde punteado).
 
    Las tarjetas de exportación (abajo a la derecha, al exportar una nota, el
    vault o un dibujo) son .mic-exportacion, dentro de .mic-exportaciones, con
@@ -935,6 +937,12 @@
 :root[data-theme] {
   --mic-terminal-bg:   #1e1e1e;
   --mic-consola-verde: #22a05a;
+}
+*/
+
+/*
+.mic-consola-soltar {
+  border-style: solid;
 }
 */
 

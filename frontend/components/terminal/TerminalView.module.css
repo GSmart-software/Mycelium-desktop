@@ -386,3 +386,28 @@
     animation: none;
   }
 }
+
+/* Soltar archivos escribe su ruta (`FUN-S-43`): mientras se arrastra algo que
+   se puede soltar acá, un velo apenas teñido con el acento, un borde punteado
+   y el aviso al centro. No recibe el mouse: el arrastre lo atiende la propia
+   `.terminal`. Global: `.mic-consola-soltar` (plantilla de snippets, § 17). */
+.soltar {
+  position: absolute;
+  inset: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border: 1.5px dashed color-mix(in srgb, var(--mic-accent) 70%, transparent);
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-accent) 8%, transparent);
+}
+
+.soltarTexto {
+  padding: 4px 10px;
+  border-radius: var(--mic-radius-sm);
+  background: color-mix(in srgb, var(--mic-bg-canvas) 88%, transparent);
+  color: var(--mic-text-primary);
+  font-size: 12px;
+}

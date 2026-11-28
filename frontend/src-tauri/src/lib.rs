@@ -23,6 +23,7 @@ mod prefs_vault;
 mod recordatorios;
 mod recordatorios_personales;
 mod reposo;
+mod rutas_soltadas;
 mod terminal;
 mod vault_config;
 mod vault_fs;
@@ -173,6 +174,9 @@ pub fn run() {
         // El pellizco del touchpad llega a la página sin que vuelva el zoom del
         // navegador (`DEF-187`, `pellizco.rs`).
         .plugin(pellizco::init())
+        // Soltar archivos de fuera de la app sobre una consola escribe su ruta
+        // (`FUN-S-43`): en Windows, WebView2 la da por `WebMessageReceived`.
+        .plugin(rutas_soltadas::init())
         // Autoactualización (FUN-L-14). El plugin se registra SIEMPRE: la
         // decisión de si se puede actualizar o no la toma `actualizador.rs`
         // leyendo la config compilada, así que sin claves la app arranca igual

@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { teclaSaleDeLaConsola } from "@/lib/comandos/teclasConsola";
 import { listarShells, tabIdDe } from "@/lib/terminalBase";
+import { textoDeRutas } from "@/lib/rutasSoltadas";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -335,6 +336,22 @@ export async function abrirPty(termId: string): Promise<void> {
   } catch (error) {
     inst.term.write(`\x1b[31m${String(error)}\x1b[0m\r\n`);
   }
+}
+
+/**
+ * Escribe rutas soltadas sobre la consola (`FUN-S-43`), como Windows Terminal:
+ * citadas si hace falta, separadas por un espacio y con uno al final, **sin
+ * Enter** (soltar no ejecuta nada). Va por `term.paste`, el mismo camino que el
+ * pegado: si la shell pidió *bracketed paste* (`ESC[?2004h`), xterm envuelve el
+ * texto como un pegado, y de ahí sale por `onData` → `terminal_escribir`, igual
+ * que el teclado. Después la consola toma el foco, para seguir escribiendo.
+ */
+export function escribirRutas(termId: string, rutas: readonly string[]) {
+  const inst = instancias.get(termId);
+  const texto = textoDeRutas(rutas);
+  if (!inst || texto === "") return;
+  inst.term.paste(texto);
+  inst.term.focus();
 }
 
 /**
