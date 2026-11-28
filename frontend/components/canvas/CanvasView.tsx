@@ -17,11 +17,13 @@ import {
   lugarLibre,
   nodoArchivo,
   nodoTexto,
+  nodosConDetalle,
   nuevaArista,
   nuevoId,
   ordenDePintado,
   parsearCanvas,
   serializarCanvas,
+  textoPlanoDeNota,
   type Canvas,
   type Lado,
   type Nodo,
@@ -433,6 +435,30 @@ export function CanvasView({ notaId }: { notaId: string }) {
   );
 
   /**
+   * Nivel de detalle (`DEF-183`, segunda parte): las tarjetas de nota que
+   * dibujan la nota entera. Las demás muestran solo el principio en texto
+   * plano. Con el zoom alejado se ven todas a la vez y `content-visibility` no
+   * evita nada: pintar cien notas renderizadas —18.000 elementos— en cada
+   * cambio de escala era el costo que quedaba. Se recalcula con la cámara en
+   * calma, nunca durante el movimiento, y solo cambia la identidad del conjunto
+   * si cambia quién está en él: cada tarjeta recibe un booleano, y la
+   * memoización vuelve a dibujar solo las que cambian de modo.
+   */
+  const [conDetalle, setConDetalle] = useState<ReadonlySet<string>>(() => new Set());
+  const recalcularDetalle = useCallback(() => {
+    const host = hostRef.current;
+    const c = canvasRef.current;
+    if (host === null || c === null) return;
+    const ids = nodosConDetalle(c.nodos, vistaRef.current, {
+      ancho: host.clientWidth,
+      alto: host.clientHeight,
+    });
+    setConDetalle((previo) =>
+      previo.size === ids.length && ids.every((id) => previo.has(id)) ? previo : new Set(ids),
+    );
+  }, []);
+
+  /**
    * Mientras la cámara se mueve, el mundo va en su propia capa compuesta
    * (`will-change: transform`, `DEF-183`): el compositor lo traslada y escala
    * sin volver a pintar las tarjetas en cada cuadro. Sin ella, cada cuadro del
@@ -452,8 +478,30 @@ export function CanvasView({ notaId }: { notaId: string }) {
       // Durante un arrastre del lienzo la capa se mantiene aunque se pare.
       if (arrastre.current?.tipo === "lienzo") return;
       if (mundoRef.current) mundoRef.current.style.willChange = "";
+      // Con la cámara quieta, qué tarjetas dibujan la nota entera.
+      recalcularDetalle();
     }, CALMA_MOVIMIENTO_MS);
-  }, []);
+  }, [recalcularDetalle]);
+
+  // Fuera de un movimiento de cámara —el encuadre al abrir, una tarjeta que se
+  // mueve o se agrega, la vista que sigue al foco del teclado— el detalle se
+  // recalcula enseguida. Durante el movimiento lo hace la calma (arriba): si no,
+  // cada cuadro del zoom podría cambiar el modo de alguna tarjeta.
+  useEffect(() => {
+    if (calmaRef.current !== null || arrastre.current?.tipo === "lienzo") return;
+    recalcularDetalle();
+  }, [vista, canvas, recalcularDetalle]);
+
+  // Y cuando cambia el tamaño del panel (dividir la pantalla, mostrar la pestaña).
+  // El contenedor existe solo con el lienzo cargado: se observa al aparecer.
+  const hayCanvas = canvas !== null;
+  useEffect(() => {
+    const host = hostRef.current;
+    if (host === null || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => recalcularDetalle());
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, [hayCanvas, recalcularDetalle]);
 
   // ── Coordenadas ────────────────────────────────────────────────────────────
   /** Punto del lienzo (no de la pantalla) bajo un evento del puntero. */
@@ -553,7 +601,16 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const onWheel = (e: React.WheelEvent) => {
     const r = hostRef.current?.getBoundingClientRect();
     if (!r) return;
-    const factor = Math.exp(-e.deltaY * 0.0015);
+    // El pellizco del touchpad llega como rueda con `ctrlKey` y en muchos pasos
+    // de `deltaY` chico (`DEF-187`): con el factor de la rueda sola el zoom
+    // quedaba lentísimo. Con Ctrl va el mismo factor que el visor de imágenes,
+    // acotado por paso para que Ctrl+rueda del mouse no salte de golpe. La rueda
+    // sola no cambia. El zoom de página lo frena `SinZoomDePagina`: este
+    // manejador es de React y pasivo, no puede cancelar el evento.
+    const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    const factor = e.ctrlKey
+      ? Math.exp(-Math.max(-25, Math.min(25, delta)) * 0.01)
+      : Math.exp(-e.deltaY * 0.0015);
     marcarMovimiento();
     setVista((v) => {
       const escala = Math.min(3, Math.max(0.2, v.escala * factor));
@@ -879,6 +936,7 @@ export function CanvasView({ notaId }: { notaId: string }) {
       seleccionado={seleccion === n.id}
       editando={editando === n.id}
       enfocable={idEnfocable === n.id}
+      detalle={conDetalle.has(n.id)}
       notas={notas}
       carpetas={carpetas}
       acciones={acciones}
@@ -1188,6 +1246,7 @@ const NodoVista = memo(function NodoVista({
   notas,
   carpetas,
   enfocable,
+  detalle,
   acciones,
 }: {
   nodo: Nodo;
@@ -1195,6 +1254,12 @@ const NodoVista = memo(function NodoVista({
   editando: boolean;
   /** La parada de Tab del lienzo (`tabindex` itinerante, `FUN-XL-04`, Parte 7). */
   enfocable: boolean;
+  /**
+   * Si una tarjeta de nota dibuja la nota entera (`DEF-183`): está a la vista
+   * y el zoom alcanza para leerla. Si no, muestra solo el principio en texto
+   * plano. Las tarjetas de texto, de enlace y los grupos lo ignoran.
+   */
+  detalle: boolean;
   notas: TreeNota[];
   carpetas: TreeCarpeta[];
   acciones: AccionesTarjeta;
@@ -1230,16 +1295,25 @@ const NodoVista = memo(function NodoVista({
 
   // El mismo HTML que la vista previa embebida (`FUN-S-19`): el texto por el
   // pipeline saneado de las notas y la URL escapada y validada (`DEF-159`).
+  // La vista liviana (`DEF-183`) no lo necesita: no se calcula.
+  const liviana = nodo.tipo === "file" && !detalle;
   const html = useMemo(
-    () => htmlDeTarjeta(nodo, contenido),
+    () => (liviana ? "" : htmlDeTarjeta(nodo, contenido)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo lo que lee `htmlDeTarjeta`
-    [nodo.tipo, nodo.texto, nodo.url, contenido],
+    [liviana, nodo.tipo, nodo.texto, nodo.url, contenido],
+  );
+  // El principio de la nota en texto plano, para la vista liviana. Mira solo los
+  // primeros caracteres: no depende del largo de la nota.
+  const resumen = useMemo(
+    () => (nodo.tipo === "file" && contenido !== null ? textoPlanoDeNota(contenido) : ""),
+    [nodo.tipo, contenido],
   );
 
-  // Los wikilinks rotos se marcan igual que en la vista de lectura.
+  // Los wikilinks rotos se marcan igual que en la vista de lectura. `liviana`
+  // también: al pasar a la vista completa el cuerpo se monta de nuevo.
   useEffect(() => {
     if (cuerpoRef.current) markMissingWikilinks(cuerpoRef.current, notas, carpetas);
-  }, [html, notas, carpetas]);
+  }, [html, liviana, notas, carpetas]);
 
   /** Tarjetas cuya asa no lleva rótulo: su contenido ya dice lo que son. */
   const sinRotulo = nodo.tipo === "text" || nodo.tipo === "link";
@@ -1289,9 +1363,10 @@ const NodoVista = memo(function NodoVista({
       // La rueda sobre una tarjeta que desborda es para leerla: se corta acá y
       // el lienzo ni se entera, así que no hay forma de que además haga zoom.
       // Si la tarjeta NO desborda no hay nada que desplazar y el evento sigue su
-      // camino, que es lo que se quiere.
+      // camino, que es lo que se quiere. El pellizco del touchpad (rueda con
+      // `ctrlKey`, `DEF-187`) no es para leer: sigue siempre hasta el lienzo.
       onWheel={(e) => {
-        if (hayScroll(e.target, e.currentTarget)) e.stopPropagation();
+        if (!e.ctrlKey && hayScroll(e.target, e.currentTarget)) e.stopPropagation();
       }}
     >
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
@@ -1332,7 +1407,7 @@ const NodoVista = memo(function NodoVista({
         )}
       </div>
 
-      <div className={styles.cuerpo}>
+      <div className={liviana ? `${styles.cuerpo} ${styles.cuerpoLiviano}` : styles.cuerpo}>
         {nodo.tipo === "file" && nota === undefined ? (
           // Criterio 10: borrar la nota no rompe el canvas, lo dice.
           <p className={styles.roto}>
@@ -1359,6 +1434,10 @@ const NodoVista = memo(function NodoVista({
             }}
             onPointerDown={(e) => e.stopPropagation()}
           />
+        ) : liviana ? (
+          // De lejos o fuera de la vista: el principio de la nota, un solo nodo
+          // de texto. Sin scroll, así que la rueda encima hace zoom.
+          <p className={styles.resumen}>{resumen}</p>
         ) : (
           <div
             ref={cuerpoRef}

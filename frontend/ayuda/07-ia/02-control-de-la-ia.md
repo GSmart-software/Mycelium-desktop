@@ -35,11 +35,14 @@ herramienta: genéralas, o actualízalas si Configuración te ofrece una versió
 
 - **Mostrar**: abrir una nota u otro archivo —y llevarte a un encabezado o a una línea—, el
   grafo o el calendario. Sin sacarte de lo que estás escribiendo, salvo que haga falta.
-  Puede elegir **en qué panel** abrirlo y, si se lo pides, **dividir la pantalla** a la
-  derecha o abajo para mostrarte algo al lado, igual que cuando divides tú. Mover pestañas
+  Puede elegir **en qué panel** abrirlo —por su número o por dónde está: «el de la
+  derecha», «arriba a la izquierda»— y, si se lo pides, **dividir la pantalla** a la
+  derecha o abajo para mostrarte algo al lado, igual que cuando divides tú. Lo que abre en
+  otro panel queda a la vista ahí, y tu cursor sigue donde estaba. Mover pestañas
   entre paneles o cerrarlos sigue siendo cosa tuya; un panel que abrió la IA se cierra como
   cualquier otro.
-- **Saber qué tienes abierto**: tus pestañas, en qué panel está cada una y cuáles tienen
+- **Saber qué tienes abierto**: tus pestañas, en qué panel está cada una (y dónde está cada
+  panel en la pantalla) y cuáles tienen
   cambios sin guardar.
 - **Calendario**: leer lo agendado, y crear, cambiar, completar o borrar
   [recordatorios](ayuda:herramientas/calendario).
@@ -77,6 +80,10 @@ apagado» (con un botón para encenderlo), «Control encendido» (esperando a Cl
 «Conectado». Abajo, todo lo que hizo la IA, de lo más nuevo a lo más viejo, con lo que cambió:
 «Ir» te lleva a lo afectado y «Deshacer» lo revierte. Si después cambiaste eso mismo a mano,
 Deshacer se apaga y te dice por qué: deshacerlo pisaría tu cambio.
+
+Si las [instrucciones de IA](ayuda:ia/instrucciones-de-ia) del vault son más viejas que las
+que trae Mycelium, arriba de todo aparece un aviso con un botón **Actualizar**, y el ícono del
+robot lleva un punto mientras siga pendiente.
 
 Lo que hizo la IA se muestra **agrupado por sesión**: cada grupo lleva arriba la tarea que
 declaró esa sesión (o «Sin tarea declarada») y su identificador, con «conectada» si sigue

@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { teclaSaleDeLaConsola } from "@/lib/comandos/teclasConsola";
 import { listarShells, tabIdDe } from "@/lib/terminalBase";
+import { textoDeRutas } from "@/lib/rutasSoltadas";
 import { useSidebarViewerStore } from "@/stores/sidebarViewerStore";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -251,6 +252,23 @@ export function getInstancia(termId: string): Instancia {
     // `false` xterm no los procesa ni los cancela, y siguen hasta el
     // despachador del workspace. La lista vive en `teclasConsola.ts`.
     if (teclaSaleDeLaConsola(ev)) return false;
+
+    // Shift+Enter = salto de línea sin enviar (`FUN-S-42`), como en Windows
+    // Terminal o VS Code. xterm manda Shift+Enter igual que Enter (`\r`), así
+    // que en el chat de una IA de consola enviaba el mensaje; el salto solo
+    // salía con Alt+Enter, que xterm manda como `ESC` + `\r`. Esa es la
+    // secuencia que esos programas leen como «nueva línea» (la misma que pone
+    // la configuración de Claude Code para VS Code), y Shift+Enter manda ahora
+    // eso mismo. Se corta en todas las fases del evento para que xterm no mande
+    // además su `\r`; se escribe solo en `keydown`.
+    if (ev.key === "Enter" && ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+      if (ev.type === "keydown") {
+        void invoke("terminal_escribir", { id: termId, datos: "\x1b\r" }).catch(() => {});
+      }
+      ev.preventDefault();
+      return false;
+    }
+
     if (ev.type !== "keydown" || !(ev.ctrlKey || ev.metaKey)) return true;
     const tecla = ev.key.toLowerCase();
 
@@ -318,6 +336,22 @@ export async function abrirPty(termId: string): Promise<void> {
   } catch (error) {
     inst.term.write(`\x1b[31m${String(error)}\x1b[0m\r\n`);
   }
+}
+
+/**
+ * Escribe rutas soltadas sobre la consola (`FUN-S-43`), como Windows Terminal:
+ * citadas si hace falta, separadas por un espacio y con uno al final, **sin
+ * Enter** (soltar no ejecuta nada). Va por `term.paste`, el mismo camino que el
+ * pegado: si la shell pidió *bracketed paste* (`ESC[?2004h`), xterm envuelve el
+ * texto como un pegado, y de ahí sale por `onData` → `terminal_escribir`, igual
+ * que el teclado. Después la consola toma el foco, para seguir escribiendo.
+ */
+export function escribirRutas(termId: string, rutas: readonly string[]) {
+  const inst = instancias.get(termId);
+  const texto = textoDeRutas(rutas);
+  if (!inst || texto === "") return;
+  inst.term.paste(texto);
+  inst.term.focus();
 }
 
 /**

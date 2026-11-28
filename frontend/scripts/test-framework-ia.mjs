@@ -65,6 +65,14 @@ fuente = reemplazar(
   'import { FRAMEWORK_IA_VERSION } from "./versionFramework";',
   "const { FRAMEWORK_IA_VERSION } = globalThis.__versionFramework;",
 );
+// El marcador de versión lo comparte con la detección del aviso (`FUN-S-45`).
+const rutaInstaladas = fileURLToPath(new URL("../lib/ia/instruccionesInstaladas.ts", import.meta.url));
+globalThis.__instruccionesInstaladas = await importarTs(await readFile(rutaInstaladas, "utf8"));
+fuente = reemplazar(
+  fuente,
+  'import { RUTA_VERSION_IA } from "./instruccionesInstaladas";',
+  "const { RUTA_VERSION_IA } = globalThis.__instruccionesInstaladas;",
+);
 const mod = await importarTs(fuente);
 const { generarFramework, archivosFramework, bloqueGestionado, planificarClaudeMd, FRAMEWORK_IA_VERSION } = mod;
 

@@ -35,6 +35,9 @@
  *     abiertas, de solo lectura (`lib/mcpSalud.ts`).
  * 11. **Elegir el panel y dividir** (`FUN-M-59`): `abrir` en un panel pedido y
  *     `dividir`, con las mismas acciones de `tabsStore` que usa el usuario.
+ *     En otro panel que el del foco, lo abierto queda a la vista sin mover el
+ *     foco (`DEF-188`); cada panel informa su posición y `panel` la acepta en
+ *     vez del número (`FUN-S-44`, `lib/posicionPaneles.ts`).
  * 12. **Las bandejas** (`FUN-S-40`): leer la del vault y la personal, y quitar
  *     entradas por el camino de la app (`lib/mcpBandeja.ts`).
  */
@@ -61,6 +64,8 @@ import { FRAMEWORK_IA_VERSION } from "@/lib/ia/versionFramework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
 import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/hookMvRmGenerado";
+import { instruccionesParaIa } from "@/lib/ia/instruccionesInstaladas";
+import { useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
 import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {
@@ -71,6 +76,7 @@ import {
   tituloDePestana,
 } from "@/lib/pestanas";
 import { nombreDeVault } from "@/lib/vaultMode";
+import { panelesEnPosicion, ubicarPaneles } from "@/lib/posicionPaneles";
 import { usePanelLayoutStore } from "@/stores/panelLayoutStore";
 import { useConfigLocalStore } from "@/stores/configLocalStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
@@ -392,7 +398,8 @@ async function consultarConfirmacion(args: Record<string, unknown>, retirar: boo
 // ── estado ──────────────────────────────────────────────────────────────────
 
 type PestanaIa = { titulo: string; ruta: string | null; tipo: string; activa: boolean; sin_guardar: boolean };
-type PanelIa = { panel: number; activo: boolean; pestanas: PestanaIa[] };
+/** `posicion`: dónde está en la pantalla, en palabras (`FUN-S-44`, `lib/posicionPaneles.ts`). */
+type PanelIa = { panel: number; posicion: string; activo: boolean; pestanas: PestanaIa[] };
 
 /** Estados del editor que significan «hay algo que no está en disco». */
 const SIN_GUARDAR = new Set(["local", "syncing", "error"]);
@@ -403,8 +410,10 @@ function paneles(): PanelIa[] {
   const { notas } = useVaultStore.getState();
   const sesiones = useTerminalStore.getState().sesiones;
   const sync = useSyncStore.getState().byNota;
+  const ubicados = ubicarPaneles(root);
   return allLeaves(root).map((hoja, i) => ({
     panel: i + 1,
+    posicion: ubicados[i]?.posicion ?? "",
     activo: hoja.id === activePaneId,
     // La Bandeja personal (`FUN-L-33`) no existe para la IA del vault: no es
     // parte de él (decisión del usuario, 2026-11-05). Su pestaña no se informa.
@@ -430,6 +439,9 @@ function estado(sesionId: string | null) {
     paneles: paneles(),
     // Las otras sesiones, sus reservas y lo cambiado recién (`FUN-L-31`).
     coordinacion: sesionesIa.coordinacionPara(sesionId),
+    // Si las instrucciones de IA del vault son de otra versión que las de la
+    // app (`FUN-S-45`); `null` sin instrucciones. Lo redacta el servidor.
+    instrucciones: instruccionesParaIa(useInstruccionesIaStore.getState().estado),
   };
 }
 
@@ -511,20 +523,45 @@ function revelar(notaId: string): boolean {
 
 /**
  * El panel que pidió el agente (`FUN-M-59`): la hoja con ese número —el mismo
- * orden que informa `paneles()`—, `null` si no pidió ninguno, o
- * `PANEL_INEXISTENTE` con la lista de paneles. Nunca crea uno.
+ * orden que informa `paneles()`— o en esa posición («derecha», «arriba a la
+ * izquierda», `FUN-S-44`); `null` si no pidió ninguno. Una posición que
+ * responde a varios paneles es `AMBIGUO` con esos candidatos; un número o una
+ * posición sin panel, `PANEL_INEXISTENTE` con la lista. Nunca crea uno.
  */
 function hojaPedida(args: Record<string, unknown>): LeafPane | null {
   const n = args.panel;
   if (n === undefined || n === null) return null;
-  const hojas = allLeaves(useTabsStore.getState().root);
+  const root = useTabsStore.getState().root;
+  const hojas = allLeaves(root);
   if (typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= hojas.length) return hojas[n - 1];
-  const hay = hojas.length === 1 ? "hay un solo panel, el 1" : `hay ${hojas.length} paneles, del 1 al ${hojas.length}`;
-  throw fallo(
-    "PANEL_INEXISTENTE",
-    `No existe el panel ${String(n)}: ${hay}. Para tener otro, divide la pantalla con mycelium_dividir.`,
-    { paneles: paneles() },
-  );
+  const ubicados = ubicarPaneles(root);
+  const hay =
+    hojas.length === 1
+      ? "hay un solo panel, el 1"
+      : `hay ${hojas.length} paneles: ${ubicados.map((u, i) => `el ${i + 1} (${u.posicion})`).join(", ")}`;
+  const otro = "Para tener otro, divide la pantalla con mycelium_dividir.";
+  if (typeof n === "string") {
+    const indices = panelesEnPosicion(n, ubicados);
+    if (indices && indices.length === 1) return hojas[indices[0]];
+    if (indices && indices.length > 1) {
+      const lista = paneles();
+      throw fallo(
+        "AMBIGUO",
+        `Hay ${indices.length} paneles que responden a «${n}»: ` +
+          `${indices.map((i) => `el ${i + 1} (${ubicados[i].posicion})`).join(", ")}. ` +
+          "Repite con su número o con una posición más precisa.",
+        { paneles: indices.map((i) => lista[i]) },
+      );
+    }
+    throw fallo(
+      "PANEL_INEXISTENTE",
+      indices === null
+        ? `«${n}» no es un número ni una posición de panel (como «derecha» o «arriba a la izquierda»): ${hay}.`
+        : `No hay ningún panel «${n}»: ${hay}. ${otro}`,
+      { paneles: paneles() },
+    );
+  }
+  throw fallo("PANEL_INEXISTENTE", `No existe el panel ${String(n)}: ${hay}. ${otro}`, { paneles: paneles() });
 }
 
 /** El número (desde 1) del panel `hojaId`, en el orden de `paneles()`. */
@@ -574,11 +611,25 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
   const previa = dondeEsta(destino.id, hoja?.id);
   const enOtro = hoja && !previa ? dondeEsta(destino.id) : null;
   const tabs = useTabsStore.getState();
+  const panelDelUsuario = tabs.activePaneId;
+  // `DEF-188`: abrir en OTRO panel que el del foco no tapa nada de lo que el
+  // usuario está mirando, así que la pestaña queda visible en ese panel (si no,
+  // desde afuera parecía que no había abierto nada); el foco sigue en el suyo.
+  // Un panel de vista previa vinculada no recibe pestañas: va por el camino de
+  // siempre, que la abre en uno editable.
+  const aLaVistaEnOtro = !conFoco && hoja !== null && hoja.id !== panelDelUsuario && hoja.linkedTo === null;
+  const yaVisible = previa?.visible ?? false;
   if (conFoco) {
     if (previa) tabs.activateTab(previa.hojaId, previa.tabId);
     else if (hoja) tabs.openNotaInPane(destino.id, hoja.id);
     else tabs.openNote(destino.id);
     navegar?.(destino.id);
+  } else if (aLaVistaEnOtro) {
+    // Las dos acciones mueven el foco al panel pedido: se le devuelve al que lo
+    // tenía, y la URL (que sigue al panel con el foco) no se toca.
+    if (previa) tabs.activateTab(previa.hojaId, previa.tabId);
+    else tabs.openNotaInPane(destino.id, hoja.id);
+    useTabsStore.getState().setActivePane(panelDelUsuario);
   } else if (!previa) {
     // Sin robar el foco (spec § 3.5): pestaña permanente en segundo plano. Si
     // el panel estaba vacío, `openNoteBackground` la abre visible, porque no
@@ -599,18 +650,25 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
       `También estaba abierta en el panel ${enOtro.panel}: ahora está en los dos, como cuando el usuario la abre en otro panel.`,
     );
   }
-  const enFoco = conFoco || (!previa && ahora.visible && useTabsStore.getState().activePaneId === ahora.hojaId);
+  const activoAhora = useTabsStore.getState().activePaneId;
+  const enFoco = conFoco || (!previa && ahora.visible && activoAhora === ahora.hojaId);
   if (!conFoco && enFoco) navegar?.(destino.id);
+  // Visible en un panel que no es el del foco (`DEF-188`).
+  const visibleAparte = !enFoco && ahora.visible && ahora.hojaId !== activoAhora;
+  const panelFoco = numeroDePanel(activoAhora);
 
   let salto: string | null = null;
   if (linea !== null) {
-    if (conFoco || !ahora.visible) {
+    if (conFoco || !ahora.visible || (visibleAparte && !yaVisible)) {
       // El editor monta la pestaña al mostrarla y consume el salto; si ya
-      // estaba montado, lo atiende el evento.
-      setPendingMatch(destino.id, { linea });
+      // estaba montado, lo atiende el evento. En otro panel, sin `foco`, el
+      // salto no enfoca el editor: el cursor del usuario no se mueve.
+      setPendingMatch(destino.id, conFoco ? { linea } : { linea, sinFoco: true });
       if (conFoco) {
         window.dispatchEvent(new CustomEvent("micelio:goto-match", { detail: { notaId: destino.id, linea } }));
         salto = `Saltó a ${descripcionSalto}.`;
+      } else if (visibleAparte) {
+        salto = `En el panel ${ahora.panel} se ve ${descripcionSalto}.`;
       } else {
         salto = `Cuando el usuario la mire, el cursor va a estar en ${descripcionSalto}.`;
       }
@@ -627,7 +685,7 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
 
   const efecto =
     `${previa ? "Mostró" : "Abrió"} «${destino.titulo}» en el panel ${ahora.panel}` +
-    (enFoco ? ", con el foco" : ", en segundo plano") +
+    (enFoco ? ", con el foco" : visibleAparte ? `, a la vista; el foco quedó en el panel ${panelFoco}` : ", en segundo plano") +
     (descripcionSalto && salto ? `, en ${descripcionSalto}` : "") +
     ".";
   return {
@@ -635,6 +693,9 @@ async function abrir(args: Record<string, unknown>): Promise<Atendido> {
       abierto: { titulo: destino.titulo, ruta: destino.ruta, tipo: destino.tipo },
       panel: ahora.panel,
       foco: enFoco,
+      // Si se ve en su panel aunque no tenga el foco (`DEF-188`), y cuál lo tiene.
+      visible: ahora.visible,
+      panel_foco: panelFoco,
       ya_estaba: previa !== null,
       salto,
       revelado,
@@ -677,7 +738,9 @@ async function dividir(args: Record<string, unknown>): Promise<Atendido> {
     const s = await saltoDe(destino, irADe(args, ancla));
     // El editor del panel nuevo se monta al dividir y consume el salto.
     if (s.linea !== null) {
-      setPendingMatch(destino.id, { linea: s.linea });
+      // Sin `foco`, el salto no enfoca el editor del panel nuevo (`DEF-188`):
+      // el cursor del usuario se queda donde estaba.
+      setPendingMatch(destino.id, conFoco ? { linea: s.linea } : { linea: s.linea, sinFoco: true });
       salto = `El cursor va a estar en ${s.descripcion}.`;
     }
     const enOtro = dondeEsta(destino.id);
@@ -733,6 +796,8 @@ async function dividir(args: Record<string, unknown>): Promise<Atendido> {
         ? { titulo: abierto.titulo, ruta: abierto.ruta, tipo: abierto.tipo }
         : visible && { titulo: visible.titulo, ruta: visible.ruta, tipo: visible.tipo },
       foco: conFoco,
+      // Dónde quedó el foco del usuario (`DEF-188`): lo abierto se ve igual en el nuevo.
+      panel_foco: numeroDePanel(useTabsStore.getState().activePaneId),
       salto,
       avisos,
       paneles: lista,

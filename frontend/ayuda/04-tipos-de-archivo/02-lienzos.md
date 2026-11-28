@@ -30,7 +30,8 @@ Las tarjetas se mueven arrastrando su barra de arriba (en una de nota lleva su t
 una de texto es una franja fina, sin rótulo) y cambian de tamaño desde la esquina de abajo
 a la derecha. El texto de una tarjeta se lee con la fuente del preview y se escribe con la
 del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te mueves por el lienzo, y la rueda del mouse
-acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
+acerca y aleja, igual que el **pellizco del touchpad** (separar dos dedos acerca y juntarlos
+aleja); el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 
 Con el teclado, las tarjetas se recorren con las **flechas** (o **Ctrl**+flechas),
@@ -69,6 +70,13 @@ cambia el archivo, el lienzo bloqueado se actualiza igual.
 > [!info] La tarjeta de nota es la nota
 > No es una copia: muestra el contenido real del archivo, y su botón **Abrir** la abre en
 > una pestaña. Si la nota se borra, la tarjeta lo dice en vez de romper el lienzo.
+
+Para que un lienzo grande se mueva con fluidez, una tarjeta de nota muestra la nota completa
+solo cuando está a la vista y el zoom alcanza para leerla (desde el 75 %). Cuando te alejas,
+o mientras la tarjeta está fuera de la pantalla, muestra solo **el principio de la nota en
+texto plano**, sin formato. Al acercarte y detener el movimiento, aparece la nota completa,
+con su formato y sus enlaces. En la vista resumida la rueda del mouse acerca y aleja; en la
+completa, si la nota no cabe en la tarjeta, la rueda la desplaza para leerla.
 
 ## Mostrarlo dentro de una nota
 

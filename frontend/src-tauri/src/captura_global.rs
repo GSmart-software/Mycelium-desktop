@@ -232,7 +232,7 @@ fn asegurar_ventana(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     // Misma distinción que `ventanas::abrir_vault_en_ventana`: en desarrollo
     // Next sirve la ruta; empaquetado, el `.html` suelto del export.
     let pagina = if tauri::is_dev() { "/captura" } else { "captura.html" };
-    WebviewWindowBuilder::new(app, ETIQUETA, WebviewUrl::App(pagina.into()))
+    crate::pellizco::con_pellizco(WebviewWindowBuilder::new(app, ETIQUETA, WebviewUrl::App(pagina.into())))
         .title("Captura rápida")
         .decorations(false)
         .shadow(true)

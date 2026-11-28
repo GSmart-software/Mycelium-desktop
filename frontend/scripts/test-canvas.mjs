@@ -20,6 +20,9 @@ const {
   cajaDeNodos,
   canvasInicial,
   encuadrar,
+  ESCALA_DETALLE,
+  nodosConDetalle,
+  textoPlanoDeNota,
   colorCss,
   htmlTarjetaEnlace,
   ErrorCanvas,
@@ -556,4 +559,74 @@ test("lugarLibre: rodeada de tarjetas, encuentra un hueco que no pisa ninguna", 
 test("lugarLibre: sin lugar en el radio de búsqueda, devuelve el punto pedido", () => {
   const nodos = [en("enorme", "text", -5000, -5000, 10000, 10000)];
   assert.deepEqual(lugarLibre(nodos, { x: 0, y: 0 }, 260, 140), { x: 0, y: 0 });
+});
+
+// ── Nivel de detalle (`DEF-183`) ────────────────────────────────────────────
+
+test("nodosConDetalle: solo las de nota a la vista (o cerca) y con escala legible", () => {
+  const nodos = [
+    en("vista", "file", 0, 0, 260, 150),
+    en("cerca", "file", 1100, 0, 260, 150), // fuera de 1000 px, dentro del margen de un cuarto de pantalla
+    en("lejos", "file", 5000, 0, 260, 150),
+    en("texto", "text", 0, 0, 260, 150),
+    en("grupo", "group", 0, 0, 900, 900),
+  ];
+  const pantalla = { ancho: 1000, alto: 800 };
+  assert.deepEqual(nodosConDetalle(nodos, { x: 0, y: 0, escala: 1 }, pantalla), ["vista", "cerca"]);
+  // Con el margen en cero, la de al lado ya no.
+  assert.deepEqual(nodosConDetalle(nodos, { x: 0, y: 0, escala: 1 }, pantalla, { margen: 0 }), ["vista"]);
+  // Por debajo del umbral, ninguna, aunque se vean todas.
+  assert.deepEqual(nodosConDetalle(nodos, { x: 0, y: 0, escala: ESCALA_DETALLE - 0.01 }, pantalla), []);
+  assert.deepEqual(nodosConDetalle(nodos, { x: 0, y: 0, escala: ESCALA_DETALLE }, pantalla), ["vista", "cerca"]);
+  // La cámara corrida: la tarjeta «lejos» pasa a estar en pantalla.
+  assert.deepEqual(nodosConDetalle(nodos, { x: -4900, y: 0, escala: 1 }, pantalla), ["lejos"]);
+  // Sin tamaño de pantalla (pestaña oculta), ninguna.
+  assert.deepEqual(nodosConDetalle(nodos, { x: 0, y: 0, escala: 1 }, { ancho: 0, alto: 0 }), []);
+});
+
+test("textoPlanoDeNota: quita la sintaxis común y deja el texto", () => {
+  const nota = [
+    "---",
+    "tags: [a, b]",
+    "---",
+    "# Título grande",
+    "",
+    "",
+    "Un párrafo con **negrita**, *cursiva*, `código` y ==resaltado==.",
+    "- Ver [[Otra nota|la otra]] y [[Tercera#Sección]].",
+    "- [x] Tarea con [un enlace](https://example.com)",
+    "> [!warning] Cuidado",
+    "> con esto",
+    "![[imagen.png]]",
+    "```js",
+    "const a = 1;",
+    "```",
+    "%% comentario %%Final",
+  ].join("\n");
+  assert.equal(
+    textoPlanoDeNota(nota),
+    [
+      "Título grande",
+      "",
+      "Un párrafo con negrita, cursiva, código y resaltado.",
+      "Ver la otra y Tercera.",
+      "Tarea con un enlace",
+      "Cuidado",
+      "con esto",
+      "",
+      "const a = 1;",
+      "Final",
+    ].join("\n"),
+  );
+});
+
+test("textoPlanoDeNota: corta en el máximo, con puntos suspensivos", () => {
+  const larga = "palabra ".repeat(500);
+  const r = textoPlanoDeNota(larga, 100);
+  assert.ok(r.length <= 101, String(r.length));
+  assert.ok(r.endsWith("…"));
+  assert.equal(textoPlanoDeNota(""), "");
+  assert.equal(textoPlanoDeNota("---\nsin cierre"), "");
+  // Los guiones bajos dentro de una palabra no son cursiva.
+  assert.equal(textoPlanoDeNota("nombre_de_archivo"), "nombre_de_archivo");
 });

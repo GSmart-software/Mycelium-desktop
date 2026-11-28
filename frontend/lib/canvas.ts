@@ -566,6 +566,115 @@ export function ordenDePintado(nodos: readonly Nodo[]): { grupos: Nodo[]; tarjet
   return { grupos, tarjetas };
 }
 
+// ── Nivel de detalle de las tarjetas de nota (`DEF-183`) ─────────────────────
+
+/**
+ * Escala mínima a la que una tarjeta de nota dibuja su nota entera. El cuerpo
+ * de la tarjeta usa 0,82rem (≈ 13 px): a 0,75 queda en ≈ 10 px en pantalla, que
+ * se lee sin esfuerzo; por debajo, el Markdown renderizado es una textura gris
+ * que cuesta pintar y casi no se lee. Empezó en 0,5 con media pantalla de
+ * margen, y medido en WebView2 con el lienzo del usuario (2026-11-27) era
+ * demasiado: en una ventana normal eso abarcaba medio lienzo, y al cruzar el
+ * umbral decenas de notas se pintaban a la vez (cuadros de más de 1 s). Con
+ * 0,75 y un cuarto de pantalla de margen entran unas pocas. El tamaño de la letra en
+ * pantalla depende solo de la escala, no del tamaño de la tarjeta, así que una
+ * tarjeta grande no lo cambia: más área no hace más legible la letra.
+ */
+export const ESCALA_DETALLE = 0.75;
+
+/**
+ * Qué tarjetas de nota dibujan su contenido completo con esta cámara: las que
+ * caen dentro de la vista, o a menos de `margen` (fracción de la pantalla) de
+ * ella, y solo si la escala alcanza para leerlas (`ESCALA_DETALLE`). El margen
+ * hace que un desplazamiento corto no encuentre tarjetas a medio dibujar.
+ *
+ * `vista` es la cámara del lienzo (pantalla = mundo × escala + x/y) y
+ * `pantalla`, el tamaño del contenedor. Devuelve los ids, en el orden del
+ * archivo.
+ */
+export function nodosConDetalle(
+  nodos: readonly Nodo[],
+  vista: Encuadre,
+  pantalla: { ancho: number; alto: number },
+  opciones: { margen?: number; escalaMin?: number } = {},
+): string[] {
+  const { margen = 0.25, escalaMin = ESCALA_DETALLE } = opciones;
+  if (vista.escala < escalaMin || pantalla.ancho <= 0 || pantalla.alto <= 0) return [];
+  const mx = pantalla.ancho * margen;
+  const my = pantalla.alto * margen;
+  // La ventana ampliada, pasada a coordenadas del mundo.
+  const izq = (-mx - vista.x) / vista.escala;
+  const arr = (-my - vista.y) / vista.escala;
+  const der = (pantalla.ancho + mx - vista.x) / vista.escala;
+  const aba = (pantalla.alto + my - vista.y) / vista.escala;
+  const ids: string[] = [];
+  for (const n of nodos) {
+    if (n.tipo !== "file") continue;
+    if (n.x + n.ancho < izq || n.x > der || n.y + n.alto < arr || n.y > aba) continue;
+    ids.push(n.id);
+  }
+  return ids;
+}
+
+/**
+ * El principio de una nota en texto plano, para la vista liviana de su tarjeta
+ * (`DEF-183`). No parsea Markdown: quita la sintaxis más común línea por línea
+ * —frontmatter, encabezados, listas, citas, callouts, cercas de código,
+ * énfasis, enlaces e imágenes— sobre los primeros caracteres, y corta en
+ * `max`. Es para mirar de lejos, no para leer: si algo raro queda con un
+ * asterisco, no rompe nada.
+ */
+export function textoPlanoDeNota(contenido: string, max = 400): string {
+  // Solo se mira el principio: con notas de 35 KB, recorrerlas enteras sería
+  // trabajo tirado.
+  let texto = contenido.slice(0, max * 6).replace(/\r\n?/g, "\n");
+  // Frontmatter: un bloque `---` al principio.
+  if (texto.startsWith("---\n")) {
+    const fin = texto.indexOf("\n---", 4);
+    texto = fin === -1 ? "" : texto.slice(fin + 4);
+  }
+  // Comentarios `%%…%%` (también de varias líneas) y etiquetas HTML. El
+  // resultado se muestra como texto (React lo escapa), así que esto no es una
+  // defensa sino limpieza; igual se repite hasta que no quede ninguna etiqueta,
+  // porque una pasada sola deja armada `<scr<b>ipt>` (CodeQL
+  // `js/incomplete-multi-character-sanitization`).
+  texto = texto.replace(/%%[\s\S]*?(%%|$)/g, "");
+  let previo: string;
+  do {
+    previo = texto;
+    texto = texto.replace(/<[^>\n]+>/g, "");
+  } while (texto !== previo);
+  const lineas: string[] = [];
+  for (const cruda of texto.split("\n")) {
+    let l = cruda.trim();
+    if (/^(```|~~~)/.test(l)) continue; // cercas de código: se va la cerca, queda el código
+    if (/^([-*_]\s*){3,}$/.test(l)) continue; // regla horizontal
+    if (/^\|?\s*:?-{2,}/.test(l)) continue; // separador de tabla
+    l = l
+      .replace(/^(>\s*)+/, "") // cita
+      .replace(/^\[![^\]]*\][-+]?\s*/, "") // callout
+      .replace(/^#{1,6}\s+/, "") // encabezado
+      .replace(/^([-*+]|\d+[.)])\s+(\[.\]\s+)?/, "") // lista y tarea
+      .replace(/!\[\[[^\]]*\]\]/g, "") // embed
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1") // imagen
+      .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, "$2") // [[x|y]] → y
+      .replace(/\[\[([^\]#]*)#?[^\]]*\]\]/g, (_, t: string) => t) // [[x#h]] → x
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [t](u) → t
+      .replace(/(\*\*|__|~~|==)(.+?)\1/g, "$2") // negrita, tachado, resaltado
+      .replace(/(^|[^\w*])[*_]([^*_\s][^*_]*?)[*_](?=[^\w*]|$)/g, "$1$2") // cursiva
+      .replace(/`([^`]*)`/g, "$1") // código en línea
+      .replace(/^\||\|$/g, "")
+      .replace(/\s*\|\s*/g, " · ") // celdas de tabla
+      .trim();
+    // Las líneas vacías seguidas se juntan en una sola.
+    if (l === "" && (lineas.length === 0 || lineas[lineas.length - 1] === "")) continue;
+    lineas.push(l);
+    if (lineas.join("\n").length >= max) break;
+  }
+  const plano = lineas.join("\n").trim();
+  return plano.length > max ? `${plano.slice(0, max).trimEnd()}…` : plano;
+}
+
 /**
  * Referencias que un canvas hace a otras notas, para el grafo del vault.
  *

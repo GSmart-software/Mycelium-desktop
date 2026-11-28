@@ -36,6 +36,13 @@ import { opcionDe, tituloConDetalle } from "@/lib/comandos/nuevo";
 import { EXTENSION_POR_TIPO } from "@/lib/extensionesDeTipo";
 import { exportNoteMd, exportNotePdfActive } from "@/lib/export";
 import { listarOtrosArchivos, tabIdDeArchivo, type OtroArchivo } from "@/lib/otrosArchivos";
+import {
+  MIME_RUTA_VAULT,
+  consolaEnPunto,
+  escribirRutasEnConsola,
+  rutaDeVault,
+  useConsolaDestino,
+} from "@/lib/consolaSoltar";
 import { useShallow } from "zustand/react/shallow";
 import { collectFromDataTransfer } from "@/lib/import";
 import { useAuthStore } from "@/stores/authStore";
@@ -91,6 +98,18 @@ function paneObjetivoEnPunto(
 }
 
 /**
+ * `FUN-S-43`: la consola en la que soltar escribe la ruta. Sobre el CENTRO de
+ * un pane con una consola, o sobre una consola fuera de los panes (anclada en
+ * el visor del explorador); en los bordes de un pane el arrastre sigue
+ * dividiéndolo, como con cualquier otra pestaña.
+ */
+function consolaObjetivoEnPunto(x: number, y: number): string | null {
+  const pane = paneObjetivoEnPunto(x, y);
+  if (pane && pane.edge !== "center") return null;
+  return consolaEnPunto(x, y);
+}
+
+/**
  * Colisión para el arrastre interno: como la zona de cada carpeta cubre también
  * su contenido, varias zonas anidadas (y la raíz) se solapan bajo el puntero.
  * Gana la MÁS PEQUEÑA, que es la carpeta más profunda; la raíz (la mayor) solo
@@ -104,6 +123,9 @@ function paneObjetivoEnPunto(
 const dropMasProfundo: CollisionDetection = (args) => {
   const p = args.pointerCoordinates;
   if (p && paneObjetivoEnPunto(p.x, p.y)) return [];
+  // `FUN-S-43`: sobre una consola (también la anclada en el visor del
+  // explorador, que no es un pane) soltar escribe la ruta: no se mueve nada.
+  if (p && consolaEnPunto(p.x, p.y)) return [];
   const dentro = pointerWithin(args);
   if (dentro.length === 0) return rectIntersection(args);
   const area = (id: string | number) => {
@@ -480,6 +502,7 @@ export function ExplorerPanel() {
   function limpiarDragNota() {
     useTabsStore.getState().setDraggingNota(null);
     useTabsStore.getState().setNotaDropTarget(null);
+    useConsolaDestino.getState().fijar(null);
   }
 
   function onDragStart(event: DragStartEvent) {
@@ -499,15 +522,33 @@ export function ExplorerPanel() {
   // DEF-023 P2: mientras se arrastra una nota, publica la zona bajo el puntero
   // (usando el tracking fiable de dnd-kit) para que el pane muestre el previo.
   function onDragMove(event: DragMoveEvent) {
-    if (!String(event.active.id).startsWith("nota:")) return;
+    const id = String(event.active.id);
+    const esNota = id.startsWith("nota:");
+    if (!esNota && !id.startsWith("carpeta:")) return;
     const { x, y } = puntoDelDrag(event);
-    useTabsStore.getState().setNotaDropTarget(paneObjetivoEnPunto(x, y));
+    // `FUN-S-43`: sobre una consola se muestra «Soltar para escribir la ruta»
+    // en vez del previo de abrir la nota ahí.
+    const consola = consolaObjetivoEnPunto(x, y);
+    useConsolaDestino.getState().fijar(consola);
+    if (esNota) useTabsStore.getState().setNotaDropTarget(consola ? null : paneObjetivoEnPunto(x, y));
   }
 
   function onDragEnd(event: DragEndEvent) {
     setDragGhost(null);
     const dragged = String(event.active.id);
     const over = event.over ? String(event.over.id) : null;
+
+    // Soltar una nota o una carpeta sobre una consola escribe su ruta absoluta
+    // (`FUN-S-43`). Va primero: ahí no se abre ni se mueve nada.
+    const fin = puntoDelDrag(event);
+    const consola = consolaObjetivoEnPunto(fin.x, fin.y);
+    if (consola && (dragged.startsWith("nota:") || dragged.startsWith("carpeta:"))) {
+      const relativa = dragged.slice(dragged.indexOf(":") + 1);
+      const absoluta = rutaDeVault(relativa);
+      if (absoluta) void escribirRutasEnConsola(consola, [absoluta]);
+      limpiarDragNota();
+      return;
+    }
 
     // Soltar una nota FUERA del explorador la abre en un pane (DEF-023 P2): borde
     // = dividir, centro = abrir como pestaña. La zona se recalcula por geometría
@@ -1234,6 +1275,15 @@ function OtroRow({
     <div
       className={`${styles.row} ${styles.rowHoja} ${styles.rowOtro}`}
       title={otro.ruta}
+      // Arrastrarlo a una consola escribe su ruta (`FUN-S-43`): una imagen para
+      // la IA es el caso de uso. Arrastre HTML5 con un tipo propio, que solo
+      // entiende la consola: el árbol no lo mueve (estas filas nunca se
+      // movieron arrastrando) y el editor no lo inserta como texto.
+      draggable={!rename.renaming}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(MIME_RUTA_VAULT, otro.ruta);
+        e.dataTransfer.effectAllowed = "copy";
+      }}
       {...atributosDeFila(nivel)}
       data-arbol-id={`otro:${otro.ruta}`}
       onClick={() => !rename.renaming && onOpen()}

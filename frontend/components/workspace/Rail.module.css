@@ -151,3 +151,24 @@
   background: var(--mic-marco-glow);
   pointer-events: none;
 }
+
+/* Un aviso pendiente en esa sección (FUN-S-45: instrucciones de IA
+   desactualizadas): un punto en el color de advertencia de los callouts, con
+   un aro del fondo del rail para que se despegue del ícono. Va arriba a la
+   derecha; si ya está la insignia de las sesiones, abajo. */
+.puntoAviso {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mic-callout-warning-border);
+  box-shadow: 0 0 0 2px var(--mic-bg-sidebar);
+  pointer-events: none;
+}
+
+.puntoAviso[data-con-insignia] {
+  top: auto;
+  bottom: 6px;
+}

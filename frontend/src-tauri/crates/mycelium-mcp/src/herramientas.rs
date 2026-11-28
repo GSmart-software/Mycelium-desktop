@@ -25,6 +25,10 @@
 //! en las notas abiertas (o en una), sin recalcular lo ya calculado.
 //! `FUN-M-59`: `mycelium_abrir` elige el panel (`panel`) y `mycelium_dividir`
 //! divide la pantalla, con las mismas acciones que la división del usuario.
+//! `DEF-188`: abrir en otro panel que el del foco deja la pestaña a la vista
+//! ahí, sin mover el foco. `FUN-S-44`: cada panel dice su posición
+//! («izquierda», «arriba a la derecha»), y `panel` acepta un número o una
+//! posición (la resuelve la app, `lib/posicionPaneles.ts`).
 //! `FUN-S-40`: `mycelium_bandeja`, leer las dos bandejas (la del vault y la
 //! personal) y quitar entradas por número con la huella de la lectura; la app
 //! numera, compara y escribe por su camino (`lib/mcpBandeja.ts`).
@@ -96,7 +100,8 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_estado",
             "title": "Qué tiene abierto Mycelium",
             "description": "Si Mycelium está abierto con este vault, si el control está encendido y qué está \
-                mirando el usuario: las pestañas de cada panel, cuál está activa y cuáles tienen cambios sin \
+                mirando el usuario: los paneles con su número y su posición en la pantalla (izquierda, \
+                arriba a la derecha…), las pestañas de cada uno, cuál está activa y cuáles tienen cambios sin \
                 guardar. Funciona también con la app cerrada (lo dice). No devuelve el contenido de las notas: \
                 para eso lee los archivos. Míralo antes de escribir un archivo que el usuario podría estar \
                 editando: si su pestaña tiene cambios sin guardar, avísale, porque lo que guarde después pisa lo tuyo.",
@@ -107,11 +112,14 @@ pub fn definiciones() -> Vec<Value> {
             "name": "mycelium_abrir",
             "title": "Mostrar algo en Mycelium",
             "description": "Abre en Mycelium una nota o archivo del vault, el grafo o el calendario, en una \
-                pestaña. Por defecto NO le roba el foco al usuario (la pestaña queda en segundo plano); pide \
-                `foco: true` solo si tienes algo que mostrarle ahora. Por defecto abre en el panel con el foco; \
-                con `panel` (el número que informan mycelium_estado y esta misma respuesta), en ese: si el \
-                objetivo ya está abierto en otro panel, queda también en el pedido, como cuando lo hace el \
-                usuario. Un panel que no existe es PANEL_INEXISTENTE (no se crea: para eso, mycelium_dividir). \
+                pestaña. Por defecto NO le roba el foco al usuario; pide `foco: true` solo si tienes algo que \
+                mostrarle ahora. Por defecto abre en el panel con el foco, en segundo plano. Con `panel` (un \
+                número, o una posición como \"derecha\" o \"arriba a la izquierda\", como los informan \
+                mycelium_estado y esta misma respuesta) abre en ese: si no es el del foco, la pestaña queda A LA \
+                VISTA en ese panel y el foco del usuario sigue en el suyo. Si el objetivo ya está abierto en otro \
+                panel, queda también en el pedido, como cuando lo hace el usuario. Una posición que coincide con \
+                varios paneles es AMBIGUO (con los candidatos); un panel que no existe es PANEL_INEXISTENTE (no se \
+                crea: para eso, mycelium_dividir). \
                 En una nota puede saltar a un encabezado, una línea o un texto. Devuelve en qué panel quedó y \
                 qué pestañas hay. No crea nada: si el objetivo no existe, contesta NO_ENCONTRADO con las \
                 candidatas más parecidas.",
@@ -135,7 +143,11 @@ pub fn definiciones() -> Vec<Value> {
                     },
                     "revelar": { "type": "boolean", "description": "Mostrarla también en el explorador (abre su carpeta). Por defecto false." },
                     "foco": { "type": "boolean", "description": "Activar la pestaña y llevar al usuario a ella. Por defecto false." },
-                    "panel": { "type": "integer", "minimum": 1, "description": "En qué panel abrirla: su número, desde 1, como lo informa mycelium_estado. Por defecto, el del foco." }
+                    "panel": {
+                        "type": ["integer", "string"],
+                        "minimum": 1,
+                        "description": "En qué panel abrirla: su número, desde 1, o su posición (\"derecha\", \"arriba a la izquierda\", \"abajo\"…), como los informa mycelium_estado. Por defecto, el del foco."
+                    }
                 },
                 "required": ["objetivo"],
                 "additionalProperties": false
@@ -577,13 +589,18 @@ fn definicion_dividir() -> Value {
             el panel nuevo muestra lo mismo que el dividido (un lienzo, dibujo, diagrama, visor, consola o vista \
             global no se duplica: pasa al panel nuevo). Por defecto NO le roba el foco al usuario; `foco: true` lo \
             lleva al panel nuevo. Úsala cuando el usuario lo pida o cuando mostrar dos cosas lado a lado sea el \
-            objetivo: la disposición de la pantalla es suya. Devuelve el número del panel nuevo y los paneles. No \
+            objetivo: la disposición de la pantalla es suya. Lo abierto se ve en el panel nuevo aunque el foco no vaya \
+            ahí. Devuelve el número del panel nuevo y los paneles con su posición. No \
             toca archivos ni va al registro de actividad: se deshace cerrando el panel.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "direccion": { "type": "string", "enum": ["derecha", "abajo"], "description": "Dónde queda el panel nuevo respecto del dividido." },
-                "panel": { "type": "integer", "minimum": 1, "description": "Qué panel dividir: su número, desde 1, como lo informa mycelium_estado. Por defecto, el del foco." },
+                "panel": {
+                    "type": ["integer", "string"],
+                    "minimum": 1,
+                    "description": "Qué panel dividir: su número, desde 1, o su posición (\"derecha\", \"arriba a la izquierda\"…), como los informa mycelium_estado. Por defecto, el del foco."
+                },
                 "objetivo": {
                     "type": "string",
                     "description": "Opcional: qué abrir en el panel nuevo. Ruta relativa al vault, título de una nota, `grafo` o `calendario`."
@@ -776,9 +793,10 @@ pub fn redactar_error(error: &Value) -> String {
     if let Some(ms) = datos.get("reintentar_en_ms").and_then(Value::as_u64) {
         t.push_str(&format!(" Reintenta en {:.1} s.", ms as f64 / 1000.0));
     }
-    // `PANEL_INEXISTENTE` (`FUN-M-59`): los paneles que sí hay.
+    // `PANEL_INEXISTENTE` (`FUN-M-59`): los paneles que sí hay. `AMBIGUO` con
+    // una posición (`FUN-S-44`): los que coinciden.
     if let Some(paneles) = datos.get("paneles").filter(|p| p.is_array()) {
-        t.push_str("\nLos paneles que hay:\n");
+        t.push_str(if cod == codigo::AMBIGUO { "\nLos paneles que coinciden:\n" } else { "\nLos paneles que hay:\n" });
         t.push_str(&redactar_paneles(paneles));
     }
     t
@@ -793,8 +811,9 @@ fn describir_ref(v: &Value) -> String {
     }
 }
 
-/// Las pestañas por panel, una línea por pestaña. `*` marca la activa de cada
-/// panel; el panel con el foco lleva «(activo)».
+/// Las pestañas por panel, una línea por pestaña. Cada panel lleva su posición
+/// (`FUN-S-44`) y el del foco, «activo»: `Panel 2 (derecha, activo):`. `*`
+/// marca la pestaña activa de cada panel.
 pub fn redactar_paneles(paneles: &Value) -> String {
     let Some(lista) = paneles.as_array().filter(|l| !l.is_empty()) else {
         return "No hay pestañas abiertas.".to_string();
@@ -803,7 +822,18 @@ pub fn redactar_paneles(paneles: &Value) -> String {
     for p in lista {
         let n = p.get("panel").and_then(Value::as_u64).unwrap_or(0);
         let activo = p.get("activo").and_then(Value::as_bool).unwrap_or(false);
-        t.push_str(&format!("Panel {n}{}:", if activo { " (activo)" } else { "" }));
+        let mut notas: Vec<&str> = Vec::new();
+        if let Some(pos) = p.get("posicion").and_then(Value::as_str).filter(|s| !s.is_empty()) {
+            notas.push(pos);
+        }
+        if activo {
+            notas.push("activo");
+        }
+        if notas.is_empty() {
+            t.push_str(&format!("Panel {n}:"));
+        } else {
+            t.push_str(&format!("Panel {n} ({}):", notas.join(", ")));
+        }
         let pestanas = p.get("pestanas").and_then(Value::as_array).cloned().unwrap_or_default();
         if pestanas.is_empty() {
             t.push_str(" vacío");
@@ -831,6 +861,7 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             if etapa != "lista" {
                 t.push_str(&format!("\nLa app está ocupada: {etapa}."));
             }
+            t.push_str(&redactar_instrucciones(&r));
             t.push('\n');
             t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
             t.push_str(&redactar_coordinacion(&r));
@@ -852,6 +883,33 @@ fn herramienta_estado(estado: &Estado, vault: &VaultResuelto) -> Value {
             texto(t, false)
         }
         Err(SinResultado::Error(e)) => texto(e, true),
+    }
+}
+
+/// Si las instrucciones de IA del vault no son las de la app (`FUN-S-45`):
+/// una línea para la IA, justo debajo de la cabecera de `mycelium_estado`.
+/// Vacío si están al día, si el vault no las tiene o si la app no lo mandó
+/// (una versión vieja).
+pub fn redactar_instrucciones(r: &Value) -> String {
+    let Some(i) = r.get("instrucciones").filter(|i| i.is_object()) else {
+        return String::new();
+    };
+    let version = |clave: &str| i.get(clave).and_then(Value::as_str).unwrap_or("?");
+    let (instalada, disponible) = (version("instalada"), version("disponible"));
+    if i.get("desactualizadas").and_then(Value::as_bool) == Some(true) {
+        format!(
+            "\nLas instrucciones de IA de este vault son de la v{instalada} y Mycelium trae la v{disponible}: \
+             pueden faltarte herramientas o parámetros nuevos. Sugiérele al usuario actualizarlas \
+             (Configuración → Vault o el aviso en Actividad de la IA)."
+        )
+    } else if i.get("mas_nuevas").and_then(Value::as_bool) == Some(true) {
+        format!(
+            "\nLas instrucciones de IA de este vault son de la v{instalada}, más nuevas que las de esta app \
+             (v{disponible}): si mencionan una herramienta o un parámetro que no existe aquí, es eso. \
+             No le sugieras regenerarlas, sino actualizar Mycelium."
+        )
+    } else {
+        String::new()
     }
 }
 
@@ -918,18 +976,47 @@ pub fn validar_abrir(args: &Value) -> Result<Value, String> {
     }))
 }
 
-/// `panel` (`FUN-M-59`): un entero desde 1, o `null` si no vino. Si existe lo
-/// sabe la app (`PANEL_INEXISTENTE`).
+/// `panel` (`FUN-M-59`): un entero desde 1, un texto de posición (`FUN-S-44`:
+/// «derecha», «arriba a la izquierda»), o `null` si no vino. Si existe, y qué
+/// panel es una posición, lo sabe la app (`PANEL_INEXISTENTE`, `AMBIGUO`).
 fn validar_panel(args: &Value) -> Result<Value, String> {
+    let error = || {
+        Err(format!(
+            "{}: `panel` es el número de un panel (un entero desde 1) o su posición, como \"derecha\" o \
+             \"arriba a la izquierda\" (los informa mycelium_estado).",
+            codigo::INVALIDO
+        ))
+    };
     match args.get("panel").filter(|v| !v.is_null()) {
         None => Ok(Value::Null),
+        Some(Value::String(s)) => match s.trim() {
+            "" => error(),
+            t => Ok(json!(t)),
+        },
         Some(v) => match v.as_u64().filter(|n| *n >= 1) {
             Some(n) => Ok(json!(n)),
-            None => Err(format!(
-                "{}: `panel` es el número de un panel, un entero desde 1 (los informa mycelium_estado).",
-                codigo::INVALIDO
-            )),
+            None => error(),
         },
+    }
+}
+
+/// `posicion` del panel `n` en la lista de paneles de una respuesta, si la trae
+/// (y si dice algo: con un solo panel es «único»).
+fn posicion_de(paneles: &Value, n: u64) -> Option<&str> {
+    paneles
+        .as_array()?
+        .iter()
+        .find(|p| p.get("panel").and_then(Value::as_u64) == Some(n))?
+        .get("posicion")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty() && *s != "único")
+}
+
+/// `panel 2 (derecha)`, o `panel 2` si la respuesta no trae la posición.
+fn nombrar_panel(paneles: &Value, n: u64) -> String {
+    match posicion_de(paneles, n) {
+        Some(p) => format!("panel {n} ({p})"),
+        None => format!("panel {n}"),
     }
 }
 
@@ -957,19 +1044,32 @@ fn validar_ir_a(args: &Value) -> Result<(), String> {
     Ok(())
 }
 
-/// El texto de un `abrir` que salió bien: qué se abrió, dónde, con o sin foco,
-/// y las pestañas que hay después.
-pub fn redactar_abrir(r: &Value) -> String {
+/// El texto de un `abrir` que salió bien: qué se abrió, dónde, si se ve y
+/// dónde quedó el foco (`DEF-188`), y las pestañas que hay después. Con más de
+/// un panel y sin `panel` en el pedido (`pidio_panel`), una línea enseña que se
+/// puede elegir (`FUN-S-44`): una IA con la descripción vieja de la herramienta
+/// no relee el esquema, pero sí lee cada respuesta.
+pub fn redactar_abrir(r: &Value, pidio_panel: bool) -> String {
     let abierto = r.get("abierto").unwrap_or(&Value::Null);
+    let paneles = r.get("paneles").unwrap_or(&Value::Null);
     let panel = r.get("panel").and_then(Value::as_u64).unwrap_or(0);
     let foco = r.get("foco").and_then(Value::as_bool).unwrap_or(false);
+    let visible = r.get("visible").and_then(Value::as_bool).unwrap_or(false);
+    let panel_foco = r.get("panel_foco").and_then(Value::as_u64).filter(|n| *n >= 1);
     let ya = r.get("ya_estaba").and_then(Value::as_bool).unwrap_or(false);
     let tipo = abierto.get("tipo").and_then(Value::as_str).unwrap_or("?");
+    let como = match panel_foco {
+        _ if foco => ", con el foco: el usuario la está viendo.".to_string(),
+        Some(pf) if visible && pf != panel => {
+            format!(": se ve en ese panel, y el foco del usuario quedó en el {}.", nombrar_panel(paneles, pf))
+        }
+        _ => ", en segundo plano: no se tocó el foco del usuario.".to_string(),
+    };
     let mut t = format!(
-        "{} «{}» [{tipo}] en el panel {panel}, {}.",
+        "{} «{}» [{tipo}] en el {}{como}",
         if ya { "Ya estaba abierta" } else { "Abrí" },
         describir_ref(abierto),
-        if foco { "con el foco: el usuario la está viendo" } else { "en segundo plano: no se tocó el foco del usuario" }
+        nombrar_panel(paneles, panel),
     );
     if let Some(s) = r.get("salto").and_then(Value::as_str) {
         t.push_str(&format!(" {s}"));
@@ -982,8 +1082,14 @@ pub fn redactar_abrir(r: &Value) -> String {
             t.push_str(&format!("\nAviso: {a}"));
         }
     }
+    let cuantos = paneles.as_array().map_or(0, Vec::len);
+    if !pidio_panel && cuantos > 1 {
+        t.push_str(&format!(
+            "\nHay {cuantos} paneles; con `panel` (número o posición, como \"derecha\") eliges en cuál."
+        ));
+    }
     t.push('\n');
-    t.push_str(&redactar_paneles(r.get("paneles").unwrap_or(&Value::Null)));
+    t.push_str(&redactar_paneles(paneles));
     t
 }
 
@@ -992,8 +1098,9 @@ fn herramienta_abrir(estado: &Estado, vault: &VaultResuelto, args: &Value) -> Va
         Ok(a) => a,
         Err(e) => return texto(e, true),
     };
+    let pidio_panel = !args["panel"].is_null();
     match pedir(estado, vault, "abrir", args) {
-        Ok(r) => texto(redactar_abrir(&r), false),
+        Ok(r) => texto(redactar_abrir(&r, pidio_panel), false),
         Err(SinResultado::NadieEscucha) => texto(sin_ventana(vault), true),
         Err(SinResultado::Error(e)) => texto(e, true),
     }
@@ -1048,7 +1155,16 @@ pub fn redactar_dividir(r: &Value) -> String {
         }
         None => t.push_str(", vacío"),
     }
-    t.push_str(if foco { ", con el foco: el usuario lo está viendo." } else { "; el foco quedó donde estaba." });
+    // Lo abierto se ve en el panel nuevo aunque el foco no vaya ahí (`DEF-188`).
+    let panel_foco = r.get("panel_foco").and_then(Value::as_u64).filter(|n| *n >= 1 && *n != panel);
+    match panel_foco {
+        _ if foco => t.push_str(", con el foco: el usuario lo está viendo."),
+        Some(pf) => t.push_str(&format!(
+            "; se ve ahí, y el foco del usuario quedó en el {}.",
+            nombrar_panel(r.get("paneles").unwrap_or(&Value::Null), pf)
+        )),
+        None => t.push_str("; el foco quedó donde estaba."),
+    }
     if let Some(s) = r.get("salto").and_then(Value::as_str) {
         t.push_str(&format!(" {s}"));
     }

@@ -65,6 +65,64 @@
   color: var(--mic-text-muted);
 }
 
+/* ── Instrucciones de IA desactualizadas (FUN-S-45) ───────────────────── */
+
+/* Como la tarjeta del canal, en el color de advertencia de los callouts: se
+   distingue del estado del canal sin gritar. */
+.instrucciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px solid color-mix(in srgb, var(--mic-callout-warning-border) 45%, transparent);
+  background: color-mix(in srgb, var(--mic-callout-warning-border) 8%, transparent);
+  --punto: var(--mic-callout-warning-border);
+}
+
+.instruccionesTitulo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--mic-text-primary);
+}
+
+.instrucciones .acciones {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Más nuevas que la app: solo una nota, en el color de los metadatos. */
+.instruccionesNota {
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--mic-radius-md);
+  border: 1px dashed color-mix(in srgb, var(--mic-text-muted) 30%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--mic-text-muted);
+}
+
+/* El enlace secundario: texto subrayado, sin caja. */
+.enlace {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.15rem;
+  color: var(--mic-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.enlace:hover {
+  color: var(--mic-text-primary);
+}
+
+.enlace:focus-visible {
+  outline: 2px solid var(--mic-glow);
+  outline-offset: 2px;
+  border-radius: var(--mic-radius-sm);
+}
+
 /* ── La lista ─────────────────────────────────────────────────────────── */
 
 .vacio {
