@@ -70,6 +70,13 @@ cambia el archivo, el lienzo bloqueado se actualiza igual.
 > No es una copia: muestra el contenido real del archivo, y su botón **Abrir** la abre en
 > una pestaña. Si la nota se borra, la tarjeta lo dice en vez de romper el lienzo.
 
+Para que un lienzo grande se mueva con fluidez, una tarjeta de nota muestra la nota completa
+solo cuando está a la vista y el zoom alcanza para leerla (desde el 50 %). Cuando te alejas,
+o mientras la tarjeta está fuera de la pantalla, muestra solo **el principio de la nota en
+texto plano**, sin formato. Al acercarte y detener el movimiento, aparece la nota completa,
+con su formato y sus enlaces. En la vista resumida la rueda del mouse acerca y aleja; en la
+completa, si la nota no cabe en la tarjeta, la rueda la desplaza para leerla.
+
 ## Mostrarlo dentro de una nota
 
 Escribe `![[Tablero.canvas]]` (o solo `![[Tablero]]`) en una nota para ver el lienzo ahí,
