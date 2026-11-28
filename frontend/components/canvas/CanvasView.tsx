@@ -1363,9 +1363,10 @@ const NodoVista = memo(function NodoVista({
       // La rueda sobre una tarjeta que desborda es para leerla: se corta acá y
       // el lienzo ni se entera, así que no hay forma de que además haga zoom.
       // Si la tarjeta NO desborda no hay nada que desplazar y el evento sigue su
-      // camino, que es lo que se quiere.
+      // camino, que es lo que se quiere. El pellizco del touchpad (rueda con
+      // `ctrlKey`, `DEF-187`) no es para leer: sigue siempre hasta el lienzo.
       onWheel={(e) => {
-        if (hayScroll(e.target, e.currentTarget)) e.stopPropagation();
+        if (!e.ctrlKey && hayScroll(e.target, e.currentTarget)) e.stopPropagation();
       }}
     >
       {/* Asa de arrastre propia: si lo fuera la tarjeta entera no se podría
