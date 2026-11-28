@@ -7,8 +7,11 @@
  * resuelve contra el contenido al llegar—. Quien navega registra el salto
  * antes de abrir; el editor lo consume cuando la vista está lista (o al vuelo,
  * con el evento `micelio:goto-match`, si la nota ya estaba abierta en un pane).
+ *
+ * `sinFoco` (`DEF-188`): la IA mostró la nota en un panel que no es el del
+ * usuario; el editor va a la línea pero no se lleva el foco del teclado.
  */
-export type Salto = string | { linea: number } | { ancla: string };
+export type Salto = string | { linea: number; sinFoco?: boolean } | { ancla: string };
 
 const pending = new Map<string, Salto>();
 

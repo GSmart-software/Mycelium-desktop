@@ -334,7 +334,8 @@ function gotoMatch(view: EditorView, salto: Salto): number | null {
       // Un encabezado se lee desde arriba: va al borde superior, no al centro.
       effects: EditorView.scrollIntoView(linea.from, { y: "ancla" in salto ? "start" : "center" }),
     });
-    view.focus();
+    // Mostrada por la IA en otro panel (`DEF-188`): sin quitarle el foco al usuario.
+    if (!("sinFoco" in salto && salto.sinFoco)) view.focus();
     return linea.number;
   }
   const term = salto;

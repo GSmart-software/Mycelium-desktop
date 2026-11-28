@@ -348,34 +348,50 @@ fn el_calendario_sin_app_dice_que_no_se_escribe_a_mano() {
 
 // ── Elegir el panel y dividir (`FUN-M-59`) ─────────────────────────────────
 
-/// Una app con dos paneles que atiende `abrir` con `panel` y `dividir` como la
-/// de verdad: el panel que no existe es `PANEL_INEXISTENTE` con la lista.
+/// Una app con dos paneles lado a lado que atiende `abrir` con `panel` y
+/// `dividir` como la de verdad: el panel que no existe es `PANEL_INEXISTENTE`
+/// con la lista; `panel` también puede ser una posición (`FUN-S-44`), y una que
+/// coincide con los dos es `AMBIGUO` con los candidatos.
 fn app_paneles(e: &Estado) -> crate::canal::falso::Servidor {
     levantar(e.canal.clone(), move |p| {
         let id = p["id"].clone();
         let a = &p["args"];
         let paneles = json!([
-            {"panel": 1, "activo": true, "pestanas": [
+            {"panel": 1, "posicion": "izquierda", "activo": true, "pestanas": [
                 {"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota", "activa": true, "sin_guardar": false}
             ]},
-            {"panel": 2, "activo": false, "pestanas": [
+            {"panel": 2, "posicion": "derecha", "activo": false, "pestanas": [
                 {"titulo": "Grafo de conexiones", "ruta": null, "tipo": "grafo", "activa": true, "sin_guardar": false}
             ]}
         ]);
+        // La posición, resuelta como la app: lo que no es izquierda ni derecha no existe.
+        let numero = match &a["panel"] {
+            Value::String(t) if t == "izquierda" => Some(1),
+            Value::String(t) if t == "derecha" => Some(2),
+            Value::String(_) => Some(99),
+            v => v.as_u64(),
+        };
         Some(match p["op"].as_str() {
-            Some("abrir" | "dividir") if a["panel"].as_u64().is_some_and(|n| n > 2) => json!({"id": id, "ok": false, "error": {
+            Some("abrir" | "dividir") if a["panel"] == "lado" => json!({"id": id, "ok": false, "error": {
+                "codigo": "AMBIGUO",
+                "mensaje": "Hay 2 paneles que responden a «lado»: el 1 (izquierda), el 2 (derecha).",
+                "datos": {"paneles": paneles}}}),
+            Some("abrir" | "dividir") if numero.is_some_and(|n| n > 2) => json!({"id": id, "ok": false, "error": {
                 "codigo": "PANEL_INEXISTENTE",
                 "mensaje": format!("No existe el panel {}: hay 2 paneles, del 1 al 2.", a["panel"]),
                 "datos": {"paneles": paneles}}}),
+            // `DEF-188`: en el panel 2 (no es el del foco) queda a la vista; el foco, en el 1.
             Some("abrir") => json!({"id": id, "ok": true, "resultado": {
                 "abierto": {"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota"},
-                "panel": a["panel"].as_u64().unwrap_or(1), "foco": false, "ya_estaba": false, "salto": null, "revelado": false,
+                "panel": numero.unwrap_or(1), "foco": false, "visible": numero == Some(2), "panel_foco": 1,
+                "ya_estaba": false, "salto": null, "revelado": false,
                 "avisos": ["También estaba abierta en el panel 1: ahora está en los dos, como cuando el usuario la abre en otro panel."],
                 "paneles": paneles}}),
             Some("dividir") => json!({"id": id, "ok": true, "resultado": {
-                "panel": 2, "dividido": a["panel"].as_u64().unwrap_or(1), "direccion": a["direccion"],
+                "panel": 2, "dividido": numero.unwrap_or(1), "direccion": a["direccion"],
                 "abierto": if a["objetivo"].is_null() { Value::Null } else { json!({"titulo": "Plan", "ruta": "docs/Plan.md", "tipo": "nota"}) },
-                "foco": a["foco"], "salto": null, "avisos": [], "paneles": paneles}}),
+                "foco": a["foco"], "panel_foco": if a["foco"] == true { 2 } else { 1 },
+                "salto": null, "avisos": [], "paneles": paneles}}),
             _ => json!({"id": id, "ok": false, "error": {"codigo": "INVALIDO", "mensaje": "op desconocida", "datos": null}}),
         })
     })
@@ -391,6 +407,65 @@ fn abrir_en_un_panel_pasa_el_numero_y_dice_si_quedo_en_dos() {
     assert!(t.contains("Aviso: También estaba abierta en el panel 1"), "{t}");
 }
 
+/// `DEF-188`: en otro panel que el del foco, la respuesta dice que se ve ahí y
+/// dónde quedó el foco, no «en segundo plano».
+#[test]
+fn abrir_en_otro_panel_dice_que_se_ve_y_donde_quedo_el_foco() {
+    let mut e = con_vault("abrir-otro-panel", Some(true));
+    let _app = app_paneles(&e);
+    let (t, err) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": 2}));
+    assert!(!err, "{t}");
+    assert!(
+        t.starts_with(
+            "Abrí «Plan — docs/Plan.md» [nota] en el panel 2 (derecha): se ve en ese panel, y el foco del usuario \
+             quedó en el panel 1 (izquierda)."
+        ),
+        "{t}"
+    );
+    assert!(!t.contains("segundo plano"), "{t}");
+    // En el panel del foco, sin `foco`, sigue en segundo plano.
+    let (t, _) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": 1}));
+    assert!(t.contains("en el panel 1 (izquierda), en segundo plano"), "{t}");
+}
+
+/// `FUN-S-44`: `panel` como posición; los paneles dicen la suya; una posición
+/// que coincide con varios es `AMBIGUO` con los candidatos.
+#[test]
+fn panel_por_posicion_y_paneles_con_su_posicion() {
+    let mut e = con_vault("panel-posicion", Some(true));
+    let _app = app_paneles(&e);
+    let (t, err) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": "derecha"}));
+    assert!(!err && t.contains("en el panel 2 (derecha): se ve en ese panel"), "{t}");
+    assert!(t.contains("Panel 1 (izquierda, activo):\n  * Plan"), "{t}");
+    assert!(t.contains("Panel 2 (derecha):\n  * Grafo de conexiones [grafo]"), "{t}");
+
+    let (t, err) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": "lado"}));
+    assert!(err && t.starts_with("AMBIGUO: Hay 2 paneles que responden a «lado»"), "{t}");
+    assert!(t.contains("Los paneles que coinciden:\nPanel 1 (izquierda, activo):"), "{t}");
+
+    let (t, err) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "panel": "abajo del todo"}));
+    assert!(err && t.starts_with("PANEL_INEXISTENTE"), "{t}");
+    assert!(t.contains("Los paneles que hay:"), "{t}");
+}
+
+/// `FUN-S-44`: con más de un panel, un `abrir` sin `panel` enseña que se puede
+/// elegir; con `panel`, no lo repite.
+#[test]
+fn abrir_sin_panel_con_varios_paneles_ensena_a_elegir() {
+    let mut e = con_vault("abrir-pista", Some(true));
+    let _app = app_paneles(&e);
+    let pista = "Hay 2 paneles; con `panel` (número o posición, como \"derecha\") eliges en cuál.";
+    let (t, err) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan"}));
+    assert!(!err && t.contains(pista), "{t}");
+    let (t, _) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": 1}));
+    assert!(!t.contains(pista), "{t}");
+    // Con un solo panel no hay nada que elegir.
+    let mut e = con_vault("abrir-pista-uno", Some(true));
+    let _app = app_falsa(&e);
+    let (t, _) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan"}));
+    assert!(!t.contains("eliges en cuál"), "{t}");
+}
+
 #[test]
 fn un_panel_que_no_existe_trae_la_lista_de_paneles() {
     let mut e = con_vault("panel-inexistente", Some(true));
@@ -401,8 +476,8 @@ fn un_panel_que_no_existe_trae_la_lista_de_paneles() {
     ] {
         let (t, err) = llamar(&mut e, nombre, args);
         assert!(err && t.starts_with("PANEL_INEXISTENTE: No existe el panel 5"), "{nombre}: {t}");
-        assert!(t.contains("Los paneles que hay:\nPanel 1 (activo):"), "{t}");
-        assert!(t.contains("Panel 2:\n  * Grafo de conexiones [grafo]"), "{t}");
+        assert!(t.contains("Los paneles que hay:\nPanel 1 (izquierda, activo):"), "{t}");
+        assert!(t.contains("Panel 2 (derecha):\n  * Grafo de conexiones [grafo]"), "{t}");
     }
 }
 
@@ -413,10 +488,13 @@ fn dividir_dice_el_panel_nuevo_y_el_foco() {
     let (t, err) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "derecha", "objetivo": "Plan"}));
     assert!(!err, "{t}");
     assert!(
-        t.starts_with("Dividí el panel 1: el panel nuevo es el 2, a la derecha, con «Plan — docs/Plan.md» [nota]; el foco quedó donde estaba."),
+        t.starts_with(
+            "Dividí el panel 1: el panel nuevo es el 2, a la derecha, con «Plan — docs/Plan.md» [nota]; se ve ahí, y el \
+             foco del usuario quedó en el panel 1 (izquierda)."
+        ),
         "{t}"
     );
-    assert!(t.contains("Panel 2:"), "y los paneles: {t}");
+    assert!(t.contains("Panel 2 (derecha):"), "y los paneles: {t}");
     let (t, err) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "foco": true}));
     assert!(!err && t.contains(", abajo, vacío, con el foco"), "{t}");
 }
@@ -427,7 +505,8 @@ fn los_argumentos_invalidos_de_panel_y_dividir_no_llegan_a_la_app() {
     // Sin app: si llegaran al canal, el error sería APP_CERRADA.
     for (nombre, args) in [
         ("mycelium_abrir", json!({"objetivo": "x", "panel": 0})),
-        ("mycelium_abrir", json!({"objetivo": "x", "panel": "2"})),
+        ("mycelium_abrir", json!({"objetivo": "x", "panel": "   "})),
+        ("mycelium_abrir", json!({"objetivo": "x", "panel": true})),
         ("mycelium_abrir", json!({"objetivo": "x", "panel": 1.5})),
         ("mycelium_dividir", json!({})),
         ("mycelium_dividir", json!({"direccion": "izquierda"})),
@@ -442,6 +521,9 @@ fn los_argumentos_invalidos_de_panel_y_dividir_no_llegan_a_la_app() {
     }
     // Bien formados, sin app: llegan al canal.
     let (t, _) = llamar(&mut e, "mycelium_dividir", json!({"direccion": "abajo", "panel": 2, "objetivo": "Plan", "ir_a": {"texto": "x"}}));
+    assert!(t.starts_with("APP_CERRADA"), "{t}");
+    // Una posición (`FUN-S-44`) también: qué panel es lo decide la app.
+    let (t, _) = llamar(&mut e, "mycelium_abrir", json!({"objetivo": "Plan", "panel": "arriba a la izquierda"}));
     assert!(t.starts_with("APP_CERRADA"), "{t}");
 }
 
