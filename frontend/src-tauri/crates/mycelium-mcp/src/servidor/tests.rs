@@ -522,3 +522,48 @@ fn los_argumentos_invalidos_de_la_bandeja_no_llegan_a_la_app() {
     let (t, err) = llamar(&mut e, "mycelium_bandeja", json!({"bandeja": "personal"}));
     assert!(err && t.starts_with("APP_CERRADA") && t.contains("no la vacíes a mano"), "{t}");
 }
+
+// ── Instrucciones de IA desactualizadas (`FUN-S-45`) ───────────────────────
+
+#[test]
+fn las_instrucciones_viejas_se_avisan_en_el_estado() {
+    use crate::herramientas::redactar_instrucciones;
+    let t = redactar_instrucciones(&json!({"instrucciones": {
+        "instalada": "2.5.0", "disponible": "2.6.0", "desactualizadas": true, "mas_nuevas": false}}));
+    assert_eq!(
+        t,
+        "\nLas instrucciones de IA de este vault son de la v2.5.0 y Mycelium trae la v2.6.0: pueden faltarte \
+         herramientas o parámetros nuevos. Sugiérele al usuario actualizarlas (Configuración → Vault o el aviso \
+         en Actividad de la IA)."
+    );
+    let t = redactar_instrucciones(&json!({"instrucciones": {
+        "instalada": "2.7.0", "disponible": "2.6.0", "desactualizadas": false, "mas_nuevas": true}}));
+    assert!(t.contains("v2.7.0, más nuevas que las de esta app (v2.6.0)"), "{t}");
+    assert!(t.contains("actualizar Mycelium"), "{t}");
+    // Al día, sin instrucciones (`null`) o una app que no lo manda: nada.
+    for r in [
+        json!({"instrucciones": {"instalada": "2.6.0", "disponible": "2.6.0", "desactualizadas": false, "mas_nuevas": false}}),
+        json!({"instrucciones": null}),
+        json!({}),
+    ] {
+        assert_eq!(redactar_instrucciones(&r), "", "{r}");
+    }
+}
+
+#[test]
+fn el_estado_trae_el_aviso_de_instrucciones_de_punta_a_punta() {
+    let mut e = con_vault("estado-instrucciones", Some(true));
+    let _app = levantar(e.canal.clone(), |p| {
+        Some(json!({"id": p["id"], "ok": true, "resultado": {
+            "etapa": "lista", "paneles": [],
+            "instrucciones": {"instalada": "2.5.0", "disponible": "2.6.0", "desactualizadas": true, "mas_nuevas": false}}}))
+    });
+    let (t, err) = llamar(&mut e, "mycelium_estado", json!({}));
+    assert!(!err, "{t}");
+    let lineas: Vec<&str> = t.lines().collect();
+    assert!(lineas[0].starts_with("app: abierta · control: encendido"), "{t}");
+    assert!(
+        lineas[1].starts_with("Las instrucciones de IA de este vault son de la v2.5.0"),
+        "va debajo de la cabecera: {t}"
+    );
+}

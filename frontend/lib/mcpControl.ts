@@ -61,6 +61,8 @@ import { FRAMEWORK_IA_VERSION } from "@/lib/ia/versionFramework";
 import { ARCHIVO_SETTINGS, RUTA_HOOK, fusionarSettings, quitarDeSettings, scriptLibre } from "@/lib/ia/hookMvRm";
 import { ARCHIVO_MCP_JSON, fusionarMcpJson, quitarDeMcpJson } from "@/lib/ia/mcpJson";
 import { HOOK_MV_RM, MARCADOR_VERSION_IA } from "@/lib/ia/hookMvRmGenerado";
+import { instruccionesParaIa } from "@/lib/ia/instruccionesInstaladas";
+import { useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { mismaRuta, resolverObjetivo, resolverSalto, tipoParaIa, type IrA } from "@/lib/mcpControlLogica";
 import { tabIdDeArchivo, rutaDeTabArchivo } from "@/lib/otrosArchivos";
 import {
@@ -430,6 +432,9 @@ function estado(sesionId: string | null) {
     paneles: paneles(),
     // Las otras sesiones, sus reservas y lo cambiado recién (`FUN-L-31`).
     coordinacion: sesionesIa.coordinacionPara(sesionId),
+    // Si las instrucciones de IA del vault son de otra versión que las de la
+    // app (`FUN-S-45`); `null` sin instrucciones. Lo redacta el servidor.
+    instrucciones: instruccionesParaIa(useInstruccionesIaStore.getState().estado),
   };
 }
 

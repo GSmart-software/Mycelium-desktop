@@ -13,11 +13,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { usePanelLayoutStore, type RailSection } from "@/stores/panelLayoutStore";
 import { GRAPH_TAB_ID } from "@/lib/pestanas";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useSesionesIaStore } from "@/stores/sesionesIaStore";
+import { hayAvisoInstrucciones, useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { IconoGrafo } from "./IconoGrafo";
 import styles from "./Rail.module.css";
 
@@ -66,16 +68,34 @@ export function Rail() {
   // sobre el ícono de la actividad, y quiénes en el título.
   const sesionesIa = useSesionesIaStore((s) => s.sesiones);
   const conectadas = Object.values(sesionesIa);
+  // Las instrucciones de IA del vault, más viejas que las de la app (`FUN-S-45`):
+  // un punto en el ícono, para que se vea aunque el panel esté cerrado.
+  const avisoInstrucciones = useInstruccionesIaStore(hayAvisoInstrucciones);
   const tituloActividad =
-    conectadas.length === 0
+    (conectadas.length === 0
       ? ACTIVIDAD.label
       : `${ACTIVIDAD.label} · ${conectadas.length === 1 ? "1 sesión conectada" : `${conectadas.length} sesiones conectadas`}: ` +
-        conectadas.map((s) => s.tarea ?? `${s.id} (sin tarea declarada)`).join("; ");
+        conectadas.map((s) => s.tarea ?? `${s.id} (sin tarea declarada)`).join("; ")) +
+    (avisoInstrucciones ? " · Las instrucciones de IA de este vault están desactualizadas" : "");
+
+  // `.claude/` no pasa por el watcher: al volver a la ventana se relee, por si
+  // las instrucciones se actualizaron desde otra ventana o a mano.
+  useEffect(() => {
+    let ultima = 0;
+    const alEnfocar = () => {
+      if (Date.now() - ultima < 10_000) return;
+      ultima = Date.now();
+      void useInstruccionesIaStore.getState().comprobar();
+    };
+    window.addEventListener("focus", alEnfocar);
+    return () => window.removeEventListener("focus", alEnfocar);
+  }, []);
 
   const renderButton = (
     { section, icon: Icon, label }: (typeof TOP_ITEMS)[number],
     titulo = label,
     insignia = 0,
+    punto = false,
   ) => (
     <button
       key={section}
@@ -92,6 +112,7 @@ export function Rail() {
           {insignia > 9 ? "9+" : insignia}
         </span>
       )}
+      {punto && <span className={styles.puntoAviso} data-con-insignia={insignia > 0 || undefined} aria-hidden />}
     </button>
   );
 
@@ -119,7 +140,7 @@ export function Rail() {
         >
           <Terminal size={20} aria-hidden />
         </button>
-        {renderButton(ACTIVIDAD, tituloActividad, conectadas.length)}
+        {renderButton(ACTIVIDAD, tituloActividad, conectadas.length, avisoInstrucciones)}
       </div>
       <div className={styles.spacer} />
       <div className={styles.group}>

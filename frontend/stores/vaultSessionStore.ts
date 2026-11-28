@@ -33,6 +33,7 @@ import { useCssStore } from "@/stores/cssStore";
 import { useGraphStore } from "@/stores/graphStore";
 import { usePrefsVaultStore } from "@/stores/prefsVaultStore";
 import { useActividadIaStore } from "@/stores/actividadIaStore";
+import { useInstruccionesIaStore } from "@/stores/instruccionesIaStore";
 import { useSesionesIaStore } from "@/stores/sesionesIaStore";
 import { useRecordatoriosStore } from "@/stores/recordatoriosStore";
 import { useTabsStore } from "@/stores/tabsStore";
@@ -167,6 +168,8 @@ export const useVaultSessionStore = create<VaultSessionState>((set, get) => ({
     void useRecordatoriosStore.getState().cargar(null);
     // Y su registro de actividad de la IA (`FUN-L-09`): es de aquel vault.
     void useActividadIaStore.getState().cargar(null);
+    // Y la versión de sus instrucciones de IA (`FUN-S-45`).
+    void useInstruccionesIaStore.getState().abrir(null);
     // Y sus sesiones de IA y reservas (`FUN-L-31`): eran de aquel canal.
     useSesionesIaStore.getState().vaciar();
     // Y las consolas del vault anterior (`DEF-099`): sus procesos tienen el cwd
@@ -264,6 +267,9 @@ export const useVaultSessionStore = create<VaultSessionState>((set, get) => ({
       void useRecordatoriosStore.getState().cargar(ruta);
       // El registro de actividad de la IA (`FUN-L-09`, Parte 2), igual.
       void useActividadIaStore.getState().cargar(ruta);
+      // Si sus instrucciones de IA son más viejas que las de la app (`FUN-S-45`):
+      // el aviso de «Actividad de la IA» y su marca en el rail.
+      void useInstruccionesIaStore.getState().abrir(ruta);
       set({ rutaActual: ruta, abriendo: false, progreso: null, error: null });
       return true;
     } catch (error) {
@@ -326,6 +332,7 @@ export const useVaultSessionStore = create<VaultSessionState>((set, get) => ({
     // Vaciar el store detiene también el programador.
     void useRecordatoriosStore.getState().cargar(null);
     void useActividadIaStore.getState().cargar(null);
+    void useInstruccionesIaStore.getState().abrir(null);
     useSesionesIaStore.getState().vaciar();
     set({ rutaActual: null, rutaAbriendo: null, etapa: null, progreso: null, error: null });
   },
