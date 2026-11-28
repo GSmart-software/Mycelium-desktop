@@ -39,6 +39,45 @@ import { notaDeRuta } from "@/lib/rutasNotas";
 import { useVaultStore, type TreeNota } from "@/stores/vaultStore";
 
 /**
+ * El HTML de las últimas notas renderizadas para una tarjeta, por su texto.
+ *
+ * Con el nivel de detalle del lienzo (`DEF-183`), una tarjeta de nota pasa a la
+ * vista liviana al alejarse y vuelve a la completa al acercarse. Su `useMemo`
+ * se pierde en el camino, y cada vuelta convertía la nota entera otra vez: en
+ * el lienzo del usuario (102 notas, 763 KB) eso fueron 8,5 s de 26 en un ir y
+ * venir de zoom, medidos con el perfilador en WebView2. `renderNota` es pura
+ * sobre el texto (los enlaces rotos se marcan después, en el DOM), así que el
+ * texto alcanza como clave: si la nota cambia, la clave es otra.
+ *
+ * Se descartan las menos usadas cuando pasan de `MAX_RECORDADAS` entradas o de
+ * `MAX_CARACTERES` de texto: un lienzo grande entra entero, y la memoria queda
+ * acotada aunque se abran muchos.
+ */
+const recordadas = new Map<string, string>();
+let caracteresRecordados = 0;
+const MAX_RECORDADAS = 400;
+const MAX_CARACTERES = 4_000_000;
+
+function renderNotaRecordada(texto: string): string {
+  const previo = recordadas.get(texto);
+  if (previo !== undefined) {
+    // Al final del `Map` = la más reciente.
+    recordadas.delete(texto);
+    recordadas.set(texto, previo);
+    return previo;
+  }
+  const html = renderNota(texto);
+  recordadas.set(texto, html);
+  caracteresRecordados += texto.length;
+  while (recordadas.size > MAX_RECORDADAS || caracteresRecordados > MAX_CARACTERES) {
+    const masVieja = recordadas.keys().next().value as string;
+    recordadas.delete(masVieja);
+    caracteresRecordados -= masVieja.length;
+  }
+  return html;
+}
+
+/**
  * El HTML del cuerpo de una tarjeta, según su tipo. Lo usan la tarjeta del
  * lienzo (`CanvasView`) y la vista previa embebida: una sola definición de qué
  * se muestra y por qué camino saneado pasa.
@@ -49,8 +88,8 @@ import { useVaultStore, type TreeNota } from "@/stores/vaultStore";
  * - `group`: nada (el rótulo es su etiqueta).
  */
 export function htmlDeTarjeta(nodo: Nodo, contenido: string | null): string {
-  if (nodo.tipo === "text") return renderNota(nodo.texto ?? "");
-  if (nodo.tipo === "file") return renderNota(contenido ?? "");
+  if (nodo.tipo === "text") return renderNotaRecordada(nodo.texto ?? "");
+  if (nodo.tipo === "file") return renderNotaRecordada(contenido ?? "");
   // Escapado y validado: la URL viene cruda del archivo (`DEF-159`).
   if (nodo.tipo === "link") return htmlTarjetaEnlace(nodo.url, destinoExterno);
   return "";

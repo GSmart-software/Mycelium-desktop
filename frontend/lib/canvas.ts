@@ -570,13 +570,17 @@ export function ordenDePintado(nodos: readonly Nodo[]): { grupos: Nodo[]; tarjet
 
 /**
  * Escala mínima a la que una tarjeta de nota dibuja su nota entera. El cuerpo
- * de la tarjeta usa 0,82rem (≈ 13 px): a 0,5 queda en ≈ 6,5 px en pantalla, el
- * límite de lo que todavía se lee; por debajo, el Markdown renderizado es una
- * textura gris que cuesta pintar y no se puede leer. El tamaño de la letra en
+ * de la tarjeta usa 0,82rem (≈ 13 px): a 0,75 queda en ≈ 10 px en pantalla, que
+ * se lee sin esfuerzo; por debajo, el Markdown renderizado es una textura gris
+ * que cuesta pintar y casi no se lee. Empezó en 0,5 con media pantalla de
+ * margen, y medido en WebView2 con el lienzo del usuario (2026-11-27) era
+ * demasiado: en una ventana normal eso abarcaba medio lienzo, y al cruzar el
+ * umbral decenas de notas se pintaban a la vez (cuadros de más de 1 s). Con
+ * 0,75 y un cuarto de pantalla de margen entran unas pocas. El tamaño de la letra en
  * pantalla depende solo de la escala, no del tamaño de la tarjeta, así que una
  * tarjeta grande no lo cambia: más área no hace más legible la letra.
  */
-export const ESCALA_DETALLE = 0.5;
+export const ESCALA_DETALLE = 0.75;
 
 /**
  * Qué tarjetas de nota dibujan su contenido completo con esta cámara: las que
@@ -594,7 +598,7 @@ export function nodosConDetalle(
   pantalla: { ancho: number; alto: number },
   opciones: { margen?: number; escalaMin?: number } = {},
 ): string[] {
-  const { margen = 0.5, escalaMin = ESCALA_DETALLE } = opciones;
+  const { margen = 0.25, escalaMin = ESCALA_DETALLE } = opciones;
   if (vista.escala < escalaMin || pantalla.ancho <= 0 || pantalla.alto <= 0) return [];
   const mx = pantalla.ancho * margen;
   const my = pantalla.alto * margen;

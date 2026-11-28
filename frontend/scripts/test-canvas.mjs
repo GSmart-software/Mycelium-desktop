@@ -566,7 +566,7 @@ test("lugarLibre: sin lugar en el radio de búsqueda, devuelve el punto pedido",
 test("nodosConDetalle: solo las de nota a la vista (o cerca) y con escala legible", () => {
   const nodos = [
     en("vista", "file", 0, 0, 260, 150),
-    en("cerca", "file", 1100, 0, 260, 150), // fuera de 1000 px, dentro del margen de media pantalla
+    en("cerca", "file", 1100, 0, 260, 150), // fuera de 1000 px, dentro del margen de un cuarto de pantalla
     en("lejos", "file", 5000, 0, 260, 150),
     en("texto", "text", 0, 0, 260, 150),
     en("grupo", "group", 0, 0, 900, 900),
