@@ -2,7 +2,7 @@
 titulo: Terminal
 tema: Herramientas
 solo: desktop
-sinonimos: [consola, shell, powershell, bash, línea de comandos, git, consola estilada, efectos, crt]
+sinonimos: [consola, shell, powershell, bash, línea de comandos, git, consola estilada, efectos, crt, arrastrar, soltar, ruta de un archivo]
 ---
 
 La **terminal** es una consola de tu sistema dentro de Mycelium: la misma shell que abrirías
@@ -27,6 +27,26 @@ una herramienta de línea de comandos, como un asistente de IA que lee y escribe
 Cerrar la pestaña **no** termina la consola: sigue corriendo y vuelve a abrirse desde el
 panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombras y le das un
 color, que marca su pestaña.
+
+## Soltar un archivo para escribir su ruta
+
+Arrastra un archivo o una carpeta sobre la consola y suéltalo: se escribe su **ruta
+completa**, como en Windows Terminal. Sirve, por ejemplo, para pasarle una imagen a un
+asistente de IA sin copiar la ruta a mano.
+
+- Vale desde el **explorador de tu sistema** (el Explorador de Windows, el escritorio) y desde
+  Mycelium: una nota, una carpeta o un archivo del **explorador del vault**, o una
+  **pestaña** del área de trabajo.
+- Si la ruta tiene espacios o símbolos, va entre comillas. Con varios archivos, las rutas
+  quedan separadas por un espacio.
+- **No se ejecuta nada**: la ruta queda escrita y sigues escribiendo el comando.
+- Mientras arrastras algo que se puede soltar, la consola muestra «Soltar para escribir la
+  ruta». Sobre los bordes de la pestaña, una nota o una pestaña siguen dividiendo el panel,
+  como siempre.
+
+> [!info] Desde fuera de la app, solo en Windows
+> En macOS y Linux, soltar un archivo que viene de fuera de Mycelium no escribe nada. Lo que
+> arrastras desde el explorador del vault funciona igual en todos los sistemas.
 
 ## Configuración
 

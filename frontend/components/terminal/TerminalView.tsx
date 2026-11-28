@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import {
   abrirPty,
+  escribirRutas,
   fueTocadaEstaCorrida,
   getInstancia,
   ocultarPestanas,
 } from "@/lib/terminal";
+import {
+  puedeSoltarExternos,
+  rutaDeArrastreInterno,
+  rutaDeVault,
+  rutasDeArchivosExternos,
+  useConsolaDestino,
+} from "@/lib/consolaSoltar";
 import { autoFocoPermitido } from "@/lib/teclado/focoDom";
 import { useTabsStore } from "@/stores/tabsStore";
 import { useTerminalStore } from "@/stores/terminalStore";
@@ -32,6 +40,12 @@ export function TerminalView({ termId }: { termId: string }) {
   const micelio = parte(prefs.efectoMicelio);
   const pulso = (aurora || micelio) && prefs.efectoPulso;
   const colores = parte(prefs.efectoColores);
+  // Soltar archivos escribe su ruta (`FUN-S-43`): la indicación se ve con un
+  // arrastre HTML5 válido encima (archivos de afuera, una pestaña, un archivo
+  // que no es nota) o cuando el explorador apunta acá una nota o una carpeta.
+  const [soltandoHtml, setSoltandoHtml] = useState(false);
+  const destinoDelArbol = useConsolaDestino((s) => s.termId === termId);
+  const soltando = soltandoHtml || destinoDelArbol;
 
   useEffect(() => {
     const cont = contRef.current;
@@ -93,6 +107,60 @@ export function TerminalView({ termId }: { termId: string }) {
     };
     cont.addEventListener("paste", alPegar, true);
 
+    // Soltar archivos escribe su ruta (`FUN-S-43`, ver `lib/consolaSoltar.ts`).
+    // Solo el arrastre HTML5: el del árbol (dnd-kit) no llega acá y lo resuelve
+    // el explorador. Lo que no es un archivo —un texto seleccionado, una
+    // pestaña del grafo— no se toca: sigue de largo como hasta ahora.
+    //
+    // La zona es el área de texto con su aire alrededor (`.terminal`), y no
+    // solo la grilla: soltar en el margen también vale.
+    const zona = cont.parentElement ?? cont;
+    const clasificar = (datos: DataTransfer | null): "externo" | "interno" | null => {
+      if (!datos) return null;
+      // Archivos de afuera: solo donde WebView2 sabe dar su ruta (Windows).
+      if (datos.types.includes("Files")) return puedeSoltarExternos() ? "externo" : null;
+      return rutaDeArrastreInterno(datos, false) !== null ? "interno" : null;
+    };
+    const alSobrevolar = (ev: DragEvent) => {
+      const tipo = clasificar(ev.dataTransfer);
+      if (!tipo) return;
+      // `preventDefault` es lo que hace de la consola un destino válido.
+      ev.preventDefault();
+      if (tipo === "externo" && ev.dataTransfer) ev.dataTransfer.dropEffect = "copy";
+      setSoltandoHtml(true);
+    };
+    const alSalir = (ev: DragEvent) => {
+      // `dragleave` también salta al pasar de un hijo a otro: solo cuenta si
+      // el puntero dejó el contenedor.
+      if (ev.relatedTarget instanceof Node && zona.contains(ev.relatedTarget)) return;
+      setSoltandoHtml(false);
+    };
+    const alSoltar = (ev: DragEvent) => {
+      setSoltandoHtml(false);
+      const datos = ev.dataTransfer;
+      const tipo = clasificar(datos);
+      if (!tipo || !datos) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (tipo === "externo") {
+        // Los `File` se copian YA: al terminar el evento, `dataTransfer` se vacía.
+        const archivos = Array.from(datos.files);
+        void rutasDeArchivosExternos(archivos).then((rutas) => escribirRutas(termId, rutas));
+        return;
+      }
+      const relativa = rutaDeArrastreInterno(datos, true);
+      const absoluta = relativa !== null ? rutaDeVault(relativa) : null;
+      if (absoluta) escribirRutas(termId, [absoluta]);
+    };
+    // Un arrastre que termina o se cancela en otra parte no pasa por `dragleave`.
+    const alTerminar = () => setSoltandoHtml(false);
+    zona.addEventListener("dragenter", alSobrevolar, true);
+    zona.addEventListener("dragover", alSobrevolar, true);
+    zona.addEventListener("dragleave", alSalir, true);
+    zona.addEventListener("drop", alSoltar, true);
+    window.addEventListener("dragend", alTerminar);
+    window.addEventListener("drop", alTerminar);
+
     void abrirPty(termId).then(() => ajustar());
     // Al abrirla, el teclado va a la shell; salvo que se haya llegado con
     // Ctrl+Tab, Ctrl+W o cambiando de panel (`FUN-XL-04`): ahí la consola queda
@@ -105,6 +173,13 @@ export function TerminalView({ termId }: { termId: string }) {
     return () => {
       observer.disconnect();
       cont.removeEventListener("paste", alPegar, true);
+      zona.removeEventListener("dragenter", alSobrevolar, true);
+      zona.removeEventListener("dragover", alSobrevolar, true);
+      zona.removeEventListener("dragleave", alSalir, true);
+      zona.removeEventListener("drop", alSoltar, true);
+      window.removeEventListener("dragend", alTerminar);
+      window.removeEventListener("drop", alTerminar);
+      setSoltandoHtml(false);
     };
   }, [termId]);
 
@@ -134,8 +209,15 @@ export function TerminalView({ termId }: { termId: string }) {
       {aurora && <div className={styles.luces} aria-hidden />}
       {micelio && <div className={styles.micelio} aria-hidden />}
       {parte(prefs.efectoParticulas) && <div className={styles.esporas} aria-hidden />}
-      <div className={styles.terminal}>
+      {/* `data-consola-soltar`: el explorador ubica la consola por geometría
+          al arrastrar una nota o una carpeta del árbol (`FUN-S-43`). */}
+      <div className={styles.terminal} data-consola-soltar={termId}>
         <div ref={contRef} className={styles.grilla} />
+        {soltando && (
+          <div className={`${styles.soltar} mic-consola-soltar`} aria-hidden>
+            <span className={styles.soltarTexto}>Soltar para escribir la ruta</span>
+          </div>
+        )}
       </div>
       {parte(prefs.efectoTubo) && <div className={styles.crt} aria-hidden />}
       {parte(prefs.efectoBorde) && <div className={styles.marco} aria-hidden />}
