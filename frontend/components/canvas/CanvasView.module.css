@@ -461,3 +461,22 @@
   background: color-mix(in srgb, var(--mic-canvas-color) 30%, transparent);
   color: var(--mic-text-primary);
 }
+
+/* ── Vista liviana de una tarjeta de nota (`DEF-183`) ─────────────────────
+   De lejos o fuera de la vista, la tarjeta muestra solo el principio de la nota
+   en texto plano: un único nodo de texto en vez del Markdown renderizado. Mismo
+   relleno que el cuerpo completo y el tamaño lo fija la tarjeta, así que pasar
+   de una vista a la otra no mueve nada. Sin scroll: la rueda encima hace zoom. */
+.cuerpoLiviano {
+  overflow: hidden;
+}
+
+.resumen {
+  margin: 0;
+  font-family: var(--mic-preview-font-family);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--mic-text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
