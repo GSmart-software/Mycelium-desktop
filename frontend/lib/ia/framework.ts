@@ -192,6 +192,13 @@ import { FRAMEWORK_IA_VERSION } from "./versionFramework";
  *   personales (`FUN-M-60`, `mycelium-calendario`); `mycelium_salud` deja afuera
  *   las carpetas que empiezan con punto, como el panel (`FUN-S-38`).
  *   **Minor**: la IA gana herramientas y parámetros nuevos.
+ * - 2.7.0 — **la posición de los paneles** (`FUN-S-44`): `mycelium_estado` y
+ *   las respuestas de `abrir` y `dividir` dicen dónde está cada panel
+ *   («izquierda», «arriba a la derecha»), y `panel` acepta esa posición además
+ *   del número (con `AMBIGUO` si coincide con varios). Y abrir en otro panel que
+ *   el del foco la deja a la vista ahí sin mover el foco (`DEF-188`). En la
+ *   sección «Paneles y pantalla dividida» de `mycelium-operar`.
+ *   **Minor**: la IA gana una forma nueva de elegir el panel.
  */
 // El número vive en `versionFramework.ts` (para que `mcpControl` lo use sin
 // cargar este módulo, `FUN-M-58`): al subir de versión, se cambia allá.

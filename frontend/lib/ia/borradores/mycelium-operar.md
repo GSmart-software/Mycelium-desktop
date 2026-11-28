@@ -66,15 +66,23 @@ vuelve a `grep`, sabiendo que no aplica el criterio del índice.
 
 ## Paneles y pantalla dividida
 
-- Cada panel tiene un **número**, desde 1, que informan `mycelium_estado` y la respuesta
-  de `mycelium_abrir`. Con `panel`, `mycelium_abrir` abre en ese panel (sin él, en el que
-  tiene el foco). Si lo pedido ya estaba abierto en otro panel, queda en los dos, como
-  cuando lo hace el usuario. Un número que no existe contesta `PANEL_INEXISTENTE` con la
-  lista de paneles: no se crea ninguno.
+- Cada panel tiene un **número**, desde 1, y una **posición** en la pantalla
+  («izquierda», «derecha», «arriba», «abajo», «centro», o combinadas como «arriba a la
+  izquierda»; «único» si hay uno solo). Los dos los informan `mycelium_estado` y las
+  respuestas de `mycelium_abrir` y `mycelium_dividir`.
+- En `panel`, `mycelium_abrir` y `mycelium_dividir` aceptan el número **o** la posición,
+  escrita con soltura («derecha», «Arriba Izquierda», «superior izquierdo», «la de
+  abajo»). Si la posición coincide con más de un panel contesta `AMBIGUO` con los
+  candidatos: repite con el número. Un panel que no existe contesta `PANEL_INEXISTENTE`
+  con la lista: no se crea ninguno. Sin `panel`, abre en el que tiene el foco.
+- **Abrir en otro panel se ve**: si `panel` no es el del foco, la pestaña queda a la vista
+  en ese panel y el foco del usuario sigue en el suyo; la respuesta dice dónde quedó cada
+  cosa. En el panel del foco, sin `foco: true`, queda en segundo plano. Si lo pedido ya
+  estaba abierto en otro panel, queda en los dos, como cuando lo hace el usuario.
 - `mycelium_dividir` parte un panel en dos (`direccion`: `derecha` o `abajo`) con el mismo
   mecanismo que usa el usuario, y puede abrir un `objetivo` en el panel nuevo (con `ir_a`,
-  como `mycelium_abrir`). Devuelve el número del panel nuevo. No le roba el foco salvo
-  `foco: true`.
+  como `mycelium_abrir`), que ya lo muestra. Devuelve el número del panel nuevo. No le
+  roba el foco salvo `foco: true`.
 - La disposición de la pantalla es **del usuario**: dividí cuando te lo pide o cuando
   mostrar dos cosas lado a lado es justo lo que hace falta, no para acomodarte. Mover
   pestañas entre paneles, cerrar o juntar paneles no se hace por el MCP.
