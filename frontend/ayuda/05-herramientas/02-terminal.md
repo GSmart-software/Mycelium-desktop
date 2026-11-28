@@ -24,6 +24,9 @@ una herramienta de línea de comandos, como un asistente de IA que lee y escribe
 3. La pestaña se mueve, se divide y se ancla como cualquier otra, y puedes tener varias
    consolas a la vez.
 
+**Shift+Enter** escribe un salto de línea sin enviar, como en Windows Terminal: sirve, por
+ejemplo, para escribir un mensaje de varias líneas a un asistente de IA de consola.
+
 Cerrar la pestaña **no** termina la consola: sigue corriendo y vuelve a abrirse desde el
 panel. Para terminarla, **Finalizar** en el panel. Ahí también la renombras y le das un
 color, que marca su pestaña.
