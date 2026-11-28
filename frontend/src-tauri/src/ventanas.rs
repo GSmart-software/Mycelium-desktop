@@ -247,7 +247,7 @@ pub async fn abrir_vault_en_ventana(
     // navegando por el cliente, sin pedirle el archivo a nadie.
     let pagina = if tauri::is_dev() { "/workspace" } else { "workspace.html" };
     let destino = format!("{pagina}?vault={}", urlencode(&ruta));
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(destino.into()))
+    crate::pellizco::con_pellizco(WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(destino.into())))
         .title("Mycelium")
         // Sin la barra del sistema: el marco lo dibuja la app (FUN-M-31). La
         // sombra se mantiene para que la ventana siga despegada del fondo.
@@ -321,7 +321,7 @@ pub fn abrir_ventana_de_seleccion(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         let label = format!("vault-{}", sufijo_unico());
         let pagina = if tauri::is_dev() { "/vaults" } else { "vaults.html" };
-        let _ = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(pagina.into()))
+        let _ = crate::pellizco::con_pellizco(WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(pagina.into())))
             .title("Mycelium")
             .decorations(false)
             .shadow(true)

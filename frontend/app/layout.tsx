@@ -12,6 +12,7 @@ import {
 import { AyudaGlobal } from "@/components/ayuda/AyudaGlobal";
 import { BordesRedimensionado } from "@/components/ventana/BordesRedimensionado";
 import { ReposoVentana } from "@/components/ventana/ReposoVentana";
+import { SinZoomDePagina } from "@/components/ventana/SinZoomDePagina";
 import { DevToolsHotkey } from "@/components/workspace/DevToolsHotkey";
 // KaTeX y Excalidraw no van acá (`FUN-M-58`): se cargaban en todas las rutas,
 // también en el selector de vaults. KaTeX va con el workspace
@@ -112,6 +113,8 @@ export default function RootLayout({
         <BordesRedimensionado />
         {/* Sin foco o minimizada, la ventana deja de animar (`DEF-174`). */}
         <ReposoVentana />
+        {/* El pellizco y Ctrl+rueda nunca agrandan toda la interfaz (`DEF-187`). */}
+        <SinZoomDePagina />
         {children}
         {/* La ayuda (F1), en toda la app: también en el selector de vaults. */}
         <AyudaGlobal />

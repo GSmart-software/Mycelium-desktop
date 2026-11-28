@@ -30,7 +30,8 @@ Las tarjetas se mueven arrastrando su barra de arriba (en una de nota lleva su t
 una de texto es una franja fina, sin rótulo) y cambian de tamaño desde la esquina de abajo
 a la derecha. El texto de una tarjeta se lee con la fuente del preview y se escribe con la
 del editor, las dos de **Configuración → Tipografía**. Arrastrando el fondo te mueves por el lienzo, y la rueda del mouse
-acerca y aleja; el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
+acerca y aleja, igual que el **pellizco del touchpad** (separar dos dedos acerca y juntarlos
+aleja); el botón con el porcentaje vuelve al 100 %. Con una tarjeta seleccionada
 aparecen los colores y **Borrar** (o la tecla **Supr**). Los cambios se guardan solos.
 
 Con el teclado, las tarjetas se recorren con las **flechas** (o **Ctrl**+flechas),

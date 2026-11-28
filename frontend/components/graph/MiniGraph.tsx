@@ -762,7 +762,14 @@ export function MiniGraph({
     };
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
-      const factor = ev.deltaY < 0 ? 1.12 : 1 / 1.12;
+      // El pellizco del touchpad llega como rueda con `ctrlKey` en muchos pasos
+      // chicos (`DEF-187`): con el escalón fijo de la rueda se dispararía (y un
+      // paso con `deltaY` 0 alejaría). Con Ctrl el factor es continuo, como en
+      // el visor de imágenes; la rueda sola sigue con su escalón.
+      const delta = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaY;
+      const factor = ev.ctrlKey
+        ? Math.exp(-Math.max(-25, Math.min(25, delta)) * 0.01)
+        : ev.deltaY < 0 ? 1.12 : 1 / 1.12;
       const rect = canvas.getBoundingClientRect();
       const mx = ev.clientX - rect.left - rect.width / 2;
       const my = ev.clientY - rect.top - rect.height / 2;

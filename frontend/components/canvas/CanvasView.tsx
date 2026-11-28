@@ -601,7 +601,16 @@ export function CanvasView({ notaId }: { notaId: string }) {
   const onWheel = (e: React.WheelEvent) => {
     const r = hostRef.current?.getBoundingClientRect();
     if (!r) return;
-    const factor = Math.exp(-e.deltaY * 0.0015);
+    // El pellizco del touchpad llega como rueda con `ctrlKey` y en muchos pasos
+    // de `deltaY` chico (`DEF-187`): con el factor de la rueda sola el zoom
+    // quedaba lentísimo. Con Ctrl va el mismo factor que el visor de imágenes,
+    // acotado por paso para que Ctrl+rueda del mouse no salte de golpe. La rueda
+    // sola no cambia. El zoom de página lo frena `SinZoomDePagina`: este
+    // manejador es de React y pasivo, no puede cancelar el evento.
+    const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    const factor = e.ctrlKey
+      ? Math.exp(-Math.max(-25, Math.min(25, delta)) * 0.01)
+      : Math.exp(-e.deltaY * 0.0015);
     marcarMovimiento();
     setVista((v) => {
       const escala = Math.min(3, Math.max(0.2, v.escala * factor));
